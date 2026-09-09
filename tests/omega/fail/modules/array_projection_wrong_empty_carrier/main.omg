@@ -1,0 +1,2 @@
+use settings;
+machine read() -> [bool; 0] { settings::Sizes::ROWS[0] }

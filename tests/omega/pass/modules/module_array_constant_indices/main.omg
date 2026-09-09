@@ -17,3 +17,7 @@ machine selected_scalar(value: Buffer<settings::Sizes::MAX + 1>) -> Buffer<3> { 
 machine root_array() -> [u64; 2] { let value: [u64; 2] = Sizes::SIZE; value }
 machine selected_array() -> [u64; 2] { let value: [u64; 2] = settings::Sizes::SIZE; value }
 machine selected_element() -> u64 { settings::Sizes::SIZE[0] }
+const ROWS: [[u8; 2]; 1] = [[7, 9]];
+const EMPTY_ROWS: [[u8; 0]; 1] = [[]];
+machine selected_row() -> [u8; 2] { ROWS[0] }
+machine selected_empty_row() -> [u8; 0] { EMPTY_ROWS[0] }

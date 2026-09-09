@@ -159,8 +159,10 @@ The CLI example above includes root, module-local and qualified array body uses.
 Literal scalar indexing of these constants retains its declared element type,
 bounds and selected indexing meaning through checking. The checked interpreter
 evaluates the copied value; Terminal production selects its closed literal leaf
-without creating constant storage. Nested integer/Boolean projections execute
-from independently decoded semantic/proof bytes. Dynamic selectors, slicing and
+without creating constant storage. Nested scalar integer/Boolean projections execute
+from independently decoded semantic/proof bytes. Array-valued projections preserve
+their complete destination shape, including empty rows, in checked evaluation;
+executable Terminal array construction remains unfinished. Dynamic selectors, slicing and
 explicitly borrowed projections still reject pending general value projection
 and view-lifetime support; an ordinary typed-local copy already supports indexing.
 Nominal aggregate body substitution remains separate. The `module_machine_indices` integration target covers distinct
