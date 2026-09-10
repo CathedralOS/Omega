@@ -23,6 +23,58 @@ design is ahead of its implementation; native support is still being completed.
 [Examples](samples/) ·
 [Contributing](#development)
 
+## Check an architecture, not just a function
+
+Build API, Authorization, and Billing independently. Require every permitted
+invocation route from API to Billing to pass through Authorization:
+
+```mermaid
+flowchart LR
+        api[API] --> authorization[Authorization] --> billing[Billing]
+        api -. rejected bypass .-> billing
+```
+
+An ordinary build-only topology library expresses the rule over verified
+component instances. Its composition is sketched here, not new Omega syntax:
+
+```text
+bind API.authorization -> Authorization.requests
+bind Authorization.billing -> Billing.requests
+require only_via({API}, {Billing}, {Authorization})
+```
+
+Adding `API -> Logging -> Billing` must fail too. Disconnecting Billing does not
+make the rule pass: `only_via` also requires a route to exist. Package names,
+matching interfaces, and a diagram alone establish neither rule.
+
+The important part is what connects this graph to the running system:
+
+- **Check independently built code.** Component evidence accounts for all entries
+    and outgoing authority, including callbacks, cleanup, and selected providers.
+    An independent consumer checks it without merging the services' source trees.
+- **Run the checker as ordinary build code.** A `build_depend` grants library
+    access to the build, not the application. Give it captured component inputs
+    and one linear output obligation, not network access or deployment credentials.
+- **Enforce the actual connections.** The installer receives the owner's required
+    policy independently of the plan, rechecks it, and establishes complete endpoint
+    bindings before allowing application entry. Publishing a plan grants no authority.
+
+Graph algorithms and codecs stay in a library. The compiler establishes complete
+component facts; the selected providers establish physical endpoint confinement.
+The first runtime customer is three checked processes with private pipes on
+Windows and macOS, not a compiler-owned distributed orchestrator.
+
+This proves a routing restriction, not that a charge was approved. Billing still
+needs authorization evidence for the exact account, amount, and operation; a
+permitted reply can still disclose a secret. Those are different contracts.
+
+**Specified, not yet implemented end to end.** The example depends on complete
+component verification and admitted installation/OS contracts; it does not claim
+to confine arbitrary native code merely by giving it a pipe.
+[Topology contract](wiki/spec/packages/topology.md) ·
+[Build isolation and outputs](wiki/spec/build/scoped_execution.md) ·
+[Implementation work](TASKS.md#checked-boundary-topology)
+
 ## Machines
 
 A machine defines behavior, its inputs, and its contract. A simple machine looks like an ordinary function or method:
