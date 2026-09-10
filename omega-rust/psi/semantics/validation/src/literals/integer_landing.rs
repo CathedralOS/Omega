@@ -111,6 +111,37 @@ pub(crate) fn evaluate_anonymous_numeric_equality(
     Some(left.value.cmp_value(&right.value).is_eq())
 }
 
+/// Select an authored Match result using only total anonymous numeric values.
+/// No runtime carrier or destination is introduced. Even a leading wildcard
+/// needs an evaluable subject: a call, prior landing, or undefined arithmetic
+/// cannot disappear merely because its value is unused. Tested patterns retain
+/// authored order; later patterns and result bodies are not evaluated here.
+/// Consumers must independently establish builtin arithmetic selection, and
+/// ordinary source checking still owns all-arm typing and coverage.
+pub fn select_anonymous_numeric_match_arm(
+    program: &TypedTrees,
+    dispatch: &typed_trees::expression::TableMatchExpression,
+    mut builtin: impl FnMut(ExpressionHandle) -> bool,
+) -> Option<ExpressionHandle> {
+    let subject = anonymous_numeric_value(program, dispatch.subject, &mut builtin)?;
+    let arms = program.expression_table.match_arms(dispatch.arms);
+    if arms.len() != dispatch.arms.len() {
+        return None;
+    }
+    for arm in arms {
+        match arm.pattern {
+            typed_trees::expression::MatchPattern::Wildcard => return Some(arm.value),
+            typed_trees::expression::MatchPattern::Value(pattern) => {
+                let pattern = anonymous_numeric_value(program, pattern, &mut builtin)?;
+                if subject.value.cmp_value(&pattern.value).is_eq() {
+                    return Some(arm.value);
+                }
+            }
+        }
+    }
+    None
+}
+
 fn integer_landing_warning(
     program: &TypedTrees,
     evaluated: &AnonymousNumericValue,

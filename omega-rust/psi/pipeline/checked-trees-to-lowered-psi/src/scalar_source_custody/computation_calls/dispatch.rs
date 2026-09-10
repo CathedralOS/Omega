@@ -14,6 +14,11 @@ pub(super) fn source_scope(
         return unsupported("computed dispatch escaped its authored operand scope");
     }
     while scope != source {
+        let selected = operand_scopes::folded_match_scope(checked, scope)?;
+        if selected != scope {
+            scope = selected;
+            continue;
+        }
         if let ExpressionNode::Cast(cast) = checked.expression_table.expression(scope)
             && checked.primitive_type_reference(cast.target_type) == Some(result_type)
         {
@@ -127,6 +132,229 @@ pub(super) fn operands(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn folded_dispatch_rejects_operations_from_an_unselected_arm() {
+        for (carrier, selected, skipped) in [
+            ("u64", "identity(7) | 8", "identity(9) | 8"),
+            ("bool", "identity(true) && true", "identity(false) && true"),
+        ] {
+            let source = format!(
+                "machine identity(value: {carrier}) -> {carrier} {{ value }}
+                 machine choose() -> {carrier} {{ match 1 {{ 1 -> {selected}, _ -> {skipped} }} }}"
+            );
+            let tokens = source_files_to_tokens::Lexer::new(&source)
+                .tokenize()
+                .unwrap();
+            let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+            let resolved =
+                syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+            let typed =
+                symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                    .unwrap();
+            let mut checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
+            let root = checked
+                .facts
+                .values
+                .scalar_computations
+                .roots
+                .iter()
+                .map(|(_, root)| root.clone())
+                .find(|root| {
+                    matches!(
+                        checked.expression_table.expression(
+                            checked
+                                .facts
+                                .values
+                                .scalar_computations
+                                .nodes
+                                .get(root.root)
+                                .authored_root
+                        ),
+                        ExpressionNode::Match(_)
+                    )
+                })
+                .expect("folded match root");
+            let authored = checked
+                .facts
+                .values
+                .scalar_computations
+                .nodes
+                .get(root.root)
+                .authored_root;
+            let ExpressionNode::Match(dispatch) = checked.expression_table.expression(authored)
+            else {
+                panic!("authored match");
+            };
+            let skipped = checked.expression_table.match_arms(dispatch.arms)[1].value;
+            let validate = |checked: &CheckedTrees| {
+                validate_computation_calls(
+                    checked,
+                    root.machine,
+                    root.state,
+                    root.statement_ordinal,
+                    root.root,
+                    authored,
+                )
+            };
+            validate(&checked).expect("selected operation source custody");
+            match &mut checked
+                .facts
+                .values
+                .scalar_computations
+                .nodes
+                .get_mut(root.root)
+                .kind
+            {
+                CheckedScalarComputationKind::Apply {
+                    source_expression, ..
+                }
+                | CheckedScalarComputationKind::Select {
+                    source_expression, ..
+                } => {
+                    *source_expression = skipped;
+                }
+                _ => panic!("retained call-bearing application or selection"),
+            }
+            assert!(
+                validate(&checked).is_err(),
+                "dead operation is not an executable descendant"
+            );
+        }
+    }
+
+    #[test]
+    fn folded_dispatch_replay_rejects_changed_selection_and_subject_meaning() {
+        let source = "machine identity(value: u64) -> u64 { value }
+            machine choose() -> u64 {
+                match 18446744073709551616 / 18446744073709551616 {
+                    1 -> identity(7), _ -> identity(9)
+                }
+            }";
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+        let typed =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let mut checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
+        let root = checked
+            .facts
+            .values
+            .scalar_computations
+            .roots
+            .iter()
+            .map(|(_, root)| root.clone())
+            .find(|root| {
+                matches!(
+                    checked.expression_table.expression(
+                        checked
+                            .facts
+                            .values
+                            .scalar_computations
+                            .nodes
+                            .get(root.root)
+                            .authored_root
+                    ),
+                    ExpressionNode::Match(_)
+                )
+            })
+            .expect("folded match root");
+        let authored = checked
+            .facts
+            .values
+            .scalar_computations
+            .nodes
+            .get(root.root)
+            .authored_root;
+        let ExpressionNode::Match(dispatch) = checked.expression_table.expression(authored).clone()
+        else {
+            panic!("authored match");
+        };
+        let validate = |checked: &CheckedTrees| {
+            validate_computation_calls(
+                checked,
+                root.machine,
+                root.state,
+                root.statement_ordinal,
+                root.root,
+                authored,
+            )
+        };
+        validate(&checked).expect("folded call retains source custody");
+        let mut arms = checked.expression_table.match_arms(dispatch.arms).to_vec();
+        let original_arms = dispatch.arms;
+        let original_selected = arms[0].value;
+        arms[0].value = arms[1].value;
+        let replaced_arms = checked.typed.expression_table.insert_match_arms(arms);
+        let ExpressionNode::Match(replaced) =
+            checked.typed.expression_table.expression_mut(authored)
+        else {
+            panic!("authored match");
+        };
+        replaced.arms = replaced_arms;
+        assert!(
+            validate(&checked).is_err(),
+            "changing selected body invalidates retained call"
+        );
+        let ExpressionNode::Match(replaced) =
+            checked.typed.expression_table.expression_mut(authored)
+        else {
+            panic!("authored match");
+        };
+        replaced.arms = original_arms;
+
+        let original_subject = checked
+            .expression_table
+            .expression(dispatch.subject)
+            .clone();
+        *checked
+            .typed
+            .expression_table
+            .expression_mut(dispatch.subject) = ExpressionNode::Boolean(true);
+        assert!(
+            validate(&checked).is_err(),
+            "changed subject type cannot retain anonymous folding"
+        );
+        *checked
+            .typed
+            .expression_table
+            .expression_mut(dispatch.subject) = checked
+            .expression_table
+            .expression(original_selected)
+            .clone();
+        assert!(
+            validate(&checked).is_err(),
+            "effectful subject cannot be skipped"
+        );
+        *checked
+            .typed
+            .expression_table
+            .expression_mut(dispatch.subject) = original_subject;
+        validate(&checked).expect("restored source custody");
+
+        assert!(
+            checked
+                .facts
+                .operators
+                .expression_use(dispatch.subject)
+                .is_none()
+        );
+        checked
+            .facts
+            .operators
+            .uses
+            .insert(checked_trees::CheckedOperatorUseFact {
+                expression: dispatch.subject,
+                status: checked_trees::CheckedOperatorResolutionStatus::Inadmissible,
+                ..Default::default()
+            });
+        assert!(
+            validate(&checked).is_err(),
+            "changed operator meaning cannot retain folded control"
+        );
+    }
 
     #[test]
     fn dispatch_replay_rejects_swapped_results_and_missing_coverage() {

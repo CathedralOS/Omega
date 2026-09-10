@@ -57,6 +57,84 @@ fn execute(
 }
 
 #[test]
+fn anonymous_numeric_match_source_fixture_replays_its_selected_call() {
+    let (_, execution) = execute(
+        include_str!(
+            "../../../../../tests/omega/pass/expressions/anonymous_numeric_match_subject/main.omg"
+        ),
+        &[],
+    );
+    assert_eq!(
+        execution.value(),
+        TerminalExecutionResult::Scalar(unsigned(7))
+    );
+}
+
+#[test]
+fn anonymous_numeric_subjects_compare_exact_values_without_a_runtime_carrier() {
+    for (subject, arms, expected) in [
+        (
+            "18446744073709551616 / 18446744073709551616",
+            "1 -> 7, _ -> 9",
+            7,
+        ),
+        ("7 / 2", "3 -> 99, 7 / 2 -> 7, _ -> 9", 7),
+        ("7 / 2", "3 -> 99, _ -> 9", 9),
+        ("0.1 * 35", "7 / 2 -> 7, _ -> 9", 7),
+        (
+            "340282366920938463463374607431768211456",
+            "0 -> 99, 340282366920938463463374607431768211456 -> 7, _ -> 9",
+            7,
+        ),
+        ("7 / 2", "14 / 4 -> 7, 7 / 2 -> 99, _ -> 9", 7),
+        ("7 / 2", "_ -> 7, 7 / 2 -> 99", 7),
+    ] {
+        let source = format!("machine choose() -> u64 {{ match {subject} {{ {arms} }} }}");
+        let (_, execution) = execute(&source, &[]);
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(unsigned(expected)),
+            "{source}"
+        );
+    }
+}
+
+#[test]
+fn anonymous_numeric_dispatch_executes_only_the_selected_named_call() {
+    for (subject, expected) in [("7 / 2", 7), ("5 / 2", 9)] {
+        let source = format!(
+            "machine identity(value: u64) -> u64 {{ value }}
+             machine choose() -> u64 {{
+                 match {subject} {{ 3 -> identity(99), 7 / 2 -> identity(7), _ -> identity(9) }}
+             }}"
+        );
+        let (module, execution) = execute(&source, &[]);
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(unsigned(expected))
+        );
+        let entry = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == module.entry)
+            .expect("entry machine");
+        let executions: u64 = entry
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter(|operation| matches!(operation.kind, OperationKind::Call { .. }))
+            .map(|operation| {
+                execution
+                    .usage()
+                    .at(FuelChargeSite::Operation(operation.id))
+                    .map_or(0, |usage| usage.executions())
+            })
+            .sum();
+        assert_eq!(executions, 1, "only the selected result invokes identity");
+    }
+}
+
+#[test]
 fn typed_integer_dispatch_keeps_ordered_overlaps_and_wildcard_coverage() {
     let source =
         "machine choose(subject: u64) -> u64 { match subject { 0 -> 7, 0 -> 99, 1 -> 8, _ -> 9 } }";
@@ -65,6 +143,59 @@ fn typed_integer_dispatch_keeps_ordered_overlaps_and_wildcard_coverage() {
         assert_eq!(
             execution.value(),
             TerminalExecutionResult::Scalar(unsigned(expected))
+        );
+    }
+}
+
+#[test]
+fn anonymous_numeric_dispatch_composes_at_ordinary_value_edges() {
+    let dispatch =
+        "match 7 / 2 { 3 -> identity(99), 14 / 4 -> identity(value), _ -> identity(98) }";
+    for (expression, expected) in [
+        (format!("({dispatch}) | 8u64"), 15),
+        (format!("8u64 | ({dispatch})"), 15),
+        (format!("identity({dispatch})"), 7),
+        (format!("({dispatch}) as u64"), 7),
+        (
+            format!("match value {{ 7 -> {dispatch}, _ -> identity(97) }}"),
+            7,
+        ),
+    ] {
+        let source = format!(
+            "machine identity(value: u64) -> u64 {{ value }}
+             machine choose(value: u64) -> u64 {{ {expression} }}"
+        );
+        let (module, execution) = execute(&source, &[unsigned(7)]);
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(unsigned(expected)),
+            "{expression}"
+        );
+        let entry = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == module.entry)
+            .expect("entry machine");
+        let calls: u64 = entry
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter(|operation| matches!(operation.kind, OperationKind::Call { .. }))
+            .map(|operation| {
+                execution
+                    .usage()
+                    .at(FuelChargeSite::Operation(operation.id))
+                    .map_or(0, |usage| usage.executions())
+            })
+            .sum();
+        assert_eq!(
+            calls,
+            if expression.starts_with("identity(") {
+                2
+            } else {
+                1
+            },
+            "selected call executes once, plus an optional outer identity: {expression}"
         );
     }
 }
