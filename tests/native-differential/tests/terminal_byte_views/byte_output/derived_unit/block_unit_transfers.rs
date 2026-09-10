@@ -47,9 +47,16 @@ fn block_unit_module() -> TerminalModule {
     module
 }
 
-fn corrupt(call: &mut machine_code::InternalUnitCallRecord, mutation: &str) {
+fn corrupt(call: &mut machine_code::InternalUnitCallRecord, mutation: &str, entry: BlockId) {
     let argument = &mut call.arguments[0];
     match mutation {
+        "entry" => {
+            argument.source =
+                machine_code::InternalUnitStructuralArgumentSourceRecord::BlockParameter {
+                    block: entry,
+                    place: PlaceId::new(151).unwrap(),
+                }
+        }
         "block" => {
             argument.source =
                 machine_code::InternalUnitStructuralArgumentSourceRecord::BlockParameter {
@@ -87,6 +94,13 @@ fn corrupt(call: &mut machine_code::InternalUnitCallRecord, mutation: &str) {
 #[test]
 fn byte_view_block_unit_transfers_publish_exact_descriptor_custody() {
     let module = block_unit_module();
+    let caller_entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap()
+        .entry;
+    assert_ne!(caller_entry, BlockId::new(135).unwrap());
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let source = std::sync::Arc::new(
             object_file::stage_optimized_relocation_free_object_container(
@@ -137,6 +151,7 @@ fn byte_view_block_unit_transfers_publish_exact_descriptor_custody() {
         .unwrap();
         image_emission::validate_installation_record(&decoded, &image).unwrap();
         for mutation in [
+            "entry",
             "block",
             "place",
             "producer",
@@ -154,7 +169,7 @@ fn byte_view_block_unit_transfers_publish_exact_descriptor_custody() {
                 .iter_mut()
                 .find(|call| call.target == reader)
                 .unwrap();
-            corrupt(call, mutation);
+            corrupt(call, mutation, caller_entry);
             assert!(
                 image_emission::validate_function_fragment_object_artifact(&source, &changed)
                     .is_err(),
@@ -170,7 +185,7 @@ fn byte_view_block_unit_transfers_publish_exact_descriptor_custody() {
                 .iter_mut()
                 .find(|call| call.machine == module.entry && call.custody.target == reader)
                 .unwrap();
-            corrupt(&mut call.custody, mutation);
+            corrupt(&mut call.custody, mutation, caller_entry);
             assert!(
                 image_emission::validate_installation_record(&changed, &image).is_err(),
                 "{mutation} on {target:?}"
