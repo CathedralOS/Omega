@@ -25,6 +25,19 @@ impl Context<'_> {
                     visited.push(handle);
                     let node = plans.nodes.get(handle);
                     match &node.kind {
+                        Computation::Dispatch { subject, arms, .. } => {
+                            pending.push(*subject);
+                            for arm in plans.dispatch_arms.span(*arms).ok_or(
+                                LoweringError::Unsupported("array operand dispatch has stale arms"),
+                            )? {
+                                if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) =
+                                    arm.pattern
+                                {
+                                    pending.push(pattern);
+                                }
+                                pending.push(arm.value);
+                            }
+                        }
                         Computation::Value(_) if node.value_source.is_valid() => {
                             sources.push(node.value_source)
                         }

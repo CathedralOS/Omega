@@ -904,6 +904,18 @@ fn infer_expression_type(
     }
     visited.push(expression);
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            let mut result = None;
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                let arm_type =
+                    infer_expression_type(program, arm.value, environment, &mut visited.clone())?;
+                if result.is_some_and(|previous| previous != arm_type) {
+                    return None;
+                }
+                result = Some(arm_type);
+            }
+            result
+        }
         ExpressionNode::Atomic(atomic) => {
             infer_expression_type(program, atomic.value, environment, visited)
         }

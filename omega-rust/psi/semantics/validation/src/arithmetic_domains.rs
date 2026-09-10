@@ -284,6 +284,11 @@ pub(crate) fn collect_exact_integer_cast_facts(
         return;
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            for child in crate::expression_types::match_children(program, *dispatch) {
+                collect_exact_integer_cast_facts(program, machine, state, child, env, facts);
+            }
+        }
         ExpressionNode::Cast(cast) => {
             if !cast.form.is_recast()
                 && cast.semantic_domain.is_empty()
@@ -573,6 +578,21 @@ pub(crate) fn check_value_narrowing(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(value) {
+        for arm in program.expression_table.match_arms(dispatch.arms) {
+            check_value_narrowing(
+                program,
+                machine,
+                state,
+                arm.value,
+                target,
+                env,
+                owner,
+                diagnostics,
+            );
+        }
+        return;
+    }
     let mut throwaway = Vec::new();
     let (interval, source) = validate_value_range(
         program,

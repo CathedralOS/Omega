@@ -31,6 +31,11 @@ impl StateValueScope<'_, '_> {
         }
         let table = &self.program.expression_table;
         match table.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                for child in crate::expression_types::match_children(self.program, *dispatch) {
+                    self.expression(child, diagnostics);
+                }
+            }
             ExpressionNode::Name(path) => {
                 let members = table.name_path_members(path.members);
                 let Some(name) = members.first() else {

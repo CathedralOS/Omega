@@ -61,6 +61,114 @@ pub(in crate::flow) fn append_predicate_context(
         expression,
         &mut occurrences,
     );
+    append_observation_context(
+        program,
+        semantic,
+        ctx,
+        state_symbol,
+        statement_index,
+        occurrences,
+        FactPayload::BooleanValue { expression, value },
+        point,
+        active_contexts,
+        active_constraints,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(in crate::flow) fn append_match_pattern_context(
+    program: &typed_trees::TypedTrees,
+    semantic: &mut FactPlan,
+    ctx: &mut FlowBuildContext,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    payload: FactPayload,
+    point: ProgramPoint,
+    active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
+    active_constraints: &mut HandleSpan<FlowConstraintRef>,
+) {
+    let Some((subject, pattern, _)) = payload.match_pattern_comparison(program) else {
+        return;
+    };
+    if !expression_is_stable_predicate(program, subject)
+        || !expression_is_stable_predicate(program, pattern)
+        || !match_input_has_builtin_meaning(program, ctx.operators, subject)
+        || !match_input_has_builtin_meaning(program, ctx.operators, pattern)
+    {
+        return;
+    }
+    let mut occurrences = Vec::new();
+    for expression in [subject, pattern] {
+        crate::contract_occurrences::append_expression_occurrences(
+            program,
+            expression,
+            &mut occurrences,
+        );
+    }
+    append_observation_context(
+        program,
+        semantic,
+        ctx,
+        state_symbol,
+        statement_index,
+        occurrences,
+        payload,
+        point,
+        active_contexts,
+        active_constraints,
+    );
+}
+
+fn match_input_has_builtin_meaning(
+    program: &typed_trees::TypedTrees,
+    operators: &checked_trees::CheckedOperatorFacts,
+    expression: ExpressionHandle,
+) -> bool {
+    let recurse = |child| match_input_has_builtin_meaning(program, operators, child);
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary) => {
+            crate::values::operator_is_builtin(operators, expression)
+                && crate::authored_selections::typed_operator_has_no_authored_selection(
+                    program, expression,
+                )
+                && recurse(binary.left)
+                && recurse(binary.right)
+        }
+        ExpressionNode::Unary(unary) => {
+            crate::values::operator_is_builtin(operators, expression)
+                && crate::authored_selections::typed_operator_has_no_authored_selection(
+                    program, expression,
+                )
+                && recurse(unary.operand)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            crate::values::operator_is_builtin(operators, expression)
+                && recurse(indexed.collection)
+                && recurse(indexed.index)
+        }
+        ExpressionNode::Member(member) => recurse(member.receiver),
+        ExpressionNode::Borrow(borrow) => recurse(borrow.target),
+        ExpressionNode::Name(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::String(_) => true,
+        _ => false,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn append_observation_context(
+    program: &typed_trees::TypedTrees,
+    semantic: &mut FactPlan,
+    ctx: &mut FlowBuildContext,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    occurrences: Vec<ExpressionHandle>,
+    payload: FactPayload,
+    point: ProgramPoint,
+    active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
+    active_constraints: &mut HandleSpan<FlowConstraintRef>,
+) {
     let mut places = Vec::new();
     for occurrence in occurrences {
         let Some(place) = crate::semantic_places::canonical_place_to_fact_place_in_state(
@@ -88,7 +196,7 @@ pub(in crate::flow) fn append_predicate_context(
             point,
             origin: FactOrigin::TransitionGuard,
             evidence: QualificationEvidence::default(),
-            payload: FactPayload::BooleanValue { expression, value },
+            payload,
         });
         semantic.append_ref(&mut refs, fact);
     }

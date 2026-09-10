@@ -9,6 +9,7 @@ use crate::scalar_graph_lowering::lower_scalar_call;
 use arena::Handle;
 use checked_trees::{CheckedScalarComputation, CheckedScalarComputationKind};
 
+mod dispatch;
 mod source_custody;
 mod structural_arguments;
 
@@ -461,6 +462,15 @@ impl<'a> Expansion<'a> {
         let plans = &self.checked.facts.values.scalar_computations;
         let node = plans.nodes.get(*handle).clone();
         let entry = match node.kind {
+            CheckedScalarComputationKind::Dispatch { subject, arms, .. } => self.dispatch(
+                subject,
+                arms,
+                result_type,
+                input_types,
+                target,
+                site,
+                active,
+            )?,
             CheckedScalarComputationKind::Value(expression) => {
                 let expression = site.bindings.expression(&expression)?;
                 if expression.scalar_type() != result_type {
@@ -709,6 +719,22 @@ fn collect_call_targets(
         }
         visited.push(handle);
         match &plans.nodes.get(handle).kind {
+            CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
+                pending.push(*subject);
+                for arm in plans
+                    .dispatch_arms
+                    .span(*arms)
+                    .ok_or(LoweringError::Unsupported(
+                        "scalar dispatch closure has stale arms",
+                    ))?
+                {
+                    if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) = arm.pattern
+                    {
+                        pending.push(pattern);
+                    }
+                    pending.push(arm.value);
+                }
+            }
             CheckedScalarComputationKind::Value(_) => {}
             CheckedScalarComputationKind::Select {
                 condition,

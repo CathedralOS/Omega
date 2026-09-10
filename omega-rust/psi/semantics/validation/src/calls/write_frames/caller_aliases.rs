@@ -448,6 +448,20 @@ pub(super) fn expression_any(
             return true;
         }
         match program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                for arm in program
+                    .expression_table
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .rev()
+                {
+                    pending.push(arm.value);
+                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                        pending.push(pattern);
+                    }
+                }
+                pending.push(dispatch.subject);
+            }
             ExpressionNode::Atomic(atomic) => pending.push(atomic.value),
             ExpressionNode::Binary(binary) => pending.extend([binary.left, binary.right]),
             ExpressionNode::Unary(unary) => pending.push(unary.operand),

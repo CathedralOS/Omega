@@ -43,6 +43,33 @@ fn typed_pair(body: &str, extra: &str) -> TypedTrees {
 
 const DECREASE: &str = "transition remaining == 0 { true -> 0 false -> scan_a(remaining - 1) }";
 
+#[test]
+fn value_dispatch_dependency_scan_retains_subject_pattern_and_all_arms() {
+    let program = typed_source(
+        "machine subject() -> u64 { 0 } machine pattern() -> u64 { 0 } machine first() -> u64 { 7 } machine second() -> u64 { 8 } machine main() -> u64 { match subject() { pattern() -> first(), _ -> second() } }",
+    );
+    let (expression, _) = program
+        .expression_table
+        .expression_entries()
+        .find(|(_, node)| matches!(node, ExpressionNode::Match(_)))
+        .expect("dispatch");
+    let mut dependencies = Vec::new();
+    super::collect_expression_dependency_symbols(&program, expression, &mut dependencies);
+    let targets = ["subject", "pattern", "first", "second"].map(|name| {
+        program
+            .expression_table
+            .expression_entries()
+            .find_map(|(_, node)| match node {
+                ExpressionNode::Call(call) if call.target.as_str() == name => {
+                    Some(call.target_symbol)
+                }
+                _ => None,
+            })
+            .expect("selected call")
+    });
+    assert_eq!(dependencies, targets);
+}
+
 fn machine_symbol(program: &TypedTrees, name: &str) -> SymbolHandle {
     program
         .machines()

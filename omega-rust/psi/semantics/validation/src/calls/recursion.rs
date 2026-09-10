@@ -165,6 +165,15 @@ fn reject_embedded_self_calls(
         reject_embedded_self_calls(program, _machine, entry_name, handle, diagnostics);
     };
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            recurse(dispatch.subject, diagnostics);
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    recurse(pattern, diagnostics);
+                }
+                recurse(arm.value, diagnostics);
+            }
+        }
         ExpressionNode::Atomic(atomic) => recurse(atomic.value, diagnostics),
         ExpressionNode::Call(call) => {
             if is_self_entry_call(program, entry_name, call) {

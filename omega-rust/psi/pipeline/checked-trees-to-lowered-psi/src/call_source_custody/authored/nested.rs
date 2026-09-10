@@ -165,6 +165,20 @@ pub(crate) fn authored_postorder(
                 children.extend([binary.left, binary.right].map(|child| (child, false, None)));
                 None
             }
+            ExpressionNode::Match(dispatch) => {
+                children.push((dispatch.subject, false, None));
+                let arms = table.match_arms(dispatch.arms);
+                if arms.len() != dispatch.arms.len() {
+                    return unsupported("nested dispatch has a stale authored arm span");
+                }
+                for arm in arms {
+                    if let checked_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                        children.push((pattern, false, None));
+                    }
+                    children.push((arm.value, false, None));
+                }
+                None
+            }
             ExpressionNode::Unary(unary) => {
                 children.push((unary.operand, false, None));
                 None

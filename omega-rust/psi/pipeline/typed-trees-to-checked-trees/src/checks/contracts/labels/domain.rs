@@ -38,6 +38,23 @@ fn instantiate_domain_expression_label(
     base_label: &str,
 ) -> String {
     match program.expression_table.expression(expression) {
+        typed_trees::expression::ExpressionNode::Match(dispatch) => {
+            let render = |value| instantiate_domain_expression_label(program, value, base_label);
+            let arms = program
+                .expression_table
+                .match_arms(dispatch.arms)
+                .iter()
+                .map(|arm| {
+                    let pattern = match arm.pattern {
+                        typed_trees::expression::MatchPattern::Value(value) => render(value),
+                        typed_trees::expression::MatchPattern::Wildcard => "_".to_owned(),
+                    };
+                    format!("{pattern} -> {}", render(arm.value))
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("match {} {{ {arms} }}", render(dispatch.subject))
+        }
         typed_trees::expression::ExpressionNode::Atomic(atomic) => format!(
             "atomic[{:?}]({})",
             atomic.ordering,

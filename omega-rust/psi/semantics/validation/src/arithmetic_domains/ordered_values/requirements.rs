@@ -56,6 +56,11 @@ pub fn validate_ordered_requirement_call_totality(
         }
         visited.push(expression);
         match program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                for child in crate::expression_types::match_children(program, *dispatch) {
+                    pending.push(child);
+                }
+            }
             ExpressionNode::Call(call) => {
                 if let Ok((machine, _)) = crate::denotational_calls::normal_return_call_candidate(
                     program,

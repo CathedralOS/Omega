@@ -1,6 +1,6 @@
 use super::static_arguments::capture as static_arguments;
 use super::*;
-use typed_trees::expression::{ExpressionNode, TableStructLiteralField};
+use typed_trees::expression::{ExpressionNode, TableMatchArm, TableStructLiteralField};
 use typed_trees::name::Identifier;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -11,6 +11,7 @@ pub(super) struct Snapshot {
     names: Vec<Identifier>,
     members: Vec<SymbolHandle>,
     fields: Vec<TableStructLiteralField>,
+    match_arms: Vec<TableMatchArm>,
     type_arguments: Vec<TypeReferenceHandle>,
 }
 
@@ -28,8 +29,24 @@ pub(super) fn capture(
     let mut names = Vec::new();
     let mut members = Vec::new();
     let mut fields = Vec::new();
+    let mut match_arms = Vec::new();
     let mut type_arguments = Vec::new();
     match node {
+        ExpressionNode::Match(dispatch) => {
+            builder.charge(dispatch.arms.count() as usize)?;
+            let arms = table.match_arms(dispatch.arms);
+            if arms.len() != dispatch.arms.count() as usize {
+                return Err(rejected("a stale match arm span"));
+            }
+            match_arms.extend_from_slice(arms);
+            arguments.push(dispatch.subject);
+            for arm in arms {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    arguments.push(pattern);
+                }
+                arguments.push(arm.value);
+            }
+        }
         ExpressionNode::ArrayLiteral(span) => {
             builder.charge(span.count() as usize)?;
             arguments.extend_from_slice(table.expression_handles(*span));
@@ -139,6 +156,7 @@ pub(super) fn capture(
         names,
         members,
         fields,
+        match_arms,
         type_arguments,
     });
     Ok(())

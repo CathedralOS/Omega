@@ -23,6 +23,51 @@ pub(super) fn check_expression<'program>(
     }
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            check_expression(
+                program,
+                machine,
+                state,
+                call_frames,
+                facts,
+                dispatch.subject,
+                diagnostics,
+            );
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    check_expression(
+                        program,
+                        machine,
+                        state,
+                        call_frames,
+                        facts,
+                        pattern,
+                        diagnostics,
+                    );
+                }
+                let mut selected_facts = facts.clone();
+                check_expression(
+                    program,
+                    machine,
+                    state,
+                    call_frames,
+                    &mut selected_facts,
+                    arm.value,
+                    diagnostics,
+                );
+                if matches!(arm.pattern, typed_trees::expression::MatchPattern::Wildcard) {
+                    break;
+                }
+            }
+            // A selected body may write, but its branch-only range facts cannot
+            // escape. Retire all possibly changed incoming storage promises.
+            let writes = call_frames.and_then(|frames| {
+                frames
+                    .expression_write_frame(machine, expression)
+                    .into_complete_paths()
+            });
+            facts.invalidate_call_writes(program, machine, state, writes.as_deref(), None);
+        }
         ExpressionNode::Atomic(atomic) => check_expression(
             program,
             machine,

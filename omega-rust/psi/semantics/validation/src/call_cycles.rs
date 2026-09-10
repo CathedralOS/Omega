@@ -221,6 +221,15 @@ fn collect_expression_dependency_symbols(
         return;
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            collect_expression_dependency_symbols(program, dispatch.subject, symbols);
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    collect_expression_dependency_symbols(program, pattern, symbols);
+                }
+                collect_expression_dependency_symbols(program, arm.value, symbols);
+            }
+        }
         ExpressionNode::Atomic(atomic) => {
             collect_expression_dependency_symbols(program, atomic.value, symbols)
         }
@@ -862,6 +871,15 @@ fn collect_exact_proof_expression_edges(
         };
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            recurse!(dispatch.subject);
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    recurse!(pattern);
+                }
+                recurse!(arm.value);
+            }
+        }
         ExpressionNode::Atomic(atomic) => recurse!(atomic.value),
         ExpressionNode::Call(call) => {
             let receiver_is_selfish = !call.receiver.is_valid()

@@ -161,6 +161,22 @@ pub(crate) fn report_cross_class_store(
     slot_noun: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
+    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(value) {
+        let mut rejected = false;
+        for arm in program.expression_table.match_arms(dispatch.arms) {
+            rejected |= report_cross_class_store(
+                program,
+                machine,
+                state,
+                arm.value,
+                target,
+                slot_context,
+                slot_noun,
+                diagnostics,
+            );
+        }
+        return rejected;
+    }
     if let Some(machine) = machine
         && let Some(actual) =
             crate::builtin_constant_array_projection_type(program, machine.symbol, value)
@@ -308,6 +324,22 @@ pub(crate) fn report_data_type_conflict(
     slot_noun: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
+    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(value) {
+        let mut rejected = false;
+        for arm in program.expression_table.match_arms(dispatch.arms) {
+            rejected |= report_data_type_conflict(
+                program,
+                machine,
+                state,
+                arm.value,
+                expected_type,
+                slot_context,
+                slot_noun,
+                diagnostics,
+            );
+        }
+        return rejected;
+    }
     let Some(expected) = concrete_data_type_name(program, expected_type) else {
         return false;
     };

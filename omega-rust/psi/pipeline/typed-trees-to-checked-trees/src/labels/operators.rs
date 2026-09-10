@@ -40,6 +40,24 @@ pub(crate) fn instantiate_operator_contract_expression_label_with_labels(
     };
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            let arms = program
+                .expression_table
+                .match_arms(dispatch.arms)
+                .iter()
+                .map(|arm| {
+                    let pattern = match arm.pattern {
+                        typed_trees::expression::MatchPattern::Value(pattern) => {
+                            instantiate(pattern)
+                        }
+                        typed_trees::expression::MatchPattern::Wildcard => "_".to_owned(),
+                    };
+                    format!("{pattern} -> {}", instantiate(arm.value))
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("match {} {{ {arms} }}", instantiate(dispatch.subject))
+        }
         ExpressionNode::Atomic(atomic) => format!(
             "atomic[{:?}]({})",
             atomic.ordering,

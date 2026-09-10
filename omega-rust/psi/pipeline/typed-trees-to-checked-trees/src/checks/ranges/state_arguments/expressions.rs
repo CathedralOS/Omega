@@ -14,6 +14,37 @@ pub(super) fn collect_state_argument_facts_from_expression(
         return;
     }
     let program = context.program;
+    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
+        collect_state_argument_facts_from_expression(context, facts, dispatch.subject, collected);
+        for arm in program.expression_table.match_arms(dispatch.arms) {
+            if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                collect_state_argument_facts_from_expression(context, facts, pattern, collected);
+            }
+            let mut selected_facts = facts.clone();
+            collect_state_argument_facts_from_expression(
+                context,
+                &mut selected_facts,
+                arm.value,
+                collected,
+            );
+            if matches!(arm.pattern, typed_trees::expression::MatchPattern::Wildcard) {
+                break;
+            }
+        }
+        let writes = context.call_frames.and_then(|frames| {
+            frames
+                .expression_write_frame(context.machine, expression)
+                .into_complete_paths()
+        });
+        facts.invalidate_call_writes(
+            program,
+            context.machine,
+            context.state,
+            writes.as_deref(),
+            None,
+        );
+        return;
+    }
     if let ExpressionNode::Call(call) = program.expression_table.expression(expression) {
         collect_state_argument_facts_from_expression(context, facts, call.receiver, collected);
         let arguments = program.expression_table.expression_handles(call.arguments);
@@ -76,6 +107,7 @@ pub(super) fn collect_state_argument_facts_from_expression(
             }
         }
         ExpressionNode::Call(_)
+        | ExpressionNode::Match(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)

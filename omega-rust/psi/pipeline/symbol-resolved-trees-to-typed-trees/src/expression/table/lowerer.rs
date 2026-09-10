@@ -152,6 +152,32 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         node: &resolved::expression::ExpressionNode,
     ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
         match node {
+            resolved::expression::ExpressionNode::Match(dispatch) => {
+                let subject = self.lower(dispatch.subject)?;
+                let mut arms = Vec::new();
+                for arm in self.source.match_arms(dispatch.arms) {
+                    let pattern = match arm.pattern {
+                        resolved::expression::MatchPattern::Value(pattern) => {
+                            typed::expression::MatchPattern::Value(self.lower(pattern)?)
+                        }
+                        resolved::expression::MatchPattern::Wildcard => {
+                            typed::expression::MatchPattern::Wildcard
+                        }
+                    };
+                    let value = self.lower(arm.value)?;
+                    arms.push(typed::expression::TableMatchArm {
+                        pattern,
+                        value,
+                        source_span: arm.source_span,
+                    });
+                }
+                let arms = self.target().insert_match_arms(arms);
+                Ok(self
+                    .target()
+                    .insert(typed::expression::ExpressionNode::Match(
+                        typed::expression::TableMatchExpression { subject, arms },
+                    )))
+            }
             resolved::expression::ExpressionNode::ArrayLiteral(values) => {
                 let values = self.lower_expression_handle_span(*values)?;
                 Ok(self

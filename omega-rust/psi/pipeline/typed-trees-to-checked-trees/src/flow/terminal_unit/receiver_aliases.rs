@@ -388,6 +388,15 @@ fn without_alias(
         }
         visited.push(expression);
         match program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                pending.push(dispatch.subject);
+                for arm in program.expression_table.match_arms(dispatch.arms) {
+                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                        pending.push(pattern);
+                    }
+                    pending.push(arm.value);
+                }
+            }
             ExpressionNode::Name(name) => {
                 if aliases.iter().any(|alias| {
                     name.symbol == alias.owner

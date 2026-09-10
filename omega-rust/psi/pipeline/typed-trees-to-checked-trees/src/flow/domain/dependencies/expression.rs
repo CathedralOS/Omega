@@ -14,6 +14,30 @@ pub(super) fn collect_dependency_paths_from_expression(
     }
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            collect_dependency_paths_from_expression(
+                program,
+                dispatch.subject,
+                self_type_symbol,
+                dependencies,
+            );
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    collect_dependency_paths_from_expression(
+                        program,
+                        pattern,
+                        self_type_symbol,
+                        dependencies,
+                    );
+                }
+                collect_dependency_paths_from_expression(
+                    program,
+                    arm.value,
+                    self_type_symbol,
+                    dependencies,
+                );
+            }
+        }
         ExpressionNode::Atomic(atomic) => collect_dependency_paths_from_expression(
             program,
             atomic.value,

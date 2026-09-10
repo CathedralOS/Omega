@@ -268,6 +268,18 @@ impl<'program> Evaluator<'program> {
         frame: &Frame,
     ) -> Option<(PrimitiveType, ArithmeticDomain)> {
         match self.program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                let mut result = None;
+                for arm in self.program.expression_table.match_arms(dispatch.arms) {
+                    if let Some(arm_type) = self.expression_scalar_type(arm.value, frame) {
+                        if result.is_some_and(|result| result != arm_type) {
+                            return None;
+                        }
+                        result = Some(arm_type);
+                    }
+                }
+                result
+            }
             // A cast witnesses its target width AND its decision-17 S2
             // domain retag (`x as u8 in Saturating` -- the retag is what lets
             // the value join saturating arithmetic; without a written domain

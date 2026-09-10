@@ -4,6 +4,15 @@ use typed_trees::expression::ExpressionNode;
 impl ValueFactBuilder<'_, '_> {
     pub(super) fn collect_expression_children(&mut self, expression: ExpressionHandle) {
         match self.program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                self.collect_nested_expression(expression, dispatch.subject);
+                for arm in self.program.expression_table.match_arms(dispatch.arms) {
+                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                        self.collect_nested_expression(expression, pattern);
+                    }
+                    self.collect_nested_expression(expression, arm.value);
+                }
+            }
             ExpressionNode::Atomic(atomic) => {
                 self.collect_nested_expression(expression, atomic.value)
             }

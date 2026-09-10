@@ -9,6 +9,13 @@ impl Evaluator<'_> {
         destination: TypeReferenceHandle,
         frame: &Frame,
     ) -> EvalResult<Value> {
+        if let ExpressionNode::Match(dispatch) =
+            self.program.expression_table.expression(expression).clone()
+        {
+            self.tick()?;
+            let selected = self.select_match_arm(&dispatch, frame)?;
+            return self.eval_expression_at_type(selected, destination, frame);
+        }
         if let ExpressionNode::ArrayLiteral(_) =
             self.program.expression_table.expression(expression)
             && let TypeReferenceNode::FixedArray { element_type, .. } = self
@@ -52,6 +59,13 @@ impl Evaluator<'_> {
         destination: Option<PrimitiveType>,
         frame: &Frame,
     ) -> EvalResult<Value> {
+        if let ExpressionNode::Match(dispatch) =
+            self.program.expression_table.expression(expression).clone()
+        {
+            self.tick()?;
+            let selected = self.select_match_arm(&dispatch, frame)?;
+            return self.eval_expression_with_destination(selected, destination, frame);
+        }
         if let Some(value) = self.anonymous_integer_landing_value(expression, destination)? {
             return Ok(value);
         }

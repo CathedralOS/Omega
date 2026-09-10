@@ -571,6 +571,68 @@ fn scan_expression_calls_at_position(
         )));
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            crate::expression_types::validate_match_dispatch(
+                program,
+                machine,
+                state,
+                expression,
+                dispatch,
+                diagnostics,
+            );
+            let mut scan = |value, executes| {
+                scan_expression_calls(
+                    program,
+                    machine,
+                    state,
+                    machine_symbols,
+                    symbols,
+                    writable_roots,
+                    value_env,
+                    value,
+                    executes,
+                    boundary_operator_applications,
+                    diagnostics,
+                )
+            };
+            scan(dispatch.subject, executes);
+            let mut remaining_executes = executes;
+            let mut boolean_values = [false; 2];
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                let selected = match arm.pattern {
+                    typed_trees::expression::MatchPattern::Wildcard => Some(true),
+                    typed_trees::expression::MatchPattern::Value(pattern) => {
+                        scan(pattern, remaining_executes);
+                        if let ExpressionNode::Boolean(value) =
+                            program.expression_table.expression(pattern)
+                        {
+                            boolean_values[usize::from(*value)] = true;
+                        }
+                        match (
+                            program.expression_table.expression(dispatch.subject),
+                            program.expression_table.expression(pattern),
+                        ) {
+                            (
+                                ExpressionNode::Boolean(subject),
+                                ExpressionNode::Boolean(pattern),
+                            ) => Some(subject == pattern),
+                            _ => crate::literals::evaluate_anonymous_numeric_equality(
+                                program,
+                                dispatch.subject,
+                                pattern,
+                                |expression| {
+                                    crate::has_anonymous_operator_meaning(program, expression)
+                                },
+                            ),
+                        }
+                    }
+                };
+                scan(arm.value, remaining_executes && selected != Some(false));
+                if selected == Some(true) || boolean_values == [true, true] {
+                    remaining_executes = false;
+                }
+            }
+        }
         ExpressionNode::Atomic(atomic) => scan_expression_calls(
             program,
             machine,

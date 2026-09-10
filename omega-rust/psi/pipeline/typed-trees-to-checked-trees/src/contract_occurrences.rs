@@ -41,6 +41,15 @@ pub(crate) fn append_expression_occurrences(
         return;
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            append_expression_occurrences(program, dispatch.subject, occurrences);
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    append_expression_occurrences(program, pattern, occurrences);
+                }
+                append_expression_occurrences(program, arm.value, occurrences);
+            }
+        }
         ExpressionNode::Member(member)
             if matches!(
                 program.expression_table.expression(member.receiver),

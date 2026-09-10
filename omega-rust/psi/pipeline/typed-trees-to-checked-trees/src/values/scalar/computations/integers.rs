@@ -73,6 +73,46 @@ impl Builder<'_, '_> {
             });
         }
         match self.program.expression_table.expression(expression).clone() {
+            ExpressionNode::Match(dispatch) => {
+                // Result policy comes from authored arms, never from the parent
+                // arithmetic operation's destination carrier.
+                let mut result_type = None;
+                let mut domain = ArithmeticDomain::Exact;
+                let mut boolean_coverage = [false; 2];
+                for arm in self.program.expression_table.match_arms(dispatch.arms) {
+                    let operand = self.integer_operand(arm.value)?;
+                    domain = combine_arithmetic_domains(domain, operand.domain)?;
+                    if let Some(primitive_type) = scalar_expression_type(&operand.value) {
+                        if !is_integer(primitive_type)
+                            || result_type.is_some_and(|existing| existing != primitive_type)
+                        {
+                            return None;
+                        }
+                        result_type = Some(primitive_type);
+                    }
+                    match arm.pattern {
+                        typed_trees::expression::MatchPattern::Wildcard => break,
+                        typed_trees::expression::MatchPattern::Value(pattern) => {
+                            if let ExpressionNode::Boolean(value) =
+                                self.program.expression_table.expression(pattern)
+                            {
+                                boolean_coverage[usize::from(*value)] = true;
+                                if boolean_coverage.iter().all(|value| *value) {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                let primitive_type = result_type?;
+                let computation = self.dispatch(expression, &dispatch, primitive_type)?;
+                Some(IntegerOperand {
+                    value: parameter(0, primitive_type),
+                    value_source: ExpressionHandle::invalid(),
+                    domain,
+                    computation,
+                })
+            }
             ExpressionNode::Call(call) => {
                 // The resolved callee owns both the result carrier and its policy.
                 // A destination carrier is not evidence for either one.
@@ -215,7 +255,57 @@ impl Builder<'_, '_> {
         {
             right = Some(operand);
         }
+        if left.is_none()
+            && let Some(destination) = right
+                .as_ref()
+                .and_then(|operand| scalar_expression_type(&operand.value))
+        {
+            left = self.contextual_match_operand(binary.left, destination);
+        }
+        if right.is_none()
+            && let Some(destination) = left
+                .as_ref()
+                .and_then(|operand| scalar_expression_type(&operand.value))
+        {
+            right = self.contextual_match_operand(binary.right, destination);
+        }
         Some((left?, right?))
+    }
+
+    fn contextual_match_operand(
+        &mut self,
+        expression: ExpressionHandle,
+        destination: PrimitiveType,
+    ) -> Option<IntegerOperand> {
+        let ExpressionNode::Match(dispatch) =
+            self.program.expression_table.expression(expression).clone()
+        else {
+            return None;
+        };
+        if !self
+            .program
+            .expression_table
+            .match_arms(dispatch.arms)
+            .iter()
+            .all(|arm| {
+                land_anonymous_scalar_expression(
+                    self.program,
+                    self.operators,
+                    arm.value,
+                    destination,
+                )
+                .is_some()
+            })
+        {
+            return None;
+        }
+        let computation = self.dispatch(expression, &dispatch, destination)?;
+        Some(IntegerOperand {
+            value: parameter(0, destination),
+            value_source: ExpressionHandle::invalid(),
+            domain: ArithmeticDomain::Exact,
+            computation,
+        })
     }
 
     pub(super) fn integer_comparison(

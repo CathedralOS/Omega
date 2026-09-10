@@ -18,6 +18,7 @@ mod operator_contracts;
 mod selected_operand_hoisting;
 mod state_local_resolution;
 mod unit_tail_calls;
+mod value_dispatch;
 
 #[test]
 fn seeded_extension_carrier_rebases_selection_suffix_after_later_base_rows() {

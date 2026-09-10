@@ -17,9 +17,21 @@ pub struct ExpressionTable {
     expression_handles: Arena<ExpressionHandle>,
     identifier_path_members: Arena<Identifier>,
     struct_fields: Arena<TableStructLiteralField>,
+    match_arms: Arena<TableMatchArm>,
 }
 
 impl ExpressionTable {
+    pub fn insert_match_arms(
+        &mut self,
+        arms: impl IntoIterator<Item = TableMatchArm>,
+    ) -> HandleSpan<TableMatchArm> {
+        self.match_arms.insert_many(arms)
+    }
+
+    pub fn match_arms(&self, arms: HandleSpan<TableMatchArm>) -> &[TableMatchArm] {
+        self.match_arms.span_or_empty(arms)
+    }
+
     pub fn new() -> Self {
         Self {
             expressions: Arena::new(),
@@ -27,6 +39,7 @@ impl ExpressionTable {
             expression_handles: Arena::new(),
             identifier_path_members: Arena::new(),
             struct_fields: Arena::new(),
+            match_arms: Arena::new(),
         }
     }
 
@@ -156,6 +169,7 @@ impl Default for ExpressionTable {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExpressionNode {
+    Match(TableMatchExpression),
     ArrayLiteral(HandleSpan<ExpressionHandle>),
     Atomic(TableAtomicExpression),
     Binary(TableBinaryExpression),
@@ -380,4 +394,25 @@ pub enum BinaryOperator {
 pub enum UnaryOperator {
     BitwiseNot,
     LogicalNot,
+}
+
+/// Ordered value dispatch. The subject is evaluated once before testing arms.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TableMatchExpression {
+    pub subject: ExpressionHandle,
+    pub arms: HandleSpan<TableMatchArm>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TableMatchArm {
+    pub pattern: MatchPattern,
+    pub value: ExpressionHandle,
+    pub source_span: SourceSpan,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum MatchPattern {
+    Value(ExpressionHandle),
+    #[default]
+    Wildcard,
 }

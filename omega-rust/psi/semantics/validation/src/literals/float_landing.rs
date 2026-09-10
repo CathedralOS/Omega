@@ -333,6 +333,11 @@ fn collect_result_comparison_pairs(
         collect_result_comparison_pairs(program, child, return_type, pairs, depth + 1)
     };
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            for child in crate::expression_types::match_children(program, *dispatch) {
+                recurse(child, pairs);
+            }
+        }
         ExpressionNode::Atomic(atomic) => {
             recurse(atomic.value, pairs);
             recurse(atomic.result, pairs);
@@ -418,6 +423,18 @@ fn land_float_value_for_type(
 ) {
     use typed_trees::types::TypeReferenceNode;
 
+    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(value) {
+        let values = program
+            .expression_table
+            .match_arms(dispatch.arms)
+            .iter()
+            .map(|arm| arm.value)
+            .collect::<Vec<_>>();
+        for value in values {
+            land_float_value_for_type(program, value, declared);
+        }
+        return;
+    }
     let declared_node = program
         .type_reference_table
         .type_reference(declared)

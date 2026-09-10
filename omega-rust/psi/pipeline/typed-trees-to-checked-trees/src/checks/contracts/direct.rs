@@ -6,6 +6,7 @@ use super::places::{expression_is_boolean_place_like, expression_place_matches};
 use crate::labels::{canonical_place_label, semantic_boolean_fact_label};
 
 mod guard_values;
+mod match_patterns;
 
 pub(super) fn direct_context_proves_boolean_expression(
     program: &typed_trees::TypedTrees,
@@ -16,6 +17,17 @@ pub(super) fn direct_context_proves_boolean_expression(
     let required_label = program.expression_table.display_name(expression);
 
     semantic.context_view(context).facts().any(|fact| {
+        if let Some((subject, pattern, matched)) = fact.payload.match_pattern_comparison(program) {
+            return match_patterns::proves(
+                program,
+                subject,
+                pattern,
+                matched,
+                expression,
+                true,
+                &|value| value,
+            );
+        }
         if let facts::FactPayload::BooleanValue {
             expression: guard,
             value,
@@ -49,6 +61,56 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
     target_state: &(impl ContractTargetParameters + ?Sized),
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
+    let parameters = target_state.contract_parameters(program);
+    let arguments = crate::call_site_argument_expressions(program, call_site);
+    let substitute = |expression| {
+        let typed_trees::expression::ExpressionNode::Name(path) =
+            program.expression_table.expression(expression)
+        else {
+            return expression;
+        };
+        if !path.symbol.is_valid()
+            || program
+                .expression_table
+                .name_path_members(path.members)
+                .len()
+                != 1
+        {
+            return expression;
+        }
+        if parameters
+            .iter()
+            .any(|parameter| parameter.is_self && parameter.symbol == path.symbol)
+        {
+            return match call_site {
+                crate::CallSite::Expression { call, .. } => call.receiver,
+                _ => expression,
+            };
+        }
+        parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .position(|parameter| parameter.symbol == path.symbol)
+            .and_then(|position| arguments.get(position).copied())
+            .unwrap_or(expression)
+    };
+    if semantic.context_view(context).facts().any(|fact| {
+        fact.payload
+            .match_pattern_comparison(program)
+            .is_some_and(|(subject, pattern, matched)| {
+                match_patterns::proves(
+                    program,
+                    subject,
+                    pattern,
+                    matched,
+                    expression,
+                    true,
+                    &substitute,
+                )
+            })
+    }) {
+        return true;
+    }
     if instantiated_live_value_proves(
         program,
         semantic,

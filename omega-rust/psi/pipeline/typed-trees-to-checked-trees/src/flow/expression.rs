@@ -12,6 +12,7 @@ use super::*;
 use typed_trees::expression::{BinaryOperator, UnaryOperator};
 use typed_trees::statement::{TableTransition, TransitionTargetHandle, TransitionTargetNode};
 
+mod dispatch;
 mod transitions;
 
 #[cfg(test)]
@@ -269,6 +270,10 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             return None;
         }
         match self.program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                self.dispatch(expression, *dispatch, contexts, constraints);
+                return None;
+            }
             ExpressionNode::Boolean(value) => return Some(*value),
             ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
                 if let ExpressionNode::Member(member) =

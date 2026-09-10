@@ -106,6 +106,7 @@ pub(crate) fn borrow_access_place(
             })
         }
         ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Match(_)
         | ExpressionNode::Binary(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Call(_)

@@ -7,6 +7,26 @@ use crate::identifier::Identifier;
 impl ExpressionNode {
     pub fn display_name(&self, table: &ExpressionTable) -> String {
         match self {
+            Self::Match(dispatch) => {
+                let arms = table
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .map(|arm| {
+                        let pattern = match arm.pattern {
+                            crate::expression::MatchPattern::Value(value) => {
+                                table.display_name(value)
+                            }
+                            crate::expression::MatchPattern::Wildcard => "_".to_owned(),
+                        };
+                        format!("{pattern} => {}", table.display_name(arm.value))
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!(
+                    "match {} {{ {arms} }}",
+                    table.display_name(dispatch.subject)
+                )
+            }
             Self::ArrayLiteral(values) => {
                 bracketed_display_names(table.expression_handles(*values).iter(), |value| {
                     table.display_name(*value)

@@ -93,6 +93,11 @@ fn seed_index_proofs_from_expression(
     }
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            // Only the subject executes unconditionally. An assumed-valid
+            // dispatch does not establish validity of every alternative body.
+            seed_index_proofs_from_expression(program, facts, dispatch.subject);
+        }
         ExpressionNode::Atomic(atomic) => {
             seed_index_proofs_from_expression(program, facts, atomic.value)
         }

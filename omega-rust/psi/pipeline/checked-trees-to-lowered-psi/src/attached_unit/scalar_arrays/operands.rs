@@ -163,6 +163,21 @@ impl Context<'_> {
         active.push(root);
         let node = plans.nodes.get(root);
         let valid = match &node.kind {
+            Computation::Dispatch { subject, arms, .. } => {
+                // The caller independently rejoins ordered source arms. Replay
+                // every retained child's literal/operator meaning here.
+                self.computation(*subject, active)
+                    && plans.dispatch_arms.span(*arms).is_some_and(|arms| {
+                        arms.iter().all(|arm| {
+                            (match arm.pattern {
+                                checked_trees::CheckedScalarDispatchPattern::Value(pattern) => {
+                                    self.computation(pattern, active)
+                                }
+                                checked_trees::CheckedScalarDispatchPattern::Wildcard => true,
+                            }) && self.computation(arm.value, active)
+                        })
+                    })
+            }
             Computation::Value(value) => {
                 value.primitive_type() == Some(node.primitive_type)
                     && node.value_source.is_valid()

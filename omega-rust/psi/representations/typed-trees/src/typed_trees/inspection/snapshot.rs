@@ -913,8 +913,28 @@ pub enum TransitionTargetSnapshot {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct MatchArmSnapshot {
+    pub pattern: MatchPatternSnapshot,
+    pub value: ExpressionSnapshot,
+    pub source_id: usize,
+    pub source_start: usize,
+    pub source_end: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum MatchPatternSnapshot {
+    Value { value: Box<ExpressionSnapshot> },
+    Wildcard,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ExpressionSnapshot {
+    Match {
+        subject: Box<ExpressionSnapshot>,
+        arms: Vec<MatchArmSnapshot>,
+    },
     ArrayLiteral {
         values: Vec<ExpressionSnapshot>,
     },
@@ -1894,6 +1914,28 @@ fn expression_snapshot(program: &TypedTrees, expression: ExpressionHandle) -> Ex
     }
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => ExpressionSnapshot::Match {
+            subject: Box::new(expression_snapshot(program, dispatch.subject)),
+            arms: program
+                .expression_table
+                .match_arms(dispatch.arms)
+                .iter()
+                .map(|arm| MatchArmSnapshot {
+                    source_id: arm.source_span.source_id.0,
+                    source_start: arm.source_span.span.start,
+                    source_end: arm.source_span.span.end,
+                    pattern: match arm.pattern {
+                        crate::expression::MatchPattern::Value(value) => {
+                            MatchPatternSnapshot::Value {
+                                value: Box::new(expression_snapshot(program, value)),
+                            }
+                        }
+                        crate::expression::MatchPattern::Wildcard => MatchPatternSnapshot::Wildcard,
+                    },
+                    value: expression_snapshot(program, arm.value),
+                })
+                .collect(),
+        },
         ExpressionNode::ArrayLiteral(values) => ExpressionSnapshot::ArrayLiteral {
             values: expression_span_snapshot(program, *values),
         },

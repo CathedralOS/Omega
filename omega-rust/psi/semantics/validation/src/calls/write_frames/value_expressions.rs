@@ -138,6 +138,21 @@ pub(super) fn push_value_children(
     pending: &mut Vec<PendingValue>,
 ) -> bool {
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            let comparison = ValuePosition::ComputedOperand(CallResultRequirement::CallerIsolated);
+            for arm in program
+                .expression_table
+                .match_arms(dispatch.arms)
+                .iter()
+                .rev()
+            {
+                pending.push((arm.value, position));
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    pending.push((pattern, comparison));
+                }
+            }
+            pending.push((dispatch.subject, comparison));
+        }
         ExpressionNode::StructLiteral(literal) => {
             match position {
                 ValuePosition::TypedRoot(_) | ValuePosition::MemberReceiver(_) => {}

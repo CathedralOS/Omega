@@ -1056,6 +1056,7 @@ fn normalize_index_expression(
         ExpressionNode::Float(value) => atom("float", &value.to_string()),
         ExpressionNode::String(value) => byte_atom("string", value),
         ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Match(_)
         | ExpressionNode::Atomic(_)
         | ExpressionNode::Cast(_)
         | ExpressionNode::Call(_)

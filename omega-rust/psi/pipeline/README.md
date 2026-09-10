@@ -8,13 +8,25 @@ authority.
 
 ## Lexing and parsing
 
-Value-position `match` currently expands into arithmetic in
-[`primary.rs`](tokens-to-syntax-trees/src/parser/expression/primary.rs).
-This repeats subject/default nodes and computes nonselected arm terms;
-it does not implement the specified single-evaluation, first-match selective
-behavior for general values/effects. Replace that expansion with retained
-dispatch before claiming general match support. Parse acceptance and numeric
-examples are not coverage for the [dispatch contract](../../../wiki/spec/language/patterns.md).
+Value-position `match`, including a bare machine-tail expression, retains its
+subject and ordered, source-linked arms through all source representations.
+It is not a spelling for `transition`. Scalar computation dispatch saves the
+subject once, evaluates patterns in order, and sends only the selected result
+to the ordinary expression continuation. Source replay independently checks the
+exact arm identities and coverage; it cannot treat an arbitrary last arm as a
+default. [Terminal execution tests](checked-trees-to-lowered-psi/tests/value_dispatch.rs)
+cover overlaps, call-argument composition, subject-once execution and skipped calls.
+
+The [dispatch contract](../../../wiki/spec/language/patterns.md) is broader than
+the current implementation. Wildcards and complete Boolean value alternatives
+close coverage. Runtime scalar lowering currently supports Boolean/integer
+carriers; an anonymous-only numeric subject has no invented default width.
+Structural/domain/payload patterns and ownership-bearing result/conditional
+transfer joins remain explicit limitations. Checking still validates every arm's
+type, including unreachable arms. Stable comparison facts belong to the exact
+selected branch and are retired by writes to their inputs; they do not escape
+the result join. The interpreter forwards an existing destination into only the
+selected arm, preserving anonymous numeric landing without arithmetic desugaring.
 
 [Lexing](source-files-to-tokens/src/lexer.rs) consumes loaded source records,
 preserving source identity and byte spans. Numeric metadata and decoded literal

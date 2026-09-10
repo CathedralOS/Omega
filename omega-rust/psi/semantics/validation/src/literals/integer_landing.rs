@@ -98,6 +98,19 @@ pub fn evaluate_anonymous_numeric_comparison(
     })
 }
 
+/// Compare exact anonymous values without inventing a numeric destination.
+/// The caller must establish builtin meaning for each arithmetic node.
+pub(crate) fn evaluate_anonymous_numeric_equality(
+    program: &TypedTrees,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+    mut builtin: impl FnMut(ExpressionHandle) -> bool,
+) -> Option<bool> {
+    let left = anonymous_numeric_value(program, left, &mut builtin)?;
+    let right = anonymous_numeric_value(program, right, &mut builtin)?;
+    Some(left.value.cmp_value(&right.value).is_eq())
+}
+
 fn integer_landing_warning(
     program: &TypedTrees,
     evaluated: &AnonymousNumericValue,

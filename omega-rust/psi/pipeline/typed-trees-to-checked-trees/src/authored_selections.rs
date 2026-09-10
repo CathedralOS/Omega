@@ -2158,6 +2158,18 @@ fn expression_contains(
     }
     visited.push(root);
     match program.expression_table.expression(root) {
+        ExpressionNode::Match(dispatch) => {
+            expression_contains(program, dispatch.subject, target, visited)
+                || program
+                    .expression_table
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .any(|arm| {
+                        (matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern)
+                        if expression_contains(program, pattern, target, visited)))
+                            || expression_contains(program, arm.value, target, visited)
+                    })
+        }
         ExpressionNode::Atomic(atomic) => {
             expression_contains(program, atomic.value, target, visited)
         }

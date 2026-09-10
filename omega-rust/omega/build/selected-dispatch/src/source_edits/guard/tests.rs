@@ -6,6 +6,49 @@ use typed_trees::signature::StateParameter;
 use typed_trees::types::TypeReferenceNode;
 
 #[test]
+fn match_subject_pattern_and_unselected_arm_mutations_invalidate_source_custody() {
+    let mut program = TypedTrees::default();
+    let subject = program
+        .expression_table
+        .insert(ExpressionNode::Boolean(false));
+    let pattern = program
+        .expression_table
+        .insert(ExpressionNode::Boolean(false));
+    let selected = program
+        .expression_table
+        .insert(ExpressionNode::Boolean(false));
+    let fallback = program
+        .expression_table
+        .insert(ExpressionNode::Boolean(false));
+    let arms = program.expression_table.insert_match_arms([
+        typed_trees::expression::TableMatchArm {
+            pattern: typed_trees::expression::MatchPattern::Value(pattern),
+            value: selected,
+            source_span: Default::default(),
+        },
+        typed_trees::expression::TableMatchArm {
+            pattern: typed_trees::expression::MatchPattern::Wildcard,
+            value: fallback,
+            source_span: Default::default(),
+        },
+    ]);
+    let root = program.expression_table.insert(ExpressionNode::Match(
+        typed_trees::expression::TableMatchExpression { subject, arms },
+    ));
+    let guard = GraphGuard::capture(&program, &[root], &[], &[], &[]).expect("dispatch custody");
+    guard.validate(&program).expect("unchanged dispatch");
+    for child in [subject, pattern, selected, fallback] {
+        *program.expression_table.expression_mut(child) = ExpressionNode::Boolean(true);
+        assert!(
+            guard.validate(&program).is_err(),
+            "every authored branch remains in custody"
+        );
+        *program.expression_table.expression_mut(child) = ExpressionNode::Boolean(false);
+        guard.validate(&program).expect("restored dispatch");
+    }
+}
+
+#[test]
 fn nested_expression_and_argument_span_mutations_are_detected() {
     let mut program = TypedTrees::default();
     let first = program

@@ -284,6 +284,11 @@ fn expression_uses_owner_path(
         )
     };
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => recurse(dispatch.subject)
+            || program.expression_table.match_arms(dispatch.arms).iter().any(|arm| {
+                matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern) if recurse(pattern))
+                    || recurse(arm.value)
+            }),
         ExpressionNode::Atomic(atomic) => recurse(atomic.value),
         ExpressionNode::ArrayLiteral(values) => program
             .expression_table

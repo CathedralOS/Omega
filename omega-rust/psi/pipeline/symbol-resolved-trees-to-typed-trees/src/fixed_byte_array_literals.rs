@@ -222,6 +222,13 @@ fn land_one(
     if !value.is_valid() || !destination.is_valid() {
         return Ok(());
     }
+    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(value) {
+        let arms = program.expression_table.match_arms(dispatch.arms).to_vec();
+        for arm in arms {
+            land_one(program, arm.value, destination)?;
+        }
+        return Ok(());
+    }
     let ExpressionNode::String(bytes) = program.expression_table.expression(value).clone() else {
         return Ok(());
     };

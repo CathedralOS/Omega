@@ -615,6 +615,15 @@ fn count_expression_node(
     counts: &mut IdentityStorageCounts,
 ) {
     match expression {
+        ExpressionNode::Match(dispatch) => {
+            count_expression_handle(table, dispatch.subject, counts);
+            for arm in table.match_arms(dispatch.arms) {
+                if let crate::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    count_expression_handle(table, pattern, counts);
+                }
+                count_expression_handle(table, arm.value, counts);
+            }
+        }
         ExpressionNode::ArrayLiteral(values) => {
             for value in table.expression_handles(*values) {
                 count_expression_handle(table, *value, counts);

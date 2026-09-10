@@ -84,6 +84,7 @@ fn mutable_argument_root_name(
             .first()
             .map(|member| member.as_str().to_owned()),
         ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Match(_)
         | ExpressionNode::Atomic(_)
         | ExpressionNode::Binary(_)
         | ExpressionNode::Boolean(_)

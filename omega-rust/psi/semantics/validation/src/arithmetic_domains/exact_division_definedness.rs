@@ -150,6 +150,11 @@ pub(super) fn validate_concrete(
             );
         };
         match program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                for child in crate::expression_types::match_children(program, *dispatch) {
+                    recurse(child, diagnostics, visited);
+                }
+            }
             ExpressionNode::Binary(binary) => {
                 recurse(binary.left, diagnostics, visited);
                 recurse(binary.right, diagnostics, visited);
@@ -315,6 +320,11 @@ pub(super) fn validate_abstract(
             walk(program, child, owner, bindings, env, diagnostics, visited);
         };
         match program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                for child in crate::expression_types::match_children(program, *dispatch) {
+                    recurse(child, diagnostics, visited);
+                }
+            }
             ExpressionNode::Binary(binary) => {
                 recurse(binary.left, diagnostics, visited);
                 recurse(binary.right, diagnostics, visited);

@@ -278,6 +278,15 @@ fn contains_constant_reference(syntax: &SyntaxTrees, expression: ExpressionHandl
         }
         visited.push(expression);
         match syntax.expressions.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                for arm in syntax.expressions.match_arms(dispatch.arms).iter().rev() {
+                    pending.push(arm.value);
+                    if let syntax_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                        pending.push(pattern);
+                    }
+                }
+                pending.push(dispatch.subject);
+            }
             ExpressionNode::Name(_) => return true,
             ExpressionNode::Binary(binary) => {
                 pending.push(binary.right);
@@ -465,6 +474,21 @@ fn expression_custody(
         if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) {
             pending.push(binary.right);
             pending.push(binary.left);
+        } else if let ExpressionNode::Match(dispatch) =
+            program.expression_table.expression(expression)
+        {
+            for arm in program
+                .expression_table
+                .match_arms(dispatch.arms)
+                .iter()
+                .rev()
+            {
+                pending.push(arm.value);
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    pending.push(pattern);
+                }
+            }
+            pending.push(dispatch.subject);
         }
     }
     Ok((origins, operators))

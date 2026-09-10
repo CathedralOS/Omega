@@ -4,7 +4,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 use typed_trees::types::PrimitiveType;
 
-mod expression_children;
+pub(crate) mod expression_children;
 mod literal_widths;
 pub(crate) use literal_widths::validate_literal_widths;
 
@@ -84,7 +84,9 @@ pub use constant_arrays::{
 mod integer_landing;
 mod integer_remainder;
 pub(crate) use integer_landing::anonymous_integer_landing_warnings;
-pub(crate) use integer_landing::{anonymous_numeric_value, land_integer_value};
+pub(crate) use integer_landing::{
+    anonymous_numeric_value, evaluate_anonymous_numeric_equality, land_integer_value,
+};
 pub use integer_landing::{
     evaluate_anonymous_numeric_comparison, has_anonymous_operator_meaning,
     land_anonymous_integer_expression, land_anonymous_integer_expression_with_warning,
@@ -101,6 +103,12 @@ pub(crate) fn validate_suffix_landing(
 ) {
     use numerics::literals::LandedIntegerType;
 
+    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(value) {
+        for arm in program.expression_table.match_arms(dispatch.arms) {
+            validate_suffix_landing(program, arm.value, declared, diagnostics);
+        }
+        return;
+    }
     constant_arrays::validate_declared_array_destination(program, value, declared, diagnostics);
 
     let landed_of_primitive = |primitive: PrimitiveType| -> Option<LandedIntegerType> {

@@ -1323,6 +1323,19 @@ fn collect_read_place_paths(
         return;
     }
     match proof_plan.program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            collect_read_place_paths(proof_plan, dispatch.subject, paths);
+            for arm in proof_plan
+                .program
+                .expression_table
+                .match_arms(dispatch.arms)
+            {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    collect_read_place_paths(proof_plan, pattern, paths);
+                }
+                collect_read_place_paths(proof_plan, arm.value, paths);
+            }
+        }
         ExpressionNode::Binary(binary) => {
             collect_read_place_paths(proof_plan, binary.left, paths);
             collect_read_place_paths(proof_plan, binary.right, paths);
@@ -1359,6 +1372,19 @@ fn expression_contains_call(proof_plan: &ProofPlan, expression: ExpressionHandle
         return false;
     }
     match proof_plan.program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            expression_contains_call(proof_plan, dispatch.subject)
+                || proof_plan
+                    .program
+                    .expression_table
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .any(|arm| {
+                        matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern)
+                        if expression_contains_call(proof_plan, pattern))
+                            || expression_contains_call(proof_plan, arm.value)
+                    })
+        }
         ExpressionNode::Call(_) => true,
         ExpressionNode::Binary(binary) => {
             expression_contains_call(proof_plan, binary.left)

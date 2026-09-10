@@ -1,7 +1,7 @@
 use super::*;
 
 mod guards;
-pub(super) use guards::append_predicate_context;
+pub(super) use guards::{append_match_pattern_context, append_predicate_context};
 
 pub(super) fn append_state_exit_facts(
     program: &typed_trees::TypedTrees,

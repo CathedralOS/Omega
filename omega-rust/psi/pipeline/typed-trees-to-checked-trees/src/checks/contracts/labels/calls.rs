@@ -90,6 +90,32 @@ pub(crate) fn instantiate_call_contract_expression_label(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> String {
     match program.expression_table.expression(expression) {
+        typed_trees::expression::ExpressionNode::Match(dispatch) => {
+            let render = |value| {
+                instantiate_call_contract_expression_label(
+                    program,
+                    caller_state_symbol,
+                    statement_index,
+                    call_site,
+                    target_state,
+                    value,
+                )
+            };
+            let arms = program
+                .expression_table
+                .match_arms(dispatch.arms)
+                .iter()
+                .map(|arm| {
+                    let pattern = match arm.pattern {
+                        typed_trees::expression::MatchPattern::Value(value) => render(value),
+                        typed_trees::expression::MatchPattern::Wildcard => "_".to_owned(),
+                    };
+                    format!("{pattern} -> {}", render(arm.value))
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("match {} {{ {arms} }}", render(dispatch.subject))
+        }
         typed_trees::expression::ExpressionNode::Atomic(atomic) => format!(
             "atomic[{:?}]({})",
             atomic.ordering,

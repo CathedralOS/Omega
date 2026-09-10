@@ -69,6 +69,41 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
     }
 
     match expression_table.expression(expression).clone() {
+        symbol_resolved_trees::expression::ExpressionNode::Match(dispatch) => {
+            assign_expression_table_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expression_table,
+                child_type_references,
+                dispatch.subject,
+            );
+            for offset in 0..dispatch.arms.count() {
+                let arm = expression_table.match_arms(dispatch.arms)[offset as usize];
+                if let symbol_resolved_trees::expression::MatchPattern::Value(pattern) = arm.pattern
+                {
+                    assign_expression_table_symbols(
+                        symbols,
+                        machine,
+                        parameters,
+                        state_symbol,
+                        expression_table,
+                        child_type_references,
+                        pattern,
+                    );
+                }
+                assign_expression_table_symbols(
+                    symbols,
+                    machine,
+                    parameters,
+                    state_symbol,
+                    expression_table,
+                    child_type_references,
+                    arm.value,
+                );
+            }
+        }
         symbol_resolved_trees::expression::ExpressionNode::Atomic(atomic) => {
             assign_expression_table_symbols(
                 symbols,

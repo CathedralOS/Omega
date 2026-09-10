@@ -8,6 +8,22 @@ pub(super) fn find_call_site_in_expression<'program>(
     expression: ExpressionHandle,
 ) -> Option<CallSite<'program>> {
     match traversal.program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            if let Some(site) = find_call_site_in_expression(traversal, dispatch.subject) {
+                return Some(site);
+            }
+            for arm in traversal.program.expression_table.match_arms(dispatch.arms) {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern
+                    && let Some(site) = find_call_site_in_expression(traversal, pattern)
+                {
+                    return Some(site);
+                }
+                if let Some(site) = find_call_site_in_expression(traversal, arm.value) {
+                    return Some(site);
+                }
+            }
+            None
+        }
         ExpressionNode::Atomic(atomic) => find_call_site_in_expression(traversal, atomic.value),
         ExpressionNode::ArrayLiteral(values) => {
             for value in traversal

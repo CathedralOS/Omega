@@ -185,6 +185,11 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
             );
         };
         match program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                for child in crate::expression_types::match_children(program, *dispatch) {
+                    recurse(child, diagnostics, visited);
+                }
+            }
             ExpressionNode::ArrayLiteral(values) => {
                 for child in program.expression_table.expression_handles(*values) {
                     recurse(*child, diagnostics, visited);
@@ -630,6 +635,11 @@ fn validate_abstract_exact_policy_erasure_formation(
             walk(program, child, owner, bindings, env, diagnostics, visited);
         };
         match program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                for child in crate::expression_types::match_children(program, *dispatch) {
+                    recurse(child, diagnostics, visited);
+                }
+            }
             ExpressionNode::Binary(binary) => {
                 recurse(binary.left, diagnostics, visited);
                 recurse(binary.right, diagnostics, visited);

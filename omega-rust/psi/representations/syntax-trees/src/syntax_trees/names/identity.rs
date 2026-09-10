@@ -518,6 +518,15 @@ fn count_expression_handle(
     counts: &mut AstIdentityStorageCounts,
 ) {
     match syntax_trees.expressions.expression(expression) {
+        crate::expression::ExpressionNode::Match(dispatch) => {
+            count_expression_handle(syntax_trees, dispatch.subject, counts);
+            for arm in syntax_trees.expressions.match_arms(dispatch.arms) {
+                if let crate::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    count_expression_handle(syntax_trees, pattern, counts);
+                }
+                count_expression_handle(syntax_trees, arm.value, counts);
+            }
+        }
         crate::expression::ExpressionNode::ArrayLiteral(values) => {
             for value in syntax_trees.expressions.expression_handles(*values) {
                 count_expression_handle(syntax_trees, *value, counts);

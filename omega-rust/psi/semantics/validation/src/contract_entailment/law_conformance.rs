@@ -33,6 +33,12 @@ pub(crate) fn checked_operator_contract_snapshot(
         let node = program.expression_table.expression(expression);
         append_debug(node, output);
         match node {
+            ExpressionNode::Match(dispatch) => {
+                append_debug(&program.expression_table.match_arms(dispatch.arms), output);
+                for child in crate::expression_types::match_children(program, *dispatch) {
+                    append_expression(program, child, visited, output);
+                }
+            }
             ExpressionNode::Atomic(atomic) => {
                 append_expression(program, atomic.value, visited, output);
                 append_expression(program, atomic.result, visited, output);

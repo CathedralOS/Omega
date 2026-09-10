@@ -395,6 +395,9 @@ fn collect_authored_storage_reads(
     }
     active.push(expression);
     match checked.expression_table.expression(expression) {
+        ExpressionNode::Match(_) => {
+            return unsupported("scalar dispatch requires selective computation source custody");
+        }
         ExpressionNode::Name(name) => {
             if let Some((symbol, primitive, kind)) =
                 authored_storage_read(checked, state, before, name)?

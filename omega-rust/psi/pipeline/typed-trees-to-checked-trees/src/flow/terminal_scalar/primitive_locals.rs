@@ -43,6 +43,17 @@ pub(in crate::flow) fn collect(
             }
             visited.push(handle);
             match &computations.nodes.get(handle).kind {
+                CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
+                    pending.push(*subject);
+                    for arm in computations.dispatch_arms.span(*arms)? {
+                        if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) =
+                            arm.pattern
+                        {
+                            pending.push(pattern);
+                        }
+                        pending.push(arm.value);
+                    }
+                }
                 CheckedScalarComputationKind::Value(_) => {}
                 CheckedScalarComputationKind::Call {
                     arguments,

@@ -385,6 +385,13 @@ fn expression_depends_on_any(
 ) -> Result<bool, RelationPlanError> {
     let depends = |expression| expression_depends_on_any(program, expression, parameters);
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => crate::expression_types::match_children(
+            program, *dispatch,
+        )
+        .try_fold(false, |found, child| {
+            let child_depends = depends(child)?;
+            Ok(found || child_depends)
+        }),
         ExpressionNode::Atomic(atomic) => {
             let value = depends(atomic.value)?;
             let result = if atomic.result.is_valid() {

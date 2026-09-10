@@ -192,6 +192,11 @@ fn append_data_expression_dependency_places(
         return;
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            for child in crate::expression_types::match_children(program, *dispatch) {
+                append_data_expression_dependency_places(program, facts, data, child, dependencies);
+            }
+        }
         ExpressionNode::Member(member)
             if matches!(
                 program.expression_table.expression(member.receiver),
@@ -488,6 +493,17 @@ fn append_domain_expression_dependency_places(
         return;
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            for child in crate::expression_types::match_children(program, *dispatch) {
+                append_domain_expression_dependency_places(
+                    program,
+                    facts,
+                    domain_target,
+                    child,
+                    dependencies,
+                );
+            }
+        }
         ExpressionNode::Member(member)
             if matches!(
                 program.expression_table.expression(member.receiver),

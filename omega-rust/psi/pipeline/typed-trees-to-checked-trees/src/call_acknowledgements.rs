@@ -151,6 +151,39 @@ fn validate_expression(
     }
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            validate_expression(
+                program,
+                dispatch.subject,
+                statement_index,
+                false,
+                operational_calls,
+                call_ordinal,
+                diagnostics,
+            );
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    validate_expression(
+                        program,
+                        pattern,
+                        statement_index,
+                        false,
+                        operational_calls,
+                        call_ordinal,
+                        diagnostics,
+                    );
+                }
+                validate_expression(
+                    program,
+                    arm.value,
+                    statement_index,
+                    false,
+                    operational_calls,
+                    call_ordinal,
+                    diagnostics,
+                );
+            }
+        }
         ExpressionNode::Atomic(atomic) => validate_expression(
             program,
             atomic.value,

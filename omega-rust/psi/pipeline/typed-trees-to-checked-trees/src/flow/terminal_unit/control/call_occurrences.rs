@@ -400,6 +400,39 @@ fn collect(
     }
     active.push(handle);
     match &plans.nodes.get(handle).kind {
+        CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
+            collect(
+                facts,
+                statement,
+                *subject,
+                calls,
+                minimum_call_ordinal,
+                active,
+                consumed,
+            )?;
+            for arm in plans.dispatch_arms.span(*arms)? {
+                if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) = arm.pattern {
+                    collect(
+                        facts,
+                        statement,
+                        pattern,
+                        calls,
+                        minimum_call_ordinal,
+                        active,
+                        consumed,
+                    )?;
+                }
+                collect(
+                    facts,
+                    statement,
+                    arm.value,
+                    calls,
+                    minimum_call_ordinal,
+                    active,
+                    consumed,
+                )?;
+            }
+        }
         CheckedScalarComputationKind::Value(_) => {}
         CheckedScalarComputationKind::Call {
             source_call,

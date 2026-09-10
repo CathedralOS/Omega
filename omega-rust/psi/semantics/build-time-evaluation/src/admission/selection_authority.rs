@@ -284,6 +284,15 @@ fn expression_selection_violation(
     let table = &program.expression_table;
     let mut children = Vec::new();
     match table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            children.push(dispatch.subject);
+            for arm in table.match_arms(dispatch.arms) {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    children.push(pattern);
+                }
+                children.push(arm.value);
+            }
+        }
         ExpressionNode::ArrayLiteral(values) => {
             children.extend(table.expression_handles(*values).iter().copied())
         }

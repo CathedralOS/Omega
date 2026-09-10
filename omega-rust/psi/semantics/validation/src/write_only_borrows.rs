@@ -888,6 +888,22 @@ fn validate_expression(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            validate_expression(
+                program,
+                machine,
+                state,
+                dispatch.subject,
+                roots,
+                diagnostics,
+            );
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    validate_expression(program, machine, state, pattern, roots, diagnostics);
+                }
+                validate_expression(program, machine, state, arm.value, roots, diagnostics);
+            }
+        }
         ExpressionNode::Name(path) => {
             if let Some(root) = roots
                 .iter()
@@ -1068,6 +1084,18 @@ fn expression_mentions_root(
     root: &WriteOnlyRoot,
 ) -> bool {
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            expression_mentions_root(program, dispatch.subject, root)
+                || program
+                    .expression_table
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .any(|arm| {
+                        matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern)
+                        if expression_mentions_root(program, pattern, root))
+                            || expression_mentions_root(program, arm.value, root)
+                    })
+        }
         ExpressionNode::Name(path) => receiver::mentions_name(program, root, path),
         ExpressionNode::Borrow(value) => expression_mentions_root(program, value.target, root),
         ExpressionNode::ArrayLiteral(values) => program

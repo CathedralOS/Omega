@@ -222,6 +222,7 @@ pub(super) fn semantic_contexts_prove_contract_fact(
         | FactPayload::StorageDependency { .. }
         | FactPayload::BytePredicate { .. }
         | FactPayload::BooleanValue { .. }
+        | FactPayload::MatchPattern { .. }
         | FactPayload::TypeConstraint { .. }
         | FactPayload::ProofObligation { .. }
         | FactPayload::Contract { .. } => false,

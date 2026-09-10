@@ -107,6 +107,32 @@ fn lower_nonbinary_expression_node_into_table(
     expression: &syntax::expression::ExpressionNode,
 ) -> Result<ExpressionHandle, Diagnostic> {
     match expression {
+        syntax::expression::ExpressionNode::Match(dispatch) => {
+            let subject = lower_expression_into_table(lowerer, syntax_trees, dispatch.subject)?;
+            let mut arms = Vec::new();
+            for arm in syntax_trees.expressions.match_arms(dispatch.arms) {
+                let pattern = match arm.pattern {
+                    syntax::expression::MatchPattern::Value(pattern) => {
+                        symbol_resolved_trees::expression::MatchPattern::Value(
+                            lower_expression_into_table(lowerer, syntax_trees, pattern)?,
+                        )
+                    }
+                    syntax::expression::MatchPattern::Wildcard => {
+                        symbol_resolved_trees::expression::MatchPattern::Wildcard
+                    }
+                };
+                let value = lower_expression_into_table(lowerer, syntax_trees, arm.value)?;
+                arms.push(symbol_resolved_trees::expression::TableMatchArm {
+                    pattern,
+                    value,
+                    source_span: arm.source_span,
+                });
+            }
+            let arms = expression_table(lowerer).insert_match_arms(arms);
+            Ok(expression_table(lowerer).insert(ExpressionNode::Match(
+                symbol_resolved_trees::expression::TableMatchExpression { subject, arms },
+            )))
+        }
         syntax::expression::ExpressionNode::ArrayLiteral(values) => {
             let span = expression_table(lowerer).reserve_expression_handles(values.count());
             for (offset, value) in syntax_trees

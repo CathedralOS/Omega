@@ -1,0 +1,8 @@
+// Repeated value patterns retain authored first-match order.
+machine choose(subject: u64) -> u64 {
+    match subject {
+        0 -> 7,
+        0 -> 99,
+        _ -> 9
+    }
+}
