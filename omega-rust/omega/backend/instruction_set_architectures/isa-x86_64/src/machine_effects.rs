@@ -149,8 +149,14 @@ fn selected_keys(
     Ok(SelectedConstraintKeys {
         call_aggregate: if target.object_format == ObjectFormat::Elf {
             crate::register_model::x86_64_system_v_aggregate_call_keys()
+                .into_iter()
+                .chain(crate::x86_64_system_v_mixed_aggregate_call_keys())
+                .collect()
         } else {
             crate::register_model::x86_64_microsoft_aggregate_call_keys()
+                .into_iter()
+                .chain(crate::x86_64_microsoft_mixed_aggregate_call_keys())
+                .collect()
         },
         return_aggregate: if target.object_format == ObjectFormat::Elf {
             crate::register_model::x86_64_system_v_aggregate_return_keys()

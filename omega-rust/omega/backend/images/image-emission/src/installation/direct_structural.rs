@@ -2,10 +2,9 @@
 //! This is record shape only: the mandatory exact image join retains graph replay.
 use super::InstalledFunction;
 use calling_conventions::{
-    CallSignature, CallingPolicy, ValueClass, ValueLocation, ValueShape, evaluate_call_plan,
+    CallSignature, CallingPolicy, ValueClass, ValueLocation, evaluate_call_plan,
 };
 use machine_code::StructuralSourceLocation;
-use semantic_vocabulary::ScalarType;
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 
 pub(super) fn function_is_exact(
@@ -66,14 +65,10 @@ pub(super) fn function_is_exact(
         };
     let mut shapes = Vec::new();
     for (position, scalar) in scalars.iter().enumerate() {
-        let shape = match scalar.scalar_type {
-            ScalarType::Boolean => ValueShape::integer(1, 1),
-            ScalarType::Integer(integer)
-                if !integer.is_address() && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
-            {
-                ValueShape::integer(integer.bits() / 8, integer.bits() / 8)
-            }
-            _ => return false,
+        // Scalar banks do not depend on whether the accompanying structural
+        // argument is a direct owned value or a borrowed pointer.
+        let Some(shape) = super::borrowed_structural::scalar_shape(scalar.scalar_type) else {
+            return false;
         };
         if scalar.placement.shape != shape
             || scalars[..position]

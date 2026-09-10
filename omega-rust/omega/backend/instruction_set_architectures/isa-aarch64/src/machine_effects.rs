@@ -185,7 +185,12 @@ fn selected_keys(
         materialize_boolean: crate::AARCH64_MATERIALIZE_BOOLEAN,
         call_aggregate: crate::aarch64_register_aggregate_call_keys(
             target.object_format == ObjectFormat::MachO,
-        ),
+        )
+        .into_iter()
+        .chain(crate::aarch64_mixed_aggregate_call_keys(
+            target.object_format == ObjectFormat::MachO,
+        ))
+        .collect(),
         return_aggregate: crate::aarch64_register_aggregate_return_keys(
             target.object_format == ObjectFormat::MachO,
         ),

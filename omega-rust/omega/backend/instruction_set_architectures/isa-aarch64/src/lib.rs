@@ -61,7 +61,8 @@ pub use register_model::{
     aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_register_unit_call_keys,
 };
 pub use register_model::{
-    aarch64_register_aggregate_call_keys, aarch64_register_aggregate_return_keys,
+    aarch64_mixed_aggregate_call_keys, aarch64_register_aggregate_call_keys,
+    aarch64_register_aggregate_return_keys,
 };
 pub use selected_form_encoding::hosted_read_byte::{
     decode_aarch64_selected_hosted_read_byte, encode_aarch64_selected_hosted_read_byte_form,

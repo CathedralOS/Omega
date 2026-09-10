@@ -84,6 +84,7 @@ pub use register_model::{
 };
 pub use register_model::{
     x86_64_microsoft_aggregate_call_keys, x86_64_microsoft_aggregate_return_keys,
+    x86_64_microsoft_mixed_aggregate_call_keys, x86_64_system_v_mixed_aggregate_call_keys,
 };
 pub use register_model::{
     x86_64_microsoft_register_unit_call_keys, x86_64_system_v_register_unit_call_keys,

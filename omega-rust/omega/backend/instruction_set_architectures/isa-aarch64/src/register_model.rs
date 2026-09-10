@@ -1404,6 +1404,7 @@ pub fn aarch64_register_constraint_catalog(
             required.extend(aarch64_darwin_mixed_unit_call_keys());
             for darwin in [false, true] {
                 required.extend(aarch64_register_aggregate_call_keys(darwin));
+                required.extend(aarch64_mixed_aggregate_call_keys(darwin));
                 required.extend(aarch64_register_aggregate_return_keys(darwin));
             }
             required.sort_unstable();
@@ -1641,6 +1642,8 @@ mod tests {
                 + aarch64_darwin_mixed_unit_call_keys().len()
                 + aarch64_register_aggregate_call_keys(false).len()
                 + aarch64_register_aggregate_call_keys(true).len()
+                + aarch64_mixed_aggregate_call_keys(false).len()
+                + aarch64_mixed_aggregate_call_keys(true).len()
                 + aarch64_register_aggregate_return_keys(false).len()
                 + aarch64_register_aggregate_return_keys(true).len()
         );

@@ -5357,6 +5357,76 @@ mod resource_tests {
         }
     }
 
+    #[test]
+    fn direct_owned_roster_preserves_ieee_format_width_and_register_bank() {
+        use semantic_vocabulary::{IeeeFloatFormat, ScalarType};
+        for target in [
+            NativeTarget::linux_x64(),
+            NativeTarget::linux_arm64(),
+            NativeTarget::macos_arm64(),
+        ] {
+            for (format, bytes) in [
+                (IeeeFloatFormat::Binary32, 4),
+                (IeeeFloatFormat::Binary64, 8),
+            ] {
+                let scalar_shape = ValueShape::float(bytes);
+                let owned_shape = ValueShape::integer(16, 8);
+                let plan = evaluate_call_plan(
+                    CallingPolicy::native_for_target(target),
+                    &CallSignature {
+                        parameters: vec![scalar_shape, scalar_shape, owned_shape],
+                        result: Some(owned_shape),
+                    },
+                )
+                .unwrap();
+                let mut function = installed_function_with_unit_call();
+                function.unit_parameters = vec![machine_code::UnitParameterRecord {
+                    place: PlaceId::new(1).unwrap(),
+                    structural_type: StructuralTypeId::new(1).unwrap(),
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access: terminal_psi::StructuralAccess::Owned,
+                    shape: owned_shape,
+                }];
+                function.parameter_abi = Some(machine_code::ParameterFunctionAbiRecord {
+                    parameters: (0..2)
+                        .map(|position| target_operations::ScalarAbiValue {
+                            value: ValueId::new(position as u64 + 1).unwrap(),
+                            scalar_type: ScalarType::IeeeFloat(format),
+                            placement: plan.parameters[position].clone(),
+                        })
+                        .collect(),
+                    call_plan: plan,
+                    entry_register_spills: Vec::new(),
+                });
+                assert!(direct_structural::function_is_exact(&function, target));
+                for mutation in 0..4 {
+                    let mut changed = function.clone();
+                    let abi = changed.parameter_abi.as_mut().unwrap();
+                    match mutation {
+                        0 => {
+                            abi.parameters[0].scalar_type =
+                                ScalarType::IeeeFloat(if format == IeeeFloatFormat::Binary32 {
+                                    IeeeFloatFormat::Binary64
+                                } else {
+                                    IeeeFloatFormat::Binary32
+                                })
+                        }
+                        1 => abi.parameters[0].placement.shape.byte_size = 1,
+                        2 => {
+                            abi.parameters[0].placement.locations =
+                                abi.call_plan.parameters[2].locations.clone()
+                        }
+                        _ => abi.parameters.swap(0, 1),
+                    }
+                    assert!(
+                        !direct_structural::function_is_exact(&changed, target),
+                        "{target:?} mutation {mutation}"
+                    );
+                }
+            }
+        }
+    }
+
     fn scalar_control_cleanup(
         edge: u64,
         code_offset: usize,
