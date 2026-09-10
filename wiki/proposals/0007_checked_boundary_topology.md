@@ -3,8 +3,20 @@
 Status: proposed, not ratified or implemented. This is a reference-package design
 and a customer for [0008: Build dependency scopes and isolated inputs](0008_build_dependency_scopes.md),
 not a compiler-owned topology subsystem. Examples use candidate library/build
-APIs, not existing deployment APIs or new Omega grammar. No experiment or
-deployment-enforcement result is claimed; open integration questions remain below.
+APIs, not existing deployment APIs or new Omega grammar. No Omega implementation
+or deployment-enforcement result is claimed; acceptance work remains below.
+
+## Proposed decisions at a glance
+
+| Question | Selected first-slice answer |
+| --- | --- |
+| Who owns topology? | An ordinary build-only package owns graph algorithms, plan data/codec, verification, and installer orchestration. |
+| What must the compiler establish? | Exact, complete component interface/authority facts and ordinary checked execution; no topology primitive. |
+| How is the required policy trusted? | The installer receives current owner intent independently of the candidate plan. |
+| Which policies? | `no_route` and `only_via`, replayed by an independently selected package verifier; no plan-selected executable loading. |
+| What does plan publication prove? | Only that exact bytes were published. Plan validity and actual binding admission are separate checks. |
+| What makes runtime enforcement real? | Accounted executable closure plus provider-established endpoints, complete binding coverage, and activation authority. |
+| What is not claimed? | Request authorization, confidentiality, availability, remote transport correctness, or atomic rollback of startup effects. |
 
 ## Problem and decision
 
@@ -103,14 +115,14 @@ use build_support::deployment;
 
 machine build(builder: &mut Build) {
     builder.application("payments-deployment");
-  builder.build_depend_as("topology", Source::Path {
-    location: "../topology"
-  });
-  builder.artifact_only();
+    builder.build_depend_as("topology", Source::Path {
+        location: "../topology"
+    });
+    builder.artifact_only();
 
-  let inputs = deployment_inputs(&mut builder.source);
-  let output = builder.output.require("payments.plan");
-  compose_payments(inputs, output);
+    let inputs = deployment_inputs(&mut builder.source);
+    let output = builder.output.require("payments.plan");
+    compose_payments(inputs, output);
 }
 ```
 
@@ -135,8 +147,13 @@ serialize the verified result and complete the supplied output
 ```
 
 Public labels resolve to exact requirement applications from admitted interfaces.
-Typed convenience methods may name `Authorize` and `Charge` through separately
-declared protocol dependencies; equal names are never compatibility evidence.
+The default package API uses verified endpoint descriptions, so it need not load
+target component types as host types. Typed convenience methods may name
+`Authorize` and `Charge` through separately declared build protocol dependencies,
+but must join their complete normalized schemas to the target endpoint; equal
+names or independently checked host/target applications are not compatibility
+evidence. Product-description handles from 0008 cannot become generic type
+arguments merely to make this shortcut work.
 Storage sponsorship and checked error propagation are omitted only from the
 sketch, not the contract. No implicit unwraps or ambient filesystem access follow.
 
@@ -194,6 +211,56 @@ Different native realizations of the same component are permitted only with the
 ordinary semantic correspondence or explicitly accepted opaque-code contract.
 An executable filename, digest, reproducible build, or signature alone does not
 prove the inventory complete.
+
+### Verified-description consumer
+
+Define a small consumer API in the existing component-verification owner, not
+the topology package: `verify_component(bytes, expected_subject, profile)` returns
+either an immutable `VerifiedComponent` with its accepted assumptions or a
+structured failure. The names are proposed API vocabulary. The profile and
+expected subject come from independent caller policy. Deserialization alone
+returns an unverified candidate; a producer-written `complete = true` is not a
+construction route for `VerifiedComponent`.
+
+The description exposes exact public slots, directions, complete closed
+requirements/calling contracts, possible entries, outgoing authority demands,
+and checked custody/lifetime constraints. It also identifies the verification
+schema, semantic subject, selected realization evidence where available, and
+per-fact assumptions. No private executable bodies become author-selectable;
+their existence and authority consequences remain represented in completeness
+evidence. Early product-reference descriptions from 0008 are not accepted here:
+the package needs the completed component closure, after generated source and
+provider selection, not the build's partial declaration catalog.
+
+For this profile, complete communication authority means every possible outgoing
+invocation/message path is one of: a declared endpoint demand, a declared external
+participant/mediator, or an explicitly accounted physical mechanism whose contract
+permits no additional such communication. Every startup/constructor, callback,
+timer, cleanup path, and retained provider dependency participates. A hidden raw
+socket or inherited handle cannot be dismissed as an implementation detail of a
+listed endpoint. Unknown or incomplete coverage returns `IncompleteAuthority`,
+not a description with an empty outgoing set. Plain build-generated metadata may
+annotate the description but cannot narrow it.
+
+The component verifier owns the code-to-inventory claim; the package owns the
+inventory-to-instance-graph transformation; the installer/provider owns the
+graph-to-actual-bindings claim. Facts that depend on physical installation remain
+requirements in the description until their exact installation receipt exists.
+Calling `verify_component` never installs code or grants a callable service.
+Wrong subject, incompatible schema, invalid evidence, unaccepted assumptions,
+incomplete authority, and exhausted verification are distinct failure categories.
+
+`VerifiedComponent` is descriptive data with verifier-established qualification
+under the existing authority rules, not a new language type category. Its
+description and accepted assumptions are inseparable for claim consumption;
+copying public fields alone cannot establish completeness. Resource/profile
+admission is checked again for each installation occurrence. Cryptographic content
+identity detects substitution but does not discharge a semantic premise.
+
+This direct compiler/verifier support earns its place: ordinary reflection or a
+library census cannot certify absence of hidden executable authority. Expose the
+existing closed component evidence through a narrow read API, rather than build
+a topology-specific analyzer or a general mutable compiler-query service.
 
 Within a candidate plan, `InstanceKey = unique authored instance name` and
 `EndpointKey = (InstanceKey, exact component slot/application identity)`.
@@ -264,8 +331,8 @@ The first reference-package slice supplies two operations:
 Selectors are explicit instance sets; a helper can construct them by component
 identity or owner-authored labels. Empty sets, nonexistent members, foreign-plan
 handles, and overlapping source/target/via sets reject instead of vacuously
-satisfying a routing requirement.
-Rejecting overlaps bounds the first API; it does not claim graph theory cannot
+satisfying a routing requirement. Rejecting overlaps bounds the first API;
+it does not claim graph theory cannot
 define them. `only_via` explicitly requires a path so disconnected deployments
 cannot accidentally pass. Deliberate disconnection uses `no_route`.
 
@@ -276,6 +343,36 @@ cycles without interpreting component bodies. Ordered intermediary groups,
 connectivity queries, richer Boolean policy combinators, and more precise
 entry-specific analysis can be independent package extensions when a customer
 needs them; none is a compiler primitive or prerequisite to the first slice.
+
+The selected set semantics are existential for the non-vacuity clause: at least
+one member of S reaches some member of T, while every path between either set
+must pass V. They do not require every source to reach every target, or prove
+that all instances are useful. A caller requiring connectivity from every source
+registers one `only_via` check per source. The API must say this explicitly rather
+than accept a disconnected replica under a misleading per-source guarantee.
+`no_route` deliberately permits disconnection. Both policies reject overlapping
+endpoint sets in this first API, so zero-length paths do not hide an ambiguity.
+
+For first implementation, select one exact admitted package verifier containing
+the two reference predicates. The installer reruns them on its reconstructed
+graph. A plan does not load or execute arbitrary policy code that it names; an
+owner must independently select another checked verifier before custom policies
+are eligible. No dynamic plugin or compiler-owned policy interpreter follows.
+Use canonical vertex/edge ordering, a visited set, and finite worklists. Each
+reachability traversal visits each vertex and edge at most once, after input
+validation and canonicalization; `only_via` needs at most two traversals. Exhausted
+resources are unsuccessful verification, not a violated or satisfied predicate.
+
+The small proof obligations can be stated without extending the proof kernel.
+For `no_route`, the set reachable from S contains S, is closed under every edge,
+and is disjoint from T. Closure establishes absence of any S-to-T path by
+induction on path length. For `only_via`, supply ordinary reachability in G and
+show that the S-reachable set in G with V removed is disjoint from T. Any path
+avoiding V would also be a path in that reduced graph. A bypass witness must be
+checked against actual edges. These are package correctness obligations, not
+trusted compiler graph axioms. Portable reachability certificates are a possible
+later optimization, not a second evidence protocol required for the initial
+replay implementation. Replaying unproved code does not prove its correctness.
 
 The reference algorithms require correctness evidence against these definitions
 under the ordinary proof/admission rules. Running a typechecked BFS and receiving
@@ -302,6 +399,34 @@ joins the plan to independently accepted owner intent, not a requirement set tha
 an untrusted plan writer may choose for itself. Omitting a policy changes that
 intent; a valid plan for a weaker policy is not sufficient. Build provenance helps
 identify inputs and outputs but does not infer a missing business rule.
+
+### Owner intent is a separate input
+
+Use a package-defined immutable `TopologyRequest` with an independently accepted
+commitment as the input to plan verification and installation. Its v1 contents
+are an exact instance roster and component subjects, required policy identities
+and arguments, selected verifier identity, allowed transport/confinement profile,
+and accepted assumptions. The builder may choose bindings that satisfy that
+request, but may not add an undeclared instance, swap code, or omit a required
+policy. Updates to the request need new owner authorization; no compatibility
+heuristic is necessary in the first version.
+
+The installer receives the expected request commitment and current installation
+authorization from its caller/supervisor, not from the candidate plan. It compares
+the plan's request and subjects exactly, reconstructs the graph, and evaluates
+the required policies itself. Missing, duplicate, or additional unselected policy
+code rejects. A stale request with a valid signature is still stale if it is not
+the currently authorized request. Signing or build provenance can authenticate
+which bytes an owner selected, but cannot prove component completeness, policy
+correctness, or OS confinement. No new cryptographic service is necessary to
+perform local exact-value authorization.
+
+The request is data; linear install/update authority remains in the existing
+component lifecycle owner. It names the installation occurrence and permits one
+activation transition. A replayable plan or checked graph result is not a reusable
+activation token. Altered bindings require fresh verification even when code and
+request are unchanged. This separates owner intent, plan correctness, and runtime
+authority instead of making a signed success field carry all three claims.
 
 ## What makes the graph trustworthy
 
@@ -414,9 +539,9 @@ claiming portable publication; it owns its wire numbers without a compiler schem
 registry. A schema mismatch requires reconstruction and fresh admission,
 not guessed compatibility or a trusted JSON success report.
 
-The package-owned installer independently validates the plan, reconstructs the
-graph, and reruns the selected terminating policies or checks equivalent evidence through
-the existing proof verifier. It then installs exact code and endpoint bindings,
+The package-owned installer independently validates the plan against the supplied
+request, reconstructs the graph, and reruns the selected reference predicates.
+It then installs exact code and endpoint bindings,
 establishes provider/OS confinement, and admits activation. Its receipt binds the
 plan, actual artifact identities, physical endpoint mapping, confinement/provider
 evidence, execution domain, and installation generation. A signature can identify
@@ -428,15 +553,38 @@ supports the runtime claim, conditional on the named OS/transport/hardware trust
 Unknown, unsupported, resource-exhausted, and assumption-unaccepted outcomes never
 become either success verdict by omission.
 
-Activation is gated on successful admission, not necessarily on transactional
-filesystem creation. On failure, release acquired endpoints/storage through
-ordinary cleanup and do not activate the new installation. Already published
-installations remain separate and unchanged. The v1 replacement procedure stops
-and quiesces the affected installation, checks the new plan, and starts the new
-generation. It claims no uninterrupted service or state migration. Existing
-independent-component machinery may later justify narrower live replacement,
-but simultaneous old/new graphs must then satisfy an explicitly checked
-coexistence policy; two individually safe plans need not have a safe union.
+Activation is gated on successful admission, not transactional filesystem creation.
+Before installation, the exact request and plan produce a read-only `CheckedPlan`
+result. Preparation borrows it and consumes ordinary provisioning authority to
+create owned pending placements/endpoints. Each binding receipt records the plan,
+instance/slot identities, exact peer, transport/schema, installation occurrence,
+and actual endpoint custody. The all-bindings check requires every demanded import
+exactly once and accounts for all inherited and mediator authority; a bag of
+individually valid receipts is not proof of complete coverage.
+
+Only successful coverage and component/executable admission permits activation.
+This is an existing installer/provider boundary implemented directly where needed,
+not a predicate whose proof fabricates a live handle. Startup code before the
+gate belongs to the loader/provider contract; application constructors, callbacks,
+and timers must not execute outside that accounted closure. No ordinary process
+spawn is claimed to supply this guarantee by itself.
+
+On preparation failure, pending resources are cleaned up or returned with explicit
+custody; leaked or unaccounted endpoints cannot be reported as successful cleanup.
+On activation failure after some entries start, stop/quiesce the started members
+or return an explicit failed installation retaining supervision/cleanup authority.
+Never report an installation receipt for a partially admitted roster. Startup
+side effects are not rolled back and no availability or transactional external
+effect guarantee is claimed.
+
+For replacement, validate the new request and plan first, then stop and quiesce
+the old installation before activating new bindings. Failure before stopping
+leaves the old installation unchanged; failure afterward may cause downtime but
+cannot silently restart it under different authority. Restarting old code requires
+its own still-valid envelope and activation procedure. Live overlapping generations
+and state migration remain out of scope; two safe graphs need not have a safe
+union. Ordinary terminal retirement revokes entry and releases endpoints through
+the existing lifecycle contract, not by deleting the plan file.
 
 ## First executable realization
 
@@ -500,13 +648,18 @@ Required acceptance cases:
 | Broad transport hidden behind an ordinary wrapper | Reject without exact mediation/confinement evidence. |
 | Raw endpoint fabrication, serialized endpoint, unlisted callback | Reject; no implied delegation or reverse connection. |
 | Modified component, policy, binding, codec, or transport after check | Reject stale evidence; reconstruct against the new subject. |
+| Early product schema or producer-written complete flag supplied as a verified component | Reject; only completed independently verified closure facts satisfy this role. |
 | Writer omits an owner-required policy or supplies a trivial substitute | Installer rejects the mismatch with independently accepted owner intent. |
+| Old request is correctly signed but differs from current installation authorization | Reject; authenticated history is not current permission. |
+| Plan names an unselected policy executable | Reject without executing it. |
+| Every binding receipt is individually valid but an import is omitted or duplicated | Reject the incomplete/non-bijective installed coverage. |
 | Build helper tries to read home files or open a network connection | No authority from the topology dependency; 0008's scoped execution refuses. |
 | Plan file is published with a forged success flag | Publication is not approval; the package verifier rejects invalid evidence. |
 | Instance declaration order or binding order changed | Same normalized semantic graph and policy result. |
 | Cross-machine consumer with no source trees | Reconstruct and check from admitted artifacts and owned plan. |
 | Wrong runtime peer, substituted native code, insufficient confinement | Installation rejects even if the proposed graph passes. |
-| Check succeeds but installation fails partway | No admitted new activation; ordinary cleanup, no false success receipt. |
+| Plan check succeeds but preparation fails before activation | No application activation; release or return pending custody, no false success receipt. |
+| Some admitted members start and a later activation fails | No successful installation receipt; retain supervision and quiesce or report explicit cleanup failure. |
 | Co-located vs isolated vs remote realization | Same logical policy, separately justified enforcement/transport contracts. |
 | Charge approved for another amount / replayed request | Authorization protocol rejects independently of a passing topology check. |
 | Secret-dependent reply over a permitted route | Not claimed safe by topology; no false confidentiality verdict. |
@@ -538,24 +691,41 @@ Keep the finite graph and the two routing policies as the first package slice.
 Do not expand into distributed orchestration, automatic discovery, hot replacement,
 ordered-query languages, or information-flow analysis to justify compiler hooks.
 
-The next design work is concrete:
+This revision selects independently supplied owner intent, a generic
+verified-component description, ordinary predicate replay, and a staged
+preparation/activation protocol. Those choices are proposed, not evidence that
+the necessary producer, API, proof, or OS provider is implemented.
 
-1. Specify the ordinary verified-component description API needed by the package.
-  Which existing component facts are available without source, and which exact
-  missing facts require work in their current owner? Preserve independent replay;
-  reflection or a producer-written endpoint list cannot replace completeness.
-2. Settle 0008's build-only scope and generic output/failure interface. Demonstrate
-  the same interface with a code generator, so topology is not its only rationale.
-3. Define the package's smallest codec, checked graph result, and accepted
-  owner-policy input. Choose replay or existing proof evidence with explicit
-  algorithm assumptions; do not introduce a new trusted policy rule.
-4. Exercise one actual private-pipe installation with an attempted bypass and
-  substituted peer. Account for every provider/OS premise. Plan checking without
-  installation evidence remains only plan checking.
+Before promotion, inventory which existing component facts already have portable
+producer/verifier support. Any missing completeness guarantee needs a precise
+contract and implementation task in that owner, not an assumed adapter. Specify
+the package codec field/tag tables and test corrupt/missing/duplicate/stale fields
+before shipping artifacts. Demonstrate 0008's generic output protocol with a code
+generator as well as topology. Exercise an actual private-pipe installation and
+its failures on the available hosts. These are required acceptance artifacts,
+not permission to claim runtime enforcement from successful graph tests.
 
-These are proposal dependencies and integration questions, not assertions that
-the APIs already exist. 0008 is a proposed prerequisite to this build integration,
-not a ratified requirement on current packages. Keep the graph, codec, diagnostics,
-and installer in package code; add only demonstrated general-purpose missing
-capabilities through their existing spec owners. No implementation tasks or
-execution-board prerequisites follow before ratification.
+The remaining architectural decision is whether to accept this bounded package
+contract and its assumptions. Topology-specific wire choices, container selection,
+and graph implementation stay with the package; any new trusted premise or
+language semantic change must be surfaced. Remote transport, automatic upgrades,
+arbitrary policy-code loading, and typed reflection across build/product contexts
+are deferred rather than unspecified v1 features. 0008 remains a proposed
+dependency, not a ratified requirement on current packages.
+
+## Comparison and ownership rationale
+
+[seL4 capDL](https://docs.sel4.systems/projects/capdl/) separates a description of
+capability distribution from the loader that establishes it, and supports both
+programmatic construction and formal models. The useful lesson is the explicit
+description/realization boundary. This proposal does not import capDL's kernel
+objects, seL4 authority model, or proof results into Omega or host processes.
+Private pipes on a general OS need their own accounted confinement contract.
+
+Compiler-owned graph analysis would duplicate ordinary finite algorithms and
+freeze a package policy into the language. Conversely, a library-only claim of
+complete executable authority has no basis merely because its graph algorithm is
+correct. The minimum split is compiler/component verification of complete facts,
+package computation over those facts, and provider-established actual bindings.
+Ownership qualifications and explicit admissions carry these joins; no special
+`TopologySafe` keyword or runtime registry is proposed.
