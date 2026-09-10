@@ -50,11 +50,11 @@ machine MacosArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
     state physical_shapes(argc: ValueShape, argv: ValueShape, envp: ValueShape,
         apple: ValueShape, result: ValueShape) -> BoundaryPlanResult
     {
-        transition MacosArm64::integer_shape(argc, 4)
-            && MacosArm64::integer_shape(argv, 8)
-            && MacosArm64::integer_shape(envp, 8)
-            && MacosArm64::integer_shape(apple, 8)
-            && MacosArm64::integer_shape(result, 4)
+        transition MacosArm64::integer_shape(&argc, 4)
+            && MacosArm64::integer_shape(&argv, 8)
+            && MacosArm64::integer_shape(&envp, 8)
+            && MacosArm64::integer_shape(&apple, 8)
+            && MacosArm64::integer_shape(&result, 4)
         {
             true -> build_physical()
             _ -> reject()
@@ -174,12 +174,12 @@ machine MacosArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
     }
 }
 
-machine MacosArm64::integer_shape(shape: ValueShape, bytes: u64) -> bool {
+machine MacosArm64::integer_shape(shape: &ValueShape, bytes: u64) -> bool {
     transition shape.class {
         ValueClass::Integer -> integer(shape, bytes)
         _ -> no()
     }
-    state integer(shape: ValueShape, bytes: u64) -> bool {
+    state integer(shape: &ValueShape, bytes: u64) -> bool {
         shape.byte_size == bytes && shape.alignment == bytes
     }
     state no() -> bool { false }
@@ -201,20 +201,20 @@ machine MacosArm64::extent_shape(shape: ValueShape, signature: &BoundarySignatur
     state field_range(signature: &BoundarySignature, first_field: u64 [0..=254]) -> bool {
         let second_field: u64 [1..=255] = first_field + 1;
         transition second_field < signature.field_count {
-            true -> fields(signature, signature.fields[first_field], signature.fields[second_field])
+            true -> fields(signature, &signature.fields[first_field], &signature.fields[second_field])
             _ -> no()
         }
     }
-    state fields(signature: &BoundarySignature, base: ValueField, length: ValueField) -> bool {
+    state fields(signature: &BoundarySignature, base: &ValueField, length: &ValueField) -> bool {
         transition base.byte_offset == 0 && length.byte_offset == 8
             && base.shape < 256 && length.shape < 256
             && base.shape < signature.shape_count && length.shape < signature.shape_count
         {
-            true -> words(signature.shapes[base.shape], signature.shapes[length.shape])
+            true -> words(&signature.shapes[base.shape], &signature.shapes[length.shape])
             _ -> no()
         }
     }
-    state words(base: ValueShape, length: ValueShape) -> bool {
+    state words(base: &ValueShape, length: &ValueShape) -> bool {
         MacosArm64::integer_shape(base, 8) && MacosArm64::integer_shape(length, 8)
     }
     state no() -> bool { false }

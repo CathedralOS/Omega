@@ -32,6 +32,7 @@ pub(super) fn check_call_access_conflicts(
 
     for transferred in crate::flow::owned_call_operand_places(
         program,
+        &facts.operators,
         state_flow.machine_symbol,
         state_flow.state_symbol,
         borrow_call,

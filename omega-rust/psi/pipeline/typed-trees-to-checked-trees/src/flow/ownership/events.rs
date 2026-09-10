@@ -21,14 +21,19 @@ pub(crate) struct DiscoveredMoveEvent {
 
 pub(crate) struct DirectMoveEventSink<'segments> {
     segments: &'segments mut arena::Arena<facts::PlaceSegment>,
+    pub(super) operators: &'segments checked_trees::CheckedOperatorFacts,
     events: Vec<DiscoveredMoveEvent>,
     proof_only: Option<typed_trees::proof_only::ProofOnlyClassification>,
 }
 
 impl<'segments> DirectMoveEventSink<'segments> {
-    pub(crate) fn new(segments: &'segments mut arena::Arena<facts::PlaceSegment>) -> Self {
+    pub(crate) fn new(
+        segments: &'segments mut arena::Arena<facts::PlaceSegment>,
+        operators: &'segments checked_trees::CheckedOperatorFacts,
+    ) -> Self {
         Self {
             segments,
+            operators,
             events: Vec::new(),
             proof_only: None,
         }

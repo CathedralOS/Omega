@@ -1377,6 +1377,14 @@ Owners include
   state/value planning before expecting this fixture to emit; a primitive
   field store or a fresh call-result home cannot substitute receiver replacement.
 
+  Pause further isolated native prerequisite milestones for this fixture.
+  Resume execution work with a plan covering its actual transitive closure:
+  nested construction and extraction, borrowed case observation, and whole
+  nominal replacement, including match-produced field assignments. Reuse
+  existing recursive layouts and referent identity; do not erase structural
+  operand custody or replace borrowed storage with snapshots. This is an
+  implementation scope pause, not a language-design blocker.
+
 - **R5.** Finish exact inferred may-write summaries and relational candidates
   for unresolved receivers, boundary-result origins, conditional helper-body
   case refinement, mutable case-state transfer, graph-level aggregate result

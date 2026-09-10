@@ -6,9 +6,7 @@ boundary trait Callback {
     machine call(value: u64) -> u64;
 }
 
-data Spread {
-    entries: [FieldEntry; 64];
-}
+data Spread {}
 
 CallbackSlot: Spread satisfies PrivateCallbackSlot<Callback::call>;
 
@@ -19,12 +17,13 @@ machine Spread::plan(&mut self, schema: Schema) -> Plan {
     }
 
     state with_private(&mut self, schema: Schema) -> Plan {
-        self.entries[0] = FieldEntry {
+        let mut entries: [FieldEntry; 64];
+        entries[0] = FieldEntry {
             key: schema.fields[0].key,
             placement: FieldPlan::At { offset: 0 },
         };
         let plan: Plan = Plan {
-            entries: self.entries,
+            entries: entries,
             entry_count: 1,
             size_fixed: 16,
             size_is_dynamic: false,
@@ -34,12 +33,13 @@ machine Spread::plan(&mut self, schema: Schema) -> Plan {
     }
 
     state plain(&mut self, schema: Schema) -> Plan {
-        self.entries[0] = FieldEntry {
+        let mut entries: [FieldEntry; 64];
+        entries[0] = FieldEntry {
             key: schema.fields[0].key,
             placement: FieldPlan::At { offset: 0 },
         };
         Plan {
-            entries: self.entries,
+            entries: entries,
             entry_count: 1,
             size_fixed: 8,
             size_is_dynamic: false,

@@ -132,6 +132,7 @@ fn validate_partial_moves(
             let moves = crate::flow::discover_state_move_events(
                 program,
                 &facts.borrow,
+                &facts.operators,
                 machine,
                 state,
                 &mut segments,
@@ -142,10 +143,19 @@ fn validate_partial_moves(
                 {
                     continue;
                 }
-                if projected_affine::is_borrowed_case_transfer(program, state, &event, path) {
-                    diagnostics.push(Diagnostic::error(
-                        "cannot transfer a non-copy case payload out of borrowed storage without replacing its owner",
-                    ));
+                if projected_affine::is_borrowed_place_transfer(
+                    program,
+                    machine.symbol,
+                    state,
+                    &event,
+                    path,
+                ) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "cannot transfer a non-copy value out of borrowed storage without replacing its owner in `{}`, state `{}` (statement {})",
+                        machine.name.as_str(),
+                        state.name.as_str(),
+                        event_statement_index(event.source).unwrap_or(0),
+                    )));
                     continue;
                 }
                 temporary_results::check_unselected_claims(
@@ -410,6 +420,7 @@ fn record_permission_events_with_incoming_guards(
         let moves = crate::flow::discover_state_move_events(
             program,
             &facts.borrow,
+            &facts.operators,
             machine,
             state,
             &mut facts.flow.ownership.segments,

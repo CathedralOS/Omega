@@ -30,19 +30,18 @@ data Plan {
     align: u64;
 }
 
-data Streamy {
-    entries: [FieldEntry; 64];
-}
+data Streamy {}
 machine Streamy::plan(&mut self, schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
     // Distinct offsets so placement VALIDATION passes; the plan is rejected
     // in type position purely for being dynamic.
-    self.entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
-    self.entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 4 } };
-    transition { _ -> done(schema) }
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+    entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 4 } };
+    transition { _ -> done(schema, entries) }
 
-    state done(&mut self, schema: Schema) -> Plan {
+    state done(&mut self, schema: Schema, entries: [FieldEntry; 64]) -> Plan {
         Plan {
-            entries: self.entries,
+            entries: entries,
             entry_count: schema.field_count,
             size_fixed: 0,
             size_is_dynamic: true,

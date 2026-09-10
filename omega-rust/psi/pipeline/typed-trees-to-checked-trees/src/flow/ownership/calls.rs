@@ -201,6 +201,7 @@ fn affine_call_result_type(
 /// is bodyless.
 pub(crate) fn owned_call_operand_places(
     program: &typed_trees::TypedTrees,
+    operators: &checked_trees::CheckedOperatorFacts,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow_call: &BorrowCallFact,
@@ -223,7 +224,7 @@ pub(crate) fn owned_call_operand_places(
     // ownership discovery as move checking so nested literals contribute
     // their moved operands rather than an unknown constructor place.
     let mut segments = arena::Arena::default();
-    let mut sink = DirectMoveEventSink::new(&mut segments);
+    let mut sink = DirectMoveEventSink::new(&mut segments, operators);
     append_call_ownership_events(program, &mut sink, machine, state, borrow_call);
     sink.finish()
         .into_iter()

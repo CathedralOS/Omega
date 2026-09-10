@@ -260,6 +260,17 @@ caller places without crossing references or slices. `checks/multiplicity/tempor
 rejects partial temporary moves leaving unselected linear claims. Complete
 frontier transfer remains separate from nested-call executable realization.
 
+`checks/multiplicity/projected_affine.rs` checks every reference prefix before
+admitting a projected owned transfer. Ordinary record fields and case payloads
+obey the same rule: a borrow grants no ownership of an affine referent. Moving a
+reference carrier or copying an explicitly copyable field is a separate action.
+Loan formation and intrinsic payload-free-sum equality observe places; their
+evaluated indexes and nested calls still retain ordinary argument consumption
+through `flow/ownership/moves/observations.rs`. Local initializers are evaluated
+even when their destination holds a copyable value or a reference. Authored
+indexing uses the exact retained operator selection and parameter ownership;
+borrowing its result cannot turn an owned collection argument into an observation.
+
 Borrow recasts use the validated representation footprint, not ordinary
 same-carrier cast traversal. Whole-name/member recasts retain the source place;
 eligible literal byte-array offsets retain the complete half-open target range.

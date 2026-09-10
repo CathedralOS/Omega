@@ -1,6 +1,7 @@
 use super::*;
 
 mod borrowed_case_payloads;
+mod borrowed_observations;
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
@@ -1721,7 +1722,7 @@ fn nominal_drop_rejects_move_below_generic_prefix() {
 }
 
 #[test]
-fn nominal_drop_rejects_partial_move_from_self() {
+fn nominal_drop_does_not_authorize_borrowed_self_extraction() {
     let source = r#"
         data Leaf { value: i32; }
         data Wrapper { leaf: Leaf; }
@@ -1735,11 +1736,11 @@ fn nominal_drop_rejects_partial_move_from_self() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics = lower_typed_trees(typed)
-        .expect_err("normalized self roots retain their attached nominal drop");
+        .expect_err("a nominal drop hook does not grant ownership of borrowed contents");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("cannot partially move a value of `Wrapper`")
+            .contains("cannot transfer a non-copy value out of borrowed storage")
     }));
 }
 

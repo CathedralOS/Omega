@@ -28,33 +28,35 @@ data Plan {
     align: u64;
 }
 
-data Spread16 { entries: [FieldEntry; 64]; index: u64 in Wrapping; }
+data Spread16 { index: u64 in Wrapping; }
 machine Spread16::plan(&mut self, schema: Schema) -> Plan {
     self.evaluate(schema, 128)
 }
 machine Spread16::evaluate(&mut self, schema: Schema, fuel: u64 [1..=128]) -> Plan
 terminates by fuel;
 {
+    let mut entries: [FieldEntry; 64];
     self.index = 0;
-    transition { _ -> fill(schema, fuel) }
-    state fill(&mut self, schema: Schema, fuel: u64 [1..=128]) {
+    transition { _ -> fill(schema, fuel, entries) }
+    state fill(&mut self, schema: Schema, fuel: u64 [1..=128], entries: [FieldEntry; 64]) {
         transition fuel > 1 && self.index < schema.field_count {
-            true -> place(schema, fuel - 1)
-            _ -> done(schema)
+            true -> place(schema, fuel - 1, entries)
+            _ -> done(schema, entries)
         }
     }
-    state place(&mut self, schema: Schema, fuel: u64 [1..=128]) {
+    state place(&mut self, schema: Schema, fuel: u64 [1..=128], entries: [FieldEntry; 64]) {
+        let mut updated: [FieldEntry; 64] = entries;
         let offset: u64 = (self.index * 16) as u64;
-        self.entries[self.index] = FieldEntry {
+        updated[self.index] = FieldEntry {
             key: schema.fields[self.index].key,
             placement: FieldPlan::At { offset: offset },
         };
         self.index = self.index + 1;
-        transition fuel > 1 { true -> fill(schema, fuel - 1) _ -> done(schema) }
+        transition fuel > 1 { true -> fill(schema, fuel - 1, updated) _ -> done(schema, updated) }
     }
-    state done(&mut self, schema: Schema) -> Plan {
+    state done(&mut self, schema: Schema, entries: [FieldEntry; 64]) -> Plan {
         Plan {
-            entries: self.entries,
+            entries: entries,
             entry_count: schema.field_count,
             size_fixed: schema.field_count * 16,
             size_is_dynamic: false,
@@ -63,8 +65,8 @@ terminates by fuel;
     }
 }
 
-data Evidence { case Only; }
-data Certified {
+data Evidence [copy] { case Only; }
+data Certified [copy] {
     left: u16;
     proof [erased]: Evidence;
     right: u32;

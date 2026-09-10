@@ -688,7 +688,7 @@ fn accepts_requires_from_local_boolean_alias_transfer() {
 #[test]
 fn accepts_requires_domain_union_when_left_branch_is_proven() {
     let source = r#"
-        data Password {
+        data Password [copy] {
             length: i32;
             score: i32;
         }
@@ -726,7 +726,7 @@ fn accepts_requires_domain_union_when_left_branch_is_proven() {
 #[test]
 fn accepts_requires_boolean_expression_from_domain_fact() {
     let source = r#"
-        data Password {
+        data Password [copy] {
             length: i32;
             score: i32;
         }
@@ -760,7 +760,7 @@ fn accepts_requires_boolean_expression_from_domain_fact() {
 #[test]
 fn accepts_requires_boolean_union_expression_from_domain_fact() {
     let source = r#"
-        data Password {
+        data Password [copy] {
             length: i32;
             score: i32;
         }
@@ -898,7 +898,7 @@ fn accepts_requires_dynamic_indexed_scalar_member_expression_from_domain_fact() 
 #[test]
 fn rejects_requires_boolean_expression_from_domain_fact_after_mutating_call() {
     let source = r#"
-        data Password {
+        data Password [copy] {
             length: i32;
             salt: i32;
         }
@@ -948,7 +948,7 @@ fn rejects_requires_boolean_expression_from_domain_fact_after_mutating_call() {
 #[test]
 fn accepts_requires_boolean_expression_from_domain_fact_across_disjoint_mutating_call() {
     let source = r#"
-        data Password {
+        data Password [copy] {
             length: i32;
             salt: i32;
         }
@@ -1033,7 +1033,7 @@ fn rejects_requires_scalar_member_expression_after_same_index_mutation() {
 #[test]
 fn rejects_requires_fixed_indexed_boolean_expression_from_domain_fact_after_mutating_call() {
     let source = r#"
-        data Item {
+        data Item [copy] {
             value: i32;
             tag: i32;
         }
@@ -1084,7 +1084,7 @@ fn rejects_requires_fixed_indexed_boolean_expression_from_domain_fact_after_muta
 fn accepts_requires_fixed_indexed_boolean_expression_from_domain_fact_across_disjoint_mutating_call()
  {
     let source = r#"
-        data Item {
+        data Item [copy] {
             value: i32;
             tag: i32;
         }
@@ -1129,7 +1129,7 @@ fn accepts_requires_fixed_indexed_boolean_expression_from_domain_fact_across_dis
 #[test]
 fn rejects_requires_dynamic_indexed_boolean_expression_from_domain_fact_after_mutating_call() {
     let source = r#"
-        data Item {
+        data Item [copy] {
             value: i32;
             tag: i32;
         }
@@ -1181,7 +1181,7 @@ fn rejects_requires_dynamic_indexed_boolean_expression_from_domain_fact_after_mu
 fn accepts_requires_dynamic_indexed_boolean_expression_from_domain_fact_across_disjoint_mutating_call()
  {
     let source = r#"
-        data Item {
+        data Item [copy] {
             value: i32;
             tag: i32;
         }
@@ -1324,7 +1324,7 @@ fn accepts_exit_ensures_dynamic_indexed_boolean_expression_from_domain_fact_acro
 #[test]
 fn accepts_requires_domain_union_when_right_branch_is_proven() {
     let source = r#"
-        data Password {
+        data Password [copy] {
             length: i32;
             score: i32;
         }
@@ -1362,7 +1362,7 @@ fn accepts_requires_domain_union_when_right_branch_is_proven() {
 #[test]
 fn rejects_unproven_requires_domain_union() {
     let source = r#"
-        data Password {
+        data Password [copy] {
             length: i32;
             score: i32;
         }
@@ -1405,7 +1405,7 @@ fn rejects_unproven_requires_domain_union() {
 #[test]
 fn accepts_requires_from_instantiated_boundary_operator_boolean_ensures() {
     let source = r#"
-        data Reading {
+        data Reading [copy] {
             value: i32;
             floor: i32;
         }
@@ -1439,7 +1439,7 @@ fn accepts_requires_from_instantiated_boundary_operator_boolean_ensures() {
 #[test]
 fn invalidates_instantiated_boundary_operator_boolean_ensures_when_either_operand_changes() {
     let source = r#"
-        data Reading {
+        data Reading [copy] {
             value: i32;
             floor: i32;
         }
@@ -1800,7 +1800,7 @@ fn exit_ensures_requirement_label_resolves_attached_data_members() {
 #[test]
 fn accepts_requires_from_local_alias_transfer() {
     let source = r#"
-        data Player {
+        data Player [copy] {
             health: i32;
         }
 

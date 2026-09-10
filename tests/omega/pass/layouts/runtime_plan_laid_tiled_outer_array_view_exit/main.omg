@@ -5,23 +5,24 @@
 use omega_language_std::console;
 use omega::language::core::layout;
 
-data TiledArray { entries: [FieldEntry; 64]; }
+data TiledArray { }
 
 machine TiledArray::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 12 },
     };
-    self.entries[1] = FieldEntry {
+    entries[1] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 4 },
     };
-    self.entries[2] = FieldEntry {
+    entries[2] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 8 },
     };
     Plan {
-        entries: self.entries,
+        entries: entries,
         entry_count: 3,
         size_fixed: 16,
         size_is_dynamic: false,

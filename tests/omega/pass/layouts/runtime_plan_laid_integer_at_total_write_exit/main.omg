@@ -25,9 +25,10 @@ data Plan {
     align: u64;
 }
 
-data SignedByte { entries: [FieldEntry; 64]; }
+data SignedByte { }
 machine SignedByte::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::IntegerAt {
             offset: 0,
@@ -36,7 +37,7 @@ machine SignedByte::plan(&mut self, schema: Schema) -> Plan {
         },
     };
     Plan {
-        entries: self.entries,
+        entries: entries,
         entry_count: 1,
         size_fixed: 1,
         size_is_dynamic: false,

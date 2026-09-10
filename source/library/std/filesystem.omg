@@ -55,6 +55,20 @@ pub data ErrorKind {
     case WouldBlock;       // canonicalized EWOULDBLOCK/EAGAIN — a non-blocking op is contended
 }
 
+// Observe a saved category and construct a fresh value. A borrowed receiver
+// cannot transfer its stored affine ErrorKind into another result.
+machine ErrorKind::reconstruct(&self) -> ErrorKind {
+    transition self {
+        ErrorKind::Other -> ErrorKind::Other
+        ErrorKind::NotFound -> ErrorKind::NotFound
+        ErrorKind::PermissionDenied -> ErrorKind::PermissionDenied
+        ErrorKind::AlreadyExists -> ErrorKind::AlreadyExists
+        ErrorKind::BadDescriptor -> ErrorKind::BadDescriptor
+        ErrorKind::IsADirectory -> ErrorKind::IsADirectory
+        ErrorKind::WouldBlock -> ErrorKind::WouldBlock
+    }
+}
+
 // Bespoke result enums (Rust's `io::Result<T>`, whose Err is `io::Error` — here
 // its `ErrorKind`). First case = the ZII zero case = the error, so an untouched
 // result reads as failure (`Error { kind: Other }`), never spurious success. The
@@ -220,12 +234,10 @@ data StatRecord {
     blksize: u64;
 }
 
-// The four selected-target implementations live beside the target filesystem
-// code. `entries` is policy-owned build-time scratch; the compiler validates
-// each returned fixed plan before any runtime view can consume it.
-data StatLayout {
-    entries: [FieldEntry; 64];
-}
+// The four selected-target implementations build owned entries beside the
+// target filesystem code. The compiler validates each returned fixed plan
+// before any runtime view can consume it.
+data StatLayout {}
 
 // Recasting the byte buffer to this wrapper preserves the ordinary reference
 // surface while the inner record follows the selected programmable layout.
@@ -981,7 +993,7 @@ machine Filesystem::last_error(&mut self) -> ErrorKind {
         35 -> ErrorKind::WouldBlock,
         _ -> ErrorKind::Other
     };
-    self.err_kind
+    self.err_kind.reconstruct()
 }
 
 // Result-carrying failure classification. The selected target implements the
@@ -1001,7 +1013,7 @@ machine Filesystem::last_error_i32(&mut self, result: i32) -> ErrorKind {
         35 -> ErrorKind::WouldBlock,
         _ -> ErrorKind::Other
     };
-    self.err_kind
+    self.err_kind.reconstruct()
 }
 
 machine Filesystem::last_error_i64(&mut self, result: i64) -> ErrorKind {
@@ -1016,7 +1028,7 @@ machine Filesystem::last_error_i64(&mut self, result: i64) -> ErrorKind {
         35 -> ErrorKind::WouldBlock,
         _ -> ErrorKind::Other
     };
-    self.err_kind
+    self.err_kind.reconstruct()
 }
 
 // Create a directory.

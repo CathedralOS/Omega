@@ -2817,10 +2817,13 @@ fn rejects_parameter_backed_view_call_result_in_persistent_storage() {
     );
 }
 
+// These aggregate snapshots deliberately copy shared loan carriers. Explicit
+// copy permission does not establish static provenance: the paired negatives
+// still require every borrowed leaf and index to retain its exact source.
 #[test]
 fn accepts_same_state_copy_from_static_persistent_storage() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
             code: i32;
         }
@@ -2907,7 +2910,7 @@ fn rejects_cross_state_static_provenance_missing_on_one_predecessor() {
 #[test]
 fn accepts_cross_state_static_aggregate_frontier_accumulation() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             first: &[u8];
             second: &[u8];
         }
@@ -2939,7 +2942,7 @@ fn accepts_cross_state_static_aggregate_frontier_accumulation() {
 #[test]
 fn accepts_cross_state_static_fixed_index_copy() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -2965,7 +2968,7 @@ fn accepts_cross_state_static_fixed_index_copy() {
 #[test]
 fn accepts_cross_state_static_runtime_index_forwarded_through_state_parameter() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -2992,7 +2995,7 @@ fn accepts_cross_state_static_runtime_index_forwarded_through_state_parameter() 
 #[test]
 fn accepts_cross_state_static_runtime_index_forwarded_from_immutable_local() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -3026,7 +3029,7 @@ fn accepts_cross_state_static_runtime_index_forwarded_from_immutable_local() {
 #[test]
 fn accepts_cross_state_static_runtime_index_through_immutable_local_alias() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -3055,7 +3058,7 @@ fn accepts_cross_state_static_runtime_index_through_immutable_local_alias() {
 #[test]
 fn rejects_cross_state_static_runtime_index_from_mutable_local() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -3093,7 +3096,7 @@ fn rejects_cross_state_static_runtime_index_from_mutable_local() {
 #[test]
 fn rejects_cross_state_static_runtime_index_through_mutable_local_alias() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -3132,7 +3135,7 @@ fn rejects_cross_state_static_runtime_index_through_mutable_local_alias() {
 #[test]
 fn rejects_cross_state_static_runtime_index_through_computed_local_alias() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -3171,7 +3174,7 @@ fn rejects_cross_state_static_runtime_index_through_computed_local_alias() {
 #[test]
 fn rejects_cross_state_static_runtime_index_rewritten_on_transition() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -3208,7 +3211,7 @@ fn rejects_cross_state_static_runtime_index_rewritten_on_transition() {
 #[test]
 fn accepts_cross_state_static_leaf_across_disjoint_scalar_mutation() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
             code: i32;
         }
@@ -3240,7 +3243,7 @@ fn accepts_cross_state_static_leaf_across_disjoint_scalar_mutation() {
 #[test]
 fn accepts_static_persistent_copy_across_disjoint_call_frame() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -3268,7 +3271,7 @@ fn accepts_static_persistent_copy_across_disjoint_call_frame() {
 #[test]
 fn accepts_static_persistent_copy_across_disjoint_cyclic_alias_frame() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -3306,7 +3309,7 @@ fn accepts_static_persistent_copy_across_disjoint_cyclic_alias_frame() {
 #[test]
 fn accepts_static_persistent_copy_across_attached_transparent_result_frame() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -3339,7 +3342,7 @@ fn accepts_static_persistent_copy_across_attached_transparent_result_frame() {
 #[test]
 fn accepts_static_persistent_copy_across_local_alias_helper_result_frame() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -3381,7 +3384,7 @@ fn accepts_static_persistent_copy_across_local_alias_helper_result_frame() {
 #[test]
 fn accepts_static_persistent_copy_across_local_index_helper_result_frame() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -3415,7 +3418,7 @@ fn accepts_static_persistent_copy_across_local_index_helper_result_frame() {
 #[test]
 fn accepts_static_persistent_copy_across_local_index_alias_frame() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -3444,7 +3447,7 @@ fn accepts_static_persistent_copy_across_local_index_alias_frame() {
 #[test]
 fn accepts_static_persistent_copy_across_mutable_slice_view_frame() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -3485,7 +3488,7 @@ fn accepts_static_persistent_copy_across_mutable_slice_view_frame() {
 #[test]
 fn accepts_static_persistent_copy_across_mutable_slice_statement_argument_frame() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -3524,7 +3527,7 @@ fn accepts_static_persistent_copy_across_mutable_slice_statement_argument_frame(
 #[test]
 fn accepts_static_persistent_copy_after_discarded_slice_view_expression() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -3563,7 +3566,7 @@ fn accepts_static_persistent_copy_after_discarded_slice_view_expression() {
 #[test]
 fn accepts_static_persistent_copy_after_discarded_shared_slice_view_expression() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -3602,7 +3605,7 @@ fn accepts_static_persistent_copy_after_discarded_shared_slice_view_expression()
 #[test]
 fn accepts_static_persistent_copy_across_recast_local_frame() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -3637,7 +3640,7 @@ fn accepts_static_persistent_copy_across_recast_local_frame() {
 #[test]
 fn accepts_static_persistent_copy_across_value_write_helper_result_frame() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -3675,7 +3678,7 @@ fn accepts_static_persistent_copy_across_value_write_helper_result_frame() {
 #[test]
 fn accepts_static_persistent_copy_across_isolated_scratch_helper_frame() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -3711,7 +3714,7 @@ fn accepts_static_persistent_copy_across_isolated_scratch_helper_frame() {
 #[test]
 fn accepts_static_persistent_copy_across_rebound_helper_result_frame() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -3757,7 +3760,7 @@ fn accepts_static_persistent_copy_across_rebound_helper_result_frame() {
 #[test]
 fn accepts_static_persistent_copy_across_pure_expression_helper_frame() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -3791,7 +3794,7 @@ fn accepts_static_persistent_copy_across_pure_expression_helper_frame() {
 #[test]
 fn accepts_static_persistent_copy_across_receiver_result_frame() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -3828,7 +3831,7 @@ fn accepts_static_persistent_copy_across_isolated_record_local_frame() {
             value: i32;
         }
 
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -3857,7 +3860,7 @@ fn accepts_static_persistent_copy_across_isolated_record_local_frame() {
 #[test]
 fn accepts_static_persistent_copy_across_stable_rebound_alias_frame() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 
@@ -3905,7 +3908,7 @@ fn accepts_same_place_reassignment_from_static_persistent_storage() {
 #[test]
 fn accepts_indexed_aggregate_copy_after_all_borrowed_leaves_become_static() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
             code: i32;
         }
@@ -3930,7 +3933,7 @@ fn accepts_indexed_aggregate_copy_after_all_borrowed_leaves_become_static() {
 #[test]
 fn rejects_aggregate_copy_with_only_partial_static_leaf_coverage() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             first: &[u8];
             second: &[u8];
         }
@@ -3964,7 +3967,7 @@ fn rejects_aggregate_copy_with_only_partial_static_leaf_coverage() {
 #[test]
 fn rejects_indexed_static_copy_through_mutable_index_binding() {
     let source = r#"
-        data Message {
+        data Message [copy] {
             body: &[u8];
         }
 

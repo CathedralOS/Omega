@@ -36,13 +36,14 @@ pub data Native {{
 }}
 
 machine Native::plan(&mut self, schema: Schema) -> PlacementPlan {{
-    self.entries[0] = FieldEntry {{
+    let mut owned_entries: [FieldEntry; 64];
+    owned_entries[0] = FieldEntry {{
         key: schema.fields[0].key,
         placement: FieldPlan::At {{ offset: 0 }},
     }};
     PlacementPlan {{
         layout: Plan {{
-            entries: self.entries,
+            entries: owned_entries,
             entry_count: 1,
             size_fixed: 4,
             size_is_dynamic: false,
@@ -95,17 +96,18 @@ pub data Native {{
 }}
 
 machine Native::plan(&mut self, schema: Schema) -> PlacementPlan {{
-    self.entries[0] = FieldEntry {{
+    let mut owned_entries: [FieldEntry; 64];
+    owned_entries[0] = FieldEntry {{
         key: schema.fields[0].key,
         placement: FieldPlan::At {{ offset: 0 }},
     }};
-    self.entries[1] = FieldEntry {{
+    owned_entries[1] = FieldEntry {{
         key: schema.fields[1].key,
         placement: FieldPlan::At {{ offset: 4 }},
     }};
     PlacementPlan {{
         layout: Plan {{
-            entries: self.entries,
+            entries: owned_entries,
             entry_count: 2,
             size_fixed: 8,
             size_is_dynamic: false,
@@ -169,17 +171,18 @@ pub data Native {{
 }}
 
 machine Native::plan(&mut self, schema: Schema) -> PlacementPlan {{
-    self.entries[0] = FieldEntry {{
+    let mut owned_entries: [FieldEntry; 64];
+    owned_entries[0] = FieldEntry {{
         key: schema.fields[0].key,
         placement: FieldPlan::At {{ offset: 0 }},
     }};
-    self.entries[1] = FieldEntry {{
+    owned_entries[1] = FieldEntry {{
         key: schema.fields[1].key,
         placement: FieldPlan::At {{ offset: 8 }},
     }};
     PlacementPlan {{
         layout: Plan {{
-            entries: self.entries,
+            entries: owned_entries,
             entry_count: 2,
             size_fixed: 12,
             size_is_dynamic: false,
@@ -251,17 +254,18 @@ pub data Native {{
 }}
 
 machine Native::plan(&mut self, schema: Schema) -> PlacementPlan {{
-    self.entries[0] = FieldEntry {{
+    let mut owned_entries: [FieldEntry; 64];
+    owned_entries[0] = FieldEntry {{
         key: schema.fields[0].key,
         placement: FieldPlan::At {{ offset: 0 }},
     }};
-    self.entries[1] = FieldEntry {{
+    owned_entries[1] = FieldEntry {{
         key: schema.fields[1].key,
         placement: FieldPlan::At {{ offset: 12 }},
     }};
     PlacementPlan {{
         layout: Plan {{
-            entries: self.entries,
+            entries: owned_entries,
             entry_count: 2,
             size_fixed: 16,
             size_is_dynamic: false,
