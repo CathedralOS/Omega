@@ -25,11 +25,15 @@ fn exact_parameter(
 
 fn positive(
     program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     guards: &[patterns::GuardFact],
     nonnegative: bool,
     matches: impl Fn(ExpressionHandle) -> bool,
 ) -> bool {
     guards.iter().any(|guard| {
+        if !super::has_builtin_meaning(program, state, guard.expression) {
+            return false;
+        }
         let Some((left, operator, right)) = comparison(program, *guard) else {
             return false;
         };
@@ -54,6 +58,7 @@ fn positive(
 
 pub(super) fn guard_is_positive_parameter(
     program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     guards: &[patterns::GuardFact],
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
@@ -62,18 +67,19 @@ pub(super) fn guard_is_positive_parameter(
         program.primitive_type_reference(parameter.type_reference),
         Some(PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64)
     );
-    positive(program, guards, nonnegative, |expression| {
+    positive(program, state, guards, nonnegative, |expression| {
         exact_parameter(program, expression, parameter)
     })
 }
 
 pub(super) fn guard_is_positive_parameter_member(
     program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     guards: &[patterns::GuardFact],
     parameter: &typed_trees::signature::StateParameter,
     member_name: &str,
 ) -> bool {
-    positive(program, guards, false, |expression| {
+    positive(program, state, guards, false, |expression| {
         matches!(program.expression_table.expression(expression),
             ExpressionNode::Member(member) if member.member.as_str() == member_name
                 && exact_parameter(program, member.receiver, parameter))
@@ -82,11 +88,15 @@ pub(super) fn guard_is_positive_parameter_member(
 
 pub(super) fn guard_is_index_below_limit(
     program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     guards: &[patterns::GuardFact],
     index_parameter: &typed_trees::signature::StateParameter,
     limit_parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
     guards.iter().any(|guard| {
+        if !super::has_builtin_meaning(program, state, guard.expression) {
+            return false;
+        }
         let Some((left, operator, right)) = comparison(program, *guard) else {
             return false;
         };

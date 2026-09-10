@@ -136,10 +136,23 @@ proof nor an acyclic body excuses an invalid authored rank. Named-state,
 mutable, custom-view, and call-component range transport require their own proof
 support. Slice ranking shares validation's exact nonempty-slice/`1..` rule.
 
-A declared `u64 -> u64` identity measure shares scalar range proofs only when
-its body names its exact resolved parameter. The authored custom view remains
-private witness identity; it is not relabeled `Nat::Descending`. Constrained
-subjects retain their scalar carrier. Direct struct measures require an exact
+A declared identity measure with the same bare `u8`, `u16`, `u32`, or `u64`
+parameter/result carrier shares scalar range proofs only when its body names
+its exact resolved parameter and its subject has that carrier. This does not
+widen a value or discharge qualifications on measure parameters/results.
+The authored custom view remains private witness identity; it is not relabeled
+`Nat::Descending` or admitted by the builtin-only Terminal countdown exporter.
+Constrained subjects retain their scalar carrier and independent range checks.
+The syntax-based descent tier checks the selected meaning of every consumed
+guard and update through validation's builtin-expression owner, just as the
+relational tier does; a `- 1` spelling alone grants no decrease proof.
+The checked CLI regression is `cargo run -p omega -- --check
+tests/omega/pass/termination/unsigned_identity_measure_rank_range/main.omg`
+(use `mbx` instead of Cargo when available); `checked-interpreter`'s
+`unsigned_ranking_views` test executes all four carriers. These checks do not
+establish source-independent Terminal or native proof export for custom views.
+
+Direct struct measures require an exact
 parameter receiver, its owned field declaration with builtin `u64` carrier,
 and the same nominal subject type before publishing even a precheck summary.
 Nested projections cannot reuse a direct field's decrement. A single-state

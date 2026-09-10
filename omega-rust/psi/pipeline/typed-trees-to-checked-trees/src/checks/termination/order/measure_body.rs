@@ -7,7 +7,9 @@ use typed_trees::name::Identifier;
 use typed_trees::types::TypeReferenceNode;
 
 pub(super) enum MeasureBodyShape {
-    ParameterForward,
+    ParameterForward {
+        carrier: BuiltinTypeAtom,
+    },
     FieldProjection {
         field: Identifier,
         owner: SymbolHandle,
@@ -34,7 +36,14 @@ pub(super) fn measure_body_shape(
         return None;
     }
     if is_parameter(program, *body, parameter.symbol) {
-        return Some(MeasureBodyShape::ParameterForward);
+        // Identity does not widen a value or discharge a qualification on the
+        // measure's input/result. Both must be the same bare unsigned carrier.
+        // Subject refinements are checked independently when applying the view.
+        let carrier = unsigned_carrier(program, parameter.type_reference)?;
+        if unsigned_carrier(program, measure.return_type)? != carrier {
+            return None;
+        }
+        return Some(MeasureBodyShape::ParameterForward { carrier });
     }
     let ExpressionNode::Member(member) = program.expression_table.expression(*body) else {
         return None;
@@ -88,6 +97,23 @@ pub(super) fn measure_body_shape(
         field_type: field.type_reference,
         field_symbol: field.symbol,
     })
+}
+
+fn unsigned_carrier(
+    program: &TypedTrees,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> Option<BuiltinTypeAtom> {
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(reference)
+    else {
+        return None;
+    };
+    let carrier = program.symbols.builtin_type_atom(*symbol)?;
+    matches!(
+        carrier,
+        BuiltinTypeAtom::U8 | BuiltinTypeAtom::U16 | BuiltinTypeAtom::U32 | BuiltinTypeAtom::U64
+    )
+    .then_some(carrier)
 }
 
 fn is_parameter(program: &TypedTrees, expression: ExpressionHandle, binder: SymbolHandle) -> bool {

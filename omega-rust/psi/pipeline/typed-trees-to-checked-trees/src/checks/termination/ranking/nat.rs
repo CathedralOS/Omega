@@ -33,8 +33,8 @@ pub(super) fn direct_countdown_edge(
 ) -> Option<DirectCountdownEdge> {
     let (parameter, target_argument_index, argument) =
         countdown_edge_parts(program, source, target, arguments, decreases)?;
-    (guard_is_positive_parameter(program, guard, parameter)
-        && argument_is_parameter_minus_one(program, argument, parameter))
+    (guard_is_positive_parameter(program, source, guard, parameter)
+        && argument_is_parameter_minus_one(program, source, argument, parameter))
     .then_some(DirectCountdownEdge {
         source_parameter: parameter.symbol,
         target_argument_index,
@@ -130,9 +130,9 @@ fn countdown_edge(
         return false;
     };
 
-    (guard_is_positive_parameter(program, guard, parameter)
+    (guard_is_positive_parameter(program, source, guard, parameter)
         || declared_floor_at_least_one(program, parameter))
-        && argument_is_parameter_minus_one(program, argument, parameter)
+        && argument_is_parameter_minus_one(program, source, argument, parameter)
 }
 
 fn countdown_edge_parts<'program>(
@@ -234,9 +234,10 @@ fn member_countdown_edge(
         return false;
     };
 
-    guard_is_positive_parameter_member(program, guard, parameter, member.member.as_str())
+    guard_is_positive_parameter_member(program, source, guard, parameter, member.member.as_str())
         && argument_rebuilds_parameter_with_member_minus_one(
             program,
+            source,
             argument,
             parameter,
             member.member.as_str(),
@@ -278,7 +279,26 @@ fn distance_edge(
         return false;
     };
 
-    guard_is_index_below_limit(program, guard, index_parameter, limit_parameter)
+    guard_is_index_below_limit(program, source, guard, index_parameter, limit_parameter)
         && patterns::expression_is_parameter(program, limit_argument, limit_parameter)
-        && argument_is_parameter_plus_one(program, index_argument, index_parameter)
+        && argument_is_parameter_plus_one(program, source, index_argument, index_parameter)
+}
+
+/// The syntax tier and relational tier must agree on operation meaning. A
+/// `- 1` shape or positive-looking guard is not builtin arithmetic evidence
+/// when an authored/selected operator owns that exact expression.
+fn has_builtin_meaning(
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(machine) = program.machines().iter().find(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .any(|candidate| candidate.symbol == state.symbol)
+    }) else {
+        return false;
+    };
+    validation::has_builtin_bound_expression_meaning(program, machine, Some(state), expression)
 }

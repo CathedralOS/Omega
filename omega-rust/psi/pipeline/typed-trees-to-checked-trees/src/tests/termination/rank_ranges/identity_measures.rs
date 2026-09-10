@@ -12,6 +12,100 @@ fn identity_measure_checks_the_produced_rank_range() {
     prove(&COUNTDOWN.replace("0..=5", "0..6"));
 }
 
+#[test]
+fn unsigned_identity_measures_share_range_and_descent_proofs() {
+    for carrier in ["u8", "u16", "u32", "u64"] {
+        let source = COUNTDOWN.replace("u64", carrier);
+        prove(&source);
+        prove(&source.replace("0..=5", "0..6"));
+        reject(&source.replace("in 0..=5", "in 1..=5"));
+        reject(&source.replace("in 0..=5", "in 0..=4"));
+        reject(&source.replace("walk(remaining - 1)", "walk(remaining)"));
+        reject(&source.replace("walk(remaining - 1)", "walk(remaining + 1)"));
+    }
+}
+
+#[test]
+fn identity_measure_carrier_matching_does_not_widen_or_discharge_qualifications() {
+    for carrier in ["u8", "u16", "u32", "u64"] {
+        let source = COUNTDOWN.replace("u64", carrier);
+        for other in ["u8", "u16", "u32", "u64", "i32", "bool"] {
+            if carrier == other {
+                continue;
+            }
+            reject(&source.replace(&format!("(value: {carrier})"), &format!("(value: {other})")));
+            reject(&source.replace(
+                &format!("-> {carrier} {{ value }}"),
+                &format!("-> {other} {{ value }}"),
+            ));
+            reject(&source.replace(
+                &format!("remaining: {carrier}"),
+                &format!("remaining: {other}"),
+            ));
+        }
+        reject(&source.replace(
+            &format!("(value: {carrier})"),
+            &format!("(value: {carrier} [1..=5])"),
+        ));
+        reject(&source.replace(
+            &format!("-> {carrier} {{ value }}"),
+            &format!("-> {carrier} [1..=5] {{ value }}"),
+        ));
+        reject(&source.replace("{ value }", "{ value + 1 }"));
+    }
+}
+
+#[test]
+fn scalar_measure_subject_uses_its_exact_state_parameter_not_its_spelling() {
+    let source = COUNTDOWN.replace("u64", "u32");
+    let program = typed(&source);
+    let machine = &program.machines()[0];
+    let subject = typed_trees::ranking::resolve_machine_witness_subjects(&program, machine)
+        .expect("retained ranking subject")[0];
+    let foreign = program.measures()[0]
+        .parameter
+        .as_ref()
+        .expect("measure binder")
+        .symbol;
+    for replacement in [symbols::SymbolHandle::invalid(), foreign] {
+        let mut changed = program.clone();
+        let typed_trees::expression::ExpressionNode::Name(path) =
+            changed.expression_table.expression_mut(subject)
+        else {
+            panic!("parameter subject")
+        };
+        path.symbol = replacement;
+        path.head_symbol = replacement;
+        crate::checks::termination::check_machine_termination(&changed)
+            .expect_err("same spelling cannot replace the state parameter");
+    }
+}
+
+#[test]
+fn unsigned_identity_views_do_not_authorize_custom_arithmetic_meaning() {
+    for carrier in ["u8", "u16", "u32", "u64"] {
+        let source = COUNTDOWN.replace("u64", carrier);
+        for (operator, result) in [("-", carrier), (">", "bool")] {
+            let selected = format!(
+                "operator {operator} {carrier}::custom(left: {carrier}, right: {carrier}) -> {result}; {source}"
+            );
+            reject(&selected);
+            reject(&selected.replace(" -> Countdown::Remaining", ""));
+        }
+        prove(&format!(
+            "operator + {carrier}::unused(left: {carrier}, right: {carrier}) -> {carrier}; {source}"
+        ));
+        reject(&format!(
+            "operator == bool::custom(left: bool, right: bool) -> bool; {}",
+            source.replace("remaining > 0", "(remaining > 0) == true"),
+        ));
+    }
+    prove(&format!(
+        "operator - u64::unrelated(left: u64, right: u64) -> u64; {}",
+        COUNTDOWN.replace("u64", "u32"),
+    ));
+}
+
 fn prove(source: &str) {
     let program = typed(source);
     assert!(typed_trees::visibility::requires_declaration_visibility(
