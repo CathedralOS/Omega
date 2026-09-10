@@ -1,1 +1,1 @@
-selected operator with a crashes contract requires invocation-specific crash support
+uncovered Trap crash route

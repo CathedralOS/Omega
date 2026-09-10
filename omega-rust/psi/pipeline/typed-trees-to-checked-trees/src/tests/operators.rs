@@ -10,6 +10,7 @@ use typed_trees::operator::{
 use typed_trees::types::TypeReferenceHandle;
 
 mod applications;
+mod crash_routes;
 mod crashes;
 mod destinations;
 mod invocations;

@@ -822,6 +822,7 @@ pub struct CrashPlan {
     structural_runtime_requirements: Option<Vec<crate::CheckedBooleanExpression>>,
     checked_sites: Vec<CheckedCrashSite>,
     checked_calls: Vec<CheckedCrashCallSite>,
+    checked_operators: Vec<super::CheckedCrashOperatorSite>,
 }
 
 impl CrashPlan {
@@ -834,6 +835,7 @@ impl CrashPlan {
             structural_runtime_requirements: None,
             checked_sites: Vec::new(),
             checked_calls: Vec::new(),
+            checked_operators: Vec::new(),
         }
     }
 
@@ -1026,6 +1028,34 @@ impl CrashPlan {
 
     pub fn checked_calls(&self) -> &[CheckedCrashCallSite] {
         &self.checked_calls
+    }
+
+    pub fn with_checked_operators(
+        mut self,
+        mut operators: Vec<super::CheckedCrashOperatorSite>,
+    ) -> Option<Self> {
+        operators.sort_by_key(|site| {
+            (
+                site.operator_use.arena_index(),
+                site.operator_use.generation(),
+            )
+        });
+        if operators.iter().any(|site| {
+            !site.operator_use.is_valid()
+                || !site.invocation.is_valid()
+                || !site.selected_operator.is_valid()
+        }) || operators
+            .windows(2)
+            .any(|sites| sites[0].operator_use == sites[1].operator_use)
+        {
+            return None;
+        }
+        self.checked_operators = operators;
+        Some(self)
+    }
+
+    pub fn checked_operators(&self) -> &[super::CheckedCrashOperatorSite] {
+        &self.checked_operators
     }
 
     pub fn checked_call_at(

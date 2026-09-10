@@ -22,6 +22,15 @@ pub(crate) fn project_crash(
     compilation: &CheckedCompilation,
     plan: &checked_trees::CrashPlan,
 ) -> Result<PackageReviewCrash, Vec<Diagnostic>> {
+    if compilation
+        .facts
+        .operators
+        .has_crash_qualified_uses(&compilation.typed)
+    {
+        return Err(vec![Diagnostic::error(
+            "selected operator crash invocations have no package evidence projection support",
+        )]);
+    }
     let interface = match plan.interface() {
         checked_trees::CrashInterface::InternalInferred => {
             PackageReviewCrashInterface::InternalInferred

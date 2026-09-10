@@ -339,6 +339,14 @@ fn run_build_time_machine_entry_with_operation_receipts(
     arguments: Vec<crate::build_time::BuildTimeValue>,
     operators: &[crate::SelectedBuildTimeBinaryOperator],
 ) -> Result<BuildTimeOperationEvaluation<crate::build_time::BuildTimeValue>, String> {
+    if operators
+        .iter()
+        .any(|operator| operator.has_crash_contract(program))
+    {
+        return Err(
+            "selected operator crash invocations have no build-time execution support".into(),
+        );
+    }
     std::thread::scope(|scope| {
         std::thread::Builder::new()
             .stack_size(256 * 1024 * 1024)
@@ -809,6 +817,18 @@ fn run_on_current_thread(
     options: InterpretOptions,
 ) -> InterpretOutcome {
     let mut evaluator = Evaluator::new_checked(checked, stdin);
+    if checked
+        .facts
+        .operators
+        .has_crash_qualified_uses(&checked.typed)
+    {
+        return InterpretOutcome::error(
+            "selected operator crash invocations have no checked execution support".to_owned(),
+            evaluator.stdout,
+            evaluator.stderr,
+            evaluator.usage,
+        );
+    }
     if checked
         .expression_table
         .iter_expressions()

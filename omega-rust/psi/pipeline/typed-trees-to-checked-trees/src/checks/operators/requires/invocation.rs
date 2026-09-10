@@ -10,7 +10,7 @@
 //! the ordinary requires checker; they do not need all premises at one time.
 
 use arena::Handle;
-use checked_trees::{CheckFacts, CheckedOperatorUseFact, FlowOperatorInvocationFact};
+use checked_trees::{CheckFacts, CheckedOperatorUseFact, FlowFacts, FlowOperatorInvocationFact};
 use facts::FactContextHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -18,7 +18,7 @@ use typed_trees::signature::StateParameter;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) struct InvocationContexts<'facts> {
-    facts: &'facts CheckFacts,
+    flow: &'facts FlowFacts,
     invocation: Option<&'facts FlowOperatorInvocationFact>,
 }
 
@@ -28,10 +28,16 @@ impl<'facts> InvocationContexts<'facts> {
         operator_use: Handle<CheckedOperatorUseFact>,
         operands: &[ExpressionHandle],
     ) -> Self {
+        Self::from_flow(&facts.flow, operator_use, operands)
+    }
+
+    pub(super) fn from_flow(
+        flow: &'facts FlowFacts,
+        operator_use: Handle<CheckedOperatorUseFact>,
+        operands: &[ExpressionHandle],
+    ) -> Self {
         let mut matching =
-            facts
-                .flow
-                .control
+            flow.control
                 .operator_invocations
                 .iter()
                 .filter_map(|(_, invocation)| {
@@ -39,8 +45,7 @@ impl<'facts> InvocationContexts<'facts> {
                 });
         let invocation = match (matching.next(), matching.next()) {
             (Some(invocation), None)
-                if facts
-                    .flow
+                if flow
                     .control
                     .operator_operands
                     .span_or_empty(invocation.operands)
@@ -54,7 +59,7 @@ impl<'facts> InvocationContexts<'facts> {
             // back to statement-entry facts. Only context-free truths remain.
             _ => None,
         };
-        Self { facts, invocation }
+        Self { flow, invocation }
     }
 
     pub(super) fn for_expressions(
@@ -75,7 +80,6 @@ impl<'facts> InvocationContexts<'facts> {
             );
         }
         let operands = self
-            .facts
             .flow
             .control
             .operator_operands
@@ -92,14 +96,12 @@ impl<'facts> InvocationContexts<'facts> {
                 return Vec::new();
             };
             let mut operand_contexts: Vec<_> = self
-                .facts
                 .flow
                 .semantic_constraint_contexts(operand.constraints)
                 .collect();
             if !is_copied_scalar(program, parameter.type_reference) {
                 operand_contexts.retain(|candidate| {
-                    self.facts
-                        .flow
+                    self.flow
                         .semantic_constraint_contexts(invocation.requires_constraints)
                         .any(|context| context == *candidate)
                 });
@@ -111,8 +113,7 @@ impl<'facts> InvocationContexts<'facts> {
             }
         }
         selected.unwrap_or_else(|| {
-            self.facts
-                .flow
+            self.flow
                 .semantic_constraint_contexts(invocation.requires_constraints)
                 .collect()
         })

@@ -27,6 +27,15 @@ pub(crate) fn crash(
     envelope: &RealizedMachineContractEnvelope,
     inferred_causes: &[(SymbolHandle, Vec<checked_trees::CrashCause>)],
 ) -> Result<PackagePolicyCrash, Vec<Diagnostic>> {
+    if compilation
+        .facts
+        .operators
+        .has_crash_qualified_uses(&compilation.typed)
+    {
+        return Err(rejected(
+            "selected operator crash invocations have no package evidence projection support",
+        ));
+    }
     let plan = exactly_one(
         compilation
             .facts

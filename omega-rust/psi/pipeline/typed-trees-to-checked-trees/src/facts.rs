@@ -17,6 +17,7 @@ use typed_trees::TypedTrees;
 mod carry;
 mod crash_calls;
 mod index_compatibility;
+pub(crate) mod operator_crashes;
 #[cfg(test)]
 mod scalar_contract_tests;
 
@@ -175,6 +176,7 @@ pub(crate) fn build_check_facts(
         &capabilities,
         &flow,
         &operators,
+        &semantic,
         &validation_facts.exact_integer_casts,
     )?;
     proof.contract_entailment_assumption_discharges =
@@ -888,6 +890,7 @@ fn build_contract_plans(
     capabilities: &flow_effects::CapabilityFlowPlan,
     flow: &checked_trees::FlowFacts,
     operators: &checked_trees::CheckedOperatorFacts,
+    semantic: &facts::FactPlan,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Result<checked_trees::MachineContractPlans, Vec<diagnostics::Diagnostic>> {
     let mut machines = Vec::new();
@@ -1022,6 +1025,33 @@ fn build_contract_plans(
             report_fingerprint: identity.report_fingerprint,
             commitment: identity.commitment,
         });
+    }
+    let mut operator_crashes = operator_crashes::build(program, operators, flow, semantic)?;
+    for plan in &mut machines {
+        let mut sites = Vec::new();
+        let mut pending = Vec::new();
+        for (machine, site) in operator_crashes {
+            if machine == plan.machine {
+                sites.push(site);
+            } else {
+                pending.push((machine, site));
+            }
+        }
+        operator_crashes = pending;
+        plan.crash = plan
+            .crash
+            .clone()
+            .with_checked_operators(sites)
+            .ok_or_else(|| {
+                vec![diagnostics::Diagnostic::error(
+                    "invalid selected operator crash invocation roster",
+                )]
+            })?;
+    }
+    if !operator_crashes.is_empty() {
+        return Err(vec![diagnostics::Diagnostic::error(
+            "selected operator crash invocation has no owning machine contract",
+        )]);
     }
     let crash_capsules = build_crash_contract_capsules(program, &content_conservation);
     crash_calls::attach_checked_crash_calls(
@@ -1639,6 +1669,29 @@ pub(crate) fn derive_authored_signature_crash_buckets(
         program.state_signature_contracts(signature),
         &parameter_names,
         &conservation,
+        None,
+        None,
+        &[],
+    )
+}
+
+pub(super) fn derive_authored_operator_crash_buckets(
+    program: &TypedTrees,
+    operator: &typed_trees::operator::OperatorDefinition,
+    content_conservation: &[validation::ContentConservationSourcePlan],
+) -> Vec<checked_trees::CrashRouteBucket> {
+    let parameter_names = program
+        .operator_parameters(operator)
+        .iter()
+        .map(|parameter| parameter.name.as_str().to_owned())
+        .collect::<Vec<_>>();
+    build_published_crash_buckets(
+        program,
+        program
+            .signature_contracts
+            .span_or_empty(operator.contracts),
+        &parameter_names,
+        content_conservation,
         None,
         None,
         &[],

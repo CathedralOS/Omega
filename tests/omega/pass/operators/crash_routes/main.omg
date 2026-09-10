@@ -1,0 +1,16 @@
+boundary operator == Comparison::equal(left: i32, right: i32) -> bool
+crashes Trap !(right >= 0);
+
+pub machine safe(value: i32) -> bool
+requires value >= 0 {
+    1 == value
+}
+
+machine may_crash(left: i32, right: i32) -> bool {
+    left == right
+}
+
+pub machine wrapper(left: i32, right: i32) -> bool
+crashes Trap {
+    may_crash(left, right)
+}

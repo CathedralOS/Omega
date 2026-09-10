@@ -9,9 +9,18 @@ fn fixture_with_receiver(
     namespace: &str,
     receiver: &str,
 ) -> (TypedTrees, Vec<SelectedBuildTimeBinaryOperator>) {
+    fixture_with_operator_contract(namespace, receiver, "")
+}
+
+fn fixture_with_operator_contract(
+    namespace: &str,
+    receiver: &str,
+    crash_contract: &str,
+) -> (TypedTrees, Vec<SelectedBuildTimeBinaryOperator>) {
     let source = format!(
         r#"
-boundary operator * {namespace}::multiply(left:f64, right:f64) -> f64;
+boundary operator * {namespace}::multiply(left:f64, right:f64) -> f64 {crash_contract};
+boundary operator * {namespace}::multiply(left:f32, right:f32) -> f32 crashes Trap;
 boundary operator == {namespace}::equal(left:f64, right:f64) -> bool;
 machine length() -> u64 {{
     let left:f64 = 2.0;
@@ -52,6 +61,64 @@ machine length() -> u64 {{
         })
         .collect();
     (typed, rows)
+}
+
+#[test]
+fn selected_operator_crash_fences_cover_admission_and_direct_execution() {
+    for contract in ["crashes Trap", "crashes Abort", "crashes Trap false"] {
+        let (typed, rows) = fixture_with_operator_contract("Float", "", contract);
+        assert!(!rows.is_empty());
+        let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(&typed);
+        assert!(facts.has_crash_qualified_uses(&typed));
+        assert!(
+            crate::validate_selected_operators(&typed, &rows)
+                .unwrap_err()
+                .contains("no build-time execution support")
+        );
+        let machine = rows[0].origin.machine_symbol().unwrap();
+        assert!(
+            checked_interpreter::evaluate_build_time_machine_symbol_with_selected_operators(
+                &typed,
+                machine,
+                Vec::new(),
+                &rows,
+            )
+            .unwrap_err()
+            .contains("no build-time execution support")
+        );
+        let checked = checked_trees::CheckedTrees::with_roots(
+            typed,
+            checked_trees::CheckFacts {
+                operators: facts,
+                ..Default::default()
+            },
+        );
+        assert!(
+            checked_interpreter::interpret_entry(&checked, "length", &[])
+                .error
+                .unwrap()
+                .contains("no checked execution support")
+        );
+    }
+}
+
+#[test]
+fn operator_crash_fence_ignores_unselected_overload_and_survives_expression_rewrite() {
+    let (typed, rows) = fixture("Float");
+    let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(&typed);
+    assert!(!facts.has_crash_qualified_uses(&typed));
+    assert!(rows.iter().all(|row| !row.has_crash_contract(&typed)));
+    crate::validate_selected_operators(&typed, &rows).unwrap();
+
+    let (mut typed, rows) = fixture_with_operator_contract("Float", "", "crashes Trap");
+    let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(&typed);
+    // Adapter settlement may replace the source node; the selected contracts
+    // remain the authority for this fence.
+    for row in rows {
+        *typed.expression_table.expression_mut(row.expression) =
+            typed_trees::expression::ExpressionNode::Boolean(false);
+    }
+    assert!(facts.has_crash_qualified_uses(&typed));
 }
 
 #[test]

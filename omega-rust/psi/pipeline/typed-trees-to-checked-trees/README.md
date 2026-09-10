@@ -123,8 +123,29 @@ Source-checking probe: `mbx run -p omega -- --check --output-only
 tests/omega/pass/operators/operand_requires_after_effects/main.omg`.
 The fail twin is `tests/omega/fail/operators/operand_requires_invalidated/main.omg`.
 These probes establish selected preconditions, not provider execution or
-crash-route propagation. Crash-qualified selected operators remain fenced until
-their invocation-specific routes reach caller coverage and independent replay.
+crash-route propagation.
+
+Selected operator crash routes retain their own occurrence and invocation rows
+in each machine's `CrashPlan`, separate from machine-call ordinals. Source
+checking reconstructs this roster, retains empty discharged rows, checks
+same-cause published coverage, and includes surviving routes in private helper
+summaries. A guard can use captured operand facts without making those values
+invocation-entry parameters. Entry-relative export currently requires exact
+immutable entry scalar parameters with no entry-state re-arrival, or literals.
+Immutable scalar aliases and Boolean negation preserve these origins only when
+every dependency has the same proof; unknown provenance widens the same cause
+to `Truth`. Ordinary private-helper
+substitution uses the same provenance boundary, so a mutable call actual cannot
+restore a discarded entry identity. Newer storage facts cannot discharge an
+earlier copy.
+
+The loose-source probe `mbx run -p omega -- --check --output-only
+tests/omega/pass/operators/crash_routes/main.omg` exercises discharge and a
+private helper's surviving route. Terminal/native production, checked and
+build-time execution, and package review/policy projection still reject selected
+crash-qualified invocations until they can preserve this occurrence evidence.
+Package-aware `--check` performs package projection and therefore remains behind
+that boundary too. Passing source checking is not portable crash replay.
 
 Named-state inputs also retain live domain memberships on directly forwarded
 parameters and their exact owned-field projections. Argument evaluation captures
