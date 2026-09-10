@@ -27,8 +27,10 @@ mod tests;
 /// unresolved result does not establish anonymous numeric meaning. Builtin
 /// computed results retain their carrier and policy, not input predicates.
 /// Direct operators retain closed builtin carrier/policy result references.
-/// Semantic-domain, predicate-bearing, and selected trait results needing an
-/// instantiated reference remain unresolved rather than losing their meaning.
+/// Casts retain their normalized semantic-domain result separately from the
+/// authored membership target. Operator results needing instantiated semantic
+/// domains, predicates or selected traits remain unresolved rather than losing
+/// their meaning.
 pub(crate) fn expression_result_type_reference(
     program: &TypedTrees,
     machine: &Machine,
@@ -70,6 +72,22 @@ fn result_type(
                     if references.iter().all(|reference| *reference == Some(first)) {
                         return Some(first);
                     }
+                    // Separately authored qualifications have separate type
+                    // handles. Their normalized declared-domain identities may
+                    // still agree (including transparent aliases and indices).
+                    // Raw range predicates remain on the exact-subject path
+                    // above: rendered dependent bounds are not interchangeable.
+                    if has_domain_result_shell(program, first) {
+                        let identity = program.normalized_type_identity(first);
+                        if references.iter().all(|reference| {
+                            reference.is_some_and(|reference| {
+                                has_domain_result_shell(program, reference)
+                                    && program.normalized_type_identity(reference) == identity
+                            })
+                        }) {
+                            return Some(first);
+                        }
+                    }
                     let carrier = arithmetic_carrier(program, first)?;
                     arms.iter()
                         .zip(&references)
@@ -99,7 +117,12 @@ fn result_type(
             // Cast policy and semantic-domain suffixes live outside target_type.
             // Returning that bare target would erase the result qualification
             // before a surrounding operator selects its meaning.
-            if !cast.semantic_domain.is_empty() {
+            if program
+                .type_reference_table
+                .contains_type_reference(cast.result_type)
+            {
+                Some(cast.result_type)
+            } else if !cast.semantic_domain.is_empty() {
                 None
             } else if cast.domain == ArithmeticDomain::Exact {
                 Some(cast.target_type)
@@ -160,6 +183,44 @@ fn result_type(
             .type_reference_table
             .contains_type_reference(*reference)
     })
+}
+
+fn has_domain_result_shell(program: &TypedTrees, mut reference: TypeReferenceHandle) -> bool {
+    let mut seen = Vec::new();
+    let mut domain = false;
+    while program
+        .type_reference_table
+        .contains_type_reference(reference)
+        && !seen.contains(&reference)
+    {
+        seen.push(reference);
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                let Some(constraints) = program.type_reference_table.constraint_span(*constraints)
+                else {
+                    return false;
+                };
+                for constraint in constraints {
+                    match constraint {
+                        TypeConstraintNode::Domain(qualification)
+                            if qualification.symbol.is_valid() =>
+                        {
+                            domain = true
+                        }
+                        TypeConstraintNode::ArithmeticDomain(_) => {}
+                        _ => return false,
+                    }
+                }
+                reference = *base_type;
+            }
+            TypeReferenceNode::Named { .. } => return domain,
+            _ => return false,
+        }
+    }
+    false
 }
 
 fn binary_result(

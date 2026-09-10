@@ -345,6 +345,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "expressions/declared_operator_match_result",
     "expressions/anonymous_numeric_match_subject",
     "expressions/match_float_results",
+    "expressions/match_domain_results",
     "expressions/numeric_operand_destinations",
     "expressions/match_anonymous_result_landing",
     "expressions/match_ordered_duplicate_patterns",
@@ -764,6 +765,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "constants/unused_scalar_constant_range",
     "modules/unused_scalar_constant_range",
+    "expressions/match_mixed_result_domains",
     "expressions/cast_result_range",
     "expressions/match_typed_result_before_cast",
     "expressions/match_fractional_result",

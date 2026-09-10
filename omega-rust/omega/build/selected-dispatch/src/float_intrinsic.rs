@@ -180,6 +180,7 @@ pub(super) fn apply_selected_float_intrinsic_rewrites(
             } => ExpressionNode::Cast(typed_trees::expression::TableCastExpression {
                 value: arguments[0],
                 target_type,
+                result_type: typed_trees::types::TypeReferenceHandle::invalid(),
                 target_label: arena::HandleSpan::empty(),
                 domain,
                 semantic_domain: arena::HandleSpan::empty(),

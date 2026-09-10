@@ -273,6 +273,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                         typed::expression::TableCastExpression {
                             value,
                             target_type,
+                            result_type: typed::types::TypeReferenceHandle::invalid(),
                             target_label,
                             domain: cast.domain,
                             semantic_domain,

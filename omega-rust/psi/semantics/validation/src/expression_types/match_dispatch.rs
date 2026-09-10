@@ -208,6 +208,7 @@ fn result_needs_custody_join(
     if declared_value_type(program, machine, state, value).is_some_and(|reference| {
         program.type_multiplicity(reference) != language_semantics::Multiplicity::Unrestricted
             || !crate::has_plain_owned_contents_with_numeric_constraints(program, reference)
+                && !has_unrouted_scalar_contents(program, reference)
     }) {
         return true;
     }
@@ -230,8 +231,56 @@ fn result_needs_custody_join(
             .any(|element| result_needs_custody_join(program, machine, state, *element)),
         _ => declared_value_type(program, machine, state, value).is_some_and(|reference| {
             !crate::has_plain_owned_contents_with_numeric_constraints(program, reference)
+                && !has_unrouted_scalar_contents(program, reference)
         }),
     }
+}
+
+/// Static scalar theories do not add storage to a result join. Their exact
+/// meaning is retained by compatibility above, not erased to admit the value.
+/// Routed provenance and references still need their separate branch custody;
+/// do not widen the plain-storage classifier used by representation-erasing
+/// construction and return paths elsewhere in the compiler.
+fn has_unrouted_scalar_contents(program: &TypedTrees, mut reference: TypeReferenceHandle) -> bool {
+    use typed_trees::types::{DomainConstraintSubject, TypeConstraintNode, TypeReferenceNode};
+    let mut visited = Vec::new();
+    while program
+        .type_reference_table
+        .contains_type_reference(reference)
+        && !visited.contains(&reference)
+    {
+        visited.push(reference);
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                let Some(constraints) = program.type_reference_table.constraint_span(*constraints)
+                else {
+                    return false;
+                };
+                if !constraints.iter().all(|constraint| match constraint {
+                    TypeConstraintNode::Range { .. } | TypeConstraintNode::ArithmeticDomain(_) => {
+                        true
+                    }
+                    TypeConstraintNode::Domain(domain) => {
+                        domain.subject == DomainConstraintSubject::Declared
+                            && domain.symbol.is_valid()
+                            && domain.establishment_routes.is_empty()
+                    }
+                    TypeConstraintNode::Named(_) => false,
+                }) {
+                    return false;
+                }
+                reference = *base_type;
+            }
+            TypeReferenceNode::Named { .. } => {
+                return program.primitive_type_reference(reference).is_some();
+            }
+            _ => return false,
+        }
+    }
+    false
 }
 
 fn is_scalar_value(

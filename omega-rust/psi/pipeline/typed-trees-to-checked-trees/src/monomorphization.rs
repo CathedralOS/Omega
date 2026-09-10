@@ -2536,11 +2536,17 @@ fn copy_cloned_expression_type_payloads(
             let ExpressionNode::Cast(cast) = expression else {
                 return None;
             };
-            Some((handle, cast.target_type, cast.semantic_domain_arguments))
+            Some((
+                handle,
+                cast.target_type,
+                cast.result_type,
+                cast.semantic_domain_arguments,
+            ))
         })
         .collect::<Vec<_>>();
-    for (handle, target_type, arguments) in cast_payloads {
+    for (handle, target_type, result_type, arguments) in cast_payloads {
         let target_type = copy_type_reference(source, program, target_type, symbols);
+        let result_type = copy_type_reference(source, program, result_type, symbols);
         let copied_arguments = source
             .type_reference_table
             .type_reference_handles(arguments)
@@ -2554,6 +2560,7 @@ fn copy_cloned_expression_type_payloads(
             unreachable!("collected cast changed kind")
         };
         cast.target_type = target_type;
+        cast.result_type = result_type;
         cast.semantic_domain_arguments = arguments;
     }
 
@@ -2920,6 +2927,12 @@ fn candidate_const_index_expressions(
         collect_const_index_expressions_from_type(
             &program.type_reference_table,
             cast.target_type,
+            &mut visited,
+            &mut expressions,
+        );
+        collect_const_index_expressions_from_type(
+            &program.type_reference_table,
+            cast.result_type,
             &mut visited,
             &mut expressions,
         );

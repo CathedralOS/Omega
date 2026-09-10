@@ -6,16 +6,23 @@ use language_semantics::declaration_selection::{
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
+use typed_trees::types::{
+    DomainConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 
 /// Bind semantic `as ... in Domain` sites to declaration identity. Validation
 /// owns the diagnostic policy; this pass only publishes deterministic
 /// identities so no checked consumer re-resolves a user spelling.
-pub(crate) fn normalize_qualification_casts(program: &mut TypedTrees) -> Result<(), Diagnostic> {
-    normalize_qualification_casts_from(program, 0)
+pub(crate) fn normalize_qualification_casts(
+    source: &symbol_resolved_trees::SymbolResolvedTrees,
+    program: &mut TypedTrees,
+) -> Result<(), Diagnostic> {
+    normalize_qualification_casts_from(source, program, 0)
 }
 
 /// Bind only semantic casts appended after a retained checkpoint.
 pub(crate) fn normalize_qualification_casts_from(
+    source: &symbol_resolved_trees::SymbolResolvedTrees,
     program: &mut TypedTrees,
     expression_frontier: usize,
 ) -> Result<(), Diagnostic> {
@@ -30,12 +37,32 @@ pub(crate) fn normalize_qualification_casts_from(
             let ExpressionNode::Cast(cast) = expression else {
                 return None;
             };
-            (!cast.semantic_domain.is_empty()).then_some((handle, *cast))
+            Some((handle, *cast))
         })
         .collect::<Vec<_>>();
     let mut updates = Vec::with_capacity(sites.len());
 
     for (handle, cast) in sites {
+        if cast.semantic_domain.is_empty() {
+            let result = if cast.domain == numerics::arithmetic::ArithmeticDomain::Exact {
+                Some(cast.target_type)
+            } else if let TypeReferenceNode::Named { symbol, .. } = program
+                .type_reference_table
+                .type_reference(cast.target_type)
+            {
+                program
+                    .type_reference_table
+                    .find_arithmetic_result_type_reference(*symbol, cast.domain)
+            } else {
+                program
+                    .type_reference_table
+                    .find_policy_qualified_type_reference(cast.target_type, cast.domain)
+            };
+            if let ExpressionNode::Cast(target) = program.expression_table.expression_mut(handle) {
+                target.result_type = result.unwrap_or_default();
+            }
+            continue;
+        }
         let matching_occurrences = program
             .expression_table
             .authored_selection_occurrences(handle)
@@ -154,11 +181,51 @@ pub(crate) fn normalize_qualification_casts_from(
     program.retain_authored_declaration_selections(selections);
 
     for (handle, _, domain, semantic_id) in updates {
+        let ExpressionNode::Cast(authored) = program.expression_table.expression(handle) else {
+            continue;
+        };
+        let authored = *authored;
+        let result_type = if let Some(declaration) = program
+            .domain_definitions()
+            .iter()
+            .find(|declaration| declaration.symbol == domain)
+        {
+            // The cast owns this result edge. Reuse ordinary domain normalization
+            // for alias expansion, indexed identity, predicates and routes; a
+            // fabricated bare carrier or a consumer-side name search would erase
+            // meaning before a surrounding Match or operator checks compatibility.
+            // This derived type does not create another authored selection or
+            // establish membership: the original cast still owes that proof.
+            let qualification = DomainConstraint {
+                name: declaration.name.clone(),
+                arguments: program
+                    .type_reference_table
+                    .type_reference_handles(authored.semantic_domain_arguments)
+                    .to_vec(),
+                ..DomainConstraint::default()
+            };
+            let constraints = program
+                .type_reference_table
+                .insert_constraints([TypeConstraintNode::Domain(qualification)]);
+            let result = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Constrained {
+                    base_type: authored.target_type,
+                    constraints,
+                });
+            crate::domain_constraints::normalize_domain_constraints_for_type(
+                source, program, result,
+            )?;
+            result
+        } else {
+            TypeReferenceHandle::invalid()
+        };
         let ExpressionNode::Cast(cast) = program.expression_table.expression_mut(handle) else {
             continue;
         };
         cast.semantic_domain_symbol = domain;
         cast.semantic_domain_id = semantic_id;
+        cast.result_type = result_type;
     }
     Ok(())
 }

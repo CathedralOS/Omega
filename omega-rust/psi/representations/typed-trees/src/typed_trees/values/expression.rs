@@ -468,6 +468,7 @@ impl ExpressionTable {
                 self.insert(ExpressionNode::Cast(TableCastExpression {
                     value,
                     target_type,
+                    result_type: cast.result_type,
                     target_label,
                     domain: cast.domain,
                     semantic_domain,
@@ -1536,6 +1537,7 @@ impl ExpressionTable {
                 self.insert(ExpressionNode::Cast(TableCastExpression {
                     value,
                     target_type,
+                    result_type: cast.result_type,
                     target_label,
                     domain: cast.domain,
                     semantic_domain,
@@ -1781,6 +1783,7 @@ impl ExpressionTable {
                 self.insert(ExpressionNode::Cast(TableCastExpression {
                     value,
                     target_type: cast.target_type,
+                    result_type: crate::types::TypeReferenceHandle::invalid(),
                     target_label,
                     domain: cast.domain,
                     // Tree-built casts are compiler-internal (tests/builders)
@@ -2233,6 +2236,11 @@ pub struct TableUnaryExpression {
 pub struct TableCastExpression {
     pub value: ExpressionHandle,
     pub target_type: crate::types::TypeReferenceHandle,
+    /// Complete result qualification, retained by typed normalization. The
+    /// authored target remains separate because membership must still be
+    /// proved. Zero means unresolved (or an unnormalized internal builder),
+    /// never permission to erase a semantic-domain suffix.
+    pub result_type: crate::types::TypeReferenceHandle,
     /// Diagnostic spelling only; semantic identity uses `target_type`.
     pub target_label: HandleSpan<Identifier>,
     /// Arithmetic domain cast (`x as u8 in Saturating`), decision 17 S2.
