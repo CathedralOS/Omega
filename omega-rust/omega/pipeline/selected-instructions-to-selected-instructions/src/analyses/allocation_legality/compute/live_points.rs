@@ -1,27 +1,19 @@
 //! Candidate derivation at ordinary live-range points.
 
-use register_model::{
-    RegisterClass, RegisterViewId, ValidatedPhysicalRegisterModel,
-    ValidatedRegisterReservationProfile,
-};
+use register_model::{RegisterClass, RegisterViewId};
 use selected_instructions::SelectedBlockId;
 
-use super::{fixed_views, view_candidates};
-use crate::{
-    AllocationLegalityError, FunctionLiveRanges, LiveRangePoint, VirtualLiveRange,
-    VirtualPointLegality,
-};
+use super::{fixed_views, view_candidates::CandidateViews};
+use crate::{AllocationLegalityError, LiveRangePoint, VirtualLiveRange, VirtualPointLegality};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn compute(
     function_index: usize,
-    function: &FunctionLiveRanges,
     register: &VirtualLiveRange,
     class: &RegisterClass,
     available: &[RegisterViewId],
     entry_point: Option<(SelectedBlockId, LiveRangePoint)>,
-    physical: &ValidatedPhysicalRegisterModel,
-    reservations: &ValidatedRegisterReservationProfile,
+    views: &mut CandidateViews<'_>,
 ) -> Result<Vec<VirtualPointLegality>, AllocationLegalityError> {
     let mut points = Vec::new();
     for fragment in &register.fragments {
@@ -34,24 +26,13 @@ pub(super) fn compute(
                 point,
                 entry_point,
             )?;
-            let mut candidates = view_candidates::unconstrained(
-                class,
-                available,
-                fragment.block,
-                point,
-                function,
-                physical,
-                reservations,
-            );
-            view_candidates::restrict_to_fixed(
+            let mut candidates = views.unconstrained(class, available, fragment.block, point);
+            views.restrict_to_fixed(
                 function_index,
                 register,
                 fragment.block,
                 point,
                 fixed,
-                function,
-                physical,
-                reservations,
                 &mut candidates,
             )?;
             if candidates.is_empty() {

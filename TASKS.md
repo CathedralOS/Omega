@@ -82,21 +82,23 @@ do not claim a faster compiler from a smaller helper alone.
   rewind framework solely to close this item. No thread-pool or unrelated IR
   redesign is part of this task.
 
-- **NATIVE-SPILL-RECOVERY-COST.** Reduce initial runtime-spill recovery and
-  admission cost for the unchanged `mixed_call_source(17)` customer in
+- **NATIVE-SPILL-RECOVERY-COST.** Remove redundant prerequisite replay during
+  initial runtime-spill analysis for the unchanged `mixed_call_source(17)` customer in
   `tests/native-differential/tests/scalar_array_results/stack_arguments.rs`.
-  Its debug-profile full publication takes 229 seconds on macOS AArch64 even
-  with immutable retained-allocation admission reuse. A one-second sample during
-  initial `RetainedAllocation::try_from` locates runtime-spill replay and
-  allocation-legality reconstruction, not their total cost. Start with
+  Its debug-profile full publication measured 109 seconds on macOS AArch64;
+  232 cumulative analysis calls spent 41 seconds in live-range analysis. Start with
   `cargo nextest run -p omega-native-differential-test --test scalar_array_results -E 'test(=stack_arguments::large_sysv_inline_arguments_publish_through_verified_spills)' --no-fail-fast`
-  and the `selected-instructions-to-register-homes/src/assignment/runtime_spill/`
-  recovery/replay owners. They currently reanalyze the whole program for each
-  cumulative spill. Measure attempts, unchanged work, initial admission, and
-  whole-route time before choosing reuse, a smaller analysis work domain, or
-  a better justified recovery implementation. Acceptance: the same source and
-  publication/corruption checks pass with materially less measured work and
-  elapsed time. Keep exact fresh-input replay, changed-source/environment rejection,
+  and `selected-instructions-to-selected-instructions/src/analyses/live_ranges/mod.rs`
+  plus `validate.rs`: the producer replays liveness before computation, then
+  its validator replays the same immutable prerequisite again. The allocation
+  `selected-instructions-to-register-homes/src/assignment/runtime_spill/` owner
+  repeats this for every cumulative rewrite.
+  Assess an owner-private already-checked join while keeping the public raw-plan
+  validator on full independent replay. Do not move proposal work ahead of a
+  failing prerequisite or reuse a receipt after any selected/liveness input changes.
+  Acceptance: the same source and publication/corruption checks pass with the
+  duplicate prerequisite work removed and measured end-to-end improvement.
+  Keep exact fresh-input replay, changed-source/environment rejection,
   frame/byte checks, and finite original-value recovery; no larger retry limit,
   detached hash, global cache, or weakened pressure/interference checks.
 

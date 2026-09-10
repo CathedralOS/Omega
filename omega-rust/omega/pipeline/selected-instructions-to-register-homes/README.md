@@ -36,6 +36,12 @@ maximal block-local half-open fragments, and connect exact successor transfers;
 they do not replace these with convex whole-function intervals. Candidate views
 exclude reservation, liveness, and action storage/write conflicts. An exact fixed
 view need not belong to the generally allocatable set.
+Legality producer and replay each prepare their own general candidates once per
+visited class/block/point within one immutable function and environment. Values
+sharing that location reuse only those general facts; their fixed constraints,
+early-definition checks, error order, and exact output rows remain individual.
+These invocation-local tables are not retained analysis admission or a cache
+across changing selected programs.
 
 ## Home assignment and recovery
 
@@ -89,7 +95,12 @@ Without an optional recovery selection, genuine `NoCompatibleHome` pressure
 can enter [runtime spill recovery](src/assignment/runtime_spill/mod.rs). It
 visits a finite roster of original instruction-result and block-parameter values,
 restricted to the failing function and values interfering with its failed
-register. The selected rewrite owner admits ordinary nonaddress fixed
+register. It tries the failed original value first, then the original ordered
+interference fallback. A tied-domain leader may not be spillable; every attempted
+candidate still passes ordinary admission and is removed from the roster before
+that attempt. This private heuristic does not change the permitted spill evidence
+or optional rematerialization policies.
+The selected rewrite owner admits ordinary nonaddress fixed
 8/16/32/64-bit integer, Boolean, and GPR-resident IEEE payloads with one
 instruction definition dominating their uses in an acyclic function.
 Same-block uses must follow the definition. An edge-copy snapshot can

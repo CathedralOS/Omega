@@ -16,6 +16,8 @@ use crate::{
     ValidatedAllocatorAvailability, VirtualLiveRange, allocator_availability_identity,
 };
 
+mod candidate_reuse;
+
 fn physical() -> register_model::ValidatedPhysicalRegisterModel {
     validate_physical_register_model(PhysicalRegisterModel {
         architecture: Architecture::X86_64,
