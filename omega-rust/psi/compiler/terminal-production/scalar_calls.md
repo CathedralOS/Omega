@@ -176,6 +176,24 @@ Scalar-only callers of helpers with local storage use the same closure and
 [`scalar_local_borrows.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/scalar_local_borrows.rs)
 checks canonical reload, independent verification, local identity, ordered
 mutations, snapshots, and one-unit fuel suspension without replay.
+
+Ordinary Unit calls also occupy their authored positions among scalar bindings
+and before scalar control. Their checked call coordinates remain separate from
+dense scalar binding ordinals: completing a Unit call creates no scalar value.
+Argument evaluation retains prior snapshots, finishes nested scalar operands in
+order, and lends the actual primitive local or reference. Source replay rejoins
+the full statement roster, callee, arguments, and borrow occurrence before
+emission. Scalar and Unit callees share one reachable catalog, so a transitive
+scalar caller retains its helper's Unit calls too.
+[`scalar_unit_calls.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/scalar_unit_calls.rs)
+exercises this composition and rejects omitted, duplicated, reordered, and
+substituted call custody under canonical replay and one-unit fuel suspension.
+The Boolean-local branch in
+[`primitive_locals/boolean_control.rs`](../../../../tests/native-differential/tests/primitive_locals/boolean_control.rs)
+uses both Unit-returning and scalar-returning helpers through native publication
+and matching-host execution. The branch consumes the fresh read's exact value;
+the native receiving checks still reject substituted or unavailable read homes.
+
 Immutable whole owned inputs retain their authored Affine or Unrestricted
 multiplicity alongside scalar and primitive-borrow formals. Graph discovery
 precedes ownership checking; finalization rejoins the completed permission ledger

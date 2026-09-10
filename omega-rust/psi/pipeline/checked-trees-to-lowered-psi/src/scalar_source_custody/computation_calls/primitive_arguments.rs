@@ -13,7 +13,7 @@ use language_core::ReferenceAccess;
 use super::borrow_rows;
 use crate::{LoweringError, unsupported};
 
-pub(super) fn validate(
+pub(crate) fn validate(
     checked: &CheckedTrees,
     state: &State,
     statement: u32,

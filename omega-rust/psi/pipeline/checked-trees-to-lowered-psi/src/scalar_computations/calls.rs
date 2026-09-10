@@ -190,11 +190,13 @@ impl Expansion<'_> {
                     let constructor = self.push(LoweredScalarBranchState {
                         parameter_types: leaf_types.clone(),
                         bindings: Vec::new(),
-                        structural_effects: vec![LoweredScalarArrayConstruction {
-                            place: slot.place,
-                            structural_type: slot.structural_type,
-                            elements: parameters_for_actuals(&leaf_types, prefix.len()),
-                        }],
+                        structural_effects: vec![LoweredScalarEffect::EstablishScalarArray(
+                            LoweredScalarArrayConstruction {
+                                place: slot.place,
+                                structural_type: slot.structural_type,
+                                elements: parameters_for_actuals(&leaf_types, prefix.len()),
+                            },
+                        )],
                         terminator: LoweredScalarBranchTerminator::Jump {
                             target: continuation,
                             arguments: super::parameters(prefix),

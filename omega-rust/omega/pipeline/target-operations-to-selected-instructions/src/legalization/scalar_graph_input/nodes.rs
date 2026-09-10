@@ -194,10 +194,10 @@ pub(super) fn validate(
     let (terminator, body) = block.nodes.split_last().ok_or(invalid.clone())?;
     for (position, parameter) in block.parameters.iter().enumerate() {
         if (integer_type(parameter.scalar_type).is_none()
+            && !(!ranked && parameter.scalar_type == ScalarType::Boolean)
             && !(optimized.result == AbstractFunctionResult::Unit
                 && !ranked
                 && [
-                    ScalarType::Boolean,
                     ScalarType::Integer(u8_type()),
                     ScalarType::Integer(i32_type()),
                 ]

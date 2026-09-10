@@ -120,14 +120,16 @@ pub struct CheckedScalarStateGraph {
     pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
     pub parameter_types: Vec<PrimitiveType>,
     pub parameter_storage: arena::HandleSpan<CheckedScalarParameterStorage>,
-    /// Authored mutable locals whose retained computations borrow real referents.
+    /// Authored mutable locals borrowed by retained statements or computations.
     pub primitive_locals: Vec<CheckedScalarPrimitiveLocalPlan>,
     pub bindings: Vec<CheckedScalarBinding>,
+    /// Ordered Unit effects retain authored coordinates independently of scalar slots.
+    pub unit_operations: Vec<CheckedUnitEffectOperationPlan>,
     pub result_type: PrimitiveType,
     pub terminator: CheckedScalarStateTerminator,
 }
 
-/// A primitive local place required by this state's retained computations.
+/// A primitive local place required by this state's retained calls.
 /// The binding at `statement_ordinal` owns the initializer and its source custody.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedScalarPrimitiveLocalPlan {

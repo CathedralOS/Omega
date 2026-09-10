@@ -209,7 +209,7 @@ pub(crate) use terminal_cleanup::build_checked_structural_control_cleanup_plans;
 pub(crate) use terminal_debug::build_checked_terminal_debug_plans;
 pub(crate) use terminal_scalar::{
     build_checked_scalar_graph_plans, build_checked_terminal_machine_selections,
-    finalize_checked_scalar_graph_plans,
+    finalize_checked_scalar_graph_plans, finalize_scalar_unit_operations,
 };
 pub(crate) use terminal_unit::control::build_checked_structural_unit_control_plans;
 pub(crate) use terminal_unit::returns::{

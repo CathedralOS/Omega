@@ -49,8 +49,9 @@ calls and returns preserve declaration identity rather than inferring a field
 from its name. These paths share allocation, frame, encoding and publication;
 independent selection replay checks their complete instruction and storage roster.
 
-Unit graphs use this same transport for `u8`, `u32`, `u64`, `i64` and
-materialized Boolean block arguments. Exact block/value/type references are
+Unit graphs use this same transport for `u8`, `u32`, `u64` and `i64` block
+arguments. Materialized Boolean block arguments use it in both Unit and
+scalar-result graphs. Exact block/value/type references are
 available only in their defining block and dominated successors; each arrival
 retains its own ordered bindings, even when both conditional arms have the same
 target. A transferred integer does not inherit byte-length observation custody.
@@ -186,15 +187,17 @@ Fresh primitive reads use pointer loads and distinct SSA definitions. `Load8`,
 fixed-width signed/unsigned integers, and IEEE binary32/binary64. Narrow loads
 zero-extend the raw payload into the GPR carrier without changing its scalar
 type; IEEE loads preserve payload bits without floating-point arithmetic.
-Materialized Boolean reads used in stores and Unit calls are values, not
-comparison-only branch suffixes. Boolean-local branching remains separate
-source/graph composition work.
+Materialized Boolean reads retain their exact scalar home across stores, calls,
+and branches. A branch tests the fresh read's Boolean carrier using the ordinary
+zero comparison; it does not substitute the initializer or a previous observation.
+Definition availability, readable access, and source/home identity remain checked
+independently of the comparison-only predicate suffix rules.
 Construction and replay retain AddressLocal, WritePlace and ReadPlace records,
 exact scalar demand, fuel, and the incoming parameter roster. Local storage does
 not add an ABI parameter or a synthetic aggregate.
 
-The ordinary control graph also composes fixed-integer primitive writes with a
-64-bit integer result. Independent input replay joins the complete mixed ABI,
+The ordinary control graph also composes Boolean and fixed-integer primitive
+writes with a 64-bit integer result. Independent input replay joins the complete mixed ABI,
 exact incoming reference, ordered store source, and scalar return. Selection
 uses the existing pointer store and result constraint; it introduces neither a
 Unit wrapper nor legacy store-byte records. Object/image publication retains

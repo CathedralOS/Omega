@@ -1,4 +1,4 @@
-//! Local referents demanded by reachable checked scalar computations.
+//! Local referents demanded by checked computation and ordinary Unit calls.
 
 use checked_trees::{
     CheckedScalarBinding, CheckedScalarBindingDestination, CheckedScalarBindingValue,
@@ -116,6 +116,46 @@ pub(in crate::flow) fn collect(
                 CheckedScalarComputationKind::Apply { operands, .. } => {
                     pending.extend_from_slice(computations.operands.span(*operands)?);
                 }
+            }
+        }
+    }
+    // A statement call requires the same real referent as a computation call.
+    // The completed Unit operation and receiving source replay independently
+    // rejoin the exact target signature and checked borrow occurrence.
+    for (ordinal, statement) in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .enumerate()
+    {
+        let StatementNode::Call(call) = statement else {
+            continue;
+        };
+        for expression in program.statement_table.expression_handles(call.arguments) {
+            let typed_trees::expression::ExpressionNode::Borrow(borrow) =
+                program.expression_table.expression(*expression)
+            else {
+                continue;
+            };
+            let typed_trees::expression::ExpressionNode::Name(name) =
+                program.expression_table.expression(borrow.target)
+            else {
+                continue;
+            };
+            if !program.statement_table.statements(state.statement_nodes).iter().any(|statement|
+                matches!(statement, StatementNode::LocalData(local) if local.symbol == name.symbol && local.is_mutable)) { continue; }
+            let local = local_plan(
+                program,
+                machine,
+                state,
+                expressions,
+                computations,
+                bindings,
+                name.symbol,
+                u32::try_from(ordinal).ok()?,
+            )?;
+            if !locals.contains(&local) {
+                locals.push(local);
             }
         }
     }

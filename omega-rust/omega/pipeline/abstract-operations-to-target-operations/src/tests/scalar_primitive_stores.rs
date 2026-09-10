@@ -265,3 +265,59 @@ fn effect_free_primitive_borrow_scalar_return_remains_unsupported() {
         ));
     }
 }
+
+#[test]
+fn boolean_primitive_store_publishes_exact_borrow_and_scalar_return_abi() {
+    let mut source = fixture(true);
+    source.structural_types[0].identity = "bool".into();
+    source.structural_types[0].shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean);
+    source.functions[0].parameters[0].scalar_type = ScalarType::Boolean;
+    let AbstractOperation::WriteOnlyPrimitiveStore { value, .. } =
+        &mut source.functions[0].operations[0]
+    else {
+        panic!("primitive store");
+    };
+    value.scalar_type = ScalarType::Boolean;
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let target = lower_to_target_operations(&source, native).unwrap();
+        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
+        let function = &target.functions[0];
+        let abi = function.mixed_structural_scalar_abi.as_ref().unwrap();
+        let TargetOperation::ControlGraph(graph) = &function.operation else {
+            panic!("ordinary store graph");
+        };
+        assert_eq!(graph.call_plan, abi.call_plan);
+        assert_eq!(graph.scalar_parameters, abi.scalar_parameters);
+        assert_eq!(graph.parameters, abi.structural_parameters);
+        assert_eq!(abi.scalar_parameters[0].scalar_type, ScalarType::Boolean);
+        assert_eq!(
+            abi.scalar_parameters[0].placement.shape,
+            ValueShape::integer(1, 1)
+        );
+        assert_eq!(
+            abi.structural_parameters[0].shape,
+            ValueShape::borrowed_reference(1, 1)
+        );
+        assert_eq!(abi.result.placement.shape, ValueShape::integer(8, 8));
+        for mutation in 0..2 {
+            let mut changed = target.clone();
+            let published = changed.functions[0]
+                .mixed_structural_scalar_abi
+                .as_mut()
+                .unwrap();
+            match mutation {
+                0 => published.structural_parameters[0].shape = ValueShape::integer(1, 1),
+                _ => published.structural_parameters[0].access = StructuralAccess::Owned,
+            }
+            assert!(
+                crate::validate_abstract_to_target_translation(&source, native, &changed).is_err(),
+                "Boolean ABI mutation {mutation}"
+            );
+        }
+    }
+}

@@ -7,7 +7,7 @@ use crate::{LoweringError, unsupported};
 
 /// Each result is the first access-row position of an authored formal actual.
 /// Scalar actuals may contribute zero, one, or several observation rows.
-pub(super) fn rejoin(
+pub(crate) fn rejoin(
     checked: &CheckedTrees,
     call: &BorrowCallFact,
     arguments: &[ExpressionHandle],

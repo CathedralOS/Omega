@@ -540,11 +540,12 @@ fn emit_state(
             });
         }
     }
-    crate::scalar_computations::arrays::emit(
+    crate::scalar_graph_effects::emit(
         &state.structural_effects,
         &values,
         next_value,
         operations,
+        calls,
     )?;
     let mut arguments =
         |expressions: &[LoweredDirectExpression]| -> Result<Vec<ValueId>, LoweringError> {

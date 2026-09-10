@@ -1,4 +1,4 @@
-//! Boolean predicates form branch suffixes; materialized values also cross Unit edges.
+//! Computed predicates form branch suffixes; materialized Boolean reads keep SSA identity.
 use super::*;
 use optimization_unit::OptimizationBlock;
 
@@ -34,14 +34,20 @@ pub(super) fn validate(
             && !function.parameters.iter().any(|parameter| {
                 parameter.value == value && parameter.scalar_type == ScalarType::Boolean
             })
-            && !(function.result == AbstractFunctionResult::Unit
-                && function
+            // Primitive reads already have a scalar home. Their exact fresh value may
+            // feed a branch without moving the read past intervening operations;
+            // whole-unit custody and target replay still check definition availability.
+            && !function.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
+                matches!(node.operation, AbstractOperation::PrimitiveScalarRead { result, .. }
+                    if result.value == value && result.scalar_type == ScalarType::Boolean)
+            })
+            && !function
                     .blocks
                     .iter()
                     .flat_map(|block| &block.parameters)
                     .any(|parameter| {
                         parameter.value == value && parameter.scalar_type == ScalarType::Boolean
-                    }))
+                    })
         {
             return Err(invalid);
         }
@@ -66,20 +72,17 @@ pub(super) fn validate(
                             | AbstractOperation::EstablishPrimitiveLocal { value, .. }
                             | AbstractOperation::PrimitiveLocalStore { value, .. }
                             if value.value == result && value.scalar_type == ScalarType::Boolean)
-                        || (function.result == AbstractFunctionResult::Unit
-                            && matches!(
-                                &consumer.operation,
-                                AbstractOperation::Jump { .. }
-                                    | AbstractOperation::Conditional { .. }
-                            )
-                            && consumer
-                                .successors
-                                .iter()
-                                .flat_map(|successor| &successor.bindings)
-                                .any(|binding| {
-                                    binding.argument == result
-                                        && binding.scalar_type == ScalarType::Boolean
-                                }))
+                        || (matches!(
+                            &consumer.operation,
+                            AbstractOperation::Jump { .. } | AbstractOperation::Conditional { .. }
+                        ) && consumer
+                            .successors
+                            .iter()
+                            .flat_map(|successor| &successor.bindings)
+                            .any(|binding| {
+                                binding.argument == result
+                                    && binding.scalar_type == ScalarType::Boolean
+                            }))
                 })
             {
                 return Err(invalid);

@@ -5,6 +5,7 @@ use super::*;
 mod bindings;
 mod branch_destinations;
 pub(crate) mod cycles;
+pub(crate) mod unit_operations;
 use crate::scalar_computations as computations;
 mod guards;
 pub(crate) mod primitive_locals;
