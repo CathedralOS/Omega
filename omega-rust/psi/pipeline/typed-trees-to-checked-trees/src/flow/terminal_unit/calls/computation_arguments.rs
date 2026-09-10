@@ -83,7 +83,9 @@ pub(crate) fn structural_computation_argument(
         }
         // This retains authored actual identity. Graph publication rejoins
         // affine transfers after multiplicity checking produces permissions.
-        return owned_parameter_argument(program, state, name.symbol, target);
+        return owned_parameter_argument(program, state, name.symbol, target).or_else(|| {
+            owned_array_local_argument(program, state, call.statement_index, name.symbol, target)
+        });
     }
     let target_type = plain_primitive_referent(program, target.type_reference)?;
     if super::super::primitive_store::primitive_local_before(
@@ -160,6 +162,59 @@ pub(crate) fn structural_computation_argument(
         path: Vec::new(),
         type_identity: base_type_identity(program, target.type_reference, &[])?,
         access,
+    })
+}
+
+fn owned_array_local_argument(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    source_symbol: SymbolHandle,
+    target: &StateParameter,
+) -> Option<CheckedUnitStructuralArgumentPlan> {
+    if target.is_mutable
+        || program
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| parameter.symbol == source_symbol)
+    {
+        return None;
+    }
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let mut declarations = statements
+        .get(..statement_index)?
+        .iter()
+        .filter_map(|statement| match statement {
+            StatementNode::LocalData(local) if local.symbol == source_symbol => Some(local),
+            _ => None,
+        });
+    let local = declarations.next()?;
+    if declarations.next().is_some()
+        || local.is_mutable
+        || !program
+            .expression_table
+            .expression_is_valid(local.initial_value)
+        || !validation::is_closed_primitive_array_type(program, local.type_reference)
+        || !validation::is_closed_primitive_array_type(program, target.type_reference)
+        || crate::checks::type_multiplicity(program, local.type_reference)
+            != Multiplicity::Unrestricted
+        || crate::checks::type_multiplicity(program, target.type_reference)
+            != Multiplicity::Unrestricted
+    {
+        return None;
+    }
+    let mut shapes = ShapeCollector::new(program);
+    let type_identity = shapes.add_type(local.type_reference, &[], &[])?;
+    if type_identity != shapes.add_type(target.type_reference, &[], &[])? {
+        return None;
+    }
+    Some(CheckedUnitStructuralArgumentPlan {
+        source: CheckedUnitStructuralArgumentSourcePlan::ArrayLocal {
+            symbol: source_symbol,
+        },
+        path: Vec::new(),
+        type_identity,
+        access: CheckedStructuralAccess::Owned,
     })
 }
 

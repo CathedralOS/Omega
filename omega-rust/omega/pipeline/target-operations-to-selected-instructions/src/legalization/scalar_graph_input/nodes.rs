@@ -76,7 +76,8 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             requirement_obligations,
             crash_continuations,
             ..
-        } if integer_call_shape(result.scalar_type).is_some()
+        } if (result.scalar_type == ScalarType::Boolean
+            || integer_call_shape(result.scalar_type).is_some())
             && claim_transfers.is_empty()
             && requirement_obligations.is_empty()
             && crash_continuations.is_empty() =>

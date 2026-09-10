@@ -13,6 +13,76 @@ machine observe(output: &mut u64) {
 }
 "#;
 
+#[test]
+fn ordered_array_locals_retain_conditional_scalar_completion() {
+    for initializer in ["[7u8, 9u8]", "make()"] {
+        let checked = checked(&format!(
+            "machine make() -> [u8; 2] {{ [7u8, 9u8] }}
+             machine answer(row: [u8; 2], value: u8) -> u8 {{ value }}
+             machine enabled(value: bool) -> bool {{ value }}
+             machine selected(flag: bool, value: u8) -> u8 {{
+                 let row: [u8; 2] = {initializer};
+                 transition enabled(flag) {{
+                     true -> (answer(row, value))
+                     false -> (answer(row, 0u8))
+                 }}
+             }}"
+        ));
+        let selected = machine_symbol(&checked, "selected");
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(selected)
+            .expect("ordered array prefix retains its scalar conditional");
+        assert!(plan.scalar_result.is_none());
+        assert!(plan.structural_result.is_none());
+        assert_eq!(
+            plan.scalar_control.as_ref().unwrap().primitive_type,
+            PrimitiveType::U8
+        );
+        assert!(matches!(
+            plan.scalar_control.as_ref().unwrap().terminator,
+            checked_trees::CheckedScalarStateTerminator::Conditional {
+                when_true: checked_trees::CheckedScalarBranchDestination::Return { .. },
+                when_false: checked_trees::CheckedScalarBranchDestination::Return { .. },
+                ..
+            }
+        ));
+        assert_eq!(
+            plan.operations
+                .iter()
+                .filter(|operation| matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
+                        | CheckedUnitEffectOperationPlan::StructuralCall { .. }
+                ))
+                .count(),
+            1
+        );
+        assert!(!plan.operations.iter().any(|operation| matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::ScalarCall { .. }
+        )));
+        let arguments = checked
+            .facts
+            .values
+            .scalar_computations
+            .structural_arguments
+            .iter()
+            .filter_map(|(_, argument)| argument.as_place())
+            .filter(|argument| {
+                matches!(
+                    argument.source,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::ArrayLocal { .. }
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(arguments.len(), 2);
+        assert_eq!(arguments[0].source, arguments[1].source);
+    }
+}
+
 fn checked(source: &str) -> checked_trees::CheckedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()

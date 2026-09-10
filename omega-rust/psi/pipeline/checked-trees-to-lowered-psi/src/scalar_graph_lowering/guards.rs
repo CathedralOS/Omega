@@ -3,7 +3,7 @@
 use super::*;
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn lower(
+pub(crate) fn lower(
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
     statement: u32,

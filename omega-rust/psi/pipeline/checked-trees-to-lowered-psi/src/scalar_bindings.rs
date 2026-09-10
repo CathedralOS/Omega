@@ -15,6 +15,7 @@ pub(super) struct ScalarBindings {
     primitive_storage: Vec<(symbols::SymbolHandle, PlaceId, ScalarType)>,
     /// Authored parameter positions stay separate from dense Terminal positions.
     structural_parameters: Vec<(u32, StructuralParameterDeclaration)>,
+    array_locals: Vec<(symbols::SymbolHandle, StructuralArgument)>,
     structural_fields: Vec<StructuralScalarFieldBinding>,
 }
 
@@ -25,6 +26,7 @@ impl ScalarBindings {
             storage: Vec::new(),
             primitive_storage: Vec::new(),
             structural_parameters: Vec::new(),
+            array_locals: Vec::new(),
             structural_fields: Vec::new(),
         }
     }
@@ -35,6 +37,7 @@ impl ScalarBindings {
             storage: Vec::new(),
             primitive_storage: Vec::new(),
             structural_parameters: Vec::new(),
+            array_locals: Vec::new(),
             structural_fields: Vec::new(),
         }
     }
@@ -55,6 +58,15 @@ impl ScalarBindings {
         storage: &[(symbols::SymbolHandle, PlaceId, ScalarType)],
     ) -> Self {
         self.primitive_storage = storage.to_vec();
+        self
+    }
+
+    /// Retain the existing payload places published by the ordered array producer.
+    pub(super) fn with_array_locals(
+        mut self,
+        locals: &[(symbols::SymbolHandle, StructuralArgument)],
+    ) -> Self {
+        self.array_locals = locals.to_vec();
         self
     }
 
@@ -130,6 +142,24 @@ impl ScalarBindings {
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     ) -> Result<StructuralArgument, LoweringError> {
+        if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ArrayLocal { symbol } =
+            argument.source
+        {
+            let mut locals = self.array_locals.iter().filter(|row| row.0 == symbol);
+            let (_, source) = locals.next().ok_or(LoweringError::Unsupported(
+                "computed owned array operand lost its established local",
+            ))?;
+            if !symbol.is_valid()
+                || locals.next().is_some()
+                || !argument.path.is_empty()
+                || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                || !source.path.is_empty()
+                || source.access != StructuralAccess::Owned
+            {
+                return unsupported("computed owned array operand changes its source custody");
+            }
+            return Ok(source.clone());
+        }
         let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
             argument.source
         else {

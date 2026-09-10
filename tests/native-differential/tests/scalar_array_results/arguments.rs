@@ -2,6 +2,60 @@
 use super::*;
 
 #[test]
+fn array_local_control_preserves_selected_returns_and_prefix_effects() {
+    let source = include_str!("../../../omega/pass/collections/array_local_control/main.omg");
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let (image, offset) = publish(source, "selected", target);
+        #[cfg(any(
+            all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", target_arch = "aarch64")
+        ))]
+        if target == NativeTarget::host() {
+            native_function::assert_c_text(
+                &image.output().final_text_bytes,
+                offset,
+                r"
+                #include <stdint.h>
+                #include <stdbool.h>
+                typedef struct { uint8_t values[2]; } Row;
+                extern Row omega_entry(bool, uint8_t);
+                int main(void) {
+                    for (unsigned value = 0; value < 256; ++value) {
+                        Row taken = omega_entry(true, (uint8_t)value);
+                        Row fallback = omega_entry(false, (uint8_t)value);
+                        if (taken.values[0] != value || taken.values[1] != 9) return 1;
+                        if (fallback.values[0] != 13 || fallback.values[1] != 9) return 2;
+                    }
+                    return 0;
+                }
+            ",
+            );
+        } else {
+            eprintln!("SKIP: {target:?} runtime requires its matching host");
+        }
+        #[cfg(not(any(
+            all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", target_arch = "aarch64")
+        )))]
+        {
+            let _ = (image, offset);
+            eprintln!("SKIP: native array control execution requires the Linux/macOS host harness");
+        }
+    }
+}
+
+#[test]
 fn narrow_integer_call_results_normalize_full_registers_with_owned_arrays() {
     for (scalar, low_bits, mask, normalized) in [
         ("u16", 65535_u64, 65535_u64, 65535_u64),

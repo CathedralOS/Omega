@@ -102,12 +102,46 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
         .iter()
         .find(|owner| owner.symbol == machine)?;
     let mut scalar_local_count = 0u32;
+    let control_prefix =
+        statement_sequence::scalar_control(program, facts, owner, state).map(|(_, prefix)| prefix);
     for (statement_index, statement) in program
         .statement_table
         .statements(state.statement_nodes)
         .iter()
         .enumerate()
     {
+        if control_prefix.is_some_and(|prefix| statement_index >= prefix) {
+            for (_, root) in facts
+                .values
+                .scalar_computations
+                .roots
+                .iter()
+                .filter(|(_, root)| {
+                    root.state == state.symbol
+                        && root.statement_ordinal as usize == statement_index
+                        && matches!(
+                            root.role,
+                            CheckedScalarExpressionRole::Guard
+                                | CheckedScalarExpressionRole::Return
+                                | CheckedScalarExpressionRole::ContinuationReturn
+                        )
+                })
+            {
+                if root.machine != machine {
+                    return None;
+                }
+                collect(
+                    facts,
+                    statement_index,
+                    root.root,
+                    calls,
+                    0,
+                    &mut Vec::new(),
+                    &mut consumed,
+                )?;
+            }
+            continue;
+        }
         if let StatementNode::LocalData(local) = statement
             && !local.is_mutable
             && let Some(primitive_type) = program.primitive_type_reference(local.type_reference)

@@ -8,6 +8,8 @@ use checked_trees::CheckedUnitStructuralReturnPlan;
 
 pub(in crate::flow::terminal_unit) struct StatementSequence {
     pub(in crate::flow::terminal_unit) scalar_result: Option<CheckedUnitScalarResultBindingPlan>,
+    pub(in crate::flow::terminal_unit) scalar_control:
+        Option<checked_trees::CheckedUnitScalarControlPlan>,
     pub(in crate::flow::terminal_unit) structural_result: Option<CheckedUnitStructuralReturnPlan>,
     pub(in crate::flow::terminal_unit) operations: Vec<CheckedUnitEffectOperationPlan>,
     pub(in crate::flow::terminal_unit) local_count: usize,
@@ -67,11 +69,17 @@ pub(super) fn has_statement_shape(
     state: &typed_trees::state::State,
     construction_statement_count: usize,
 ) -> bool {
+    let completion = scalar_control(program, facts, machine, state);
+    let prefix_count = completion
+        .as_ref()
+        .map(|(_, count)| *count)
+        .unwrap_or(usize::MAX);
     program
         .statement_table
         .statements(state.statement_nodes)
         .iter()
         .enumerate()
+        .take(prefix_count)
         .skip(construction_statement_count)
         .all(|(index, statement)| match statement {
             StatementNode::Call(_) | StatementNode::Assignment(_) => true,
@@ -111,6 +119,18 @@ pub(in crate::flow::terminal_unit) fn build(
     affine_scalar_record_locals: &[AffineScalarRecordLocal],
     construction_statement_count: usize,
 ) -> Option<StatementSequence> {
+    let scalar_control = scalar_control(program, facts, machine, state).map(|(control, _)| control);
+    if scalar_control.is_some()
+        && (!entry_claims.is_empty()
+            || !trivial_affine_locals.is_empty()
+            || !affine_scalar_record_locals.is_empty()
+            || structural_parameters.iter().any(|parameter| {
+                parameter.multiplicity != Multiplicity::Unrestricted
+                    || !parameter.qualifications.is_empty()
+            }))
+    {
+        return None;
+    }
     let mut operations = Vec::new();
     let mut local_count = construction_statement_count;
     let mut scalar_count = 0_usize;
@@ -652,7 +672,8 @@ pub(in crate::flow::terminal_unit) fn build(
         } else {
             None
         };
-    if returned_scalar_call.is_none()
+    if scalar_control.is_none()
+        && returned_scalar_call.is_none()
         && let Some(primitive_type) = program.primitive_type_reference(state.return_type)
     {
         let statements = program.statement_table.statements(state.statement_nodes);
@@ -709,13 +730,68 @@ pub(in crate::flow::terminal_unit) fn build(
         operations.push(CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value });
         returned_scalar_call = Some(result);
     }
+    if scalar_control.is_some()
+        && operations.iter().any(|operation| {
+            matches!(operation,
+            CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
+                if result.multiplicity != Multiplicity::Unrestricted)
+        })
+    {
+        return None;
+    }
     (call_count == calls.len()).then_some(StatementSequence {
         scalar_result: returned_scalar_call,
+        scalar_control,
         structural_result,
         operations,
         local_count,
         structural_local_symbols,
     })
+}
+
+/// Share scalar exit discovery while leaving operation storage with its sequence.
+pub(in crate::flow::terminal_unit) fn scalar_control(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+) -> Option<(checked_trees::CheckedUnitScalarControlPlan, usize)> {
+    let primitive_type = program.primitive_type_reference(state.return_type)?;
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let prefix_count = statements
+        .iter()
+        .take_while(|statement| {
+            matches!(
+                statement,
+                StatementNode::LocalData(_) | StatementNode::Assignment(_) | StatementNode::Call(_)
+            )
+        })
+        .count();
+    let terminator = crate::flow::terminal_scalar::checked_terminator(
+        program,
+        machine,
+        state,
+        &facts.values.scalar_expressions,
+        prefix_count,
+    )?;
+    if !matches!(
+        &terminator,
+        checked_trees::CheckedScalarStateTerminator::Conditional {
+            when_true: checked_trees::CheckedScalarBranchDestination::Return { .. },
+            when_false: checked_trees::CheckedScalarBranchDestination::Return { .. },
+            ..
+        }
+    ) {
+        return None;
+    }
+    Some((
+        checked_trees::CheckedUnitScalarControlPlan {
+            primitive_type,
+            terminator,
+        },
+        prefix_count,
+    ))
 }
 
 fn scalar_computation_local_at(

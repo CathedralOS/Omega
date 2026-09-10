@@ -4,11 +4,11 @@ use super::*;
 use crate::scalar_qualifications::PreparedScalarQualifications;
 
 mod bindings;
-mod branch_destinations;
+pub(crate) mod branch_destinations;
 pub(crate) mod cycles;
 pub(crate) mod unit_operations;
 use crate::scalar_computations as computations;
-mod guards;
+pub(crate) mod guards;
 pub(crate) mod primitive_locals;
 use crate::scalar_bindings as storage;
 use crate::scalar_source_custody as source_custody;

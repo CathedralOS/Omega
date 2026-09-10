@@ -97,6 +97,19 @@ pub(super) fn roster(function: &PsiOptimizationFunction) -> bool {
             .map(|place| place.id)
             .collect::<std::collections::BTreeSet<_>>()
         && function.structural_places.iter().all(|place| {
+            // One graph may own primitive storage alongside aggregate results.
+            // Keep each place joined to its exact producer; the primitive input
+            // validator separately checks the declared type and initializer.
+            if let Some((producer, result, _)) =
+                super::primitive_locals::producer(function, place.id)
+            {
+                return place.kind
+                    == StructuralPlaceKind::OperationResult {
+                        producer,
+                        structural_type: result.structural_type,
+                    }
+                    && super::primitive_locals::valid_result(function, producer, result);
+            }
             if place.kind == StructuralPlaceKind::Result {
                 return function
                     .result

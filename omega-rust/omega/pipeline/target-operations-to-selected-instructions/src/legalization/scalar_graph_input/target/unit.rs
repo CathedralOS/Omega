@@ -404,7 +404,8 @@ pub(super) fn validate_operation(
                     AbstractOperation::CallStructuralScalar { result: actual, .. },
                 ) => {
                     result == actual
-                        && integer_call_shape(actual.scalar_type).is_some()
+                        && (actual.scalar_type == ScalarType::Boolean
+                            || integer_call_shape(actual.scalar_type).is_some())
                         && expected.result.as_ref().is_some_and(|placement| {
                             super::super::scalar_shape(actual.scalar_type) == Some(placement.shape)
                         })

@@ -5,10 +5,15 @@ use super::*;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 
+mod control;
+
 pub(super) fn validate(
     checked: &CheckedTrees,
     machine: &CheckedUnitEffectMachinePlan,
 ) -> Result<(), LoweringError> {
+    if machine.scalar_control.is_some() {
+        return control::validate(checked, machine);
+    }
     let result = machine
         .scalar_result
         .as_ref()

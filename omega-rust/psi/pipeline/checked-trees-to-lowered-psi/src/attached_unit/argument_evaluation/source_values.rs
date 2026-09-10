@@ -68,6 +68,7 @@ impl Evaluation {
             .clone()
             .unwrap_or_else(|| crate::scalar_bindings::ScalarBindings::new(source_value_count))
             .with_primitive_storage(&self.primitive_storage)
+            .with_array_locals(&self.array_locals)
             .with_structural_parameters(&self.structural_parameters)
             .with_resolved_structural_fields(&self.structural_fields);
         let qualifications = prepare_shared_qualifications(checked, machine, values)?;

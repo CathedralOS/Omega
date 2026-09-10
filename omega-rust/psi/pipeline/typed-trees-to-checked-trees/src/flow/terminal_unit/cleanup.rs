@@ -304,6 +304,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
     Some(CheckedNominalAffineUnitCleanupMachinePlan {
         machine: CheckedUnitEffectMachinePlan {
             scalar_result: None,
+            scalar_control: None,
             structural_result: None,
             machine: machine.symbol,
             state: state.symbol,
@@ -1279,6 +1280,7 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
     Some(CheckedPartialAffineUnitCleanupMachinePlan {
         machine: CheckedUnitEffectMachinePlan {
             scalar_result: None,
+            scalar_control: None,
             structural_result: None,
             machine: machine.symbol,
             state: state.symbol,

@@ -138,7 +138,7 @@ pub(super) fn lower_unit_structural_types_including(
     let mut roots = additional_roots.to_vec();
     for symbol in closure {
         let body = UnitBody::find(plans, *symbol)?;
-        if !matches!(body, UnitBody::Ordinary(plan) if plan.scalar_result.is_some())
+        if !matches!(body, UnitBody::Ordinary(plan) if plan.scalar_result.is_some() || plan.scalar_control.is_some())
             && let checked_trees::CheckedControlResultPlan::Structural(result) = body.result()?
         {
             roots.push(result.type_identity);

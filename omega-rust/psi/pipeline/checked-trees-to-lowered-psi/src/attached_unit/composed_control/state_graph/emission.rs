@@ -144,6 +144,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
             .collect::<Vec<_>>();
         let mut operations = OperationBuffer::new(catalogs.next_operation - 1);
         let mut evaluation = crate::attached_unit::argument_evaluation::Evaluation {
+            array_locals: Vec::new(),
             arrays: crate::scalar_computations::arrays::prepare(
                 checked,
                 plan.machine,

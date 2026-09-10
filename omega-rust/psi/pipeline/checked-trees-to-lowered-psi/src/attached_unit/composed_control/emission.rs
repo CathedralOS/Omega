@@ -279,6 +279,7 @@ pub(crate) fn emit_call_leaf(
 ) -> Result<(Vec<Block>, Vec<LoweredSourceCallOccurrence>), LoweringError> {
     let mut operations = OperationBuffer::new(*next_operation - 1);
     let mut evaluation = super::super::argument_evaluation::Evaluation {
+        array_locals: Vec::new(),
         arrays: crate::scalar_computations::arrays::prepare(
             checked,
             machine,

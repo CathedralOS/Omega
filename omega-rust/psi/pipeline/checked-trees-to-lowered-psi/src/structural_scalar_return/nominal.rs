@@ -172,6 +172,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         ))?;
     let synthetic = CheckedUnitEffectMachinePlan {
         scalar_result: None,
+        scalar_control: None,
         structural_result: None,
         machine: plan.machine,
         state: plan.state,

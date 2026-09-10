@@ -1,0 +1,19 @@
+machine write(destination: &mut u8, value: u8) -> u8 { destination = value; value }
+machine guard(destination: &mut u8, enabled: bool) -> bool { destination = 13u8; enabled }
+machine keep(row: [u8; 2]) -> [u8; 2] { row }
+machine answer(row: [u8; 2], value: u8) -> u8 { value }
+
+machine choose(enabled: bool, value: u8) -> u8 {
+    let mut current: u8 = 0u8;
+    let row: [u8; 2] = keep([write(&mut current, 7u8), write(&mut current, value)]);
+    let before: u8 = current;
+    transition guard(&mut current, enabled) {
+        true -> (answer(row, before))
+        false -> (answer(row, current))
+    }
+}
+
+machine selected(enabled: bool, value: u8) -> [u8; 2] { [choose(enabled, value), 9u8] }
+
+data Main {}
+machine Main::main(&mut self) {}

@@ -3,6 +3,161 @@
 use super::*;
 
 #[test]
+fn scalar_array_local_control_keeps_prefix_effects_and_call_result_storage() {
+    let source =
+        include_str!("../../../../../../tests/omega/pass/collections/array_local_control/main.omg");
+    for enabled in [true, false] {
+        assert_array(
+            source,
+            &[TerminalScalarValue::Boolean(enabled), byte(42)],
+            &[byte(if enabled { 42 } else { 13 }), byte(9)],
+        );
+    }
+}
+
+#[test]
+fn scalar_array_control_rejects_substituted_tail_and_local_custody() {
+    let original = checked_source(
+        "machine answer(row: [u8; 2], value: u8) -> u8 { value }
+         machine selected(enabled: bool, value: u8) -> u8 {
+             let row: [u8; 2] = [7u8, 9u8];
+             transition enabled { true -> (answer(row, value)) false -> 0u8 }
+         }",
+    );
+    checked_trees_to_lowered_psi::lower_machine(&original, "selected").unwrap();
+    for mutation in [
+        "missing control",
+        "guard coordinate",
+        "swapped arms",
+        "return role",
+        "result type",
+        "omitted constructor",
+        "mutable local",
+        "local symbol",
+        "duplicate root",
+    ] {
+        let mut changed = original.clone();
+        let plan = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .find(|plan| plan.scalar_control.is_some())
+            .unwrap();
+        let state = plan.state;
+        let control = plan.scalar_control.as_mut().unwrap();
+        let checked_trees::CheckedScalarStateTerminator::Conditional {
+            guard_statement_ordinal,
+            when_true,
+            when_false,
+        } = &mut control.terminator
+        else {
+            panic!("conditional fixture");
+        };
+        match mutation {
+            "missing control" => plan.scalar_control = None,
+            "guard coordinate" => *guard_statement_ordinal = 0,
+            "swapped arms" => std::mem::swap(when_true, when_false),
+            "return role" => {
+                let checked_trees::CheckedScalarBranchDestination::Return {
+                    is_continuation, ..
+                } = when_true
+                else {
+                    panic!("return fixture");
+                };
+                *is_continuation = true;
+            }
+            "result type" => control.primitive_type = PrimitiveType::U64,
+            "omitted constructor" => {
+                plan.operations.remove(0);
+            }
+            "mutable local" => {
+                let span = changed
+                    .machines()
+                    .iter()
+                    .flat_map(|machine| changed.machine_states(machine))
+                    .find(|source| source.symbol == state)
+                    .unwrap()
+                    .statement_nodes;
+                let StatementNode::LocalData(local) =
+                    &mut changed.typed.statement_table.statements_mut(span)[0]
+                else {
+                    panic!("array local");
+                };
+                local.is_mutable = true;
+            }
+            "local symbol" => {
+                let handle = changed.facts.values.scalar_computations.structural_arguments.iter()
+                    .find_map(|(handle, argument)| match argument {
+                        checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)
+                            if matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::ArrayLocal { .. }) => Some(handle),
+                        _ => None,
+                    }).unwrap();
+                let checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) =
+                    changed
+                        .facts
+                        .values
+                        .scalar_computations
+                        .structural_arguments
+                        .get_mut(handle)
+                else {
+                    panic!("local argument");
+                };
+                argument.source =
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::ArrayLocal {
+                        symbol: symbols::SymbolHandle::invalid(),
+                    };
+            }
+            "duplicate root" => {
+                let root = changed
+                    .facts
+                    .values
+                    .scalar_computations
+                    .roots
+                    .iter()
+                    .find_map(|(_, root)| {
+                        (root.state == state && root.role == CheckedScalarExpressionRole::Return)
+                            .then(|| root.clone())
+                    })
+                    .unwrap();
+                changed.facts.values.scalar_computations.roots.append(root);
+            }
+            _ => unreachable!(),
+        }
+        reject(&changed, mutation);
+    }
+}
+
+#[test]
+fn scalar_array_locals_preserve_conditional_call_continuations() {
+    for binding in [false, true] {
+        let (prefix, argument) = if binding {
+            ("let row: [u8; 2] = [7u8, 9u8];", "row")
+        } else {
+            ("", "[7u8, 9u8]")
+        };
+        let source = format!(
+            "machine answer(row: [u8; 2], value: u8) -> u8 {{ value }}
+             machine selected(enabled: bool, value: u8) -> u8 {{
+                 {prefix}
+                 transition enabled {{
+                     true -> (answer({argument}, value))
+                     false -> 0u8
+                 }}
+             }}"
+        );
+        for (enabled, expected) in [(true, 42), (false, 0)] {
+            assert_eq!(
+                execute(&source, &[TerminalScalarValue::Boolean(enabled), byte(42)]),
+                TerminalExecutionResult::Scalar(byte(expected)),
+                "local binding: {binding}, enabled: {enabled}"
+            );
+        }
+    }
+}
+
+#[test]
 fn scalar_helpers_retain_ordered_array_bodies_across_transitive_calls() {
     assert_array(
         "machine answer(row: [u8; 2], value: u8) -> u8 { value }

@@ -293,6 +293,25 @@ its existing value without repeating the call or charging another operation.
 This ordered scalar completion does not yet carry authored
 scalar contracts or result refinements; existing scalar-only contract lowering
 remains available for bodies it can fully represent.
+An ordered body can also complete through a conditional with two scalar returns.
+The prefix establishes its arrays and scalar snapshots once; the existing scalar
+evaluator then selects the guard and return under their exact authored roles.
+Immutable array-local operands retain declaration symbols until the ordered
+sequence supplies their actual result places. Counting earlier declarations is
+not a substitute: nested calls and argument arrays share that result namespace.
+Receiving replay checks the whole prefix, both return coordinates, fallback
+coverage, and the local's source/type/borrow occurrence. This adds no Terminal
+operation or array-specific control emitter. Array transfers to authored states,
+repeated establishment in cycles, and ownership-bearing control completions
+remain separate value/storage work.
+The source and independently decoded/fuel-resumed probe is
+`cargo nextest run -p checked-trees-to-lowered-psi --test scalar_array_source scalar_array_local_control_keeps_prefix_effects_and_call_result_storage --no-fail-fast`.
+The CLI entry is
+`cargo run -p omega -- inspect-terminal --machine selected --target macos_arm64 tests/omega/pass/collections/array_local_control/main.omg`.
+Native acceptance is
+`cargo nextest run -p omega-native-differential-test --test scalar_array_results array_local_control_preserves_selected_returns_and_prefix_effects --no-fail-fast`.
+It publishes on all four native targets and executes both branches over every
+byte input on a matching Linux/macOS host; other runtime legs explicitly skip.
 The comparison probes are
 `cargo run -p omega -- inspect-terminal --machine scalar_comparison --target macos_arm64 tests/omega/pass/collections/owned_array_scalar_comparisons/main.omg`
 and the same command with `--machine array_comparison`. These publish Terminal

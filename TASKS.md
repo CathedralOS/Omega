@@ -1228,10 +1228,11 @@ Owners include
   `target-operations-to-selected-instructions/src/selection/aggregate_result_input.rs`.
   No new language decision is required for these implementation gaps.
   Empty values must preserve carrier/dimensions independently of zero physical bytes.
-  Scalar-result source graphs also need ordinary local array bindings:
-  `typed-trees-to-checked-trees/src/flow/terminal_scalar.rs` currently requires a
-  primitive local type. A direct array call argument does not close that gap;
-  preserve the same call when adding a named local before it.
+  Extend immutable local array transport beyond ordered construction/call-result
+  bindings and conditional scalar returns to the remaining state-transfer and
+  borrowed/projected paths. Keep the shared ordered body/evaluation owner in
+  `typed-trees-to-checked-trees/src/flow/terminal_unit/control/statement_sequence.rs`;
+  do not duplicate array construction in the scalar-only graph builder.
   Continue with complete value/storage paths and
   independent custody checks; do not
   substitute opaque structural identities for executable values.

@@ -3,6 +3,72 @@ use crate::scalar_graph_lowering::lower_checked_boolean_expression;
 use checked_trees::CheckedScalarBindingDestination;
 
 #[test]
+fn owned_array_locals_reuse_exact_published_payloads_and_reject_invalid_custody() {
+    let symbol = symbols::SymbolHandle::from_arena_index(1);
+    let other = symbols::SymbolHandle::from_arena_index(2);
+    let source = StructuralArgument {
+        place: PlaceId::new(41).unwrap(),
+        path: Vec::new(),
+        access: StructuralAccess::Owned,
+    };
+    let argument = checked_trees::CheckedUnitStructuralArgumentPlan {
+        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::ArrayLocal { symbol },
+        ..Default::default()
+    };
+    let bindings = ScalarBindings::new(0).with_array_locals(&[(symbol, source.clone())]);
+    for _ in 0..2 {
+        assert_eq!(bindings.owned_argument(&argument).unwrap(), source);
+    }
+    for locals in [
+        vec![],
+        vec![(other, source.clone())],
+        vec![(symbol, source.clone()), (symbol, source.clone())],
+        vec![(
+            symbol,
+            StructuralArgument {
+                access: StructuralAccess::SharedBorrow,
+                ..source.clone()
+            },
+        )],
+        vec![(
+            symbol,
+            StructuralArgument {
+                path: vec![terminal_psi::StructuralPathSegment::FixedIndex(0)],
+                ..source.clone()
+            },
+        )],
+    ] {
+        assert!(
+            ScalarBindings::new(0)
+                .with_array_locals(&locals)
+                .owned_argument(&argument)
+                .is_err()
+        );
+    }
+    let mut changed = argument.clone();
+    changed.access = checked_trees::CheckedStructuralAccess::SharedBorrow;
+    assert!(bindings.owned_argument(&changed).is_err());
+    changed.access = checked_trees::CheckedStructuralAccess::Owned;
+    changed
+        .path
+        .push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+            0,
+        ));
+    assert!(bindings.owned_argument(&changed).is_err());
+    changed.path.clear();
+    let invalid = symbols::SymbolHandle::invalid();
+    changed.source =
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::ArrayLocal { symbol: invalid };
+    changed.access = checked_trees::CheckedStructuralAccess::Owned;
+    assert!(
+        ScalarBindings::new(0)
+            .with_array_locals(&[(invalid, source)])
+            .owned_argument(&changed)
+            .is_err()
+    );
+}
+
+#[test]
 fn primitive_places_remain_separate_from_immutable_and_current_ssa_storage() {
     let primitive_symbol = symbols::SymbolHandle::from_arena_index(1);
     let ssa_symbol = symbols::SymbolHandle::from_arena_index(2);

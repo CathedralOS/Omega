@@ -47,6 +47,7 @@ pub(super) fn emit(
         validate_direct_parameter_types(&guard, &parameter_types)?;
         let mut operations = OperationBuffer::new(next_operation - 1);
         let mut evaluation = crate::attached_unit::argument_evaluation::Evaluation {
+            array_locals: Vec::new(),
             arrays: crate::scalar_computations::arrays::prepare(
                 checked,
                 plan.machine,
