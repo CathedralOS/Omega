@@ -8,6 +8,9 @@ use terminal_codec::CanonicalTerminalArtifact;
 #[path = "scalar_case_results/admission.rs"]
 mod admission;
 
+#[path = "scalar_case_results/source_custody.rs"]
+mod source_custody;
+
 #[path = "scalar_case_results/owned_state.rs"]
 mod owned_state;
 

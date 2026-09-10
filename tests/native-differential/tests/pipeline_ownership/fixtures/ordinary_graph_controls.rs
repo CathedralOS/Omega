@@ -27,11 +27,20 @@ pub(crate) fn assert_ordinary_graph_custody(staged: &StagedOptimizedSelectedInst
             let mut raw = original.clone();
             match &mut raw.scalar_functions[function_index].blocks[block_index].terminator {
                 legalized_operations::LegalizedScalarTerminator::StructuralCase {
-                    defining_operation,
-                    ..
+                    source, ..
                 } => {
-                    // Case dispatch retains the exact dominating result producer.
-                    *defining_operation = OperationId::new(999_999).unwrap();
+                    // Dispatch binds a result or incoming state parameter, not
+                    // an invented result operation for a transported owned value.
+                    match source {
+                        legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+                            operation,
+                            ..
+                        } => *operation = OperationId::new(999_999).unwrap(),
+                        legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+                            block,
+                            ..
+                        } => *block = BlockId::new(999_999).unwrap(),
+                    }
                 }
                 legalized_operations::LegalizedScalarTerminator::Return(returned) => {
                     returned.fuel.push(FuelSettlement {
