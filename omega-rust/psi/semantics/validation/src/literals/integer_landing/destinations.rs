@@ -390,6 +390,23 @@ fn collect_destination_trees(
                     }
                 };
                 match node {
+                    ExpressionNode::Match(dispatch) => {
+                        // A typed arm is itself a landing boundary for its
+                        // anonymous peers. That boundary survives when the
+                        // Match feeds an untyped operand or another consumer
+                        // that supplies no destination. Own only result edges;
+                        // subject and pattern occurrences remain independent.
+                        if let Some(destination) = crate::expression_types::expression_result_type_reference(program, machine, state, expression) {
+                            let mut ordinal = 1;
+                            for arm in program.expression_table.match_arms(dispatch.arms) {
+                                if matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(_)) {
+                                    ordinal += 1;
+                                }
+                                admit_edge(ordinal, destination, arm.value);
+                                ordinal += 1;
+                            }
+                        }
+                    }
                     ExpressionNode::Unary(unary)
                         if unary.operator == typed_trees::expression::UnaryOperator::BitwiseNot =>
                     {

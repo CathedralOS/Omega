@@ -19,6 +19,63 @@ use tokens_to_syntax_trees::{parse_syntax_trees, parse_syntax_trees_with_id};
 mod generated_invocations;
 
 #[test]
+fn numeric_result_policies_are_retained_without_result_annotations_or_input_ranges() {
+    use numerics::arithmetic::ArithmeticDomain;
+    use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
+    for source in [
+        "machine run(value: u64 [0..10] in Wrapping) { value; }",
+        "machine run() { 1u64 as u64 in Wrapping; }",
+    ] {
+        let tokens = Lexer::new(source).tokenize().expect("tokens");
+        let syntax = parse_syntax_trees(&tokens).expect("syntax");
+        let resolved = lower_syntax_trees(&syntax).expect("resolution");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typing");
+        let carrier = typed
+            .symbols
+            .child_handles(typed.symbols.root())
+            .unwrap()
+            .find(|symbol| {
+                typed.symbols.builtin_type_atom(*symbol) == Some(symbols::BuiltinTypeAtom::U64)
+            })
+            .unwrap();
+        let reference = typed
+            .type_reference_table
+            .find_arithmetic_result_type_reference(carrier, ArithmeticDomain::Wrapping)
+            .expect("policy-only result retained at producer");
+        let TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } = typed.type_reference_table.type_reference(reference)
+        else {
+            panic!("qualified result");
+        };
+        assert!(
+            matches!(typed.type_reference_table.type_reference(*base_type), TypeReferenceNode::Named {symbol, ..} if *symbol == carrier)
+        );
+        assert!(matches!(
+            typed.type_reference_table.constraints(*constraints),
+            [TypeConstraintNode::ArithmeticDomain(
+                ArithmeticDomain::Wrapping
+            )]
+        ));
+        if let Some(parameter) = typed
+            .state_parameters(&typed.machine_states(&typed.machines()[0])[0])
+            .first()
+        {
+            assert_ne!(
+                parameter.type_reference, reference,
+                "authored range retained separately"
+            );
+            assert!(
+                typed
+                    .display_type_reference_with_constraints(parameter.type_reference)
+                    .contains("0")
+            );
+        }
+    }
+}
+
+#[test]
 fn retained_base_rejects_a_changed_local_inference_origin() {
     let tokens = Lexer::new("machine main() -> u64 { let value: u64 = 7; value }")
         .tokenize()

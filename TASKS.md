@@ -1082,7 +1082,7 @@ Owners include
   source and scalar computation route. Remaining work: ownership-bearing result
   and conditional-transfer joins, nonnumeric Terminal results, structural/case/
   domain patterns and their coverage, anonymous-only numeric subject execution,
-  qualified and selected-operator result-type retention (shared with
+  semantic-domain and selected-operator result-type retention (shared with
   `STATE-LOCAL-VALUE-FRONTIER` numeric landing), and canonical
   package-review contract/index projection where dispatch is currently rejected.
   Current ownership/pattern fences in
@@ -1105,9 +1105,10 @@ Owners include
   Operand/cast probe: `mbx run -p omega -- --check --target macos_arm64
   tests/omega/pass/expressions/numeric_operand_destinations/main.omg`.
   The shared query in `validation/src/expression_types/result_type.rs` still
-  needs exact qualified and instantiated selected-operator results. Preserve
-  arithmetic policy without copying operand range predicates into results;
-  unknown lookup must not stand in for anonymous numeric meaning.
+  needs semantic-domain results, policy casts with explicit result predicates,
+  and instantiated selected-operator results. Builtin arithmetic results use
+  producer-retained carrier/policy references; input range predicates are not
+  result facts. Unknown lookup must not stand in for anonymous numeric meaning.
 
 - **MODULE-NAMESPACE-RESOLUTION.** Finish the
   [module/name contract](wiki/spec/language/modules.md) for pre-resolution

@@ -495,3 +495,76 @@ fn high_unsigned_literals_retain_their_carrier_at_scalar_boundaries() {
         }
     }
 }
+
+#[test]
+fn qualified_computed_peers_land_anonymous_values_before_policy_erasure() {
+    let maximum = u128::from(u64::MAX);
+    for policy in ["Wrapping", "Saturating"] {
+        let typed_peer = format!("(value as u64 in {policy}) + 2");
+        for (anonymous, wrapped_result) in [
+            ("18446744073709551616 / 18446744073709551616", 2),
+            ("7 / 2 * 2", 8),
+        ] {
+            for expression in [
+                format!("(({anonymous}) + ({typed_peer})) as u64"),
+                format!("(({typed_peer}) + ({anonymous})) as u64"),
+            ] {
+                let source = format!("machine choose(value: u64) -> u64 {{ {expression} }}");
+                let (_, execution) = execute(&source, &[unsigned(maximum)]);
+                let expected = if policy == "Wrapping" {
+                    wrapped_result
+                } else {
+                    maximum
+                };
+                assert_eq!(
+                    execution.value(),
+                    TerminalExecutionResult::Scalar(unsigned(expected)),
+                    "{expression}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn qualified_computed_match_results_retain_policy_until_explicit_erasure() {
+    let maximum = u128::from(u64::MAX);
+    for policy in ["Wrapping", "Saturating"] {
+        let typed_arm = format!("(value as u64 in {policy}) + 2");
+        for (anonymous, anonymous_result) in [
+            ("18446744073709551616 / 18446744073709551616", 2),
+            ("7 / 2 * 2", 8),
+        ] {
+            for dispatch in [
+                format!("match flag {{ true -> {typed_arm}, false -> {anonymous} }}"),
+                format!(
+                    "match flag {{ true -> match flag {{ _ -> {typed_arm} }}, false -> match flag {{ _ -> {anonymous} }} }}"
+                ),
+            ] {
+                // Both additions retain policy: erasing at the join would make
+                // the saturating arm's final addition an invalid Exact overflow.
+                let source = format!(
+                    "machine choose(flag: bool, value: u64) -> u64 {{ (({dispatch}) + 1) as u64 }}"
+                );
+                for flag in [true, false] {
+                    let (_, execution) = execute(
+                        &source,
+                        &[TerminalScalarValue::Boolean(flag), unsigned(maximum)],
+                    );
+                    let expected = if !flag {
+                        anonymous_result
+                    } else if policy == "Wrapping" {
+                        2
+                    } else {
+                        maximum
+                    };
+                    assert_eq!(
+                        execution.value(),
+                        TerminalExecutionResult::Scalar(unsigned(expected)),
+                        "{source}; flag={flag}"
+                    );
+                }
+            }
+        }
+    }
+}

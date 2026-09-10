@@ -18,4 +18,11 @@ machine composed(flag: bool) -> u64 {
     }) | (8u64 | 16u64)
 }
 
+machine qualified(flag: bool, value: u64 in Wrapping) -> u64 {
+    ((match flag {
+        true -> value + 1
+        false -> 18446744073709551616 / 18446744073709551616
+    }) + 1) as u64
+}
+
 machine main() -> u64 { combine(true) | composed(false) }

@@ -43,12 +43,19 @@ pub(super) fn lower_type_reference_handle_with_context(
                 constrained.constraints,
                 exposure,
             )?;
-            Ok(typed_trees.type_reference_table.insert(
+            let reference = typed_trees.type_reference_table.insert(
                 typed::types::TypeReferenceNode::Constrained {
                     base_type,
                     constraints,
                 },
-            ))
+            );
+            super::retain_arithmetic_result_type(
+                &source_trees.symbols,
+                typed_trees,
+                reference,
+                None,
+            );
+            Ok(reference)
         }
         resolved::types::TypeReference::FixedArray(fixed_array) => {
             let element_type = lower_type_reference_handle_with_context(

@@ -64,6 +64,25 @@ fn composed_integer_results_supply_the_actual_peer_destination() {
 }
 
 #[test]
+fn typed_match_arms_own_landing_without_a_typed_outer_peer() {
+    for typed_peer in ["8u64 + 1u64", "(8 as u64 in Wrapping) + 1"] {
+        for tail in ["+ 1", "== 1"] {
+            let result_type = if tail.starts_with("==") {
+                "bool"
+            } else {
+                "u64"
+            };
+            let source = format!(
+                "machine result(subject: bool) -> {result_type} {{
+                    (match subject {{ true -> {typed_peer}, false -> {LARGE_ARGUMENT} }}) {tail}
+                }}"
+            );
+            assert_eq!(width_grants(&typed(&source)).len(), 2, "{source}");
+        }
+    }
+}
+
+#[test]
 fn retained_large_integer_payloads_keep_their_own_carrier() {
     for expression in [
         "18446744073709551615u64",
@@ -206,6 +225,8 @@ fn computed_result_queries_do_not_copy_refinements_or_erase_policy() {
         ("u64 in Saturating", "value + 1"),
         ("u64 in Trapping", "value + 1"),
         ("u64", "(value as u64 in Wrapping) + 1"),
+        ("u64", "(value as u64 in Saturating) + 1"),
+        ("u64", "(value as u64 in Trapping) + 1"),
     ] {
         let source = format!("machine result(value: {parameter_type}) -> u64 {{ {expression} }}");
         let program = typed(&source);
@@ -218,32 +239,33 @@ fn computed_result_queries_do_not_copy_refinements_or_erase_policy() {
         };
         let result = crate::expression_types::expression_result_type_reference(
             &program, machine, state, *result,
-        );
-        // Unresolved is permitted until qualified results are retained. A
-        // discovered type must not claim an operand range or erase its policy.
-        if let Some(result) = result {
-            if parameter_type.contains("[0..=10]") {
-                assert!(
-                    !matches!(
-                        program.type_reference_table.type_reference(result),
-                        TypeReferenceNode::Constrained { .. }
-                    ),
-                    "{source}"
-                );
+        )
+        .unwrap_or_else(|| panic!("missing computed result: {source}"));
+        if parameter_type.contains("[0..=10]") {
+            assert!(
+                !matches!(
+                    program.type_reference_table.type_reference(result),
+                    TypeReferenceNode::Constrained { .. }
+                ),
+                "{source}"
+            );
+        } else {
+            let expected = if expression.contains("Wrapping") {
+                numerics::arithmetic::ArithmeticDomain::Wrapping
+            } else if expression.contains("Saturating") {
+                numerics::arithmetic::ArithmeticDomain::Saturating
+            } else if expression.contains("Trapping") {
+                numerics::arithmetic::ArithmeticDomain::Trapping
             } else {
-                let expected = if expression.contains("Wrapping") {
-                    numerics::arithmetic::ArithmeticDomain::Wrapping
-                } else {
-                    program.arithmetic_domain_for_type_reference(
-                        program.state_parameters(state)[0].type_reference,
-                    )
-                };
-                assert_eq!(
-                    program.arithmetic_domain_for_type_reference(result),
-                    expected,
-                    "{source}"
-                );
-            }
+                program.arithmetic_domain_for_type_reference(
+                    program.state_parameters(state)[0].type_reference,
+                )
+            };
+            assert_eq!(
+                program.arithmetic_domain_for_type_reference(result),
+                expected,
+                "{source}"
+            );
         }
     }
 }

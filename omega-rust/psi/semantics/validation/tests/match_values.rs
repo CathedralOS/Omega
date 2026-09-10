@@ -17,6 +17,34 @@ fn diagnostics(source: &str) -> Vec<String> {
 }
 
 #[test]
+fn computed_match_results_preserve_arithmetic_policy_until_explicit_erasure() {
+    for first in ["value + 1", "(1 as u64 in Wrapping) + 1", "~value"] {
+        for second in ["other + 1", "2 as u64 in Saturating", "2u64"] {
+            let source = format!(
+                "machine run(flag: bool, value: u64 in Wrapping, other: u64 in Saturating) -> u64 {{
+                    (match flag {{ true -> {first}, false -> {second} }}) as u64
+                }}"
+            );
+            let errors = diagnostics(&source);
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.contains("match arms produce incompatible")),
+                "{source}: {errors:?}"
+            );
+        }
+    }
+    for policy in ["Wrapping", "Saturating", "Trapping"] {
+        let source = format!(
+            "machine run(flag: bool, value: u64 in {policy}) -> u64 {{
+                match flag {{ true -> (value + 1) as u64, false -> 2u64 }}
+            }}"
+        );
+        assert!(diagnostics(&source).is_empty(), "{source}");
+    }
+}
+
+#[test]
 fn match_checks_every_arm_and_requires_actual_coverage() {
     for (source, expected) in [
         (

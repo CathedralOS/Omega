@@ -278,6 +278,42 @@ impl TypeReferenceTable {
             })
     }
 
+    /// Find an exact carrier/policy result without borrowing input predicates.
+    /// The caller establishes that `carrier` is its intended builtin symbol;
+    /// this structural lookup neither resolves names nor strips qualifications.
+    pub fn find_arithmetic_result_type_reference(
+        &self,
+        carrier: SymbolHandle,
+        domain: numerics::arithmetic::ArithmeticDomain,
+    ) -> Option<TypeReferenceHandle> {
+        use numerics::arithmetic::ArithmeticDomain;
+        if !carrier.is_valid() {
+            return None;
+        }
+        if domain == ArithmeticDomain::Exact {
+            return self.find_named_type_reference(carrier);
+        }
+        self.type_references.iter().find_map(|(handle, node)| {
+            let TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } = node
+            else {
+                return None;
+            };
+            if !self.contains_type_reference(*base_type) {
+                return None;
+            }
+            let TypeReferenceNode::Named { symbol, .. } = self.type_reference(*base_type) else {
+                return None;
+            };
+            (*symbol == carrier
+                && matches!(self.constraint_span(*constraints)?,
+                    [TypeConstraintNode::ArithmeticDomain(retained)] if *retained == domain))
+            .then_some(handle)
+        })
+    }
+
     pub fn constraint_count(&self) -> usize {
         self.constraints.len()
     }
