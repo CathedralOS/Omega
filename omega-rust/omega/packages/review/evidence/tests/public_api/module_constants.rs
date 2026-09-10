@@ -84,3 +84,55 @@ fn module_constants_bind_canonical_paths_values_and_relocation_independent_bytes
     }
     assert_eq!(changed_payloads, 1, "only combat's exact value changed");
 }
+
+#[test]
+fn public_float_identity_retains_format_bits_and_exact_package_owner() {
+    let package = TempPackage::new();
+    package.write(
+        "build.omg",
+        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }",
+    );
+    package.write("main.omg", "use settings;");
+    let project_float = |carrier: &str, literal: &str| {
+        package.write(
+            "settings.omg",
+            &format!("module settings; pub const SCALE: {carrier} = {literal};"),
+        );
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x86_64"),
+            package_inputs(&package.0),
+        )
+        .expect("public floating declaration checks");
+        project_checked_package_review(&checked).expect("floating public API capture")
+    };
+    let original = project_float("f32", "1.5");
+    let constant = &original.public_consts()[0];
+    assert_eq!(constant.identity().path(), "settings::SCALE");
+    assert_eq!(
+        constant.identity().owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    let row = |projection: &CheckedPackageReviewProjection| {
+        projection
+            .canonical_rows()
+            .expect("public rows")
+            .into_iter()
+            .find(|row| row.kind() == PackageReviewCanonicalRowKind::PublicConst)
+            .expect("exact constant row")
+    };
+    let original_row = row(&original);
+    assert_eq!(original_row, row(&project_float("f32", "1.500")));
+    for changed in [project_float("f32", "2.5"), project_float("f64", "1.5")] {
+        let changed_row = row(&changed);
+        assert_eq!(original_row.key_bytes(), changed_row.key_bytes());
+        assert_ne!(
+            original_row.canonical_bytes(),
+            changed_row.canonical_bytes()
+        );
+    }
+    let encoded =
+        encode_package_review_canonical_row(&original_row).expect("encode float declaration");
+    let decoded = decode_package_review_canonical_row(&encoded).expect("recover float declaration");
+    assert_eq!(decoded.canonical_bytes(), original_row.canonical_bytes());
+}

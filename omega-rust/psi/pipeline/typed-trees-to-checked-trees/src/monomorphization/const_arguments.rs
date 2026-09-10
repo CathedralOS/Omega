@@ -165,7 +165,10 @@ fn validate_arguments(
                 program.display_type_reference(actual)
             )));
         }
-        if declaration.is_some_and(|declaration| declaration.canonical_value_encoding.is_none()) {
+        // Public declaration identity is broader than proof-static atom identity.
+        // Decode through the ordinary specialization reader even for unused
+        // binders, whose Unit calls may otherwise need no substitution.
+        if declaration.is_some() && spelling(program, argument).is_none() {
             return Err(Diagnostic::error(format!(
                 "const argument `{}` has no eligible canonical value",
                 argument.display_name()

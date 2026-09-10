@@ -1,0 +1,4 @@
+module settings;
+
+pub const SCALE: f32 = 1.5;
+pub const WIDE: f64 = 1.5;
