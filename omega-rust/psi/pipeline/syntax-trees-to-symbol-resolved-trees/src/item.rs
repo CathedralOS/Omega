@@ -229,7 +229,7 @@ fn lower_item_with_exposure(
             crate::constant::retain_const_initializer(lowerer, syntax_trees, definition)?;
             let canonical_value_encoding = if definition.is_public {
                 Some(
-                    crate::generic_data::canonicalize_selected_declared_const_definition(
+                    crate::constant::public_declaration_value_encoding(
                         syntax_trees,
                         definition,
                         lowerer.constant_selection.as_ref(),
@@ -240,8 +240,7 @@ fn lower_item_with_exposure(
                             crate::constant::semantic_const_name(definition),
                         ))
                         .with_source_span(definition.name.source_span())
-                    })?
-                    .encoding,
+                    })?,
                 )
             } else {
                 crate::generic_data::canonicalize_selected_declared_const_definition(

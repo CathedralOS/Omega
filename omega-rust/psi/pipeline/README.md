@@ -254,9 +254,17 @@ visibility checks. Relative attached names prefer their local module; narrow
 imports expose only the exact selected leaf. Duplicate declarations, case
 collisions and runtime qualifiers still reject. Scoped numeric/Boolean literals
 also substitute into scalar bodies and computed machine indices; unused private
-initializers still validate their declared carrier. Private floats retain their
-declared format and round directly to it. Public float constant identities remain
-unsupported by the existing canonical declaration encoder. Closed module-owned
+initializers still validate their declared carrier. Floating literals retain their
+declared format and round directly to it. Public finite `f32`/`f64` literals encode
+that format and its exact landed bits for declaration identity, alongside the
+selected declaration's type and package owner. Signed zeros remain distinct;
+equivalent literals that round to the same value share the value encoding.
+These declaration encodings do not admit floating generic/domain indices,
+including an unused machine const binder. The two-file checked-source customer
+is `tests/omega/pass/modules/public_float_constants/main.omg`; package review
+retains the same encoding through serialization. Computed initializers and
+nonfinite public Float identities still need their complete evaluation and
+representation contexts. Closed module-owned
 record/case constants, including nested records and fixed arrays, use the existing
 structural encoder after selecting each declared carrier and constructor in its
 own source. Module-local nongeneric attachments use the same scope checks as

@@ -1150,9 +1150,9 @@ Owners include
   of one identity is valid, competing carrier-qualified names reject with both
   owners/imports, and carried qualifications do not grant source selection.
 
-  Continue with public floating constant identities, foreign/generic attachments
-  or nominal aggregate body substitution in
-  `syntax-trees-to-symbol-resolved-trees`; those probes remain unrun.
+  Continue with computed/nonfinite public constant identities, foreign/generic
+  attachments or nominal aggregate body substitution in
+  `syntax-trees-to-symbol-resolved-trees`.
   Preserve exact carrier selection in `constant.rs` and local/narrow-import
   lookup in `symbols/src/table/modules.rs`. Closed record/case and fixed-array
   constants, including module-local nongeneric attachments, already retain

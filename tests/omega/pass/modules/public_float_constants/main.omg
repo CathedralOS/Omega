@@ -1,0 +1,5 @@
+use settings::SCALE;
+
+machine imported() -> f32 { SCALE }
+machine qualified() -> f32 { settings::SCALE }
+machine wide() -> f64 { settings::WIDE }

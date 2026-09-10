@@ -244,3 +244,192 @@ fn lexical_values_shadow_module_constants_without_selecting_them() {
         "shadowed constant is not an authored selection"
     );
 }
+
+#[test]
+fn public_float_constants_retain_landed_identity_and_exact_import_owner() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let dependency = tree.package("dependency");
+    TempTree::write(
+        dependency.join("settings.omg"),
+        r#"
+        module settings;
+        pub const SCALE: f32 = 1.5;
+        pub const SAME: f32 = 1.500;
+        pub const DIFFERENT: f32 = 2.5;
+        pub const WIDE: f64 = 1.5;
+        pub const WHOLE: f32 = 0x3;
+        pub const THREE: f32 = 3.0;
+        pub const WIDE_POSITIVE_ZERO: f64 = 0.0;
+        pub const WIDE_NEGATIVE_ZERO: f64 = -0.0;
+        pub const ROUNDED: f32 = 16777217.0;
+        pub const LANDED: f32 = 16777216.0;
+        pub const ABOVE_MIDPOINT: f32 = 1.00000005960464477539062500000000000000000000000000001;
+        pub const NEXT: f32 = 1.00000011920928955078125;
+        pub const ONE: f32 = 1.0;
+        pub const POSITIVE_ZERO: f32 = 0.0;
+        pub const NEGATIVE_ZERO: f32 = -0.0;
+    "#,
+    );
+    TempTree::write(
+        root.join("main.omg"),
+        r#"
+        use dep::settings::SCALE;
+        machine narrow() -> f32 { SCALE }
+        machine qualified() -> f32 { dep::settings::SCALE }
+        machine rounded() -> f32 { dep::settings::ROUNDED }
+    "#,
+    );
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "dependency", dependency),
+        ],
+        vec![PackageDependencyBinding::new(
+            identity(1),
+            "dep",
+            identity(2),
+        )],
+    )
+    .expect("one direct dependency");
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect("public finite floating constants retain declaration identity without becoming generic atoms");
+    let encoding = |name: &str| {
+        let declaration = checked
+            .const_declarations()
+            .iter()
+            .find(|declaration| {
+                checked.symbols.display_path(declaration.symbol, "::")
+                    == format!("settings::{name}")
+            })
+            .expect("exact public constant");
+        assert_eq!(
+            checked.symbols.symbol_package_identity(declaration.symbol),
+            Some(identity(2))
+        );
+        assert!(declaration.is_public);
+        declaration
+            .canonical_value_encoding
+            .as_deref()
+            .expect("public declaration encoding")
+    };
+    assert_eq!(encoding("SCALE"), encoding("SAME"));
+    assert_ne!(encoding("SCALE"), encoding("DIFFERENT"));
+    assert_ne!(encoding("SCALE"), encoding("WIDE"));
+    assert_eq!(encoding("WHOLE"), encoding("THREE"));
+    assert_ne!(
+        encoding("WIDE_POSITIVE_ZERO"),
+        encoding("WIDE_NEGATIVE_ZERO")
+    );
+    assert_eq!(encoding("ROUNDED"), encoding("LANDED"));
+    assert_eq!(encoding("ABOVE_MIDPOINT"), encoding("NEXT"));
+    assert_ne!(encoding("ABOVE_MIDPOINT"), encoding("ONE"));
+    assert_ne!(encoding("POSITIVE_ZERO"), encoding("NEGATIVE_ZERO"));
+    for (name, expected) in [("narrow", 1.5), ("qualified", 1.5), ("rounded", 16777216.0)] {
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .expect("constant consumer");
+        let value = build_time_evaluation::BuildTimeAdmissionPlan::infer(&checked.typed)
+            .evaluate_machine_symbol_for_invocation_measured(
+                &checked.typed,
+                machine.symbol,
+                vec![],
+                build_time_evaluation::BuildTimeInvocationCustody::Symbol(machine.symbol),
+            )
+            .expect("public constant body evaluates");
+        assert_eq!(
+            value.value(),
+            &build_time_evaluation::BuildTimeValue::Float(expected),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn public_float_declarations_do_not_admit_floating_generic_indices() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    TempTree::write(
+        root.join("settings.omg"),
+        "module settings; pub const SCALE: f32 = 1.5;",
+    );
+    for argument in ["settings::SCALE", "1.5f32"] {
+        TempTree::write(
+            root.join("main.omg"),
+            &format!(
+                "use settings; data Pick<const V: f32> {{ marker: u8; }} machine keep(value: Pick<{argument}>) -> Pick<{argument}> {{ value }}"
+            ),
+        );
+        let errors =
+            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
+                .expect_err(
+                    "a public declaration encoding does not make Float a canonical index carrier",
+                );
+        assert!(
+            errors.iter().any(
+                |error| error.message.contains("not eligible as a const index")
+                    || error
+                        .message
+                        .contains("expression is not a symbolic integer const expression")
+            ),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn public_float_declarations_do_not_admit_machine_or_domain_indices() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    TempTree::write(
+        root.join("settings.omg"),
+        "module settings; pub const SCALE: f32 = 1.5;",
+    );
+    for source in [
+        "use settings; machine choose<const V: f32>() -> u64 { 7 } machine main() -> u64 { choose<settings::SCALE>() }",
+        "use settings; machine choose<const V: f32>() {} machine main() { choose<settings::SCALE>(); }",
+        "use settings; domain<T, const V: f32> T::Scaled<V>; machine keep(value: u64 in Scaled<settings::SCALE>) -> u64 in Scaled<settings::SCALE> { value }",
+    ] {
+        TempTree::write(root.join("main.omg"), source);
+        let errors =
+            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
+                .expect_err(
+                    "public Float identity is not a proof-static atom even for an unused binder",
+                );
+        assert!(
+            errors.iter().any(
+                |error| error.message.contains("no eligible canonical value")
+                    || error.message.contains("not eligible as a const index")
+            ),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn public_float_identity_requires_finite_literals_with_matching_landings() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    for (initializer, diagnostic) in [
+        ("1e9999", "requires a finite landed value"),
+        ("1.5f64", "conflicts with declared floating carrier"),
+        ("1.0 + 0.5", "conflicts with declared floating carrier"),
+    ] {
+        TempTree::write(
+            root.join("main.omg"),
+            &format!("pub const VALUE: f32 = {initializer};"),
+        );
+        let errors =
+            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
+                .expect_err("declaration encoding preserves literal landing limits");
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains(diagnostic)),
+            "{errors:?}"
+        );
+    }
+}
