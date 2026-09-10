@@ -45,10 +45,14 @@ available only on normal completion.
 
 Predicate-free, route-free scalar domain declarations can be carried in the
 closed scalar qualification catalog. Canonical declarations, normalized sets,
-and exact introduction edges participate in semantic identity. An introduction
+and exact qualification-change edges participate in semantic identity. A change
 names the machine, edge, argument position, source value and fresh destination
-parameter. It may add same-carrier membership; it cannot remove an existing
-atom, alter payload bits, or qualify the original source retroactively. Every
+parameter. It either strictly adds same-carrier membership or strictly erases
+membership to a subset, including the bare set. Equal sets and simultaneous
+removal/replacement with unrelated atoms reject. Source-derived erasure must
+retain the explicit `as` occurrence under the [erasure contract](../language/domains.md#exact-coercion-and-erasure);
+an ordinary transfer cannot imply it. Neither direction alters payload bits or
+changes the original source retroactively. Every
 incoming edge is checked independently. A result annotation, ordinary constant,
 load or arithmetic operation cannot establish membership by itself.
 

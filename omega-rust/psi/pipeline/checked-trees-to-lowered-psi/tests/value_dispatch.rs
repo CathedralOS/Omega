@@ -83,6 +83,108 @@ fn qualified_call_arguments_replay_selected_results_with_exact_signatures() {
 }
 
 #[test]
+fn explicit_tag_erasure_preserves_selected_call_payload() {
+    let source = include_str!(
+        "../../../../../tests/omega/pass/expressions/explicit_scalar_tag_erasure/main.omg"
+    );
+    for (selected, expected) in [(true, -17), (false, 91)] {
+        let (module, execution) = execute(
+            source,
+            &[
+                TerminalScalarValue::Boolean(selected),
+                signed(-17),
+                signed(91),
+            ],
+        );
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(signed(expected))
+        );
+        let entry = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == module.entry)
+            .expect("entry");
+        assert!(
+            entry
+                .result
+                .scalar_ref()
+                .expect("scalar result")
+                .qualifications
+                .is_empty()
+        );
+        assert!(
+            module
+                .scalar_qualifications
+                .coercions
+                .iter()
+                .any(|coercion| {
+                    entry
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.parameters)
+                        .any(|parameter| {
+                            parameter.id == coercion.destination
+                                && parameter.qualifications.is_empty()
+                        })
+                }),
+            "erasure retains its own explicit edge"
+        );
+    }
+}
+
+#[test]
+fn explicit_erasure_composes_with_introduction_and_partial_forgetting() {
+    for body in [
+        "(value as i64 in Position) as i64 in Km",
+        "((value as i64 in Seconds) as i64) as i64 in Km",
+    ] {
+        let source = format!(
+            "domain i64::Km; domain i64::Seconds; domain i64::Position = Km & Seconds;
+            machine choose(value: i64) -> i64 {{ ({body}) as i64 }}"
+        );
+        let (_, execution) = execute(&source, &[signed(-17)]);
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(signed(-17))
+        );
+    }
+}
+
+#[test]
+fn explicit_erasure_preserves_boolean_and_float_payload_bits() {
+    for (carrier, left, right) in [
+        (
+            "bool",
+            TerminalScalarValue::Boolean(true),
+            TerminalScalarValue::Boolean(false),
+        ),
+        (
+            "f32",
+            TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary32(0x8000_0000)),
+            TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary32(0x7fc0_0042)),
+        ),
+        (
+            "f64",
+            TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary64(0x8000_0000_0000_0000)),
+            TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary64(0x7ff8_0000_0000_0042)),
+        ),
+    ] {
+        let source = format!("domain {carrier}::Tagged;
+            machine choose(flag: bool, left: {carrier}, right: {carrier}) -> {carrier} {{
+                (match flag {{ true -> left as {carrier} in Tagged, false -> right as {carrier} in Tagged }}) as {carrier}
+            }}");
+        for (selected, expected) in [(true, left), (false, right)] {
+            let (_, execution) = execute(
+                &source,
+                &[TerminalScalarValue::Boolean(selected), left, right],
+            );
+            assert_eq!(execution.value(), TerminalExecutionResult::Scalar(expected));
+        }
+    }
+}
+
+#[test]
 fn qualified_arguments_compose_casts_calls_and_transparent_aliases() {
     for (domain, argument) in [
         ("Km", "mark(left)"),

@@ -114,7 +114,8 @@ impl Default for CheckedScalarComputation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedScalarComputationKind {
-    /// Representation-identical semantic qualification at one authored cast.
+    /// Representation-identical semantic qualification transfer at one authored
+    /// cast, including explicit non-owning erasure to a bare result.
     /// The full result reference retains domain instances; this node does not
     /// establish membership or authorize erasing the qualification at publication.
     Qualification {

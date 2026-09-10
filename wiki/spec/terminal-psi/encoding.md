@@ -33,14 +33,15 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity: counted domain definitions,
-counted normalized sets, then counted introduction edges. Definitions bind their
+counted normalized sets, then counted qualification-change edges. Definitions bind their
 local and semantic identities, canonical theory identity and scalar carrier.
 Sets are nonempty, contain strictly ordered unique domain identities, and have
-unique nonzero identities; duplicate sets reject. Introduction rows retain
+unique nonzero identities; duplicate sets reject. Qualification-change rows retain
 machine, edge, argument ordinal, source and destination identities, ordered
 strictly by `(machine, edge, argument ordinal)`. All these bytes participate in
 semantic identity. Canonical encoding does not itself authorize membership:
-verification checks the exact arrival and same-carrier addition under the
+verification checks the exact arrival and strict same-carrier addition or
+subset erasure under the
 [scalar qualification rules](calls_and_outcomes.md#scalar-qualifications).
 
 The semantic scalar-range-invariant roster precedes the machine table. Rows

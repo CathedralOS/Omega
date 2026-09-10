@@ -218,10 +218,7 @@ pub(crate) fn anonymous_numeric_value(
 /// Absence of a discovered type is not evidence of anonymity. Result joins
 /// inherit a destination only when every leaf is an actual anonymous number;
 /// named values, typed operations and suffixed floats remain conversions.
-pub(crate) fn has_anonymous_numeric_results(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-) -> bool {
+pub fn has_anonymous_numeric_results(program: &TypedTrees, expression: ExpressionHandle) -> bool {
     fn visit(
         program: &TypedTrees,
         expression: ExpressionHandle,

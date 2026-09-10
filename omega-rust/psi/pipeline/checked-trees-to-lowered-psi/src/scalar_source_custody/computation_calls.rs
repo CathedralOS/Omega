@@ -1,4 +1,7 @@
 //! Rejoin computed invocations to captured expression occurrences, not spans.
+//! Semantic casts are part of that ordering: equal final tags cannot justify
+//! skipping an explicit erasure followed by reintroduction. Only casts whose
+//! operand is independently known to be bare may be peeled as payload wrappers.
 
 use super::*;
 use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind};
@@ -67,6 +70,8 @@ pub(crate) fn validate_computation_calls(
             } => {
                 dispatch::source_scope(
                     checked,
+                    machine,
+                    state,
                     authored_scope,
                     *source_expression,
                     node.primitive_type,
@@ -90,6 +95,8 @@ pub(crate) fn validate_computation_calls(
             } => {
                 dispatch::source_scope(
                     checked,
+                    machine,
+                    state,
                     authored_scope,
                     *source_expression,
                     node.primitive_type,
@@ -111,14 +118,14 @@ pub(crate) fn validate_computation_calls(
             CheckedScalarComputationKind::Value(value) => {
                 let authored_scope =
                     operand_scopes::value(checked, authored_scope, node.value_source)?;
-                if expression_membership(checked, authored_scope, true)?
-                    .iter()
-                    .any(|source| {
-                        matches!(checked.expression_table.expression(*source),
-                        ExpressionNode::Cast(cast) if !cast.semantic_domain.is_empty())
-                    })
-                {
-                    return unsupported("pure computation cannot erase a semantic qualification");
+                for source in expression_membership(checked, authored_scope, true)? {
+                    if let ExpressionNode::Cast(cast) = checked.expression_table.expression(source)
+                        && operand_scopes::cast_requires_custody(checked, machine, state, cast)?
+                    {
+                        return unsupported(
+                            "pure computation cannot erase a semantic qualification",
+                        );
+                    }
                 }
                 crate::scalar_source_custody::validate_storage_read_expression(
                     checked,
@@ -136,6 +143,8 @@ pub(crate) fn validate_computation_calls(
             } => {
                 dispatch::source_scope(
                     checked,
+                    machine,
+                    state,
                     authored_scope,
                     *source_expression,
                     node.primitive_type,
@@ -167,6 +176,8 @@ pub(crate) fn validate_computation_calls(
             } => {
                 dispatch::source_scope(
                     checked,
+                    machine,
+                    state,
                     authored_scope,
                     *source_expression,
                     node.primitive_type,
@@ -177,8 +188,13 @@ pub(crate) fn validate_computation_calls(
                     .ok_or(LoweringError::Unsupported(
                         "computed invocation has an invalid operand span",
                     ))?;
-                let scopes =
-                    operand_scopes::application(checked, *source_expression, operands.len())?;
+                let scopes = operand_scopes::application(
+                    checked,
+                    machine,
+                    state,
+                    *source_expression,
+                    operands.len(),
+                )?;
                 pending.extend(
                     operands
                         .iter()
@@ -199,6 +215,8 @@ pub(crate) fn validate_computation_calls(
                 let source = control.calls.get(*source_call);
                 dispatch::source_scope(
                     checked,
+                    machine,
+                    state,
                     authored_scope,
                     source.authored_expression,
                     node.primitive_type,

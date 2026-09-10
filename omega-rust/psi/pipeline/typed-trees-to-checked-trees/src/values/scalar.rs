@@ -1,3 +1,9 @@
+//! Pure scalar plans describe payload computation; computation graphs additionally
+//! retain call, selection, and semantic-cast occurrences. A same-carrier cast can
+//! still change declared meaning, so its source binding belongs to the graph,
+//! even when the payload tree could otherwise fold it away. Independent lowering
+//! replays that occurrence before emitting the qualification-change edge.
+
 use checked_trees::{
     CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind,
     CheckedIntegerComparisonKind, CheckedIntegerRange, CheckedLocatedScalarExpression,
@@ -25,6 +31,7 @@ mod call_arguments;
 mod computations;
 mod constant_array_projection;
 mod primitive_reference_read;
+mod semantic_casts;
 mod structural_fields;
 pub(crate) use structural_fields::resolve_structural_parameter_path;
 use structural_fields::{structural_data, structural_parameter_field_path};
@@ -855,9 +862,23 @@ pub(crate) fn build_checked_scalar_expression_plans(
             }
         }
     }
+    // A pure payload tree cannot carry an authored semantic qualification
+    // transfer. Leave those exact source bindings to the computation graph.
+    let mut retained_bindings = arena::Arena::default();
+    for (_, binding) in source_bindings.iter() {
+        if semantic_casts::requires_custody(program, binding.state, binding.expression) {
+            expressions.retain(|expression| {
+                expression.state != binding.state
+                    || expression.statement_ordinal != binding.statement_ordinal
+                    || expression.role != binding.role
+            });
+        } else {
+            retained_bindings.append(binding.clone());
+        }
+    }
     CheckedScalarExpressionPlans {
         expressions,
-        source_bindings,
+        source_bindings: retained_bindings,
         binding_symbols,
     }
 }

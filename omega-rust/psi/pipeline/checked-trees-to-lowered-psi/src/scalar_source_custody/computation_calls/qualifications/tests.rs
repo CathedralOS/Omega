@@ -75,6 +75,76 @@ const SOURCE: &str = include_str!(concat!(
     "/../../../../tests/omega/pass/expressions/match_domain_results/main.omg"
 ));
 
+const ERASURE_SOURCE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../tests/omega/pass/expressions/explicit_scalar_tag_erasure/main.omg"
+));
+
+#[test]
+fn explicit_erasure_replay_requires_its_authored_cast_and_bare_result() {
+    for mutation in 0..3 {
+        let mut checked = checked(ERASURE_SOURCE);
+        replay(&checked).expect("explicit erasure");
+        let handle = qualifications(&checked)[0];
+        let CheckedScalarComputationKind::Qualification {
+            source_expression,
+            operand,
+            ..
+        } = checked
+            .facts
+            .values
+            .scalar_computations
+            .nodes
+            .get(handle)
+            .kind
+        else {
+            panic!("explicit cast node");
+        };
+        match mutation {
+            0 => {
+                let ExpressionNode::Cast(cast) =
+                    checked.expression_table.expression(source_expression)
+                else {
+                    panic!("cast");
+                };
+                let replacement = checked.expression_table.expression(cast.value).clone();
+                *checked
+                    .typed
+                    .expression_table
+                    .expression_mut(source_expression) = replacement;
+            }
+            1 => {
+                let ExpressionNode::Cast(cast) = checked
+                    .typed
+                    .expression_table
+                    .expression_mut(source_expression)
+                else {
+                    panic!("cast");
+                };
+                cast.result_type = TypeReferenceHandle::invalid();
+            }
+            2 => {
+                let mut replacement = checked
+                    .facts
+                    .values
+                    .scalar_computations
+                    .nodes
+                    .get(operand)
+                    .clone();
+                replacement.value_source = source_expression;
+                *checked
+                    .facts
+                    .values
+                    .scalar_computations
+                    .nodes
+                    .get_mut(handle) = replacement;
+            }
+            _ => unreachable!(),
+        }
+        assert!(replay(&checked).is_err(), "mutation {mutation}");
+    }
+}
+
 #[test]
 fn qualification_match_replays_checked_custody_and_publishes_exact_terminal_membership() {
     let checked = checked(SOURCE);
