@@ -1,4 +1,4 @@
-//! Input-only join from the exact CallPlan to register operands and pointer slots.
+//! Join the exact CallPlan to register operands, result fragments, and pointer slots.
 
 use super::shared::*;
 mod borrowed_argument;
@@ -87,7 +87,10 @@ pub(super) fn register_argument_order(call: &LegalizedScalarCall) -> Vec<usize> 
         })
         .map(|(index, _)| index)
         .collect::<Vec<_>>();
-    if call.result_placement.is_none() {
+    // Unit and aggregate calls share the mixed input-bank rows. Aggregate
+    // results append definitions after those inputs; they do not change their
+    // order. Sorting only the operand roster preserves authored argument identity.
+    if call.result_placement.is_none() || call.structural_result.is_some() {
         order.sort_by_key(|index| {
             call.arguments[*index].placement().shape.class == calling_conventions::ValueClass::Float
         });

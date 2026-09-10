@@ -32,7 +32,7 @@ pub(super) fn has_borrowed(function: &InstalledFunction) -> bool {
     })
 }
 
-fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
+pub(super) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
     match scalar {
         ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
             Some(ValueShape::float(4))

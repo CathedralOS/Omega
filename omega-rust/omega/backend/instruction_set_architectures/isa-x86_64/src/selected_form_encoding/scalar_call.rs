@@ -170,8 +170,14 @@ pub fn validate_x86_64_selected_scalar_call_template(
         let keys = if aggregate {
             if target == NativeTarget::linux_x64() {
                 crate::register_model::x86_64_system_v_aggregate_call_keys()
+                    .into_iter()
+                    .chain(crate::x86_64_system_v_mixed_aggregate_call_keys())
+                    .collect()
             } else {
                 crate::register_model::x86_64_microsoft_aggregate_call_keys()
+                    .into_iter()
+                    .chain(crate::x86_64_microsoft_mixed_aggregate_call_keys())
+                    .collect()
             }
         } else if target == NativeTarget::linux_x64() {
             crate::x86_64_system_v_register_unit_call_keys()
@@ -347,6 +353,7 @@ mod unit_calls;
 
 #[cfg(test)]
 mod tests {
+    mod mixed_aggregates;
     use register_model::validate_physical_register_model;
 
     use super::*;

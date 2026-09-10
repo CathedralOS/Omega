@@ -169,6 +169,11 @@ pub fn validate_aarch64_selected_scalar_call_template(
     let (expected_operand_views, expected) = if unit || aggregate {
         let keys = if aggregate {
             crate::aarch64_register_aggregate_call_keys(target == NativeTarget::macos_arm64())
+                .into_iter()
+                .chain(crate::aarch64_mixed_aggregate_call_keys(
+                    target == NativeTarget::macos_arm64(),
+                ))
+                .collect::<Vec<_>>()
         } else if target == NativeTarget::linux_arm64() {
             crate::aarch64_aapcs64_register_unit_call_keys()
                 .into_iter()

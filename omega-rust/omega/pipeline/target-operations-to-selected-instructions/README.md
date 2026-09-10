@@ -249,6 +249,15 @@ format, placement, width, and call order again. Runtime preservation spills keep
 the payload's IEEE type and use integer-typed slot addresses; they do not admit
 floating-register residents into GPR spill instructions.
 
+Register aggregate results compose with these same mixed input banks. Their
+constraint rows reuse Unit-call inputs and append integer result definitions,
+removing only those result write units from the unknown clobbers. Physical
+operands are ordered GPR inputs, IEEE inputs, then result fragments; the authored
+argument roster and each ABI's fixed positions remain unchanged. This is the
+integer-fragment Omega array ABI, not a foreign homogeneous-float aggregate ABI.
+The `scalar_array_results::floating` native regressions exercise construction,
+owned forwarding, interleaved input banks, and two-fragment transport.
+
 Integer and Boolean stack arguments use the same transport. Incoming loads and
 outgoing stores preserve the exact 1/2/4/8-byte payload width independently of
 the target's stack-slot spacing and alignment. Signed narrow stack loads are

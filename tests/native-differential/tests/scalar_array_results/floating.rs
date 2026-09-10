@@ -46,7 +46,7 @@ fn floating_parameters_and_owned_calls_preserve_bits() {
         ),
     ] {
         let source = source(carrier, shape, initializer);
-        for entry in ["make", "forward"] {
+        for entry in ["make", "forward", "selected"] {
             for target in [
                 NativeTarget::linux_x64(),
                 NativeTarget::linux_arm64(),
@@ -65,7 +65,7 @@ fn floating_parameters_and_owned_calls_preserve_bits() {
                     // Omega arrays currently use integer aggregate fragments, not
                     // the foreign C homogeneous-floating-aggregate convention.
                     // Observe those exact bytes without performing float arithmetic.
-                    let (argument_type, argument) = if entry == "make" {
+                    let (argument_type, argument) = if entry != "forward" {
                         (c_type, "value")
                     } else {
                         ("uint64_t", "expected")
@@ -107,33 +107,101 @@ fn floating_parameters_and_owned_calls_preserve_bits() {
 }
 
 #[test]
-fn ieee_scalar_arguments_with_array_results_require_mixed_call_constraints() {
-    for (carrier, shape, initializer) in [
-        ("f32", "[f32; 2]", "[value, -0.0f32]"),
-        ("f64", "[f64; 1]", "[value]"),
+fn interleaved_ieee_and_integer_arguments_preserve_aggregate_results() {
+    // The authored float/integer/float order differs from the constraint's
+    // GPR-then-IEEE order, including Microsoft's positional register holes.
+    let source = "machine make(first: f32, marker: u64, second: f32) -> [f32; 2] {
+                      [first, second]
+                  }
+                  machine selected(first: f32, marker: u64, second: f32) -> [f32; 2] {
+                      make(first, marker, second)
+                  }";
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
     ] {
-        // Preserve the full caller: direct construction and owned forwarding
-        // work, but calling make still needs a mixed-bank aggregate-call row.
-        let source = source(carrier, shape, initializer);
-        for target in [
-            NativeTarget::linux_x64(),
-            NativeTarget::linux_arm64(),
-            NativeTarget::macos_arm64(),
-            NativeTarget::windows_x64(),
-        ] {
-            let plan = target_plan(&source, "selected", target).unwrap();
-            let environment =
-                register_environment::baseline_target_register_environment(target).unwrap();
-            let result =
-                target_operations_to_selected_instructions::stage_optimized_instruction_selection(
-                    plan,
-                    environment,
-                );
-            assert!(matches!(result, Err(
-                target_operations_to_selected_instructions::OptimizedSelectionPipelineError::Selection(
-                    target_operations_to_selected_instructions::SelectedInstructionError::SourceCustodyMismatch
-                )
-            )), "mixed scalar/aggregate call needs its exact constraint row on {target:?}: {result:?}");
+        let (image, offset) = publish(source, "selected", target);
+        #[cfg(any(
+            all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", target_arch = "aarch64")
+        ))]
+        if target == NativeTarget::host() {
+            native_function::assert_c_text(
+                &image.output().final_text_bytes,
+                offset,
+                "#include <stdint.h>\n#include <string.h>\n
+                     extern uint64_t omega_entry(float, uint64_t, float);
+                     int main(void) {
+                         uint32_t first_bits = 0x7fc01234U, second_bits = 0x80000000U;
+                         float first, second;
+                         memcpy(&first, &first_bits, sizeof(first));
+                         memcpy(&second, &second_bits, sizeof(second));
+                         return omega_entry(first, 37, second) != 0x800000007fc01234ULL;
+                     }",
+            );
+        }
+        #[cfg(not(any(
+            all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", target_arch = "aarch64")
+        )))]
+        {
+            let _ = (image, offset);
+            eprintln!("SKIP: mixed aggregate call runtime requires the Linux/macOS host harness");
+        }
+    }
+}
+
+#[test]
+fn ieee_arguments_compose_with_two_fragment_owned_arguments_and_results() {
+    let source = "machine keep(first: f64, row: [u64; 2], last: f64) -> [u64; 2] { row }
+                  machine selected(value: u64, first: f64, last: f64) -> [u64; 2] {
+                      keep(first, [value, 37], last)
+                  }";
+    // Microsoft uses the separately unsupported hidden-pointer result ABI here.
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let (image, offset) = publish(source, "selected", target);
+        #[cfg(any(
+            all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", target_arch = "aarch64")
+        ))]
+        if target == NativeTarget::host() {
+            native_function::assert_c_text(
+                &image.output().final_text_bytes,
+                offset,
+                "#include <stdint.h>\n
+                 typedef struct { uint64_t first; uint64_t second; } Pair;
+                 extern Pair omega_entry(uint64_t, double, double);
+                 int main(void) {
+                     Pair row = omega_entry(0xfedcba9876543210ULL, 1.5, -0.0);
+                     return row.first != 0xfedcba9876543210ULL || row.second != 37;
+                 }",
+            );
+        }
+        #[cfg(not(any(
+            all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", target_arch = "aarch64")
+        )))]
+        {
+            let _ = (image, offset);
+            eprintln!("SKIP: mixed aggregate call runtime requires the Linux/macOS host harness");
         }
     }
 }
