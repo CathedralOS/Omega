@@ -38,7 +38,7 @@ impl LegalizedScalarCall {
                 if self.structural_result.is_some() {
                     !direct_aggregate_registers(placement)
                 } else {
-                    !direct_integer_register(placement)
+                    !direct_scalar_register(placement)
                 }
             })
             || self.structural_result.is_some() && self.result_placement.is_none()
@@ -106,10 +106,11 @@ fn direct_scalar_placement(placement: &ValuePlacement) -> bool {
                     && *alignment >= placement.shape.alignment && alignment.is_power_of_two()
                     && stack_byte_offset.is_multiple_of(u32::from(*alignment))))
 }
-fn direct_integer_register(placement: &ValuePlacement) -> bool {
+fn direct_scalar_register(placement: &ValuePlacement) -> bool {
     let width = placement.shape.byte_size;
     matches!(width, 1 | 2 | 4 | 8)
-        && placement.shape == ValueShape::integer(width, width)
+        && (placement.shape == ValueShape::integer(width, width)
+            || matches!(width, 4 | 8) && placement.shape == ValueShape::float(width))
         && matches!(
             placement.locations.as_slice(),
             [ValueLocation::Register {
@@ -118,4 +119,52 @@ fn direct_integer_register(placement: &ValuePlacement) -> bool {
                 ..
             }] if *byte_size == width
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn scalar_float_call_result_retains_exact_direct_width() {
+        for target in [
+            target::NativeTarget::linux_x64(),
+            target::NativeTarget::linux_arm64(),
+            target::NativeTarget::windows_x64(),
+            target::NativeTarget::macos_arm64(),
+        ] {
+            for width in [4, 8] {
+                let call_plan = calling_conventions::evaluate_call_plan(
+                    calling_conventions::CallingPolicy::native_for_target(target),
+                    &calling_conventions::CallSignature {
+                        parameters: Vec::new(),
+                        result: Some(ValueShape::float(width)),
+                    },
+                )
+                .unwrap();
+                let mut call = LegalizedScalarCall {
+                    structural_result: None,
+                    source: crate::LegalizedCallUnitSource::AuthoredCallUnit,
+                    claim_transfers: Vec::new(),
+                    callee: semantic_vocabulary::MachineId::new(1).unwrap(),
+                    arguments: Vec::new(),
+                    result_placement: call_plan.result.clone(),
+                    call_plan,
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                };
+                call.validate_shape().unwrap();
+                let result = call.result_placement.as_mut().unwrap();
+                let ValueLocation::Register { byte_size, .. } = &mut result.locations[0] else {
+                    panic!("direct scalar float result");
+                };
+                *byte_size = if width == 4 { 8 } else { 4 };
+                call.call_plan.result = call.result_placement.clone();
+                assert_eq!(
+                    call.validate_shape(),
+                    Err(LegalizedScalarCallShapeError::Result)
+                );
+            }
+        }
+    }
 }

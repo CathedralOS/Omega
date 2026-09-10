@@ -180,7 +180,7 @@ pub(super) fn reconstruct(
             .iter()
             .find(|returned| returned.psi_return_edge == edge)
             .ok_or(OptimizedOrdinaryCallableEntryError::MissingReturn(edge))?;
-        let machine_code::WholeFunctionReturnValueEvidence::ScalarI64V1 {
+        let machine_code::WholeFunctionReturnValueEvidence::ScalarV1 {
             virtual_register,
             view,
             units,

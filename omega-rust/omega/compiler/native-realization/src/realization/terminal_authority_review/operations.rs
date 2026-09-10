@@ -76,6 +76,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         | AbstractOperation::EstablishAffineScalarRecord { .. }
         | AbstractOperation::IntegerConstant { .. }
         | AbstractOperation::IeeeFloatConstant { .. }
+        | AbstractOperation::IeeeFloatCompare { .. }
         | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. }
         | AbstractOperation::BooleanConstant { .. }
         | AbstractOperation::BooleanStructuralField { .. }

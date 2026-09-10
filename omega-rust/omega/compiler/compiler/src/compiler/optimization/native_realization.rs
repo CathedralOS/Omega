@@ -56,11 +56,22 @@ pub(super) fn prepare_terminal_artifact(
         selected_ieee_float_fma_occurrences,
         selected_ieee_float_comparison_occurrences,
     ) = produced.into_parts();
-    if !selected_ieee_float_comparison_occurrences.is_empty() {
-        return Err(vec![Diagnostic::error(
-            "optimized direct native realization does not consume IEEE comparison occurrence custody",
-        )]);
-    }
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).map_err(|error| {
+        vec![Diagnostic::error(format!(
+            "native IEEE comparison custody could not decode Terminal semantics: {error}"
+        ))]
+    })?;
+    // The direct entrance must perform the same source/provider join as retained
+    // Terminal re-entry. Portable numeric semantics alone do not select a provider.
+    // Realization below retains the exact checked application coverage; ordinary
+    // graph lowering carries each surviving operation into its physical child.
+    crate::compiler::terminal_product::float_comparisons::associate(
+        checked,
+        &module,
+        checked.selected_provider_plans(),
+        checked.selected_provider_provenance(),
+        &selected_ieee_float_comparison_occurrences,
+    )?;
     if !selected_ieee_float_fma_occurrences.is_empty() {
         return Err(vec![Diagnostic::error(
             "optimized direct native realization does not yet consume retained IEEE-FMA occurrence custody",

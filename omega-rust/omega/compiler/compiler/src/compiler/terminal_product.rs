@@ -1,7 +1,7 @@
 //! Canonical Terminal-Psi product construction and verification.
 
 use diagnostics::Diagnostic;
-mod float_comparisons;
+pub(super) mod float_comparisons;
 
 /// Rejoin a checked-source inspection product to its exact selected IEEE
 /// comparison meanings. Portable verification alone cannot establish this

@@ -27,14 +27,14 @@ pub(super) fn validate_declaration(
             | MachineSemanticKind::Jump
             | MachineSemanticKind::ConditionalBranchU64LessThan
             | MachineSemanticKind::ConditionalBranchI64LessThan
-            | MachineSemanticKind::ReturnI64
+            | MachineSemanticKind::ReturnScalar
             | MachineSemanticKind::ReturnAggregate
             | MachineSemanticKind::ReturnUnit
     ) {
         MachineBarrier::ControlFlow
     } else if matches!(
         semantic,
-        MachineSemanticKind::CallI64
+        MachineSemanticKind::CallScalar
             | MachineSemanticKind::CallUnit
             | MachineSemanticKind::CallAggregate
     ) {
@@ -49,7 +49,7 @@ pub(super) fn validate_declaration(
     }
     match (semantic, declaration.call) {
         (
-            MachineSemanticKind::CallI64
+            MachineSemanticKind::CallScalar
             | MachineSemanticKind::CallUnit
             | MachineSemanticKind::CallAggregate,
             crate::MachineCallEffect::DirectInternalNormalReturnV1 {
@@ -57,7 +57,7 @@ pub(super) fn validate_declaration(
             },
         ) if pre_call_stack_alignment.is_power_of_two() => {}
         (
-            MachineSemanticKind::CallI64
+            MachineSemanticKind::CallScalar
             | MachineSemanticKind::CallUnit
             | MachineSemanticKind::CallAggregate,
             _,
@@ -286,7 +286,7 @@ fn validate_encoded_effects(
             return Err(());
         }
     }
-    if declaration.semantic == MachineSemanticKind::CallI64 {
+    if declaration.semantic == MachineSemanticKind::CallScalar {
         let (result, arguments) = constraint.operands.split_last().ok_or(())?;
         if result.access != RegisterOperandAccess::Def
             || arguments

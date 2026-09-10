@@ -204,6 +204,87 @@ fn attached_unit_calls_retain_immediates_and_prior_results_with_durable_homes() 
 }
 
 #[test]
+fn unit_float_literal_calls_retain_raw_bits_and_prior_call_results() {
+    use semantic_vocabulary::IeeeFloatValue;
+    for literal in [
+        IeeeFloatValue::Binary32(0xffc1_2345),
+        IeeeFloatValue::Binary64(0xfff8_1234_5678_9abc),
+    ] {
+        let scalar_type = ScalarType::IeeeFloat(literal.format());
+        let mut source = attached_unit_scalar_call_plan();
+        source.functions[0].operations[0] = AbstractOperation::IeeeFloatConstant {
+            psi_operation: OperationId::new(10).unwrap(),
+            result: ValueId::new(10).unwrap(),
+            value: literal,
+        };
+        for operation in &mut source.functions[0].operations {
+            if let AbstractOperation::Call {
+                scalar_type: actual,
+                ..
+            } = operation
+            {
+                *actual = scalar_type;
+            }
+        }
+        let callee = &mut source.functions[1];
+        callee.parameters[0].scalar_type = scalar_type;
+        let AbstractFunctionResult::Scalar(result) = &mut callee.result else {
+            panic!("scalar")
+        };
+        result.scalar_type = scalar_type;
+        let AbstractOperation::Return {
+            scalar_type: returned,
+            ..
+        } = &mut callee.operations[0]
+        else {
+            panic!("return")
+        };
+        *returned = scalar_type;
+        callee.block_entries = vec![AbstractBlockEntry {
+            block: callee.entry,
+            operation_offset: 0,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+        }];
+        for native in [
+            NativeTarget::linux_x64(),
+            NativeTarget::linux_arm64(),
+            NativeTarget::macos_arm64(),
+            NativeTarget::windows_x64(),
+        ] {
+            let lowered = lower_to_target_operations(&source, native).unwrap();
+            let TargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
+                panic!("ordinary Unit body")
+            };
+            let TargetUnitOperation::ScalarCall { arguments, .. } = &body.operations[1] else {
+                panic!("first call")
+            };
+            assert_eq!(
+                arguments[0].source,
+                target_operations::TargetUnitScalarArgumentSource::IeeeFloatImmediate {
+                    defining_operation: OperationId::new(10).unwrap(),
+                    source_value: ValueId::new(10).unwrap(),
+                    value: literal,
+                }
+            );
+            let TargetUnitOperation::ScalarCall { arguments, .. } = &body.operations[2] else {
+                panic!("second call")
+            };
+            assert!(
+                matches!(arguments[0].source, target_operations::TargetUnitScalarArgumentSource::Home(home)
+                if home.source_value == ValueId::new(11).unwrap() && home.scalar_type == scalar_type)
+            );
+            let mut missing = source.clone();
+            missing.functions[0].operations.remove(0);
+            assert!(matches!(
+                lower_to_target_operations(&missing, native),
+                Err(LoweringError::UnknownValue(_))
+            ));
+        }
+    }
+}
+
+#[test]
 fn attached_unit_calls_retain_ordered_register_and_stack_arguments() {
     let mut plan = attached_unit_scalar_call_plan();
     let integer_type = fixed_integer(32);

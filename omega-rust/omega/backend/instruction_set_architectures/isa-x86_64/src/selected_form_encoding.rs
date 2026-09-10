@@ -402,7 +402,7 @@ pub fn encode_x86_64_selected_form(
         return float_bits::encode(physical, kind, alternative, operands);
     }
     validate_request(physical, kind, alternative, operands)?;
-    let registers = resolve_registers(physical, operands)?;
+    let registers = resolve_scalar_registers(physical, kind, operands)?;
     validate_return_home(kind, &registers)?;
     validate_alias_partition(kind, alternative, &registers)?;
     let bytes = encode_unchecked(kind, alternative, &registers)?;
@@ -420,7 +420,7 @@ pub fn validate_x86_64_selected_form_encoding(
         return float_bits::validate(physical, kind, alternative, operands, bytes);
     }
     validate_request(physical, kind, alternative, operands)?;
-    let registers = resolve_registers(physical, operands)?;
+    let registers = resolve_scalar_registers(physical, kind, operands)?;
     validate_return_home(kind, &registers)?;
     validate_alias_partition(kind, alternative, &registers)?;
     let decoded = decode_all(bytes)?;
@@ -527,7 +527,7 @@ fn family_and_operand_count(
             2,
             0..=0,
         ),
-        SelectedInstructionKind::ReturnI64 => (MachineAlternativeFamily::ReturnI64, 1, 0..=0),
+        SelectedInstructionKind::ReturnScalar => (MachineAlternativeFamily::ReturnScalar, 1, 0..=0),
         SelectedInstructionKind::ReturnAggregate { fragment_count } => {
             if !(1..=2).contains(&fragment_count) {
                 return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
@@ -569,7 +569,7 @@ fn family_and_operand_count(
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::Jump
         | SelectedInstructionKind::CallAggregate { .. }
-        | SelectedInstructionKind::CallI64 { .. } => {
+        | SelectedInstructionKind::CallScalar { .. } => {
             return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);
         }
     })
@@ -579,7 +579,7 @@ fn validate_return_home(
     kind: SelectedInstructionKind,
     registers: &[u8],
 ) -> Result<(), X86_64SelectedFormEncodingError> {
-    if matches!(kind, SelectedInstructionKind::ReturnI64) && registers != [0] {
+    if matches!(kind, SelectedInstructionKind::ReturnScalar) && registers != [0] {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
     if let SelectedInstructionKind::ReturnAggregate { fragment_count } = kind
@@ -589,6 +589,24 @@ fn validate_return_home(
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
     Ok(())
+}
+
+fn resolve_scalar_registers(
+    physical: &ValidatedPhysicalRegisterModel,
+    kind: SelectedInstructionKind,
+    operands: &[RegisterViewId],
+) -> Result<Vec<u8>, X86_64SelectedFormEncodingError> {
+    // RET does not encode the returned register. The exact constraint row
+    // retains its ABI class; accept only the canonical floating result home.
+    if kind == SelectedInstructionKind::ReturnScalar
+        && physical
+            .model()
+            .view_named("xmm0")
+            .is_some_and(|view| operands == [view.id])
+    {
+        return Ok(vec![0]);
+    }
+    resolve_registers(physical, operands)
 }
 
 fn resolve_registers(
@@ -843,7 +861,7 @@ fn encode_unchecked(
             }
             _ => return Err(X86_64SelectedFormEncodingError::AlternativeMismatch),
         },
-        SelectedInstructionKind::ReturnI64
+        SelectedInstructionKind::ReturnScalar
         | SelectedInstructionKind::ReturnAggregate { .. }
         | SelectedInstructionKind::ReturnUnit => bytes.push(0xc3),
         SelectedInstructionKind::ConditionalBranchNonZero
@@ -872,7 +890,7 @@ fn encode_unchecked(
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::CallAggregate { .. }
-        | SelectedInstructionKind::CallI64 { .. } => {
+        | SelectedInstructionKind::CallScalar { .. } => {
             return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);
         }
     }
@@ -1348,7 +1366,7 @@ fn validate_decoded(
             }
             _ => false,
         },
-        SelectedInstructionKind::ReturnI64
+        SelectedInstructionKind::ReturnScalar
         | SelectedInstructionKind::ReturnAggregate { .. }
         | SelectedInstructionKind::ReturnUnit => decoded == [DecodedInstruction::Return],
         SelectedInstructionKind::ConditionalBranchNonZero
@@ -1375,7 +1393,7 @@ fn validate_decoded(
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::CallAggregate { .. }
-        | SelectedInstructionKind::CallI64 { .. } => false,
+        | SelectedInstructionKind::CallScalar { .. } => false,
     };
     if valid {
         Ok(())
@@ -1420,7 +1438,7 @@ fn footprint(
         SelectedInstructionKind::ExactSubtractI64 { .. } => {
             (vec![operands[0], operands[1]], vec![operands[2]], true)
         }
-        SelectedInstructionKind::ReturnI64
+        SelectedInstructionKind::ReturnScalar
         | SelectedInstructionKind::ReturnAggregate { .. }
         | SelectedInstructionKind::ReturnUnit => (vec![], vec![], false),
         SelectedInstructionKind::ConditionalBranchNonZero
@@ -1447,13 +1465,13 @@ fn footprint(
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::CallAggregate { .. }
-        | SelectedInstructionKind::CallI64 { .. } => (vec![], vec![], false),
+        | SelectedInstructionKind::CallScalar { .. } => (vec![], vec![], false),
     };
     let physical = x86_64_physical_register_model();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
     let encoded = if matches!(
         kind,
-        SelectedInstructionKind::ReturnI64
+        SelectedInstructionKind::ReturnScalar
             | SelectedInstructionKind::ReturnAggregate { .. }
             | SelectedInstructionKind::ReturnUnit
     ) {
@@ -1606,7 +1624,7 @@ mod tests {
         assert_eq!(
             encode_x86_64_selected_form(
                 &physical,
-                SelectedInstructionKind::CallI64 {
+                SelectedInstructionKind::CallScalar {
                     callee: MachineId::new(1).unwrap(),
                 },
                 alternative(MachineAlternativeFamily::ReturnUnit, 0),
@@ -1908,8 +1926,8 @@ mod tests {
         let rbx = physical.model().view_named("rbx").unwrap().id;
         let rsp = physical.model().view_named("rsp").unwrap();
         let rip = physical.model().view_named("rip").unwrap();
-        let kind = SelectedInstructionKind::ReturnI64;
-        let alternative = alternative(MachineAlternativeFamily::ReturnI64, 0);
+        let kind = SelectedInstructionKind::ReturnScalar;
+        let alternative = alternative(MachineAlternativeFamily::ReturnScalar, 0);
         let encoded = encode_x86_64_selected_form(&physical, kind, alternative, &[rax]).unwrap();
 
         assert_eq!(encoded.bytes(), [0xc3]);
@@ -1990,7 +2008,7 @@ mod tests {
             encode_x86_64_selected_form(
                 &physical,
                 kind,
-                alternative(MachineAlternativeFamily::ReturnI64, 0),
+                alternative(MachineAlternativeFamily::ReturnScalar, 0),
                 &[]
             )
             .is_err()
@@ -2118,7 +2136,7 @@ mod tests {
         assert_eq!(
             validate_x86_64_selected_short_nonzero_branch_form(
                 &physical,
-                alternative(MachineAlternativeFamily::ReturnI64, 0),
+                alternative(MachineAlternativeFamily::ReturnScalar, 0),
                 0,
                 &[0x75, 0],
             ),

@@ -75,7 +75,7 @@ pub(super) fn selected_environment_keys(
         hosted_write_byte_i32: keys.hosted_write_byte_i32,
         hosted_exit_process_i32: keys.hosted_exit_process_i32,
         call_unit: keys.call_unit,
-        call_i64: keys.call_i64,
+        call_scalar: keys.call_scalar,
         call_aggregate: keys.call_aggregate,
         return_aggregate: keys.return_aggregate,
         materialize_i64: keys.materialize_i64,
@@ -94,6 +94,7 @@ pub(super) fn selected_environment_keys(
         compare_i64: keys.compare_i64,
         conditional_branch: keys.conditional_branch,
         jump: keys.jump,
+        return_float: keys.return_float.clone(),
         return_i64: keys.return_i64,
         return_unit: keys.return_unit,
     }
@@ -125,7 +126,10 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             frame_address: Some(isa_x86_64::X86_64_FRAME_ADDRESS),
             call_unit: isa_x86_64::x86_64_system_v_register_unit_call_keys(),
             call_unit_mixed: isa_x86_64::x86_64_system_v_mixed_unit_call_keys(),
-            call_i64: isa_x86_64::x86_64_system_v_register_call_keys(),
+            call_scalar: isa_x86_64::x86_64_system_v_register_call_keys()
+                .into_iter()
+                .chain(isa_x86_64::x86_64_float_scalar_call_keys(false))
+                .collect(),
             materialize_i64: X86_64_MATERIALIZE_I64,
             materialize_boolean: isa_x86_64::X86_64_MATERIALIZE_BOOLEAN,
             copy_i64: X86_64_COPY_I64,
@@ -142,6 +146,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             conditional_branch: X86_64_CONDITIONAL_BRANCH,
             jump: isa_x86_64::X86_64_JUMP,
             return_i64: X86_64_SYSTEM_V_RETURN,
+            return_float: isa_x86_64::x86_64_float_scalar_return_keys(false),
             return_unit: X86_64_SYSTEM_V_RETURN_UNIT,
         }),
         (Architecture::X86_64, ObjectFormat::Coff) => Some(SelectedConstraintKeys {
@@ -166,7 +171,10 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             frame_address: Some(isa_x86_64::X86_64_FRAME_ADDRESS),
             call_unit: isa_x86_64::x86_64_microsoft_register_unit_call_keys(),
             call_unit_mixed: isa_x86_64::x86_64_microsoft_mixed_unit_call_keys(),
-            call_i64: isa_x86_64::x86_64_microsoft_register_call_keys(),
+            call_scalar: isa_x86_64::x86_64_microsoft_register_call_keys()
+                .into_iter()
+                .chain(isa_x86_64::x86_64_float_scalar_call_keys(true))
+                .collect(),
             materialize_i64: X86_64_MATERIALIZE_I64,
             materialize_boolean: isa_x86_64::X86_64_MATERIALIZE_BOOLEAN,
             copy_i64: X86_64_COPY_I64,
@@ -183,6 +191,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             conditional_branch: X86_64_CONDITIONAL_BRANCH,
             jump: isa_x86_64::X86_64_JUMP,
             return_i64: X86_64_MICROSOFT_RETURN,
+            return_float: isa_x86_64::x86_64_float_scalar_return_keys(true),
             return_unit: X86_64_MICROSOFT_RETURN_UNIT,
         }),
         (Architecture::Aarch64, ObjectFormat::Elf) => Some(SelectedConstraintKeys {
@@ -210,7 +219,10 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             frame_address: Some(isa_aarch64::AARCH64_FRAME_ADDRESS),
             call_unit: isa_aarch64::aarch64_aapcs64_register_unit_call_keys(),
             call_unit_mixed: isa_aarch64::aarch64_aapcs64_mixed_unit_call_keys(),
-            call_i64: isa_aarch64::aarch64_aapcs64_register_call_keys(),
+            call_scalar: isa_aarch64::aarch64_aapcs64_register_call_keys()
+                .into_iter()
+                .chain(isa_aarch64::aarch64_float_scalar_call_keys(false))
+                .collect(),
             materialize_i64: AARCH64_MATERIALIZE_I64,
             materialize_boolean: isa_aarch64::AARCH64_MATERIALIZE_BOOLEAN,
             copy_i64: AARCH64_COPY_I64,
@@ -227,6 +239,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             conditional_branch: AARCH64_CONDITIONAL_BRANCH,
             jump: isa_aarch64::AARCH64_JUMP,
             return_i64: AARCH64_AAPCS64_RETURN,
+            return_float: isa_aarch64::aarch64_float_scalar_return_keys(false),
             return_unit: AARCH64_AAPCS64_RETURN_UNIT,
         }),
         (Architecture::Aarch64, ObjectFormat::MachO) => Some(SelectedConstraintKeys {
@@ -254,7 +267,10 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             frame_address: Some(isa_aarch64::AARCH64_FRAME_ADDRESS),
             call_unit: isa_aarch64::aarch64_darwin_register_unit_call_keys(),
             call_unit_mixed: isa_aarch64::aarch64_darwin_mixed_unit_call_keys(),
-            call_i64: isa_aarch64::aarch64_darwin_register_call_keys(),
+            call_scalar: isa_aarch64::aarch64_darwin_register_call_keys()
+                .into_iter()
+                .chain(isa_aarch64::aarch64_float_scalar_call_keys(true))
+                .collect(),
             materialize_i64: AARCH64_MATERIALIZE_I64,
             materialize_boolean: isa_aarch64::AARCH64_MATERIALIZE_BOOLEAN,
             copy_i64: AARCH64_COPY_I64,
@@ -271,6 +287,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             conditional_branch: AARCH64_CONDITIONAL_BRANCH,
             jump: isa_aarch64::AARCH64_JUMP,
             return_i64: AARCH64_DARWIN_RETURN,
+            return_float: isa_aarch64::aarch64_float_scalar_return_keys(true),
             return_unit: AARCH64_DARWIN_RETURN_UNIT,
         }),
         _ => None,

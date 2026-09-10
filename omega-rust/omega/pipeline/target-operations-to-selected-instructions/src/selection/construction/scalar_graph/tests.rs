@@ -9,6 +9,7 @@ mod byte_views;
 mod control;
 mod derived_calls;
 mod ieee_borrows;
+mod ieee_comparisons;
 mod integer_calls;
 mod parameters;
 mod primitive_locals;
@@ -209,8 +210,8 @@ fn register_call_arities_preserve_occurrences_and_reject_changed_projection() {
                 );
             }
             let mut wrong_keys = constraints.clone();
-            wrong_keys.keys.call_i64[count] =
-                constraints.keys.call_i64[(count + 1) % (maximum + 1)];
+            wrong_keys.keys.call_scalar[count] =
+                constraints.keys.call_scalar[(count + 1) % (maximum + 1)];
             assert!(
                 crate::selection::validation::scalar_graph::validate(
                     0,
@@ -334,9 +335,10 @@ fn scalar_returns_and_entry_parameters_keep_short_abi_transport() {
                     1 => changed.virtual_registers[0].entry_fixed_view = None,
                     2 => changed.virtual_registers[1].entry_fixed_view = Some(fixed_view),
                     3 => {
-                        changed.blocks[0].instructions[4].kind = SelectedInstructionKind::CallI64 {
-                            callee: MachineId::new(99).unwrap(),
-                        }
+                        changed.blocks[0].instructions[4].kind =
+                            SelectedInstructionKind::CallScalar {
+                                callee: MachineId::new(99).unwrap(),
+                            }
                     }
                     4 => changed.blocks[0].instructions[4].operands[0].fixed_view = None,
                     5 => {

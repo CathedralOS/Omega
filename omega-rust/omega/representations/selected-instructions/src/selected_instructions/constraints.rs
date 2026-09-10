@@ -25,9 +25,10 @@ pub struct SelectedConstraintKeys {
     pub call_unit: Vec<RegisterConstraintKey>,
     /// Canonical mixed integer/FP register call rows, independently matched to the ABI placements.
     pub call_unit_mixed: Vec<RegisterConstraintKey>,
-    /// Register-passed U64 call rows indexed by argument count, including zero.
+    /// Scalar call rows matched by complete fixed ABI operand views. The legacy
+    /// integer-only prefix retains its arity order; appended rows include FP.
     /// An empty roster explicitly supplies no scalar-call form on this target.
-    pub call_i64: Vec<RegisterConstraintKey>,
+    pub call_scalar: Vec<RegisterConstraintKey>,
     /// Direct aggregate call rows, matched by their complete ABI operand roster.
     pub call_aggregate: Vec<RegisterConstraintKey>,
     pub materialize_i64: RegisterConstraintKey,
@@ -46,6 +47,7 @@ pub struct SelectedConstraintKeys {
     pub conditional_branch: RegisterConstraintKey,
     pub jump: RegisterConstraintKey,
     pub return_i64: RegisterConstraintKey,
+    pub return_float: Vec<RegisterConstraintKey>,
     pub return_aggregate: Vec<RegisterConstraintKey>,
     pub return_unit: RegisterConstraintKey,
 }

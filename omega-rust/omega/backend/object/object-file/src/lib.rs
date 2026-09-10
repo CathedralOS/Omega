@@ -33,7 +33,7 @@
 //! architecture, object format, symbol kind, section kind, relocation kind,
 //! relocation origin. The separate machine-code text-section identity's
 //! `MachineAlternativeFamily` table is zero-based, running
-//! `CompareI64Zero = 0` through `CallI64 = 13`. A zero byte is a legal family
+//! `CompareI64Zero = 0` through `CallScalar = 13`. A zero byte is a legal family
 //! tag there and an invalid tag in these object-format tables.
 //!
 //! `validate_relocation_free_object` admits four of the six architecture and

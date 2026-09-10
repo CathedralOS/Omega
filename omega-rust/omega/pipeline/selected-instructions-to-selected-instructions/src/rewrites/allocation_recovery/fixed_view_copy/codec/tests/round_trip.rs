@@ -220,7 +220,7 @@ fn artifact_current_round_trips_scalar_call_callee_vocabulary() {
     let mut plan = plan(FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1);
     let callee = MachineId::new(901).unwrap();
     std::sync::Arc::make_mut(&mut plan.transformed).functions[0].blocks[0].instructions[0].kind =
-        SelectedInstructionKind::CallI64 { callee };
+        SelectedInstructionKind::CallScalar { callee };
 
     assert_eq!(FixedViewCopyPlan::decode(&plan.encode()).unwrap(), plan);
 }

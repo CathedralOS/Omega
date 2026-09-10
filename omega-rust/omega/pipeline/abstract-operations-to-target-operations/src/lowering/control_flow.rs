@@ -28,7 +28,7 @@ struct LiveDefinitions {
     booleans: BTreeMap<ValueId, (OperationId, bool)>,
     scalar_homes: BTreeMap<ValueId, TargetUnitScalarHomeRequirement>,
     ieee_float_constants: BTreeMap<ValueId, (OperationId, semantic_vocabulary::IeeeFloatValue)>,
-    boolean_parameters: BTreeMap<ValueId, target_operations::TargetScalarBlockValue>,
+    scalar_block_parameters: BTreeMap<ValueId, target_operations::TargetScalarBlockValue>,
     views: BTreeMap<PlaceId, (OperationId, StructuralTypeId)>,
     block_views: BTreeSet<PlaceId>,
     owned_arrivals: BTreeSet<PlaceId>,
@@ -89,6 +89,7 @@ pub(super) fn lower(
             AbstractOperation::IntegerConstant { result, .. }
             | AbstractOperation::BooleanConstant { result, .. }
             | AbstractOperation::IeeeFloatConstant { result, .. }
+            | AbstractOperation::IeeeFloatCompare { result, .. }
             | AbstractOperation::IntegerWiden { result, .. }
             | AbstractOperation::IntegerExactCast { result, .. }
             | AbstractOperation::IntegerEqual { result, .. }
@@ -250,7 +251,7 @@ pub(super) fn lower(
         booleans: BTreeMap::new(),
         scalar_homes: BTreeMap::new(),
         ieee_float_constants: BTreeMap::new(),
-        boolean_parameters: BTreeMap::new(),
+        scalar_block_parameters: BTreeMap::new(),
         views: BTreeMap::new(),
         block_views: BTreeSet::new(),
         owned_arrivals: BTreeSet::new(),

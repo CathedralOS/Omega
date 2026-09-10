@@ -12,4 +12,4 @@ pub(super) use selected_forms::{
     transformed_implicit_writes_any, unique_encoding_rows, unique_layout_rows, validate_non_return,
     validate_return,
 };
-pub(super) use target::{EntryAssumptionKind, target_contract_inputs, view};
+pub(super) use target::{EntryAssumptionKind, scalar_return_view, target_contract_inputs, view};

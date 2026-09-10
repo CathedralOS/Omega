@@ -212,7 +212,7 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub call_unit_mixed: Vec<RegisterConstraintKey>,
     /// Target-owned register-call keys indexed by argument count, including zero.
     /// Empty means this environment supplies no scalar register-call form.
-    pub call_i64: Vec<RegisterConstraintKey>,
+    pub call_scalar: Vec<RegisterConstraintKey>,
     /// Argument-count-major rows, with one- and two-fragment results per count.
     /// Empty means direct aggregate calls are unsupported in this environment.
     pub call_aggregate: Vec<RegisterConstraintKey>,
@@ -234,6 +234,7 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub conditional_branch: RegisterConstraintKey,
     pub jump: RegisterConstraintKey,
     pub return_i64: RegisterConstraintKey,
+    pub return_float: Vec<RegisterConstraintKey>,
     pub return_unit: RegisterConstraintKey,
 }
 
@@ -1651,7 +1652,7 @@ mod tests {
                 variant: 2,
             }],
             call_unit_mixed: Vec::new(),
-            call_i64: vec![RegisterConstraintKey {
+            call_scalar: vec![RegisterConstraintKey {
                 family: RegisterConstraintFamily::Call,
                 variant: 3,
             }],
@@ -1670,6 +1671,7 @@ mod tests {
             compare_i64: instruction_key(20),
             conditional_branch: instruction_key(3),
             jump: instruction_key(22),
+            return_float: Vec::new(),
             return_i64: instruction_key(4),
             return_unit: instruction_key(5),
         };
@@ -1778,7 +1780,7 @@ mod tests {
                 ..keys.clone()
             },
             TargetRegisterEnvironmentConstraintKeys {
-                call_i64: Vec::new(),
+                call_scalar: Vec::new(),
                 ..keys.clone()
             },
             TargetRegisterEnvironmentConstraintKeys {
@@ -1832,6 +1834,7 @@ mod tests {
                 ..keys.clone()
             },
             TargetRegisterEnvironmentConstraintKeys {
+                return_float: Vec::new(),
                 return_i64: instruction_key(14),
                 ..keys.clone()
             },

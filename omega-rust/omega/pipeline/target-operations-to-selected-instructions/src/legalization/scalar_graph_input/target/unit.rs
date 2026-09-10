@@ -4,6 +4,7 @@ use target_operations::{
     TargetUnitScalarArgumentSource as Source,
 };
 mod aggregate_results;
+mod ieee_float;
 mod primitive_store;
 pub(super) fn validate(
     function: &TargetFunction,
@@ -76,6 +77,13 @@ pub(super) fn validate_operation(
         unit,
     };
     match (target, abstracted) {
+        (
+            _,
+            AbstractOperation::IeeeFloatCompare { .. }
+            | AbstractOperation::IeeeFloatConstant { .. },
+        ) => {
+            ieee_float::validate(target, abstracted, sources)?;
+        }
         (
             _,
             AbstractOperation::EstablishScalarArray { .. }
@@ -203,30 +211,6 @@ pub(super) fn validate_operation(
             && place == expected_place
             && structural_type == expected_type
             && bytes == expected_bytes => {}
-        (
-            TargetUnitOperation::IeeeFloatConstant {
-                psi_operation,
-                result,
-                value,
-            },
-            AbstractOperation::IeeeFloatConstant {
-                psi_operation: expected_operation,
-                result: expected_result,
-                value: expected_value,
-            },
-        ) if psi_operation == expected_operation
-            && result == expected_result
-            && value == expected_value =>
-        {
-            sources.push((
-                *result,
-                Source::IeeeFloatImmediate {
-                    defining_operation: *psi_operation,
-                    source_value: *result,
-                    value: *value,
-                },
-            ));
-        }
         (
             TargetUnitOperation::WriteOnlyPrimitiveStore { .. },
             AbstractOperation::WriteOnlyPrimitiveStore { .. },
@@ -404,8 +388,7 @@ pub(super) fn validate_operation(
                     AbstractOperation::CallStructuralScalar { result: actual, .. },
                 ) => {
                     result == actual
-                        && (actual.scalar_type == ScalarType::Boolean
-                            || integer_call_shape(actual.scalar_type).is_some())
+                        && scalar_shape(actual.scalar_type).is_some()
                         && expected.result.as_ref().is_some_and(|placement| {
                             super::super::scalar_shape(actual.scalar_type) == Some(placement.shape)
                         })

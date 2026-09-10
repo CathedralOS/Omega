@@ -84,7 +84,7 @@ pub(in crate::text_placement) fn prove_none(
                         return Err(TextPlacementError::UnsupportedRelocationShape);
                     }
                 }
-                MachineAlternativeFamily::ReturnI64
+                MachineAlternativeFamily::ReturnScalar
                 | MachineAlternativeFamily::ReturnUnit
                 | MachineAlternativeFamily::ReturnAggregate => {
                     if row.branch.is_some()
@@ -96,7 +96,7 @@ pub(in crate::text_placement) fn prove_none(
                         return Err(TextPlacementError::UnsupportedRelocationShape);
                     }
                 }
-                MachineAlternativeFamily::CallI64
+                MachineAlternativeFamily::CallScalar
                 | MachineAlternativeFamily::CallUnit
                 | MachineAlternativeFamily::CallAggregate => {
                     return Err(TextPlacementError::UnsupportedRelocationShape);

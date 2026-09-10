@@ -1,4 +1,4 @@
-//! Mixed scalar and whole-view calls replay the existing CallI64 transport.
+//! Mixed scalar and whole-view calls replay the existing CallScalar transport.
 use super::*;
 mod corruption;
 mod fixture;
@@ -31,24 +31,15 @@ fn replay(target: target::NativeTarget, maximum: usize) {
                 let source = fixture::source(target, parameter_count, scalar_count, conditional);
                 let constraints = fixture::constraints(&source, &environment);
                 let construct = |source: &LegalizedScalarFunction| {
-                    build(
-                        0,
-                        source,
-                        target,
-                        &constraints,
-                        environment.physical(),
-                        environment.constraints(),
-                    )
+                    build_with_environment(0, source, &constraints, &environment)
                 };
                 let validate = |source: &LegalizedScalarFunction, candidate: &SelectedFunction| {
-                    crate::selection::validation::scalar_graph::validate(
+                    crate::selection::validation::scalar_graph::validate_with_environment(
                         0,
                         source,
                         candidate,
-                        target,
                         &constraints,
-                        environment.physical(),
-                        environment.constraints(),
+                        &environment,
                     )
                 };
                 let selected = construct(&source).unwrap();
@@ -66,7 +57,10 @@ fn replay(target: target::NativeTarget, maximum: usize) {
                         .flat_map(|block| &block.instructions)
                         .find(|row| row.id == contract.instruction)
                         .unwrap();
-                    assert_eq!(row.constraint, constraints.keys.call_i64[scalar_count + 1]);
+                    assert_eq!(
+                        row.constraint,
+                        constraints.keys.call_scalar[scalar_count + 1]
+                    );
                     assert_eq!(row.operands.len(), scalar_count + 2);
                     assert_eq!(row.provenance.values.len(), scalar_count + 1);
                     let pointer = row.operands[scalar_count].virtual_register;
@@ -143,7 +137,7 @@ fn replay(target: target::NativeTarget, maximum: usize) {
                 call.arguments.push(borrowed);
                 assert!(
                     construct(&oversized).is_err(),
-                    "unsupported CallI64 arity stays fenced"
+                    "unsupported CallScalar arity stays fenced"
                 );
                 assert!(validate(&oversized, &selected).is_err());
             }

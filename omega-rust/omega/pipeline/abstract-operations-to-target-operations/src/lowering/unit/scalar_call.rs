@@ -88,6 +88,7 @@ pub(super) fn unit_argument_source(
     function: &AbstractFunction,
     scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
     boolean_constants: &BTreeMap<ValueId, (OperationId, bool)>,
+    ieee_float_constants: &BTreeMap<ValueId, (OperationId, semantic_vocabulary::IeeeFloatValue)>,
     operations: &[TargetUnitOperation],
 ) -> Result<TargetUnitScalarArgumentSource, LoweringError> {
     if let Some(known) = scalar_values.get(&value) {
@@ -100,7 +101,14 @@ pub(super) fn unit_argument_source(
             value: *literal,
         });
     }
-    // The ordered row owns prior Boolean call results; no parallel home index is needed.
+    if let Some((operation, literal)) = ieee_float_constants.get(&value) {
+        return Ok(TargetUnitScalarArgumentSource::IeeeFloatImmediate {
+            defining_operation: *operation,
+            source_value: value,
+            value: *literal,
+        });
+    }
+    // The ordered row owns prior scalar call results; no parallel home index is needed.
     if let Some(home) = operations
         .iter()
         .rev()
@@ -168,7 +176,8 @@ pub(in crate::lowering) fn lower_scalar_call(
         ScalarType::Boolean => ValueShape::integer(1, 1),
         ScalarType::Integer(integer) => fixed_native_integer_shape(*integer)
             .ok_or(LoweringError::UnitScalarCallIntegerTypeUnsupported(*result))?,
-        _ => return Err(LoweringError::UnitScalarCallIntegerTypeUnsupported(*result)),
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => ValueShape::float(4),
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => ValueShape::float(8),
     };
     if *scalar_type != callee_result.scalar_type {
         return Err(LoweringError::UnitScalarCallResultTypeMismatch {

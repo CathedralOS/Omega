@@ -36,6 +36,7 @@ pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(Val
         | O::BooleanStructuralField { result, .. }
         | O::BooleanNot { result, .. }
         | O::BooleanEqual { result, .. }
+        | O::IeeeFloatCompare { result, .. }
         | O::IntegerEqual { result, .. }
         | O::IntegerLessThan { result, .. }
         | O::IntegerLessOrEqual { result, .. } => Some((*result, ScalarType::Boolean)),
@@ -212,6 +213,7 @@ pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         | O::SaturatingIntegerDivide { left, right, .. }
         | O::SaturatingIntegerRemainder { left, right, .. }
         | O::SaturatingIntegerMultiply { left, right, .. } => vec![*left, *right],
+        O::IeeeFloatCompare { left, right, .. } => vec![*left, *right],
         O::NearestIeeeFloatFusedMultiplyAdd {
             left,
             right,

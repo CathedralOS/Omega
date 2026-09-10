@@ -20,9 +20,29 @@ pub fn validate_selected_instructions(
     catalog: &ValidatedRegisterConstraintCatalog,
     plan: SelectedInstructionPlan,
 ) -> Result<ValidatedSelectedInstructions, SelectedInstructionError> {
+    let environment = register_environment::validate_target_register_environment(
+        legalized.plan().target,
+        physical.model().clone(),
+        catalog.catalog().clone(),
+    )
+    .map_err(|_| SelectedInstructionError::SourceCustodyMismatch)?;
+    validate_with_environment(legalized, constraints, &environment, plan)
+}
+
+pub(super) fn validate_with_environment(
+    legalized: &ValidatedLegalizedOperations,
+    constraints: &SelectedSelectionConstraints,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    plan: SelectedInstructionPlan,
+) -> Result<ValidatedSelectedInstructions, SelectedInstructionError> {
     let target = legalized.plan();
+    if target.target != environment.target() {
+        return Err(SelectedInstructionError::SourceCustodyMismatch);
+    }
+    let physical = environment.physical();
+    let catalog = environment.constraints();
     roots::validate_initial_roots(target, constraints, physical, catalog, &plan)?;
-    ordinary_roster::validate(target, &plan.functions, constraints, physical, catalog)?;
+    ordinary_roster::validate(target, &plan.functions, constraints, environment)?;
     for (source, selected) in target
         .projected_structural_call_returns
         .iter()

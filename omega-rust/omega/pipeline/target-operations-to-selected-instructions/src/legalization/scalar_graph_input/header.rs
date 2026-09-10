@@ -43,11 +43,7 @@ pub(super) fn function_abi(
     let result = match &abstracted.result {
         AbstractFunctionResult::Unit => None,
         AbstractFunctionResult::Scalar(result)
-            if matches!(
-                result.scalar_type,
-                ScalarType::Boolean | ScalarType::Integer(_)
-            ) && scalar_shape(result.scalar_type).is_some()
-                && target.attachment.is_none() =>
+            if scalar_shape(result.scalar_type).is_some() && target.attachment.is_none() =>
         {
             scalar_shape(result.scalar_type)
         }

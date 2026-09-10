@@ -28,6 +28,7 @@ pub(in crate::tests) fn microsoft_selection_environment() -> (
         keys: SelectedConstraintKeys {
             call_aggregate: isa_x86_64::x86_64_microsoft_aggregate_call_keys(),
             return_aggregate: isa_x86_64::x86_64_microsoft_aggregate_return_keys(),
+            return_float: isa_x86_64::x86_64_float_scalar_return_keys(true),
             hosted_exit_process_i32: None,
             hosted_write_byte_i32: None,
             hosted_read_byte: None,
@@ -44,7 +45,7 @@ pub(in crate::tests) fn microsoft_selection_environment() -> (
             frame_address: Some(isa_x86_64::X86_64_FRAME_ADDRESS),
             store: Some(isa_x86_64::X86_64_STORE),
             address_offset: Some(isa_x86_64::X86_64_ADDRESS_OFFSET),
-            call_i64: Vec::new(),
+            call_scalar: Vec::new(),
             materialize_i64: X86_64_MATERIALIZE_I64,
             materialize_boolean: isa_x86_64::X86_64_MATERIALIZE_BOOLEAN,
             copy_i64: X86_64_COPY_I64,

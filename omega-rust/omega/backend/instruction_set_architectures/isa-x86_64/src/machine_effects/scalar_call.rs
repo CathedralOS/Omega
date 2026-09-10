@@ -41,7 +41,7 @@ pub(super) fn declaration(
                 family: if semantic == MachineSemanticKind::CallAggregate {
                     MachineAlternativeFamily::CallAggregate
                 } else {
-                    MachineAlternativeFamily::CallI64
+                    MachineAlternativeFamily::CallScalar
                 },
                 variant: 0,
             },

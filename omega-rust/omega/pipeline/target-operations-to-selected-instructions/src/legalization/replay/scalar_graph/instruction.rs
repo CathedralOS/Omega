@@ -27,6 +27,24 @@ pub(super) fn validate(
     }
     match (&actual.kind, &node.operation) {
         (
+            LegalizedScalarInstructionKind::IeeeFloatCompare {
+                comparison,
+                format,
+                left,
+                right,
+            },
+            AbstractOperation::IeeeFloatCompare {
+                comparison: expected_comparison,
+                format: expected_format,
+                left: expected_left,
+                right: expected_right,
+                ..
+            },
+        ) if comparison == expected_comparison
+            && format == expected_format
+            && left == expected_left
+            && right == expected_right => {}
+        (
             _,
             AbstractOperation::CallStructural { .. }
             | AbstractOperation::EstablishScalarArray { .. }

@@ -296,6 +296,15 @@ pub enum AbstractOperation {
         right: ValueId,
         addend: ValueId,
     },
+    /// IEEE execution, not mathematical equality or an integer-order fact.
+    IeeeFloatCompare {
+        psi_operation: OperationId,
+        result: ValueId,
+        comparison: semantic_vocabulary::IeeeFloatComparisonOperation,
+        format: IeeeFloatFormat,
+        left: ValueId,
+        right: ValueId,
+    },
     BooleanConstant {
         psi_operation: OperationId,
         result: ValueId,

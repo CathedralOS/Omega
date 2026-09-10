@@ -2,6 +2,200 @@
 use super::*;
 
 #[test]
+fn ieee_call_results_feed_later_calls_with_exact_register_bank() {
+    for target in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        for format in [
+            semantic_vocabulary::IeeeFloatFormat::Binary32,
+            semantic_vocabulary::IeeeFloatFormat::Binary64,
+        ] {
+            let environment =
+                register_environment::baseline_target_register_environment(target).unwrap();
+            let scalar_type = ScalarType::IeeeFloat(format);
+            let shape = crate::selection::scalar_call_abi::scalar_shape(scalar_type).unwrap();
+            let mut source = fixture(target, 1);
+            source.attachment = None;
+            source.call_plan = evaluate_call_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: Vec::new(),
+                    result: Some(shape),
+                },
+            )
+            .unwrap();
+            for instruction in &mut source.blocks[0].instructions {
+                instruction.result.as_mut().unwrap().scalar_type = scalar_type;
+                if let LegalizedScalarInstructionKind::Call(call) = &mut instruction.kind {
+                    call.call_plan = evaluate_call_plan(
+                        CallingPolicy::native_for_target(target),
+                        &CallSignature {
+                            parameters: vec![shape],
+                            result: Some(shape),
+                        },
+                    )
+                    .unwrap();
+                    call.result_placement = call.call_plan.result.clone();
+                    let LegalizedScalarArgument::Scalar { placement, .. } = &mut call.arguments[0]
+                    else {
+                        panic!("scalar fixture argument");
+                    };
+                    *placement = call.call_plan.parameters[0].clone();
+                }
+            }
+            returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Value {
+                value: ValueId::new(4).unwrap(),
+                scalar_type,
+            };
+            let constraints = SelectedSelectionConstraints {
+                keys: environment.selected_keys(),
+                projected_structural_call: None,
+                fixed_inputs: Vec::new(),
+            };
+            let selected = build(
+                0,
+                &source,
+                target,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            let validate = |proposal: &SelectedFunction| {
+                crate::selection::validation::scalar_graph::validate(
+                    0,
+                    &source,
+                    proposal,
+                    target,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                )
+            };
+            validate(&selected).unwrap();
+            for (index, instruction) in selected.blocks[0].instructions.iter().enumerate() {
+                if matches!(instruction.kind, SelectedInstructionKind::CallScalar { .. }) {
+                    let mut changed = selected.clone();
+                    let output = instruction.operands.last().unwrap().virtual_register;
+                    changed.virtual_registers[output.0 as usize].class = environment
+                        .constraint(constraints.keys.materialize_i64)
+                        .unwrap()
+                        .operands[0]
+                        .class;
+                    assert!(validate(&changed).is_err());
+                    let mut changed = selected.clone();
+                    changed.blocks[0].instructions[index + 1].kind =
+                        SelectedInstructionKind::CopyI64;
+                    assert!(validate(&changed).is_err());
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn ieee_stack_parameter_returns_through_exact_float_register_bank() {
+    for target in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        for format in [
+            semantic_vocabulary::IeeeFloatFormat::Binary32,
+            semantic_vocabulary::IeeeFloatFormat::Binary64,
+        ] {
+            let environment =
+                register_environment::baseline_target_register_environment(target).unwrap();
+            let scalar_type = ScalarType::IeeeFloat(format);
+            let shape = crate::selection::scalar_call_abi::scalar_shape(scalar_type).unwrap();
+            let mut source = fixture(target, 0);
+            source.attachment = None;
+            source.blocks[0].instructions.clear();
+            source.provenance.operations.clear();
+            source.call_plan = evaluate_call_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: vec![shape; 10],
+                    result: Some(shape),
+                },
+            )
+            .unwrap();
+            source.parameters = source
+                .call_plan
+                .parameters
+                .iter()
+                .enumerate()
+                .map(|(index, placement)| LegalizedScalarParameter {
+                    value: ValueId::new(100 + index as u64).unwrap(),
+                    scalar_type,
+                    definition_site: ValueDefinitionSite::FunctionParameter(index as u32),
+                    placement: placement.clone(),
+                })
+                .collect();
+            assert!(matches!(
+                source.parameters[9].placement.locations.as_slice(),
+                [ValueLocation::Stack { .. }]
+            ));
+            returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Value {
+                value: source.parameters[9].value,
+                scalar_type,
+            };
+            let constraints = SelectedSelectionConstraints {
+                keys: environment.selected_keys(),
+                projected_structural_call: None,
+                fixed_inputs: Vec::new(),
+            };
+            let selected = build(
+                0,
+                &source,
+                target,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            let validate = |proposal: &SelectedFunction| {
+                crate::selection::validation::scalar_graph::validate(
+                    0,
+                    &source,
+                    proposal,
+                    target,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                )
+            };
+            validate(&selected).unwrap();
+            let transfer = if format == semantic_vocabulary::IeeeFloatFormat::Binary32 {
+                SelectedInstructionKind::BitsToFloat32
+            } else {
+                SelectedInstructionKind::BitsToFloat64
+            };
+            let index = selected.blocks[0]
+                .instructions
+                .iter()
+                .position(|instruction| instruction.kind == transfer)
+                .unwrap();
+            let mut wrong_bank = selected.clone();
+            wrong_bank.blocks[0].instructions[index].kind = SelectedInstructionKind::CopyI64;
+            assert!(validate(&wrong_bank).is_err());
+            let mut wrong_width = selected.clone();
+            wrong_width.blocks[0].instructions[index].kind =
+                if format == semantic_vocabulary::IeeeFloatFormat::Binary32 {
+                    SelectedInstructionKind::BitsToFloat64
+                } else {
+                    SelectedInstructionKind::BitsToFloat32
+                };
+            assert!(validate(&wrong_width).is_err());
+        }
+    }
+}
+
+#[test]
 fn unused_stack_parameters_keep_abi_without_inventing_entry_transport() {
     for (target, capacity) in [
         (target::NativeTarget::linux_x64(), 6),
@@ -88,7 +282,7 @@ fn unused_stack_parameters_keep_abi_without_inventing_entry_transport() {
                 .count(),
             1
         );
-        // The same canonical stack placement becomes unsupported when actually read.
+        // Reading the stack slot adds its exact incoming transport.
         assert!(matches!(
             source.parameters[capacity].placement.locations.as_slice(),
             [ValueLocation::Stack { .. }]
@@ -97,17 +291,25 @@ fn unused_stack_parameters_keep_abi_without_inventing_entry_transport() {
             value: source.parameters[capacity].value,
             scalar_type: semantic_vocabulary::ScalarType::Integer(integer),
         };
-        assert!(
-            build(
-                0,
-                &source,
-                target,
-                &constraints,
-                environment.physical(),
-                environment.constraints()
-            )
-            .is_err()
-        );
+        let stack_selected = build(
+            0,
+            &source,
+            target,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        crate::selection::validation::scalar_graph::validate(
+            0,
+            &source,
+            &stack_selected,
+            target,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
         assert!(
             crate::selection::validation::scalar_graph::validate(
                 0,

@@ -42,6 +42,7 @@ pub(crate) fn expected_definitions(
         | O::BooleanStructuralField { result, .. }
         | O::BooleanNot { result, .. }
         | O::BooleanEqual { result, .. }
+        | O::IeeeFloatCompare { result, .. }
         | O::IntegerEqual { result, .. }
         | O::IntegerLessThan { result, .. }
         | O::IntegerLessOrEqual { result, .. } => Some((*result, ScalarType::Boolean)),
@@ -230,6 +231,7 @@ pub(crate) fn expected_uses(
         | O::SaturatingIntegerDivide { left, right, .. }
         | O::SaturatingIntegerRemainder { left, right, .. }
         | O::SaturatingIntegerMultiply { left, right, .. } => vec![*left, *right],
+        O::IeeeFloatCompare { left, right, .. } => vec![*left, *right],
         O::NearestIeeeFloatFusedMultiplyAdd {
             left,
             right,

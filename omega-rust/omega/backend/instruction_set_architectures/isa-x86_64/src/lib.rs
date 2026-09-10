@@ -325,3 +325,4 @@ mod tests {
         assert_eq!(&byte_read[byte_read.len() - 2..], &[0x0f, 0x0b]);
     }
 }
+pub use register_model::{x86_64_float_scalar_call_keys, x86_64_float_scalar_return_keys};

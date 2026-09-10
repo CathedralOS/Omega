@@ -46,6 +46,15 @@ fn derive_checked_expression_operator_application_realization(
     independently_derived_realizations: &[CheckedOperatorRealizationContract],
     application: &checked_trees::CheckedBoundaryOperatorApplicationDemand,
 ) -> Result<Option<CheckedNongenericOperatorApplicationRealization>, Diagnostic> {
+    if matches!(
+        application.site,
+        CheckedBoundaryOperatorApplicationUseSite::MatchEquality { .. }
+    ) {
+        // An implicit arm comparison is not an expression replacement. Its
+        // intrinsic projector retains the exact arm and selected execution;
+        // this checked-body lane must not manufacture adapter coverage.
+        return Ok(None);
+    }
     let CheckedBoundaryOperatorApplicationUseSite::Expression { expression, origin } =
         application.site
     else {

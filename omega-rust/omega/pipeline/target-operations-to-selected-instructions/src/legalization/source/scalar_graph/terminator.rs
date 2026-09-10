@@ -1,5 +1,4 @@
 use super::*;
-use semantic_vocabulary::ScalarType;
 pub(super) fn project(
     node: &optimization_unit::OptimizationNode,
     function: &optimization_unit::PsiOptimizationFunction,
@@ -48,7 +47,7 @@ pub(super) fn project(
             value,
             scalar_type,
             ..
-        } if matches!(scalar_type, ScalarType::Boolean | ScalarType::Integer(_)) => {
+        } if scalar_graph_input::scalar_shape(*scalar_type).is_some() => {
             Ok(LegalizedScalarTerminator::Return(LegalizedScalarReturn {
                 edge: *psi_edge,
                 value: LegalizedScalarReturnValue::Value {

@@ -19,6 +19,7 @@ use target::Architecture;
 #[allow(clippy::too_many_arguments)]
 pub(super) fn check(
     context: &Context,
+    result_view: register_model::RegisterViewId,
     architecture: Architecture,
     block: SelectedBlockId,
     edge: EdgeId,
@@ -85,12 +86,12 @@ pub(super) fn check(
             require(selected.operands.is_empty() && machine.operands.is_empty())?;
         }
         (
-            WholeFunctionReturnValueEvidence::ScalarI64V1 {
+            WholeFunctionReturnValueEvidence::ScalarV1 {
                 virtual_register,
                 view,
                 units,
             },
-            SelectedInstructionKind::ReturnI64,
+            SelectedInstructionKind::ReturnScalar,
         ) => {
             let [operand] = machine.operands.as_slice() else {
                 return Err(WholeFunctionExitContractError::ReturnOperandMismatch(
@@ -101,7 +102,9 @@ pub(super) fn check(
                 selected.operands.len() == 1
                     && operand.operand == 0
                     && operand.access == RegisterOperandAccess::Use
-                    && operand.view == context.result_view
+                    && operand.view == result_view
+                    && selected.operands[0].fixed_view == Some(operand.view)
+                    && selected.operands[0].virtual_register == operand.virtual_register
                     && operand.read_units == operand.storage_units
                     && operand.write_units.is_empty()
                     && *virtual_register == operand.virtual_register

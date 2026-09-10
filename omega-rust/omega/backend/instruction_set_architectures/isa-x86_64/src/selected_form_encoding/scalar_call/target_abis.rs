@@ -21,11 +21,11 @@ fn target_register_arities_encode_and_reject_opposite_abi_effects() {
         ),
         (NativeTarget::windows_x64(), &["rcx", "rdx", "r8", "r9"]),
     ];
-    let kind = SelectedInstructionKind::CallI64 {
+    let kind = SelectedInstructionKind::CallScalar {
         callee: MachineId::new(7).unwrap(),
     };
     let alternative = MachineAlternativeKey {
-        family: MachineAlternativeFamily::CallI64,
+        family: MachineAlternativeFamily::CallScalar,
         variant: 0,
     };
     for (target, arguments) in cases {
@@ -41,7 +41,7 @@ fn target_register_arities_encode_and_reject_opposite_abi_effects() {
                 .declarations
                 .iter()
                 .find(|row| {
-                    row.semantic == selected_instructions::MachineSemanticKind::CallI64
+                    row.semantic == selected_instructions::MachineSemanticKind::CallScalar
                         && row.alternatives[0].encoded.external_operand_reads.len() == arity
                 })
                 .unwrap()

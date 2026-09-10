@@ -89,7 +89,7 @@ fn unit_call_templates_cover_native_register_arities_and_reject_forged_results()
                 .is_err()
             );
             let wrong_family = MachineAlternativeKey {
-                family: MachineAlternativeFamily::CallI64,
+                family: MachineAlternativeFamily::CallScalar,
                 variant: 0,
             };
             assert!(

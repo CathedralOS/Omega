@@ -12,17 +12,21 @@ use crate::selection::shared::*;
 pub(super) fn build_plan(
     legalized: &ValidatedLegalizedOperations,
     constraints: &SelectedSelectionConstraints,
-    physical: &ValidatedPhysicalRegisterModel,
-    catalog: &ValidatedRegisterConstraintCatalog,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<SelectedInstructionPlan, SelectedInstructionError> {
     let target = legalized.plan();
+    if target.target != environment.target() {
+        return Err(SelectedInstructionError::SourceCustodyMismatch);
+    }
+    let physical = environment.physical();
+    let catalog = environment.constraints();
     require_key_rows(&constraints.keys, catalog)?;
     let mut functions = target
         .scalar_functions
         .iter()
         .enumerate()
         .map(|(index, source)| {
-            scalar_graph::build(index, source, target.target, constraints, physical, catalog)
+            scalar_graph::build_with_environment(index, source, constraints, environment)
         })
         .collect::<Result<Vec<_>, _>>()?;
     functions.sort_by_key(|function| function.machine);

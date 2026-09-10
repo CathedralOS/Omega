@@ -102,7 +102,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CompareI64Zero => 0,
         SelectedInstructionKind::MaterializeI64 { .. } => 1,
         SelectedInstructionKind::ConditionalBranchNonZero => 2,
-        SelectedInstructionKind::ReturnI64 => 3,
+        SelectedInstructionKind::ReturnScalar => 3,
         SelectedInstructionKind::CopyI64 => 4,
         SelectedInstructionKind::Float32ToBits => 26,
         SelectedInstructionKind::Float64ToBits => 27,
@@ -126,7 +126,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::ReturnUnit => 9,
         SelectedInstructionKind::CompareI64 => 10,
         SelectedInstructionKind::ConditionalBranchU64LessThan => 11,
-        SelectedInstructionKind::CallI64 { .. } => 12,
+        SelectedInstructionKind::CallScalar { .. } => 12,
         SelectedInstructionKind::ConditionalBranchI64LessThan => 13,
     };
     bytes.push(tag);
@@ -203,7 +203,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             bytes.extend_from_slice(&obligation.get().to_le_bytes());
             bytes.extend_from_slice(&accepted_fact.bytes());
         }
-        SelectedInstructionKind::CallI64 { callee }
+        SelectedInstructionKind::CallScalar { callee }
         | SelectedInstructionKind::CallAggregate { callee }
         | SelectedInstructionKind::CallUnit { callee } => {
             bytes.extend_from_slice(&callee.get().to_le_bytes());
@@ -318,7 +318,7 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
             value: decode_integer(cursor)?,
         },
         2 => SelectedInstructionKind::ConditionalBranchNonZero,
-        3 => SelectedInstructionKind::ReturnI64,
+        3 => SelectedInstructionKind::ReturnScalar,
         4 => SelectedInstructionKind::CopyI64,
         26 => SelectedInstructionKind::Float32ToBits,
         27 => SelectedInstructionKind::Float64ToBits,
@@ -372,7 +372,7 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
         9 => SelectedInstructionKind::ReturnUnit,
         10 => SelectedInstructionKind::CompareI64,
         11 => SelectedInstructionKind::ConditionalBranchU64LessThan,
-        12 => SelectedInstructionKind::CallI64 {
+        12 => SelectedInstructionKind::CallScalar {
             callee: decode_id(cursor, MachineId::new)?,
         },
         13 => SelectedInstructionKind::ConditionalBranchI64LessThan,
@@ -415,12 +415,12 @@ mod tests {
     fn call_i64_uses_append_only_tag_twelve_and_binds_callee() {
         let callee = MachineId::new(47).unwrap();
         let mut bytes = Vec::new();
-        encode_kind(&mut bytes, SelectedInstructionKind::CallI64 { callee });
+        encode_kind(&mut bytes, SelectedInstructionKind::CallScalar { callee });
         assert_eq!(bytes[0], 12);
         let mut cursor = Cursor::new(&bytes);
         assert_eq!(
             decode_kind(&mut cursor).unwrap(),
-            SelectedInstructionKind::CallI64 { callee }
+            SelectedInstructionKind::CallScalar { callee }
         );
     }
 

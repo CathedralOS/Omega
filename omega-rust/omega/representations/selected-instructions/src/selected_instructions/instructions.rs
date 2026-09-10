@@ -149,18 +149,19 @@ pub enum SelectedInstructionKind {
     /// comparison.
     ConditionalBranchI64LessThan,
     Jump,
-    ReturnI64,
+    /// Return one scalar through the exact ABI register constraint.
+    ReturnScalar,
     /// Return the complete direct aggregate ABI register-fragment roster.
     ReturnAggregate {
         fragment_count: u8,
     },
     /// Value-less semantic return. This is deliberately distinct from
-    /// `ReturnI64` even on targets where both select the same opcode.
+    /// `ReturnScalar` even on targets where both select the same opcode.
     ReturnUnit,
-    /// Direct internal call with two fixed U64 inputs and one fixed U64
-    /// result. The target constraint row owns the exact ABI views and complete
+    /// Direct internal scalar call with register-passed inputs and one result.
+    /// The target constraint row owns the exact ABI views and complete
     /// call clobbers; `callee` retains relocation/publication custody.
-    CallI64 {
+    CallScalar {
         callee: MachineId,
     },
     /// Ordinary call defining every direct aggregate result fragment.

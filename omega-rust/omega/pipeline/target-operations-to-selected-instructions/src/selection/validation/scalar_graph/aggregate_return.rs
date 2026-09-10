@@ -152,7 +152,7 @@ pub(super) fn validate(
             != (if empty_return {
                 SelectedInstructionKind::ReturnUnit
             } else if scalar_return {
-                SelectedInstructionKind::ReturnI64
+                SelectedInstructionKind::ReturnScalar
             } else {
                 SelectedInstructionKind::ReturnAggregate {
                     fragment_count: registers.len() as u8,

@@ -7,9 +7,9 @@ pub(super) fn validate(
     target: &LegalizedOperationPlan,
     functions: &[SelectedFunction],
     constraints: &SelectedSelectionConstraints,
-    physical: &ValidatedPhysicalRegisterModel,
-    catalog: &ValidatedRegisterConstraintCatalog,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<(), SelectedInstructionError> {
+    let catalog = environment.constraints();
     for (function_index, selected) in functions.iter().enumerate() {
         let graph = target
             .scalar_functions
@@ -20,14 +20,12 @@ pub(super) fn validate(
             [source] => {
                 let projected =
                     super::super::edge_transfers::project(function_index, selected, constraints)?;
-                scalar_graph::validate(
+                scalar_graph::validate_with_environment(
                     function_index,
                     source,
                     &projected,
-                    target.target,
                     constraints,
-                    physical,
-                    catalog,
+                    environment,
                 )?;
                 for block in &selected.blocks {
                     super::integrity::validate_block_constraints(

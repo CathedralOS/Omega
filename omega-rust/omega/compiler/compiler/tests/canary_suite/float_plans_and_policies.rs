@@ -296,6 +296,86 @@ fn float_match_executes_selected_arms_through_verified_terminal() {
 }
 
 #[test]
+fn float_match_native_publication_retains_both_selected_physical_children() {
+    let main_path = pass_canary("expressions/match_float_patterns").join("main.omg");
+    for target_name in [
+        "windows_x86_64",
+        "linux_x86_64",
+        "linux_arm64",
+        "macos_arm64",
+    ] {
+        let build_dir = std::env::temp_dir().join(format!(
+            "omega-native-float-match-{target_name}-{}",
+            std::process::id()
+        ));
+        let mut request = CompileRequest::new(CompilerOptions {
+            root_path: main_path.clone(),
+            build_dir: Some(build_dir.clone()),
+            target_name: Some(target_name.to_owned()),
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
+        if let Some(packages) =
+            reviewed_repository_fixture_package_inputs(&main_path, Some(target_name))
+                .expect("review the authored match application")
+        {
+            request = request.with_package_inputs(packages);
+        }
+        let terminal_request = request
+            .clone()
+            .with_requested_product(RequestedCompileProduct::TerminalArtifact);
+        let report = compiler::compile(request).unwrap_or_else(|diagnostics| {
+            panic!("publish unchanged float Match for {target_name}: {diagnostics:#?}")
+        });
+        let artifact = report
+            .retained_native_artifact()
+            .expect("retained native product");
+        artifact
+            .validate()
+            .expect("independently replay complete native artifact");
+        let physical = artifact
+            .physical_evidence()
+            .expect("complete physical coverage");
+        assert_eq!(
+            physical.children().len(),
+            2,
+            "both selected equality arms survive as distinct physical children"
+        );
+        let retained = compiler::compile(terminal_request)
+            .expect("retain exact source and provider proposal")
+            .into_retained_terminal_artifact()
+            .unwrap();
+        let selections = retained
+            .native_realization_proposal()
+            .unwrap()
+            .post_terminal_optimizations()
+            .selections()
+            .clone();
+        let replayed = compiler::realize_retained_terminal_artifact_with_source_evaluated_imports(
+            retained,
+            &proof_admission::AdmissionProfile::default(),
+            &selections,
+            &[],
+        )
+        .expect("source-free re-entry consumes the same selected comparison custody");
+        replayed
+            .validate()
+            .expect("independently replay retained native re-entry");
+        assert_eq!(replayed.physical_evidence().unwrap().children().len(), 2);
+        let published = report
+            .publish_retained_native_artifact(&build_dir)
+            .expect("publish validated image");
+        if cfg!(all(target_os = "macos", target_arch = "aarch64")) && target_name == "macos_arm64" {
+            let output = Command::new(published.checked_native_executable_path().unwrap())
+                .output()
+                .expect("execute the actual rooted match application");
+            assert_eq!(output.status.code(), Some(0));
+        }
+        fs::remove_dir_all(&build_dir).expect("remove this test's generated image");
+    }
+}
+
+#[test]
 fn float_provider_plan_identities_ignore_arena_and_display_perturbations() {
     fn float_plan_snapshot(checked: &compiler::CheckedCompilation) -> Vec<(String, u64)> {
         checked

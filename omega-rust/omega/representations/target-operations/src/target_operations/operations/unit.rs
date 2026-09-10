@@ -41,6 +41,13 @@ pub struct TargetUnitBody {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetUnitOperation {
+    IeeeFloatCompare {
+        result_home: TargetUnitScalarHomeRequirement,
+        comparison: semantic_vocabulary::IeeeFloatComparisonOperation,
+        format: IeeeFloatFormat,
+        left: TargetUnitScalarArgumentSource,
+        right: TargetUnitScalarArgumentSource,
+    },
     EstablishPrimitiveLocal {
         psi_operation: OperationId,
         result: StructuralOperationResult,

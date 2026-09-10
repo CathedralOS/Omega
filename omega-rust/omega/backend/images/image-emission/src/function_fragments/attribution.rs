@@ -20,6 +20,7 @@ pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Resu
             let matches = match operation {
                 AbstractOperation::IntegerConstant { psi_operation, .. }
                 | AbstractOperation::IeeeFloatConstant { psi_operation, .. }
+                | AbstractOperation::IeeeFloatCompare { psi_operation, .. }
                 | AbstractOperation::BooleanConstant { psi_operation, .. }
                 | AbstractOperation::BooleanEqual { psi_operation, .. }
                 | AbstractOperation::IntegerEqual { psi_operation, .. }

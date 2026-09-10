@@ -80,7 +80,7 @@ fn validate_internal_fixup(
     bytes: &[u8],
     fixup: SelectedFormInternalMachineFixup,
 ) -> Result<SelectedFormInternalMachineFixup, OptimizedResolvedSelectedFormLayoutError> {
-    let (SelectedInstructionKind::CallI64 { callee }
+    let (SelectedInstructionKind::CallScalar { callee }
     | SelectedInstructionKind::CallUnit { callee }
     | SelectedInstructionKind::CallAggregate { callee }) = instruction.kind
     else {

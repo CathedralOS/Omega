@@ -118,7 +118,7 @@ pub(crate) fn validate(
             }
             Ok(())
         }
-        kind @ (SelectedInstructionKind::CallI64 { .. }
+        kind @ (SelectedInstructionKind::CallScalar { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::CallAggregate { .. }) => {
             scalar_call::validate(target, selected.id, kind, machine, physical, &row.state)

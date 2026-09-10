@@ -6,7 +6,7 @@ use diagnostics::Diagnostic;
 #[cfg(test)]
 mod tests;
 
-pub(super) fn associate(
+pub(in crate::compiler) fn associate(
     checked: &CheckedTrees,
     module: &terminal_psi::TerminalModule,
     selected: &effects::SelectedProviderPlanFacts,

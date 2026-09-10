@@ -276,6 +276,7 @@ fn abstract_operation_psi_operation(operation: &AbstractOperation) -> Option<Ope
         | AbstractOperation::Call { psi_operation, .. }
         | AbstractOperation::IntegerConstant { psi_operation, .. }
         | AbstractOperation::IeeeFloatConstant { psi_operation, .. }
+        | AbstractOperation::IeeeFloatCompare { psi_operation, .. }
         | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { psi_operation, .. }
         | AbstractOperation::BooleanConstant { psi_operation, .. }
         | AbstractOperation::BooleanStructuralField { psi_operation, .. }

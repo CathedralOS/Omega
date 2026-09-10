@@ -639,7 +639,7 @@ fn edge_transport_names_durable_call_result_not_abi_temporary() {
         let call = selected.blocks[0]
             .instructions
             .iter()
-            .rposition(|row| matches!(row.kind, SelectedInstructionKind::CallI64 { .. }))
+            .rposition(|row| matches!(row.kind, SelectedInstructionKind::CallScalar { .. }))
             .unwrap();
         let short = selected.blocks[0].instructions[call]
             .operands

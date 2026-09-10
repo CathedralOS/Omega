@@ -57,6 +57,7 @@ pub(crate) fn expected_provenance(
         | O::IntegerConstant { psi_operation, .. }
         | O::IeeeFloatConstant { psi_operation, .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { psi_operation, .. }
+        | O::IeeeFloatCompare { psi_operation, .. }
         | O::BooleanConstant { psi_operation, .. }
         | O::BooleanStructuralField { psi_operation, .. }
         | O::ByteSequenceRead { psi_operation, .. }

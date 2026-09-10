@@ -27,7 +27,7 @@ pub(super) fn source(
             value: *immediate,
         });
     }
-    if let Some(parameter) = live.boolean_parameters.get(&value) {
+    if let Some(parameter) = live.scalar_block_parameters.get(&value) {
         return Ok(TargetUnitScalarArgumentSource::BlockParameter(*parameter));
     }
     let (position, parameter) = function

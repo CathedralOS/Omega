@@ -16,8 +16,10 @@ pub(super) fn validate_parameters(
         .filter(|block| block.block != function.entry)
     {
         for parameter in &block.parameters {
-            if !matches!(parameter.scalar_type, ScalarType::Boolean)
-                && !matches!(parameter.scalar_type, ScalarType::Integer(integer)
+            if !matches!(
+                parameter.scalar_type,
+                ScalarType::Boolean | ScalarType::IeeeFloat(_)
+            ) && !matches!(parameter.scalar_type, ScalarType::Integer(integer)
                     if crate::lowering::scalar_abi::fixed_native_integer_shape(integer).is_some())
             {
                 return Err(LoweringError::ValueTypeMismatch(parameter.value));
@@ -43,17 +45,16 @@ pub(super) fn enter(block: &AbstractBlockEntry, live: &mut LiveDefinitions) {
                     },
                 );
             }
-            ScalarType::Boolean => {
-                live.boolean_parameters.insert(
+            ScalarType::Boolean | ScalarType::IeeeFloat(_) => {
+                live.scalar_block_parameters.insert(
                     parameter.value,
                     TargetScalarBlockValue {
                         block: block.block,
                         value: parameter.value,
-                        scalar_type: ScalarType::Boolean,
+                        scalar_type: parameter.scalar_type,
                     },
                 );
             }
-            ScalarType::IeeeFloat(_) => {}
         }
     }
 }
@@ -155,9 +156,19 @@ pub(super) fn validate_successors(
                             .map(|home| home.scalar_type)
                     })
                     .or_else(|| {
-                        (live.booleans.contains_key(&binding.argument)
-                            || live.boolean_parameters.contains_key(&binding.argument))
-                        .then_some(ScalarType::Boolean)
+                        live.booleans
+                            .contains_key(&binding.argument)
+                            .then_some(ScalarType::Boolean)
+                    })
+                    .or_else(|| {
+                        live.scalar_block_parameters
+                            .get(&binding.argument)
+                            .map(|source| source.scalar_type)
+                    })
+                    .or_else(|| {
+                        live.ieee_float_constants
+                            .get(&binding.argument)
+                            .map(|(_, value)| ScalarType::IeeeFloat(value.format()))
                     })
                     .or_else(|| {
                         function

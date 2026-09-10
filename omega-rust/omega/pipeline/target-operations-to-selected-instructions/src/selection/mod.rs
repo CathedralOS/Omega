@@ -1,4 +1,9 @@
 //! Optimizer module role: executable entrance. Instruction selection: propose one bounded selected CFG, then validate it independently.
+//!
+//! Validate the immutable target/register/catalog join once at this entrance.
+//! Construction and independent replay borrow it across functions; rebuilding
+//! the same catalog for every function or replay mutation adds no evidence.
+//! The public raw validation entrance still validates its own supplied join.
 
 mod aggregate_result_input;
 mod block_order;
@@ -36,6 +41,12 @@ pub fn select_instructions(
     physical: &ValidatedPhysicalRegisterModel,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<ValidatedSelectedInstructions, SelectedInstructionError> {
-    let plan = build_plan(legalized, constraints, physical, catalog)?;
-    validate_selected_instructions(legalized, constraints, physical, catalog, plan)
+    let environment = register_environment::validate_target_register_environment(
+        legalized.plan().target,
+        physical.model().clone(),
+        catalog.catalog().clone(),
+    )
+    .map_err(|_| SelectedInstructionError::SourceCustodyMismatch)?;
+    let plan = build_plan(legalized, constraints, &environment)?;
+    validation::validate_with_environment(legalized, constraints, &environment, plan)
 }

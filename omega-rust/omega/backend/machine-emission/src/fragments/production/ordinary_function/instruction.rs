@@ -89,7 +89,7 @@ fn translate_fixup(
     let Some(fixup) = row.internal_machine_fixup else {
         if matches!(
             instruction.kind,
-            SelectedInstructionKind::CallI64 { .. }
+            SelectedInstructionKind::CallScalar { .. }
                 | SelectedInstructionKind::CallUnit { .. }
                 | SelectedInstructionKind::CallAggregate { .. }
         ) {
@@ -97,7 +97,7 @@ fn translate_fixup(
         }
         return Ok(None);
     };
-    let (SelectedInstructionKind::CallI64 { callee }
+    let (SelectedInstructionKind::CallScalar { callee }
     | SelectedInstructionKind::CallUnit { callee }
     | SelectedInstructionKind::CallAggregate { callee }) = instruction.kind
     else {
@@ -167,7 +167,7 @@ mod tests {
     fn selected_call(callee: MachineId) -> SelectedInstruction {
         SelectedInstruction {
             id: SelectedInstructionId(17),
-            kind: SelectedInstructionKind::CallI64 { callee },
+            kind: SelectedInstructionKind::CallScalar { callee },
             constraint: RegisterConstraintKey {
                 family: RegisterConstraintFamily::Call,
                 variant: 0,
@@ -184,7 +184,7 @@ mod tests {
         ResolvedSelectedFormRow {
             instruction: SelectedInstructionId(17),
             alternative: MachineAlternativeKey {
-                family: MachineAlternativeFamily::CallI64,
+                family: MachineAlternativeFamily::CallScalar,
                 variant: 0,
             },
             offset: 37,

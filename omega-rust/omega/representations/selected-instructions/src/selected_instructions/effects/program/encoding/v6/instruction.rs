@@ -185,7 +185,7 @@ fn decode_kind(
         },
         6 => SelectedInstructionKind::ConditionalBranchNonZero,
         31 => SelectedInstructionKind::HostedExitProcessI32,
-        7 => SelectedInstructionKind::ReturnI64,
+        7 => SelectedInstructionKind::ReturnScalar,
         36 => SelectedInstructionKind::ReturnAggregate {
             fragment_count: cursor.byte()?,
         },
@@ -203,7 +203,7 @@ fn decode_kind(
         11 => SelectedInstructionKind::ConditionalBranchU64LessThan,
         12 if allow_i64_less_than => SelectedInstructionKind::ConditionalBranchI64LessThan,
         14 if allow_jump => SelectedInstructionKind::Jump,
-        13 if allow_scalar_call => SelectedInstructionKind::CallI64 {
+        13 if allow_scalar_call => SelectedInstructionKind::CallScalar {
             callee: MachineId::new(cursor.u64()?)
                 .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
         },
@@ -359,7 +359,7 @@ fn decode_alternative_for_version(
         4 => MachineAlternativeFamily::ExactAddI64Immediate,
         5 => MachineAlternativeFamily::ExactSubtractI64,
         6 => MachineAlternativeFamily::ConditionalBranchNonZero,
-        7 => MachineAlternativeFamily::ReturnI64,
+        7 => MachineAlternativeFamily::ReturnScalar,
         35 if allow_scalar_call => MachineAlternativeFamily::CallAggregate,
         36 => MachineAlternativeFamily::ReturnAggregate,
         8 => MachineAlternativeFamily::ExactSubtractI64Immediate,
@@ -367,7 +367,7 @@ fn decode_alternative_for_version(
         10 => MachineAlternativeFamily::CompareI64,
         11 => MachineAlternativeFamily::ConditionalBranchU64LessThan,
         12 if allow_i64_less_than => MachineAlternativeFamily::ConditionalBranchI64LessThan,
-        13 if allow_scalar_call => MachineAlternativeFamily::CallI64,
+        13 if allow_scalar_call => MachineAlternativeFamily::CallScalar,
         14 if allow_jump => MachineAlternativeFamily::Jump,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };

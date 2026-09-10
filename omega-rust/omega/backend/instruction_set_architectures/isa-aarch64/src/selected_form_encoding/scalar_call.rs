@@ -109,7 +109,7 @@ pub fn encode_aarch64_selected_scalar_call_template(
     effects: &MachineEncodedEffects,
 ) -> Result<ValidatedAarch64SelectedScalarCallTemplate, Aarch64ScalarCallTemplateError> {
     let callee = match kind {
-        SelectedInstructionKind::CallI64 { callee }
+        SelectedInstructionKind::CallScalar { callee }
         | SelectedInstructionKind::CallAggregate { callee }
         | SelectedInstructionKind::CallUnit { callee } => callee,
         _ => return Err(Aarch64ScalarCallTemplateError::InstructionKindMismatch),
@@ -146,7 +146,7 @@ pub fn validate_aarch64_selected_scalar_call_template(
         return Err(Aarch64ScalarCallTemplateError::NonCanonicalPhysicalModel);
     }
     let callee = match kind {
-        SelectedInstructionKind::CallI64 { callee }
+        SelectedInstructionKind::CallScalar { callee }
         | SelectedInstructionKind::CallAggregate { callee }
         | SelectedInstructionKind::CallUnit { callee } => callee,
         _ => return Err(Aarch64ScalarCallTemplateError::InstructionKindMismatch),
@@ -158,7 +158,7 @@ pub fn validate_aarch64_selected_scalar_call_template(
         } else if matches!(kind, SelectedInstructionKind::CallAggregate { .. }) {
             MachineAlternativeFamily::CallAggregate
         } else {
-            MachineAlternativeFamily::CallI64
+            MachineAlternativeFamily::CallScalar
         },
         variant: 0,
     };
@@ -166,7 +166,16 @@ pub fn validate_aarch64_selected_scalar_call_template(
         return Err(Aarch64ScalarCallTemplateError::AlternativeMismatch);
     }
     let aggregate = matches!(kind, SelectedInstructionKind::CallAggregate { .. });
-    let (expected_operand_views, expected) = if unit || aggregate {
+    let floating_scalar = !unit
+        && !aggregate
+        && operand_views.iter().any(|id| {
+            physical
+                .model()
+                .views
+                .iter()
+                .any(|view| view.id == *id && view.name.starts_with("d"))
+        });
+    let (expected_operand_views, expected) = if unit || aggregate || floating_scalar {
         let keys = if aggregate {
             crate::aarch64_register_aggregate_call_keys(target == NativeTarget::macos_arm64())
                 .into_iter()
@@ -174,6 +183,8 @@ pub fn validate_aarch64_selected_scalar_call_template(
                     target == NativeTarget::macos_arm64(),
                 ))
                 .collect::<Vec<_>>()
+        } else if floating_scalar {
+            crate::aarch64_float_scalar_call_keys(target == NativeTarget::macos_arm64())
         } else if target == NativeTarget::linux_arm64() {
             crate::aarch64_aapcs64_register_unit_call_keys()
                 .into_iter()
@@ -335,11 +346,11 @@ mod tests {
         MachineEncodedEffects,
     ) {
         let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-        let kind = SelectedInstructionKind::CallI64 {
+        let kind = SelectedInstructionKind::CallScalar {
             callee: MachineId::new(7).unwrap(),
         };
         let alternative = MachineAlternativeKey {
-            family: MachineAlternativeFamily::CallI64,
+            family: MachineAlternativeFamily::CallScalar,
             variant: 0,
         };
         let operands = expected_operand_views(&physical, 2);

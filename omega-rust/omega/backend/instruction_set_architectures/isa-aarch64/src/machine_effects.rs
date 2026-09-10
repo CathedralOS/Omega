@@ -78,22 +78,28 @@ pub fn aarch64_machine_effect_catalog(
                         ),
                     );
                 }
-                Ok(if semantic == MachineSemanticKind::ReturnAggregate {
-                    let mut returned = declaration(MachineSemanticKind::ReturnI64, &selected_keys);
-                    returned.semantic = semantic;
-                    returned.constraint = constraint;
-                    returned.alternatives[0].key.family = semantic.into();
-                    returned
-                } else if matches!(
-                    semantic,
-                    MachineSemanticKind::CallI64
-                        | MachineSemanticKind::CallUnit
-                        | MachineSemanticKind::CallAggregate
-                ) {
-                    scalar_call_declaration(semantic, constraint, constraints)
-                } else {
-                    declaration(semantic, &selected_keys)
-                })
+                Ok(
+                    if matches!(
+                        semantic,
+                        MachineSemanticKind::ReturnAggregate | MachineSemanticKind::ReturnScalar
+                    ) {
+                        let mut returned =
+                            declaration(MachineSemanticKind::ReturnScalar, &selected_keys);
+                        returned.semantic = semantic;
+                        returned.constraint = constraint;
+                        returned.alternatives[0].key.family = semantic.into();
+                        returned
+                    } else if matches!(
+                        semantic,
+                        MachineSemanticKind::CallScalar
+                            | MachineSemanticKind::CallUnit
+                            | MachineSemanticKind::CallAggregate
+                    ) {
+                        scalar_call_declaration(semantic, constraint, constraints)
+                    } else {
+                        declaration(semantic, &selected_keys)
+                    },
+                )
             })
             .collect::<Result<Vec<_>, _>>()?,
     })
@@ -178,11 +184,16 @@ fn selected_keys(
         } else {
             crate::aarch64_darwin_register_unit_call_keys()
         },
-        call_i64: if matches!(target.object_format, ObjectFormat::Elf) {
+        call_scalar: (if matches!(target.object_format, ObjectFormat::Elf) {
             aarch64_aapcs64_register_call_keys()
         } else {
             crate::aarch64_darwin_register_call_keys()
-        },
+        })
+        .into_iter()
+        .chain(crate::aarch64_float_scalar_call_keys(
+            target.object_format == ObjectFormat::MachO,
+        ))
+        .collect(),
         materialize_i64: AARCH64_MATERIALIZE_I64,
         materialize_boolean: crate::AARCH64_MATERIALIZE_BOOLEAN,
         call_aggregate: crate::aarch64_register_aggregate_call_keys(
@@ -209,6 +220,9 @@ fn selected_keys(
         compare_i64: AARCH64_COMPARE_I64,
         conditional_branch: AARCH64_CONDITIONAL_BRANCH,
         jump: crate::AARCH64_JUMP,
+        return_float: crate::aarch64_float_scalar_return_keys(
+            target.object_format == ObjectFormat::MachO,
+        ),
         return_i64,
         return_unit,
     })
@@ -267,7 +281,7 @@ fn declaration(
             MachineSemanticKind::ConditionalBranchNonZero
                 | MachineSemanticKind::ConditionalBranchU64LessThan
                 | MachineSemanticKind::ConditionalBranchI64LessThan
-                | MachineSemanticKind::ReturnI64
+                | MachineSemanticKind::ReturnScalar
                 | MachineSemanticKind::Jump
                 | MachineSemanticKind::ReturnUnit
         ) {
@@ -344,7 +358,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         MachineSemanticKind::ConditionalBranchNonZero
         | MachineSemanticKind::ConditionalBranchU64LessThan
         | MachineSemanticKind::ConditionalBranchI64LessThan
-        | MachineSemanticKind::ReturnI64
+        | MachineSemanticKind::ReturnScalar
         | MachineSemanticKind::ReturnAggregate
         | MachineSemanticKind::Jump
         | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
@@ -357,7 +371,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::CallUnit => {
             panic!("memory and Unit call forms are not admitted on this target")
         }
-        MachineSemanticKind::CallI64 | MachineSemanticKind::CallAggregate => {
+        MachineSemanticKind::CallScalar | MachineSemanticKind::CallAggregate => {
             panic!("scalar calls use their dedicated declaration")
         }
     };
@@ -398,7 +412,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
                 MachineEncodedControlEffect::ConditionalRelativeBranchV1,
             )
         }
-        MachineSemanticKind::ReturnI64 | MachineSemanticKind::ReturnUnit => (
+        MachineSemanticKind::ReturnScalar | MachineSemanticKind::ReturnUnit => (
             units("x30"),
             units("pc"),
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
@@ -510,7 +524,7 @@ const fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         | MachineSemanticKind::CallUnit => {
             panic!("memory and Unit call forms are not admitted on this target")
         }
-        MachineSemanticKind::CallI64 | MachineSemanticKind::CallAggregate => {
+        MachineSemanticKind::CallScalar | MachineSemanticKind::CallAggregate => {
             panic!("scalar calls use their dedicated declaration")
         }
         _ => MachineSizeKnowledge::ExactBytes(4),
@@ -659,7 +673,7 @@ mod tests {
             let scalar_call = catalog
                 .declarations
                 .iter()
-                .find(|row| row.semantic == MachineSemanticKind::CallI64);
+                .find(|row| row.semantic == MachineSemanticKind::CallScalar);
             {
                 let scalar_call = scalar_call.expect("supported target declares scalar call");
                 assert_eq!(

@@ -100,7 +100,8 @@ impl LegalizedScalarInstruction {
                         .iter()
                         .any(|argument| matches!(argument, LegalizedScalarArgument::Scalar {source, ..} if *source == value)),
                     LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
-                    | LegalizedScalarInstructionKind::Compare { left, right, .. } => {
+                    | LegalizedScalarInstructionKind::Compare { left, right, .. }
+                    | LegalizedScalarInstructionKind::IeeeFloatCompare { left, right, .. } => {
                         *left == value || *right == value
                     }
         }
@@ -109,6 +110,12 @@ impl LegalizedScalarInstruction {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarInstructionKind {
+    IeeeFloatCompare {
+        comparison: semantic_vocabulary::IeeeFloatComparisonOperation,
+        format: semantic_vocabulary::IeeeFloatFormat,
+        left: ValueId,
+        right: ValueId,
+    },
     EstablishScalarArray {
         result: terminal_psi::StructuralOperationResult,
         elements: Vec<ValueId>,

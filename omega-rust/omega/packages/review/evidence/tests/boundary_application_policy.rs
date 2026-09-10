@@ -256,3 +256,128 @@ machine exercise() { let negative: f32 = F32::negate(1.0f32); }
         &PackageReviewBoundaryApplication::Empty
     );
 }
+
+const FLOAT_MATCH: &str = r#"
+use omega::language::core::float_operations;
+machine identity(value: f32) -> f32 { value }
+machine choose(value: f32, first: f32, second: f32) -> u64 {
+    match identity(value) {
+        identity(first) -> 7,
+        identity(second) -> 9,
+        _ -> 11
+    }
+}
+"#;
+
+#[test]
+fn float_match_applications_retain_selected_intrinsic_review() {
+    let (_package, checked) = compile(FLOAT_MATCH);
+    let policy = project(&checked);
+    let [application] = policy.realizations() else {
+        panic!("equal complete arm realizations share one policy row");
+    };
+    assert!(matches!(
+        application.realization(),
+        PackagePolicyBoundaryRealization::ExactCompilerIntrinsic {
+            execution: PackageReviewCompilerIntrinsicExecution::PrimitiveFloatBinary { .. }
+        }
+    ));
+}
+
+#[test]
+fn float_match_review_rejects_substituted_arm_and_selected_plan() {
+    for corrupt_arm in [false, true] {
+        let (_package, mut checked) = compile(FLOAT_MATCH);
+        project_checked_boundary_application_policy(
+            &checked,
+            TargetProfile::WindowsX64,
+            package_identity(),
+        )
+        .expect("unmodified Match review must succeed before corruption");
+        if corrupt_arm {
+            let application =
+                checked
+                    .facts
+                    .operators
+                    .boundary_applications
+                    .iter_mut()
+                    .find(|application| {
+                        matches!(application.site,
+                    checked_trees::CheckedBoundaryOperatorApplicationUseSite::MatchEquality { .. })
+                    })
+                    .expect("implicit application");
+            let checked_trees::CheckedBoundaryOperatorApplicationUseSite::MatchEquality {
+                source_arm,
+                ..
+            } = &mut application.site
+            else {
+                panic!("Match");
+            };
+            *source_arm = Default::default();
+        } else {
+            let operator_use = checked
+                .facts
+                .operators
+                .uses
+                .iter()
+                .find(|(_, operator_use)| {
+                    matches!(
+                        operator_use.occurrence,
+                        checked_trees::CheckedOperatorOccurrence::MatchEquality { .. }
+                    )
+                })
+                .map(|(handle, _)| handle)
+                .expect("implicit use");
+            checked
+                .facts
+                .operators
+                .uses
+                .get_mut(operator_use)
+                .provider_plan_report_fingerprint ^= 1;
+        }
+        assert!(
+            project_checked_boundary_application_policy(
+                &checked,
+                TargetProfile::WindowsX64,
+                package_identity(),
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
+fn float_match_review_rejects_lost_enclosing_source_extent() {
+    let (_package, mut checked) = compile(FLOAT_MATCH);
+    project_checked_boundary_application_policy(
+        &checked,
+        TargetProfile::WindowsX64,
+        package_identity(),
+    )
+    .expect("unmodified Match source custody");
+    let expression = checked
+        .facts
+        .operators
+        .uses
+        .iter()
+        .find(|(_, operator_use)| {
+            matches!(
+                operator_use.occurrence,
+                checked_trees::CheckedOperatorOccurrence::MatchEquality { .. }
+            )
+        })
+        .map(|(_, operator_use)| operator_use.expression)
+        .expect("Match root");
+    checked
+        .typed
+        .expression_table
+        .set_source_span(expression, Default::default());
+    assert!(
+        project_checked_boundary_application_policy(
+            &checked,
+            TargetProfile::WindowsX64,
+            package_identity()
+        )
+        .is_err()
+    );
+}

@@ -216,6 +216,13 @@ pub(super) fn check(
                         .ok_or(WholeFunctionExitContractError::OffsetOverflow)?;
                     returned::check(
                         context,
+                        super::super::validation_rules::scalar_return_view(
+                            physical,
+                            machine.target,
+                            &function.virtual_registers,
+                            instruction,
+                            context.result_view,
+                        )?,
                         machine.target.architecture,
                         block.id,
                         edge,
@@ -228,7 +235,7 @@ pub(super) fn check(
                     )?;
                 } else if matches!(
                     instruction.kind,
-                    SelectedInstructionKind::CallI64 { .. }
+                    SelectedInstructionKind::CallScalar { .. }
                         | SelectedInstructionKind::CallUnit { .. }
                         | SelectedInstructionKind::CallAggregate { .. }
                 ) {

@@ -499,7 +499,7 @@ pub fn encode_aarch64_selected_form(
         return float_bits::encode(physical, kind, alternative, operands);
     }
     validate_request(physical, kind, alternative, operands)?;
-    let registers = resolve_registers(physical, operands)?;
+    let registers = resolve_scalar_registers(physical, kind, operands)?;
     validate_return_home(kind, &registers)?;
     let bytes = encode_unchecked(kind, &registers)?;
     validate_aarch64_selected_form_encoding(physical, kind, alternative, operands, &bytes)
@@ -516,7 +516,7 @@ pub fn validate_aarch64_selected_form_encoding(
         return float_bits::validate(physical, kind, alternative, operands, bytes);
     }
     validate_request(physical, kind, alternative, operands)?;
-    let registers = resolve_registers(physical, operands)?;
+    let registers = resolve_scalar_registers(physical, kind, operands)?;
     validate_return_home(kind, &registers)?;
     let decoded = decode_words(bytes)?;
     validate_decoded(kind, &registers, &decoded)?;
@@ -593,7 +593,7 @@ fn family_and_operand_count(
         SelectedInstructionKind::ExactSubtractI64Immediate { .. } => {
             (MachineAlternativeFamily::ExactSubtractI64Immediate, 2)
         }
-        SelectedInstructionKind::ReturnI64 => (MachineAlternativeFamily::ReturnI64, 1),
+        SelectedInstructionKind::ReturnScalar => (MachineAlternativeFamily::ReturnScalar, 1),
         SelectedInstructionKind::ReturnAggregate { fragment_count } => {
             if !(1..=2).contains(&fragment_count) {
                 return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
@@ -634,7 +634,7 @@ fn family_and_operand_count(
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::Jump
         | SelectedInstructionKind::CallAggregate { .. }
-        | SelectedInstructionKind::CallI64 { .. } => {
+        | SelectedInstructionKind::CallScalar { .. } => {
             return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
         }
     })
@@ -644,7 +644,7 @@ fn validate_return_home(
     kind: SelectedInstructionKind,
     registers: &[u8],
 ) -> Result<(), Aarch64SelectedFormEncodingError> {
-    if matches!(kind, SelectedInstructionKind::ReturnI64) && registers != [0] {
+    if matches!(kind, SelectedInstructionKind::ReturnScalar) && registers != [0] {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
     }
     if let SelectedInstructionKind::ReturnAggregate { fragment_count } = kind
@@ -654,6 +654,24 @@ fn validate_return_home(
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
     }
     Ok(())
+}
+
+fn resolve_scalar_registers(
+    physical: &ValidatedPhysicalRegisterModel,
+    kind: SelectedInstructionKind,
+    operands: &[RegisterViewId],
+) -> Result<Vec<u8>, Aarch64SelectedFormEncodingError> {
+    // RET does not encode the returned register. The exact constraint row
+    // retains its ABI class; accept only the canonical floating result home.
+    if kind == SelectedInstructionKind::ReturnScalar
+        && physical
+            .model()
+            .view_named("d0")
+            .is_some_and(|view| operands == [view.id])
+    {
+        return Ok(vec![0]);
+    }
+    resolve_registers(physical, operands)
 }
 
 fn resolve_registers(
@@ -788,7 +806,7 @@ fn encode_unchecked(
                     | u32::from(registers[1]),
             );
         }
-        SelectedInstructionKind::ReturnI64
+        SelectedInstructionKind::ReturnScalar
         | SelectedInstructionKind::ReturnAggregate { .. }
         | SelectedInstructionKind::ReturnUnit => words.push(0xd65f_03c0),
         SelectedInstructionKind::ConditionalBranchNonZero
@@ -817,7 +835,7 @@ fn encode_unchecked(
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::CallAggregate { .. }
-        | SelectedInstructionKind::CallI64 { .. } => {
+        | SelectedInstructionKind::CallScalar { .. } => {
             return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
         }
     }
@@ -1232,7 +1250,7 @@ fn validate_decoded(
                     destination: registers[1],
                 }]
         }
-        SelectedInstructionKind::ReturnI64
+        SelectedInstructionKind::ReturnScalar
         | SelectedInstructionKind::ReturnAggregate { .. }
         | SelectedInstructionKind::ReturnUnit => decoded == [DecodedWord::Return],
         SelectedInstructionKind::ConditionalBranchNonZero
@@ -1259,7 +1277,7 @@ fn validate_decoded(
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::CallAggregate { .. }
-        | SelectedInstructionKind::CallI64 { .. } => false,
+        | SelectedInstructionKind::CallScalar { .. } => false,
     };
     if valid {
         Ok(())
@@ -1388,7 +1406,7 @@ fn footprint(
         | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => {
             (vec![operands[0]], vec![operands[1]], false)
         }
-        SelectedInstructionKind::ReturnI64
+        SelectedInstructionKind::ReturnScalar
         | SelectedInstructionKind::ReturnAggregate { .. }
         | SelectedInstructionKind::ReturnUnit => (vec![], vec![], false),
         SelectedInstructionKind::ConditionalBranchNonZero
@@ -1415,13 +1433,13 @@ fn footprint(
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::CallAggregate { .. }
-        | SelectedInstructionKind::CallI64 { .. } => (vec![], vec![], false),
+        | SelectedInstructionKind::CallScalar { .. } => (vec![], vec![], false),
     };
     let physical = aarch64_physical_register_model();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
     let encoded = if matches!(
         kind,
-        SelectedInstructionKind::ReturnI64
+        SelectedInstructionKind::ReturnScalar
             | SelectedInstructionKind::ReturnAggregate { .. }
             | SelectedInstructionKind::ReturnUnit
     ) {
@@ -1549,7 +1567,7 @@ mod tests {
         assert_eq!(
             encode_aarch64_selected_form(
                 &physical,
-                SelectedInstructionKind::CallI64 {
+                SelectedInstructionKind::CallScalar {
                     callee: MachineId::new(1).unwrap(),
                 },
                 alternative(MachineAlternativeFamily::ReturnUnit),
@@ -2040,8 +2058,8 @@ mod tests {
         let x1 = physical.model().view_named("x1").unwrap().id;
         let x30 = physical.model().view_named("x30").unwrap();
         let pc = physical.model().view_named("pc").unwrap();
-        let kind = SelectedInstructionKind::ReturnI64;
-        let alternative = alternative(MachineAlternativeFamily::ReturnI64);
+        let kind = SelectedInstructionKind::ReturnScalar;
+        let alternative = alternative(MachineAlternativeFamily::ReturnScalar);
         let encoded = encode_aarch64_selected_form(&physical, kind, alternative, &[x0]).unwrap();
 
         assert_eq!(encoded.bytes(), [0xc0, 0x03, 0x5f, 0xd6]);
@@ -2109,7 +2127,7 @@ mod tests {
             encode_aarch64_selected_form(
                 &physical,
                 kind,
-                alternative(MachineAlternativeFamily::ReturnI64),
+                alternative(MachineAlternativeFamily::ReturnScalar),
                 &[]
             )
             .is_err()

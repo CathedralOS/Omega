@@ -22,7 +22,7 @@ pub(crate) fn successor_parameter_function() -> SelectedFunction {
     jump.operands.clear();
     let mut return_instruction = jump.clone();
     return_instruction.id = SelectedInstructionId(1);
-    return_instruction.kind = SelectedInstructionKind::ReturnI64;
+    return_instruction.kind = SelectedInstructionKind::ReturnScalar;
     return_instruction.operands.push(SelectedOperand {
         operand: 0,
         virtual_register: VirtualRegisterId(2),

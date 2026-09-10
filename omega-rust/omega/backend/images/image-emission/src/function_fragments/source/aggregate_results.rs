@@ -86,7 +86,7 @@ pub(super) fn operation(
                         } && cleanup_actions.is_empty())).count() == 1
                 && selected.blocks.iter().filter(|block| matches!(&block.terminator,
                     SelectedTerminator::Return { psi_return_edge, instruction }
-                        if psi_return_edge == psi_edge && (matches!(instruction.kind, selected_instructions::SelectedInstructionKind::ReturnAggregate { .. } | selected_instructions::SelectedInstructionKind::ReturnI64)
+                        if psi_return_edge == psi_edge && (matches!(instruction.kind, selected_instructions::SelectedInstructionKind::ReturnAggregate { .. } | selected_instructions::SelectedInstructionKind::ReturnScalar)
                             || (instruction.kind == selected_instructions::SelectedInstructionKind::ReturnUnit
                                 && instruction.operands.is_empty()
                                 && selected.structural.as_ref().is_some_and(|contract| contract.result.is_some())

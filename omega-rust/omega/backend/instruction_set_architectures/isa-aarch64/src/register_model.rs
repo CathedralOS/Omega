@@ -12,9 +12,11 @@ use register_model::{
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
+mod float_scalar_calls;
 #[cfg(test)]
 mod float_transport_tests;
 mod mixed_calls;
+pub use float_scalar_calls::*;
 pub use mixed_calls::*;
 
 pub const AARCH64_LOAD8: RegisterConstraintKey = RegisterConstraintKey {
@@ -1429,6 +1431,7 @@ pub fn aarch64_register_constraint_catalog(
         });
     }
     mixed_calls::append_constraints(&mut constraints, model);
+    float_scalar_calls::append_constraints(&mut constraints, model);
     constraints.sort_by_key(|constraint| constraint.key);
     for (id, constraint) in constraints.iter_mut().enumerate() {
         constraint.id =
@@ -1441,6 +1444,8 @@ pub fn aarch64_register_constraint_catalog(
             required.extend(aarch64_aapcs64_mixed_unit_call_keys());
             required.extend(aarch64_darwin_mixed_unit_call_keys());
             for darwin in [false, true] {
+                required.extend(aarch64_float_scalar_call_keys(darwin));
+                required.extend(aarch64_float_scalar_return_keys(darwin));
                 required.extend(aarch64_register_aggregate_call_keys(darwin));
                 required.extend(aarch64_mixed_aggregate_call_keys(darwin));
                 required.extend(aarch64_register_aggregate_return_keys(darwin));
@@ -1469,21 +1474,18 @@ pub fn validate_aarch64_register_constraint_catalog(
     let validated = validate_register_constraint_catalog(catalog, model)
         .map_err(Aarch64RegisterConstraintCatalogValidationError::Structural)?;
     let canonical = aarch64_register_constraint_catalog(model);
+    // Structural validation requires strictly sorted, unique actual keys;
+    // the canonical factory sorts its rows before publication.
+    let actual_rows = &validated.catalog().constraints;
     for key in canonical.required.iter().copied() {
-        let Some(actual) = validated
-            .catalog()
-            .constraints
-            .iter()
-            .find(|constraint| constraint.key == key)
-        else {
+        let Ok(actual_position) = actual_rows.binary_search_by_key(&key, |row| row.key) else {
             return Err(Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(key));
         };
-        let expected = canonical
+        let expected_position = canonical
             .constraints
-            .iter()
-            .find(|constraint| constraint.key == key)
+            .binary_search_by_key(&key, |row| row.key)
             .expect("target-owned inventory and rows are closed together");
-        if actual != expected {
+        if actual_rows[actual_position] != canonical.constraints[expected_position] {
             return Err(Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(key));
         }
     }
@@ -1676,6 +1678,10 @@ mod tests {
         assert_eq!(
             catalog.required.len(),
             AARCH64_REQUIRED_REGISTER_CONSTRAINTS.len()
+                + aarch64_float_scalar_call_keys(false).len()
+                + aarch64_float_scalar_call_keys(true).len()
+                + aarch64_float_scalar_return_keys(false).len()
+                + aarch64_float_scalar_return_keys(true).len()
                 + aarch64_aapcs64_mixed_unit_call_keys().len()
                 + aarch64_darwin_mixed_unit_call_keys().len()
                 + aarch64_register_aggregate_call_keys(false).len()
