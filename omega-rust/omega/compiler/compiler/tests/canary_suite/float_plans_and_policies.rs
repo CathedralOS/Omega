@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "float_match_interpreter.rs"]
+mod float_match_interpreter;
+
 #[path = "../fixture_rosters/float_plans_and_policies.rs"]
 pub(super) mod fixture_roster;
 
@@ -131,6 +134,16 @@ fn float_operator_spellings_record_named_core_identities() {
         !semantic_fma.is_boundary,
         "FloatSemantics is pure core computation, not a target boundary"
     );
+}
+
+#[test]
+fn float_match_checked_interpreter_executes_selected_arm_comparisons() {
+    let canary = pass_canary("expressions/match_float_patterns");
+    let checked = compile_to_checked(&canary.join("main.omg"), Some("macos_arm64"))
+        .expect("float match selects its ordinary core provider");
+    let outcome = checked_interpreter::interpret_entry(&checked, "launch", &[]);
+    assert_eq!(outcome.error, None, "selected Match equality must execute");
+    assert_eq!(outcome.exit_code, 0);
 }
 
 #[test]

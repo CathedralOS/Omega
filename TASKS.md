@@ -1175,9 +1175,8 @@ Owners include
   conditional transfers into a whole-statement move/discard roster.
 
   Floating dispatch next acceptance is crash-qualified equality and contract
-  guarantees with arm-local execution custody, plus the separately fenced
-  checked-source interpreter. Extend the existing selected comparison graph,
-  not raw unselected equality or a fabricated source call. Preserve the native
+  guarantees with arm-local execution custody. Extend the existing selected
+  comparison graph, not raw unselected equality or a fabricated source call. Preserve the native
   customer in `tests/omega/pass/expressions/match_float_patterns/main.omg` and
   its [portable/native commands](omega-rust/omega/compiler/compiler/float_realization.md#operation-and-control-custody).
 
