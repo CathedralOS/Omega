@@ -23,58 +23,6 @@ design is ahead of its implementation; native support is still being completed.
 [Examples](samples/) ·
 [Contributing](#development)
 
-## Check an architecture, not just a function
-
-Build API, Authorization, and Billing independently. Require every permitted
-invocation route from API to Billing to pass through Authorization:
-
-```mermaid
-flowchart LR
-        api[API] --> authorization[Authorization] --> billing[Billing]
-        api -. rejected bypass .-> billing
-```
-
-An ordinary build-only topology library expresses the rule over verified
-component instances. Its composition is sketched here, not new Omega syntax:
-
-```text
-bind API.authorization -> Authorization.requests
-bind Authorization.billing -> Billing.requests
-require only_via({API}, {Billing}, {Authorization})
-```
-
-Adding `API -> Logging -> Billing` must fail too. Disconnecting Billing does not
-make the rule pass: `only_via` also requires a route to exist. Package names,
-matching interfaces, and a diagram alone establish neither rule.
-
-The important part is what connects this graph to the running system:
-
-- **Check independently built code.** Component evidence accounts for all entries
-    and outgoing authority, including callbacks, cleanup, and selected providers.
-    An independent consumer checks it without merging the services' source trees.
-- **Run the checker as ordinary build code.** A `build_depend` grants library
-    access to the build, not the application. Give it captured component inputs
-    and one linear output obligation, not network access or deployment credentials.
-- **Enforce the actual connections.** The installer receives the owner's required
-    policy independently of the plan, rechecks it, and establishes complete endpoint
-    bindings before allowing application entry. Publishing a plan grants no authority.
-
-Graph algorithms and codecs stay in a library. The compiler establishes complete
-component facts; the selected providers establish physical endpoint confinement.
-The first runtime customer is three checked processes with private pipes on
-Windows and macOS, not a compiler-owned distributed orchestrator.
-
-This proves a routing restriction, not that a charge was approved. Billing still
-needs authorization evidence for the exact account, amount, and operation; a
-permitted reply can still disclose a secret. Those are different contracts.
-
-**Specified, not yet implemented end to end.** The example depends on complete
-component verification and admitted installation/OS contracts; it does not claim
-to confine arbitrary native code merely by giving it a pipe.
-[Topology contract](wiki/spec/packages/topology.md) ·
-[Build isolation and outputs](wiki/spec/build/scoped_execution.md) ·
-[Implementation work](TASKS.md#checked-boundary-topology)
-
 ## Machines
 
 A machine defines behavior, its inputs, and its contract. A simple machine looks like an ordinary function or method:
@@ -101,8 +49,8 @@ machine Player::take_damage(&mut self, amount: u32)
 The caller can establish the condition through a branch or facts already known. An unproved call is a compile error, not an automatically inserted runtime assertion.
 
 For longer control flow, machines contain named states and explicit transitions. Transfers carry values and ownership without growing the call stack.
-- [Machines](wiki/language_guide/chapter_3_machines.md)
-- [States and transitions](wiki/language_guide/chapter_4_states_transitions.md)
+[Machines](wiki/language_guide/chapter_3_machines.md)
+[States and transitions](wiki/language_guide/chapter_4_states_transitions.md)
 
 ## Domains and invariants
 
@@ -173,6 +121,55 @@ The same model extends to
 and [provider selection under build policy](wiki/language_guide/chapter_19_capabilities_effects_boundaries.md).
 [Device loans](wiki/spec/resources/device_access.md) ·
 [Concurrency](wiki/language_guide/chapter_18_concurrency.md)
+
+
+## Checks across multiple binaries & services
+
+API, Authorization, and My Account will be independently built services.
+Omega will check that every permitted invocation route from API to My Account
+passes through Authorization:
+
+```mermaid
+flowchart LR
+        api[API] --> authorization[Authorization] --> account[My Account]
+        api -. rejected bypass .-> account
+```
+
+An ordinary build-only topology library will express the rule over verified
+component instances. In schematic form:
+
+```text
+bind API.authorization -> Authorization.requests
+bind Authorization.account -> MyAccount.requests
+require only_via({API}, {MyAccount}, {Authorization})
+```
+
+Adding `API -> Logging -> MyAccount` will fail too. Disconnecting My Account
+will not make the rule pass: `only_via` also requires a route to exist.
+
+The check will extend beyond the diagram:
+
+- **Check independently built code.** Component evidence will account for all entries
+    and outgoing authority, including callbacks, cleanup, and selected providers.
+    An independent consumer will check it without merging the services' source trees.
+- **Run the checker as ordinary build code.** A `build_depend` will grant library
+    access to the build, not the application. The helper will receive captured
+    component inputs and a linear output obligation, not deployment credentials.
+- **Enforce the actual connections.** The installer will receive the owner's
+    required policy independently of the plan, recheck it, and establish complete
+    endpoint bindings before allowing application entry. Publishing a plan will
+    grant no authority.
+
+Graph algorithms and codecs will stay in a library. The compiler will establish
+complete component facts; selected providers will enforce the actual connections
+under explicit OS and transport contracts.
+
+The topology will make Authorization unavoidable. Its own contracts will still
+need to establish which user may perform which operation on which account.
+
+[Topology contract](wiki/spec/packages/topology.md) ·
+[Build isolation and outputs](wiki/spec/build/scoped_execution.md) ·
+[Implementation work](TASKS.md#checked-boundary-topology)
 
 ## Failures Omega addresses
 
