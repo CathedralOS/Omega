@@ -68,13 +68,8 @@ pub(super) fn parse_state<'tokens, 'source>(
             return Err(input.error_here(
                 "explicit state bodies must use the `transition` keyword; bare `->` transitions are only allowed in implicit entry",
             ));
-        } else if input.at_keyword(KeywordKind::Transition) || input.at_keyword(KeywordKind::Match)
-        {
-            let next = if input.at_keyword(KeywordKind::Transition) {
-                input.take_keyword(KeywordKind::Transition, "transition")?
-            } else {
-                input.take_keyword(KeywordKind::Match, "match")?
-            };
+        } else if input.at_keyword(KeywordKind::Transition) {
+            let next = input.take_keyword(KeywordKind::Transition, "transition")?;
             let (new_statements, rest) = parse_transition_block_handles(syntax_trees, next)?;
             if !new_statements.is_empty() {
                 if statement_count == 0 {

@@ -107,6 +107,11 @@ fn record_expression_owner(
         };
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            for child in crate::expression_types::match_children(program, *dispatch) {
+                visit!(child);
+            }
+        }
         ExpressionNode::ArrayLiteral(elements) => {
             for element in program.expression_table.expression_handles(*elements) {
                 visit!(*element);
@@ -863,6 +868,11 @@ fn push_expected_call(
     expected: &mut Vec<(ExpressionHandle, TypeReferenceHandle)>,
 ) {
     match program.expression_table.expression(value) {
+        ExpressionNode::Match(dispatch) => {
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                push_expected_call(program, arm.value, expected_type, expected);
+            }
+        }
         ExpressionNode::Borrow(inner) => {
             push_expected_call(program, inner.target, expected_type, expected)
         }

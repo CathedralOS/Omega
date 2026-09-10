@@ -147,6 +147,11 @@ fn validate_expression(
         return;
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            for child in crate::expression_types::match_children(program, *dispatch) {
+                validate_expression(program, machine, state, child, false, diagnostics);
+            }
+        }
         ExpressionNode::Atomic(atomic) => {
             if matches!(atomic.ordering, AtomicOrderingPlan::Load(_)) {
                 if let Some(field) =

@@ -34,6 +34,18 @@ fn expression_type_reference_in_state(
     }
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => program
+            .expression_table
+            .match_arms(dispatch.arms)
+            .iter()
+            .find_map(|arm| {
+                expression_type_reference_in_state(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    arm.value,
+                )
+            }),
         ExpressionNode::Atomic(atomic) => {
             expression_type_reference_in_state(program, state_symbol, statement_index, atomic.value)
         }

@@ -9,135 +9,59 @@ use numerics::literals::IntegerLiteral;
 use source::{SourceSpan, Span};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableStructLiteral,
-    TableStructLiteralField,
+    ExpressionHandle, ExpressionNode, TableStructLiteral, TableStructLiteralField,
 };
 use syntax_trees::identifier::Identifier;
 use tokens::{KeywordKind, NumericLiteralKind, PunctuationKind, TokenKind};
 
-/// Parse a value-position `match` and desugar it into pure arithmetic over the
-/// existing expression nodes — no dedicated match node or codegen is needed.
-///
-/// For distinct constant patterns exactly one arm matches, and a comparison
-/// (`scrutinee == pattern`) evaluates to 0 or 1, so
-///   `match s { p1 -> v1, p2 -> v2, _ -> d }`
-/// is equivalent to
-///   `d + (s == p1) * (v1 - d) + (s == p2) * (v2 - d)`.
-/// The default `d` is the wildcard arm's value, or the last arm's value when the
-/// match is exhaustive without a wildcard (e.g. one arm per enum variant).
+/// Retain authored dispatch order and source custody for semantic checking.
 fn parse_match_expression_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
+    let start = input;
     let input = input.take_keyword(KeywordKind::Match, "match")?;
-    let (scrutinee, input) = parse_expression_handle_without_struct_literals(syntax_trees, input)?;
+    let (subject, input) = parse_expression_handle_without_struct_literals(syntax_trees, input)?;
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-
-    // Collect arms as (pattern, value); a `None` pattern is the `_` wildcard.
-    let mut arms: Vec<(Option<ExpressionHandle>, ExpressionHandle)> = Vec::new();
+    let mut arms = Vec::new();
     while !input.at_punctuation(PunctuationKind::RightBrace) {
+        let arm_start = input;
         let (pattern, rest) = if input.at_contextual("_") {
-            (None, input.take_contextual("_")?)
+            (
+                syntax_trees::expression::MatchPattern::Wildcard,
+                input.take_contextual("_")?,
+            )
         } else {
             let (pattern, rest) =
                 parse_expression_handle_without_struct_literals(syntax_trees, input)?;
-            (Some(pattern), rest)
+            (syntax_trees::expression::MatchPattern::Value(pattern), rest)
         };
         let rest = rest.take_punctuation(PunctuationKind::Arrow, "->")?;
         let (value, rest) = parse_expression_handle(syntax_trees, rest)?;
-        // Arms may be separated by an optional comma or just whitespace.
-        let rest = if rest.at_punctuation(PunctuationKind::Comma) {
+        arms.push(syntax_trees::expression::TableMatchArm {
+            pattern,
+            value,
+            source_span: arm_start.source_span_until(rest),
+        });
+        input = if rest.at_punctuation(PunctuationKind::Comma) {
             rest.take_punctuation(PunctuationKind::Comma, ",")?
         } else {
             rest
         };
-        arms.push((pattern, value));
-        input = rest;
     }
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-
     if arms.is_empty() {
         return Err(input.error_here("match expression must have at least one arm"));
     }
-
-    // Reject duplicate integer-literal patterns. The arithmetic desugar below ADDS
-    // a `(scrutinee == pattern) * (value - default)` term per non-default arm, so
-    // two arms with the SAME literal pattern both fire and the result is garbage
-    // (`match a { 0 -> 10, 0 -> 20, _ -> 30 }` yields 0 at a == 0, not 10 or 20).
-    // Only literal patterns are compared; a non-literal pattern is left alone.
-    // Anonymous literals (D14) compare by canonical spelling; same-value
-    // spellings across radixes are additionally caught through the i64 window
-    // (u64-magnitude cross-radix twins slip past, but those cannot type at a
-    // match pattern yet -- the oversize-literal gate rejects them first).
-    let mut seen_patterns: Vec<IntegerLiteral> = Vec::new();
-    for (pattern, _) in &arms {
-        if let Some(pattern) = pattern
-            && let ExpressionNode::Integer(value) = syntax_trees.expressions.expression(*pattern)
-        {
-            let duplicate = seen_patterns.iter().any(|seen| {
-                seen == value
-                    || (seen.value_i64().is_some() && seen.value_i64() == value.value_i64())
-            });
-            if duplicate {
-                return Err(input.error_here(format!(
-                    "duplicate match pattern `{value}`; each match pattern must be distinct"
-                )));
-            }
-            seen_patterns.push(value.clone());
-        }
-    }
-
-    // The default value is the wildcard arm if present, else the last arm.
-    let wildcard_index = arms.iter().position(|(pattern, _)| pattern.is_none());
-    let (default_value, default_index) = match wildcard_index {
-        Some(index) => (arms[index].1, index),
-        None => (arms[arms.len() - 1].1, arms.len() - 1),
-    };
-
-    let mut result = default_value;
-    for (index, (pattern, value)) in arms.iter().enumerate() {
-        if index == default_index {
-            continue;
-        }
-        let Some(pattern) = *pattern else {
-            // A second wildcard is meaningless; skip it.
-            continue;
-        };
-        let comparison =
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Binary(TableBinaryExpression {
-                    left: scrutinee,
-                    operator: BinaryOperator::Equal,
-                    right: pattern,
-                }));
-        let delta =
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Binary(TableBinaryExpression {
-                    left: *value,
-                    operator: BinaryOperator::Subtract,
-                    right: default_value,
-                }));
-        let term = syntax_trees
-            .expressions
-            .insert(ExpressionNode::Binary(TableBinaryExpression {
-                left: comparison,
-                operator: BinaryOperator::Multiply,
-                right: delta,
-            }));
-        result = syntax_trees
-            .expressions
-            .insert(ExpressionNode::Binary(TableBinaryExpression {
-                left: result,
-                operator: BinaryOperator::Add,
-                right: term,
-            }));
-    }
-
-    Ok((result, input))
+    let arms = syntax_trees.expressions.insert_match_arms(arms);
+    let expression = syntax_trees.expressions.insert(ExpressionNode::Match(
+        syntax_trees::expression::TableMatchExpression { subject, arms },
+    ));
+    syntax_trees
+        .expressions
+        .set_source_span(expression, start.source_span_until(input));
+    Ok((expression, input))
 }
-
 pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,

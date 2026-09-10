@@ -7,6 +7,7 @@ use syntax_trees::types::TypeReferenceNode;
 
 mod expression_stack;
 mod type_constraints;
+mod value_dispatch;
 
 #[test]
 fn tail_targets_preserve_other_receiver_calls_without_reclassifying_state_coordinates() {
@@ -4171,7 +4172,7 @@ fn parses_data_destructure_transition_guard_as_subject_member_guard() {
         }
 
         machine Main::main(&mut self) {
-            match self.player {
+            transition self.player {
                 Player::Alive -> done()
                 Player { health, .. } if health > 5 -> done()
                 _ -> done()

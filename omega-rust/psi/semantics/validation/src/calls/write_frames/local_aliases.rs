@@ -136,6 +136,20 @@ pub(super) fn expression_has_exclusive_borrow(
             continue;
         }
         match program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                for arm in program
+                    .expression_table
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .rev()
+                {
+                    pending.push(arm.value);
+                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                        pending.push(pattern);
+                    }
+                }
+                pending.push(dispatch.subject);
+            }
             ExpressionNode::Borrow(inner) => {
                 if inner.access.is_exclusive() && is_reference_binding(inner.target) {
                     return true;
@@ -185,6 +199,11 @@ pub(super) fn expression_may_rebind_mutable_alias(
     expression: ExpressionHandle,
 ) -> bool {
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => program
+            .expression_table
+            .match_arms(dispatch.arms)
+            .iter()
+            .any(|arm| expression_may_rebind_mutable_alias(program, machine, state, arm.value)),
         ExpressionNode::Borrow(_) => true,
         ExpressionNode::Call(_)
         | ExpressionNode::Name(_)

@@ -214,6 +214,14 @@ pub enum FactPayload {
         expression: ExpressionHandle,
         value: bool,
     },
+    /// The selected result of one exact source match comparison. This is a
+    /// branch-local observation, not a synthesized expression in the immutable
+    /// typed tree; its storage dependencies determine how long it stays live.
+    MatchPattern {
+        expression: ExpressionHandle,
+        arm: Handle<typed_trees::expression::TableMatchArm>,
+        matched: bool,
+    },
     DomainMembership {
         value: ExpressionHandle,
         domain: HandleSpan<Identifier>,
@@ -274,6 +282,50 @@ pub enum FactPayload {
     },
 }
 
+impl FactPayload {
+    /// Resolve a comparison only when its arm belongs to the named dispatch.
+    /// Handles from another dispatch (or arena generation) confer no evidence.
+    pub fn match_pattern_comparison(
+        self,
+        program: &typed_trees::TypedTrees,
+    ) -> Option<(ExpressionHandle, ExpressionHandle, bool)> {
+        let Self::MatchPattern {
+            expression,
+            arm,
+            matched,
+        } = self
+        else {
+            return None;
+        };
+        if !program.expression_table.expression_is_valid(expression) {
+            return None;
+        }
+        let typed_trees::expression::ExpressionNode::Match(dispatch) =
+            program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        if arm.generation() != dispatch.arms.start().generation() {
+            return None;
+        }
+        let ordinal = arm
+            .arena_index()
+            .checked_sub(dispatch.arms.start().arena_index())?;
+        let source = program
+            .expression_table
+            .match_arms(dispatch.arms)
+            .get(ordinal as usize)?;
+        let typed_trees::expression::MatchPattern::Value(pattern) = source.pattern else {
+            return None;
+        };
+        (program
+            .expression_table
+            .expression_is_valid(dispatch.subject)
+            && program.expression_table.expression_is_valid(pattern))
+        .then_some((dispatch.subject, pattern, matched))
+    }
+}
+
 impl Default for FactPayload {
     fn default() -> Self {
         Self::BooleanExpression(ExpressionHandle::invalid())
@@ -324,6 +376,7 @@ impl QualificationPayloadIdentity {
             | FactPayload::StorageDependency { .. }
             | FactPayload::BytePredicate { .. }
             | FactPayload::BooleanValue { .. }
+            | FactPayload::MatchPattern { .. }
             | FactPayload::BooleanExpression(_)
             | FactPayload::PropositionApplication { .. }
             | FactPayload::TypeConstraint { .. }

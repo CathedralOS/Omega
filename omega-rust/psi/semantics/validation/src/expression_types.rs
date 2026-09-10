@@ -10,7 +10,11 @@ use typed_trees::types::{
 mod cast_validation;
 mod float_cast_proofs;
 mod float_destinations;
+mod match_dispatch;
 mod operator_validation;
+pub(crate) use match_dispatch::match_children;
+pub use match_dispatch::match_subject_primitive_type;
+pub(crate) use match_dispatch::validate_match_dispatch;
 mod reference_values;
 mod shape_validation;
 mod value_classification;
@@ -60,6 +64,19 @@ pub fn argument_matches_type_reference_handle(
     argument: ExpressionHandle,
     type_reference: TypeReferenceHandle,
 ) -> bool {
+    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(argument) {
+        if matches!(
+            program.type_reference_table.type_reference(type_reference),
+            TypeReferenceNode::Reference { .. }
+        ) {
+            return false;
+        }
+        let arms = program.expression_table.match_arms(dispatch.arms);
+        return !arms.is_empty()
+            && arms.iter().all(|arm| {
+                argument_matches_type_reference_handle(program, arm.value, type_reference)
+            });
+    }
     if let ExpressionNode::Borrow(inner_expression) = program.expression_table.expression(argument)
     {
         let TypeReferenceNode::Reference {
@@ -412,6 +429,7 @@ pub(crate) fn expression_type_name_handle(
     argument: ExpressionHandle,
 ) -> &'static str {
     match program.expression_table.expression(argument) {
+        ExpressionNode::Match(_) => "match expression",
         ExpressionNode::Atomic(atomic) => expression_type_name_handle(program, atomic.value),
         ExpressionNode::ArrayLiteral(_) => "array literal",
         ExpressionNode::Binary(_) => "binary expression",

@@ -398,6 +398,24 @@ fn expression_symbol_trace(
 ) -> String {
     let trace = |expression| expression_symbol_trace(program, expression, values);
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            let arms = program
+                .expression_table
+                .match_arms(dispatch.arms)
+                .iter()
+                .map(|arm| {
+                    let pattern = match arm.pattern {
+                        typed_trees::expression::MatchPattern::Value(pattern) => {
+                            format!("value:{}", trace(pattern))
+                        }
+                        typed_trees::expression::MatchPattern::Wildcard => "wildcard".to_owned(),
+                    };
+                    format!("({pattern}=>{})", trace(arm.value))
+                })
+                .collect::<Vec<_>>()
+                .join(",");
+            format!("match:{}:[{arms}]", trace(dispatch.subject))
+        }
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
             if members.len() == 1

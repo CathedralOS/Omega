@@ -816,6 +816,32 @@ pub(super) fn rewrite_destructure_guard_expression(
     fields: &[DestructureBinding],
 ) -> ExpressionHandle {
     let rewritten = match syntax_trees.expressions.expression(expression).clone() {
+        ExpressionNode::Match(dispatch) => {
+            let saved_subject = rewrite_destructure_guard_expression(
+                syntax_trees,
+                dispatch.subject,
+                subject,
+                fields,
+            );
+            let mut arms = syntax_trees.expressions.match_arms(dispatch.arms).to_vec();
+            for arm in &mut arms {
+                if let syntax_trees::expression::MatchPattern::Value(pattern) = &mut arm.pattern {
+                    *pattern = rewrite_destructure_guard_expression(
+                        syntax_trees,
+                        *pattern,
+                        subject,
+                        fields,
+                    );
+                }
+                arm.value =
+                    rewrite_destructure_guard_expression(syntax_trees, arm.value, subject, fields);
+            }
+            let arms = syntax_trees.expressions.insert_match_arms(arms);
+            ExpressionNode::Match(syntax_trees::expression::TableMatchExpression {
+                subject: saved_subject,
+                arms,
+            })
+        }
         ExpressionNode::Atomic(atomic) => ExpressionNode::Atomic(TableAtomicExpression {
             value: rewrite_destructure_guard_expression(
                 syntax_trees,
@@ -973,7 +999,12 @@ pub(super) fn rewrite_destructure_guard_expression(
         | ExpressionNode::ZeroValue(_) => syntax_trees.expressions.expression(expression).clone(),
     };
 
-    syntax_trees.expressions.insert(rewritten)
+    let source_span = syntax_trees.expressions.source_span(expression);
+    let rewritten = syntax_trees.expressions.insert(rewritten);
+    syntax_trees
+        .expressions
+        .set_source_span(rewritten, source_span);
+    rewritten
 }
 
 fn rewrite_optional_expression(

@@ -329,6 +329,20 @@ fn expression_is_inert(
     }
     let inert = |expression| expression_is_inert(program, machine, expression);
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            inert(dispatch.subject)
+                && program
+                    .expression_table
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .all(|arm| {
+                        let pattern_inert = match arm.pattern {
+                            typed_trees::expression::MatchPattern::Value(pattern) => inert(pattern),
+                            typed_trees::expression::MatchPattern::Wildcard => true,
+                        };
+                        pattern_inert && inert(arm.value)
+                    })
+        }
         ExpressionNode::Atomic(atomic) => inert(atomic.value),
         ExpressionNode::Name(_)
         | ExpressionNode::Integer(_)

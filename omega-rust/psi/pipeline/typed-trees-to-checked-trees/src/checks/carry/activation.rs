@@ -300,6 +300,15 @@ impl ActivationCarryAccumulator<'_> {
             return;
         }
         match self.program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                self.visit_expression(dispatch.subject);
+                for arm in self.program.expression_table.match_arms(dispatch.arms) {
+                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                        self.visit_expression(pattern);
+                    }
+                    self.visit_expression(arm.value);
+                }
+            }
             ExpressionNode::Atomic(atomic) => {
                 self.visit_expression(atomic.value);
                 self.visit_expression(atomic.result);

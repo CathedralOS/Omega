@@ -371,6 +371,27 @@ fn collect_expression_operator_use(
     }
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            collect_expression_operator_use(
+                program,
+                dispatch.subject,
+                origin,
+                seen,
+                uses,
+                named_uses,
+                candidates,
+            );
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    collect_expression_operator_use(
+                        program, pattern, origin, seen, uses, named_uses, candidates,
+                    );
+                }
+                collect_expression_operator_use(
+                    program, arm.value, origin, seen, uses, named_uses, candidates,
+                );
+            }
+        }
         ExpressionNode::Atomic(atomic) => collect_expression_operator_use(
             program,
             atomic.value,

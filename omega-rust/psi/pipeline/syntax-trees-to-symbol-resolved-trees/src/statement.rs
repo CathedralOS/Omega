@@ -1482,6 +1482,8 @@ fn collect_synthesizable_argument_calls(
     let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
     let mut visit = |child| collect_synthesizable_argument_calls(lowerer, child, calls);
     match expressions.expression(expression) {
+        // Expression-local branches cannot become an unconditional source call prefix.
+        ExpressionNode::Match(_) => return None,
         ExpressionNode::Atomic(atomic) => visit(atomic.value)?,
         ExpressionNode::ArrayLiteral(values) => {
             for value in expressions.expression_handles(*values) {
@@ -1552,6 +1554,12 @@ fn expression_contains_call(lowerer: &Lowerer, expression: ExpressionHandle) -> 
     let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
     let contains = |child| expression_contains_call(lowerer, child);
     match expressions.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            contains(dispatch.subject) || expressions.match_arms(dispatch.arms).iter().any(|arm| {
+                matches!(arm.pattern, symbol_resolved_trees::expression::MatchPattern::Value(pattern) if contains(pattern))
+                    || contains(arm.value)
+            })
+        }
         ExpressionNode::Call(_) => true,
         ExpressionNode::Atomic(atomic) => contains(atomic.value),
         ExpressionNode::ArrayLiteral(values) => expressions
@@ -1589,6 +1597,18 @@ fn collect_synthesized_argument_captures(
     let mut visit =
         |child| collect_synthesized_argument_captures(lowerer, child, captured_names, uses_self);
     match expressions.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            visit(dispatch.subject)
+                && expressions.match_arms(dispatch.arms).iter().all(|arm| {
+                    let pattern_captured = match arm.pattern {
+                        symbol_resolved_trees::expression::MatchPattern::Value(pattern) => {
+                            visit(pattern)
+                        }
+                        symbol_resolved_trees::expression::MatchPattern::Wildcard => true,
+                    };
+                    pattern_captured && visit(arm.value)
+                })
+        }
         ExpressionNode::Atomic(atomic) => visit(atomic.value),
         ExpressionNode::ArrayLiteral(values) => expressions
             .expression_handles(*values)

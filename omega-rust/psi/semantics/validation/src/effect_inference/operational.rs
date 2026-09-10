@@ -258,6 +258,11 @@ fn collect_expression_calls(
     }
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            for child in crate::expression_types::match_children(program, *dispatch) {
+                collect_expression_calls(program, child, statement_index, call_ordinal, calls);
+            }
+        }
         ExpressionNode::Atomic(atomic) => {
             collect_expression_calls(program, atomic.value, statement_index, call_ordinal, calls);
         }

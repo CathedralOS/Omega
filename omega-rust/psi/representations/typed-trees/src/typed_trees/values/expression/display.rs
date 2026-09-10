@@ -8,6 +8,23 @@ use crate::name::Identifier;
 impl Expression {
     pub fn display_name(&self) -> String {
         match self {
+            Expression::Match(dispatch) => {
+                let arms = dispatch
+                    .arms
+                    .iter()
+                    .map(|arm| {
+                        let pattern = match &arm.pattern {
+                            crate::expression::OwnedMatchPattern::Value(value) => {
+                                value.display_name()
+                            }
+                            crate::expression::OwnedMatchPattern::Wildcard => "_".to_owned(),
+                        };
+                        format!("{pattern} => {}", arm.value.display_name())
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("match {} {{ {arms} }}", dispatch.subject.display_name())
+            }
             Expression::ArrayLiteral(values) => {
                 bracketed_display_names(values.iter(), Expression::display_name)
             }
@@ -50,6 +67,26 @@ impl Expression {
 impl ExpressionNode {
     pub fn display_name(&self, table: &ExpressionTable) -> String {
         match self {
+            Self::Match(dispatch) => {
+                let arms = table
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .map(|arm| {
+                        let pattern = match arm.pattern {
+                            crate::expression::MatchPattern::Value(value) => {
+                                table.display_name(value)
+                            }
+                            crate::expression::MatchPattern::Wildcard => "_".to_owned(),
+                        };
+                        format!("{pattern} => {}", table.display_name(arm.value))
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!(
+                    "match {} {{ {arms} }}",
+                    table.display_name(dispatch.subject)
+                )
+            }
             Self::ArrayLiteral(values) => {
                 bracketed_display_names(table.expression_handles(*values).iter(), |value| {
                     table.display_name(*value)

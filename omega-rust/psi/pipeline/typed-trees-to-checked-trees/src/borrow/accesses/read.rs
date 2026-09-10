@@ -5,6 +5,20 @@ pub(super) fn collect_read_accesses(
     expression: ExpressionHandle,
 ) {
     match collection.program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            collect_read_accesses(collection, dispatch.subject);
+            // This is a may-read summary, not an execution or move schedule.
+            for arm in collection
+                .program
+                .expression_table
+                .match_arms(dispatch.arms)
+            {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    collect_read_accesses(collection, pattern);
+                }
+                collect_read_accesses(collection, arm.value);
+            }
+        }
         ExpressionNode::Atomic(atomic) => collect_read_accesses(collection, atomic.value),
         ExpressionNode::ArrayLiteral(values) => {
             for value in collection

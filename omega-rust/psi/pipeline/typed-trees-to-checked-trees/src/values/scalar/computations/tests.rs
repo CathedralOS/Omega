@@ -2,6 +2,7 @@ use super::*;
 
 mod assignments;
 mod borrowed_arguments;
+mod dispatch;
 mod guards;
 
 #[test]

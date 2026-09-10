@@ -206,6 +206,40 @@ fn assign_contract_call_symbols(
         return;
     }
     match expression_table.expression(expression).clone() {
+        ExpressionNode::Match(dispatch) => {
+            assign_contract_call_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expression_table,
+                child_type_references,
+                dispatch.subject,
+            );
+            for arm in expression_table.match_arms(dispatch.arms).to_vec() {
+                if let symbol_resolved_trees::expression::MatchPattern::Value(pattern) = arm.pattern
+                {
+                    assign_contract_call_symbols(
+                        symbols,
+                        machine,
+                        parameters,
+                        state_symbol,
+                        expression_table,
+                        child_type_references,
+                        pattern,
+                    );
+                }
+                assign_contract_call_symbols(
+                    symbols,
+                    machine,
+                    parameters,
+                    state_symbol,
+                    expression_table,
+                    child_type_references,
+                    arm.value,
+                );
+            }
+        }
         ExpressionNode::ArrayLiteral(values) => {
             let values = expression_table.expression_handles(values).to_vec();
             for value in values {

@@ -106,6 +106,32 @@ impl EvaluationTraversal<'_, '_> {
             return;
         }
         match self.program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                self.visit_expression(dispatch.subject);
+                let mut selected_reached = false;
+                let mut covered_booleans = [false; 2];
+                for arm in self.program.expression_table.match_arms(dispatch.arms) {
+                    let mut covered =
+                        matches!(arm.pattern, typed_trees::expression::MatchPattern::Wildcard);
+                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                        self.visit_expression(pattern);
+                        if let ExpressionNode::Boolean(value) =
+                            self.program.expression_table.expression(pattern)
+                        {
+                            covered_booleans[usize::from(*value)] = true;
+                            covered = covered_booleans.iter().all(|value| *value);
+                        }
+                    }
+                    let fallthrough_reached = self.target_reached;
+                    self.visit_expression(arm.value);
+                    selected_reached |= self.target_reached;
+                    self.target_reached = fallthrough_reached;
+                    if covered {
+                        break;
+                    }
+                }
+                self.target_reached |= selected_reached;
+            }
             ExpressionNode::Atomic(atomic) => self.visit_expression(atomic.value),
             ExpressionNode::ArrayLiteral(values) => {
                 for value in self.program.expression_table.expression_handles(*values) {

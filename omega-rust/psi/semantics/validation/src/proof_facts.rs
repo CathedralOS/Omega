@@ -511,6 +511,10 @@ fn abstract_trait_self_member_in_expression(
         return Some(member.to_owned());
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            crate::expression_types::match_children(program, *dispatch)
+                .find_map(|child| abstract_trait_self_member_in_expression(program, child, visited))
+        }
         ExpressionNode::ArrayLiteral(values) => program
             .expression_table
             .expression_handles(*values)
@@ -782,6 +786,7 @@ fn is_implicit_case_domain(program: &TypedTrees, domain: arena::HandleSpan<Ident
 
 fn is_boolean_fact_expression(program: &TypedTrees, expression: ExpressionHandle) -> bool {
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(_) => false,
         ExpressionNode::Atomic(atomic) => is_boolean_fact_expression(program, atomic.value),
         ExpressionNode::Binary(binary) => match binary.operator {
             BinaryOperator::And

@@ -1067,24 +1067,27 @@ Owners include
 
 ## Parallel language and compiler lanes
 
-- **MATCH-SELECTIVE-LOWERING.** Replace arithmetic expansion in
-  `tokens-to-syntax-trees/src/parser/expression/primary.rs` with retained
-  [value dispatch](wiki/spec/language/patterns.md) through typed checking and
-  Terminal control. Acceptance: evaluate the subject once, execute only the
-  first matching arm, retain compatible nonnumeric/owned results and branch
-  facts, and reject incomplete coverage. Side-effectful subjects, unselected
-  trapping arms, duplicate/overlapping patterns, and nonnumeric results need
-  controls; subtraction/multiplication is not a general match implementation.
+- **MATCH-SELECTIVE-LOWERING.** Complete the general
+  [value-dispatch contract](wiki/spec/language/patterns.md) on the retained
+  source and scalar computation route. Remaining work: ownership-bearing result
+  and conditional-transfer joins, nonnumeric Terminal results, structural/case/
+  domain patterns and their coverage, anonymous-only numeric subject execution,
+  destination-width custody for large anonymous arm literals, and canonical
+  package-review contract/index projection where dispatch is currently rejected.
+  Current ownership/pattern fences in
+  `validation/src/expression_types/match_dispatch.rs`
+  are implementation limits, not narrower language semantics. Do not flatten
+  conditional transfers into a whole-statement move/discard roster.
 
-  The `9d9075eb61` macOS release `--check` probe
-  `machine nonzero(value: i64) -> i64 requires value != 0 { value }`
-  with `machine choose(value: i64) -> i64 { match value { 0 -> 7 _ -> nonzero(value) } }`
-  rejects the missing `value != 0` call premise. Retain dispatch and arm facts
-  through source representations; existing transition blocks are enclosing
-  return/control edges, not expression-local result joins. Scalar computation
-  `Select` already provides selective arms, but reusing a subject computation
-  handle across comparisons reevaluates it: multi-arm dispatch needs an explicit
-  saved-subject value. Extend checked source replay with the producer.
+  Resume with `mbx nextest run -p checked-trees-to-lowered-psi --test value_dispatch
+  --no-fail-fast` and the checker/interpreter `value_dispatch` regressions. These
+  cover scalar first-match selection, exact subject-once execution, branch-local
+  call premises, mutation invalidation, ordinary expression composition and
+  independent Terminal replay. Extend the same result continuation and saved
+  subject, not arithmetic expansion or manufactured source states. Acceptance
+  still includes compatible owned/nonnumeric results, effectful subjects,
+  unselected trapping arms, overlapping patterns and complete coverage through
+  checking, artifact replay and target execution.
 
 - **MODULE-NAMESPACE-RESOLUTION.** Finish the
   [module/name contract](wiki/spec/language/modules.md) for pre-resolution

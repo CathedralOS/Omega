@@ -8,6 +8,21 @@ pub(super) fn collect_expression_borrow_calls(
     expression: ExpressionHandle,
 ) {
     match collection.program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            collect_expression_borrow_calls(collection, dispatch.subject);
+            // These rows name authored calls, not a simultaneous execution.
+            // Keep even covered suffixes so lexical call ordinals stay stable.
+            for arm in collection
+                .program
+                .expression_table
+                .match_arms(dispatch.arms)
+            {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    collect_expression_borrow_calls(collection, pattern);
+                }
+                collect_expression_borrow_calls(collection, arm.value);
+            }
+        }
         ExpressionNode::Atomic(atomic) => collect_expression_borrow_calls(collection, atomic.value),
         ExpressionNode::ArrayLiteral(values) => {
             for value in collection

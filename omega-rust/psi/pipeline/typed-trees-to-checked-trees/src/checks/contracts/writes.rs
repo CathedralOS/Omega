@@ -389,6 +389,18 @@ fn expression_contains_value_call(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Call(_) => true,
+        ExpressionNode::Match(dispatch) => {
+            expression_contains_value_call(program, dispatch.subject)
+                || program
+                    .expression_table
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .any(|arm| {
+                        matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern)
+                        if expression_contains_value_call(program, pattern))
+                            || expression_contains_value_call(program, arm.value)
+                    })
+        }
         ExpressionNode::Atomic(atomic) => expression_contains_value_call(program, atomic.value),
         ExpressionNode::Binary(binary) => {
             expression_contains_value_call(program, binary.left)
@@ -448,6 +460,36 @@ fn scan_construction_field_domains(
             atomic.value,
             diagnostics,
         ),
+        ExpressionNode::Match(dispatch) => {
+            scan_construction_field_domains(
+                program,
+                facts,
+                state_flow,
+                statement_index,
+                dispatch.subject,
+                diagnostics,
+            );
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    scan_construction_field_domains(
+                        program,
+                        facts,
+                        state_flow,
+                        statement_index,
+                        pattern,
+                        diagnostics,
+                    );
+                }
+                scan_construction_field_domains(
+                    program,
+                    facts,
+                    state_flow,
+                    statement_index,
+                    arm.value,
+                    diagnostics,
+                );
+            }
+        }
         ExpressionNode::StructLiteral(literal) => {
             let type_name = literal.type_name.clone();
             let case_name = literal.case_name.clone();

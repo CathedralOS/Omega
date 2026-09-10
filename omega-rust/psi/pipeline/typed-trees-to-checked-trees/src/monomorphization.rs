@@ -870,6 +870,15 @@ fn collect_expression_tree(
     }
     handles.push(expression);
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            collect_expression_tree(program, dispatch.subject, handles);
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    collect_expression_tree(program, pattern, handles);
+                }
+                collect_expression_tree(program, arm.value, handles);
+            }
+        }
         ExpressionNode::ArrayLiteral(values) => {
             for value in program.expression_table.expression_handles(*values) {
                 collect_expression_tree(program, *value, handles);

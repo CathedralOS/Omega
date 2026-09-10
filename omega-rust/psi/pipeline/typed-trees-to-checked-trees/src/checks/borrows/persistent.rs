@@ -948,6 +948,7 @@ fn is_state_independent_borrow_source(
             state_returns_only_static_borrows(program, state, &mut Vec::new())
         }
         typed_trees::expression::ExpressionNode::ArrayLiteral(_)
+        | typed_trees::expression::ExpressionNode::Match(_)
         | typed_trees::expression::ExpressionNode::Atomic(_)
         | typed_trees::expression::ExpressionNode::Boolean(_)
         | typed_trees::expression::ExpressionNode::Float(_)

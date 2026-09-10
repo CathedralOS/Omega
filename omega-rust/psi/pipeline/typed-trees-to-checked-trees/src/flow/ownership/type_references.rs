@@ -104,6 +104,7 @@ fn expression_is_place_like(
         ExpressionNode::Borrow(inner) => expression_is_place_like(program, inner.target),
         ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => true,
         ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Match(_)
         | ExpressionNode::Binary(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Call(_)

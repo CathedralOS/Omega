@@ -190,6 +190,15 @@ fn append_expression_children(
 ) {
     use typed_trees::expression::ExpressionNode;
     match expression {
+        ExpressionNode::Match(dispatch) => {
+            children.push(dispatch.subject);
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    children.push(pattern);
+                }
+                children.push(arm.value);
+            }
+        }
         ExpressionNode::ArrayLiteral(values) => children.extend(
             program
                 .expression_table

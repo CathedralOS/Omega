@@ -21,6 +21,19 @@ pub(super) fn validate_expression(
         return;
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            for child in crate::expression_types::match_children(program, *dispatch) {
+                validate_expression(
+                    program,
+                    proof_only,
+                    machine,
+                    state,
+                    child,
+                    context,
+                    diagnostics,
+                );
+            }
+        }
         ExpressionNode::Name(path) => {
             if context == Context::Runtime {
                 let mut reported = false;

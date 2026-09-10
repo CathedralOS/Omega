@@ -64,6 +64,46 @@ requires tag<View<'a, u64>>() == tag<View<'a, u64>>()
 }
 
 #[test]
+fn value_dispatch_contract_projection_rejects_without_a_canonical_schema() {
+    let (_source, mut checked) = checked_source();
+    let machine_symbol = checked.machines()[0].symbol;
+    let subject = checked
+        .typed
+        .expression_table
+        .insert(ExpressionNode::Boolean(true));
+    let arms = checked.typed.expression_table.insert_match_arms([
+        typed_trees::expression::TableMatchArm {
+            pattern: typed_trees::expression::MatchPattern::Wildcard,
+            value: subject,
+            source_span: Default::default(),
+        },
+    ]);
+    let expression = checked.typed.expression_table.insert(ExpressionNode::Match(
+        typed_trees::expression::TableMatchExpression { subject, arms },
+    ));
+    let context = ContractProjectionContext {
+        subject_kind: "callable",
+        subject_name: "generic_tag",
+        owner: checked_trees::ContractProofFactOwner::Machine { machine_symbol },
+        point: facts::ProgramPoint::Machine { machine_symbol },
+        parameters: &[],
+        domain_symbol: None,
+        data_symbol: None,
+        lifetime_binders: &[],
+        lifetime_substitutions: &[],
+        selection_exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
+    };
+    let diagnostics =
+        super::project_contract_expression(&checked, &context, &[], expression, None, 0)
+            .expect_err("unsupported dispatch must not become an empty or selected-arm contract");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("value dispatch without a supported canonical")
+    );
+}
+
+#[test]
 fn original_contract_expressions_use_scoped_lifetime_ordinals() {
     let (_source, checked) = checked_source();
     let before = checked.clone();

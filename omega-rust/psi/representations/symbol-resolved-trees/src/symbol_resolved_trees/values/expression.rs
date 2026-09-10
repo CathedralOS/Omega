@@ -55,10 +55,22 @@ struct ExpressionSpanStorage {
     name_path_members: Arena<DiagnosticName>,
     name_path_member_symbols: Arena<SymbolHandle>,
     struct_fields: Arena<TableStructLiteralField>,
+    match_arms: Arena<TableMatchArm>,
     authored_selection_occurrence_ids: Arena<StoredAuthoredSelectionOccurrenceId>,
 }
 
 impl ExpressionTable {
+    pub fn insert_match_arms(
+        &mut self,
+        arms: impl IntoIterator<Item = TableMatchArm>,
+    ) -> HandleSpan<TableMatchArm> {
+        self.spans.match_arms.insert_many(arms)
+    }
+
+    pub fn match_arms(&self, arms: HandleSpan<TableMatchArm>) -> &[TableMatchArm] {
+        self.spans.match_arms.span_or_empty(arms)
+    }
+
     pub fn new() -> Self {
         Self {
             nodes: ExpressionNodeStorage {
@@ -73,6 +85,7 @@ impl ExpressionTable {
                 name_path_members: Arena::new(),
                 name_path_member_symbols: Arena::new(),
                 struct_fields: Arena::new(),
+                match_arms: Arena::new(),
                 authored_selection_occurrence_ids: Arena::new(),
             },
         }
@@ -88,6 +101,7 @@ impl ExpressionTable {
         self.spans.name_path_members.reset_retain_capacity();
         self.spans.name_path_member_symbols.reset_retain_capacity();
         self.spans.struct_fields.reset_retain_capacity();
+        self.spans.match_arms.reset_retain_capacity();
         self.spans
             .authored_selection_occurrence_ids
             .reset_retain_capacity();
@@ -395,6 +409,30 @@ impl ExpressionTable {
     ) -> ExpressionHandle {
         let source_span = source.source_span(expression);
         let copied = match source.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                let subject = self.copy_from(source, dispatch.subject);
+                let source_arms = source.match_arms(dispatch.arms).to_vec();
+                let mut arms = Vec::with_capacity(source_arms.len());
+                for arm in source_arms {
+                    let pattern = match arm.pattern {
+                        MatchPattern::Value(value) => {
+                            MatchPattern::Value(self.copy_from(source, value))
+                        }
+                        MatchPattern::Wildcard => MatchPattern::Wildcard,
+                    };
+                    let value = self.copy_from(source, arm.value);
+                    arms.push(TableMatchArm {
+                        pattern,
+                        value,
+                        source_span: arm.source_span,
+                    });
+                }
+                let arms = self.insert_match_arms(arms);
+                self.insert(ExpressionNode::Match(TableMatchExpression {
+                    subject,
+                    arms,
+                }))
+            }
             ExpressionNode::ArrayLiteral(values) => {
                 let copied_values = self.reserve_expression_handles(values.count());
 
@@ -868,6 +906,30 @@ impl ExpressionTable {
         let authored_exposure = self.authored_expression_exposure(expression);
         let compiler_partition = self.compiler_selection_partition(expression);
         let copied = match self.expression(expression).clone() {
+            ExpressionNode::Match(dispatch) => {
+                let subject = self.copy_from_self(dispatch.subject);
+                let source_arms = self.match_arms(dispatch.arms).to_vec();
+                let mut arms = Vec::with_capacity(source_arms.len());
+                for arm in source_arms {
+                    let pattern = match arm.pattern {
+                        MatchPattern::Value(value) => {
+                            MatchPattern::Value(self.copy_from_self(value))
+                        }
+                        MatchPattern::Wildcard => MatchPattern::Wildcard,
+                    };
+                    let value = self.copy_from_self(arm.value);
+                    arms.push(TableMatchArm {
+                        pattern,
+                        value,
+                        source_span: arm.source_span,
+                    });
+                }
+                let arms = self.insert_match_arms(arms);
+                self.insert(ExpressionNode::Match(TableMatchExpression {
+                    subject,
+                    arms,
+                }))
+            }
             ExpressionNode::ArrayLiteral(values) => {
                 let copied_values = self.reserve_expression_handles(values.count());
 
@@ -1238,6 +1300,7 @@ impl Default for ExpressionTable {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExpressionNode {
+    Match(TableMatchExpression),
     ArrayLiteral(HandleSpan<ExpressionHandle>),
     Atomic(TableAtomicExpression),
     Binary(TableBinaryExpression),
@@ -1470,4 +1533,25 @@ pub enum BinaryOperator {
 pub enum UnaryOperator {
     BitwiseNot,
     LogicalNot,
+}
+
+/// Ordered value dispatch. The subject is evaluated once before testing arms.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TableMatchExpression {
+    pub subject: ExpressionHandle,
+    pub arms: HandleSpan<TableMatchArm>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TableMatchArm {
+    pub pattern: MatchPattern,
+    pub value: ExpressionHandle,
+    pub source_span: SourceSpan,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum MatchPattern {
+    Value(ExpressionHandle),
+    #[default]
+    Wildcard,
 }

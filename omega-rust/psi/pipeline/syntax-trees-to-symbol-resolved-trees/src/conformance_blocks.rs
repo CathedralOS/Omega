@@ -362,6 +362,16 @@ fn route_expression(
         .clone();
     let mut children = Vec::new();
     match node {
+        symbol_resolved_trees::expression::ExpressionNode::Match(dispatch) => {
+            children.push(dispatch.subject);
+            for arm in program.tables.bodies.expressions.match_arms(dispatch.arms) {
+                if let symbol_resolved_trees::expression::MatchPattern::Value(pattern) = arm.pattern
+                {
+                    children.push(pattern);
+                }
+                children.push(arm.value);
+            }
+        }
         symbol_resolved_trees::expression::ExpressionNode::ArrayLiteral(values) => {
             children
                 .extend_from_slice(program.tables.bodies.expressions.expression_handles(values));

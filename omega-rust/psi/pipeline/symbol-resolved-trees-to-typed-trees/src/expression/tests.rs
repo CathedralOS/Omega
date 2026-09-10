@@ -27,6 +27,59 @@ fn authored_selection_occurrences() -> [resolved::AuthoredDeclarationSelectionOc
 }
 
 #[test]
+fn lowering_match_preserves_all_arms_nonnumeric_values_and_source_custody() {
+    let mut source = resolved::expression::ExpressionTable::new();
+    let subject = source.insert(resolved::expression::ExpressionNode::Boolean(true));
+    let first = source.insert(resolved::expression::ExpressionNode::Boolean(false));
+    let second = source.insert(resolved::expression::ExpressionNode::Boolean(true));
+    let span = SourceSpan::new(source::SourceId::default(), source::Span::new(3, 19));
+    let arms = source.insert_match_arms([
+        resolved::expression::TableMatchArm {
+            pattern: resolved::expression::MatchPattern::Value(subject),
+            value: first,
+            source_span: span,
+        },
+        resolved::expression::TableMatchArm {
+            pattern: resolved::expression::MatchPattern::Wildcard,
+            value: second,
+            source_span: span,
+        },
+    ]);
+    let expression = source.insert(resolved::expression::ExpressionNode::Match(
+        resolved::expression::TableMatchExpression { subject, arms },
+    ));
+    source.set_source_span(expression, span);
+    let mut target = typed::TypedTrees::default();
+    let lowered = lower_expression_handle_from_table(&source, &mut target, expression)
+        .expect("match lowering");
+    let typed::expression::ExpressionNode::Match(dispatch) =
+        target.expression_table.expression(lowered)
+    else {
+        panic!("retained match");
+    };
+    let arms = target.expression_table.match_arms(dispatch.arms);
+    assert_eq!(arms.len(), 2);
+    assert!(matches!(
+        arms[0].pattern,
+        typed::expression::MatchPattern::Value(_)
+    ));
+    assert!(matches!(
+        arms[1].pattern,
+        typed::expression::MatchPattern::Wildcard
+    ));
+    assert!(matches!(
+        target.expression_table.expression(arms[0].value),
+        typed::expression::ExpressionNode::Boolean(false)
+    ));
+    assert!(matches!(
+        target.expression_table.expression(arms[1].value),
+        typed::expression::ExpressionNode::Boolean(true)
+    ));
+    assert_eq!(arms[0].source_span, span);
+    assert_eq!(target.expression_table.source_span(lowered), span);
+}
+
+#[test]
 fn lowering_copies_expression_occurrence_associations() {
     let occurrences = authored_selection_occurrences();
     let mut source = resolved::expression::ExpressionTable::new();

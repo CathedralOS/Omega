@@ -344,6 +344,7 @@ fn expression_mentions_any(
         // These shapes are not admitted in proof-static type arguments. Keep
         // an unresolved binder fail-closed if one survives into such a shape.
         ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Match(_)
         | ExpressionNode::Atomic(_)
         | ExpressionNode::Cast(_)
         | ExpressionNode::Call(_)
@@ -919,6 +920,22 @@ fn render_expression(
     let render =
         |expression| render_expression(program, expression, substitutions, name_substitutions);
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            let arms = program
+                .expression_table
+                .match_arms(dispatch.arms)
+                .iter()
+                .map(|arm| {
+                    let pattern = match arm.pattern {
+                        crate::expression::MatchPattern::Value(value) => render(value),
+                        crate::expression::MatchPattern::Wildcard => "_".to_owned(),
+                    };
+                    format!("{pattern} => {}", render(arm.value))
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("match {} {{ {arms} }}", render(dispatch.subject))
+        }
         ExpressionNode::Atomic(atomic) => {
             format!("atomic[{:?}]({})", atomic.ordering, render(atomic.value))
         }

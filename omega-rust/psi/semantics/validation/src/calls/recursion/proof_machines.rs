@@ -727,6 +727,15 @@ fn collect_self_entry_call_arguments(
         collect_self_entry_call_arguments(program, entry_name, handle, found);
     };
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            recurse(dispatch.subject, found);
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    recurse(pattern, found);
+                }
+                recurse(arm.value, found);
+            }
+        }
         ExpressionNode::Atomic(atomic) => recurse(atomic.value, found),
         ExpressionNode::Call(call) => {
             if is_self_entry_call(program, entry_name, call) {

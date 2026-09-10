@@ -294,6 +294,10 @@ fn expression_uses_content_surface(
         return false;
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            crate::expression_types::match_children(program, *dispatch)
+                .any(|child| expression_uses_content_surface(program, projections, child))
+        }
         ExpressionNode::Call(call) => {
             is_old_call(program, call)
                 || is_separate_call(program, call)
@@ -365,6 +369,11 @@ fn collect_expression_nodes(
     let recurse =
         |child, nodes: &mut HashSet<(u32, u32)>| collect_expression_nodes(program, child, nodes);
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            for child in crate::expression_types::match_children(program, *dispatch) {
+                recurse(child, nodes);
+            }
+        }
         ExpressionNode::Atomic(atomic) => {
             recurse(atomic.value, nodes);
             recurse(atomic.result, nodes);

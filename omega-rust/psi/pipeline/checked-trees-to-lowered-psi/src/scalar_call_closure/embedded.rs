@@ -189,6 +189,22 @@ pub(crate) fn computation_targets(
         }
         visited.push(handle);
         match &plans.nodes.get(handle).kind {
+            CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
+                pending.push(*subject);
+                for arm in plans
+                    .dispatch_arms
+                    .span(*arms)
+                    .ok_or(LoweringError::Unsupported(
+                        "embedded scalar dispatch arms are stale",
+                    ))?
+                {
+                    if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) = arm.pattern
+                    {
+                        pending.push(pattern);
+                    }
+                    pending.push(arm.value);
+                }
+            }
             CheckedScalarComputationKind::Value(_) => {}
             CheckedScalarComputationKind::Select {
                 condition,

@@ -192,6 +192,11 @@ fn scan_expression(
     }
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            for child in crate::expression_types::match_children(program, *dispatch) {
+                scan_expression(program, machine, state, child, environment, diagnostics);
+            }
+        }
         ExpressionNode::Atomic(atomic) => scan_expression(
             program,
             machine,

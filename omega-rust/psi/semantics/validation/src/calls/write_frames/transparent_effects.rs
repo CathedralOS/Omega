@@ -17,6 +17,18 @@ pub(super) fn expression_is_effectful_for_transparent_result(
         return false;
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            expression_is_effectful_for_transparent_result(program, dispatch.subject)
+                || program
+                    .expression_table
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .any(|arm| {
+                        matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern)
+                        if expression_is_effectful_for_transparent_result(program, pattern))
+                            || expression_is_effectful_for_transparent_result(program, arm.value)
+                    })
+        }
         ExpressionNode::Atomic(_) => true,
         ExpressionNode::Call(call) => {
             !call_is_effect_free_slice_view(program, call)

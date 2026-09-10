@@ -1194,6 +1194,31 @@ impl SyntaxTrees {
         }
 
         let expression = match other.expressions.expression(handle) {
+            ExpressionNode::Match(dispatch) => {
+                let subject = self.copy_expression_handle(other, dispatch.subject);
+                let mut arms =
+                    Vec::with_capacity(other.expressions.match_arms(dispatch.arms).len());
+                for arm in other.expressions.match_arms(dispatch.arms) {
+                    let pattern = match arm.pattern {
+                        crate::expression::MatchPattern::Value(value) => {
+                            crate::expression::MatchPattern::Value(
+                                self.copy_expression_handle(other, value),
+                            )
+                        }
+                        crate::expression::MatchPattern::Wildcard => {
+                            crate::expression::MatchPattern::Wildcard
+                        }
+                    };
+                    let value = self.copy_expression_handle(other, arm.value);
+                    arms.push(crate::expression::TableMatchArm {
+                        pattern,
+                        value,
+                        source_span: arm.source_span,
+                    });
+                }
+                let arms = self.expressions.insert_match_arms(arms);
+                ExpressionNode::Match(crate::expression::TableMatchExpression { subject, arms })
+            }
             ExpressionNode::ArrayLiteral(values) => {
                 ExpressionNode::ArrayLiteral(self.copy_expression_handle_list(other, *values))
             }

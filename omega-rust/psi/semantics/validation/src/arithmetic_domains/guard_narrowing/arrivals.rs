@@ -563,6 +563,35 @@ impl ArrivalWalk<'_, '_> {
             return;
         }
         match self.program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                self.expression(source, dispatch.subject, environment);
+                let mut remaining = environment.clone();
+                let mut joined: Option<ValueEnv> = None;
+                let mut boolean_values = [false; 2];
+                for arm in self.program.expression_table.match_arms(dispatch.arms) {
+                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                        self.expression(source, pattern, &mut remaining);
+                        if let ExpressionNode::Boolean(value) =
+                            self.program.expression_table.expression(pattern)
+                        {
+                            boolean_values[usize::from(*value)] = true;
+                        }
+                    }
+                    let mut selected = remaining.clone();
+                    self.expression(source, arm.value, &mut selected);
+                    joined = Some(
+                        joined.map_or_else(|| selected.clone(), |joined| joined.join(&selected)),
+                    );
+                    if matches!(arm.pattern, typed_trees::expression::MatchPattern::Wildcard)
+                        || boolean_values == [true, true]
+                    {
+                        break;
+                    }
+                }
+                if let Some(joined) = joined {
+                    *environment = joined;
+                }
+            }
             ExpressionNode::Call(call) => {
                 self.expression(source, call.receiver, environment);
                 let arguments = self

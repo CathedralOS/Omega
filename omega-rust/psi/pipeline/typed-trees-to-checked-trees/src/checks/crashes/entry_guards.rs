@@ -36,6 +36,15 @@ pub(super) fn retains_entry_meaning(
         }
         seen.push(expression);
         match program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                pending.push(dispatch.subject);
+                for arm in program.expression_table.match_arms(dispatch.arms) {
+                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                        pending.push(pattern);
+                    }
+                    pending.push(arm.value);
+                }
+            }
             ExpressionNode::Name(path) => {
                 if mutable_parameters.contains(&path.symbol)
                     || mutable_parameters.contains(&path.head_symbol)

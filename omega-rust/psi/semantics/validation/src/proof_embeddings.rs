@@ -489,6 +489,11 @@ fn collect_expression_nodes(
     nodes.push(expression);
     let mut recurse = |child| collect_expression_nodes(program, child, nodes);
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            for child in crate::expression_types::match_children(program, *dispatch) {
+                recurse(child);
+            }
+        }
         ExpressionNode::Atomic(atomic) => {
             recurse(atomic.value);
             recurse(atomic.result);

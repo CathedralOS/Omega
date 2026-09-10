@@ -21,6 +21,15 @@ pub(super) fn retain(
         }
         visited.push(expression);
         match syntax.expressions.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                for arm in syntax.expressions.match_arms(dispatch.arms).iter().rev() {
+                    pending.push(arm.value);
+                    if let syntax_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                        pending.push(pattern);
+                    }
+                }
+                pending.push(dispatch.subject);
+            }
             ExpressionNode::Name(path) => {
                 let members = syntax.expressions.identifier_path_members(*path);
                 let (Some(first), Some(last)) = (members.first(), members.last()) else {

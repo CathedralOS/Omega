@@ -763,6 +763,22 @@ fn qualification_expression_contains(
     visited.push(expression);
     let mut contains = |child| qualification_expression_contains(program, child, target, visited);
     match expression_node {
+        ExpressionNode::Match(dispatch) => {
+            contains(dispatch.subject)
+                || program
+                    .expression_table
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .any(|arm| {
+                        let pattern_contains = match arm.pattern {
+                            typed_trees::expression::MatchPattern::Value(pattern) => {
+                                contains(pattern)
+                            }
+                            typed_trees::expression::MatchPattern::Wildcard => false,
+                        };
+                        pattern_contains || contains(arm.value)
+                    })
+        }
         ExpressionNode::ArrayLiteral(items) => program
             .expression_table
             .expression_handles(*items)

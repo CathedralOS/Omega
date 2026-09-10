@@ -27,6 +27,39 @@ pub(super) fn append_move_events_for_expression(
     }
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            // The current ownership summary conservatively retains possible
+            // moves. Selected owned results require a dedicated result join;
+            // source validation rejects them until that custody is represented.
+            append_move_events_for_expression(
+                program,
+                sink,
+                state_symbol,
+                statement_index,
+                dispatch.subject,
+                source,
+            );
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    append_move_events_for_expression(
+                        program,
+                        sink,
+                        state_symbol,
+                        statement_index,
+                        pattern,
+                        source,
+                    );
+                }
+                append_move_events_for_expression(
+                    program,
+                    sink,
+                    state_symbol,
+                    statement_index,
+                    arm.value,
+                    source,
+                );
+            }
+        }
         ExpressionNode::Atomic(atomic) => append_move_events_for_expression(
             program,
             sink,

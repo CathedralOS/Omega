@@ -2022,6 +2022,42 @@ fn build_qualification_facts(program: &TypedTrees) -> checked_trees::Qualificati
             return;
         }
         match program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                collect_casts(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    dispatch.subject,
+                    committed,
+                    vacuous_uses,
+                    visited,
+                );
+                for arm in program.expression_table.match_arms(dispatch.arms) {
+                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                        collect_casts(
+                            program,
+                            machine,
+                            state,
+                            statement_index,
+                            pattern,
+                            committed,
+                            vacuous_uses,
+                            visited,
+                        );
+                    }
+                    collect_casts(
+                        program,
+                        machine,
+                        state,
+                        statement_index,
+                        arm.value,
+                        committed,
+                        vacuous_uses,
+                        visited,
+                    );
+                }
+            }
             ExpressionNode::Cast(cast) => {
                 let policy = match cast.domain {
                     numerics::arithmetic::ArithmeticDomain::Exact => None,

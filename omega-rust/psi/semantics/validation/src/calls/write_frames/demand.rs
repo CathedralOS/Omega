@@ -568,6 +568,15 @@ pub(super) fn collect_expression_call_written_paths(
         )
     };
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            visit(dispatch.subject)?;
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    visit(pattern)?;
+                }
+                visit(arm.value)?;
+            }
+        }
         ExpressionNode::Atomic(atomic) => visit(atomic.value)?,
         ExpressionNode::Call(call) => {
             if call.receiver.is_valid() {

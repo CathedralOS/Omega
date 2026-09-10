@@ -7,6 +7,18 @@ pub(super) fn expression_uses_symbol(
     symbol: SymbolHandle,
 ) -> bool {
     match program.expression_table.expression(expression) {
+        typed_trees::expression::ExpressionNode::Match(dispatch) => {
+            expression_uses_symbol(program, dispatch.subject, symbol)
+                || program
+                    .expression_table
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .any(|arm| {
+                        (matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern)
+                        if expression_uses_symbol(program, pattern, symbol)))
+                            || expression_uses_symbol(program, arm.value, symbol)
+                    })
+        }
         typed_trees::expression::ExpressionNode::Atomic(atomic) => {
             expression_uses_symbol(program, atomic.value, symbol)
         }
@@ -76,6 +88,18 @@ pub(super) fn expression_uses_local_name(
     local_name: &str,
 ) -> bool {
     match program.expression_table.expression(expression) {
+        typed_trees::expression::ExpressionNode::Match(dispatch) => {
+            expression_uses_local_name(program, dispatch.subject, local_name)
+                || program
+                    .expression_table
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .any(|arm| {
+                        matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern)
+                        if expression_uses_local_name(program, pattern, local_name))
+                            || expression_uses_local_name(program, arm.value, local_name)
+                    })
+        }
         typed_trees::expression::ExpressionNode::Atomic(atomic) => {
             expression_uses_local_name(program, atomic.value, local_name)
         }
@@ -160,6 +184,14 @@ pub(super) fn expression_uses_place_symbol(
     }
 
     match program.expression_table.expression(expression) {
+        typed_trees::expression::ExpressionNode::Match(dispatch) => {
+            expression_uses_place_symbol(program, state_symbol, statement_index, dispatch.subject, symbol)
+                || program.expression_table.match_arms(dispatch.arms).iter().any(|arm| {
+                    matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern)
+                        if expression_uses_place_symbol(program, state_symbol, statement_index, pattern, symbol))
+                        || expression_uses_place_symbol(program, state_symbol, statement_index, arm.value, symbol)
+                })
+        }
         typed_trees::expression::ExpressionNode::Atomic(atomic) => expression_uses_place_symbol(
             program,
             state_symbol,

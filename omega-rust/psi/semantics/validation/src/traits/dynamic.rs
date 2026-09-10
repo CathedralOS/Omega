@@ -623,6 +623,15 @@ fn validate_dynamic_call_arguments_in_expression(
         };
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            visit!(dispatch.subject);
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    visit!(pattern);
+                }
+                visit!(arm.value);
+            }
+        }
         ExpressionNode::ArrayLiteral(elements) => {
             for element in program.expression_table.expression_handles(*elements) {
                 visit!(*element);
@@ -1002,6 +1011,15 @@ fn collect_dynamic_expression_call_updates(
         };
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            visit!(dispatch.subject);
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    visit!(pattern);
+                }
+                visit!(arm.value);
+            }
+        }
         ExpressionNode::ArrayLiteral(elements) => {
             for element in program.expression_table.expression_handles(*elements) {
                 visit!(*element);

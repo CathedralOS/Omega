@@ -4,6 +4,7 @@ use super::*;
 use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind};
 
 use crate::attached_unit::primitive_locals::borrows as borrow_rows;
+mod dispatch;
 mod mixed_arguments;
 mod operand_scopes;
 mod owned_arguments;
@@ -55,6 +56,31 @@ pub(crate) fn validate_computation_calls(
         pending.push((handle, true, authored_scope));
         let node = plans.nodes.get(handle);
         match &node.kind {
+            CheckedScalarComputationKind::Dispatch {
+                source_expression,
+                subject,
+                arms,
+            } => {
+                dispatch::source_scope(
+                    checked,
+                    authored_scope,
+                    *source_expression,
+                    node.primitive_type,
+                )?;
+                let operands = dispatch::operands(
+                    checked,
+                    *source_expression,
+                    *subject,
+                    *arms,
+                    node.primitive_type,
+                )?;
+                pending.extend(
+                    operands
+                        .into_iter()
+                        .rev()
+                        .map(|(computation, source)| (computation, false, source)),
+                );
+            }
             CheckedScalarComputationKind::Value(value) => {
                 let authored_scope =
                     operand_scopes::value(checked, authored_scope, node.value_source)?;
@@ -263,6 +289,19 @@ fn authored_expressions(
                 children.extend_from_slice(table.expression_handles(*elements))
             }
             ExpressionNode::Binary(binary) => children.extend([binary.left, binary.right]),
+            ExpressionNode::Match(dispatch) => {
+                children.push(dispatch.subject);
+                let arms = table.match_arms(dispatch.arms);
+                if arms.len() != dispatch.arms.len() {
+                    return unsupported("computed dispatch has a stale authored arm span");
+                }
+                for arm in arms {
+                    if let checked_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                        children.push(pattern);
+                    }
+                    children.push(arm.value);
+                }
+            }
             ExpressionNode::Borrow(borrow) => children.push(borrow.target),
             ExpressionNode::Call(call) => {
                 if call.receiver.is_valid() {

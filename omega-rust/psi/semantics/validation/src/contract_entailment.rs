@@ -1037,6 +1037,9 @@ fn fact_mentions_proof_only_data(
             .map(|definition| definition.name.clone())
     };
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            crate::expression_types::match_children(program, *dispatch).find_map(recurse)
+        }
         ExpressionNode::Atomic(atomic) => recurse(atomic.value),
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
@@ -1128,6 +1131,9 @@ fn fact_mentions_zero_value(program: &TypedTrees, expression: ExpressionHandle) 
     }
     let recurse = |handle: ExpressionHandle| fact_mentions_zero_value(program, handle);
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            crate::expression_types::match_children(program, *dispatch).find_map(recurse)
+        }
         ExpressionNode::Atomic(atomic) => recurse(atomic.value),
         ExpressionNode::Binary(binary) => recurse(binary.left).or_else(|| recurse(binary.right)),
         ExpressionNode::Unary(unary) => recurse(unary.operand),

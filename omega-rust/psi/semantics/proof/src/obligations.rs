@@ -1282,6 +1282,18 @@ fn expression_contains_call_node(program: &TypedTrees, expression: ExpressionHan
         return false;
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            expression_contains_call_node(program, dispatch.subject)
+                || program
+                    .expression_table
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .any(|arm| {
+                        matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern)
+                        if expression_contains_call_node(program, pattern))
+                            || expression_contains_call_node(program, arm.value)
+                    })
+        }
         ExpressionNode::Call(_) => true,
         ExpressionNode::Binary(binary) => {
             expression_contains_call_node(program, binary.left)
@@ -1628,6 +1640,9 @@ fn expression_constraints(
     expression: ExpressionHandle,
 ) -> ConstraintBuffer {
     match program.expression_table.expression(expression) {
+        // Arm-local constraints require a checked join; no individual arm's
+        // refinement is an unconditional fact about the dispatch result.
+        ExpressionNode::Match(_) => ConstraintBuffer::new(),
         ExpressionNode::Atomic(atomic) => {
             expression_constraints(program, machine, state, atomic.value)
         }

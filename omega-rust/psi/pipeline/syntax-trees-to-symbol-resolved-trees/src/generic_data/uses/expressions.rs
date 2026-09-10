@@ -91,6 +91,15 @@ pub(in crate::generic_data) fn collect_expression_handles(
         return;
     }
     match syntax.expressions.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            collect_expression_handles(syntax, dispatch.subject, handles);
+            for arm in syntax.expressions.match_arms(dispatch.arms) {
+                if let syntax_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    collect_expression_handles(syntax, pattern, handles);
+                }
+                collect_expression_handles(syntax, arm.value, handles);
+            }
+        }
         ExpressionNode::ArrayLiteral(expressions) => {
             for expression in syntax.expressions.expression_handles(*expressions) {
                 collect_expression_handles(syntax, *expression, handles);

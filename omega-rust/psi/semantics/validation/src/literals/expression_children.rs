@@ -3,12 +3,21 @@
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
-pub(super) fn children(
+pub(crate) fn children(
     program: &TypedTrees,
     node: &ExpressionNode,
     mut child: impl FnMut(ExpressionHandle),
 ) {
     match node {
+        ExpressionNode::Match(dispatch) => {
+            child(dispatch.subject);
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    child(pattern);
+                }
+                child(arm.value);
+            }
+        }
         ExpressionNode::Binary(binary) => {
             child(binary.left);
             child(binary.right);

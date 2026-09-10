@@ -275,7 +275,8 @@ fn validate_package_index_expression(
             validate_package_index_expression(program, binary.left, binders)?;
             validate_package_index_expression(program, binary.right, binders)
         }
-        ExpressionNode::ArrayLiteral(_)
+        ExpressionNode::Match(_)
+        | ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Atomic(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Cast(_)
@@ -297,4 +298,36 @@ pub(crate) fn missing_exact_toolchain_type_owner() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "package review structural type identity has unresolved nominal ownership or is missing exact source-backed toolchain ownership",
     )]
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn value_dispatch_cannot_be_erased_from_package_structural_index_identity() {
+        let mut program = typed_trees::TypedTrees::default();
+        let subject = program
+            .expression_table
+            .insert(typed_trees::expression::ExpressionNode::Boolean(true));
+        let arms =
+            program
+                .expression_table
+                .insert_match_arms([typed_trees::expression::TableMatchArm {
+                    pattern: typed_trees::expression::MatchPattern::Wildcard,
+                    value: subject,
+                    source_span: Default::default(),
+                }]);
+        let expression =
+            program
+                .expression_table
+                .insert(typed_trees::expression::ExpressionNode::Match(
+                    typed_trees::expression::TableMatchExpression { subject, arms },
+                ));
+        let diagnostics = super::validate_package_index_expression(&program, expression, &[])
+            .expect_err("dispatch has no canonical structural index schema");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("unsupported structural index expression")
+        );
+    }
 }

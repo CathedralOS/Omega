@@ -65,6 +65,23 @@ pub(super) fn rejoin(
                     children.extend([binary.left, binary.right]);
                     (None, BorrowAccessKind::Read)
                 }
+                ExpressionNode::Match(dispatch) => {
+                    children.push(dispatch.subject);
+                    let arms = table.match_arms(dispatch.arms);
+                    if arms.len() != dispatch.arms.len() {
+                        return unsupported(
+                            "computed shared borrow has stale dispatch observations",
+                        );
+                    }
+                    for arm in arms {
+                        if let checked_trees::expression::MatchPattern::Value(pattern) = arm.pattern
+                        {
+                            children.push(pattern);
+                        }
+                        children.push(arm.value);
+                    }
+                    (None, BorrowAccessKind::Read)
+                }
                 ExpressionNode::Unary(unary) => {
                     children.push(unary.operand);
                     (None, BorrowAccessKind::Read)

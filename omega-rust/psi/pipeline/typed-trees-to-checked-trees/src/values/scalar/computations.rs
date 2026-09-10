@@ -14,6 +14,7 @@ use checked_trees::{
 use symbols::SymbolHandle;
 
 mod call_arguments;
+mod dispatch;
 mod integers;
 mod normal_return;
 #[cfg(test)]
@@ -502,6 +503,11 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected_type: PrimitiveType,
     ) -> Option<CheckedScalarComputationHandle> {
+        if let ExpressionNode::Match(dispatch) =
+            self.program.expression_table.expression(expression).clone()
+        {
+            return self.dispatch(expression, &dispatch, expected_type);
+        }
         if let Some(value) = lower_return_expression(
             self.program,
             self.operators,

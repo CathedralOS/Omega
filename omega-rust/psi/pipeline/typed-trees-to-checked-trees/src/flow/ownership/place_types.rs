@@ -27,6 +27,7 @@ pub(crate) fn expression_type_reference_in_state(
             canonical_place_type_reference(program, state_symbol, statement_index, &place)
         }
         ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Match(_)
         | ExpressionNode::Binary(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Call(_)

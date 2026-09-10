@@ -150,6 +150,11 @@ fn append_substituted_projection_requests(
         return;
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            for child in crate::expression_types::match_children(program, *dispatch) {
+                append_substituted_projection_requests(program, child, bindings, requests);
+            }
+        }
         ExpressionNode::Member(member) => {
             if let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver)
                 && let Some((_, actual)) = bindings
@@ -276,6 +281,11 @@ fn validate_expression(
                 _ => {}
             }
             recurse!(member.receiver, diagnostics, visited);
+        }
+        ExpressionNode::Match(dispatch) => {
+            for child in crate::expression_types::match_children(program, *dispatch) {
+                recurse!(child, diagnostics, visited);
+            }
         }
         ExpressionNode::Atomic(atomic) => {
             recurse!(atomic.value, diagnostics, visited);

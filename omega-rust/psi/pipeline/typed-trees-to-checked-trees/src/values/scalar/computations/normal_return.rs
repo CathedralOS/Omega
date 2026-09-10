@@ -20,6 +20,7 @@ pub(super) fn boolean_result(
         }
         CheckedScalarComputationKind::Value(_) => None,
         CheckedScalarComputationKind::Call { .. } => None,
+        CheckedScalarComputationKind::Dispatch { .. } => None,
         CheckedScalarComputationKind::Select {
             condition,
             when_true,

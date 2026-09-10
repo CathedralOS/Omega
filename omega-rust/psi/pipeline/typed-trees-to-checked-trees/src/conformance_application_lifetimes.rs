@@ -404,6 +404,33 @@ fn collect_expression_elision_calls(
                 calls,
             );
         }
+        ExpressionNode::Match(dispatch) => {
+            collect_expression_elision_calls(
+                program,
+                caller_machine,
+                caller_state,
+                dispatch.subject,
+                calls,
+            );
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    collect_expression_elision_calls(
+                        program,
+                        caller_machine,
+                        caller_state,
+                        pattern,
+                        calls,
+                    );
+                }
+                collect_expression_elision_calls(
+                    program,
+                    caller_machine,
+                    caller_state,
+                    arm.value,
+                    calls,
+                );
+            }
+        }
         ExpressionNode::Binary(binary) => {
             collect_expression_elision_calls(
                 program,

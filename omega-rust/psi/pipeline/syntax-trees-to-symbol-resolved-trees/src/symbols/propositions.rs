@@ -86,6 +86,16 @@ fn assign_expression_symbols(
         };
     }
     match expressions.expression(expression).clone() {
+        ExpressionNode::Match(dispatch) => {
+            recurse!(dispatch.subject);
+            for arm in expressions.match_arms(dispatch.arms).to_vec() {
+                if let symbol_resolved_trees::expression::MatchPattern::Value(pattern) = arm.pattern
+                {
+                    recurse!(pattern);
+                }
+                recurse!(arm.value);
+            }
+        }
         ExpressionNode::ArrayLiteral(values) => assign_expression_span_symbols(
             expressions,
             child_type_references,

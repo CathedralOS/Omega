@@ -12,6 +12,7 @@ pub struct CheckedScalarComputationPlans {
     pub nodes: Arena<CheckedScalarComputation>,
     pub operands: Arena<CheckedScalarComputationHandle>,
     pub structural_arguments: Arena<CheckedUnitStructuralArgumentPlan>,
+    pub dispatch_arms: Arena<CheckedScalarDispatchArm>,
 }
 
 impl CheckedScalarComputationPlans {
@@ -79,6 +80,12 @@ impl Default for CheckedScalarComputation {
 pub enum CheckedScalarComputationKind {
     /// Pure source expression in the enclosing state's scalar namespace.
     Value(CheckedScalarExpression),
+    /// Save the subject once, then test arms in order and evaluate one result.
+    Dispatch {
+        source_expression: typed_trees::expression::ExpressionHandle,
+        subject: CheckedScalarComputationHandle,
+        arms: HandleSpan<CheckedScalarDispatchArm>,
+    },
     Call {
         source_call: Handle<crate::FlowCallFact>,
         target_machine: SymbolHandle,
@@ -106,4 +113,18 @@ pub enum CheckedScalarComputationKind {
         expression: CheckedScalarExpression,
         operands: HandleSpan<CheckedScalarComputationHandle>,
     },
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedScalarDispatchArm {
+    pub source_arm: Handle<typed_trees::expression::TableMatchArm>,
+    pub pattern: CheckedScalarDispatchPattern,
+    pub value: CheckedScalarComputationHandle,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum CheckedScalarDispatchPattern {
+    Value(CheckedScalarComputationHandle),
+    #[default]
+    Wildcard,
 }

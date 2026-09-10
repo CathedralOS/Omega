@@ -457,6 +457,19 @@ fn contains_owner(
                 }
             }
             ExpressionNode::Binary(binary) => pending.extend([binary.left, binary.right]),
+            ExpressionNode::Match(dispatch) => {
+                pending.push(dispatch.subject);
+                let arms = checked.expression_table.match_arms(dispatch.arms);
+                if arms.len() != dispatch.arms.len() {
+                    return true;
+                }
+                for arm in arms {
+                    if let checked_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                        pending.push(pattern);
+                    }
+                    pending.push(arm.value);
+                }
+            }
             ExpressionNode::Unary(unary) => pending.push(unary.operand),
             ExpressionNode::Cast(cast) => pending.push(cast.value),
             ExpressionNode::Borrow(borrow) => pending.push(borrow.target),

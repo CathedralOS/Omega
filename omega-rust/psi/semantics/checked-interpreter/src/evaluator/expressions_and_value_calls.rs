@@ -1,6 +1,43 @@
 use super::*;
 
 impl<'program> Evaluator<'program> {
+    pub(super) fn select_match_arm(
+        &mut self,
+        dispatch: &checked_trees::expression::TableMatchExpression,
+        frame: &Frame,
+    ) -> EvalResult<ExpressionHandle> {
+        let destination = self
+            .expression_scalar_type(dispatch.subject, frame)
+            .map(|(primitive, _)| primitive);
+        let subject =
+            self.eval_expression_with_destination(dispatch.subject, destination, frame)?;
+        for arm in self.program.expression_table.match_arms(dispatch.arms) {
+            let matches = match arm.pattern {
+                checked_trees::expression::MatchPattern::Wildcard => true,
+                checked_trees::expression::MatchPattern::Value(pattern) => {
+                    let pattern =
+                        self.eval_expression_with_destination(pattern, destination, frame)?;
+                    self.eval_binary(
+                        BinaryOperator::Equal,
+                        subject.clone(),
+                        pattern,
+                        false,
+                        None,
+                        None,
+                    )?
+                    .as_bool()
+                    .ok_or_else(|| {
+                        Halt::Unsupported("match equality did not produce a Boolean".to_owned())
+                    })?
+                }
+            };
+            if matches {
+                return Ok(arm.value);
+            }
+        }
+        unsupported("checked match has no selected arm; exhaustive dispatch evidence is required")
+    }
+
     pub(super) fn eval_expression(
         &mut self,
         handle: ExpressionHandle,
@@ -16,6 +53,10 @@ impl<'program> Evaluator<'program> {
             return Ok(value);
         }
         match node {
+            ExpressionNode::Match(dispatch) => {
+                let selected = self.select_match_arm(&dispatch, frame)?;
+                self.eval_expression(selected, frame)
+            }
             ExpressionNode::Atomic(atomic) => self.eval_expression(atomic.value, frame),
             ExpressionNode::Integer(value) => match value.bits_u64() {
                 // Value::Int carries the 8-byte two's-complement pattern; u64

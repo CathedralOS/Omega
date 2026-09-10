@@ -141,6 +141,18 @@ fn scan_expression(
 
     let expressions = &program.tables.bodies.expressions;
     match expressions.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            scan_expression(program, dispatch.subject, fact_position)?;
+            for arm in expressions.match_arms(dispatch.arms) {
+                if let resolved::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    check_equality_operand(program, dispatch.subject, fact_position)?;
+                    check_equality_operand(program, pattern, fact_position)?;
+                    scan_expression(program, pattern, fact_position)?;
+                }
+                scan_expression(program, arm.value, fact_position)?;
+            }
+            Ok(())
+        }
         ExpressionNode::Atomic(atomic) => scan_expression(program, atomic.value, fact_position),
         ExpressionNode::Binary(binary) => {
             if matches!(
