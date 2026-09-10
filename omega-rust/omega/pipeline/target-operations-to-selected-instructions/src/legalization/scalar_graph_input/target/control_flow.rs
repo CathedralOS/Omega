@@ -2,6 +2,8 @@
 use super::*;
 use target_operations::{TargetControlGraph, TargetControlSuccessor, TargetControlTerminator};
 #[cfg(test)]
+mod ieee_float_tests;
+#[cfg(test)]
 mod return_cleanup_tests;
 #[cfg(test)]
 mod scalar_return_tests;
@@ -244,6 +246,16 @@ pub(super) fn validate(
                             unit,
                         };
                         match expression {
+                            TargetScalarExpression::IeeeFloat(source) => {
+                                matches!(expected_type, ScalarType::IeeeFloat(_))
+                                    && source.scalar_type() == *expected_type
+                                    && source.source_value() == *value
+                                    && available
+                                        .iter()
+                                        .filter(|(candidate, _)| candidate == value)
+                                        .map(|(_, candidate)| candidate)
+                                        .eq(std::iter::once(source))
+                            }
                             TargetScalarExpression::Integer {
                                 scalar_type,
                                 expression,

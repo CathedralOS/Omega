@@ -26,6 +26,7 @@ impl TargetScalarImmediate {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetScalarExpression {
+    IeeeFloat(crate::TargetUnitScalarArgumentSource),
     Boolean(TargetBooleanExpression),
     Integer {
         scalar_type: IntegerType,
@@ -36,6 +37,7 @@ pub enum TargetScalarExpression {
 impl TargetScalarExpression {
     pub const fn scalar_type(&self) -> ScalarType {
         match self {
+            Self::IeeeFloat(source) => source.scalar_type(),
             Self::Boolean(_) => ScalarType::Boolean,
             Self::Integer { scalar_type, .. } => ScalarType::Integer(*scalar_type),
         }

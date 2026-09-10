@@ -6,6 +6,7 @@ use target_operations::CallSiteOwner;
 use terminal_psi::OperationKind;
 
 mod fragment_call;
+mod fragment_comparison;
 
 use super::model::{
     NativeByteSpan, OptimizedOperatorOccurrence, PhysicalRelocationDisposition, native_byte_span,
@@ -41,6 +42,11 @@ pub(super) fn derive_operator_physical_span(
             }
         }
         BoundaryApplicationRealization::ExactCompilerIntrinsic { .. } => {
+            if fragment_publication
+                && matches!(operation.kind, OperationKind::IeeeFloatCompare { .. })
+            {
+                return fragment_comparison::derive(occurrence, object, image);
+            }
             derive_fma_span(occurrence, operation, object, image)
         }
     }

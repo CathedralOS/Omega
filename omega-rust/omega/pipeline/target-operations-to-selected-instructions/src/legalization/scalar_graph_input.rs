@@ -230,8 +230,7 @@ pub(super) fn match_input(
                     && (matches!(placement.locations.as_slice(), [ValueLocation::Register {value_byte_offset:0,byte_size,..}] if *byte_size == placement.shape.byte_size)
                         || !ranked
                             && (matches!(abstracted.result, AbstractFunctionResult::Unit | AbstractFunctionResult::Structural(_))
-                                || (target.mixed_structural_scalar_abi.is_some()
-                                    && matches!(target.operation, TargetOperation::ControlGraph(_))))
+                                || matches!(target.operation, TargetOperation::ControlGraph(_)))
                             && scalar_stack(placement)))
         })
     {
@@ -284,7 +283,10 @@ pub(super) fn match_input(
             let call = callee_plan(*callee, native, plan, unit)?;
             if call.result.is_none()
                 || call.parameters.len() != arguments.len()
-                || !call.parameters.iter().all(scalar_register)
+                || !call
+                    .parameters
+                    .iter()
+                    .all(|placement| scalar_register(placement) || scalar_stack(placement))
             {
                 return Err(invalid);
             }
@@ -383,17 +385,11 @@ pub(super) fn callee_plan(
         && ((target.attachment.is_some()
             && !matches!(abstracted.result, AbstractFunctionResult::Unit))
             || !matches!(abstracted.result, AbstractFunctionResult::Unit)
-                && !matches!(abstracted.result, AbstractFunctionResult::Scalar(result) if matches!(result.scalar_type, ScalarType::Boolean | ScalarType::Integer(_)) && scalar_shape(result.scalar_type).is_some())
-            || abstracted.parameters.iter().any(|parameter| {
-                if matches!(abstracted.result, AbstractFunctionResult::Unit) {
-                    scalar_shape(parameter.scalar_type).is_none()
-                } else {
-                    !matches!(
-                        parameter.scalar_type,
-                        ScalarType::Integer(_) | ScalarType::Boolean
-                    ) || scalar_shape(parameter.scalar_type).is_none()
-                }
-            }))
+                && !matches!(abstracted.result, AbstractFunctionResult::Scalar(result) if scalar_shape(result.scalar_type).is_some())
+            || abstracted
+                .parameters
+                .iter()
+                .any(|parameter| scalar_shape(parameter.scalar_type).is_none()))
     {
         return Err(LegalizationError::SourceCustodyMismatch);
     }

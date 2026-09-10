@@ -145,10 +145,16 @@ pub(super) fn lower_terminator(
             {
                 return Err(invalid());
             }
-            let expression = observations::scalar_values(live, &prepared.scalar_parameters)?
-                .remove(value)
-                .ok_or(LoweringError::UnknownValue(*value))?
-                .into_expression(*value)?;
+            let expression = if matches!(scalar_type, ScalarType::IeeeFloat(_)) {
+                TargetScalarExpression::IeeeFloat(super::scalar_sources::source(
+                    *value, function, live,
+                )?)
+            } else {
+                observations::scalar_values(live, &prepared.scalar_parameters)?
+                    .remove(value)
+                    .ok_or(LoweringError::UnknownValue(*value))?
+                    .into_expression(*value)?
+            };
             if expression.scalar_type() != *scalar_type {
                 return Err(LoweringError::ValueTypeMismatch(*value));
             }
@@ -249,7 +255,9 @@ pub(super) fn lower_terminator(
                 && home.scalar_type == ScalarType::Boolean
             {
                 TargetBooleanExpression::ScalarHome(*home)
-            } else if let Some(parameter) = live.boolean_parameters.get(condition) {
+            } else if let Some(parameter) = live.scalar_block_parameters.get(condition)
+                && parameter.scalar_type == ScalarType::Boolean
+            {
                 TargetBooleanExpression::BlockParameter(*parameter)
             } else {
                 return Err(invalid());

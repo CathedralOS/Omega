@@ -75,6 +75,11 @@ pub(super) fn lower_unit_body(
             ));
         }
         match operation {
+            AbstractOperation::IeeeFloatCompare { .. } => {
+                return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                    function.machine,
+                ));
+            }
             AbstractOperation::Jump { .. } if super::continuation::has_shape(function) => {
                 super::continuation::lower(
                     operation_index,
@@ -280,6 +285,7 @@ pub(super) fn lower_unit_body(
                         function,
                         &scalar_values,
                         &boolean_constants,
+                        &ieee_float_constants,
                         &operations,
                     )
                 })?;

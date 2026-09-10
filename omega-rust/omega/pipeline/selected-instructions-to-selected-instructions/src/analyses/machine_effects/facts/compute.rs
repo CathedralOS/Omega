@@ -123,7 +123,7 @@ fn terminal_selected_keys(
         frame_address: keys.frame_address,
         call_unit: keys.call_unit.clone(),
         call_unit_mixed: keys.call_unit_mixed.clone(),
-        call_i64: keys.call_i64.clone(),
+        call_scalar: keys.call_scalar.clone(),
         call_aggregate: keys.call_aggregate.clone(),
         return_aggregate: keys.return_aggregate.clone(),
         materialize_i64: keys.materialize_i64,
@@ -141,6 +141,7 @@ fn terminal_selected_keys(
         compare_i64: keys.compare_i64,
         conditional_branch: keys.conditional_branch,
         jump: keys.jump,
+        return_float: keys.return_float.clone(),
         return_i64: keys.return_i64,
         return_unit: keys.return_unit,
     }
@@ -272,9 +273,9 @@ fn semantic(kind: SelectedInstructionKind) -> MachineSemanticKind {
             MachineSemanticKind::ConditionalBranchI64LessThan
         }
         SelectedInstructionKind::Jump => MachineSemanticKind::Jump,
-        SelectedInstructionKind::ReturnI64 => MachineSemanticKind::ReturnI64,
+        SelectedInstructionKind::ReturnScalar => MachineSemanticKind::ReturnScalar,
         SelectedInstructionKind::ReturnUnit => MachineSemanticKind::ReturnUnit,
-        SelectedInstructionKind::CallI64 { .. } => MachineSemanticKind::CallI64,
+        SelectedInstructionKind::CallScalar { .. } => MachineSemanticKind::CallScalar,
         SelectedInstructionKind::Load64 { .. } => MachineSemanticKind::Load64,
         SelectedInstructionKind::LoadPacked { width, .. } => match width {
             selected_instructions::PackedByteWidth::Three => MachineSemanticKind::LoadPacked3,

@@ -30,6 +30,38 @@ pub(super) fn lower_operation(
         ));
     }
     match operation {
+        AbstractOperation::IeeeFloatCompare {
+            psi_operation,
+            result,
+            comparison,
+            format,
+            left,
+            right,
+        } => {
+            let left = super::scalar_sources::source(*left, function, live)?;
+            let right = super::scalar_sources::source(*right, function, live)?;
+            if left.scalar_type() != ScalarType::IeeeFloat(*format)
+                || right.scalar_type() != ScalarType::IeeeFloat(*format)
+            {
+                return Err(LoweringError::ValueTypeMismatch(*result));
+            }
+            let result_home = TargetUnitScalarHomeRequirement {
+                defining_operation: *psi_operation,
+                source_value: *result,
+                scalar_type: ScalarType::Boolean,
+                shape: ValueShape::integer(1, 1),
+            };
+            live.scalar_homes.insert(*result, result_home);
+            provenance.operations.push(*psi_operation);
+            operations.push(TargetUnitOperation::IeeeFloatCompare {
+                result_home,
+                comparison: *comparison,
+                format: *format,
+                left,
+                right,
+            });
+            Ok(())
+        }
         AbstractOperation::EstablishScalarArray { .. } => super::scalar_arrays::establish(
             operation,
             function,
@@ -222,7 +254,10 @@ pub(super) fn lower_operation(
             else {
                 unreachable!("scalar call planner returns its owned row")
             };
-            if home.scalar_type == ScalarType::Boolean {
+            if matches!(
+                home.scalar_type,
+                ScalarType::Boolean | ScalarType::IeeeFloat(_)
+            ) {
                 if live.scalar_homes.insert(home.source_value, *home).is_some() {
                     return Err(LoweringError::DuplicateValue(home.source_value));
                 }
@@ -313,8 +348,8 @@ pub(super) fn lower_operation(
                 &live.integers,
                 &BTreeMap::new(),
                 &live.booleans,
-                &BTreeMap::new(),
-                &live.boolean_parameters,
+                &live.ieee_float_constants,
+                &live.scalar_block_parameters,
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
                 operations,

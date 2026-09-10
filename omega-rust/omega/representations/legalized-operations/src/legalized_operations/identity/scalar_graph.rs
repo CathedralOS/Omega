@@ -74,6 +74,25 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 None => bytes.push(0),
             }
             match &instruction.kind {
+                LegalizedScalarInstructionKind::IeeeFloatCompare {
+                    comparison,
+                    format,
+                    left,
+                    right,
+                } => {
+                    bytes.push(23);
+                    bytes.push(match comparison {
+                        semantic_vocabulary::IeeeFloatComparisonOperation::Equal => 0,
+                        semantic_vocabulary::IeeeFloatComparisonOperation::NotEqual => 1,
+                        semantic_vocabulary::IeeeFloatComparisonOperation::Less => 2,
+                        semantic_vocabulary::IeeeFloatComparisonOperation::LessOrEqual => 3,
+                        semantic_vocabulary::IeeeFloatComparisonOperation::Greater => 4,
+                        semantic_vocabulary::IeeeFloatComparisonOperation::GreaterOrEqual => 5,
+                    });
+                    encode_scalar_type(bytes, semantic_vocabulary::ScalarType::IeeeFloat(*format));
+                    bytes.extend_from_slice(&left.get().to_le_bytes());
+                    bytes.extend_from_slice(&right.get().to_le_bytes());
+                }
                 LegalizedScalarInstructionKind::EstablishScalarArray {
                     result,
                     elements,

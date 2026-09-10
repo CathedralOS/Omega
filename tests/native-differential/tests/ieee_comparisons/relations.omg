@@ -1,0 +1,14 @@
+use omega::language::core::float_operations;
+
+machine equal32(left: f32, right: f32) -> bool { left == right }
+machine not_equal32(left: f32, right: f32) -> bool { left != right }
+machine less32(left: f32, right: f32) -> bool { left < right }
+machine less_or_equal32(left: f32, right: f32) -> bool { left <= right }
+machine greater32(left: f32, right: f32) -> bool { left > right }
+machine greater_or_equal32(left: f32, right: f32) -> bool { left >= right }
+machine equal64(left: f64, right: f64) -> bool { left == right }
+machine not_equal64(left: f64, right: f64) -> bool { left != right }
+machine less64(left: f64, right: f64) -> bool { left < right }
+machine less_or_equal64(left: f64, right: f64) -> bool { left <= right }
+machine greater64(left: f64, right: f64) -> bool { left > right }
+machine greater_or_equal64(left: f64, right: f64) -> bool { left >= right }

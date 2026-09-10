@@ -38,7 +38,7 @@ pub fn machine_effect_catalog_identity(
     }
     encode_len(&mut bytes, catalog.selected_keys.call_unit.len());
     encode_len(&mut bytes, catalog.selected_keys.call_unit_mixed.len());
-    encode_len(&mut bytes, catalog.selected_keys.call_i64.len());
+    encode_len(&mut bytes, catalog.selected_keys.call_scalar.len());
     encode_len(&mut bytes, catalog.selected_keys.call_aggregate.len());
     encode_len(&mut bytes, catalog.selected_keys.return_aggregate.len());
     let selected_keys = catalog.selected_keys.in_identity_order();
@@ -363,13 +363,13 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::ExactAddI64Immediate => 4,
         MachineSemanticKind::ExactSubtractI64 => 5,
         MachineSemanticKind::ConditionalBranchNonZero => 6,
-        MachineSemanticKind::ReturnI64 => 7,
+        MachineSemanticKind::ReturnScalar => 7,
         MachineSemanticKind::ExactSubtractI64Immediate => 8,
         MachineSemanticKind::ReturnUnit => 9,
         MachineSemanticKind::CompareI64 => 10,
         MachineSemanticKind::ConditionalBranchU64LessThan => 11,
         MachineSemanticKind::ConditionalBranchI64LessThan => 12,
-        MachineSemanticKind::CallI64 => 13,
+        MachineSemanticKind::CallScalar => 13,
         MachineSemanticKind::Jump => 14,
     }
 }
@@ -419,13 +419,13 @@ pub(crate) const fn alternative_family_tag(family: MachineAlternativeFamily) -> 
         MachineAlternativeFamily::ExactAddI64Immediate => 4,
         MachineAlternativeFamily::ExactSubtractI64 => 5,
         MachineAlternativeFamily::ConditionalBranchNonZero => 6,
-        MachineAlternativeFamily::ReturnI64 => 7,
+        MachineAlternativeFamily::ReturnScalar => 7,
         MachineAlternativeFamily::ExactSubtractI64Immediate => 8,
         MachineAlternativeFamily::ReturnUnit => 9,
         MachineAlternativeFamily::CompareI64 => 10,
         MachineAlternativeFamily::ConditionalBranchU64LessThan => 11,
         MachineAlternativeFamily::ConditionalBranchI64LessThan => 12,
-        MachineAlternativeFamily::CallI64 => 13,
+        MachineAlternativeFamily::CallScalar => 13,
         MachineAlternativeFamily::Jump => 14,
     }
 }

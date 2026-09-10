@@ -434,7 +434,7 @@ pub(in crate::exit_contract) fn validate_return(
             }
             WholeFunctionReturnValueEvidence::AggregateV1 { fragments }
         }
-        SelectedInstructionKind::ReturnI64 => {
+        SelectedInstructionKind::ReturnScalar => {
             let Some(result_view) = result_view else {
                 return Err(WholeFunctionExitContractError::ReturnOperandMismatch(
                     selected.id,
@@ -449,6 +449,8 @@ pub(in crate::exit_contract) fn validate_return(
                 || operand.operand != 0
                 || operand.access != RegisterOperandAccess::Use
                 || operand.view != result_view
+                || selected.operands[0].fixed_view != Some(operand.view)
+                || selected.operands[0].virtual_register != operand.virtual_register
                 || operand.read_units != operand.storage_units
                 || !operand.write_units.is_empty()
             {
@@ -456,7 +458,7 @@ pub(in crate::exit_contract) fn validate_return(
                     selected.id,
                 ));
             }
-            WholeFunctionReturnValueEvidence::ScalarI64V1 {
+            WholeFunctionReturnValueEvidence::ScalarV1 {
                 virtual_register: operand.virtual_register,
                 view: operand.view,
                 units: operand.storage_units.clone(),

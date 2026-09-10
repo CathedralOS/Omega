@@ -376,7 +376,13 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                         target,
                         stack_pointer,
                         link_register,
-                        Some(result_view),
+                        Some(super::validation_rules::scalar_return_view(
+                            physical,
+                            target,
+                            &function.virtual_registers,
+                            instruction,
+                            result_view,
+                        )?),
                         block.id,
                         psi_return_edge,
                         instruction,
@@ -388,7 +394,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                 } else {
                     if matches!(
                         instruction.kind,
-                        SelectedInstructionKind::CallI64 { .. }
+                        SelectedInstructionKind::CallScalar { .. }
                             | SelectedInstructionKind::CallUnit { .. }
                             | SelectedInstructionKind::CallAggregate { .. }
                     ) {

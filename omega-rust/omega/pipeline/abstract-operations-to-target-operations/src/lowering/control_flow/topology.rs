@@ -5,6 +5,22 @@ pub(in crate::lowering) fn requires_graph(
     function: &AbstractFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<bool, LoweringError> {
+    if (function.result.scalar().is_some()
+        && function
+            .parameters
+            .iter()
+            .any(|parameter| matches!(parameter.scalar_type, ScalarType::IeeeFloat(_))))
+        || function
+            .result
+            .scalar()
+            .is_some_and(|result| matches!(result.scalar_type, ScalarType::IeeeFloat(_)))
+        || function
+            .operations
+            .iter()
+            .any(|operation| matches!(operation, AbstractOperation::IeeeFloatCompare { .. }))
+    {
+        return Ok(true);
+    }
     if function
         .structural_parameters
         .iter()

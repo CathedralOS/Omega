@@ -85,6 +85,40 @@ fn operation_plan() -> LegalizedOperationPlan {
 }
 
 #[test]
+fn ieee_comparison_identity_binds_relation_format_and_ordered_operands() {
+    use semantic_vocabulary::{IeeeFloatComparisonOperation as Comparison, IeeeFloatFormat};
+    let mut plan = operation_plan();
+    plan.scalar_functions[0].blocks[0].instructions[4].kind =
+        LegalizedScalarInstructionKind::IeeeFloatCompare {
+            comparison: Comparison::Less,
+            format: IeeeFloatFormat::Binary32,
+            left: id(200),
+            right: id(201),
+        };
+    let identity = legalized_operation_plan_identity(&plan);
+    for mutation in 0..4 {
+        let mut changed = plan.clone();
+        let LegalizedScalarInstructionKind::IeeeFloatCompare {
+            comparison,
+            format,
+            left,
+            right,
+        } = &mut changed.scalar_functions[0].blocks[0].instructions[4].kind
+        else {
+            panic!("comparison")
+        };
+        match mutation {
+            0 => *comparison = Comparison::Greater,
+            1 => *format = IeeeFloatFormat::Binary64,
+            2 => std::mem::swap(left, right),
+            3 => *left = id(202),
+            _ => unreachable!(),
+        }
+        assert_ne!(identity, legalized_operation_plan_identity(&changed));
+    }
+}
+
+#[test]
 fn scalar_operation_identity_binds_each_authored_row_envelope_and_order() {
     let plan = operation_plan();
     let identity = legalized_operation_plan_identity(&plan);

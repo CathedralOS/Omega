@@ -41,7 +41,8 @@ FMA target records retain occurrence, selected plan and admission without choosi
 XMM homes. An available target record does not imply that the common downstream
 selection/emission path supports it.
 
-Ordinary Unit control and cyclic integer-result functions use target-owned blocks
+Ordinary Unit control, cyclic integer-result functions, and IEEE scalar transport
+and comparison functions use target-owned blocks
 and explicit `Jump`, `Conditional`, `StructuralCase`, `Return`, and
 `ReturnScalar` terminators in `TargetControlGraph`.
 Nonterminal definitions and calls reuse the ordered Unit operation vocabulary;
@@ -77,10 +78,15 @@ own block/place identity, not an inherited producer operation or length value.
 The selected consumer must realize their descriptor transfers; this upper
 projection alone grants no native transport or cyclic admission.
 The node set includes scalar constants, integer widening, exact integer add and
-subtract, immutable byte length and read observations, integer comparisons,
+subtract, immutable byte length and read observations, integer and IEEE comparisons,
 subslice establishments, scalar calls and ordinary Unit calls. Arithmetic retains
 its exact safety obligation; scalar calls retain their callee ABI and result home
 without requiring a fabricated caller attachment.
+IEEE comparisons retain their relation, format, ordered operands and Boolean
+result home. Float parameters, call results, returns and block arrivals retain
+their IEEE scalar type; raw-bit transport is not a conversion to integer language
+semantics. The selected provider and exact authored application remain in the
+compiler's checked coverage companion, independently of this numeric operation.
 Read/subslice views must be exact shared parameters or dominating establishments;
 their length-observation identity is retained separately from scalar residence.
 Whole mutable machine/block parameters support length observations and indexed

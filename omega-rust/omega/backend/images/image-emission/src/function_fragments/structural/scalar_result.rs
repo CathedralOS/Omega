@@ -57,7 +57,7 @@ pub(super) fn result(
         .virtual_register;
     if instructions.next().is_some()
         || instruction.kind
-            != (selected_instructions::SelectedInstructionKind::CallI64 {
+            != (selected_instructions::SelectedInstructionKind::CallScalar {
                 callee: contract.call.callee,
             })
         || !selected.virtual_registers.iter().any(|register| {

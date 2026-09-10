@@ -102,7 +102,8 @@ fn definition(operation: &TargetUnitOperation) -> Option<(ValueId, Source)> {
                 value: *value,
             },
         )),
-        TargetUnitOperation::ScalarDefinition { result_home, .. }
+        TargetUnitOperation::IeeeFloatCompare { result_home, .. }
+        | TargetUnitOperation::ScalarDefinition { result_home, .. }
         | TargetUnitOperation::ScalarCall { result_home, .. } => {
             Some((result_home.source_value, Source::Home(*result_home)))
         }

@@ -12,9 +12,11 @@ use register_model::{
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
+mod float_scalar_calls;
 #[cfg(test)]
 mod float_transport_tests;
 mod mixed_calls;
+pub use float_scalar_calls::*;
 pub use mixed_calls::*;
 mod mixed_aggregate_calls;
 pub use mixed_aggregate_calls::*;
@@ -1330,6 +1332,7 @@ pub fn x86_64_register_constraint_catalog(
         });
     }
     mixed_calls::append_constraints(&mut constraints, model);
+    float_scalar_calls::append_constraints(&mut constraints, model);
     packed_memory::append_constraints(&mut constraints, model);
     mixed_aggregate_calls::append_constraints(&mut constraints, model);
     constraints.sort_by_key(|constraint| constraint.key);
@@ -1343,6 +1346,10 @@ pub fn x86_64_register_constraint_catalog(
             let mut required = X86_64_REQUIRED_REGISTER_CONSTRAINTS.to_vec();
             required.extend([X86_64_LOAD_PACKED, X86_64_STORE_PACKED]);
             required.extend(x86_64_system_v_mixed_unit_call_keys());
+            for microsoft in [false, true] {
+                required.extend(x86_64_float_scalar_call_keys(microsoft));
+                required.extend(x86_64_float_scalar_return_keys(microsoft));
+            }
             required.extend(x86_64_microsoft_mixed_unit_call_keys());
             required.extend(x86_64_system_v_mixed_aggregate_call_keys());
             required.extend(x86_64_microsoft_mixed_aggregate_call_keys());
@@ -1395,23 +1402,20 @@ pub fn validate_x86_64_register_constraint_catalog(
     let validated = validate_register_constraint_catalog(catalog, model)
         .map_err(X86_64RegisterConstraintCatalogValidationError::Structural)?;
     let canonical = x86_64_register_constraint_catalog(model);
+    // Structural validation requires strictly sorted, unique actual keys;
+    // the canonical factory sorts its rows before publication.
+    let actual_rows = &validated.catalog().constraints;
     for key in canonical.required.iter().copied() {
-        let Some(actual) = validated
-            .catalog()
-            .constraints
-            .iter()
-            .find(|constraint| constraint.key == key)
-        else {
+        let Ok(actual_position) = actual_rows.binary_search_by_key(&key, |row| row.key) else {
             return Err(
                 X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(key),
             );
         };
-        let expected = canonical
+        let expected_position = canonical
             .constraints
-            .iter()
-            .find(|constraint| constraint.key == key)
+            .binary_search_by_key(&key, |row| row.key)
             .expect("target-owned inventory and rows are closed together");
-        if actual != expected {
+        if actual_rows[actual_position] != canonical.constraints[expected_position] {
             return Err(
                 X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(key),
             );
@@ -1662,6 +1666,10 @@ mod tests {
         assert_eq!(
             catalog.required.len(),
             X86_64_REQUIRED_REGISTER_CONSTRAINTS.len()
+                + x86_64_float_scalar_call_keys(false).len()
+                + x86_64_float_scalar_call_keys(true).len()
+                + x86_64_float_scalar_return_keys(false).len()
+                + x86_64_float_scalar_return_keys(true).len()
                 + 2
                 + x86_64_system_v_mixed_unit_call_keys().len()
                 + x86_64_microsoft_mixed_unit_call_keys().len()

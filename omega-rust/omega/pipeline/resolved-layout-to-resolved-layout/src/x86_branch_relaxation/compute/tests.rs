@@ -144,7 +144,7 @@ fn conditional_function(
                 instructions: vec![ResolvedSelectedFormRow {
                     instruction: SelectedInstructionId(1),
                     alternative: MachineAlternativeKey {
-                        family: MachineAlternativeFamily::ReturnI64,
+                        family: MachineAlternativeFamily::ReturnScalar,
                         variant: 0,
                     },
                     offset: fallthrough_offset,
@@ -160,7 +160,7 @@ fn conditional_function(
                 instructions: vec![ResolvedSelectedFormRow {
                     instruction: SelectedInstructionId(2),
                     alternative: MachineAlternativeKey {
-                        family: MachineAlternativeFamily::ReturnI64,
+                        family: MachineAlternativeFamily::ReturnScalar,
                         variant: 0,
                     },
                     offset: taken_offset,

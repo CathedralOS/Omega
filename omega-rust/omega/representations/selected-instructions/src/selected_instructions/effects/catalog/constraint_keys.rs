@@ -27,9 +27,10 @@ impl SelectedConstraintKeys {
         .flatten()
         .chain(self.call_unit.iter().copied())
         .chain(self.call_unit_mixed.iter().copied())
-        .chain(self.call_i64.iter().copied())
+        .chain(self.call_scalar.iter().copied())
         .chain(self.call_aggregate.iter().copied())
         .chain(self.return_aggregate.iter().copied())
+        .chain(self.return_float.iter().copied())
         .chain([
             self.materialize_i64,
             self.materialize_boolean,
@@ -95,12 +96,12 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::ExactSubtractI64 => self.subtract_i64,
             MachineSemanticKind::ExactSubtractI64Immediate => self.subtract_i64_immediate,
             MachineSemanticKind::ConditionalBranchNonZero => self.conditional_branch,
-            MachineSemanticKind::ReturnI64 => self.return_i64,
+            MachineSemanticKind::ReturnScalar => self.return_i64,
             MachineSemanticKind::ReturnUnit => self.return_unit,
             MachineSemanticKind::CompareI64 => self.compare_i64,
             MachineSemanticKind::ConditionalBranchU64LessThan => self.conditional_branch,
             MachineSemanticKind::ConditionalBranchI64LessThan => self.conditional_branch,
-            MachineSemanticKind::CallI64
+            MachineSemanticKind::CallScalar
             | MachineSemanticKind::CallAggregate
             | MachineSemanticKind::ReturnAggregate => return None,
             MachineSemanticKind::Jump => self.jump,
@@ -112,9 +113,15 @@ impl SelectedConstraintKeys {
         MachineSemanticKind::ALL
             .into_iter()
             .flat_map(|semantic| {
+                if semantic == MachineSemanticKind::ReturnScalar {
+                    return std::iter::once(self.return_i64)
+                        .chain(self.return_float.iter().copied())
+                        .map(|key| (semantic, key))
+                        .collect();
+                }
                 if matches!(
                     semantic,
-                    MachineSemanticKind::CallI64
+                    MachineSemanticKind::CallScalar
                         | MachineSemanticKind::CallUnit
                         | MachineSemanticKind::CallAggregate
                         | MachineSemanticKind::ReturnAggregate
@@ -126,7 +133,7 @@ impl SelectedConstraintKeys {
                     } else if semantic == MachineSemanticKind::CallUnit {
                         &self.call_unit
                     } else {
-                        &self.call_i64
+                        &self.call_scalar
                     })
                     .iter()
                     .chain(if semantic == MachineSemanticKind::CallUnit {

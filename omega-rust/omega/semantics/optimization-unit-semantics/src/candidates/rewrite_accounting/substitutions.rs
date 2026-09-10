@@ -64,6 +64,10 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
             replace(left);
             replace(right);
         }
+        O::IeeeFloatCompare { left, right, .. } => {
+            replace(left);
+            replace(right);
+        }
         O::NearestIeeeFloatFusedMultiplyAdd {
             left,
             right,

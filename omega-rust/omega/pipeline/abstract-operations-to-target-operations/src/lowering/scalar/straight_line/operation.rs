@@ -184,6 +184,7 @@ pub(super) fn lower_operation(
             provenance.operations.push(*psi_operation);
         }
         AbstractOperation::IeeeFloatConstant { .. }
+        | AbstractOperation::IeeeFloatCompare { .. }
         | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. } => {
             return Err(LoweringError::UnsupportedOperationInScalarFunction(
                 function.machine,

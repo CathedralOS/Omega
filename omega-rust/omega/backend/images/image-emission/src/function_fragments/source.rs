@@ -296,6 +296,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::ByteSequenceRead { .. }
                 | AbstractOperation::ByteSequenceSubslice { .. } => byte_operation_retained(operation, targeted),
                 AbstractOperation::Call {
+                    psi_operation,
                     callee,
                     arguments,
                     requirement_obligations,
@@ -303,10 +304,20 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     ..
                 } => {
                     let (body, target) = function(source, *callee)?;
-                    target
+                    // The graph owns its ABI directly; do not require a legacy
+                    // scalar mirror after mandatory source/selection replay.
+                    let call_plan = target
                         .scalar_abi
                         .as_ref()
-                        .is_some_and(|abi| abi.parameters.len() == arguments.len())
+                        .map(|abi| &abi.call_plan)
+                        .or_else(|| parameter_abi(target).map(|(plan, _, _)| plan));
+                    call_plan.is_some_and(|plan|
+                        plan.parameters.len() == arguments.len()
+                            && selected.calls.iter().filter(|row|
+                                row.operation == *psi_operation && row.call.callee == *callee
+                                    && row.call.call_plan == *plan
+                                    && row.call.result_placement == plan.result
+                            ).count() == 1)
                         && !matches!(body.result, AbstractFunctionResult::Unit)
                         && arguments.len() == body.parameters.len()
                         && requirement_obligations.is_empty()
@@ -331,6 +342,9 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                         || super::structural::read_result_cleanup_actions_match(abstracted, selected, cleanup_actions),
                 },
                 AbstractOperation::BooleanEqual { .. }
+                // Like the other pure comparisons, source/selection replay
+                // above checks every operand and the complete realization.
+                | AbstractOperation::IeeeFloatCompare { .. }
                 | AbstractOperation::IntegerEqual { .. }
                 | AbstractOperation::IntegerLessThan { .. }
                 | AbstractOperation::IntegerLessOrEqual { .. }

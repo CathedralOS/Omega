@@ -145,3 +145,58 @@ fn literal_consumers_reject_wrong_format_missing_or_late_definition() {
         }
     }
 }
+
+#[test]
+fn graph_unit_call_retains_dominating_ieee_literal_source() {
+    for literal in [
+        IeeeFloatValue::Binary32(0x8000_0001),
+        IeeeFloatValue::Binary64(0xfff8_0000_0000_1234),
+    ] {
+        let mut source = literal_plan(literal, true);
+        let caller = source.functions.last_mut().unwrap();
+        let destination = BlockId::new(99).unwrap();
+        caller.operations.insert(
+            1,
+            AbstractOperation::Jump {
+                psi_edge: EdgeId::new(99).unwrap(),
+                target: destination,
+                bindings: Vec::new(),
+                structural_bindings: Vec::new(),
+                trivial_affine_discards: Vec::new(),
+                residual_affine_discards: Vec::new(),
+            },
+        );
+        caller.block_entries.push(AbstractBlockEntry {
+            block: destination,
+            operation_offset: 2,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+        });
+        for native in [
+            NativeTarget::linux_x64(),
+            NativeTarget::linux_arm64(),
+            NativeTarget::macos_arm64(),
+            NativeTarget::windows_x64(),
+        ] {
+            let lowered = lower_to_target_operations(&source, native).unwrap();
+            let TargetOperation::ControlGraph(graph) = &lowered.functions.last().unwrap().operation
+            else {
+                panic!("ordinary Unit graph")
+            };
+            let TargetUnitOperation::Call {
+                scalar_arguments, ..
+            } = &graph.blocks[1].operations[0]
+            else {
+                panic!("ordinary Unit call")
+            };
+            assert_eq!(
+                scalar_arguments[0].source,
+                TargetUnitScalarArgumentSource::IeeeFloatImmediate {
+                    defining_operation: OperationId::new(3).unwrap(),
+                    source_value: ValueId::new(1).unwrap(),
+                    value: literal,
+                }
+            );
+        }
+    }
+}

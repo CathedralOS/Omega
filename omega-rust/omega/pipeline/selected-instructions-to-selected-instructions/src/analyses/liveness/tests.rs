@@ -226,7 +226,7 @@ pub(crate) fn function_with_operand(access: RegisterOperandAccess) -> SelectedFu
             terminator: SelectedTerminator::Return {
                 instruction: SelectedInstruction {
                     id: SelectedInstructionId(1),
-                    kind: SelectedInstructionKind::ReturnI64,
+                    kind: SelectedInstructionKind::ReturnScalar,
                     constraint: key,
                     operands: Vec::new(),
                     implicit_uses: Vec::new(),

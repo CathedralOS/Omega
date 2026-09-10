@@ -65,7 +65,7 @@ pub(super) fn derive(
                     .any(|instruction| {
                         matches!(
                             instruction.alternative.key.family,
-                            MachineAlternativeFamily::CallI64
+                            MachineAlternativeFamily::CallScalar
                                 | MachineAlternativeFamily::CallUnit
                                 | MachineAlternativeFamily::CallAggregate
                         )

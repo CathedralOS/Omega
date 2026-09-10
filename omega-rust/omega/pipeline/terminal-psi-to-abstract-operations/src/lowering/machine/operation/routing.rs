@@ -179,11 +179,11 @@ pub(super) fn lower(
             closed_conformance_applications,
         ),
         OperationKind::IntegerConstant { .. } => integer_constants_and_relations::lower(operation),
-        OperationKind::IeeeFloatCompare { .. } => {
-            Err(LoweringError::UnsupportedIeeeFloatComparison(operation.id))
+        OperationKind::IeeeFloatCompare { .. }
+        | OperationKind::IeeeFloatConstant { .. }
+        | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. } => {
+            ieee_float::lower(operation, value_types)
         }
-        OperationKind::IeeeFloatConstant { .. }
-        | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. } => ieee_float::lower(operation),
         OperationKind::BooleanConstant { .. }
         | OperationKind::BooleanStructuralField { .. }
         | OperationKind::BooleanNot { .. }

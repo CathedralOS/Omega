@@ -257,7 +257,7 @@ fn mixed_borrowed_calls_preserve_separate_scalar_and_pointer_placements() {
                 .instructions
                 .iter_mut()
                 .find(|instruction| {
-                    matches!(instruction.kind, SelectedInstructionKind::CallI64 { .. })
+                    matches!(instruction.kind, SelectedInstructionKind::CallScalar { .. })
                 })
                 .unwrap();
             call.operands.swap(0, scalar_count);
@@ -323,7 +323,7 @@ fn borrowed_descriptor_call_forwards_pointer_and_replays_custody() {
         );
         assert_eq!(
             instructions[2].kind,
-            SelectedInstructionKind::CallI64 {
+            SelectedInstructionKind::CallScalar {
                 callee: MachineId::new(2).unwrap()
             }
         );

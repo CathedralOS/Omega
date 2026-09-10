@@ -15,7 +15,7 @@ pub(super) fn check(
     instruction: &SelectedInstruction,
     actual: &Control,
 ) -> Result<(), ResolvedFragmentEmissionError> {
-    if let SelectedInstructionKind::CallI64 { callee }
+    if let SelectedInstructionKind::CallScalar { callee }
     | SelectedInstructionKind::CallUnit { callee }
     | SelectedInstructionKind::CallAggregate { callee } = instruction.kind
     {

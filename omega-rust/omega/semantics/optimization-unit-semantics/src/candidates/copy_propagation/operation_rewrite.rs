@@ -73,6 +73,10 @@ pub(crate) fn rewrite_block_parameter_operation(
             replace(left);
             replace(right);
         }
+        O::IeeeFloatCompare { left, right, .. } => {
+            replace(left);
+            replace(right);
+        }
         O::NearestIeeeFloatFusedMultiplyAdd {
             left,
             right,

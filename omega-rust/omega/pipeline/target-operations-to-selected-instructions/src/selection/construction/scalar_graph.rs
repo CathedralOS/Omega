@@ -13,6 +13,7 @@ mod boolean_value;
 mod byte_input;
 mod byte_output;
 mod control;
+mod ieee_comparison;
 mod integer_conversion;
 mod process_exit;
 mod scalar_call;
@@ -25,6 +26,7 @@ mod zero_compare;
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
 pub(super) fn build(
     function: usize,
     source: &LegalizedScalarFunction,
@@ -34,13 +36,24 @@ pub(super) fn build(
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<SelectedFunction, SelectedInstructionError> {
     let invalid = || SelectedInstructionError::UnsupportedSourceShape { function };
-    let order = control::block_order(source)?;
     let environment = register_environment::validate_target_register_environment(
         native_target,
         physical.model().clone(),
         catalog.catalog().clone(),
     )
     .map_err(|_| invalid())?;
+    build_with_environment(function, source, constraints, &environment)
+}
+
+pub(super) fn build_with_environment(
+    function: usize,
+    source: &LegalizedScalarFunction,
+    constraints: &SelectedSelectionConstraints,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+) -> Result<SelectedFunction, SelectedInstructionError> {
+    let invalid = || SelectedInstructionError::UnsupportedSourceShape { function };
+    let order = control::block_order(source)?;
+    let catalog = environment.constraints();
     let materialize = row(catalog, constraints.keys.materialize_i64)?;
     let [operand] = materialize.operands.as_slice() else {
         return Err(invalid());
@@ -59,7 +72,7 @@ pub(super) fn build(
         definitions: Vec::new(),
         transport: structural::Transport::default(),
     };
-    structural::entry(function, source, &environment, &mut builder)?;
+    structural::entry(function, source, environment, &mut builder)?;
     // Entry ABI precoloring ends at a copy. The semantic parameter may remain
     // live across calls without being pinned to a caller-clobbered register.
     for (index, parameter) in source.parameters.iter().enumerate() {
@@ -239,7 +252,7 @@ pub(super) fn build(
                 block_id,
                 start,
                 operation,
-                &environment,
+                environment,
                 &mut builder,
             )? {
                 continue;
@@ -255,6 +268,9 @@ pub(super) fn build(
                 boolean_value::emit(operation, &mut builder)?
             } else {
                 match &operation.kind {
+                    LegalizedScalarInstructionKind::IeeeFloatCompare { .. } => {
+                        ieee_comparison::emit(operation, &mut builder)?
+                    }
                     LegalizedScalarInstructionKind::PrimitiveScalarRead { .. } => {
                         structural::read(source, &mut builder, operation)?
                     }
@@ -383,7 +399,7 @@ pub(super) fn build(
                         return Err(invalid());
                     }
                     LegalizedScalarInstructionKind::Call(_) => {
-                        scalar_call::emit(function, source, operation, &environment, &mut builder)?
+                        scalar_call::emit(function, source, operation, environment, &mut builder)?
                     }
                 }
             };
@@ -395,7 +411,7 @@ pub(super) fn build(
             if let Some(exited) = process_exit::build(block, block_id, start, &mut builder)? {
                 exited
             } else {
-                control::build(function, source, block, &order, &mut builder, &environment)?
+                control::build(function, source, block, &order, &mut builder, environment)?
             };
         if !builder.pending_provenance.operations.is_empty() {
             return Err(invalid());

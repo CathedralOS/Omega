@@ -163,7 +163,8 @@ pub(super) fn fixed_native_scalar_shape(scalar_type: ScalarType) -> Option<Value
     match scalar_type {
         ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
         ScalarType::Integer(integer) => fixed_native_integer_shape(integer),
-        ScalarType::IeeeFloat(_) => None,
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => Some(ValueShape::float(4)),
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => Some(ValueShape::float(8)),
     }
 }
 pub(super) fn fixed_native_integer_shape(scalar_type: IntegerType) -> Option<ValueShape> {
@@ -179,6 +180,57 @@ pub(super) fn fixed_native_integer_shape(scalar_type: IntegerType) -> Option<Val
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ieee_float_signatures_keep_format_and_native_parameter_result_placement() {
+        for (format, width) in [
+            (IeeeFloatFormat::Binary32, 4),
+            (IeeeFloatFormat::Binary64, 8),
+        ] {
+            for target in [
+                NativeTarget::linux_x64(),
+                NativeTarget::linux_arm64(),
+                NativeTarget::windows_x64(),
+                NativeTarget::macos_arm64(),
+            ] {
+                let mut source = function();
+                let scalar_type = ScalarType::IeeeFloat(format);
+                source.parameters = (1..=10)
+                    .map(|ordinal| AbstractParameter {
+                        value: ValueId::new(ordinal).unwrap(),
+                        scalar_type,
+                    })
+                    .collect();
+                source.result = AbstractFunctionResult::Scalar(AbstractResult {
+                    value: ValueId::new(11).unwrap(),
+                    scalar_type,
+                });
+                let abi = derive_fixed_scalar_function_abi(&source, target)
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(abi.result.scalar_type, scalar_type);
+                assert_eq!(abi.result.placement.shape, ValueShape::float(width));
+                for ((actual, declared), placement) in abi
+                    .parameters
+                    .iter()
+                    .zip(&source.parameters)
+                    .zip(&abi.call_plan.parameters)
+                {
+                    assert_eq!(actual.value, declared.value);
+                    assert_eq!(actual.scalar_type, scalar_type);
+                    assert_eq!(actual.placement, *placement);
+                    assert_eq!(actual.placement.shape, ValueShape::float(width));
+                }
+                assert!(abi.parameters.iter().any(|parameter| {
+                    parameter
+                        .placement
+                        .locations
+                        .iter()
+                        .any(|location| matches!(location, ValueLocation::Stack { .. }))
+                }));
+            }
+        }
+    }
 
     #[test]
     fn boolean_parameters_retain_semantic_type_and_one_byte_abi_placement() {

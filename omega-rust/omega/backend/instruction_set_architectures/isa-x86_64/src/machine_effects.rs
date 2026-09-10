@@ -96,12 +96,15 @@ pub fn x86_64_machine_effect_catalog(
                         memory::declaration(semantic, constraint, constraints)
                     } else if matches!(
                         semantic,
-                        MachineSemanticKind::CallI64 | MachineSemanticKind::CallAggregate
+                        MachineSemanticKind::CallScalar | MachineSemanticKind::CallAggregate
                     ) {
                         scalar_call_declaration(semantic, constraint, constraints)
-                    } else if semantic == MachineSemanticKind::ReturnAggregate {
+                    } else if matches!(
+                        semantic,
+                        MachineSemanticKind::ReturnAggregate | MachineSemanticKind::ReturnScalar
+                    ) {
                         let mut returned =
-                            declaration(MachineSemanticKind::ReturnI64, &selected_keys);
+                            declaration(MachineSemanticKind::ReturnScalar, &selected_keys);
                         returned.semantic = semantic;
                         returned.constraint = constraint;
                         returned.alternatives[0].key.family = semantic.into();
@@ -195,11 +198,16 @@ fn selected_keys(
         } else {
             crate::x86_64_microsoft_register_unit_call_keys()
         },
-        call_i64: if matches!(target.object_format, ObjectFormat::Elf) {
+        call_scalar: (if matches!(target.object_format, ObjectFormat::Elf) {
             x86_64_system_v_register_call_keys()
         } else {
             crate::x86_64_microsoft_register_call_keys()
-        },
+        })
+        .into_iter()
+        .chain(crate::x86_64_float_scalar_call_keys(
+            target.object_format == ObjectFormat::Coff,
+        ))
+        .collect(),
         materialize_i64: X86_64_MATERIALIZE_I64,
         materialize_boolean: crate::X86_64_MATERIALIZE_BOOLEAN,
         copy_i64: X86_64_COPY_I64,
@@ -215,6 +223,9 @@ fn selected_keys(
         compare_i64: X86_64_COMPARE_I64,
         conditional_branch: X86_64_CONDITIONAL_BRANCH,
         jump: crate::X86_64_JUMP,
+        return_float: crate::x86_64_float_scalar_return_keys(
+            target.object_format == ObjectFormat::Coff,
+        ),
         return_i64,
         return_unit,
     })
@@ -301,7 +312,7 @@ fn declaration(
             MachineSemanticKind::ConditionalBranchNonZero
                 | MachineSemanticKind::ConditionalBranchU64LessThan
                 | MachineSemanticKind::ConditionalBranchI64LessThan
-                | MachineSemanticKind::ReturnI64
+                | MachineSemanticKind::ReturnScalar
                 | MachineSemanticKind::ReturnAggregate
                 | MachineSemanticKind::Jump
                 | MachineSemanticKind::ReturnUnit
@@ -379,11 +390,11 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         MachineSemanticKind::ConditionalBranchNonZero
         | MachineSemanticKind::ConditionalBranchU64LessThan
         | MachineSemanticKind::ConditionalBranchI64LessThan
-        | MachineSemanticKind::ReturnI64
+        | MachineSemanticKind::ReturnScalar
         | MachineSemanticKind::ReturnAggregate
         | MachineSemanticKind::Jump
         | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
-        MachineSemanticKind::CallI64
+        MachineSemanticKind::CallScalar
         | MachineSemanticKind::CallAggregate
         | MachineSemanticKind::Load8
         | MachineSemanticKind::Load16
@@ -465,7 +476,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
                     MachineEncodedControlEffect::ConditionalRelativeBranchV1,
                 )
             }
-            MachineSemanticKind::ReturnI64
+            MachineSemanticKind::ReturnScalar
             | MachineSemanticKind::ReturnAggregate
             | MachineSemanticKind::ReturnUnit => {
                 let stack_pointer = view("rsp");
@@ -564,13 +575,13 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
                 maximum_bytes: Some(6),
             }
         }
-        MachineSemanticKind::ReturnI64
+        MachineSemanticKind::ReturnScalar
         | MachineSemanticKind::ReturnAggregate
         | MachineSemanticKind::ReturnUnit => MachineSizeKnowledge::ExactBytes(1),
         MachineSemanticKind::ExactSubtractI64 => {
             unreachable!("subtraction declares alias-dependent alternatives")
         }
-        MachineSemanticKind::CallI64
+        MachineSemanticKind::CallScalar
         | MachineSemanticKind::CallAggregate
         | MachineSemanticKind::Load8
         | MachineSemanticKind::Load16
@@ -773,7 +784,7 @@ mod tests {
                         MachineSemanticKind::ConditionalBranchNonZero
                             | MachineSemanticKind::ConditionalBranchU64LessThan
                             | MachineSemanticKind::ConditionalBranchI64LessThan
-                            | MachineSemanticKind::ReturnI64
+                            | MachineSemanticKind::ReturnScalar
                             | MachineSemanticKind::ReturnAggregate
                             | MachineSemanticKind::Jump
                             | MachineSemanticKind::ReturnUnit
@@ -781,7 +792,7 @@ mod tests {
                         MachineBarrier::ControlFlow
                     } else if matches!(
                         row.semantic,
-                        MachineSemanticKind::CallI64
+                        MachineSemanticKind::CallScalar
                             | MachineSemanticKind::CallUnit
                             | MachineSemanticKind::CallAggregate
                     ) {
@@ -800,7 +811,7 @@ mod tests {
             let scalar_call = catalog
                 .declarations
                 .iter()
-                .find(|row| row.semantic == MachineSemanticKind::CallI64);
+                .find(|row| row.semantic == MachineSemanticKind::CallScalar);
             {
                 let scalar_call = scalar_call.expect("supported target declares scalar call");
                 assert_eq!(

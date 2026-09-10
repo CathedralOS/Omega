@@ -87,7 +87,7 @@ pub(super) fn emit(
     let result = operation.result.ok_or_else(invalid)?;
     let scalar_type = result.scalar_type;
     let result_shape =
-        crate::selection::scalar_call_abi::integer_call_shape(scalar_type).ok_or_else(invalid)?;
+        crate::selection::scalar_call_abi::scalar_shape(scalar_type).ok_or_else(invalid)?;
     if call
         .result_placement
         .as_ref()
@@ -96,15 +96,10 @@ pub(super) fn emit(
     {
         return Err(invalid());
     }
-    let key = builder
-        .constraints
-        .keys
-        .call_i64
-        .get(crate::selection::scalar_call_abi::register_argument_count(
-            call,
-        ))
-        .copied()
-        .ok_or_else(invalid)?;
+    let key = crate::selection::scalar_call_abi::unit_key(call, environment).ok_or_else(invalid)?;
+    if !builder.constraints.keys.call_scalar.contains(&key) {
+        return Err(invalid());
+    }
     crate::selection::scalar_call_abi::validate(
         function,
         source,
@@ -120,28 +115,32 @@ pub(super) fn emit(
             argument
         {
             if semantic.access == StructuralAccess::Owned {
-                operands.extend(super::aggregate_argument::argument(
-                    source,
-                    operation,
-                    argument_index,
-                    semantic,
-                    target,
-                    builder,
-                )?);
+                operands.extend(
+                    super::aggregate_argument::argument(
+                        source,
+                        operation,
+                        argument_index,
+                        semantic,
+                        target,
+                        builder,
+                    )?
+                    .into_iter()
+                    .map(|register| (argument_index, register)),
+                );
                 continue;
             }
             if let Some(pointer) =
                 argument_pointer(builder, operation, argument_index, semantic, target)?
             {
-                operands.push(pointer);
+                operands.push((argument_index, pointer));
             }
             continue;
         }
         let (_, input, site, argument_type) = builder
             .resolve(argument.scalar_source().ok_or_else(invalid)?)
             .ok_or_else(invalid)?;
-        let shape = crate::selection::scalar_call_abi::integer_call_shape(argument_type)
-            .ok_or_else(invalid)?;
+        let shape =
+            crate::selection::scalar_call_abi::scalar_shape(argument_type).ok_or_else(invalid)?;
         if argument.placement().shape != shape {
             return Err(invalid());
         }
@@ -154,14 +153,45 @@ pub(super) fn emit(
         )? {
             continue;
         }
-        operands.push(builder.copy(
-            input,
-            argument.scalar_source().ok_or_else(invalid)?,
-            site,
-            argument_type,
-        )?);
+        let value = argument.scalar_source().ok_or_else(invalid)?;
+        let output = if let Some((kind, key)) =
+            crate::selection::scalar_call_abi::outgoing_float_transfer(
+                argument_type,
+                &builder.constraints.keys,
+            ) {
+            let output = builder.register(value, site, argument_type)?;
+            builder.registers[output.0 as usize].class = row(builder.catalog, key)?
+                .operands
+                .get(1)
+                .ok_or_else(invalid)?
+                .class;
+            builder.emit(
+                kind,
+                key,
+                &[input, output],
+                SelectedInstructionProvenance {
+                    values: vec![value],
+                    ..Default::default()
+                },
+            )?;
+            output
+        } else {
+            builder.copy(input, value, site, argument_type)?
+        };
+        operands.push((argument_index, output));
     }
+    let order = crate::selection::scalar_call_abi::register_argument_order(call);
+    operands.sort_by_key(|(argument, _)| order.iter().position(|index| index == argument));
+    let mut operands = operands
+        .into_iter()
+        .map(|(_, register)| register)
+        .collect::<Vec<_>>();
     let short_result = builder.register(result.value, result.definition_site, scalar_type)?;
+    builder.registers[short_result.0 as usize].class = row(builder.catalog, key)?
+        .operands
+        .last()
+        .ok_or_else(invalid)?
+        .class;
     operands.push(short_result);
     builder
         .transport
@@ -180,7 +210,7 @@ pub(super) fn emit(
             ownership: operation.ownership.clone(),
         });
     builder.emit(
-        SelectedInstructionKind::CallI64 {
+        SelectedInstructionKind::CallScalar {
             callee: call.callee,
         },
         key,
@@ -199,9 +229,17 @@ pub(super) fn emit(
         },
     )?;
     let output = builder.register(result.value, result.definition_site, scalar_type)?;
-    builder.emit(
+    let (kind, key) = crate::selection::scalar_call_abi::incoming_float_transfer(
+        scalar_type,
+        &builder.constraints.keys,
+    )
+    .unwrap_or((
         crate::selection::scalar_call_abi::integer_abi_normalization(scalar_type),
         builder.constraints.keys.copy_i64,
+    ));
+    builder.emit(
+        kind,
+        key,
         &[short_result, output],
         SelectedInstructionProvenance {
             values: vec![result.value],

@@ -10,6 +10,18 @@ pub(super) fn project(
     let (operation, result) =
         scalar_graph_input::instruction(node).ok_or(Error::SourceCustodyMismatch)?;
     let kind = match &node.operation {
+        AbstractOperation::IeeeFloatCompare {
+            comparison,
+            format,
+            left,
+            right,
+            ..
+        } => LegalizedScalarInstructionKind::IeeeFloatCompare {
+            comparison: *comparison,
+            format: *format,
+            left: *left,
+            right: *right,
+        },
         AbstractOperation::CallStructural {
             result,
             callee,

@@ -155,7 +155,19 @@ fn every_supported_native_target_builds_a_matching_closed_environment() {
             unit_keys,
             &environment.allocation_constraint_keys().call_unit
         );
-        assert_eq!(unit_keys.len(), environment.selected_keys().call_i64.len());
+        assert!(unit_keys.len() < environment.selected_keys().call_scalar.len());
+        for (arity, key) in environment
+            .selected_keys()
+            .call_scalar
+            .iter()
+            .take(unit_keys.len())
+            .enumerate()
+        {
+            assert_eq!(
+                environment.constraint(*key).unwrap().operands.len(),
+                arity + 1
+            );
+        }
         if microsoft {
             assert_eq!(unit_keys[2], X86_64_MICROSOFT_CALL_UNIT);
         }

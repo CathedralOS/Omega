@@ -21,6 +21,51 @@ use terminal_psi::{
 };
 
 #[test]
+fn float_comparison_identity_binds_relation_format_operands_and_provenance() {
+    use semantic_vocabulary::{IeeeFloatComparisonOperation as Comparison, IeeeFloatFormat};
+    let mut source = plan();
+    source.functions[0].operations[0] = AbstractOperation::IeeeFloatCompare {
+        psi_operation: id(5, OperationId::new),
+        result: id(4, ValueId::new),
+        comparison: Comparison::Less,
+        format: IeeeFloatFormat::Binary32,
+        left: id(3, ValueId::new),
+        right: id(8, ValueId::new),
+    };
+    let seed =
+        reconstruct_psi_optimization_unit_seed(&source, FuelScheduleIdentity::new(1).unwrap())
+            .unwrap();
+    let original = recompute_psi_optimization_unit_identity(&seed);
+    for mutation in 0..5 {
+        let mut changed = seed.clone();
+        let AbstractOperation::IeeeFloatCompare {
+            psi_operation,
+            comparison,
+            format,
+            left,
+            right,
+            ..
+        } = &mut changed.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("comparison");
+        };
+        match mutation {
+            0 => *comparison = Comparison::Greater,
+            1 => *format = IeeeFloatFormat::Binary64,
+            2 => std::mem::swap(left, right),
+            3 => *right = *left,
+            4 => *psi_operation = id(9, OperationId::new),
+            _ => unreachable!(),
+        }
+        assert_ne!(
+            original,
+            recompute_psi_optimization_unit_identity(&changed),
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
 fn jump_residual_identity_binds_both_operation_and_derived_edge() {
     let mut source_plan = plan();
     let residuals = vec![

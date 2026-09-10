@@ -136,7 +136,7 @@ pub(super) fn encode_row(
                 }
             }
         }
-        kind @ (SelectedInstructionKind::CallI64 { .. }
+        kind @ (SelectedInstructionKind::CallScalar { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::CallAggregate { .. }) => {
             scalar_call::encode(target, selected.id, kind, machine, physical)?

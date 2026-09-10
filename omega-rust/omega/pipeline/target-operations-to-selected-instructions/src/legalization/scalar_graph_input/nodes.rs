@@ -54,6 +54,11 @@ pub(in crate::legalization) fn instruction(
 }
 fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)> {
     match &node.operation {
+        AbstractOperation::IeeeFloatCompare {
+            psi_operation,
+            result,
+            ..
+        } => Some((*psi_operation, *result)),
         AbstractOperation::PrimitiveScalarRead {
             psi_operation,
             result,
@@ -76,8 +81,7 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             requirement_obligations,
             crash_continuations,
             ..
-        } if (result.scalar_type == ScalarType::Boolean
-            || integer_call_shape(result.scalar_type).is_some())
+        } if scalar_shape(result.scalar_type).is_some()
             && claim_transfers.is_empty()
             && requirement_obligations.is_empty()
             && crash_continuations.is_empty() =>
@@ -111,8 +115,7 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             requirement_obligations,
             crash_continuations,
             ..
-        } if (*scalar_type == ScalarType::Boolean
-            || integer_call_shape(*scalar_type).is_some())
+        } if scalar_shape(*scalar_type).is_some()
             && requirement_obligations.is_empty()
             && crash_continuations.is_empty() =>
         {
@@ -200,7 +203,11 @@ pub(super) fn validate(
     let (terminator, body) = block.nodes.split_last().ok_or(invalid.clone())?;
     for (position, parameter) in block.parameters.iter().enumerate() {
         if (integer_type(parameter.scalar_type).is_none()
-            && !(!ranked && parameter.scalar_type == ScalarType::Boolean)
+            && !(!ranked
+                && matches!(
+                    parameter.scalar_type,
+                    ScalarType::Boolean | ScalarType::IeeeFloat(_)
+                ))
             && !(!ranked
                 && matches!(parameter.scalar_type, ScalarType::Integer(_))
                 && scalar_shape(parameter.scalar_type).is_some()))
@@ -369,6 +376,19 @@ pub(super) fn validate(
             return Err(invalid);
         }
         let expected_type = match &node.operation {
+            AbstractOperation::IeeeFloatCompare {
+                format,
+                left,
+                right,
+                ..
+            } => {
+                if value_type(optimized, *left) != Some(ScalarType::IeeeFloat(*format))
+                    || value_type(optimized, *right) != Some(ScalarType::IeeeFloat(*format))
+                {
+                    return Err(invalid);
+                }
+                ScalarType::Boolean
+            }
             AbstractOperation::IeeeFloatConstant { value, .. } => {
                 ScalarType::IeeeFloat(value.format())
             }

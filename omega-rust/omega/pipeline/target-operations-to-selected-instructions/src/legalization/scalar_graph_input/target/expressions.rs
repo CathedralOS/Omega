@@ -315,6 +315,7 @@ impl Checker<'_> {
                     && scalar_shape(argument.scalar_type) == Some(placement.shape)
                     && location_matches(argument.location, placement)
                     && match &argument.expression {
+                        TargetScalarExpression::IeeeFloat(_) => false,
                         TargetScalarExpression::Integer {
                             scalar_type,
                             expression,

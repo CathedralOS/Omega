@@ -42,9 +42,7 @@ pub(super) fn build(
                 LegalizedScalarReturnValue::Value { value, scalar_type } => {
                     let (_, input, site, value_type) =
                         builder.resolve(value).ok_or_else(invalid)?;
-                    if value_type != scalar_type
-                        || !matches!(scalar_type, ScalarType::Boolean | ScalarType::Integer(_))
-                    {
+                    if value_type != scalar_type {
                         return Err(invalid());
                     }
                     let result = source.call_plan.result.as_ref().ok_or_else(invalid)?;
@@ -64,19 +62,37 @@ pub(super) fn build(
                     {
                         return Err(invalid());
                     }
-                    let [operand] = row(builder.catalog, keys.return_i64)?.operands.as_slice()
-                    else {
-                        return Err(invalid());
+                    let keys_for_result = if matches!(scalar_type, ScalarType::IeeeFloat(_)) {
+                        keys.return_float.as_slice()
+                    } else {
+                        std::slice::from_ref(&keys.return_i64)
                     };
-                    if operand.fixed_view.is_none()
-                        || operand.fixed_view != environment.fixed_register_view(*register)
+                    let key = keys_for_result.iter().copied().find(|key| row(builder.catalog, *key).is_ok_and(|row| matches!(row.operands.as_slice(), [operand] if operand.fixed_view.is_some() && operand.fixed_view == environment.fixed_register_view(*register)))).ok_or_else(invalid)?;
+                    let output = if let Some((kind, transfer_key)) =
+                        crate::selection::scalar_call_abi::outgoing_float_transfer(value_type, keys)
                     {
-                        return Err(invalid());
-                    }
-                    let key = keys.return_i64;
-                    let output = builder.copy(input, value, site, value_type)?;
+                        let output = builder.register(value, site, value_type)?;
+                        builder.registers[output.0 as usize].class =
+                            row(builder.catalog, transfer_key)?
+                                .operands
+                                .get(1)
+                                .ok_or_else(invalid)?
+                                .class;
+                        builder.emit(
+                            kind,
+                            transfer_key,
+                            &[input, output],
+                            SelectedInstructionProvenance {
+                                values: vec![value],
+                                ..Default::default()
+                            },
+                        )?;
+                        output
+                    } else {
+                        builder.copy(input, value, site, value_type)?
+                    };
                     (
-                        SelectedInstructionKind::ReturnI64,
+                        SelectedInstructionKind::ReturnScalar,
                         key,
                         vec![output],
                         vec![value],

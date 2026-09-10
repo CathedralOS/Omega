@@ -152,6 +152,10 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
             replace(left);
             replace(right);
         }
+        O::IeeeFloatCompare { left, right, .. } => {
+            replace(left);
+            replace(right);
+        }
         O::NearestIeeeFloatFusedMultiplyAdd {
             left,
             right,

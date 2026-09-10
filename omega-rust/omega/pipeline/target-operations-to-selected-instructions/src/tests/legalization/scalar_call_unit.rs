@@ -384,9 +384,10 @@ fn every_register_arity_uses_one_input_contract_and_independent_replay() {
             semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),
         )
         .unwrap();
-        assert!(!crate::legalization::accepts_fragment_publication_input(
+        assert!(crate::legalization::accepts_fragment_publication_input(
             &target, &source, &unit
         ));
-        assert!(legalize_target_operations(&target, &source, &unit).is_err());
+        let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
+        validate_legalized_operations(&target, &source, &unit, legalized.plan().clone()).unwrap();
     }
 }

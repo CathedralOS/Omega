@@ -29,7 +29,7 @@ fn graph_scalar_projection_retains_boolean_sources_beside_integer_homes() {
         booleans: BTreeMap::from([(value(3), (operation, true))]),
         scalar_homes: BTreeMap::from([(value(2), comparison_home)]),
         ieee_float_constants: BTreeMap::new(),
-        boolean_parameters: BTreeMap::from([(value(4), block_parameter)]),
+        scalar_block_parameters: BTreeMap::from([(value(4), block_parameter)]),
         views: BTreeMap::new(),
         block_views: BTreeSet::new(),
         owned_arrivals: BTreeSet::new(),
@@ -84,7 +84,7 @@ fn graph_scalar_projection_retains_boolean_sources_beside_integer_homes() {
 
     let mut wrong = live;
     wrong
-        .boolean_parameters
+        .scalar_block_parameters
         .get_mut(&value(4))
         .unwrap()
         .scalar_type = ScalarType::Integer(integer);

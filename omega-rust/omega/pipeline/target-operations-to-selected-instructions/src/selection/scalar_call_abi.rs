@@ -16,6 +16,16 @@ mod fixed_array_tests;
 /// Incoming scalar slots follow the complete graph ABI; result admission is independent.
 pub(super) fn accepts_stack_parameter_entry(source: &LegalizedScalarFunction) -> bool {
     source.call_plan.result.is_none()
+        || (source.structural.is_none()
+            && source.parameters.len() == source.call_plan.parameters.len()
+            && source
+                .parameters
+                .iter()
+                .zip(&source.call_plan.parameters)
+                .all(|(parameter, placement)| {
+                    parameter.placement == *placement
+                        && scalar_shape(parameter.scalar_type) == Some(placement.shape)
+                }))
         || crate::unobserved_owned_input::accepts(source)
         || source.structural.as_ref().is_some_and(|signature| {
             let parameters = signature
@@ -82,11 +92,9 @@ pub(super) fn register_argument_order(call: &LegalizedScalarCall) -> Vec<usize> 
     // Unit and aggregate calls share the mixed input-bank rows. Aggregate
     // results append definitions after those inputs; they do not change their
     // order. Sorting only the operand roster preserves authored argument identity.
-    if call.result_placement.is_none() || call.structural_result.is_some() {
-        order.sort_by_key(|index| {
-            call.arguments[*index].placement().shape.class == calling_conventions::ValueClass::Float
-        });
-    }
+    order.sort_by_key(|index| {
+        call.arguments[*index].placement().shape.class == calling_conventions::ValueClass::Float
+    });
     order
 }
 
@@ -154,8 +162,8 @@ pub(super) fn unit_key(
         }
     }
     let inputs = views.len();
-    if call.structural_result.is_some() {
-        for location in &call.result_placement.as_ref()?.locations {
+    if let Some(result) = &call.result_placement {
+        for location in &result.locations {
             let ValueLocation::Register { register, .. } = location else {
                 return None;
             };
@@ -171,6 +179,8 @@ pub(super) fn unit_key(
         && call.result_placement == call.call_plan.result;
     let candidate_keys = if call.structural_result.is_some() && !empty_result {
         keys.call_aggregate.iter().collect::<Vec<_>>()
+    } else if call.result_placement.is_some() && !empty_result {
+        keys.call_scalar.iter().collect::<Vec<_>>()
     } else {
         keys.call_unit.iter().chain(&keys.call_unit_mixed).collect()
     };
@@ -243,19 +253,7 @@ pub(super) fn validate(
     } else {
         None
     };
-    let selected_keys = environment.selected_keys();
-    let keys = if result.is_some() {
-        &selected_keys.call_i64
-    } else {
-        &selected_keys.call_unit
-    };
-    if (if aggregate.is_some() {
-        unit_key(call, environment)
-    } else if result.is_some() {
-        keys.get(register_count).copied()
-    } else {
-        unit_key(call, environment)
-    }) != Some(key)
+    if unit_key(call, environment) != Some(key)
         || environment.constraint(key) != Some(row)
         || row.key != key
         || call.call_plan.parameters.len() != count
@@ -430,15 +428,6 @@ pub(super) fn scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
         {
             Some(ValueShape::integer(integer.bits() / 8, integer.bits() / 8))
         }
-        _ => None,
-    }
-}
-
-/// Narrow call values need normalization before whole-register consumers.
-pub(super) fn integer_call_shape(scalar_type: ScalarType) -> Option<ValueShape> {
-    match scalar_type {
-        ScalarType::Boolean => scalar_shape(scalar_type),
-        ScalarType::Integer(_) => scalar_shape(scalar_type),
         _ => None,
     }
 }

@@ -367,13 +367,13 @@ fn local_reads_and_scalar_results_survive_a_second_borrowed_call_without_substit
             matches!(kind, SelectedInstructionKind::Store { .. })
         });
         let first_call = position(3, |kind| {
-            matches!(kind, SelectedInstructionKind::CallI64 { .. })
+            matches!(kind, SelectedInstructionKind::CallScalar { .. })
         });
         let first_read = position(4, |kind| {
             matches!(kind, SelectedInstructionKind::Load64 { .. })
         });
         let second_call = position(5, |kind| {
-            matches!(kind, SelectedInstructionKind::CallI64 { .. })
+            matches!(kind, SelectedInstructionKind::CallScalar { .. })
         });
         let second_read = position(6, |kind| {
             matches!(kind, SelectedInstructionKind::Load64 { .. })

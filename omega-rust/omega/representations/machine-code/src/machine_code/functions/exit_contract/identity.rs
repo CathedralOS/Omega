@@ -110,7 +110,7 @@ pub fn whole_function_exit_contract_identity(
                         encode_units(&mut hasher, &fragment.units);
                     }
                 }
-                WholeFunctionReturnValueEvidence::ScalarI64V1 {
+                WholeFunctionReturnValueEvidence::ScalarV1 {
                     virtual_register,
                     view,
                     units,

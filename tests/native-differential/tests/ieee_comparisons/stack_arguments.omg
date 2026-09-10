@@ -1,0 +1,17 @@
+machine last32(
+    one: f32, two: f32, three: f32, four: f32, five: f32,
+    six: f32, seven: f32, eight: f32, nine: f32, ten: f32
+) -> f32 { ten }
+
+machine forward32(value: f32) -> f32 {
+    last32(2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, value)
+}
+
+machine last64(
+    one: f64, two: f64, three: f64, four: f64, five: f64,
+    six: f64, seven: f64, eight: f64, nine: f64, ten: f64
+) -> f64 { ten }
+
+machine forward64(value: f64) -> f64 {
+    last64(2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, value)
+}

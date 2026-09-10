@@ -27,292 +27,323 @@ pub(super) fn validate(
     let constraints = replay.constraints;
     let keys = &constraints.keys;
     let selected_block = replay.block;
-    let (actual, kind, key, operands, provenance) =
-        match (&block.terminator, &selected_block.terminator) {
-            (
-                LegalizedScalarTerminator::Return(returned),
-                SelectedTerminator::Return {
-                    instruction,
-                    psi_return_edge,
-                },
-            ) => {
-                if *psi_return_edge != returned.edge {
-                    return Err(invalid());
+    let (actual, kind, key, operands, provenance) = match (
+        &block.terminator,
+        &selected_block.terminator,
+    ) {
+        (
+            LegalizedScalarTerminator::Return(returned),
+            SelectedTerminator::Return {
+                instruction,
+                psi_return_edge,
+            },
+        ) => {
+            if *psi_return_edge != returned.edge {
+                return Err(invalid());
+            }
+            let (kind, key, operands, values) = match returned.value {
+                LegalizedScalarReturnValue::Structural { .. }
+                | LegalizedScalarReturnValue::StructuralParameter { .. } => {
+                    return super::aggregate_return::validate(
+                        source,
+                        block,
+                        returned,
+                        replay,
+                        environment,
+                        catalog,
+                    );
                 }
-                let (kind, key, operands, values) = match returned.value {
-                    LegalizedScalarReturnValue::Structural { .. }
-                    | LegalizedScalarReturnValue::StructuralParameter { .. } => {
-                        return super::aggregate_return::validate(
-                            source,
-                            block,
-                            returned,
-                            replay,
-                            environment,
-                            catalog,
-                        );
-                    }
-                    LegalizedScalarReturnValue::Unit => (
-                        SelectedInstructionKind::ReturnUnit,
-                        keys.return_unit,
-                        Vec::new(),
-                        Vec::new(),
-                    ),
-                    LegalizedScalarReturnValue::Value { value, scalar_type } => {
-                        let (_, input, site, value_type) =
-                            replay.resolve(value).ok_or_else(invalid)?;
-                        if value_type != scalar_type
-                            || !matches!(scalar_type, ScalarType::Boolean | ScalarType::Integer(_))
-                        {
-                            return Err(invalid());
-                        }
-                        let result = source.call_plan.result.as_ref().ok_or_else(invalid)?;
-                        let [
-                            ValueLocation::Register {
-                                register,
-                                value_byte_offset: 0,
-                                byte_size,
-                            },
-                        ] = result.locations.as_slice()
-                        else {
-                            return Err(invalid());
-                        };
-                        if crate::selection::scalar_call_abi::scalar_shape(value_type)
-                            != Some(result.shape)
-                            || *byte_size != result.shape.byte_size
-                        {
-                            return Err(invalid());
-                        }
-                        let [operand] = row(catalog, keys.return_i64)?.operands.as_slice() else {
-                            return Err(invalid());
-                        };
-                        if operand.fixed_view.is_none()
-                            || operand.fixed_view != environment.fixed_register_view(*register)
-                        {
-                            return Err(invalid());
-                        }
-                        let key = keys.return_i64;
-                        let output = replay.check_copy(input, value, site, value_type)?;
-                        (
-                            SelectedInstructionKind::ReturnI64,
-                            key,
-                            vec![output],
-                            vec![value],
-                        )
-                    }
-                };
-                (
-                    instruction,
-                    kind,
-                    key,
-                    operands,
-                    SelectedInstructionProvenance {
-                        values,
-                        edges: vec![returned.edge],
-                        fuel: returned.fuel.clone(),
-                        ..Default::default()
-                    },
-                )
-            }
-            (
-                LegalizedScalarTerminator::Jump { successor, .. },
-                SelectedTerminator::Jump {
-                    instruction,
-                    successor: actual,
-                },
-            ) => {
-                check_successor(source, replay, successor, actual)?;
-                (
-                    instruction,
-                    SelectedInstructionKind::Jump,
-                    keys.jump,
+                LegalizedScalarReturnValue::Unit => (
+                    SelectedInstructionKind::ReturnUnit,
+                    keys.return_unit,
                     Vec::new(),
-                    Default::default(),
-                )
-            }
-            (
-                LegalizedScalarTerminator::Conditional {
-                    condition,
-                    when_true,
-                    when_false,
-                    ..
-                },
-                actual,
-            ) => {
-                let mut base = *condition;
-                let mut suffix_start = block.instructions.len();
-                let mut inverted = false;
-                let mut not_rows = Vec::new();
-                while replay.resolve(base).is_none()
-                    && let Some(previous) = suffix_start
-                        .checked_sub(1)
-                        .and_then(|index| block.instructions.get(index))
-                {
-                    let LegalizedScalarInstructionKind::BooleanNot { operand } = previous.kind
-                    else {
-                        break;
-                    };
-                    if previous.result.as_ref().is_none_or(|result| {
-                        result.value != base || result.scalar_type != ScalarType::Boolean
-                    }) {
+                    Vec::new(),
+                ),
+                LegalizedScalarReturnValue::Value { value, scalar_type } => {
+                    let (_, input, site, value_type) = replay.resolve(value).ok_or_else(invalid)?;
+                    if value_type != scalar_type {
                         return Err(invalid());
                     }
-                    base = operand;
-                    inverted = !inverted;
-                    not_rows.push(previous);
-                    suffix_start -= 1;
+                    let result = source.call_plan.result.as_ref().ok_or_else(invalid)?;
+                    let [
+                        ValueLocation::Register {
+                            register,
+                            value_byte_offset: 0,
+                            byte_size,
+                        },
+                    ] = result.locations.as_slice()
+                    else {
+                        return Err(invalid());
+                    };
+                    if crate::selection::scalar_call_abi::scalar_shape(value_type)
+                        != Some(result.shape)
+                        || *byte_size != result.shape.byte_size
+                    {
+                        return Err(invalid());
+                    }
+                    let keys_for_result = if matches!(scalar_type, ScalarType::IeeeFloat(_)) {
+                        keys.return_float.as_slice()
+                    } else {
+                        std::slice::from_ref(&keys.return_i64)
+                    };
+                    let key = keys_for_result.iter().copied().find(|key| row(catalog, *key).is_ok_and(|row| matches!(row.operands.as_slice(), [operand] if operand.fixed_view.is_some() && operand.fixed_view == environment.fixed_register_view(*register)))).ok_or_else(invalid)?;
+                    let output = if let Some((kind, transfer_key)) =
+                        crate::selection::scalar_call_abi::outgoing_float_transfer(value_type, keys)
+                    {
+                        let class = row(catalog, transfer_key)?
+                            .operands
+                            .get(1)
+                            .ok_or_else(invalid)?
+                            .class;
+                        let output = replay.check_register_class(
+                            class,
+                            site,
+                            value_type,
+                            VirtualRegisterOrigin::InstructionResult {
+                                instruction: SelectedInstructionId(
+                                    replay
+                                        .instruction_cursor
+                                        .try_into()
+                                        .map_err(|_| invalid())?,
+                                ),
+                                source_value: value,
+                            },
+                            None,
+                        )?;
+                        replay.check_instruction(
+                            kind,
+                            transfer_key,
+                            &[input, output],
+                            &SelectedInstructionProvenance {
+                                values: vec![value],
+                                ..Default::default()
+                            },
+                        )?;
+                        output
+                    } else {
+                        replay.check_copy(input, value, site, value_type)?
+                    };
+                    (
+                        SelectedInstructionKind::ReturnScalar,
+                        key,
+                        vec![output],
+                        vec![value],
+                    )
                 }
-                not_rows.reverse();
-                let comparison = suffix_start
+            };
+            (
+                instruction,
+                kind,
+                key,
+                operands,
+                SelectedInstructionProvenance {
+                    values,
+                    edges: vec![returned.edge],
+                    fuel: returned.fuel.clone(),
+                    ..Default::default()
+                },
+            )
+        }
+        (
+            LegalizedScalarTerminator::Jump { successor, .. },
+            SelectedTerminator::Jump {
+                instruction,
+                successor: actual,
+            },
+        ) => {
+            check_successor(source, replay, successor, actual)?;
+            (
+                instruction,
+                SelectedInstructionKind::Jump,
+                keys.jump,
+                Vec::new(),
+                Default::default(),
+            )
+        }
+        (
+            LegalizedScalarTerminator::Conditional {
+                condition,
+                when_true,
+                when_false,
+                ..
+            },
+            actual,
+        ) => {
+            let mut base = *condition;
+            let mut suffix_start = block.instructions.len();
+            let mut inverted = false;
+            let mut not_rows = Vec::new();
+            while replay.resolve(base).is_none()
+                && let Some(previous) = suffix_start
                     .checked_sub(1)
                     .and_then(|index| block.instructions.get(index))
-                    .filter(|row| {
-                        if replay.resolve(base).is_some() {
-                            return false;
-                        }
-                        row.result
-                            .as_ref()
-                            .is_some_and(|result| result.value == base)
-                    });
-                let (predicate, operand_type) = if let Some(row) = comparison
-                    && let LegalizedScalarInstructionKind::Compare {
-                        predicate,
-                        operand_type,
-                        ..
-                    } = row.kind
-                {
-                    (predicate, operand_type)
-                } else {
-                    let (_, input, _, scalar_type) = replay.resolve(base).ok_or_else(invalid)?;
-                    if scalar_type != ScalarType::Boolean {
-                        return Err(invalid());
-                    }
-                    replay.check_instruction(
-                        SelectedInstructionKind::CompareI64Zero,
-                        keys.compare_i64_zero,
-                        &[input],
-                        &SelectedInstructionProvenance {
-                            values: vec![base],
-                            ..Default::default()
-                        },
-                    )?;
-                    // A Boolean register is true when nonzero, unlike Equal's zero predicate.
-                    inverted = !inverted;
-                    (Comparison::Equal, ScalarType::Boolean)
+            {
+                let LegalizedScalarInstructionKind::BooleanNot { operand } = previous.kind else {
+                    break;
                 };
-                let branch_provenance =
-                    SelectedInstructionProvenance {
-                        operations: not_rows.iter().map(|row| row.operation).collect(),
-                        values: if not_rows.is_empty() {
-                            vec![*condition]
-                        } else {
-                            std::iter::once(base)
-                                .chain(not_rows.iter().filter_map(|row| {
-                                    row.result.as_ref().map(|result| result.value)
-                                }))
-                                .collect()
-                        },
-                        fuel: not_rows
-                            .iter()
-                            .flat_map(|row| row.fuel.iter().copied())
-                            .collect(),
-                        ..Default::default()
-                    };
-                let comparison_sign = match operand_type {
-                    ScalarType::Integer(integer) => integer.sign(),
-                    ScalarType::Boolean => IntegerSign::Unsigned,
-                    ScalarType::IeeeFloat(_) => return Err(invalid()),
-                };
-                let (instruction, actual_true, actual_false, kind) =
-                    match (predicate, comparison_sign, actual) {
-                        (
-                            Comparison::Equal,
-                            _,
-                            SelectedTerminator::ConditionalBranch {
-                                instruction,
-                                when_nonzero,
-                                when_zero,
-                            },
-                        ) => (
-                            instruction,
-                            when_zero,
-                            when_nonzero,
-                            SelectedInstructionKind::ConditionalBranchNonZero,
-                        ),
-                        (
-                            Comparison::LessThan,
-                            IntegerSign::Signed,
-                            SelectedTerminator::ConditionalBranchI64LessThan {
-                                instruction,
-                                when_less,
-                                when_not_less,
-                            },
-                        ) => (
-                            instruction,
-                            when_less,
-                            when_not_less,
-                            SelectedInstructionKind::ConditionalBranchI64LessThan,
-                        ),
-                        (
-                            Comparison::LessOrEqual,
-                            IntegerSign::Signed,
-                            SelectedTerminator::ConditionalBranchI64LessThan {
-                                instruction,
-                                when_less,
-                                when_not_less,
-                            },
-                        ) => (
-                            instruction,
-                            when_not_less,
-                            when_less,
-                            SelectedInstructionKind::ConditionalBranchI64LessThan,
-                        ),
-                        (
-                            Comparison::LessThan,
-                            IntegerSign::Unsigned,
-                            SelectedTerminator::ConditionalBranchU64LessThan {
-                                instruction,
-                                when_less,
-                                when_not_less,
-                            },
-                        ) => (
-                            instruction,
-                            when_less,
-                            when_not_less,
-                            SelectedInstructionKind::ConditionalBranchU64LessThan,
-                        ),
-                        (
-                            Comparison::LessOrEqual,
-                            IntegerSign::Unsigned,
-                            SelectedTerminator::ConditionalBranchU64LessThan {
-                                instruction,
-                                when_less,
-                                when_not_less,
-                            },
-                        ) => (
-                            instruction,
-                            when_not_less,
-                            when_less,
-                            SelectedInstructionKind::ConditionalBranchU64LessThan,
-                        ),
-                        _ => return Err(invalid()),
-                    };
-                let (actual_true, actual_false) = if inverted {
-                    (actual_false, actual_true)
-                } else {
-                    (actual_true, actual_false)
-                };
-                check_successor(source, replay, when_true, actual_true)?;
-                check_successor(source, replay, when_false, actual_false)?;
-                (
-                    instruction,
-                    kind,
-                    keys.conditional_branch,
-                    Vec::new(),
-                    branch_provenance,
-                )
+                if previous.result.as_ref().is_none_or(|result| {
+                    result.value != base || result.scalar_type != ScalarType::Boolean
+                }) {
+                    return Err(invalid());
+                }
+                base = operand;
+                inverted = !inverted;
+                not_rows.push(previous);
+                suffix_start -= 1;
             }
-            _ => return Err(invalid()),
-        };
+            not_rows.reverse();
+            let comparison = suffix_start
+                .checked_sub(1)
+                .and_then(|index| block.instructions.get(index))
+                .filter(|row| {
+                    if replay.resolve(base).is_some() {
+                        return false;
+                    }
+                    row.result
+                        .as_ref()
+                        .is_some_and(|result| result.value == base)
+                });
+            let (predicate, operand_type) = if let Some(row) = comparison
+                && let LegalizedScalarInstructionKind::Compare {
+                    predicate,
+                    operand_type,
+                    ..
+                } = row.kind
+            {
+                (predicate, operand_type)
+            } else {
+                let (_, input, _, scalar_type) = replay.resolve(base).ok_or_else(invalid)?;
+                if scalar_type != ScalarType::Boolean {
+                    return Err(invalid());
+                }
+                replay.check_instruction(
+                    SelectedInstructionKind::CompareI64Zero,
+                    keys.compare_i64_zero,
+                    &[input],
+                    &SelectedInstructionProvenance {
+                        values: vec![base],
+                        ..Default::default()
+                    },
+                )?;
+                // A Boolean register is true when nonzero, unlike Equal's zero predicate.
+                inverted = !inverted;
+                (Comparison::Equal, ScalarType::Boolean)
+            };
+            let branch_provenance = SelectedInstructionProvenance {
+                operations: not_rows.iter().map(|row| row.operation).collect(),
+                values: if not_rows.is_empty() {
+                    vec![*condition]
+                } else {
+                    std::iter::once(base)
+                        .chain(
+                            not_rows
+                                .iter()
+                                .filter_map(|row| row.result.as_ref().map(|result| result.value)),
+                        )
+                        .collect()
+                },
+                fuel: not_rows
+                    .iter()
+                    .flat_map(|row| row.fuel.iter().copied())
+                    .collect(),
+                ..Default::default()
+            };
+            let comparison_sign = match operand_type {
+                ScalarType::Integer(integer) => integer.sign(),
+                ScalarType::Boolean => IntegerSign::Unsigned,
+                ScalarType::IeeeFloat(_) => return Err(invalid()),
+            };
+            let (instruction, actual_true, actual_false, kind) =
+                match (predicate, comparison_sign, actual) {
+                    (
+                        Comparison::Equal,
+                        _,
+                        SelectedTerminator::ConditionalBranch {
+                            instruction,
+                            when_nonzero,
+                            when_zero,
+                        },
+                    ) => (
+                        instruction,
+                        when_zero,
+                        when_nonzero,
+                        SelectedInstructionKind::ConditionalBranchNonZero,
+                    ),
+                    (
+                        Comparison::LessThan,
+                        IntegerSign::Signed,
+                        SelectedTerminator::ConditionalBranchI64LessThan {
+                            instruction,
+                            when_less,
+                            when_not_less,
+                        },
+                    ) => (
+                        instruction,
+                        when_less,
+                        when_not_less,
+                        SelectedInstructionKind::ConditionalBranchI64LessThan,
+                    ),
+                    (
+                        Comparison::LessOrEqual,
+                        IntegerSign::Signed,
+                        SelectedTerminator::ConditionalBranchI64LessThan {
+                            instruction,
+                            when_less,
+                            when_not_less,
+                        },
+                    ) => (
+                        instruction,
+                        when_not_less,
+                        when_less,
+                        SelectedInstructionKind::ConditionalBranchI64LessThan,
+                    ),
+                    (
+                        Comparison::LessThan,
+                        IntegerSign::Unsigned,
+                        SelectedTerminator::ConditionalBranchU64LessThan {
+                            instruction,
+                            when_less,
+                            when_not_less,
+                        },
+                    ) => (
+                        instruction,
+                        when_less,
+                        when_not_less,
+                        SelectedInstructionKind::ConditionalBranchU64LessThan,
+                    ),
+                    (
+                        Comparison::LessOrEqual,
+                        IntegerSign::Unsigned,
+                        SelectedTerminator::ConditionalBranchU64LessThan {
+                            instruction,
+                            when_less,
+                            when_not_less,
+                        },
+                    ) => (
+                        instruction,
+                        when_not_less,
+                        when_less,
+                        SelectedInstructionKind::ConditionalBranchU64LessThan,
+                    ),
+                    _ => return Err(invalid()),
+                };
+            let (actual_true, actual_false) = if inverted {
+                (actual_false, actual_true)
+            } else {
+                (actual_true, actual_false)
+            };
+            check_successor(source, replay, when_true, actual_true)?;
+            check_successor(source, replay, when_false, actual_false)?;
+            (
+                instruction,
+                kind,
+                keys.conditional_branch,
+                Vec::new(),
+                branch_provenance,
+            )
+        }
+        _ => return Err(invalid()),
+    };
     let provenance = replay.settle_provenance(provenance);
     if actual.id.0 as usize != replay.instruction_cursor
         || actual.kind != kind

@@ -159,7 +159,7 @@ pub(super) fn raw_fixture() -> RawFixture {
     };
     let returned = SelectedInstruction {
         id: SelectedInstructionId(4),
-        kind: SelectedInstructionKind::ReturnI64,
+        kind: SelectedInstructionKind::ReturnScalar,
         constraint: key,
         operands: vec![operand(0, register_model::RegisterOperandAccess::Use)],
         implicit_uses: Vec::new(),

@@ -248,6 +248,32 @@ fn ieee_literal_attribution_requires_complete_exact_operation_membership() {
 }
 
 #[test]
+fn ieee_comparison_attribution_retains_every_span_at_its_exact_ordinal() {
+    for format in [
+        semantic_vocabulary::IeeeFloatFormat::Binary32,
+        semantic_vocabulary::IeeeFloatFormat::Binary64,
+    ] {
+        let (fragment, mut source) = fixture();
+        source.operations[0] = AbstractOperation::IeeeFloatCompare {
+            psi_operation: OperationId::new(1).unwrap(),
+            result: ValueId::new(3).unwrap(),
+            comparison: semantic_vocabulary::IeeeFloatComparisonOperation::Equal,
+            format,
+            left: ValueId::new(1).unwrap(),
+            right: ValueId::new(2).unwrap(),
+        };
+        let rows = produce(&fragment, &source).unwrap();
+        validate(&fragment, &source, &rows).unwrap();
+        assert_eq!((rows[0].operation_ordinal, rows[0].byte_count), (0, 5));
+        let mut truncated = rows.clone();
+        truncated[0].byte_count -= 1;
+        assert!(validate(&fragment, &source, &truncated).is_err());
+        source.operations.swap(0, 1);
+        assert!(validate(&fragment, &source, &rows).is_err());
+    }
+}
+
+#[test]
 fn omitted_operation_and_return_attribution_reject() {
     let (fragment, source) = fixture();
     let rows = produce(&fragment, &source).unwrap();

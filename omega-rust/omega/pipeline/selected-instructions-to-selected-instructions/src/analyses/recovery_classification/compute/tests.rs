@@ -75,7 +75,7 @@ fn fixture() -> (
         .collect::<Vec<_>>();
     let returned = SelectedInstruction {
         id: SelectedInstructionId(3),
-        kind: SelectedInstructionKind::ReturnI64,
+        kind: SelectedInstructionKind::ReturnScalar,
         constraint: key,
         operands: (0..3_u32)
             .map(|register| operand(register, register as u16, RegisterOperandAccess::Use))

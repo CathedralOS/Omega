@@ -1164,8 +1164,7 @@ Owners include
 - **MATCH-SELECTIVE-LOWERING.** Complete the general
   [value-dispatch contract](wiki/spec/language/patterns.md) on the retained
   source and scalar computation route. Remaining work: ownership-bearing result
-  and conditional-transfer joins, nonnumeric Terminal results, selected floating-point
-  pattern native realization, structural/case/
+  and conditional-transfer joins, nonnumeric Terminal results, structural/case/
   domain patterns and their coverage,
   semantic-domain and selected-operator result-type retention (shared with
   `STATE-LOCAL-VALUE-FRONTIER` numeric landing), and canonical
@@ -1175,19 +1174,12 @@ Owners include
   are implementation limits, not narrower language semantics. Do not flatten
   conditional transfers into a whole-statement move/discard roster.
 
-  Floating comparison resume (macOS, comparison change atop 32153f920e): `mbx run -p omega --
-  inspect-terminal --machine choose --target macos_arm64
-  tests/omega/pass/expressions/match_float_patterns/main.omg` passes with verified
-  Terminal and fixed-fuel ceiling 22. Canonical Terminal interpretation covers
-  ordered matches, overlaps, signed zeros and NaNs; ordinary comparisons share
-  its selected six-relation operation. Next: realize `IeeeFloatCompare` through
-  the general native pipeline with exact provider/source custody and independent
-  byte replay. The Terminal-to-Abstract route explicitly rejects this operation;
-  selected native provider definitions are not execution evidence. Crash-qualified
-  equality and contract guarantees still need arm-local execution custody. Extend
-  the existing graph and provider selection, not raw unselected equality or a
-  fabricated source call. The checked-source interpreter's floating dispatch
-  remains fenced separately from the working Terminal interpreter.
+  Floating dispatch next acceptance is crash-qualified equality and contract
+  guarantees with arm-local execution custody, plus the separately fenced
+  checked-source interpreter. Extend the existing selected comparison graph,
+  not raw unselected equality or a fabricated source call. Preserve the native
+  customer in `tests/omega/pass/expressions/match_float_patterns/main.omg` and
+  its [portable/native commands](omega-rust/omega/compiler/compiler/float_realization.md#operation-and-control-custody).
 
   Resume with `mbx nextest run -p checked-trees-to-lowered-psi --test value_dispatch
   --no-fail-fast` and the checker/interpreter `value_dispatch` regressions. These

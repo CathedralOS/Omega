@@ -310,7 +310,7 @@ fn scalar_unit_selected_replay_binds_no_result_abi_arguments_order_and_clobbers(
                 let row = &mut rows[positions[0]];
                 match mutation {
                     0 => {
-                        row.kind = selected_instructions::SelectedInstructionKind::CallI64 {
+                        row.kind = selected_instructions::SelectedInstructionKind::CallScalar {
                             callee: MachineId::new(2).unwrap(),
                         }
                     }

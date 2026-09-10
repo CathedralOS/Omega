@@ -78,12 +78,12 @@ pub(crate) fn fixture() -> (
     );
     let return_a = instruction(
         2,
-        SelectedInstructionKind::ReturnI64,
+        SelectedInstructionKind::ReturnScalar,
         vec![use_operand(1, class, Some(to))],
     );
     let return_b = instruction(
         3,
-        SelectedInstructionKind::ReturnI64,
+        SelectedInstructionKind::ReturnScalar,
         vec![use_operand(1, class, Some(to))],
     );
     let function = SelectedFunction {

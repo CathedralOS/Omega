@@ -49,6 +49,7 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                         .filter_map(|argument| argument.scalar_source()),
                 ),
                 Instruction::ExactBinary { left, right, .. }
+                | Instruction::IeeeFloatCompare { left, right, .. }
                 | Instruction::Compare { left, right, .. } => pending.extend([*left, *right]),
                 Instruction::Constant(_)
                 | Instruction::HostedReadByte { .. }

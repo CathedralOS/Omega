@@ -111,7 +111,7 @@ pub enum WholeFunctionReturnValueEvidence {
     AggregateV1 {
         fragments: Vec<WholeFunctionReturnFragmentEvidence>,
     },
-    ScalarI64V1 {
+    ScalarV1 {
         virtual_register: VirtualRegisterId,
         view: RegisterViewId,
         units: Vec<RegisterUnitId>,

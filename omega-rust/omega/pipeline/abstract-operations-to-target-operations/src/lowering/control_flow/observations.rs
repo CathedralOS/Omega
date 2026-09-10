@@ -399,7 +399,10 @@ pub(super) fn scalar_values(
             );
         }
     }
-    for (value, parameter) in &live.boolean_parameters {
+    for (value, parameter) in &live.scalar_block_parameters {
+        if matches!(parameter.scalar_type, ScalarType::IeeeFloat(_)) {
+            continue;
+        }
         if parameter.scalar_type != ScalarType::Boolean || parameter.value != *value {
             return Err(LoweringError::ValueTypeMismatch(*value));
         }

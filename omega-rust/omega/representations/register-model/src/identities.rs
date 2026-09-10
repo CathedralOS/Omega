@@ -180,12 +180,12 @@ pub fn target_register_environment_identity(
     for key in &selected_keys.call_unit {
         constraint_key(&mut bytes, key.family, key.variant);
     }
-    u64_value(&mut bytes, selected_keys.call_i64.len() as u64);
+    u64_value(&mut bytes, selected_keys.call_scalar.len() as u64);
     u64_value(&mut bytes, selected_keys.call_unit_mixed.len() as u64);
     for key in &selected_keys.call_unit_mixed {
         constraint_key(&mut bytes, key.family, key.variant);
     }
-    for key in &selected_keys.call_i64 {
+    for key in &selected_keys.call_scalar {
         constraint_key(&mut bytes, key.family, key.variant);
     }
     for keys in [
@@ -213,6 +213,12 @@ pub fn target_register_environment_identity(
         selected_keys.jump,
     ] {
         constraint_key(&mut bytes, key.family, key.variant);
+    }
+    if !selected_keys.return_float.is_empty() {
+        u64_value(&mut bytes, selected_keys.return_float.len() as u64);
+        for key in &selected_keys.return_float {
+            constraint_key(&mut bytes, key.family, key.variant);
+        }
     }
     TargetRegisterEnvironmentIdentity::from_canonical_bytes(&bytes)
 }

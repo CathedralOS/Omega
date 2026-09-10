@@ -15,6 +15,7 @@ mod boolean_value;
 mod byte_input;
 mod byte_output;
 mod control;
+mod ieee_comparison;
 mod process_exit;
 mod provenance;
 mod register_entry;
@@ -25,15 +26,19 @@ mod structural_case;
 mod unit_call;
 mod zero_compare;
 
-pub(in crate::selection) fn validate(
+#[cfg(test)]
+mod raw_input_tests;
+#[cfg(test)]
+pub(in crate::selection) use raw_input_tests::validate;
+
+pub(in crate::selection) fn validate_with_environment(
     function: usize,
     source: &LegalizedScalarFunction,
     selected: &SelectedFunction,
-    native_target: target::NativeTarget,
     constraints: &SelectedSelectionConstraints,
-    physical: &ValidatedPhysicalRegisterModel,
-    catalog: &ValidatedRegisterConstraintCatalog,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<(), SelectedInstructionError> {
+    let catalog = environment.constraints();
     let invalid = || SelectedInstructionError::FunctionProjectionMismatch { function };
     let block = selected.blocks.first().ok_or_else(invalid)?;
     control::block_order(source, selected)?;
@@ -46,12 +51,6 @@ pub(in crate::selection) fn validate(
     {
         return Err(invalid());
     }
-    let environment = register_environment::validate_target_register_environment(
-        native_target,
-        physical.model().clone(),
-        catalog.catalog().clone(),
-    )
-    .map_err(|_| invalid())?;
     let [operand] = row(catalog, constraints.keys.materialize_i64)?
         .operands
         .as_slice()
@@ -72,8 +71,8 @@ pub(in crate::selection) fn validate(
         transport: structural::Transport::default(),
         constraints,
     };
-    structural::entry(source, &environment, &mut replay)?;
-    register_entry::validate(source, &environment, catalog, &mut replay)?;
+    structural::entry(source, environment, &mut replay)?;
+    register_entry::validate(source, environment, catalog, &mut replay)?;
     scalar_stack::entry(source, &mut replay)?;
     // Check the predeclared destination roster before any edge refers to it.
     for block in selected.blocks.iter().filter(|block| {
@@ -144,7 +143,7 @@ pub(in crate::selection) fn validate(
             {
                 continue;
             }
-            if structural::operation(source, operation, &environment, &mut replay)? {
+            if structural::operation(source, operation, environment, &mut replay)? {
                 continue;
             }
             let result = operation.result.ok_or_else(invalid)?;
@@ -158,6 +157,9 @@ pub(in crate::selection) fn validate(
                 boolean_value::validate(operation, &mut replay)?
             } else {
                 match &operation.kind {
+                    LegalizedScalarInstructionKind::IeeeFloatCompare { .. } => {
+                        ieee_comparison::validate(operation, &mut replay)?
+                    }
                     LegalizedScalarInstructionKind::PrimitiveScalarRead { .. } => {
                         structural::read(source, &mut replay, operation)?
                     }
@@ -409,20 +411,16 @@ pub(in crate::selection) fn validate(
                     | LegalizedScalarInstructionKind::ByteSequenceSubslice { .. } => {
                         return Err(invalid());
                     }
-                    LegalizedScalarInstructionKind::Call(_) => scalar_call::validate(
-                        source,
-                        operation,
-                        &mut replay,
-                        &environment,
-                        catalog,
-                    )?,
+                    LegalizedScalarInstructionKind::Call(_) => {
+                        scalar_call::validate(source, operation, &mut replay, environment, catalog)?
+                    }
                 }
             };
             replay
                 .definitions
                 .push((result.value, output, result.definition_site, scalar_type));
         }
-        control::validate(source, source_block, &mut replay, &environment, catalog)?;
+        control::validate(source, source_block, &mut replay, environment, catalog)?;
         if !replay.pending_provenance.operations.is_empty()
             || replay.block_cursor != block.instructions.len()
         {

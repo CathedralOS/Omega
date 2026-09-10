@@ -71,6 +71,12 @@ pub(crate) fn operation_scalar_types_match(
             ScalarType::IeeeFloat(_) => false,
         },
         O::IeeeFloatConstant { .. } => true,
+        O::IeeeFloatCompare {
+            format,
+            left,
+            right,
+            ..
+        } => ieee_float(*left, *format) && ieee_float(*right, *format),
         O::NearestIeeeFloatFusedMultiplyAdd {
             format,
             left,

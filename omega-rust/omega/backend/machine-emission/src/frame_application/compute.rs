@@ -367,7 +367,7 @@ mod tests {
         let call = FunctionFragmentInstructionSpan {
             instruction: SelectedInstructionId(1),
             alternative: MachineAlternativeKey {
-                family: MachineAlternativeFamily::CallI64,
+                family: MachineAlternativeFamily::CallScalar,
                 variant: 0,
             },
             offset: 0,
@@ -389,7 +389,7 @@ mod tests {
         let ret = FunctionFragmentInstructionSpan {
             instruction: SelectedInstructionId(2),
             alternative: MachineAlternativeKey {
-                family: MachineAlternativeFamily::ReturnI64,
+                family: MachineAlternativeFamily::ReturnScalar,
                 variant: 0,
             },
             offset: 5,

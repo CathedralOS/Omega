@@ -94,7 +94,7 @@ pub(crate) fn fixture() -> (
     }
     let returned = SelectedInstruction {
         id: SelectedInstructionId(3),
-        kind: SelectedInstructionKind::ReturnI64,
+        kind: SelectedInstructionKind::ReturnScalar,
         constraint: key,
         operands: vec![operand(0, RegisterOperandAccess::Use)],
         implicit_uses: Vec::new(),

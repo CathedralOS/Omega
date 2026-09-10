@@ -8,6 +8,7 @@ use super::*;
 
 mod calls_and_effects;
 mod control;
+mod ieee_float;
 mod scalar;
 mod scalar_shapes;
 mod structural;
@@ -43,9 +44,11 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::PortWrite { .. }
         | O::Call { .. } => calls_and_effects::encode(bytes, operation),
 
-        O::IntegerConstant { .. }
-        | O::IeeeFloatConstant { .. }
+        O::IeeeFloatConstant { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }
+        | O::IeeeFloatCompare { .. } => ieee_float::encode(bytes, operation),
+
+        O::IntegerConstant { .. }
         | O::BooleanConstant { .. }
         | O::BooleanStructuralField { .. }
         | O::ByteSequenceRead { .. }
