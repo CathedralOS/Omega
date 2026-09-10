@@ -6,6 +6,7 @@ impl<'program> Evaluator<'program> {
         Self {
             program,
             operator_facts: None,
+            selected_build_time_operators: &[],
             stdout: Vec::new(),
             stderr: Vec::new(),
             build_log: Vec::new(),
@@ -593,7 +594,12 @@ impl<'program> Evaluator<'program> {
                         .and_then(|argument| {
                             self.const_argument_value_with_bindings(argument, bindings, 0)
                         }),
-                    typed_trees::types::FixedArrayLength::ConstCall { .. } => None,
+                    typed_trees::types::FixedArrayLength::ConstCall { name, .. } => {
+                        return unsupported(format!(
+                            "array length `{}` has an unresolved build-time evaluation dependency",
+                            name.as_str()
+                        ));
+                    }
                 };
                 if let Some(count) = count {
                     let mut elements = Vec::with_capacity(count);

@@ -211,6 +211,7 @@ dependencies = [
  "access-plans",
  "arena",
  "checked-interpreter",
+ "checked-trees",
  "diagnostics",
  "flow-effects",
  "language-core",

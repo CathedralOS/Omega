@@ -3,15 +3,11 @@
 //! `[T; table_size()]` puts a build-time-admissible, zero-argument machine call
 //! in a constant position: the position makes it comptime, the contract system
 //! makes it legal (no keyword, no macro -- chapter 13's frozen direction).
-//! Psi runs this pass between typed-tree lowering and checking:
-//!
-//! - EARLY enough that range checking (`typed-trees-to-checked-trees`), proof
-//!   facts, layout, and codegen all see an ordinary `FixedArrayLength::Literal`
-//!   -- indistinguishable from a written `[T; 16]`.
-//! - LATE enough that the whole program is typed, so the Psi checked-tree
-//!   interpreter can evaluate the callee over the very trees the rest of the
-//!   pipeline consumes. The interpreter is target-neutral and has no Omega
-//!   dependency.
+//! Independent calls evaluate before checking. Calls requiring selected provider
+//! execution may remain pending through preliminary package checking, then fold
+//! before final publication under the actual selected plans. Their private
+//! receipts retain receiving ownership and exact invocation for independent
+//! replay; the resulting type carries an ordinary literal length.
 //!
 //! LEGALITY GATE: the callee's normalized effective service reach must be empty
 //! and its modular operational summary must neither suspend nor block. The
@@ -35,6 +31,7 @@ use typed_trees::machine::Machine;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle};
 
 use crate::BuildTimeAdmissionPlan;
+mod receivers;
 
 /// Evaluate every `FixedArrayLength::ConstCall` in the program and substitute
 /// the concrete `Literal` length in place. Errors name the array-length
@@ -91,6 +88,197 @@ pub fn evaluate_const_array_lengths_with_authority(
     } else {
         Err(diagnostics)
     }
+}
+
+/// Result custody for one provider-dependent array-length substitution.
+/// The source invocation survives folding, so the receiver can execute it
+/// again under the same selected semantics instead of trusting the literal.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FoldedArrayLength {
+    type_reference: TypeReferenceHandle,
+    machine: symbols::SymbolHandle,
+    source: source::SourceSpan,
+    value: usize,
+    receivers: Vec<receivers::Receiver>,
+}
+
+/// Evaluate independent calls before deferring only the remaining work.
+/// A pending provider-dependent field must not suppress an ordinary length
+/// needed by the already-admitted Build invocation.
+pub(crate) fn evaluate_independent_lengths(
+    typed: &mut TypedTrees,
+    authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+) -> Result<bool, Vec<Diagnostic>> {
+    let pending: Vec<_> = typed
+        .type_reference_table
+        .fixed_array_lengths()
+        .filter_map(|(handle, length)| {
+            let FixedArrayLength::ConstCall { name, source_span } = length else {
+                return None;
+            };
+            Some((handle, name.as_str().to_owned(), *source_span))
+        })
+        .collect();
+    if pending.is_empty() {
+        return Ok(false);
+    }
+    let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(typed);
+    let admission = BuildTimeAdmissionPlan::infer_with_selection_authority(typed, authority);
+    let mut deferred = false;
+    let mut evaluated = Vec::new();
+    let mut diagnostics = Vec::new();
+    for (handle, name, source) in pending {
+        if let Some(root) = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            && admission.closure_needs_operator_selection(typed, root.symbol, &facts)
+        {
+            deferred = true;
+        } else {
+            match evaluate_one(typed, &admission, &name, source) {
+                Ok(value) => evaluated.push((handle, value)),
+                Err(reason) => diagnostics.push(Diagnostic::error(format!(
+                    "fixed-array length `{}`: const evaluation of `{name}` failed: {reason}",
+                    typed.type_reference_table.display_name(handle)
+                ))),
+            }
+        }
+    }
+    for (handle, value) in evaluated {
+        typed
+            .type_reference_table
+            .set_fixed_array_length(handle, value);
+    }
+    if diagnostics.is_empty() {
+        Ok(deferred)
+    } else {
+        Err(diagnostics)
+    }
+}
+
+pub(crate) fn evaluate_with_selected_operators(
+    typed: &mut TypedTrees,
+    authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    operators: &[crate::SelectedBuildTimeBinaryOperator],
+) -> Result<Vec<FoldedArrayLength>, Vec<Diagnostic>> {
+    let pending: Vec<_> = typed
+        .type_reference_table
+        .fixed_array_lengths()
+        .filter_map(|(handle, length)| {
+            let FixedArrayLength::ConstCall { name, source_span } = length else {
+                return None;
+            };
+            Some((handle, name.as_str().to_owned(), *source_span))
+        })
+        .collect();
+    let admission = BuildTimeAdmissionPlan::infer_with_selection_authority(typed, authority)
+        .with_selected_operators(typed, operators)
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let roots = receivers::roots(typed);
+    let mut folded = Vec::new();
+    for (type_reference, name, source) in pending {
+        let machines: Vec<_> = typed
+            .machines()
+            .iter()
+            .filter(|machine| machine.name.as_str() == name)
+            .collect();
+        let [machine] = machines.as_slice() else {
+            return Err(vec![Diagnostic::error(
+                "folded length has no unique source invocation",
+            )]);
+        };
+        let value = evaluate_exact_invocation(typed, &admission, machine, source)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let receivers = receivers::capture(typed, &roots, type_reference);
+        receivers::require_unique(&receivers).map_err(|reason| vec![Diagnostic::error(reason)])?;
+        folded.push(FoldedArrayLength {
+            type_reference,
+            machine: machine.symbol,
+            source,
+            value,
+            receivers,
+        });
+    }
+    for fold in &folded {
+        typed
+            .type_reference_table
+            .set_fixed_array_length(fold.type_reference, fold.value);
+    }
+    Ok(folded)
+}
+
+/// Replay the retained invocation using current selected semantics and compare
+/// both the current receiving type and recorded result to the actual value.
+pub fn validate_folded_array_lengths(
+    typed: &TypedTrees,
+    folds: &[FoldedArrayLength],
+    operators: &[crate::SelectedBuildTimeBinaryOperator],
+    authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+) -> Result<(), Vec<Diagnostic>> {
+    let admission = BuildTimeAdmissionPlan::infer_with_selection_authority(typed, authority)
+        .with_selected_operators(typed, operators)
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let roots = receivers::roots(typed);
+    for (index, fold) in folds.iter().enumerate() {
+        if folds[..index]
+            .iter()
+            .any(|prior| prior.type_reference == fold.type_reference)
+        {
+            return Err(vec![Diagnostic::error(
+                "duplicate folded array-length custody",
+            )]);
+        }
+        receivers::validate(typed, &roots, fold.type_reference, &fold.receivers)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let machines: Vec<_> = typed
+            .machines()
+            .iter()
+            .filter(|machine| machine.symbol == fold.machine)
+            .collect();
+        let [machine] = machines.as_slice() else {
+            return Err(vec![Diagnostic::error(
+                "folded array invocation disappeared",
+            )]);
+        };
+        let actual = evaluate_exact_invocation(typed, &admission, machine, fold.source)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        if actual != fold.value
+            || !typed
+                .type_reference_table
+                .fixed_array_lengths()
+                .any(|(handle, length)| {
+                    handle == fold.type_reference && *length == FixedArrayLength::Literal(actual)
+                })
+        {
+            return Err(vec![Diagnostic::error(
+                "folded array length differs from selected source evaluation",
+            )]);
+        }
+    }
+    Ok(())
+}
+
+fn evaluate_exact_invocation(
+    typed: &TypedTrees,
+    admission: &BuildTimeAdmissionPlan,
+    machine: &Machine,
+    source: source::SourceSpan,
+) -> Result<usize, String> {
+    if entry_state_parameter_count(typed, machine) != 0 {
+        return Err("array length requires a zero-argument machine".into());
+    }
+    let value = admission.evaluate_const_evaluable_machine_symbol_for_invocation(
+        typed,
+        machine.symbol,
+        Vec::new(),
+        crate::BuildTimeInvocationCustody::Source(source),
+    )?;
+    let crate::BuildTimeValue::Int(value) = value else {
+        return Err("array length machine must return an integer".into());
+    };
+    usize::try_from(value)
+        .map_err(|_| "array length must be nonnegative and fit the compiler range".into())
 }
 
 fn evaluate_one(
@@ -218,3 +406,6 @@ fn entry_state<'a>(
         .find(|state| state.name.as_str() == leaf)
         .or_else(|| states.first())
 }
+
+#[cfg(test)]
+mod tests;

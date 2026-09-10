@@ -52,6 +52,26 @@ pub fn resolve_checked_builtin_float_operator_requirement(
     operators::resolve_builtin_float_operator_requirement(program, expression, origin)
 }
 
+/// Derive declaration-level operator selections on the current typed graph.
+/// This reuses the checked value-origin traversal, but performs no flow proof
+/// or whole-program validation. Consumers must reject unresolved selections;
+/// ordinary checked lowering independently reconstructs these facts later.
+pub fn derive_pre_flow_operator_selections(
+    program: &typed_trees::TypedTrees,
+) -> checked_trees::CheckedOperatorFacts {
+    let values = derive_pre_flow_value_origins(program);
+    operators::build_operator_facts(program, &values)
+}
+
+/// Reuse the current checked value traversal without claiming proof validity.
+/// Exact expression origins also identify cast-owned constant type positions.
+pub fn derive_pre_flow_value_origins(
+    program: &typed_trees::TypedTrees,
+) -> checked_trees::CheckedValueFacts {
+    let proof_plan = ::proof::obligations::build_proof_plan(program);
+    values::build_value_facts(program, &proof_plan)
+}
+
 pub fn lower_typed_trees(
     program: typed_trees::TypedTrees,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {

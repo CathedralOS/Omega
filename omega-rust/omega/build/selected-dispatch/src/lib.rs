@@ -23,7 +23,7 @@ pub use compiler_intrinsic::{
 pub use float_intrinsic::{
     SelectedCompilerIntrinsicExecutionIdentity,
     derive_selected_compiler_intrinsic_execution_identity,
-    settle_selected_float_intrinsic_dispatch,
+    derive_selected_primitive_float_binary_execution, settle_selected_float_intrinsic_dispatch,
 };
 pub use intrinsic_review::{
     ResolvedAcceptedSemanticBinding, resolve_accepted_service_binding,

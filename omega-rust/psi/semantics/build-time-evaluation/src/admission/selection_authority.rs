@@ -17,6 +17,7 @@ pub(super) fn selection_authority_violation(
     root: &Machine,
     custody: Option<BuildTimeInvocationCustody>,
     authority: Option<&dyn BuildTimeSelectionAuthority>,
+    selected: &[crate::SelectedBuildTimeBinaryOperator],
 ) -> Option<String> {
     if let Some(authority) = authority {
         let Some(custody) = custody else {
@@ -46,7 +47,9 @@ pub(super) fn selection_authority_violation(
             continue;
         }
         completed.push(source_machine);
-        if let Some(violation) = machine_selection_violation(program, source_machine, authority) {
+        if let Some(violation) =
+            machine_selection_violation(program, source_machine, authority, selected)
+        {
             return Some(violation);
         }
         for call in call_edges
@@ -105,6 +108,7 @@ fn machine_selection_violation(
     program: &TypedTrees,
     machine_symbol: SymbolHandle,
     authority: Option<&dyn BuildTimeSelectionAuthority>,
+    selected: &[crate::SelectedBuildTimeBinaryOperator],
 ) -> Option<String> {
     let machine = program
         .machines()
@@ -124,6 +128,7 @@ fn machine_selection_violation(
                 state,
                 expression,
                 authority,
+                selected,
                 &mut visited,
             ) {
                 return Some(violation);
@@ -195,6 +200,7 @@ fn expression_selection_violation(
     state: &State,
     expression: ExpressionHandle,
     authority: Option<&dyn BuildTimeSelectionAuthority>,
+    selected: &[crate::SelectedBuildTimeBinaryOperator],
     visited: &mut Vec<ExpressionHandle>,
 ) -> Option<String> {
     if !expression.is_valid() || visited.contains(&expression) {
@@ -210,7 +216,9 @@ fn expression_selection_violation(
         machine,
         Some(state),
         expression,
-    ) {
+    ) && !selected.iter().any(|row| {
+        row.expression == expression && row.origin.machine_symbol() == Some(machine.symbol)
+    }) {
         return Some(
             "build-time binary operator requires exact authored selection before evaluation; the evaluator cannot execute it as a builtin operator".to_owned(),
         );
@@ -342,9 +350,9 @@ fn expression_selection_violation(
         | ExpressionNode::ZeroValue(_) => {}
     }
     for child in children {
-        if let Some(violation) =
-            expression_selection_violation(program, machine, state, child, authority, visited)
-        {
+        if let Some(violation) = expression_selection_violation(
+            program, machine, state, child, authority, selected, visited,
+        ) {
             return Some(violation);
         }
     }

@@ -583,7 +583,7 @@ impl<'program> Evaluator<'program> {
         })
     }
 
-    fn eval_float_binary(
+    pub(super) fn eval_float_binary(
         &self,
         operator: BinaryOperator,
         l: f64,
@@ -669,7 +669,9 @@ impl<'program> Evaluator<'program> {
             Modulo | ShiftLeft | ShiftRight | BitwiseAnd | BitwiseOr | BitwiseXor => {
                 return unsupported("float modulo/shift/bitwise not supported");
             }
-            Equal | NotEqual | And | Or => unreachable!("handled earlier"),
+            Equal => Value::Bool(FloatSemantics::equal(&left, &right)),
+            NotEqual => Value::Bool(!FloatSemantics::equal(&left, &right)),
+            And | Or => unreachable!("logical operations have Boolean operands"),
         })
     }
 

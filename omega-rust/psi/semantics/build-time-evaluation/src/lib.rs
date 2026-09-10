@@ -30,11 +30,16 @@ pub use build_machines::{
     evaluate_build_machine_entry_arguments_measured,
     evaluate_build_machine_entry_arguments_measured_with_sponsor,
 };
-pub use checked_interpreter::{CURRENT_EVALUATION_SEMANTICS, EvaluationUsage, MeasuredEvaluation};
+pub use checked_interpreter::{
+    CURRENT_EVALUATION_SEMANTICS, EvaluationUsage, MeasuredEvaluation,
+    SelectedBuildTimeBinaryOperator,
+};
+mod selected_operators;
 pub use const_domain_facts::{
     evaluate_const_domain_facts, evaluate_const_domain_facts_with_authority,
 };
 pub use const_generic_calls::evaluate_const_generic_calls;
+pub use const_lengths::{FoldedArrayLength, validate_folded_array_lengths};
 pub use const_lengths::{
     evaluate_const_array_lengths, evaluate_const_array_lengths_with_authority,
     evaluate_zero_argument_machine, evaluate_zero_argument_machine_for_invocation,
@@ -138,6 +143,7 @@ pub use plan_laid::{
     PlanLaidRecord, compute_plan_laid_layouts, compute_plan_laid_layouts_with_authority,
     desugar_plan_laid_value_types,
 };
+pub use selected_operators::validate_selected_operators;
 pub use wire_plans::{compute_wire_plans, compute_wire_plans_with_authority};
 
 /// Target-neutral syntax elaboration that must finish before name resolution.
@@ -166,12 +172,49 @@ impl PreResolutionEvaluation {
 /// another run or choose a different authority after name resolution.
 #[must_use = "the matching typed tree must consume this pre-check continuation"]
 pub struct PreCheckEvaluation {
+    wire_schema_frontier: usize,
     placed_view_records: Vec<PlacedViewRecord>,
     plan_laid_records: Vec<PlanLaidRecord>,
     selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
 }
 
 impl PreCheckEvaluation {
+    /// Keep value-dependent work together until exact boundary execution is
+    /// selected. Independent ordinary build inputs retain their early route.
+    pub fn evaluate_or_defer(
+        self,
+        typed: &mut typed_trees::TypedTrees,
+    ) -> Result<Option<Self>, Vec<diagnostics::Diagnostic>> {
+        if const_lengths::evaluate_independent_lengths(typed, self.selection_authority.clone())? {
+            return Ok(Some(self));
+        }
+        self.evaluate(typed)?;
+        Ok(None)
+    }
+
+    pub fn evaluate_extension_or_defer(
+        mut self,
+        typed: &mut typed_trees::TypedTrees,
+        wire_schema_frontier: usize,
+    ) -> Result<Option<Self>, Vec<diagnostics::Diagnostic>> {
+        self.wire_schema_frontier = wire_schema_frontier;
+        self.evaluate_or_defer(typed)
+    }
+
+    pub fn evaluate_with_selected_operators(
+        self,
+        typed: &mut typed_trees::TypedTrees,
+        operators: &[SelectedBuildTimeBinaryOperator],
+    ) -> Result<Vec<FoldedArrayLength>, Vec<diagnostics::Diagnostic>> {
+        let folds = const_lengths::evaluate_with_selected_operators(
+            typed,
+            self.selection_authority.clone(),
+            operators,
+        )?;
+        self.evaluate(typed)?;
+        Ok(folds)
+    }
+
     /// Consume the exact continuation produced before name resolution.
     ///
     /// Omega may target-filter and type the returned syntax before this call,
@@ -186,7 +229,7 @@ impl PreCheckEvaluation {
             &self.plan_laid_records,
             &self.placed_view_records,
             self.selection_authority,
-            0,
+            self.wire_schema_frontier,
         )
     }
 
@@ -305,6 +348,7 @@ fn evaluate_pre_resolution_with_optional_sources(
     Ok(PreResolutionEvaluation {
         syntax_trees,
         pre_check: PreCheckEvaluation {
+            wire_schema_frontier: 0,
             placed_view_records,
             plan_laid_records,
             selection_authority,

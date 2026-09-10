@@ -141,6 +141,62 @@ impl<'program> Evaluator<'program> {
                 self.eval_unary(unary.operator, operand)
             }
             ExpressionNode::Binary(binary) => {
+                if let Some(selected) = self
+                    .selected_build_time_operators
+                    .iter()
+                    .find(|selected| {
+                        selected.expression == handle
+                            && selected.origin.machine_symbol() == Some(frame.machine_symbol)
+                    })
+                    .copied()
+                {
+                    if [binary.left, binary.right] != selected.operands
+                        || binary.operator != selected.operation
+                        || self
+                            .selected_build_time_operators
+                            .iter()
+                            .filter(|row| {
+                                row.expression == handle
+                                    && row.origin.machine_symbol() == Some(frame.machine_symbol)
+                            })
+                            .count()
+                            != 1
+                    {
+                        return trap(
+                            "selected build-time binary execution lost its exact occurrence or operands",
+                        );
+                    }
+                    let primitive = match selected.format {
+                        numerics::literals::FloatFormat::F32 => PrimitiveType::F32,
+                        numerics::literals::FloatFormat::F64 => PrimitiveType::F64,
+                    };
+                    let left =
+                        self.eval_expression_with_destination(binary.left, Some(primitive), frame)?;
+                    let right = self.eval_expression_with_destination(
+                        binary.right,
+                        Some(primitive),
+                        frame,
+                    )?;
+                    let (Value::Float(left), Value::Float(right)) = (&left, &right) else {
+                        return trap(format!(
+                            "selected float execution at {handle:?} received nonfloat operands: {left:?}, {right:?}"
+                        ));
+                    };
+                    let (left, right) = (*left, *right);
+                    let domain = match selected.policy {
+                        checked_trees::CheckedArithmeticPolicyAdapter::None => ArithmeticDomain::Exact,
+                        checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly { .. } => ArithmeticDomain::Saturating,
+                        checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite { .. } => ArithmeticDomain::Trapping,
+                    };
+                    return self.eval_float_binary(
+                        selected.operation,
+                        left,
+                        right,
+                        Some((primitive, domain)),
+                        None,
+                    );
+                }
+
                 if let Some(value) = self.eval_selected_trait_operator(handle, &binary, frame)? {
                     return Ok(value);
                 }

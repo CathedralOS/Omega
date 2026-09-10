@@ -56,6 +56,7 @@ pub(crate) fn require_const_expression_selection(
         machine,
         Some(BuildTimeInvocationCustody::Source(source)),
         authority,
+        &[],
     ) {
         Some(reason) => Err(reason),
         None => Ok(()),
@@ -74,6 +75,7 @@ pub struct BuildTimeAdmissionPlan {
     blocking: Vec<BuildTimeBlockingRow>,
     call_edges: Vec<BuildTimeCallEdge>,
     selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    selected_operators: Vec<crate::SelectedBuildTimeBinaryOperator>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -114,7 +116,52 @@ impl BuildTimeAdmissionPlan {
             blocking,
             call_edges,
             selection_authority,
+            selected_operators: Vec::new(),
         }
+    }
+
+    pub fn with_selected_operators(
+        mut self,
+        program: &TypedTrees,
+        operators: &[crate::SelectedBuildTimeBinaryOperator],
+    ) -> Result<Self, String> {
+        crate::validate_selected_operators(program, operators)?;
+        self.selected_operators = operators.to_vec();
+        Ok(self)
+    }
+
+    pub(crate) fn closure_needs_operator_selection(
+        &self,
+        program: &TypedTrees,
+        root: SymbolHandle,
+        facts: &checked_trees::CheckedOperatorFacts,
+    ) -> bool {
+        let mut pending = vec![root];
+        let mut visited = Vec::new();
+        while let Some(machine) = pending.pop() {
+            if visited.contains(&machine) {
+                continue;
+            }
+            visited.push(machine);
+            if facts
+                .uses_with_status(checked_trees::CheckedOperatorResolutionStatus::Resolved)
+                .any(|fact| {
+                    fact.origin.machine_symbol() == Some(machine)
+                        && program.operators().iter().any(|operator| {
+                            operator.symbol == fact.selected_operator_symbol && operator.is_boundary
+                        })
+                })
+            {
+                return true;
+            }
+            pending.extend(
+                self.call_edges
+                    .iter()
+                    .filter(|edge| edge.source_machine_symbol == machine)
+                    .map(|edge| edge.target_machine_symbol),
+            );
+        }
+        false
     }
 
     pub fn require_common_floor(
@@ -140,6 +187,7 @@ impl BuildTimeAdmissionPlan {
         machine: &Machine,
         custody: Option<BuildTimeInvocationCustody>,
     ) -> Result<(), String> {
+        crate::validate_selected_operators(program, &self.selected_operators)?;
         let service_summary = self
             .service_reaches
             .for_machine(machine.symbol)
@@ -186,6 +234,7 @@ impl BuildTimeAdmissionPlan {
             machine,
             custody,
             self.selection_authority.as_deref(),
+            &self.selected_operators,
         );
         if services.is_empty()
             && !transitive_may_suspend
@@ -354,7 +403,14 @@ impl BuildTimeAdmissionPlan {
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
         self.require_common_floor(program, machine)?;
         let value =
-            checked_interpreter::evaluate_build_time_machine(program, machine_name, arguments)?;
+            checked_interpreter::evaluate_build_time_machine_symbol_with_selected_operators(
+                program,
+                machine.symbol,
+                arguments,
+                &self.selected_operators,
+            )?
+            .into_parts()
+            .0;
         require_const_evaluable_result(program, machine, &value)?;
         Ok(value)
     }
@@ -373,7 +429,43 @@ impl BuildTimeAdmissionPlan {
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
         self.require_common_floor_for_invocation(program, machine, custody)?;
         let value =
-            checked_interpreter::evaluate_build_time_machine(program, machine_name, arguments)?;
+            checked_interpreter::evaluate_build_time_machine_symbol_with_selected_operators(
+                program,
+                machine.symbol,
+                arguments,
+                &self.selected_operators,
+            )?
+            .into_parts()
+            .0;
+        require_const_evaluable_result(program, machine, &value)?;
+        Ok(value)
+    }
+
+    pub fn evaluate_const_evaluable_machine_symbol_for_invocation(
+        &self,
+        program: &TypedTrees,
+        machine_symbol: SymbolHandle,
+        arguments: Vec<BuildTimeValue>,
+        custody: BuildTimeInvocationCustody,
+    ) -> Result<BuildTimeValue, String> {
+        let matching: Vec<_> = program
+            .machines()
+            .iter()
+            .filter(|machine| machine.symbol == machine_symbol)
+            .collect();
+        let [machine] = matching.as_slice() else {
+            return Err("build-time invocation has no unique exact machine".into());
+        };
+        self.require_common_floor_for_invocation(program, machine, custody)?;
+        let value =
+            checked_interpreter::evaluate_build_time_machine_symbol_with_selected_operators(
+                program,
+                machine_symbol,
+                arguments,
+                &self.selected_operators,
+            )?
+            .into_parts()
+            .0;
         require_const_evaluable_result(program, machine, &value)?;
         Ok(value)
     }
@@ -486,6 +578,7 @@ mod tests {
             blocking,
             call_edges,
             selection_authority: None,
+            selected_operators: Vec::new(),
         };
 
         assert_eq!(admission.machine_suspension(suspending_machine), Some(true));

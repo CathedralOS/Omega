@@ -10,6 +10,8 @@ use crate::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 mod applications;
 mod indexing;
+mod primitive_float;
+pub use primitive_float::primitive_float_binary_semantics;
 
 pub use indexing::resolve_indexed_spelling_for_operands;
 

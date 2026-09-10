@@ -1596,12 +1596,12 @@ mod tests {
         assert_eq!(result.binding_ordinal, 1);
         assert!(matches!(
             value,
-            checked_trees::CheckedScalarExpression::IntegerBinary {
+            checked_trees::CheckedCallScalarArgument::Pure(checked_trees::CheckedScalarExpression::IntegerBinary {
                 kind: checked_trees::CheckedIntegerBinaryKind::ExactAdd,
                 left,
                 right,
                 ..
-            } if matches!(
+            }) if matches!(
                 left.as_ref(),
                 checked_trees::CheckedScalarExpression::Local { position: 0, .. }
             ) && matches!(
