@@ -378,8 +378,12 @@ countdown judgment for `u8`, `u16`, `u32`, and `u64` using the same natural-rank
 subject carrier as `Slice::Length`; private operand-evaluation edges preserve
 the rank while authored cyclic transfers strictly decrease it. The existing
 single-state cyclic-component restriction and unsupported explicit rank ranges
-remain; this does not introduce a fixed-work ceiling. Native looping borrowed
-record storage remains a separate target-lowering obligation.
+remain; this does not introduce a fixed-work ceiling. Native projected record
+loops use ordinary borrowed-reference signatures and field stores, including
+loop-carried integer sources. The `terminal_psi_indexed_receivers::cyclic_receivers`
+regressions publish ranked/unranked callers on four hosted targets, retain the
+full callee stack demand, and check original backing storage after return on
+the supported execution host.
 
 Projection replay rejoins every field/index, array bound, type, and source
 application. Nonescaping alias prefixes with immutable bindings to mutable or

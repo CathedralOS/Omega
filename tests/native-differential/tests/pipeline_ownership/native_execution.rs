@@ -86,6 +86,27 @@ impl Code {
             entry(arguments[0], arguments[1], arguments[2], arguments[3])
         }
     }
+
+    #[allow(
+        dead_code,
+        reason = "Shared integration binaries exercise different entry signatures."
+    )]
+    pub(crate) fn call_unit_with_record(
+        &self,
+        offset: usize,
+        argument: u64,
+        record: &mut [u64; 3],
+    ) {
+        assert!(offset < self.length);
+        // SAFETY: the caller supplies a validated Microsoft x64 Unit entry
+        // taking one u64 and a borrowed three-u64 record. Its writable referent
+        // and this executable allocation remain live throughout the call.
+        unsafe {
+            let entry: unsafe extern "system" fn(u64, *mut [u64; 3]) =
+                std::mem::transmute(self.address.cast::<u8>().add(offset));
+            entry(argument, record);
+        }
+    }
 }
 
 impl Drop for Code {

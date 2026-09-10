@@ -7,6 +7,11 @@ use target::NativeTarget;
 #[allow(dead_code)]
 mod native_function;
 
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+#[path = "pipeline_ownership/native_execution.rs"]
+#[allow(dead_code)]
+mod native_execution;
+
 #[path = "terminal_psi_indexed_receivers/stack_pointers.rs"]
 mod stack_pointers;
 
@@ -27,6 +32,9 @@ mod projected_aliases;
 
 #[path = "terminal_psi_indexed_receivers/mutable_aliases.rs"]
 mod mutable_aliases;
+
+#[path = "terminal_psi_indexed_receivers/cyclic_receivers.rs"]
+mod cyclic_receivers;
 
 fn artifact(source: &str) -> terminal_codec::CanonicalTerminalArtifact {
     artifact_for(source, "forward")

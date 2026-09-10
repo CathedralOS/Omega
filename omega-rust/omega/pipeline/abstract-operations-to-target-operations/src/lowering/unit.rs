@@ -19,6 +19,7 @@ pub(super) mod scalar_definitions;
 pub(super) mod structural_call;
 mod structural_result;
 mod structural_scalar;
+pub(super) use structural_scalar::lower_field_store;
 pub(super) mod write_only_primitive_store;
 
 use super::function_signature as setup;
