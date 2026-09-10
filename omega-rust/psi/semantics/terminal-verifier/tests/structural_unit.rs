@@ -40,6 +40,9 @@ mod write_only_attenuation;
 #[path = "structural_unit/boundary_buffers.rs"]
 mod boundary_buffers;
 
+#[path = "structural_unit/parameter_returns.rs"]
+mod parameter_returns;
+
 #[test]
 fn unused_provider_attachment_verifies_without_roots_calls_or_codec() {
     let mut module = unused_provider_attachment_module();
