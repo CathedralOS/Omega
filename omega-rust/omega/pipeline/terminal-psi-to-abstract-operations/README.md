@@ -8,8 +8,8 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
 - `artifact`: canonical admission and replay.
 - `optimization`: verified optimization-unit construction and proof questions.
 - `provider_installation`: exact selected-adapter and installation custody.
-- `lowering`: verified-machine lowering, with ordinary scalar/Unit and structural
-  families separated.
+- `lowering`: one operation-by-operation walk for scalar, Unit, and structural
+  results. Optimization selection does not change this projection.
 
 No checked tree, StateGraph, or caller-created module substitutes for the
 canonical artifact. Unsupported vocabulary rejects at admission or lowering;
@@ -34,6 +34,13 @@ must still reach final call placement, frame/return-address preservation,
 relocations, bytes, and independently validated publication.
 
 ## Structural results and residual cleanup
+
+Verified branches, calls, and crash exits retain the same operation identities
+and ownership transfers regardless of result category. Local establishments are
+ordinary operations, not hidden inside a structural return. The legacy no-code
+physical return collects their provenance only when selecting that native form.
+This removes a source-body admission fence; general owned-record graph return
+storage and claim-bearing native control flow still require downstream support.
 
 The [ownership contract](../../../../wiki/spec/terminal-psi/ownership.md) requires
 replay of actual moves and maximal residual subtrees, independently of producer

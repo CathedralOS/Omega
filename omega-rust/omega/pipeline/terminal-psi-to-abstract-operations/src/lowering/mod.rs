@@ -1,12 +1,10 @@
 //! Optimizer module role: executable entrance. Terminal-to-abstract lowering entrance: validate the entry roster, lower
-//! every verified machine through the ordinary or structural family, and
+//! every verified machine operation by operation, and
 //! retain the canonical Terminal-Psi identity.
 
 mod block_bindings;
 mod error;
 mod machine;
-mod payloadless;
-mod structural;
 
 pub use error::LoweringError;
 
@@ -21,27 +19,23 @@ use terminal_verifier::VerifiedNativeRankedTerminalModule;
 /// ordered.
 pub(crate) fn lower_decoded_verified_module(
     verified: &VerifiedTerminalModule<'_>,
-    retain_payloadless_for_optimization: bool,
 ) -> Result<AbstractOperationPlan, LoweringError> {
-    lower_decoded_module(verified.module(), retain_payloadless_for_optimization)
+    lower_decoded_module(verified.module())
 }
 
 pub(crate) fn lower_decoded_optimizable_module(
     verified: &VerifiedOptimizableTerminalModule<'_>,
 ) -> Result<AbstractOperationPlan, LoweringError> {
-    lower_decoded_module(verified.module(), true)
+    lower_decoded_module(verified.module())
 }
 
 pub(crate) fn lower_decoded_native_ranked_module(
     verified: &VerifiedNativeRankedTerminalModule<'_>,
 ) -> Result<AbstractOperationPlan, LoweringError> {
-    lower_decoded_module(verified.module(), false)
+    lower_decoded_module(verified.module())
 }
 
-fn lower_decoded_module(
-    module: &TerminalModule,
-    retain_payloadless_for_optimization: bool,
-) -> Result<AbstractOperationPlan, LoweringError> {
+fn lower_decoded_module(module: &TerminalModule) -> Result<AbstractOperationPlan, LoweringError> {
     block_bindings::validate_structural_block_bindings(module)?;
     if !module
         .machines
@@ -50,11 +44,6 @@ fn lower_decoded_module(
     {
         return Err(LoweringError::VerifiedEntryMachineMissing(module.entry));
     }
-    let machines = module
-        .machines
-        .iter()
-        .map(|machine| (machine.id, machine))
-        .collect::<BTreeMap<_, _>>();
     let functions = module
         .machines
         .iter()
@@ -62,10 +51,8 @@ fn lower_decoded_module(
             lower_machine(
                 module,
                 machine,
-                &machines,
                 &module.structural_types,
                 &module.dynamic_dispatch,
-                retain_payloadless_for_optimization,
             )
         })
         .collect::<Result<Vec<_>, _>>()?;

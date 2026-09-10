@@ -30,7 +30,7 @@ pub fn lower_replay_artifact_sections(
     }
     let verified = terminal_verifier::verify_module(&module, &proof, profile)
         .map_err(ArtifactLoweringError::Verification)?;
-    lower_decoded_verified_module(&verified, false).map_err(ArtifactLoweringError::Lowering)
+    lower_decoded_verified_module(&verified).map_err(ArtifactLoweringError::Lowering)
 }
 
 /// Replay the persisted obligation ledger and retain the complete admitted
