@@ -961,6 +961,27 @@ Owners include
   and stack-passed primitive roots across three calls through publication.
   Preserve exact write widths, untouched bytes, and independent receiving
   replay; frame-slot stores or copied referents are not writeback.
+
+  Computed IEEE stores require more than widening store admission. At
+  `a61173fb2b`, a temporary source-backed `Record::replace(&write self, value)`
+  probe assigning `self.value = value + value` passed checking but failed Terminal
+  production with `machine has no source-independent checked scalar control plan`
+  (macOS ARM64, `cargo nextest run -p omega-native-differential-test --test
+  terminal_psi_indexed_receivers computed_ieee_field_stores_publish --no-fail-fast`;
+  temporary probe removed). Ordinary floating addition has no admitted Terminal
+  operation. The selected FMA route in Psi's
+  `typed-trees-to-checked-trees/src/flow/terminal_unit/selected_ieee_float.rs`
+  currently admits literal operands; Omega's
+  `abstract-operations-to-target-operations/src/lowering/unit/scalar_definitions.rs`
+  excludes stores alongside FMA, and
+  `native-realization/src/realization/object.rs` explicitly rejects common-pipeline
+  FMA provider transport. Implement selected-operation transport and ordinary
+  value/store composition before claiming computed-store publication. Next
+  acceptance: a source-selected floating result reaches the original borrowed
+  referent through native publication and caller observation, retaining exact
+  format, occurrence, provider-plan, and receiving-replay evidence. Host folding
+  and a separate store-specific emitter do not satisfy it.
+
   Extend Terminal receiver production beyond nonescaping static projected
   mutable/write-only alias chains ending at state exit to escaping carriers,
   early nested closure, restored-parent uses, and dynamic indexes; checked
