@@ -1,4 +1,4 @@
-//! Rejoin target scalar-sum constructors and result calls to their source operations.
+//! Rejoin aggregate constructors and result calls to their exact source operations.
 use super::*;
 use crate::legalization::scalar_graph_input;
 
@@ -13,6 +13,37 @@ pub(super) fn validate(
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
     match (target, abstracted) {
+        (
+            TargetUnitOperation::EstablishScalarArray {
+                psi_operation,
+                result_home,
+                elements,
+            },
+            AbstractOperation::EstablishScalarArray {
+                psi_operation: expected_operation,
+                result,
+                elements: expected_elements,
+            },
+        ) => {
+            let (scalar_type, count, _) = scalar_graph_input::scalar_arrays::shape(result, plan)?;
+            if psi_operation != expected_operation
+                || elements != expected_elements
+                || u64::try_from(elements.len()).ok() != Some(count)
+                || *result_home
+                    != scalar_graph_input::aggregate_results::result_home(
+                        optimized,
+                        result.place,
+                        plan,
+                    )?
+                || elements.iter().any(|element| {
+                    !sources.iter().any(|(value, source)| {
+                        value == element && source.scalar_type() == scalar_type
+                    })
+                })
+            {
+                return Err(invalid);
+            }
+        }
         (
             TargetUnitOperation::EstablishScalarCase {
                 psi_operation,
@@ -31,7 +62,11 @@ pub(super) fn validate(
                 || result_case != expected_case
                 || fields != expected_fields
                 || *result_home
-                    != scalar_graph_input::scalar_sums::result_home(optimized, result.place, plan)?
+                    != scalar_graph_input::aggregate_results::result_home(
+                        optimized,
+                        result.place,
+                        plan,
+                    )?
             {
                 return Err(invalid);
             }
@@ -102,7 +137,7 @@ pub(super) fn validate(
                 || result.structural_type != callee_result.structural_type
                 || result.multiplicity != callee_result.multiplicity
                 || result_home.as_ref()
-                    != Some(&scalar_graph_input::scalar_sums::result_home(
+                    != Some(&scalar_graph_input::aggregate_results::result_home(
                         optimized,
                         result.place,
                         plan,
@@ -144,7 +179,7 @@ pub(super) fn validate(
                 structural_arguments.iter().zip(arguments).enumerate()
             {
                 if *retained
-                    != scalar_graph_input::scalar_sums::call_argument(
+                    != scalar_graph_input::aggregate_results::call_argument(
                         semantic,
                         position,
                         optimized,

@@ -55,6 +55,12 @@ pub(super) fn operation(
         return false;
     };
     match source {
+        AbstractOperation::EstablishScalarArray { psi_operation, result, elements } => {
+            graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
+                TargetUnitOperation::EstablishScalarArray { psi_operation: retained, result_home, elements: retained_elements }
+                    if retained == psi_operation && &result_home.result == result && retained_elements == elements
+            )).count() == 1
+        }
         AbstractOperation::EstablishScalarCase { psi_operation, result, result_case, fields } => {
             graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
                 TargetUnitOperation::EstablishScalarCase { psi_operation: retained, result_home, result_case: retained_case, fields: retained_fields }

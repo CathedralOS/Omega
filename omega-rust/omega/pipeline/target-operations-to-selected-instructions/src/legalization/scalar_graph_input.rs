@@ -17,11 +17,12 @@ mod boolean;
 mod control;
 mod custody;
 pub(super) use custody::validate_unit_custody;
+pub(super) mod aggregate_results;
 mod byte_views;
 mod header;
 mod hosted_scalar;
 pub(super) mod read_byte;
-pub(super) mod scalar_sums;
+pub(super) mod scalar_arrays;
 pub(super) mod structural_case;
 mod unobserved_owned;
 pub(super) use hosted_scalar::hosted_realization;
@@ -55,7 +56,7 @@ pub(super) fn structural_contract(
             && (literals::roster(optimized)
                 || read_byte::roster(optimized)
                 || primitive_locals::roster(optimized)
-                || (scalar_sums::uses(optimized) && scalar_sums::roster(optimized))))
+                || (aggregate_results::uses(optimized) && aggregate_results::roster(optimized))))
         .then_some(&[][..])
     }) {
         return Some(legalized_operations::LegalizedStructuralContract {
@@ -155,8 +156,8 @@ pub(super) fn match_input(
     let ranked = matches!(target.operation, TargetOperation::RankedU32Countdown(_));
     let call_plan = if ranked {
         ranked::validate(target, abstracted, optimized, native, plan, unit)?
-    } else if scalar_sums::uses(optimized) {
-        scalar_sums::header(target, abstracted, optimized, native.target, plan)?
+    } else if aggregate_results::uses(optimized) {
+        aggregate_results::header(target, abstracted, optimized, native.target, plan)?
     } else if structural_parameters(target).is_some() {
         byte_views::validate(target, abstracted, optimized, native.target, plan)?
     } else {
@@ -391,7 +392,7 @@ pub(super) fn callee_plan(
     ) else {
         return Err(LegalizationError::SourceCustodyMismatch);
     };
-    if !scalar_sums::uses(optimized)
+    if !aggregate_results::uses(optimized)
         && ((target.attachment.is_some()
             && !matches!(abstracted.result, AbstractFunctionResult::Unit))
             || !matches!(abstracted.result, AbstractFunctionResult::Unit)
@@ -407,8 +408,8 @@ pub(super) fn callee_plan(
     {
         return Err(LegalizationError::SourceCustodyMismatch);
     }
-    let call_plan = if scalar_sums::uses(optimized) {
-        scalar_sums::header(target, abstracted, optimized, native.target, plan)?
+    let call_plan = if aggregate_results::uses(optimized) {
+        aggregate_results::header(target, abstracted, optimized, native.target, plan)?
     } else if structural_parameters(target).is_some() {
         byte_views::validate(target, abstracted, optimized, native.target, plan)?
     } else {

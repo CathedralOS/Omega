@@ -41,6 +41,9 @@ pub(super) fn folded_zero<'a>(
                 continue;
             }
             let uses = match &instruction.kind {
+                LegalizedScalarInstructionKind::EstablishScalarArray { elements, .. } => {
+                    elements.contains(&definition.value)
+                }
                 LegalizedScalarInstructionKind::EstablishScalarCase { fields, .. } => {
                     fields.iter().any(|field| field.value == definition.value)
                 }

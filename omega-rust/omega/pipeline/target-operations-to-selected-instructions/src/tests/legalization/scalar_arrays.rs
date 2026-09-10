@@ -1,0 +1,175 @@
+//! Target and legalized readers reconstruct leaves, storage and returned identity.
+use crate::{legalize_target_operations, validate_legalized_operations};
+use abstract_operations::{AbstractFunctionResult, AbstractOperation as O};
+use calling_conventions::ValueShape;
+use legalized_operations::LegalizedScalarInstructionKind as K;
+use semantic_vocabulary::{
+    EdgeId, FuelScheduleIdentity, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
+};
+use target_operations::{TargetOperation, TargetStructuralHomeLayout, TargetUnitOperation};
+use terminal_psi::{StructuralMultiplicity, StructuralTypeShape};
+
+fn fixture(
+    length: u64,
+) -> (
+    abstract_operations::AbstractOperationPlan,
+    target_operations::TargetOperationPlan,
+    optimization_unit::PsiOptimizationUnit,
+) {
+    let (mut source, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
+    let root = StructuralTypeId::new(1).unwrap();
+    let leaf = StructuralTypeId::new(2).unwrap();
+    source.structural_types = vec![
+        terminal_psi::StructuralTypeDeclaration {
+            id: root,
+            identity: "test::array".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: leaf,
+                length,
+            },
+        },
+        terminal_psi::StructuralTypeDeclaration {
+            id: leaf,
+            identity: "test::boolean".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+        },
+    ];
+    let value = ValueId::new(1).unwrap();
+    let other = ValueId::new(2).unwrap();
+    let place = PlaceId::new(1).unwrap();
+    let function = &mut source.functions[0];
+    function.result =
+        AbstractFunctionResult::Structural(terminal_psi::StructuralResultDeclaration {
+            place: PlaceId::new(2).unwrap(),
+            structural_type: root,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        });
+    function.operations = vec![
+        O::BooleanConstant {
+            psi_operation: OperationId::new(1).unwrap(),
+            result: value,
+            value: true,
+        },
+        O::BooleanConstant {
+            psi_operation: OperationId::new(2).unwrap(),
+            result: other,
+            value: false,
+        },
+        O::EstablishScalarArray {
+            psi_operation: OperationId::new(3).unwrap(),
+            result: terminal_psi::StructuralOperationResult {
+                place,
+                structural_type: root,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            },
+            elements: if length == 0 {
+                Vec::new()
+            } else {
+                vec![value, other, value]
+            },
+        },
+        O::ReturnStructural {
+            psi_edge: EdgeId::new(1).unwrap(),
+            source: place,
+            returned_claims: Vec::new(),
+            trivial_affine_locals: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+        },
+    ];
+    if length == 0 {
+        // Empty construction has no scalar operands; do not introduce unused
+        // Boolean definitions whose materialization is outside this fixture.
+        function.operations.drain(..2);
+    }
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &source,
+        target::NativeTarget::linux_x64(),
+    )
+    .unwrap();
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &source,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+    (source, target, unit)
+}
+
+#[test]
+fn array_target_replay_rejects_leaf_storage_and_producer_substitution() {
+    let (source, target, unit) = fixture(3);
+    legalize_target_operations(&target, &source, &unit).unwrap();
+    for mutation in 0..5 {
+        let mut changed = target.clone();
+        let TargetOperation::ControlGraph(graph) = &mut changed.functions[0].operation else {
+            panic!("graph")
+        };
+        let TargetUnitOperation::EstablishScalarArray {
+            psi_operation,
+            result_home,
+            elements,
+        } = &mut graph.blocks[0].operations[2]
+        else {
+            panic!("array")
+        };
+        match mutation {
+            0 => elements.swap(0, 1),
+            1 => {
+                elements.pop();
+            }
+            2 => {
+                result_home.layout =
+                    TargetStructuralHomeLayout::Aggregate(ValueShape::integer(4, 1))
+            }
+            3 => result_home.result.place = PlaceId::new(99).unwrap(),
+            4 => *psi_operation = OperationId::new(99).unwrap(),
+            _ => unreachable!(),
+        }
+        assert!(
+            legalize_target_operations(&changed, &source, &unit).is_err(),
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn array_legalized_replay_rejects_leaf_order_shape_and_result_substitution() {
+    for length in [0, 3] {
+        let (source, target, unit) = fixture(length);
+        let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
+        validate_legalized_operations(&target, &source, &unit, legalized.plan().clone()).unwrap();
+        for mutation in 0..4 {
+            let mut changed = legalized.plan().clone();
+            let instruction = changed.scalar_functions[0].blocks[0]
+                .instructions
+                .iter_mut()
+                .find(|instruction| matches!(instruction.kind, K::EstablishScalarArray { .. }))
+                .unwrap();
+            let K::EstablishScalarArray {
+                result,
+                elements,
+                shape,
+            } = &mut instruction.kind
+            else {
+                panic!("array")
+            };
+            match mutation {
+                0 if length != 0 => elements.swap(0, 1),
+                0 => elements.push(ValueId::new(1).unwrap()),
+                1 => *shape = ValueShape::integer(8, 8),
+                2 => result.place = PlaceId::new(99).unwrap(),
+                3 => result.structural_type = StructuralTypeId::new(2).unwrap(),
+                _ => unreachable!(),
+            }
+            assert!(
+                validate_legalized_operations(&target, &source, &unit, changed).is_err(),
+                "length {length}, mutation {mutation}"
+            );
+        }
+    }
+}

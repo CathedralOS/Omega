@@ -1,0 +1,8 @@
+machine byte() -> [u8; 1] { [255u8] }
+machine half() -> [u16; 1] { [65535u16] }
+machine word() -> [u32; 1] { [4294967295u32] }
+machine wide() -> [u64; 1] { [18446744073709551615u64] }
+machine pair() -> [u64; 2] { [18446744073709551615u64, 9223372036854775809u64] }
+machine nested() -> [[u16; 2]; 2] { [[65535u16, 1u16], [2u16, 32768u16]] }
+machine boolean() -> [bool; 2] { [true, false] }
+machine floating() -> [f32; 2] { [1.5f32, -2.25f32] }

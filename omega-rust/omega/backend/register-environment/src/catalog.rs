@@ -136,8 +136,8 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             return_unit: X86_64_SYSTEM_V_RETURN_UNIT,
         }),
         (Architecture::X86_64, ObjectFormat::Coff) => Some(SelectedConstraintKeys {
-            call_aggregate: Vec::new(),
-            return_aggregate: Vec::new(),
+            call_aggregate: isa_x86_64::x86_64_microsoft_aggregate_call_keys(),
+            return_aggregate: isa_x86_64::x86_64_microsoft_aggregate_return_keys(),
             hosted_read_byte: None,
             hosted_write_byte_i32: None,
             hosted_exit_process_i32: None,

@@ -65,7 +65,11 @@ pub(super) fn validate(
                     matches!(&consumer.operation,
                     AbstractOperation::CallUnit { arguments, .. }
                         | AbstractOperation::CallStructuralScalar { arguments, .. }
+                        | AbstractOperation::CallStructural { arguments, .. }
                         if arguments.contains(&result))
+                        || matches!(&consumer.operation,
+                            AbstractOperation::EstablishScalarArray { elements, .. }
+                            if elements.contains(&result))
                         || matches!(&consumer.operation,
                             AbstractOperation::StructuralScalarFieldStore { value, .. }
                             | AbstractOperation::WriteOnlyPrimitiveStore { value, .. }

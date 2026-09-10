@@ -109,7 +109,7 @@ pub(super) fn validate_borrowed_argument(
                 .collect(),
             result: if call.structural_result.is_some() {
                 Some(
-                    crate::selection::scalar_case_input::call_result(source, call)?
+                    crate::selection::aggregate_result_input::call_result(source, call)?
                         .1
                         .shape,
                 )

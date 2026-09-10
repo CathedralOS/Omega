@@ -41,6 +41,7 @@ pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Resu
                 | AbstractOperation::PrimitiveScalarRead { psi_operation, .. }
                 | AbstractOperation::CallStructuralScalar { psi_operation, .. }
                 | AbstractOperation::EstablishScalarCase { psi_operation, .. }
+                | AbstractOperation::EstablishScalarArray { psi_operation, .. }
                 | AbstractOperation::CallStructural { psi_operation, .. }
                 | AbstractOperation::Call { psi_operation, .. }
                 | AbstractOperation::CallUnit { psi_operation, .. }

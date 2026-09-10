@@ -376,6 +376,7 @@ pub(in crate::selection) fn validate(
                     output
                 }
                 LegalizedScalarInstructionKind::EstablishScalarCase { .. }
+                | LegalizedScalarInstructionKind::EstablishScalarArray { .. }
                 | LegalizedScalarInstructionKind::HostedExitProcessI32 { .. }
                 | LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }
                 | LegalizedScalarInstructionKind::HostedReadByte { .. }

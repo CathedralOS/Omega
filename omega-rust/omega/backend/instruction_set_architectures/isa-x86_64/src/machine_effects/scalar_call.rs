@@ -1,4 +1,4 @@
-//! Exact System V AMD64 scalar-call semantic and encoded machine effects.
+//! Exact x86-64 call effects follow the selected ABI's canonical constraint row.
 
 use register_model::{RegisterConstraintKey, ValidatedRegisterConstraintCatalog};
 use selected_instructions::{

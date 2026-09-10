@@ -12,12 +12,12 @@ pub(super) fn validate(
 ) -> Result<(), SelectedInstructionError> {
     let invalid = || SelectedInstructionError::SourceCustodyMismatch;
     let (place, placement, slot) = if let Some((parameter, placement)) =
-        crate::selection::scalar_case_input::returned_parameter(source, &returned.value)
+        crate::selection::aggregate_result_input::returned_parameter(source, &returned.value)
     {
         (parameter.semantic.place, placement, None)
     } else {
         let (slot, placement) =
-            crate::selection::scalar_case_input::returned(source, &returned.value)
+            crate::selection::aggregate_result_input::returned(source, &returned.value)
                 .ok_or_else(invalid)?;
         (
             slot.structural_place().ok_or_else(invalid)?,
@@ -101,7 +101,21 @@ pub(super) fn validate(
                 u32::from(*byte_size),
                 SelectedMemoryAccessRole::ReadPlace,
             )?;
-            let (load, constraint) = if *byte_size == 8 {
+            let (load, constraint) = if *byte_size == 1 {
+                (
+                    SelectedInstructionKind::Load8 {
+                        byte_offset: offset,
+                    },
+                    replay.constraints.keys.load8,
+                )
+            } else if *byte_size == 2 {
+                (
+                    SelectedInstructionKind::Load16 {
+                        byte_offset: offset,
+                    },
+                    replay.constraints.keys.load16,
+                )
+            } else if *byte_size == 8 {
                 (
                     SelectedInstructionKind::Load64 {
                         byte_offset: offset,

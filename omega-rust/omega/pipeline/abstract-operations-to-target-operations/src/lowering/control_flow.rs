@@ -1,14 +1,15 @@
 //! Ordinary control graphs; available definitions belong to dominating blocks.
 use super::shared::*;
 use super::unit::scalar_call::KnownUnitInteger;
+pub(super) mod aggregate_results;
 mod byte_write;
 mod dominance;
 mod observations;
 mod operations;
 mod primitive_calls;
 mod primitive_storage;
+pub(super) mod scalar_arrays;
 mod scalar_sources;
-pub(super) mod scalar_sums;
 mod structural_case;
 mod terminator;
 mod transfers;
@@ -130,6 +131,7 @@ pub(super) fn lower(
     for operation in &function.operations {
         let established = match operation {
             AbstractOperation::EstablishPrimitiveLocal { result, .. }
+            | AbstractOperation::EstablishScalarArray { result, .. }
             | AbstractOperation::EstablishScalarCase { result, .. }
             | AbstractOperation::CallStructural { result, .. }
             | AbstractOperation::ByteSequenceSubslice { result, .. }

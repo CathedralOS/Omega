@@ -1,4 +1,4 @@
-//! Verified scalar-array construction retains an explicit native support boundary.
+//! Verified scalar-array construction retains exact payloads through current IR.
 
 use abstract_operations::AbstractOperation;
 use proof_admission::AdmissionProfile;
@@ -81,7 +81,7 @@ fn assert_array_retention(source: &str, entry: &str) {
     let decoded_proof = decode_proof_bundle(&proof).expect("decode array proof");
     let profile = AdmissionProfile::default();
     terminal_verifier::verify_module(&module, &decoded_proof, &profile)
-        .expect("array construction verifies independently before native rejection");
+        .expect("array construction verifies independently before Omega lowering");
     let plan = lower_artifact_sections(&semantic, &proof, &profile)
         .expect("ordinary abstract lowering retains the verified array payload");
     let optimizer_input = lower_artifact_sections_for_optimization(&semantic, &proof, &profile)
@@ -180,17 +180,6 @@ fn assert_array_retention(source: &str, entry: &str) {
             *elements
         );
     }
-    for target in [
-        target::NativeTarget::linux_x64(),
-        target::NativeTarget::linux_arm64(),
-    ] {
-        let result =
-            abstract_operations_to_target_operations::lower_to_target_operations(&plan, target);
-        assert!(
-            matches!(result, Err(
-                abstract_operations_to_target_operations::LoweringError::UnsupportedScalarArray(operation)
-            ) if constructors.iter().any(|constructor| constructor.id == operation)),
-            "{result:?}"
-        );
-    }
+    // Native payload transport and remaining ABI limits are exercised through
+    // image publication in native-differential/tests/scalar_array_results.rs.
 }

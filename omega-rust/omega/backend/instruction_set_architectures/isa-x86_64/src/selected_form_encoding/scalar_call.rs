@@ -168,10 +168,11 @@ pub fn validate_x86_64_selected_scalar_call_template(
     let aggregate = matches!(kind, SelectedInstructionKind::CallAggregate { .. });
     let (expected_operand_views, expected) = if unit || aggregate {
         let keys = if aggregate {
-            if target != NativeTarget::linux_x64() {
-                return Err(X86_64ScalarCallTemplateError::UnsupportedTarget);
+            if target == NativeTarget::linux_x64() {
+                crate::register_model::x86_64_system_v_aggregate_call_keys()
+            } else {
+                crate::register_model::x86_64_microsoft_aggregate_call_keys()
             }
-            crate::register_model::x86_64_system_v_aggregate_call_keys()
         } else if target == NativeTarget::linux_x64() {
             crate::x86_64_system_v_register_unit_call_keys()
                 .into_iter()
@@ -467,6 +468,81 @@ mod tests {
             template.fixup(),
             canonical_fixup(MachineId::new(7).unwrap())
         );
+    }
+
+    #[test]
+    fn microsoft_direct_aggregate_templates_replay_registers_and_clobbers() {
+        let (physical, _, _, _, _) = inputs();
+        let constraints = crate::validate_x86_64_register_constraint_catalog(
+            crate::x86_64_register_constraint_catalog(&physical),
+            &physical,
+        )
+        .unwrap();
+        let native = NativeTarget::windows_x64();
+        let catalog = crate::x86_64_machine_effect_catalog(native, &constraints).unwrap();
+        let kind = SelectedInstructionKind::CallAggregate {
+            callee: MachineId::new(7).unwrap(),
+        };
+        for (arity, key) in crate::register_model::x86_64_microsoft_aggregate_call_keys()
+            .into_iter()
+            .enumerate()
+        {
+            let declaration = catalog
+                .declarations
+                .iter()
+                .find(|declaration| {
+                    declaration.constraint == key
+                        && declaration.semantic
+                            == selected_instructions::MachineSemanticKind::CallAggregate
+                })
+                .unwrap();
+            let alternative = &declaration.alternatives[0];
+            let operands = expected_operand_views(native, &physical, arity);
+            assert_eq!(
+                alternative.encoded.external_operand_reads,
+                (0..arity as u16).collect::<Vec<_>>()
+            );
+            assert_eq!(
+                alternative.encoded.external_operand_writes,
+                vec![arity as u16]
+            );
+            let template = encode_x86_64_selected_scalar_call_template(
+                native,
+                &physical,
+                kind,
+                alternative.key,
+                &operands,
+                &alternative.encoded,
+            )
+            .unwrap();
+            assert_eq!(template.bytes(), &[0xe8, 0, 0, 0, 0]);
+            let mut changed = alternative.encoded.clone();
+            changed.implicit_unit_clobbers.clear();
+            assert!(
+                encode_x86_64_selected_scalar_call_template(
+                    native,
+                    &physical,
+                    kind,
+                    alternative.key,
+                    &operands,
+                    &changed,
+                )
+                .is_err()
+            );
+            let mut wrong_registers = operands.clone();
+            wrong_registers[arity] = physical.model().view_named("rdx").unwrap().id;
+            assert!(
+                encode_x86_64_selected_scalar_call_template(
+                    native,
+                    &physical,
+                    kind,
+                    alternative.key,
+                    &wrong_registers,
+                    &alternative.encoded,
+                )
+                .is_err()
+            );
+        }
     }
 
     #[test]

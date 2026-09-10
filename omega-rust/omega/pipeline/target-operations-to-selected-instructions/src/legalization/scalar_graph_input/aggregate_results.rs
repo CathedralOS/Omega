@@ -1,4 +1,4 @@
-//! Independent scalar-sum layout and ordinary graph signature custody.
+//! Independent aggregate layout and ordinary graph signature custody.
 use super::*;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::{StructuralMultiplicity, StructuralOperationResult, StructuralTypeShape};
@@ -12,13 +12,14 @@ pub(super) fn uses(function: &PsiOptimizationFunction) -> bool {
             .any(|node| {
                 matches!(
                     node.operation,
-                    AbstractOperation::EstablishScalarCase { .. }
+                    AbstractOperation::EstablishScalarArray { .. }
+                        | AbstractOperation::EstablishScalarCase { .. }
                         | AbstractOperation::CallStructural { .. }
                 )
             })
 }
 
-pub(in crate::legalization) fn layout(
+pub(in crate::legalization) fn sum_layout(
     result: &StructuralOperationResult,
     plan: &AbstractOperationPlan,
 ) -> Result<calling_conventions::ConventionalSumLayout, LegalizationError> {
@@ -159,9 +160,12 @@ pub(super) fn header(
         AbstractFunctionResult::Structural(result) => Some(
             if plan.structural_types.iter().any(|declaration| {
                 declaration.id == result.structural_type
-                    && matches!(declaration.shape, StructuralTypeShape::Sum { .. })
+                    && matches!(
+                        declaration.shape,
+                        StructuralTypeShape::Sum { .. } | StructuralTypeShape::FixedArray { .. }
+                    )
             }) {
-                layout(
+                home_layout(
                     &StructuralOperationResult {
                         place: result.place,
                         structural_type: result.structural_type,
@@ -172,7 +176,7 @@ pub(super) fn header(
                     },
                     plan,
                 )?
-                .shape
+                .shape()
             } else {
                 if result.multiplicity == StructuralMultiplicity::Linear
                     || !result.qualifications.is_empty()
@@ -373,6 +377,23 @@ pub(super) fn result_home(
     Ok(target_operations::TargetStructuralHomeRequirement {
         defining_operation: operation,
         result: result.clone(),
-        layout: target_operations::TargetStructuralHomeLayout::Sum(layout(result, plan)?),
+        layout: home_layout(result, plan)?,
     })
+}
+
+pub(in crate::legalization) fn home_layout(
+    result: &StructuralOperationResult,
+    plan: &AbstractOperationPlan,
+) -> Result<target_operations::TargetStructuralHomeLayout, LegalizationError> {
+    if plan.structural_types.iter().any(|declaration| {
+        declaration.id == result.structural_type
+            && matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
+    }) {
+        return Ok(target_operations::TargetStructuralHomeLayout::Aggregate(
+            super::scalar_arrays::shape(result, plan)?.2,
+        ));
+    }
+    Ok(target_operations::TargetStructuralHomeLayout::Sum(
+        sum_layout(result, plan)?,
+    ))
 }

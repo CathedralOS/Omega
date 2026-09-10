@@ -286,8 +286,13 @@ The decoded regression fixtures return `[42u8, 9u8]` for input `42u8`. The
 [`operation-body callee tests`](../../pipeline/checked-trees-to-lowered-psi/tests/scalar_array_source/operation_body_callees.rs)
 retain scalar/Unit/array entries, mixed helper dependencies, empty arrays,
 local write order, one-unit fuel resumption, and exact source/contract rejection.
-Array state transfers, borrowed/projected payloads, boundary-provider array
-payloads, and native construction still need their complete value/storage paths.
+Array state transfers, borrowed/projected payloads, and boundary-provider array
+payloads still need their complete value/storage paths. Native constructors and
+direct array results now use the ordinary aggregate graph; see the
+[native transport owner](../../../omega/pipeline/target-operations-to-selected-instructions/README.md#ordinary-selected-control-flow).
+The transitive example still needs native owned-argument and incoming-result
+transport. Floating array source also lacks its checked execution plan; native
+layout support alone does not establish source production.
 General slice-backed `.len` operands require retained view formation and bounds
 evidence; endpoint subtraction alone cannot justify eliminating the view operation.
 

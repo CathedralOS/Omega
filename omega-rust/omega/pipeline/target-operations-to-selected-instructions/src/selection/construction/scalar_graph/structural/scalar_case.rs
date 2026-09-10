@@ -8,7 +8,7 @@ pub(super) fn establish(
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
     let (ordinal, declarations) =
-        crate::selection::scalar_case_input::fields(source, row).ok_or_else(invalid)?;
+        crate::selection::aggregate_result_input::fields(source, row).ok_or_else(invalid)?;
     let LegalizedScalarInstructionKind::EstablishScalarCase {
         result,
         fields,

@@ -1,6 +1,6 @@
 use super::*;
 use semantic_vocabulary::IntegerValue;
-mod scalar_sums;
+mod aggregate_results;
 pub(super) fn validate(
     actual: &LegalizedScalarInstruction,
     node: &optimization_unit::OptimizationNode,
@@ -29,9 +29,10 @@ pub(super) fn validate(
         (
             _,
             AbstractOperation::CallStructural { .. }
+            | AbstractOperation::EstablishScalarArray { .. }
             | AbstractOperation::EstablishScalarCase { .. },
         ) => {
-            scalar_sums::validate(actual, node, optimized, native, plan, unit)?;
+            aggregate_results::validate(actual, node, optimized, native, plan, unit)?;
         }
         (
             LegalizedScalarInstructionKind::EstablishPrimitiveLocal {

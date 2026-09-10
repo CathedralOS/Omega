@@ -1,4 +1,4 @@
-//! Replay scalar-sum construction and structural call results independently.
+//! Replay aggregate construction and structural call results independently.
 use super::*;
 
 pub(super) fn validate(
@@ -11,6 +11,20 @@ pub(super) fn validate(
 ) -> Result<(), LegalizationError> {
     let invalid = Error::NonCanonicalLegalizedPlan;
     match (&actual.kind, &node.operation) {
+        (
+            LegalizedScalarInstructionKind::EstablishScalarArray {
+                result,
+                elements,
+                shape,
+            },
+            AbstractOperation::EstablishScalarArray {
+                result: expected,
+                elements: expected_elements,
+                ..
+            },
+        ) if result == expected
+            && elements == expected_elements
+            && *shape == scalar_graph_input::scalar_arrays::shape(result, plan)?.2 => {}
         (
             LegalizedScalarInstructionKind::Call(call),
             AbstractOperation::CallStructural {
@@ -53,7 +67,7 @@ pub(super) fn validate(
                 }
             }
             for (position, semantic) in structural_arguments.iter().enumerate() {
-                let target = scalar_graph_input::scalar_sums::call_argument(
+                let target = scalar_graph_input::aggregate_results::call_argument(
                     semantic, position, optimized, called, &expected, native, plan,
                 )?;
                 if call.arguments[arguments.len() + position]
@@ -82,7 +96,7 @@ pub(super) fn validate(
         ) if result == expected
             && result_case == expected_case
             && fields == expected_fields
-            && *layout == scalar_graph_input::scalar_sums::layout(result, plan)? => {}
+            && *layout == scalar_graph_input::aggregate_results::sum_layout(result, plan)? => {}
         _ => return Err(invalid),
     }
     Ok(())
