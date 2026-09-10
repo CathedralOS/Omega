@@ -73,6 +73,47 @@ fn guarded_owned_field_reconstruction_preserves_declared_range() {
 }
 
 #[test]
+fn forwarding_owned_records_preserves_other_operands_constructor_guards() {
+    let source = "data Countdown { remaining: u64 [0..=5]; }
+        data Payload { value: u64; }
+        machine rebuild(countdown: Countdown, payload: Payload) -> Countdown {
+            transition countdown.remaining > 0 {
+                true -> next(payload, Countdown { remaining: countdown.remaining - 1 })
+                false -> Countdown { remaining: 0 }
+            }
+            state next(forwarded: Payload, result: Countdown) { result }
+        }";
+    for source in [
+        source.to_owned(),
+        source
+            .replace(
+                "next(payload, Countdown { remaining: countdown.remaining - 1 })",
+                "next(Countdown { remaining: countdown.remaining - 1 }, payload)",
+            )
+            .replace(
+                "forwarded: Payload, result: Countdown",
+                "result: Countdown, forwarded: Payload",
+            ),
+    ] {
+        let diagnostics = construction_diagnostics(&source);
+        assert!(diagnostics.is_empty(), "{source}\n{diagnostics:?}");
+        for parameter in ["payload: &Payload", "mut payload: Payload"] {
+            let changed = source.replace("payload: Payload", parameter);
+            let diagnostics = construction_diagnostics(&changed);
+            assert!(!diagnostics.is_empty(), "{changed}");
+        }
+        let changed = format!(
+            "machine opaque(value: Payload) -> Payload {{ value }} {}",
+            source
+                .replace("next(payload,", "next(opaque(payload),")
+                .replace("}, payload)", "}, opaque(payload))")
+        );
+        let diagnostics = construction_diagnostics(&changed);
+        assert!(!diagnostics.is_empty(), "{changed}");
+    }
+}
+
+#[test]
 fn field_reconstruction_uses_the_selected_guard_polarity() {
     for (guard, arm, accepted) in [
         ("countdown.remaining > 0", "true", true),

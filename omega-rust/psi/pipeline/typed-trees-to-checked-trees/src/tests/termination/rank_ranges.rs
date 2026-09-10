@@ -6,6 +6,7 @@ mod call_components;
 mod clamped_calls;
 mod computed_field_limits;
 mod entry_reentry;
+mod field_arrivals;
 mod field_coordinates;
 mod field_endpoint_arithmetic;
 mod field_endpoint_pins;

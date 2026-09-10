@@ -1,4 +1,6 @@
-//! Exact owned fields used by one root-state ranking judgment.
+//! Exact owned fields used by one ranking judgment. Root-template projections
+//! and current-state projections share an atom only through a unique, nominally
+//! checked arrival role. Record ancestry alone never proves copy equality.
 
 use super::*;
 use fields::FieldCoordinate;
@@ -53,6 +55,8 @@ impl<'program> FieldCoordinates<'program> {
         &mut self,
         program: &'program TypedTrees,
         state: &State,
+        root: &State,
+        entry_parameters: Option<&[SymbolHandle]>,
         engine: &mut Engine<'_>,
         expressions: &[ExpressionHandle],
     ) -> Option<()> {
@@ -72,7 +76,23 @@ impl<'program> FieldCoordinates<'program> {
                         state,
                         member.receiver,
                         member.member_symbol,
-                    ) && member.member == coordinate.field.name
+                    )
+                    .or_else(|| {
+                        let coordinate = FieldCoordinate::resolve(
+                            program,
+                            root,
+                            member.receiver,
+                            member.member_symbol,
+                        )?;
+                        coordinate.at_arrival(
+                            program,
+                            RankingRangeState {
+                                state,
+                                entry_parameters: entry_parameters?,
+                            },
+                            coordinate.parameter.symbol,
+                        )
+                    }) && member.member == coordinate.field.name
                         && member.case_variant.is_none()
                     {
                         if !engine.bind_strict_projection(expression, coordinate.value()) {
@@ -108,22 +128,50 @@ impl<'program> FieldCoordinates<'program> {
     /// one field's actual through another field's new value.
     pub(super) fn substitute(
         &self,
-        program: &TypedTrees,
+        program: &'program TypedTrees,
         state: &State,
+        entry_parameters: Option<&[SymbolHandle]>,
+        destination: Option<RankingRangeState<'_>>,
         engine: &mut Engine<'_>,
         formal: SymbolHandle,
         argument: ExpressionHandle,
         substitutions: &mut BTreeMap<String, Polynomial>,
     ) -> Option<bool> {
         let mut matched = false;
-        for coordinate in self
-            .coordinates()
-            .filter(|coordinate| coordinate.parameter.symbol == formal)
-        {
-            substitutions.insert(
-                coordinate.identity.clone(),
-                coordinate.actual(program, state, engine, argument)?,
-            );
+        for coordinate in self.coordinates() {
+            let entry_symbol = match entry_parameters {
+                None => coordinate.parameter.symbol,
+                Some(entries) => {
+                    let (_, entry) = program
+                        .state_parameters(state)
+                        .iter()
+                        .filter(|parameter| !parameter.is_self)
+                        .zip(entries)
+                        .find(|(parameter, _)| parameter.symbol == coordinate.parameter.symbol)?;
+                    coordinate.at_arrival(
+                        program,
+                        RankingRangeState {
+                            state,
+                            entry_parameters: entries,
+                        },
+                        *entry,
+                    )?;
+                    *entry
+                }
+            };
+            if entry_symbol != formal {
+                continue;
+            }
+            if let Some(destination) = destination {
+                coordinate.at_arrival(program, destination, entry_symbol)?;
+            }
+            let actual = coordinate.actual(program, state, engine, argument)?;
+            if substitutions
+                .insert(coordinate.identity.clone(), actual)
+                .is_some()
+            {
+                return None;
+            }
             matched = true;
         }
         Some(matched)
