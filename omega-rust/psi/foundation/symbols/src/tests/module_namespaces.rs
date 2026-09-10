@@ -319,3 +319,30 @@ fn attached_leaves_do_not_become_source_free_or_legacy_vocabulary_names() {
         None
     );
 }
+
+#[test]
+fn package_qualification_does_not_relax_exact_import_source_validation() {
+    let bindings = vec![SourceScopedTopLevelBinding::module_import(
+        SourceId(0),
+        SourceId(1),
+        "dep::beta::Item",
+        1,
+    )];
+    let (mut symbols, declarations, _) = namespace_table([1, 2, 2], bindings);
+    register_module(&mut symbols, 1, &["alpha"]);
+    register_module(&mut symbols, 2, &["beta"]);
+    assert_eq!(
+        data_reference(&symbols, 0, "dep::beta::Item"),
+        Some(declarations[2])
+    );
+    assert!(
+        symbols
+            .validate_source_module_import(SourceId(0), "dep::beta::Item")
+            .is_err(),
+        "the sibling declaration cannot satisfy an import bound to the wrong source"
+    );
+    assert_eq!(
+        symbols.source_module_import_target(SourceId(0), "dep::beta::Item"),
+        None
+    );
+}

@@ -1103,9 +1103,7 @@ Owners include
   [source pipeline probes](omega-rust/psi/pipeline/README.md#resolution-and-closed-instance-normalization).
   Acceptance: remaining forms preserve exact module/package identity through
   canonical artifacts; same-leaf ambiguity rejects; private and transitive-only
-  selection cannot gain authority through qualification. Extend package-alias
-  lookup to other already-loaded sources of the same exact dependency while
-  retaining exact-source validation of each import.
+  selection cannot gain authority through qualification.
 
   Foreign-domain customers additionally need the settled
   [file-local import exposure](wiki/spec/language/modules.md#import-scope-and-exposure)

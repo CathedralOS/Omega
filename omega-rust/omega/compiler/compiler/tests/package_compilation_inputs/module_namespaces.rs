@@ -223,6 +223,107 @@ fn package_aliases_and_visibility_survive_module_qualification() {
 }
 
 #[test]
+fn package_alias_selects_public_declarations_in_other_loaded_dependency_sources() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let dependency = tree.package("dependency");
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "dependency", dependency.clone()),
+        ],
+        vec![PackageDependencyBinding::new(
+            identity(1),
+            "dep",
+            identity(2),
+        )],
+    )
+    .expect("one direct dependency");
+    TempTree::write(
+        dependency.join("support.omg"),
+        "module support; pub data Support { value: u64; }",
+    );
+    TempTree::write(
+        dependency.join("combat.omg"),
+        "module combat; use support::Support; pub data Damage { value: u64; }",
+    );
+    TempTree::write(
+        root.join("main.omg"),
+        "use dep::combat::Damage;
+         data Attack { damage: dep::combat::Damage; support: dep::support::Support; }",
+    );
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs.clone())
+        .expect("a direct dependency alias qualifies its already-loaded public declarations");
+    assert!(checked.authored_declaration_selections().iter().any(|selection| {
+        checked.symbols.source_file(selection.source_span())
+            .is_some_and(|source| source.path == root.join("main.omg").canonicalize().expect("authored root source")) &&
+        matches!(selection.target(), language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
+            if checked.symbols.display_path(target.selected_symbol(), "::") == "support::Support"
+                && checked.symbols.symbol_package_identity(target.selected_symbol()) == Some(identity(2)))
+    }));
+
+    TempTree::write(
+        dependency.join("support.omg"),
+        "module support; data Support { value: u64; }",
+    );
+    let diagnostics =
+        compile_to_checked_with_packages(&root.join("main.omg"), None, inputs.clone())
+            .expect_err("a package alias cannot expose a private sibling declaration");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("private")),
+        "{diagnostics:?}"
+    );
+    TempTree::write(
+        dependency.join("support.omg"),
+        "module support; pub data Support { value: u64; }",
+    );
+    TempTree::write(
+        root.join("main.omg"),
+        "use dep::combat::Damage; data Attack { support: Support; }",
+    );
+    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect_err("dependency-local imports do not expose leaves in the requester");
+}
+
+#[test]
+fn package_alias_cannot_select_a_loaded_transitive_lookalike() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let dependency = tree.package("dependency");
+    let leaf = tree.package("leaf");
+    TempTree::write(
+        root.join("main.omg"),
+        "use dep::combat::Damage; data Attack { support: dep::support::Support; }",
+    );
+    TempTree::write(
+        dependency.join("combat.omg"),
+        "module combat; use leaf::support::Support; pub data Damage { value: u64; }",
+    );
+    TempTree::write(
+        leaf.join("support.omg"),
+        "module support; pub data Support { value: u64; }",
+    );
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "dependency", dependency),
+            PackageSourceBinding::new(identity(3), "leaf", leaf),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "dep", identity(2)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("a direct dependency and its own private dependency edge");
+    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect_err("a package alias cannot acquire an already-loaded transitive declaration");
+}
+
+#[test]
 fn identical_module_paths_in_different_packages_keep_exact_owners() {
     let tree = TempTree::new();
     let root = tree.package("root");
