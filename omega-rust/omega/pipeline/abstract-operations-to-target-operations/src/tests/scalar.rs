@@ -1,6 +1,7 @@
 use super::*;
 
 mod fixtures;
+mod straight_line_blocks;
 use fixtures::{direct_call_plan, parameter_return_plan};
 
 #[test]

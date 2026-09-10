@@ -19,7 +19,8 @@ pub(super) fn validate(
                     suffix.push(result);
                     value = operand;
                 }
-                AbstractOperation::IntegerEqual { result, .. }
+                AbstractOperation::BooleanEqual { result, .. }
+                | AbstractOperation::IntegerEqual { result, .. }
                 | AbstractOperation::IntegerLessThan { result, .. }
                 | AbstractOperation::IntegerLessOrEqual { result, .. }
                     if result == value =>
@@ -63,6 +64,9 @@ pub(super) fn validate(
             if consumers.peek().is_none()
                 || !consumers.all(|consumer| {
                     matches!(&consumer.operation,
+                    AbstractOperation::BooleanEqual { left, right, .. }
+                        if *left == result || *right == result)
+                        || matches!(&consumer.operation,
                     AbstractOperation::CallUnit { arguments, .. }
                         | AbstractOperation::CallStructuralScalar { arguments, .. }
                         | AbstractOperation::CallStructural { arguments, .. }

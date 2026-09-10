@@ -57,7 +57,9 @@ fn runtime_u64_parameter_less_than_selects_ordered_three_block_graph_on_both_isa
             comparison.kind,
             legalized_operations::LegalizedScalarInstructionKind::Compare {
                 predicate: legalized_operations::LegalizedScalarComparison::LessThan,
-                operand_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                operand_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap()
+                ),
                 left,
                 right,
             }

@@ -191,11 +191,7 @@ pub(super) fn validate(
                     )?;
                     // A Boolean register is true when nonzero, unlike Equal's zero predicate.
                     inverted = !inverted;
-                    (
-                        Comparison::Equal,
-                        semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64)
-                            .map_err(|_| invalid())?,
-                    )
+                    (Comparison::Equal, ScalarType::Boolean)
                 };
                 let branch_provenance =
                     SelectedInstructionProvenance {
@@ -215,8 +211,13 @@ pub(super) fn validate(
                             .collect(),
                         ..Default::default()
                     };
+                let comparison_sign = match operand_type {
+                    ScalarType::Integer(integer) => integer.sign(),
+                    ScalarType::Boolean => IntegerSign::Unsigned,
+                    ScalarType::IeeeFloat(_) => return Err(invalid()),
+                };
                 let (instruction, actual_true, actual_false, kind) =
-                    match (predicate, operand_type.sign(), actual) {
+                    match (predicate, comparison_sign, actual) {
                         (
                             Comparison::Equal,
                             _,

@@ -63,7 +63,9 @@ fn runtime_u64_parameter_equality_selects_exact_three_block_graph_on_both_isas()
             comparison.kind,
             legalized_operations::LegalizedScalarInstructionKind::Compare {
                 predicate: legalized_operations::LegalizedScalarComparison::Equal,
-                operand_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                operand_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap()
+                ),
                 left,
                 right,
             }

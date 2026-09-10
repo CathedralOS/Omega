@@ -32,7 +32,9 @@ fn runtime_i64_parameter_less_or_equal_selects_reversed_signed_compare_on_both_i
             comparison.kind,
             legalized_operations::LegalizedScalarInstructionKind::Compare {
                 predicate: legalized_operations::LegalizedScalarComparison::LessOrEqual,
-                operand_type: IntegerType::new(IntegerSign::Signed, 64).unwrap(),
+                operand_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Signed, 64).unwrap()
+                ),
                 left,
                 right,
             }

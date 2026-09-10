@@ -49,7 +49,7 @@ fn signed_inclusive_family_rejects_unsigned_strict_and_operand_substitution() {
         else {
             unreachable!()
         };
-        *operand_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        *operand_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
         assert_eq!(
             validate(unsigned),
             Err(LegalizationError::NonCanonicalLegalizedPlan)

@@ -81,7 +81,7 @@ pub(super) fn lower_conditional(
                 attachment: function.attachment,
                 scalar_abi: None,
                 mixed_structural_scalar_abi: None,
-                provenance: conditional_provenance(function, lowered.operations, lowered.edges),
+                provenance: source_ordered_provenance(function, lowered.operations, lowered.edges),
                 operation: TargetOperation::ScalarReturnWithCleanup {
                     scalar: Box::new(TargetOperation::ReturnBooleanSharedConvergence {
                         return_edges,
@@ -114,7 +114,7 @@ pub(super) fn lower_conditional(
             attachment: function.attachment,
             scalar_abi: None,
             mixed_structural_scalar_abi: None,
-            provenance: conditional_provenance(function, lowered.operations, lowered.edges),
+            provenance: source_ordered_provenance(function, lowered.operations, lowered.edges),
             operation: TargetOperation::BooleanControlWithCleanup {
                 control: lowered.control,
                 structural_types: structural_types

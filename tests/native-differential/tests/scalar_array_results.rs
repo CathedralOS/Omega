@@ -22,6 +22,9 @@ mod admission;
 #[path = "scalar_array_results/arguments.rs"]
 mod arguments;
 
+#[path = "scalar_array_results/tag_erasure.rs"]
+mod tag_erasure;
+
 fn produce(
     source: &str,
     entry: &str,
@@ -90,6 +93,20 @@ fn publish_target(
     entry: &str,
     target: NativeTarget,
 ) -> (image_emission::ExecutableImage, usize) {
+    publish_target_with_replay_expectation(target_plan, entry, target, ReplayExpectation::Required)
+}
+
+enum ReplayExpectation {
+    Required,
+    ScalarRecords,
+}
+
+fn publish_target_with_replay_expectation(
+    target_plan: abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
+    entry: &str,
+    target: NativeTarget,
+    replay_expectation: ReplayExpectation,
+) -> (image_emission::ExecutableImage, usize) {
     let post_terminal = target_plan.optimized().selections().project_post_terminal();
     let physical = native_realization::stage_optimized_verified_physical_pipeline(
         target_plan,
@@ -109,9 +126,11 @@ fn publish_target(
     let object = image_emission::build_function_fragment_object_artifact(source.clone()).unwrap();
     image_emission::validate_function_fragment_object_artifact(&source, &object).unwrap();
     let offset = object.entry_function().text_offset;
-    let mut stripped = object.clone();
-    stripped.clear_fragment_replay_for_test();
-    assert!(image_emission::emit_executable_image(&stripped, 3).is_err());
+    if matches!(replay_expectation, ReplayExpectation::Required) {
+        let mut stripped = object.clone();
+        stripped.clear_fragment_replay_for_test();
+        assert!(image_emission::emit_executable_image(&stripped, 3).is_err());
+    }
     let image = image_emission::emit_executable_image(&object, 3).unwrap();
     image_emission::validate_executable_image(&object, &image).unwrap();
     let record = image_emission::build_installation_record(

@@ -127,7 +127,7 @@ fn branches(source: &mut LegalizedScalarFunction) {
     });
     comparison.kind = LegalizedScalarInstructionKind::Compare {
         predicate: legalized_operations::LegalizedScalarComparison::LessThan,
-        operand_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+        operand_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
         left: ValueId::new(3).unwrap(),
         right: ValueId::new(1).unwrap(),
     };

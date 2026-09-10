@@ -437,11 +437,14 @@ pub(super) fn project(
                 accepted_fact: fact.identity,
             }
         }
-        AbstractOperation::IntegerEqual { left, right, .. }
+        AbstractOperation::BooleanEqual { left, right, .. }
+        | AbstractOperation::IntegerEqual { left, right, .. }
         | AbstractOperation::IntegerLessThan { left, right, .. }
         | AbstractOperation::IntegerLessOrEqual { left, right, .. } => {
             let predicate = match node.operation {
-                AbstractOperation::IntegerEqual { .. } => LegalizedScalarComparison::Equal,
+                AbstractOperation::BooleanEqual { .. } | AbstractOperation::IntegerEqual { .. } => {
+                    LegalizedScalarComparison::Equal
+                }
                 AbstractOperation::IntegerLessThan { .. } => LegalizedScalarComparison::LessThan,
                 AbstractOperation::IntegerLessOrEqual { .. } => {
                     LegalizedScalarComparison::LessOrEqual
@@ -449,7 +452,6 @@ pub(super) fn project(
                 _ => return Err(Error::SourceCustodyMismatch),
             };
             let operand_type = scalar_graph_input::value_type(optimized, *left)
-                .and_then(scalar_graph_input::integer_type)
                 .ok_or(Error::SourceCustodyMismatch)?;
             LegalizedScalarInstructionKind::Compare {
                 predicate,

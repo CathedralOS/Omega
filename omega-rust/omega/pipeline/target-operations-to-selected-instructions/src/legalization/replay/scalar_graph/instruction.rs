@@ -510,7 +510,12 @@ pub(super) fn validate(
                 left,
                 right,
             },
-            AbstractOperation::IntegerEqual {
+            AbstractOperation::BooleanEqual {
+                left: source_left,
+                right: source_right,
+                ..
+            }
+            | AbstractOperation::IntegerEqual {
                 left: source_left,
                 right: source_right,
                 ..
@@ -527,7 +532,9 @@ pub(super) fn validate(
             },
         ) => {
             let expected = match node.operation {
-                AbstractOperation::IntegerEqual { .. } => LegalizedScalarComparison::Equal,
+                AbstractOperation::BooleanEqual { .. } | AbstractOperation::IntegerEqual { .. } => {
+                    LegalizedScalarComparison::Equal
+                }
                 AbstractOperation::IntegerLessThan { .. } => LegalizedScalarComparison::LessThan,
                 AbstractOperation::IntegerLessOrEqual { .. } => {
                     LegalizedScalarComparison::LessOrEqual
@@ -537,8 +544,7 @@ pub(super) fn validate(
             if *predicate != expected
                 || left != source_left
                 || right != source_right
-                || scalar_graph_input::value_type(optimized, *source_left)
-                    != Some(ScalarType::Integer(*operand_type))
+                || scalar_graph_input::value_type(optimized, *source_left) != Some(*operand_type)
             {
                 return Err(invalid);
             }

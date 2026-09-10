@@ -123,6 +123,20 @@ impl Checker<'_> {
                 && parameter.scalar_type == ScalarType::Boolean
                 && self.available_block_value(parameter);
         }
+        if let Boolean::Equal {
+            psi_operation,
+            left,
+            right,
+        } = expression
+        {
+            return self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
+                matches!(&node.operation,
+                    AbstractOperation::BooleanEqual { psi_operation: operation, result, left: source_left, right: source_right }
+                    if operation == psi_operation && *result == resolve(value, aliases)
+                    && self.boolean(left, *source_left, aliases)
+                    && self.boolean(right, *source_right, aliases))
+            });
+        }
         if let Boolean::ScalarHome(home) = expression {
             return home.source_value == resolve(value, aliases)
                 && home.scalar_type == ScalarType::Boolean

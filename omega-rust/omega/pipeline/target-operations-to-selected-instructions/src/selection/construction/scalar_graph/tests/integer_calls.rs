@@ -172,7 +172,7 @@ fn narrow_integer_call_results_preserve_comparison_types_and_reject_normalizatio
                         }
                     }
                     LegalizedScalarInstructionKind::Compare { operand_type, .. } => {
-                        *operand_type = integer
+                        *operand_type = ScalarType::Integer(integer)
                     }
                     _ => panic!("integer comparison fixture"),
                 }
@@ -235,15 +235,17 @@ fn narrow_integer_call_results_preserve_comparison_types_and_reject_normalizatio
             else {
                 panic!("comparison");
             };
-            *operand_type = IntegerType::new(
-                if sign == IntegerSign::Signed {
-                    IntegerSign::Unsigned
-                } else {
-                    IntegerSign::Signed
-                },
-                bits,
-            )
-            .unwrap();
+            *operand_type = ScalarType::Integer(
+                IntegerType::new(
+                    if sign == IntegerSign::Signed {
+                        IntegerSign::Unsigned
+                    } else {
+                        IntegerSign::Signed
+                    },
+                    bits,
+                )
+                .unwrap(),
+            );
             assert!(validate(&changed, &selected).is_err());
             assert!(
                 build(

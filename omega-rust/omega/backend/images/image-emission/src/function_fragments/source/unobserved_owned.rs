@@ -119,6 +119,7 @@ pub(in crate::function_fragments) fn arrivals(
         }
         AbstractOperation::IntegerConstant { .. }
         | AbstractOperation::BooleanConstant { .. }
+        | AbstractOperation::BooleanEqual { .. }
         | AbstractOperation::IntegerEqual { .. }
         | AbstractOperation::IntegerLessThan { .. }
         | AbstractOperation::IntegerLessOrEqual { .. }

@@ -123,6 +123,8 @@ Non-scalar case layouts and executable or residual return cleanup remain separat
 admission limits; no new ISA case opcode or physical route is introduced.
 Computed Boolean comparisons remain branch predicates until value materialization
 is implemented.
+Boolean equality retains Boolean operand types through comparison and independent
+replay; it uses normalized register values without admitting Boolean ordering.
 
 Natural-ranked Unit writers and integer-result loops use this ordinary graph,
 including cyclic descriptor arrivals, hosted byte output, selected scalar calls,

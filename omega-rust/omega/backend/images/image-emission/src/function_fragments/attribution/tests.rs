@@ -12,6 +12,31 @@ use semantic_vocabulary::{
     ValueId,
 };
 
+#[test]
+fn boolean_equality_attribution_requires_a_unique_authored_operation_ordinal() {
+    let (_, mut source) = fixture();
+    let operation = OperationId::new(2).unwrap();
+    source.operations[1] = AbstractOperation::BooleanEqual {
+        psi_operation: operation,
+        result: ValueId::new(3).unwrap(),
+        left: ValueId::new(1).unwrap(),
+        right: ValueId::new(2).unwrap(),
+    };
+    assert_eq!(
+        ordinal(&source, SemanticCodeSite::Operation(operation)).unwrap(),
+        1
+    );
+    assert!(
+        ordinal(
+            &source,
+            SemanticCodeSite::Operation(OperationId::new(99).unwrap())
+        )
+        .is_err()
+    );
+    source.operations.push(source.operations[1].clone());
+    assert!(ordinal(&source, SemanticCodeSite::Operation(operation)).is_err());
+}
+
 fn fixture() -> (FunctionFragment, AbstractFunction) {
     let first = OperationId::new(1).unwrap();
     let second = OperationId::new(2).unwrap();

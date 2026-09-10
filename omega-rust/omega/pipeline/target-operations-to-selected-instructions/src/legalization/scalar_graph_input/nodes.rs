@@ -150,7 +150,12 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             result,
             ..
         } => Some((*psi_operation, *result)),
-        AbstractOperation::BooleanNot {
+        AbstractOperation::BooleanEqual {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::BooleanNot {
             psi_operation,
             result,
             ..
@@ -406,6 +411,14 @@ pub(super) fn validate(
                 if (left_type.and_then(integer_type).is_none()
                     && (ranked || left_type.and_then(integer_call_shape).is_none()))
                     || value_type(optimized, *left) != value_type(optimized, *right)
+                {
+                    return Err(invalid);
+                }
+                ScalarType::Boolean
+            }
+            AbstractOperation::BooleanEqual { left, right, .. } => {
+                if value_type(optimized, *left) != Some(ScalarType::Boolean)
+                    || value_type(optimized, *right) != Some(ScalarType::Boolean)
                 {
                     return Err(invalid);
                 }

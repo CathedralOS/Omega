@@ -422,7 +422,9 @@ impl KnownInteger {
     }
 }
 
-pub(super) fn conditional_provenance(
+/// Execution follows edges; custody retains the source's canonical roster order.
+/// Reorder only the operations and edges actually visited by the lowering route.
+pub(super) fn source_ordered_provenance(
     function: &AbstractFunction,
     operations: Vec<semantic_vocabulary::OperationId>,
     edges: Vec<semantic_vocabulary::EdgeId>,
