@@ -431,6 +431,32 @@ fn anonymous_match_divisors_have_compositional_nonzero_proofs() {
 }
 
 #[test]
+fn anonymous_match_divisors_preserve_opposite_signs_through_arithmetic() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for expression in [
+        "(1 / ((match true { true -> -1, false -> 1 }) + 0) == -1)",
+        "(1 / ((match true { true -> -1, false -> 1 }) * (match true { true -> -2, false -> 2 })) == 0.5)",
+        "(1 / (1 / (match true { true -> -1, false -> 1 })) == -1)",
+        "(1 / ((match true { true -> -0.5, false -> 0.5 }) / (match false { true -> -2, false -> 2 })) == -4)",
+        "(1 / ((match true { true -> -1, false -> 1 }) - (match true { true -> -2, false -> 2 })) == 1)",
+        "(1 / ((match true { true -> -1, false -> 1 }) + (match true { true -> 1, false -> 2 }) + 3) == 1 / 3)",
+        "(true || (1 / ((match (1u8 / 0 == 0) { true -> -1, false -> 1 }) * 2) == 0))",
+    ] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "pub data Flag<const Enabled: bool> {{ value: u8; }} {} {}",
+                keep("keep", "Flag", expression),
+                keep("oracle", "Flag", "true"),
+            ),
+        );
+        let checked = compile(&root, root_inputs(&root));
+        assert_same_machine_types(&checked, "keep", "oracle");
+    }
+}
+
+#[test]
 fn anonymous_match_divisor_proofs_preserve_undefined_and_unknown_cases() {
     let tree = Sources::new();
     let root = tree.package("root");
@@ -440,9 +466,10 @@ fn anonymous_match_divisor_proofs_preserve_undefined_and_unknown_cases() {
         "(false && (1 / ((match true { true -> 1, false -> 0 }) * 2) == 0))",
         "(false && (1 / ((match true { true -> 1, false -> 2 }) / (match true { true -> 1, false -> 0 })) == 0))",
         "(false && (1 / (1 + 0 * (1 / (match true { true -> 1, false -> 0 }))) == 0))",
-        // The convex range loses disjointness and correlation. Neither case
-        // proves an actual zero, but both still require a stronger proof.
-        "(false && (1 / ((match true { true -> -1, false -> 1 }) + 0) == 0))",
+        "(false && (1 / ((match true { true -> -1, false -> 1 }) + 1) == 0))",
+        "(false && (1 / ((match true { true -> -1, false -> 1 }) / (match true { true -> -2, false -> 0 })) == 0))",
+        // Same-sign gaps and correlations still require stronger evidence.
+        "(false && (1 / ((match true { true -> 1, false -> 3 }) - 2) == 0))",
         "(false && (1 / ((match true { true -> 1, false -> 2 }) - (match true { true -> 1, false -> 2 }) + 1) == 0))",
     ] {
         Sources::write(
@@ -470,17 +497,26 @@ fn anonymous_match_divisor_proofs_preserve_undefined_and_unknown_cases() {
 fn anonymous_match_divisor_proofs_compose_independent_terms() {
     let tree = Sources::new();
     let root = tree.package("root");
-    let denominator = std::iter::repeat_n("(match true { true -> 1, false -> 2 })", 24)
-        .collect::<Vec<_>>()
-        .join(" + ");
-    Sources::write(
-        root.join("main.omg"),
-        &format!(
-            "pub data Flag<const Enabled: bool> {{ value: u8; }} {} {}",
-            keep("keep", "Flag", &format!("(1 / ({denominator}) == 1 / 24)")),
-            keep("oracle", "Flag", "true"),
-        ),
-    );
-    let checked = compile(&root, root_inputs(&root));
-    assert_same_machine_types(&checked, "keep", "oracle");
+    for (term, operation, reciprocal) in [
+        ("(match true { true -> 1, false -> 2 })", " + ", "1 / 24"),
+        ("(match true { true -> -1, false -> 1 })", " * ", "1"),
+    ] {
+        let denominator = std::iter::repeat_n(term, 24)
+            .collect::<Vec<_>>()
+            .join(operation);
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "pub data Flag<const Enabled: bool> {{ value: u8; }} {} {}",
+                keep(
+                    "keep",
+                    "Flag",
+                    &format!("(1 / ({denominator}) == {reciprocal})")
+                ),
+                keep("oracle", "Flag", "true"),
+            ),
+        );
+        let checked = compile(&root, root_inputs(&root));
+        assert_same_machine_types(&checked, "keep", "oracle");
+    }
 }

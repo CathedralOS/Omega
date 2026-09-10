@@ -1180,8 +1180,9 @@ Owners include
   establish this path.
   Scalar Match index evaluation still needs general all-arm integer bounds and
   integrality proofs for anonymous arithmetic containing nested dispatch.
-  Nonzero proofs also need disjoint or correlated result facts when a convex
-  rational range includes zero despite every executable divisor being nonzero.
+  Nonzero proofs still need same-sign disjointness and correlated result facts
+  when sign-partitioned rational bounds include zero despite every executable
+  divisor being nonzero.
   The explicit obligation boundaries are in
   `build-time-evaluation/src/const_generic_expressions/value/match_dispatch.rs`.
   Extend those proofs without enumerating independent arm combinations or

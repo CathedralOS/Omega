@@ -1,8 +1,15 @@
 //! All-arm nonzero evidence for anonymous arithmetic containing dispatch.
 //!
-//! A closed rational interval contains every result, regardless of which arm
-//! executes. Joins lose correlations deliberately: containing zero is an
-//! undischarged obligation, not evidence that execution actually divides by zero.
+//! A union of closed rational intervals contains every result, regardless of
+//! which arm executes. Negative and positive alternatives stay separate at
+//! joins, preserving their exclusion of zero through surrounding arithmetic.
+//! At most one hull is retained in each of three categories: wholly negative,
+//! wholly positive, or containing zero. A zero-containing range is never split
+//! or discarded. Each binary has at most nine interval pairs, independent of
+//! the number of branch combinations. No branch-selection state is retained.
+//!
+//! Joins still lose correlations and same-sign gaps. A possible zero leaves an
+//! obligation open; it is not evidence that execution actually divides by zero.
 //! This is not integer landing and proves neither integrality nor carrier fit.
 //! Integer interval analysis has different division and width semantics, so only
 //! its interval laws apply here; all arithmetic uses the shared exact rationals.
@@ -10,7 +17,7 @@
 //! The caller has validated the complete acyclic scalar graph and checks every
 //! subject, pattern, and arm. This pass visits only anonymous result edges; it
 //! cannot execute landed operations in an undemanded subject or select an arm.
-//! Each binary composes two bounds, never combinations of branch selections.
+//! Each binary composes two bounded summaries, not authored branch selections.
 //! Both children are checked even when multiplication by zero would erase their
 //! result, since an undefined anonymous subexpression has no numeric value.
 
@@ -73,7 +80,7 @@ pub(super) fn excludes_zero(
                 let left = values
                     .pop()
                     .ok_or("missing left anonymous rational bounds")?;
-                values.push(left.apply(operator, right)?);
+                values.push(left.apply(operator, &right)?);
             }
             Step::Join(count) => {
                 let mut joined = values
@@ -95,12 +102,75 @@ pub(super) fn excludes_zero(
         .excludes_zero())
 }
 
+#[derive(Default)]
 struct RationalBounds {
+    negative: Option<RationalInterval>,
+    positive: Option<RationalInterval>,
+    containing_zero: Option<RationalInterval>,
+}
+
+impl RationalBounds {
+    fn constant(value: BigRational) -> Self {
+        let mut bounds = Self::default();
+        bounds.include_interval(RationalInterval::constant(value));
+        bounds
+    }
+
+    fn excludes_zero(&self) -> bool {
+        self.containing_zero.is_none() && (self.negative.is_some() || self.positive.is_some())
+    }
+
+    fn intervals(&self) -> impl Iterator<Item = &RationalInterval> {
+        self.negative
+            .iter()
+            .chain(&self.positive)
+            .chain(&self.containing_zero)
+    }
+
+    fn include_interval(&mut self, interval: RationalInterval) {
+        let destination = if interval.high.cmp_value(&BigRational::zero()).is_lt() {
+            &mut self.negative
+        } else if interval.low.cmp_value(&BigRational::zero()).is_gt() {
+            &mut self.positive
+        } else {
+            &mut self.containing_zero
+        };
+        if let Some(existing) = destination {
+            existing.include(interval);
+        } else {
+            *destination = Some(interval);
+        }
+    }
+
+    fn include(&mut self, other: Self) {
+        for interval in [other.negative, other.positive, other.containing_zero]
+            .into_iter()
+            .flatten()
+        {
+            self.include_interval(interval);
+        }
+    }
+
+    fn apply(&self, operator: BinaryOperator, right: &Self) -> Result<Self, String> {
+        let mut result = Self::default();
+        for left_interval in self.intervals() {
+            for right_interval in right.intervals() {
+                result.include_interval(left_interval.apply(operator, right_interval)?);
+            }
+        }
+        if result.intervals().next().is_none() {
+            return Err("anonymous rational arithmetic requires nonempty bounds".into());
+        }
+        Ok(result)
+    }
+}
+
+struct RationalInterval {
     low: BigRational,
     high: BigRational,
 }
 
-impl RationalBounds {
+impl RationalInterval {
     fn constant(value: BigRational) -> Self {
         Self {
             low: value.clone(),
@@ -130,7 +200,7 @@ impl RationalBounds {
         bounds
     }
 
-    fn apply(self, operator: BinaryOperator, right: Self) -> Result<Self, String> {
+    fn apply(&self, operator: BinaryOperator, right: &Self) -> Result<Self, String> {
         Ok(match operator {
             BinaryOperator::Add => Self {
                 low: self.low.add(&right.low),
@@ -191,15 +261,15 @@ mod tests {
                             BinaryOperator::Multiply,
                             BinaryOperator::Divide,
                         ] {
-                            let left = RationalBounds {
+                            let left = RationalInterval {
                                 low: fraction(left_low, 2),
                                 high: fraction(left_high, 2),
                             };
-                            let right = RationalBounds {
+                            let right = RationalInterval {
                                 low: fraction(right_low, 2),
                                 high: fraction(right_high, 2),
                             };
-                            let result = left.apply(operator, right);
+                            let result = left.apply(operator, &right);
                             if operator == BinaryOperator::Divide
                                 && right_low <= 0
                                 && right_high >= 0
@@ -239,44 +309,128 @@ mod tests {
     }
 
     #[test]
+    fn sign_partitioned_bounds_preserve_all_category_pairs() {
+        fn bounds(categories: u8) -> RationalBounds {
+            let mut result = RationalBounds::default();
+            for (category, low, high) in [(1, -3, -1), (2, 1, 3), (4, -1, 1)] {
+                if categories & category != 0 {
+                    result.include_interval(RationalInterval {
+                        low: fraction(low, 2),
+                        high: fraction(high, 2),
+                    });
+                }
+            }
+            result
+        }
+
+        let empty = RationalBounds::default();
+        assert!(!empty.excludes_zero());
+        assert!(empty.apply(BinaryOperator::Add, &bounds(1)).is_err());
+        assert!(bounds(1).apply(BinaryOperator::Add, &empty).is_err());
+        for left_categories in 1..8 {
+            for right_categories in 1..8 {
+                let left = bounds(left_categories);
+                let right = bounds(right_categories);
+                for operator in [
+                    BinaryOperator::Add,
+                    BinaryOperator::Subtract,
+                    BinaryOperator::Multiply,
+                    BinaryOperator::Divide,
+                ] {
+                    let result = left.apply(operator, &right);
+                    if operator == BinaryOperator::Divide && right_categories & 4 != 0 {
+                        assert!(
+                            result.is_err(),
+                            "zero-containing alternatives cannot be discarded"
+                        );
+                        continue;
+                    }
+                    let result = result.expect("defined category arithmetic");
+                    assert!(result.intervals().count() <= 3);
+                    for left in left.intervals() {
+                        for right in right.intervals() {
+                            for left in [&left.low, &left.high] {
+                                for right in [&right.low, &right.high] {
+                                    let actual = match operator {
+                                        BinaryOperator::Add => left.add(right),
+                                        BinaryOperator::Subtract => left.sub(right),
+                                        BinaryOperator::Multiply => left.mul(right),
+                                        BinaryOperator::Divide => {
+                                            left.div(right).expect("zero-free denominator")
+                                        }
+                                        _ => unreachable!(),
+                                    };
+                                    assert!(
+                                        result.intervals().any(|range| !range
+                                            .low
+                                            .cmp_value(&actual)
+                                            .is_gt()
+                                            && !range.high.cmp_value(&actual).is_lt())
+                                    );
+                                    if actual.is_zero() {
+                                        assert!(!result.excludes_zero());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn rational_bounds_visit_result_operations_once_without_subject_execution() {
         use source_files_to_tokens::Lexer;
         use typed_trees::statement::StatementNode;
 
-        let term = "(match (1u8 / 0 == 0) { true -> 1, false -> 2 })";
-        let expression = std::iter::repeat_n(term, 24)
-            .collect::<Vec<_>>()
-            .join(" + ");
-        let source = format!("machine choose() -> u8 {{ {expression} }}");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(
-            &Lexer::new(&source).tokenize().expect("tokens"),
-        )
-        .expect("syntax");
-        let resolved =
-            syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolved");
-        let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("typed");
-        let machine = &program.machines()[0];
-        let state = &program.machine_states(machine)[0];
-        let StatementNode::Expression(root) =
-            program.statement_table.statements(state.statement_nodes)[0]
-        else {
-            panic!("expression fixture");
-        };
-        super::super::validate_graph(&program, root).expect("validated caller precondition");
-        let mut visits = 0;
-        assert!(excludes_zero(&program, root, |expression| {
+        for (term, operation, expected_operator) in [
+            (
+                "(match (1u8 / 0 == 0) { true -> 1, false -> 2 })",
+                " + ",
+                BinaryOperator::Add,
+            ),
+            (
+                "(match (1u8 / 0 == 0) { true -> -1, false -> 1 })",
+                " * ",
+                BinaryOperator::Multiply,
+            ),
+        ] {
+            let expression = std::iter::repeat_n(term, 24)
+                .collect::<Vec<_>>()
+                .join(operation);
+            let source = format!("machine choose() -> u8 {{ {expression} }}");
+            let syntax = tokens_to_syntax_trees::parse_syntax_trees(
+                &Lexer::new(&source).tokenize().expect("tokens"),
+            )
+            .expect("syntax");
+            let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+                .expect("resolved");
+            let program =
+                symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                    .expect("typed");
+            let machine = &program.machines()[0];
+            let state = &program.machine_states(machine)[0];
+            let StatementNode::Expression(root) =
+                program.statement_table.statements(state.statement_nodes)[0]
+            else {
+                panic!("expression fixture");
+            };
+            super::super::validate_graph(&program, root).expect("validated caller precondition");
+            let mut visits = 0;
+            assert!(excludes_zero(&program, root, |expression| {
             visits += 1;
-            assert!(matches!(program.expression_table.expression(expression), ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Add));
+            assert!(matches!(program.expression_table.expression(expression), ExpressionNode::Binary(binary) if binary.operator == expected_operator));
             validation::has_builtin_binary_expression_meaning(&program, machine, Some(state), expression)
-        }).expect("positive sum"));
-        assert_eq!(
-            visits, 23,
-            "one visit per addition, no branch combinations or subject operations"
-        );
-        assert!(
-            excludes_zero(&program, root, |_| false).is_err(),
-            "token spelling grants no builtin authority"
-        );
+        }).expect("zero-free sum or product"));
+            assert_eq!(
+                visits, 23,
+                "one visit per operation, no branch combinations or subject operations"
+            );
+            assert!(
+                excludes_zero(&program, root, |_| false).is_err(),
+                "token spelling grants no builtin authority"
+            );
+        }
     }
 }

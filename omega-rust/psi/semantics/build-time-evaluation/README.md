@@ -79,15 +79,16 @@ declaration/operator admission. Selected result edges let anonymous arithmetic
 compose across a dispatch without choosing a premature integer width or cloning
 the typed program. The result alone determines canonical index identity; the
 separate authored-selection roster still includes skipped source occurrences.
-Nonzero obligations through anonymous arithmetic compose exact rational ranges
-over all result arms. The private `value/match_dispatch/rational_bounds.rs` owner
-visits result operations without executing subjects or enumerating independent
-arm combinations. A range containing zero leaves the obligation open; it does
-not prove a zero divisor actually executes. Direct dispatch retains branch-wise
-nonzero checking even for opposite-sign arms. General disjoint/correlated
-nonzero proofs and all-arm integer bounds/integrality through surrounding
-anonymous arithmetic remain unfinished; rational nonzero bounds do not replace
-integer landing.
+Nonzero obligations compose exact rational bounds over all result arms. The
+private `value/match_dispatch/rational_bounds.rs` owner retains at most three
+closed intervals: negative, positive, and possibly zero. Opposite-sign
+alternatives remain separate through arithmetic, so direct dispatch and
+surrounding operations use the same proof. The traversal neither executes
+subjects nor enumerates independent arm combinations. A range containing zero
+leaves the obligation open; it does not prove a zero divisor actually executes.
+Same-sign disjointness/correlation proofs and all-arm integer bounds/integrality
+through surrounding anonymous arithmetic remain unfinished; rational nonzero
+bounds do not replace integer landing.
 Exercise the source customer with
 `cargo run -p omega -- --check tests/omega/pass/modules/match_constant_indices/main.omg`
 and its canonical-type, selection, and rejection controls with

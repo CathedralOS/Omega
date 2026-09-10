@@ -344,53 +344,12 @@ fn validate_nonzero_divisor(
     state: &State,
     root: ExpressionHandle,
 ) -> Result<(), String> {
-    let mut pending = vec![root];
-    while let Some(expression) = pending.pop() {
-        if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
-            pending.extend(
-                program
-                    .expression_table
-                    .match_arms(dispatch.arms)
-                    .iter()
-                    .map(|arm| arm.value),
-            );
-        } else {
-            if contains_match(program, expression) {
-                // Direct dispatch above keeps disjoint nonzero arms, including
-                // opposite signs. Surrounding arithmetic instead composes a
-                // conservative rational range without running its subjects.
-                if !rational_bounds::excludes_zero(program, expression, |operand| {
-                    validation::has_builtin_binary_expression_meaning(
-                        program,
-                        machine,
-                        Some(state),
-                        operand,
-                    )
-                })? {
-                    return Err("anonymous constant division through Match arithmetic requires a nonzero divisor proof; its rational bounds include zero".into());
-                }
-                continue;
-            }
-            if !validation::evaluate_anonymous_numeric_expression_with_selected_match_arms(
-                program,
-                expression,
-                &[],
-                |operand| {
-                    validation::has_builtin_binary_expression_meaning(
-                        program,
-                        machine,
-                        Some(state),
-                        operand,
-                    )
-                },
-            )
-            .is_some_and(|value| !value.cmp_value(&BigRational::zero()).is_eq())
-            {
-                return Err(
-                    "anonymous constant division requires a defined nonzero divisor".into(),
-                );
-            }
-        }
+    // Direct dispatch and surrounding arithmetic use one result-domain proof.
+    // Keeping opposite signs separate avoids a special path for bare Match.
+    if !rational_bounds::excludes_zero(program, root, |operand| {
+        validation::has_builtin_binary_expression_meaning(program, machine, Some(state), operand)
+    })? {
+        return Err("anonymous constant division requires a nonzero divisor proof; its rational bounds include zero".into());
     }
     Ok(())
 }
