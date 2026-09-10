@@ -108,6 +108,24 @@ values share semantic contexts and invalidation with domain facts. Exit checking
 uses live assignment evidence, not initializer replay; scalar returns require
 exact result/arm binding and checked operator meaning.
 
+Spelled binary operators and implicit Match equalities share invocation capture
+in `flow/expression.rs`. Scalar preconditions use facts retained when their
+actual operand was evaluated. Other carriers conservatively require those same
+facts to remain live after all operands: exact payload and captured referent
+custody is needed before transporting newer facts, including after a source
+reference rebind. Relations involving several operands intersect context identities,
+while separate conjuncts are checked independently. A later write cannot revoke
+a copied scalar's old facts or give that copy a new storage guarantee. No
+statement-entry fallback supplies missing invocation evidence. Assignment target
+children are evaluated after the right-hand side, before the store.
+
+Source-checking probe: `mbx run -p omega -- --check --output-only
+tests/omega/pass/operators/operand_requires_after_effects/main.omg`.
+The fail twin is `tests/omega/fail/operators/operand_requires_invalidated/main.omg`.
+These probes establish selected preconditions, not provider execution or
+crash-route propagation. Crash-qualified selected operators remain fenced until
+their invocation-specific routes reach caller coverage and independent replay.
+
 Named-state inputs also retain live domain memberships on directly forwarded
 parameters and their exact owned-field projections. Argument evaluation captures
 owned values; reference-backed claims additionally need surviving contexts and

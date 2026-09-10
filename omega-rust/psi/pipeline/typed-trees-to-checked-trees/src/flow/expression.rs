@@ -82,6 +82,9 @@ pub(super) fn append_statement_calls(
     match statement {
         StatementNode::Assignment(assignment) => {
             execution.expression(assignment.value, contexts, constraints);
+            // Assignment evaluates its value before resolving the destination.
+            // Schedule target children without treating the target as a read.
+            execution.evaluate_expression(assignment.target, contexts, constraints);
         }
         StatementNode::LocalData(local) => {
             execution.expression(local.initial_value, contexts, constraints);
@@ -268,6 +271,62 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         value
     }
 
+    fn capture_operator_operand(
+        &mut self,
+        expression: ExpressionHandle,
+        first_write: usize,
+        contexts: HandleSpan<FlowSemanticContextRef>,
+        constraints: HandleSpan<FlowConstraintRef>,
+    ) -> checked_trees::FlowOperatorOperandFact {
+        let changed = self.changed_operand_sources(&[(expression, first_write)]);
+        let mut captured_contexts = contexts;
+        let mut captured_constraints = constraints;
+        self.filter_captured_sources(&changed, &mut captured_contexts, &mut captured_constraints);
+        checked_trees::FlowOperatorOperandFact {
+            expression,
+            constraints: captured_constraints,
+        }
+    }
+
+    fn record_operator_invocation(
+        &mut self,
+        expression: ExpressionHandle,
+        occurrence: checked_trees::CheckedOperatorOccurrence,
+        captured_operands: &[checked_trees::FlowOperatorOperandFact],
+        constraints: HandleSpan<FlowConstraintRef>,
+    ) {
+        // Both spelled operators and Match comparisons consume saved operands.
+        // Scalar preconditions use their operand-time snapshots. Other carriers
+        // additionally need live evidence after all operands. Keep these times
+        // separate; the consumer must not retarget a captured reference or give
+        // a copied aggregate a later guarantee about its source storage.
+        let mut operand_span = HandleSpan::empty();
+        for (operator_use, use_fact) in self.context.operators.uses.iter() {
+            if use_fact.expression == expression
+                && use_fact.occurrence == occurrence
+                && use_fact.selected_operator_symbol.is_valid()
+                && matches!(use_fact.origin, checked_trees::CheckedValueOrigin::StateStatement {
+                    machine_symbol, state_symbol, statement_index, ..
+                } if machine_symbol == self.machine.symbol && state_symbol == self.state.symbol && statement_index == self.statement_index)
+            {
+                if operand_span.is_empty() {
+                    operand_span = self
+                        .context
+                        .control
+                        .operator_operands
+                        .insert_many(captured_operands.iter().copied());
+                }
+                self.context.control.operator_invocations.append(
+                    checked_trees::FlowOperatorInvocationFact {
+                        operator_use,
+                        operands: operand_span,
+                        requires_constraints: constraints,
+                    },
+                );
+            }
+        }
+    }
+
     fn evaluate_expression(
         &mut self,
         expression: ExpressionHandle,
@@ -296,6 +355,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 return self.live_boolean(expression, *contexts);
             }
             ExpressionNode::Binary(binary) => {
+                let left_capture_writes = self.operand_writes.len();
                 let left = self.expression(binary.left, contexts, constraints);
                 if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
                     let evaluate_when = binary.operator == BinaryOperator::And;
@@ -327,7 +387,26 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     self.meet(skipped_contexts, skipped_constraints, contexts, constraints);
                     return (right == Some(!evaluate_when)).then_some(!evaluate_when);
                 }
+                let left_operand = self.capture_operator_operand(
+                    binary.left,
+                    left_capture_writes,
+                    *contexts,
+                    *constraints,
+                );
+                let right_capture_writes = self.operand_writes.len();
                 self.expression(binary.right, contexts, constraints);
+                let right_operand = self.capture_operator_operand(
+                    binary.right,
+                    right_capture_writes,
+                    *contexts,
+                    *constraints,
+                );
+                self.record_operator_invocation(
+                    expression,
+                    checked_trees::CheckedOperatorOccurrence::Expression,
+                    &[left_operand, right_operand],
+                    *constraints,
+                );
                 return crate::values::evaluate_closed_boolean_expression(
                     self.program,
                     self.context.operators,
@@ -431,6 +510,9 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
     ) -> Vec<CanonicalPlace> {
         let mut changed = Vec::new();
         for (expression, first_write) in operands {
+            if *first_write == self.operand_writes.len() {
+                continue;
+            }
             // A direct call result is an occurrence value, not the current
             // storage of its own arguments. Its guarantees have separate custody.
             if matches!(

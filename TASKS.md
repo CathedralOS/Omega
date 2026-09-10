@@ -925,6 +925,11 @@ Owners include
   coverage and private/transitive summaries; do not fabricate source calls or
   narrow an opaque requirement using a selected provider body. This also owns
   the crash-qualified equality dependency of `MATCH-SELECTIVE-LOWERING`.
+  Reuse `flow/expression.rs` invocation and operand snapshots: copied scalar
+  facts and live reference facts have different capture times. Their current
+  consumer is selected `requires`; statement-entry facts are not a replacement.
+  Non-scalar transport conservatively intersects capture/live contexts until
+  exact payload and referent custody supports newer facts.
   Named operator invocations need the same audit; their separate `named_uses`
   roster is outside this gate.
   Regression: `mbx nextest run -p typed-trees-to-checked-trees --lib
