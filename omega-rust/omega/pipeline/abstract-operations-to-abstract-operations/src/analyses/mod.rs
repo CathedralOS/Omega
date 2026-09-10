@@ -2,6 +2,7 @@
 mod catalog;
 mod control_flow;
 mod manager;
+mod revision;
 mod semantic;
 
 pub use catalog::{AnalysisProduct, analysis_dependencies, compute_analysis};
@@ -27,6 +28,7 @@ pub use manager::{AnalysisManager, AnalysisManagerError, AnalysisRevisionCommit}
 pub use optimization_unit::{
     ValueRangeFact, ValueRangeRegion, ValueRangeScope, ValueRangeSupport, value_range_fact_identity,
 };
+pub use revision::AnalysisRevision;
 pub use semantic::{
     EffectClass, EffectKnowledge, EffectSummaryAnalysis, ExecutableEdgeAnalysis,
     ExecutableEdgeFact, ExecutableEdgeKnowledge, FunctionEffectSummary, NodeEffectSummary,

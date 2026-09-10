@@ -13,7 +13,7 @@ use optimization_core::{
 use optimization_unit::{PsiOptimizationUnit, PsiTransformationLedger, PsiTransformationRecord};
 use optimization_unit_semantics::{ValidatedPsiRewrite, validate_psi_rewrite_candidate};
 
-use crate::{AnalysisManager, OrderedRuleRegistry, RuleAnalysisView};
+use crate::{AnalysisManager, OrderedRuleRegistry};
 
 use super::{
     CandidateContractAxis, ExternalDecisionReplayError, OptimizationRun, OptimizationRunError,
@@ -241,6 +241,9 @@ fn run_unit_inner_with_retention(
         let previous_measure = convergence_measure(&unit, registry);
         let mut chosen: Option<(optimization_unit::PsiRewriteCandidate, ValidatedPsiRewrite)> =
             None;
+        let mut revision = analyses
+            .bind_revision(&unit)
+            .map_err(OptimizationRunError::Analysis)?;
         for rule in registry.iter() {
             let contract = rule.contract();
             dispatched.insert(contract.identity());
@@ -249,18 +252,15 @@ fn run_unit_inner_with_retention(
                 budget.rule_evaluations(),
                 "rule evaluations",
             )?;
-            let products = analyses
-                .require_all(&unit, contract.required_analyses())
-                .map_err(OptimizationRunError::Analysis)?
-                .into_iter()
-                .cloned()
-                .collect::<Vec<_>>();
-            let candidates = rule
-                .propose(&unit, RuleAnalysisView::new(&products))
-                .map_err(|error| OptimizationRunError::Proposal {
-                    rule: contract.identity(),
-                    error,
-                })?;
+            let products = revision
+                .require_all(contract.required_analyses())
+                .map_err(OptimizationRunError::Analysis)?;
+            let candidates =
+                rule.propose(&unit, products)
+                    .map_err(|error| OptimizationRunError::Proposal {
+                        rule: contract.identity(),
+                        error,
+                    })?;
             for _ in &candidates {
                 charge(&mut usage.candidates, budget.candidates(), "candidates")?;
             }
