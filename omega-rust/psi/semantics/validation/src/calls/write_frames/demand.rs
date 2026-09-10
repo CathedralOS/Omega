@@ -9,9 +9,7 @@ use super::caller_aliases::{
     AssignmentWriteTarget, LocalWriteOrigin, assignment_write_target,
     local_write_origins_before_statement,
 };
-use super::caller_aliases::{
-    CallerWriteSite, close_caller_aliases, expression_has_calls, with_caller_origins,
-};
+use super::caller_aliases::{CallerWriteSite, expression_has_calls, with_caller_origins};
 use super::{
     coarse_place_path, known_boundary_call_written_paths_for_parts,
     known_call_written_paths_for_parts, known_call_written_paths_with_summaries,
@@ -141,17 +139,12 @@ impl<'program> CallFrameResolver<'program> {
         current_machine: &Machine,
         statement: &StatementNode,
     ) -> NormalizedWriteFrame {
-        let written = match self.assignment_write_target(current_machine, statement) {
-            Some(AssignmentWriteTarget::LocalBindingReplacement { path }) => Some(vec![path]),
-            Some(AssignmentWriteTarget::Storage { paths }) => close_caller_aliases(
-                self.program,
-                current_machine,
-                &self.symbols,
-                CallerWriteSite::Statement(statement),
-                paths,
-            ),
-            None => None,
-        };
+        let written = super::caller_aliases::assignment_write_paths(
+            self.program,
+            current_machine,
+            &self.symbols,
+            statement,
+        );
         written.map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
     }
 
