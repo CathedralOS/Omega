@@ -10,6 +10,7 @@ mod primitive_stores;
 mod process_exit;
 mod projected_structural_call_return;
 mod replay_corruption;
+mod scalar_arrays;
 mod scalar_call_unit;
 mod scalar_transfers;
 mod scalar_unit_calls;

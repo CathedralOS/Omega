@@ -17,6 +17,7 @@ mod literals;
 mod local_storage;
 pub(super) use local_storage::fixed_array_argument;
 mod primitive_locals;
+mod scalar_array;
 mod scalar_case;
 pub(super) use primitive_locals::read;
 mod scalar_store;
@@ -143,6 +144,13 @@ pub(super) fn operation(
         LegalizedScalarInstructionKind::EstablishScalarCase { .. }
     ) {
         scalar_case::establish(source, row, builder)?;
+        return Ok(true);
+    }
+    if matches!(
+        row.kind,
+        LegalizedScalarInstructionKind::EstablishScalarArray { .. }
+    ) {
+        scalar_array::establish(source, row, builder)?;
         return Ok(true);
     }
     if matches!(

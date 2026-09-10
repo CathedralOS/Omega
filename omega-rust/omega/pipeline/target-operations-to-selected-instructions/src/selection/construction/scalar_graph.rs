@@ -413,6 +413,7 @@ pub(super) fn build(
                     output
                 }
                 LegalizedScalarInstructionKind::EstablishScalarCase { .. }
+                | LegalizedScalarInstructionKind::EstablishScalarArray { .. }
                 | LegalizedScalarInstructionKind::HostedExitProcessI32 { .. }
                 | LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }
                 | LegalizedScalarInstructionKind::HostedReadByte { .. }

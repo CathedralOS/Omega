@@ -37,7 +37,7 @@ pub(super) fn project(
             for (position, semantic) in structural_arguments.iter().enumerate() {
                 lowered.push(LegalizedScalarArgument::Structural {
                     semantic: semantic.clone(),
-                    target: scalar_graph_input::scalar_sums::call_argument(
+                    target: scalar_graph_input::aggregate_results::call_argument(
                         semantic, position, optimized, called, &call_plan, native, plan,
                     )?,
                 });
@@ -54,6 +54,13 @@ pub(super) fn project(
                 crash_continuations: crash_continuations.clone(),
             })
         }
+        AbstractOperation::EstablishScalarArray {
+            result, elements, ..
+        } => LegalizedScalarInstructionKind::EstablishScalarArray {
+            result: result.clone(),
+            elements: elements.clone(),
+            shape: scalar_graph_input::scalar_arrays::shape(result, plan)?.2,
+        },
         AbstractOperation::EstablishScalarCase {
             result,
             result_case,
@@ -63,7 +70,7 @@ pub(super) fn project(
             result: result.clone(),
             result_case: *result_case,
             fields: fields.clone(),
-            layout: scalar_graph_input::scalar_sums::layout(result, plan)?,
+            layout: scalar_graph_input::aggregate_results::sum_layout(result, plan)?,
         },
         AbstractOperation::EstablishPrimitiveLocal { result, value, .. } => {
             LegalizedScalarInstructionKind::EstablishPrimitiveLocal {

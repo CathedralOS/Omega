@@ -232,6 +232,25 @@ pub fn x86_64_system_v_aggregate_return_keys() -> Vec<RegisterConstraintKey> {
         .collect()
 }
 
+/// Microsoft direct aggregates return one integer fragment in rax; keys follow
+/// the zero-through-four positional integer argument counts. Hidden result
+/// pointers are a different ABI transport and have no row in this family.
+pub fn x86_64_microsoft_aggregate_call_keys() -> Vec<RegisterConstraintKey> {
+    (1020..1025)
+        .map(|variant| RegisterConstraintKey {
+            family: RegisterConstraintFamily::Call,
+            variant,
+        })
+        .collect()
+}
+
+pub fn x86_64_microsoft_aggregate_return_keys() -> Vec<RegisterConstraintKey> {
+    vec![RegisterConstraintKey {
+        family: RegisterConstraintFamily::Return,
+        variant: 12,
+    }]
+}
+
 /// Exact Linux System-V scalar call with two U64 arguments and one U64 result.
 pub const X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Call,
@@ -1096,9 +1115,10 @@ pub fn x86_64_register_constraint_catalog(
         .find(|row| row.key == X86_64_MICROSOFT_CALL)
         .expect("canonical ABI call row")
         .clone();
-    for (arity, key) in x86_64_microsoft_register_call_keys()
+    for ((arity, key), aggregate_key) in x86_64_microsoft_register_call_keys()
         .into_iter()
         .enumerate()
+        .zip(x86_64_microsoft_aggregate_call_keys())
     {
         let mut call = abi_call.clone();
         call.key = key;
@@ -1116,8 +1136,19 @@ pub fn x86_64_register_constraint_catalog(
             .map(|(index, name)| fixed(index as u16, RegisterOperandAccess::Use, name))
             .chain([fixed(arity as u16, RegisterOperandAccess::Def, "rax")])
             .collect();
+        constraints.push(call.clone());
+        call.key = aggregate_key;
+        // The returned fragment is an explicit definition, while every other
+        // Microsoft volatile register retains its ordinary call clobber.
+        call.clobbers
+            .retain(|unit| !view("rax").write_units.contains(unit));
         constraints.push(call);
     }
+    // Both direct integer returns use rax and the same RET machine-state
+    // effects; the retained calling plan still distinguishes ABI policy.
+    let mut returned = returned;
+    returned.key = x86_64_microsoft_aggregate_return_keys()[0];
+    constraints.push(returned);
 
     for (key, operands, uses) in [
         (
@@ -1294,6 +1325,8 @@ pub fn x86_64_register_constraint_catalog(
             required.extend(x86_64_microsoft_mixed_unit_call_keys());
             required.extend(x86_64_system_v_aggregate_call_keys());
             required.extend(x86_64_system_v_aggregate_return_keys());
+            required.extend(x86_64_microsoft_aggregate_call_keys());
+            required.extend(x86_64_microsoft_aggregate_return_keys());
             required.sort_unstable();
             required
         },
@@ -1494,6 +1527,67 @@ mod tests {
     }
 
     #[test]
+    fn microsoft_direct_aggregate_rows_preserve_positional_arguments_and_volatile_units() {
+        let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let catalog = x86_64_register_constraint_catalog(&model);
+        let rax = model.model().view_named("rax").unwrap();
+        let rdx = model.model().view_named("rdx").unwrap();
+        let rsi = model.model().view_named("rsi").unwrap();
+        for (arity, key) in x86_64_microsoft_aggregate_call_keys()
+            .into_iter()
+            .enumerate()
+        {
+            let call = row(&catalog, key);
+            let expected = ["rcx", "rdx", "r8", "r9"]
+                .into_iter()
+                .take(arity)
+                .chain(["rax"])
+                .map(|name| model.model().view_named(name).unwrap().id)
+                .collect::<Vec<_>>();
+            assert_eq!(
+                call.operands
+                    .iter()
+                    .map(|operand| operand.fixed_view.unwrap())
+                    .collect::<Vec<_>>(),
+                expected
+            );
+            assert_eq!(
+                call.operands.last().unwrap().access,
+                RegisterOperandAccess::Def
+            );
+            assert!(
+                rax.write_units
+                    .iter()
+                    .all(|unit| !call.clobbers.contains(unit))
+            );
+            assert!(
+                rdx.write_units
+                    .iter()
+                    .all(|unit| call.clobbers.contains(unit))
+            );
+            assert!(
+                rsi.write_units
+                    .iter()
+                    .all(|unit| !call.clobbers.contains(unit))
+            );
+            let mut changed = catalog.clone();
+            row_mut(&mut changed, key)
+                .operands
+                .last_mut()
+                .unwrap()
+                .fixed_view = Some(rdx.id);
+            assert!(validate_x86_64_register_constraint_catalog(changed, &model).is_err());
+        }
+        let returns = x86_64_microsoft_aggregate_return_keys();
+        assert_eq!(returns.len(), 1);
+        assert_eq!(row(&catalog, returns[0]).operands.len(), 1);
+        assert_eq!(
+            row(&catalog, returns[0]).operands[0].fixed_view,
+            Some(rax.id)
+        );
+    }
+
+    #[test]
     fn preservation_convention_is_selected_by_exact_target_policy() {
         let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
         let system_v =
@@ -1549,6 +1643,8 @@ mod tests {
                 + x86_64_microsoft_mixed_unit_call_keys().len()
                 + x86_64_system_v_aggregate_call_keys().len()
                 + x86_64_system_v_aggregate_return_keys().len()
+                + x86_64_microsoft_aggregate_call_keys().len()
+                + x86_64_microsoft_aggregate_return_keys().len()
         );
 
         let sysv_call = row(catalog, X86_64_SYSTEM_V_CALL);

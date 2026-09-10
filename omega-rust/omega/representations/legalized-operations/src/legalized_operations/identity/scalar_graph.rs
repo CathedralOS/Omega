@@ -74,6 +74,19 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 None => bytes.push(0),
             }
             match &instruction.kind {
+                LegalizedScalarInstructionKind::EstablishScalarArray {
+                    result,
+                    elements,
+                    shape,
+                } => {
+                    bytes.push(22);
+                    super::projected_structural_call_return::encode_operation_result(bytes, result);
+                    encode_len(bytes, elements.len());
+                    for element in elements {
+                        bytes.extend_from_slice(&element.get().to_le_bytes());
+                    }
+                    super::calling::encode_shape(bytes, *shape);
+                }
                 LegalizedScalarInstructionKind::EstablishScalarCase {
                     result,
                     result_case,

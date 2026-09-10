@@ -188,7 +188,7 @@ pub(super) fn validate(
     let result = call.call_plan.result.as_ref();
     let aggregate = if call.structural_result.is_some() {
         Some(
-            crate::selection::scalar_case_input::call_result(source, call)
+            crate::selection::aggregate_result_input::call_result(source, call)
                 .ok_or_else(invalid)?
                 .1,
         )

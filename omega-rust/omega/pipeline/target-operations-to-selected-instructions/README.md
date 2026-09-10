@@ -41,6 +41,20 @@ ABI plan. Result definitions are not also unknown call clobbers. Current direct
 carriers cover one or two register fragments; hidden-pointer returns remain an
 explicit realization limit, including 16-byte sums on Microsoft x64.
 
+Primitive arrays share that aggregate storage and call/return path without a sum
+tag. [Array input](src/selection/scalar_array_input.rs) reconstructs the declared
+dimensions and leaf carrier; constructor selection writes each row-major leaf at
+its exact width. [Aggregate results](src/selection/aggregate_result_input.rs)
+joins both array and sum homes to their retained calling plans. Independent replay
+checks every store, result fragment, and the single constructor fuel charge.
+Direct fragments currently cover exact widths 1, 2, 4, and 8 bytes, up to two
+registers; Microsoft x64 supports its single-register direct results. Empty
+physical values, odd-width fragments, hidden-pointer results, and owned array
+actuals/incoming identity returns remain explicit transport limits. Zero physical
+size never erases the semantic array type. The native differential
+`scalar_array_results` target covers full publication and matching-host execution;
+its floating-source control records the separate checked-plan production gap.
+
 Multi-case dispatch uses ordinary comparisons and explicitly identified
 `CaseDispatch` continuation blocks. An unsuccessful comparison has taken no
 semantic edge and charges none; the chosen edge carries its exact case payload,

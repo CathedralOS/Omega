@@ -5,7 +5,7 @@ use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOper
 use machine_code::{FunctionFragmentEmissionPlan, FunctionTargetFrameLayout};
 use object_file::StagedOptimizedRelocationFreeObjectContainer;
 use semantic_vocabulary::MachineId;
-mod scalar_sums;
+mod aggregate_results;
 mod structural_case;
 mod unobserved_owned;
 pub(super) use unobserved_owned::{arrivals as unobserved_owned_arrivals, scalar_cleanup_retained};
@@ -18,6 +18,7 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
             operation,
             AbstractOperation::EstablishPrimitiveLocal { .. }
                 | AbstractOperation::EstablishScalarCase { .. }
+                | AbstractOperation::EstablishScalarArray { .. }
                 | AbstractOperation::CallStructural { .. }
                 | AbstractOperation::ReturnStructural { .. }
                 | AbstractOperation::PrimitiveLocalStore { .. }
@@ -103,7 +104,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
             .find(|row| row.machine == fragment.machine)
             .ok_or(Error::Mismatch("missing selected function"))?;
         let structural = selected.structural.as_ref();
-        let aggregate_result = scalar_sums::header(abstracted, targeted, selected);
+        let aggregate_result = aggregate_results::header(abstracted, targeted, selected);
         // A provider service ceiling is declaration metadata, not a structural
         // argument or an executable permission grant. Retain its exact canonical
         // source identity even when the Unit ABI has no structural parameters.
@@ -212,8 +213,9 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         for operation in &abstracted.operations {
             let admitted = match operation {
                 AbstractOperation::EstablishScalarCase { .. }
+                | AbstractOperation::EstablishScalarArray { .. }
                 | AbstractOperation::CallStructural { .. }
-                | AbstractOperation::ReturnStructural { .. } => scalar_sums::operation(operation, targeted, selected),
+                | AbstractOperation::ReturnStructural { .. } => aggregate_results::operation(operation, targeted, selected),
                 AbstractOperation::EstablishPrimitiveLocal { .. }
                 | AbstractOperation::PrimitiveLocalStore { .. }
                 | AbstractOperation::PrimitiveScalarRead { .. } => {

@@ -166,7 +166,7 @@ pub(super) fn emit(
         },
     )?;
     if let Some((result, placement)) =
-        crate::selection::scalar_case_input::call_result(source, call)
+        crate::selection::aggregate_result_input::call_result(source, call)
     {
         use selected_instructions::{
             FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot,

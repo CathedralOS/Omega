@@ -29,7 +29,7 @@ pub(super) fn validate(
         scalar_graph_input::structural_case::source_result(function, *source)?;
     if *defining_operation != producer
         || result != produced
-        || *layout != scalar_graph_input::scalar_sums::layout(produced, plan)?
+        || *layout != scalar_graph_input::aggregate_results::sum_layout(produced, plan)?
         || *effect != node.effect
         || *ownership != node.ownership
         || cases.len() != expected.len()

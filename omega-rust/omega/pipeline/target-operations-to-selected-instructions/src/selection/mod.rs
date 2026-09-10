@@ -1,5 +1,6 @@
 //! Optimizer module role: executable entrance. Instruction selection: propose one bounded selected CFG, then validate it independently.
 
+mod aggregate_result_input;
 mod block_order;
 mod byte_view_homes;
 mod constraints;
@@ -11,8 +12,8 @@ mod literal_storage_input;
 mod model;
 pub(crate) mod primitive_local_input;
 mod read_result_input;
+mod scalar_array_input;
 mod scalar_call_abi;
-mod scalar_case_input;
 mod shared;
 mod validation;
 pub(crate) mod value_transport;

@@ -10,20 +10,21 @@ use terminal_psi::{
 
 use super::StructuralCallReturnProjectedQualificationValidationError as Error;
 
+#[cfg(test)]
+mod tests;
+
 pub(super) fn reconstruct(
     root: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
 ) -> Result<ValueShape, Error> {
-    let declarations = declarations
+    let indexed = declarations
         .iter()
         .map(|declaration| (declaration.id, declaration))
         .collect::<BTreeMap<_, _>>();
-    shape(
-        root,
-        &declarations,
-        &mut BTreeMap::new(),
-        &mut BTreeSet::new(),
-    )
+    if indexed.len() != declarations.len() {
+        return Err(Error::SourceShape);
+    }
+    shape(root, &indexed, &mut BTreeMap::new(), &mut BTreeSet::new())
 }
 
 fn shape(
@@ -63,7 +64,13 @@ fn shape(
                 alignment,
             )
         }
-        StructuralTypeShape::FixedArray { element, length } if *length != 0 => {
+        StructuralTypeShape::FixedArray { length: 0, .. } => {
+            // Zero-byte calling plans retain a canonical shape, but emptiness
+            // cannot hide an unknown, recursive or nonprimitive element chain.
+            validate_empty_primitive_array(structural_type, declarations)?;
+            ValueShape::integer(0, 1)
+        }
+        StructuralTypeShape::FixedArray { element, length } => {
             let element = shape(*element, declarations, cache, active)?;
             let stride = align(u32::from(element.byte_size), u32::from(element.alignment))?;
             let bytes = u64::from(stride)
@@ -83,6 +90,32 @@ fn shape(
     active.remove(&structural_type);
     cache.insert(structural_type, result);
     Ok(result)
+}
+
+fn validate_empty_primitive_array(
+    root: StructuralTypeId,
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Result<(), Error> {
+    let mut current = root;
+    for _ in 0..declarations.len() {
+        match declarations.get(&current).ok_or(Error::SourceShape)?.shape {
+            StructuralTypeShape::FixedArray { element, .. } => current = element,
+            StructuralTypeShape::PrimitiveScalar(scalar) => {
+                return match scalar {
+                    ScalarType::Boolean | ScalarType::IeeeFloat(_) => Ok(()),
+                    ScalarType::Integer(integer)
+                        if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                            && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
+                    {
+                        Ok(())
+                    }
+                    _ => Err(Error::SourceShape),
+                };
+            }
+            _ => return Err(Error::SourceShape),
+        }
+    }
+    Err(Error::SourceShape)
 }
 
 fn conventional_sum_shape(

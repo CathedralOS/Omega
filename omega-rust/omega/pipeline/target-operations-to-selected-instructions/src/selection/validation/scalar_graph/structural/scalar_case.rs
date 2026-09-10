@@ -9,7 +9,7 @@ pub(super) fn establish(
 ) -> Result<(), SelectedInstructionError> {
     let invalid = || SelectedInstructionError::SourceCustodyMismatch;
     let (ordinal, declarations) =
-        crate::selection::scalar_case_input::fields(source, row).ok_or_else(invalid)?;
+        crate::selection::aggregate_result_input::fields(source, row).ok_or_else(invalid)?;
     let LegalizedScalarInstructionKind::EstablishScalarCase {
         result: established,
         fields,

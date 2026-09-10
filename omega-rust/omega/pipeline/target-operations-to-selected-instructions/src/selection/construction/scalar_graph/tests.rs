@@ -11,6 +11,7 @@ mod parameters;
 mod primitive_locals;
 mod process_exit;
 mod projected_borrows;
+mod scalar_arrays;
 mod scalar_stores;
 mod stack_borrows;
 mod structural_case;

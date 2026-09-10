@@ -3,8 +3,8 @@ use target_operations::{
     ScalarAbiValue, TargetStructuralParameter, TargetUnitBody,
     TargetUnitScalarArgumentSource as Source,
 };
+mod aggregate_results;
 mod primitive_store;
-mod scalar_sums;
 pub(super) fn validate(
     function: &TargetFunction,
     body: &TargetUnitBody,
@@ -78,10 +78,13 @@ pub(super) fn validate_operation(
     match (target, abstracted) {
         (
             _,
-            AbstractOperation::EstablishScalarCase { .. }
+            AbstractOperation::EstablishScalarArray { .. }
+            | AbstractOperation::EstablishScalarCase { .. }
             | AbstractOperation::CallStructural { .. },
         ) => {
-            scalar_sums::validate(target, abstracted, sources, optimized, native, plan, unit)?;
+            aggregate_results::validate(
+                target, abstracted, sources, optimized, native, plan, unit,
+            )?;
         }
         (
             TargetUnitOperation::ByteSequenceWrite {

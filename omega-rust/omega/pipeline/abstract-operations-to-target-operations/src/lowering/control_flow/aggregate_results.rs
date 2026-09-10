@@ -1,9 +1,9 @@
-//! Fresh scalar sums use the ordinary graph's values, calls and aggregate homes.
+//! Aggregate results use the ordinary graph's values, calls and durable homes.
 use super::LiveDefinitions;
 use crate::lowering::shared::*;
 use target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
 
-pub(in crate::lowering) fn result_layout(
+fn sum_result_layout(
     result: &terminal_psi::StructuralResultDeclaration,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<calling_conventions::ConventionalSumLayout, LoweringError> {
@@ -30,7 +30,35 @@ pub(in crate::lowering) fn result_layout(
     )
 }
 
-fn home(
+/// Structural result category selects its layout, not a different call graph.
+pub(in crate::lowering) fn result_home_layout(
+    result: &terminal_psi::StructuralResultDeclaration,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Result<TargetStructuralHomeLayout, LoweringError> {
+    if matches!(
+        types
+            .get(&result.structural_type)
+            .map(|declaration| &declaration.shape),
+        Some(StructuralTypeShape::FixedArray { .. })
+    ) {
+        if result.multiplicity != StructuralMultiplicity::Unrestricted
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+        {
+            return Err(LoweringError::UnsupportedStructuralArray(
+                result.structural_type,
+            ));
+        }
+        return Ok(TargetStructuralHomeLayout::Aggregate(
+            super::scalar_arrays::shape(result.structural_type, types)?.2,
+        ));
+    }
+    Ok(TargetStructuralHomeLayout::Sum(sum_result_layout(
+        result, types,
+    )?))
+}
+
+pub(super) fn home(
     operation: OperationId,
     result: &terminal_psi::StructuralOperationResult,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
@@ -50,11 +78,11 @@ fn home(
     Ok(TargetStructuralHomeRequirement {
         defining_operation: operation,
         result: result.clone(),
-        layout: TargetStructuralHomeLayout::Sum(result_layout(&declaration, types)?),
+        layout: result_home_layout(&declaration, types)?,
     })
 }
 
-pub(super) fn establish(
+pub(super) fn establish_scalar_case(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,

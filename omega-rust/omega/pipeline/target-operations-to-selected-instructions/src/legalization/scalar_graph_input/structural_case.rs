@@ -13,7 +13,12 @@ pub(in crate::legalization) fn source_result(
         .iter()
         .flat_map(|block| &block.nodes)
         .filter_map(|node| match &node.operation {
-            AbstractOperation::EstablishScalarCase {
+            AbstractOperation::EstablishScalarArray {
+                psi_operation,
+                result,
+                ..
+            }
+            | AbstractOperation::EstablishScalarCase {
                 psi_operation,
                 result,
                 ..

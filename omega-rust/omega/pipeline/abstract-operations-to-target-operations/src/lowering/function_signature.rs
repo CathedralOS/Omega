@@ -99,12 +99,27 @@ pub(super) fn prepare_function_signature(
                 {
                     return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
                 }
-                Some(super::structural_layout::structural_shape(
-                    result.structural_type,
-                    structural_types,
-                    &mut shape_cache,
-                    &mut active,
-                )?)
+                if matches!(
+                    structural_types
+                        .get(&result.structural_type)
+                        .map(|declaration| &declaration.shape),
+                    Some(terminal_psi::StructuralTypeShape::FixedArray { .. })
+                ) {
+                    Some(
+                        super::control_flow::aggregate_results::result_home_layout(
+                            result,
+                            structural_types,
+                        )?
+                        .shape(),
+                    )
+                } else {
+                    Some(super::structural_layout::structural_shape(
+                        result.structural_type,
+                        structural_types,
+                        &mut shape_cache,
+                        &mut active,
+                    )?)
+                }
             }
             _ => function
                 .result

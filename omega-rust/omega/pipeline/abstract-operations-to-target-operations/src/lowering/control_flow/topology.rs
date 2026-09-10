@@ -16,6 +16,7 @@ pub(in crate::lowering) fn requires_graph(
         matches!(
             operation,
             AbstractOperation::EstablishPrimitiveLocal { .. }
+                | AbstractOperation::EstablishScalarArray { .. }
                 | AbstractOperation::EstablishScalarCase { .. }
                 | AbstractOperation::PrimitiveLocalStore { .. }
                 | AbstractOperation::PrimitiveScalarRead { .. }
@@ -26,7 +27,7 @@ pub(in crate::lowering) fn requires_graph(
     if function.operations.iter().any(|operation| {
         matches!(operation, AbstractOperation::CallStructural { result, .. }
             if matches!(types.get(&result.structural_type).map(|declaration| &declaration.shape),
-                Some(StructuralTypeShape::Sum { .. })))
+                Some(StructuralTypeShape::Sum { .. } | StructuralTypeShape::FixedArray { .. })))
     }) {
         return Ok(true);
     }

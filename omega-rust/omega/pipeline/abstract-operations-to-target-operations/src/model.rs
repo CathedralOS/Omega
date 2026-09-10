@@ -63,7 +63,6 @@ pub enum AdmittedBoundaryExecution<'execution> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
-    UnsupportedScalarArray(OperationId),
     /// Native continuations do not yet retain partial-owner cleanup.
     UnsupportedPartialAffineContinuation {
         machine: MachineId,
@@ -230,6 +229,7 @@ pub enum LoweringError {
     RelevantOpaqueStructuralField(StructuralTypeId),
     UnsupportedStructuralByteSequence(StructuralTypeId),
     UnsupportedStructuralSum(StructuralTypeId),
+    UnsupportedStructuralArray(StructuralTypeId),
     StructuralTypeTooLarge(StructuralTypeId),
     ConditionalControlFlowRequiresBlockLowering(MachineId),
     ConditionalConditionMustBeBoolean(ValueId),

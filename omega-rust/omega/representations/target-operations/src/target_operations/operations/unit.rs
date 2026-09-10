@@ -206,6 +206,12 @@ pub enum TargetUnitOperation {
         requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
+    /// Establish all row-major primitive leaves in one exact aggregate home.
+    EstablishScalarArray {
+        psi_operation: OperationId,
+        result_home: TargetStructuralHomeRequirement,
+        elements: Vec<ValueId>,
+    },
     /// Establish a fresh sum in its exact durable aggregate home.
     EstablishScalarCase {
         psi_operation: OperationId,

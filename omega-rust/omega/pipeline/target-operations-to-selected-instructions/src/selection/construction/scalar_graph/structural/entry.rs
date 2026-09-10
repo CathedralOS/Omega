@@ -17,7 +17,7 @@ pub(in crate::selection) fn entry(
         return if crate::selection::primitive_local_input::accepts(source)
             || crate::selection::literal_storage_input::accepts(source)
             || crate::selection::read_result_input::accepts(source)
-            || crate::selection::scalar_case_input::has_local_sums(source)
+            || crate::selection::aggregate_result_input::has_local_aggregates(source)
         {
             Ok(())
         } else {
@@ -62,12 +62,16 @@ pub(in crate::selection) fn entry(
         let place = parameter.semantic.place;
         if parameter.semantic.access == StructuralAccess::Owned
             && !legacy_indirect
-            && !crate::selection::scalar_case_input::direct_fragments(&parameter.target.placement)
+            && !crate::selection::aggregate_result_input::direct_fragments(
+                &parameter.target.placement,
+            )
         {
             return Err(invalid());
         }
         if parameter.semantic.access == StructuralAccess::Owned
-            && crate::selection::scalar_case_input::direct_fragments(&parameter.target.placement)
+            && crate::selection::aggregate_result_input::direct_fragments(
+                &parameter.target.placement,
+            )
         {
             for location in &parameter.target.placement.locations {
                 let ValueLocation::Register {

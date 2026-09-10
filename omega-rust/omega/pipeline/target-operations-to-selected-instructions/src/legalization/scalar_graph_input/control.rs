@@ -58,7 +58,7 @@ pub(super) fn validate(
             },
             AbstractFunctionResult::Unit,
         ) if cleanup_actions.is_empty()
-            || (super::scalar_sums::cleanup(function, cleanup_actions)
+            || (super::aggregate_results::cleanup(function, cleanup_actions)
                 && node.ownership
                     == [optimization_unit::OwnershipEvent::Cleanup(
                         cleanup_actions.clone(),

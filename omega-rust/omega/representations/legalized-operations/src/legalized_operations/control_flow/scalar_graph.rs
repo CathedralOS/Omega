@@ -31,6 +31,7 @@ impl LegalizedScalarFunction {
                 .instructions
                 .iter()
                 .any(|instruction| match &instruction.kind {
+                    LegalizedScalarInstructionKind::EstablishScalarArray { elements, .. } => elements.contains(&value),
                     LegalizedScalarInstructionKind::EstablishScalarCase { fields, .. } => fields.iter().any(|field| field.value == value),
                     LegalizedScalarInstructionKind::HostedWriteByteI32 { source, .. }
                     | LegalizedScalarInstructionKind::HostedExitProcessI32 { source, .. } => *source == value,
@@ -102,6 +103,11 @@ pub struct LegalizedValueDefinition {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarInstructionKind {
+    EstablishScalarArray {
+        result: terminal_psi::StructuralOperationResult,
+        elements: Vec<ValueId>,
+        shape: calling_conventions::ValueShape,
+    },
     EstablishScalarCase {
         result: terminal_psi::StructuralOperationResult,
         result_case: semantic_vocabulary::StructuralCaseId,

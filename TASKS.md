@@ -1168,12 +1168,22 @@ Owners include
   `cargo nextest run -p terminal-psi-to-abstract-operations --test scalar_array_construction --no-fail-fast`
   admits exact constructors through ordinary/optimizer/native artifact projection
   and independently validates current IR, including nested/empty dimensions and
-  transitive owned calls. The native fence now belongs to
-  `abstract-operations-to-target-operations/src/lowering/coordination.rs`:
-  it rejects `EstablishScalarArray` before ABI selection, including empty payloads.
-  Next acceptance is real native array construction/storage and argument/result
-  transport for this same customer. Use the existing aggregate layout owner;
-  array results and owned actuals cannot use the sum-only call/return handlers.
+  transitive owned calls. Native construction and direct result calls now use
+  `abstract-operations-to-target-operations/src/lowering/control_flow/aggregate_results.rs`
+  and the existing selected aggregate homes. Resume native transport from base
+  `5409686628` plus the array payload checkpoint, macOS AArch64 with the same Cargo
+  environment: `cargo nextest run -p omega-native-differential-test --test scalar_array_results --no-fail-fast`.
+  The computed/called/bound helpers publish on all four targets and execute on
+  macOS; the full transitive customer still needs owned actuals and incoming
+  array identity returns. Preserve the complete example above. Next acceptance
+  is native argument/result transport through `keep_row` and `answer_row`, not
+  another constructor-only helper. Empty/odd ABI fragments and hidden-pointer
+  results remain explicit limits; the selected owner is
+  `target-operations-to-selected-instructions/src/selection/aggregate_result_input.rs`.
+  The `source_float_array_still_needs_checked_execution_plan` control separately
+  witnesses `[f32; 2]` source failing before Terminal production; extend the
+  existing checked scalar execution path before claiming floating-array native
+  coverage. No new language decision is required for these implementation gaps.
   Empty values must preserve carrier/dimensions independently of zero physical bytes.
   Continue with complete value/storage paths and
   independent custody checks; do not

@@ -26,8 +26,8 @@ pub(in crate::tests) fn microsoft_selection_environment() -> (
     .unwrap();
     let constraints = SelectedSelectionConstraints {
         keys: SelectedConstraintKeys {
-            call_aggregate: Vec::new(),
-            return_aggregate: Vec::new(),
+            call_aggregate: isa_x86_64::x86_64_microsoft_aggregate_call_keys(),
+            return_aggregate: isa_x86_64::x86_64_microsoft_aggregate_return_keys(),
             hosted_exit_process_i32: None,
             hosted_write_byte_i32: None,
             hosted_read_byte: None,

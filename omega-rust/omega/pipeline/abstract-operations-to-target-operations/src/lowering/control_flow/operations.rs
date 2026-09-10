@@ -30,7 +30,7 @@ pub(super) fn lower_operation(
         ));
     }
     match operation {
-        AbstractOperation::EstablishScalarCase { .. } => super::scalar_sums::establish(
+        AbstractOperation::EstablishScalarArray { .. } => super::scalar_arrays::establish(
             operation,
             function,
             structural_types,
@@ -38,7 +38,17 @@ pub(super) fn lower_operation(
             operations,
             provenance,
         ),
-        AbstractOperation::CallStructural { .. } => super::scalar_sums::call(
+        AbstractOperation::EstablishScalarCase { .. } => {
+            super::aggregate_results::establish_scalar_case(
+                operation,
+                function,
+                structural_types,
+                live,
+                operations,
+                provenance,
+            )
+        }
+        AbstractOperation::CallStructural { .. } => super::aggregate_results::call(
             operation,
             function,
             target,

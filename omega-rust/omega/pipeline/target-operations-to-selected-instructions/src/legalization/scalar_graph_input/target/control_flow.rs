@@ -31,8 +31,8 @@ pub(super) fn validate(
         return Err(invalid);
     }
     match optimized.result {
-        _ if super::super::scalar_sums::uses(optimized) => {
-            super::super::scalar_sums::header(
+        _ if super::super::aggregate_results::uses(optimized) => {
+            super::super::aggregate_results::header(
                 function,
                 abstracted,
                 optimized,
@@ -167,7 +167,7 @@ pub(super) fn validate(
                                     .is_some_and(|result| result.shape == parameter.shape)
                         }
                         target_operations::TargetStructuralReturnSource::Home(source) => {
-                            super::super::scalar_sums::result_home(
+                            super::super::aggregate_results::result_home(
                                 optimized,
                                 *expected_source,
                                 plan,
@@ -182,7 +182,11 @@ pub(super) fn validate(
                                         ))
                                         && producer.operations.iter().any(|operation| {
                                             match operation {
-                                                TargetUnitOperation::EstablishScalarCase {
+                                                TargetUnitOperation::EstablishScalarArray {
+                                                    result_home,
+                                                    ..
+                                                }
+                                                | TargetUnitOperation::EstablishScalarCase {
                                                     result_home,
                                                     ..
                                                 }
@@ -268,7 +272,7 @@ pub(super) fn validate(
                     && cleanup_actions == cleanup
                     && (cleanup.is_empty()
                         || super::super::read_byte::cleanup(optimized, cleanup)
-                        || super::super::scalar_sums::cleanup(optimized, cleanup)
+                        || super::super::aggregate_results::cleanup(optimized, cleanup)
                         || (super::super::unobserved_owned::body(optimized)
                             && super::super::unobserved_owned::cleanup(optimized, cleanup)))
             }

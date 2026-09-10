@@ -1,16 +1,19 @@
-//! Exact declaration-to-layout binding for scalar case establishment.
+//! Exact semantic shape and direct ABI custody for local aggregate results.
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
 
 /// These places are created inside the graph, not copied from incoming parameters.
 /// Each constructor/call and its complete storage is checked at its instruction.
-pub(super) fn has_local_sums(source: &LegalizedScalarFunction) -> bool {
+pub(super) fn has_local_aggregates(source: &LegalizedScalarFunction) -> bool {
     source
         .blocks
         .iter()
         .flat_map(|block| &block.instructions)
         .any(|row| match &row.kind {
+            LegalizedScalarInstructionKind::EstablishScalarArray { .. } => {
+                super::scalar_array_input::elements(source, row).is_some()
+            }
             LegalizedScalarInstructionKind::EstablishScalarCase { .. } => {
                 fields(source, row).is_some()
             }
@@ -40,30 +43,37 @@ pub(super) fn call_result<'a>(
         .structural_types
         .iter()
         .find(|declaration| declaration.id == result.structural_type)?;
-    let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
-        return None;
-    };
-    let payloads = cases
-        .iter()
-        .map(|case| {
-            case.fields
+    let shape = match &declaration.shape {
+        terminal_psi::StructuralTypeShape::FixedArray { .. } => {
+            super::scalar_array_input::shape(source, result.structural_type)?.2
+        }
+        terminal_psi::StructuralTypeShape::Sum { cases } => {
+            let payloads = cases
                 .iter()
-                .map(|field| {
-                    if field.relevance.is_erased() {
-                        return None;
-                    }
-                    field
-                        .field_type
-                        .scalar_type()
-                        .and_then(super::scalar_call_abi::scalar_shape)
+                .map(|case| {
+                    case.fields
+                        .iter()
+                        .map(|field| {
+                            if field.relevance.is_erased() {
+                                return None;
+                            }
+                            field
+                                .field_type
+                                .scalar_type()
+                                .and_then(super::scalar_call_abi::scalar_shape)
+                        })
+                        .collect::<Option<Vec<_>>>()
                 })
-                .collect::<Option<Vec<_>>>()
-        })
-        .collect::<Option<Vec<_>>>()?;
-    let layout = calling_conventions::evaluate_conventional_sum_layout(&[], &payloads).ok()?;
+                .collect::<Option<Vec<_>>>()?;
+            let layout =
+                calling_conventions::evaluate_conventional_sum_layout(&[], &payloads).ok()?;
+            layout.shape
+        }
+        _ => return None,
+    };
     let placement = call.result_placement.as_ref()?;
     if call.call_plan.result.as_ref() != Some(placement)
-        || placement.shape != layout.shape
+        || placement.shape != shape
         || !(1..=2).contains(&placement.locations.len())
     {
         return None;
@@ -78,12 +88,12 @@ pub(super) fn call_result<'a>(
         else {
             return None;
         };
-        if *value_byte_offset != offset || !matches!(byte_size, 4 | 8) {
+        if *value_byte_offset != offset || !matches!(byte_size, 1 | 2 | 4 | 8) {
             return None;
         }
         offset = offset.checked_add(*byte_size)?;
     }
-    (offset == layout.shape.byte_size).then_some((result, placement))
+    (offset == shape.byte_size).then_some((result, placement))
 }
 
 pub(super) fn returned_parameter<'a>(
@@ -177,6 +187,10 @@ pub(super) fn returned<'a>(
         .flat_map(|block| &block.instructions)
         .find(|row| row.operation == *defining_operation)?;
     let (result, shape) = match &row.kind {
+        LegalizedScalarInstructionKind::EstablishScalarArray { result, shape, .. } => {
+            super::scalar_array_input::elements(source, row)?;
+            (result, *shape)
+        }
         LegalizedScalarInstructionKind::EstablishScalarCase { result, layout, .. } => {
             (result, layout.shape)
         }
@@ -212,7 +226,7 @@ pub(super) fn returned<'a>(
         else {
             return None;
         };
-        if *value_byte_offset != offset || !matches!(byte_size, 4 | 8) {
+        if *value_byte_offset != offset || !matches!(byte_size, 1 | 2 | 4 | 8) {
             return None;
         }
         offset = offset.checked_add(*byte_size)?;

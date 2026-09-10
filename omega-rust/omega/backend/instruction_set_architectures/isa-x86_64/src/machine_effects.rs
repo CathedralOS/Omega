@@ -150,12 +150,12 @@ fn selected_keys(
         call_aggregate: if target.object_format == ObjectFormat::Elf {
             crate::register_model::x86_64_system_v_aggregate_call_keys()
         } else {
-            Vec::new()
+            crate::register_model::x86_64_microsoft_aggregate_call_keys()
         },
         return_aggregate: if target.object_format == ObjectFormat::Elf {
             crate::register_model::x86_64_system_v_aggregate_return_keys()
         } else {
-            Vec::new()
+            crate::register_model::x86_64_microsoft_aggregate_return_keys()
         },
         hosted_read_byte: (target == NativeTarget::linux_x64())
             .then_some(crate::X86_64_HOSTED_READ_BYTE),

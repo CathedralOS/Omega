@@ -18,6 +18,7 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
     for block in &function.blocks {
         for instruction in &block.instructions {
             match &instruction.kind {
+                Instruction::EstablishScalarArray { elements, .. } => pending.extend(elements),
                 Instruction::EstablishScalarCase { fields, .. } => {
                     pending.extend(fields.iter().map(|field| field.value))
                 }
