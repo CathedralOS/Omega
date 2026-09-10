@@ -438,13 +438,12 @@ pub(crate) fn retain_const_initializer(
     definition: &ConstDefinition,
 ) -> Result<(), Diagnostic> {
     if !has_scalar_initializer(syntax, definition) {
-        if !lowerer.defer_const_substitution
-            || !crate::module_normalization::module_literal_constant(syntax, definition)
-        {
+        if !crate::module_normalization::module_literal_constant(syntax, definition) {
             return Ok(());
         }
-        // The module closure defers root-owned arrays too. Validate every
-        // newly retained aggregate, including private declarations with no use.
+        // Declaration conformance does not depend on deferred substitution.
+        // Root-only private arrays can have no uses and no published identity,
+        // so neither destination checking nor public encoding validates them.
         crate::generic_data::canonicalize_declared_const_definition(syntax, definition).map_err(
             |reason| {
                 Diagnostic::error(format!(
@@ -454,6 +453,9 @@ pub(crate) fn retain_const_initializer(
                 .with_source_span(definition.name.source_span())
             },
         )?;
+        if !lowerer.defer_const_substitution {
+            return Ok(());
+        }
     }
     let initializer =
         crate::expression::lower_expression_into_table(lowerer, syntax, definition.value)?;
@@ -1141,7 +1143,30 @@ mod module_tests {
             ] {
                 let source = format!("{namespace} const VALUE: {carrier} = {value};");
                 let result = resolve(&[&source]);
-                assert_eq!(result.is_ok(), accepted, "{source}: {result:?}");
+                assert_eq!(result.is_ok(), accepted, "{source}: {:?}", result.err());
+            }
+        }
+    }
+
+    #[test]
+    fn unused_array_declarations_check_shape_and_landing() {
+        for namespace in ["", "module settings;"] {
+            for visibility in ["", "pub "] {
+                for (carrier, value, accepted) in [
+                    ("[u8; 2]", "[1]", false),
+                    ("[u8; 1]", "[256]", false),
+                    ("[u8; 1]", "[1u64]", false),
+                    ("[bool; 1]", "[1]", false),
+                    ("[[u8; 2]; 1]", "[[1]]", false),
+                    ("[u8; 2]", "[0, 255]", true),
+                    ("[[bool; 2]; 1]", "[[true, false]]", true),
+                    ("[u8; 0]", "[]", true),
+                ] {
+                    let source =
+                        format!("{namespace} {visibility}const VALUE: {carrier} = {value};");
+                    let result = resolve(&[&source]);
+                    assert_eq!(result.is_ok(), accepted, "{source}: {:?}", result.err());
+                }
             }
         }
     }
