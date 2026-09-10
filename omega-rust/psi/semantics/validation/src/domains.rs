@@ -1,3 +1,6 @@
+mod scalar_tags;
+pub use scalar_tags::{scalar_state_contracts_are_qualifications, scalar_type_index_free_tags};
+
 use crate::proof_facts::{ProofFactOwner, validate_domain_fact_payloads};
 use crate::symbols::TopLevelSymbols;
 use crate::type_references::{

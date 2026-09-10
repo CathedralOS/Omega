@@ -31,7 +31,7 @@ mod tests;
 /// authored membership target. Operator results needing instantiated semantic
 /// domains, predicates or selected traits remain unresolved rather than losing
 /// their meaning.
-pub(crate) fn expression_result_type_reference(
+pub fn expression_result_type_reference(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,

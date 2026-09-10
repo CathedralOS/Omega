@@ -13,6 +13,7 @@ use typed_trees::expression::{BinaryOperator, UnaryOperator};
 use typed_trees::statement::{TableTransition, TransitionTargetHandle, TransitionTargetNode};
 
 mod dispatch;
+mod result_domains;
 mod transitions;
 
 #[cfg(test)]
@@ -257,6 +258,17 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
     }
 
     pub(super) fn expression(
+        &mut self,
+        expression: ExpressionHandle,
+        contexts: &mut HandleSpan<FlowSemanticContextRef>,
+        constraints: &mut HandleSpan<FlowConstraintRef>,
+    ) -> Option<bool> {
+        let value = self.evaluate_expression(expression, contexts, constraints);
+        self.append_result_domains(expression, contexts, constraints);
+        value
+    }
+
+    fn evaluate_expression(
         &mut self,
         expression: ExpressionHandle,
         contexts: &mut HandleSpan<FlowSemanticContextRef>,

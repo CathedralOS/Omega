@@ -19,6 +19,7 @@ mod denotational_calls;
 mod destructure;
 mod domain_weakening;
 mod domains;
+pub use domains::{scalar_state_contracts_are_qualifications, scalar_type_index_free_tags};
 mod effect_inference;
 mod effects;
 mod expression_types;
@@ -135,6 +136,7 @@ pub use effect_inference::{
 pub use effects::{validate_asm_discharge, validate_behavior_plan};
 pub use expression_types::argument_matches_type_reference_handle as checked_argument_matches_type_reference;
 pub use expression_types::bounded_byte_buffer_capacity;
+pub use expression_types::expression_result_type_reference;
 pub use expression_types::match_subject_primitive_type;
 pub use float_projection_bindings::{
     exact_toolchain_float_projection_contract, exact_toolchain_float_projection_primitive,

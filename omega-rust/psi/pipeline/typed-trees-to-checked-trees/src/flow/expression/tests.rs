@@ -25,6 +25,77 @@ fn check(source: &str, accepted: bool) {
 }
 
 #[test]
+fn qualified_result_membership_composes_before_call_requires() {
+    for argument in [
+        "mark(value)",
+        "relay(mark(value))",
+        "value as i64 in Km",
+        "match flag { true -> mark(value), false -> value as i64 in Km }",
+        "match flag { true -> mark(value), false -> match flag { true -> mark(value), false -> mark(value) } }",
+    ] {
+        check(
+            &format!(
+                r#"
+            domain i64::Km;
+            machine mark(value: i64) -> i64 in Km {{ value as i64 in Km }}
+            machine relay(value: i64 in Km) -> i64 in Km {{ value }}
+            machine run(flag: bool, value: i64) -> i64 in Km {{ relay({argument}) }}
+        "#
+            ),
+            true,
+        );
+    }
+}
+
+#[test]
+fn result_membership_does_not_come_from_the_recipient_type() {
+    for argument in [
+        "value",
+        "bare(value)",
+        "match flag { true -> bare(value), false -> bare(value) }",
+        "value as i64 in Seconds",
+        "other(value)",
+        "match flag { true -> other(value), false -> other(value) }",
+    ] {
+        check(
+            &format!(
+                r#"
+            domain i64::Km;
+            domain i64::Seconds;
+            machine bare(value: i64) -> i64 {{ value }}
+            machine other(value: i64) -> i64 in Seconds {{ value as i64 in Seconds }}
+            machine relay(value: i64 in Km) -> i64 in Km {{ value }}
+            machine run(flag: bool, value: i64) -> i64 in Km {{ relay({argument}) }}
+        "#
+            ),
+            false,
+        );
+    }
+}
+
+#[test]
+fn result_membership_does_not_project_indexed_instances_to_symbols() {
+    // Even the matching instance needs richer proof vocabulary. In particular,
+    // publishing a declaration-only fact for Coordinate<7> could also discharge
+    // Coordinate<9>, since today's implicit membership requirement loses indices.
+    for required_index in [7, 9] {
+        check(
+            &format!(
+                r#"
+            domain<const Axis: u64> i64::Coordinate;
+            machine mark(value: i64) -> i64 in Coordinate<7> {{ value as i64 in Coordinate<7> }}
+            machine relay(value: i64 in Coordinate<{required_index}>) -> i64 in Coordinate<{required_index}> {{ value }}
+            machine run(flag: bool, value: i64) -> i64 in Coordinate<{required_index}> {{
+                relay(match flag {{ true -> mark(value), false -> mark(value) }})
+            }}
+        "#
+            ),
+            false,
+        );
+    }
+}
+
+#[test]
 fn nested_argument_mutation_precedes_outer_call_requires() {
     check(
         r#"
