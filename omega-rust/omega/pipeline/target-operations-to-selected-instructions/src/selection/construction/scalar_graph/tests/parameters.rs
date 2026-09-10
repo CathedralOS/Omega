@@ -54,7 +54,7 @@ fn unused_stack_parameters_keep_abi_without_inventing_entry_transport() {
         };
         returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Value {
             value: used.value,
-            scalar_type: integer,
+            scalar_type: semantic_vocabulary::ScalarType::Integer(integer),
         };
         let selected = build(
             0,
@@ -95,7 +95,7 @@ fn unused_stack_parameters_keep_abi_without_inventing_entry_transport() {
         ));
         returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Value {
             value: source.parameters[capacity].value,
-            scalar_type: integer,
+            scalar_type: semantic_vocabulary::ScalarType::Integer(integer),
         };
         assert!(
             build(

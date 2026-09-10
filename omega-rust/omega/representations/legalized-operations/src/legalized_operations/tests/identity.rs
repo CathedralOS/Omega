@@ -56,7 +56,9 @@ fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
             13 => {
                 scalar_return_mut(function).value = LegalizedScalarReturnValue::Value {
                     value: id(114),
-                    scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    scalar_type: semantic_vocabulary::ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    ),
                 }
             }
             14 => {

@@ -103,6 +103,11 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::SignExtendI8 => 38,
         SelectedInstructionKind::SignExtendI16 => 39,
         SelectedInstructionKind::SignExtendI32 => 40,
+        SelectedInstructionKind::MaterializeBooleanEqual => 41,
+        SelectedInstructionKind::MaterializeBooleanU64LessThan => 42,
+        SelectedInstructionKind::MaterializeBooleanI64LessThan => 43,
+        SelectedInstructionKind::MaterializeBooleanU64LessOrEqual => 44,
+        SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => 45,
         SelectedInstructionKind::ExactAddI64 { .. } => 3,
         SelectedInstructionKind::ExactAddI64Immediate { .. } => 4,
         SelectedInstructionKind::ExactSubtractI64 { .. } => 5,
@@ -211,6 +216,11 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         | SelectedInstructionKind::SignExtendI8
         | SelectedInstructionKind::SignExtendI16
         | SelectedInstructionKind::SignExtendI32
+        | SelectedInstructionKind::MaterializeBooleanEqual
+        | SelectedInstructionKind::MaterializeBooleanU64LessThan
+        | SelectedInstructionKind::MaterializeBooleanI64LessThan
+        | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
+        | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual
         | SelectedInstructionKind::ByteViewAddress
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::ConditionalBranchNonZero

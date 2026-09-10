@@ -78,7 +78,7 @@ fn returned(ordinal: Option<u64>) -> Terminator {
         value: ordinal.map_or(LegalizedScalarReturnValue::Unit, |ordinal| {
             LegalizedScalarReturnValue::Value {
                 value: value(ordinal),
-                scalar_type: integer(),
+                scalar_type: semantic_vocabulary::ScalarType::Integer(integer()),
             }
         }),
         fuel: Vec::new(),

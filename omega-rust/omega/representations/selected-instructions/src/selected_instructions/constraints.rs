@@ -29,6 +29,7 @@ pub struct SelectedConstraintKeys {
     /// Direct aggregate call rows, matched by their complete ABI operand roster.
     pub call_aggregate: Vec<RegisterConstraintKey>,
     pub materialize_i64: RegisterConstraintKey,
+    pub materialize_boolean: RegisterConstraintKey,
     pub copy_i64: RegisterConstraintKey,
     pub float32_to_bits: Option<RegisterConstraintKey>,
     pub float64_to_bits: Option<RegisterConstraintKey>,

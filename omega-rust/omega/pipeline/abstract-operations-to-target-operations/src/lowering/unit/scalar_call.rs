@@ -1,4 +1,4 @@
-use super::super::scalar_abi::fixed_native_integer_shape;
+use super::super::scalar_abi::{fixed_native_integer_shape, fixed_native_scalar_shape};
 use super::super::shared::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,16 +83,58 @@ pub(in crate::lowering) fn insert_known_unit_integer(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
+pub(super) fn unit_argument_source(
+    value: ValueId,
+    function: &AbstractFunction,
+    scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
+    boolean_constants: &BTreeMap<ValueId, (OperationId, bool)>,
+    operations: &[TargetUnitOperation],
+) -> Result<TargetUnitScalarArgumentSource, LoweringError> {
+    if let Some(known) = scalar_values.get(&value) {
+        return Ok(known.into_target_source(value));
+    }
+    if let Some((operation, literal)) = boolean_constants.get(&value) {
+        return Ok(TargetUnitScalarArgumentSource::BooleanImmediate {
+            defining_operation: *operation,
+            source_value: value,
+            value: *literal,
+        });
+    }
+    // The ordered row owns prior Boolean call results; no parallel home index is needed.
+    if let Some(home) = operations
+        .iter()
+        .rev()
+        .find_map(|operation| match operation {
+            TargetUnitOperation::ScalarCall { result_home, .. }
+                if result_home.source_value == value =>
+            {
+                Some(*result_home)
+            }
+            _ => None,
+        })
+    {
+        return Ok(TargetUnitScalarArgumentSource::Home(home));
+    }
+    let (position, parameter) = function
+        .parameters
+        .iter()
+        .enumerate()
+        .find(|(_, parameter)| parameter.value == value)
+        .ok_or(LoweringError::UnknownValue(value))?;
+    Ok(TargetUnitScalarArgumentSource::Parameter {
+        parameter_index: u32::try_from(position).map_err(|_| LoweringError::UnknownValue(value))?,
+        source_value: value,
+        scalar_type: parameter.scalar_type,
+    })
+}
+
 pub(in crate::lowering) fn lower_scalar_call(
     operation: &AbstractOperation,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
-    values: &mut BTreeMap<ValueId, KnownUnitInteger>,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
-) -> Result<(), LoweringError> {
+    resolve_source: impl Fn(ValueId) -> Result<TargetUnitScalarArgumentSource, LoweringError>,
+) -> Result<TargetUnitOperation, LoweringError> {
     let AbstractOperation::Call {
         psi_operation,
         result,
@@ -122,15 +164,13 @@ pub(in crate::lowering) fn lower_scalar_call(
     let Some(callee_result) = callee_function.result.scalar() else {
         return Err(LoweringError::UnitScalarCallTargetShapeUnsupported(*callee));
     };
-    let ScalarType::Integer(result_type) = scalar_type else {
-        return Err(LoweringError::UnitScalarCallIntegerTypeUnsupported(*result));
+    let result_shape = match scalar_type {
+        ScalarType::Boolean => ValueShape::integer(1, 1),
+        ScalarType::Integer(integer) => fixed_native_integer_shape(*integer)
+            .ok_or(LoweringError::UnitScalarCallIntegerTypeUnsupported(*result))?,
+        _ => return Err(LoweringError::UnitScalarCallIntegerTypeUnsupported(*result)),
     };
-    let ScalarType::Integer(callee_result_type) = callee_result.scalar_type else {
-        return Err(LoweringError::UnitScalarCallTargetShapeUnsupported(*callee));
-    };
-    let result_shape = fixed_native_integer_shape(*result_type)
-        .ok_or(LoweringError::UnitScalarCallIntegerTypeUnsupported(*result))?;
-    if *result_type != callee_result_type {
+    if *scalar_type != callee_result.scalar_type {
         return Err(LoweringError::UnitScalarCallResultTypeMismatch {
             callee: *callee,
             result: *result,
@@ -141,10 +181,7 @@ pub(in crate::lowering) fn lower_scalar_call(
         .parameters
         .iter()
         .map(|parameter| {
-            let ScalarType::Integer(integer_type) = parameter.scalar_type else {
-                return Err(LoweringError::UnitScalarCallTargetShapeUnsupported(*callee));
-            };
-            fixed_native_integer_shape(integer_type)
+            fixed_native_scalar_shape(parameter.scalar_type)
                 .ok_or(LoweringError::UnitScalarCallTargetShapeUnsupported(*callee))
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -190,20 +227,15 @@ pub(in crate::lowering) fn lower_scalar_call(
             .parameters
             .iter()
             .zip(&call_plan.parameters)
-            .map(|(parameter, placement)| {
-                let ScalarType::Integer(scalar_type) = parameter.scalar_type else {
-                    unreachable!("fixed scalar call parameters were checked above")
-                };
-                ScalarAbiValue {
-                    value: parameter.value,
-                    scalar_type: ScalarType::Integer(scalar_type),
-                    placement: placement.clone(),
-                }
+            .map(|(parameter, placement)| ScalarAbiValue {
+                value: parameter.value,
+                scalar_type: parameter.scalar_type,
+                placement: placement.clone(),
             })
             .collect(),
         result: ScalarAbiValue {
             value: callee_result.value,
-            scalar_type: ScalarType::Integer(callee_result_type),
+            scalar_type: callee_result.scalar_type,
             placement: result_placement,
         },
     };
@@ -217,14 +249,10 @@ pub(in crate::lowering) fn lower_scalar_call(
         .enumerate()
         .map(
             |(parameter_index, (((source_value, parameter), expected_shape), placement))| {
-                let known = values
-                    .get(source_value)
-                    .copied()
-                    .ok_or(LoweringError::UnknownValue(*source_value))?;
-                let ScalarType::Integer(parameter_type) = parameter.scalar_type else {
-                    return Err(LoweringError::UnitScalarCallTargetShapeUnsupported(*callee));
-                };
-                if known.scalar_type() != parameter_type || placement.shape != *expected_shape {
+                let source = resolve_source(*source_value)?;
+                if source.scalar_type() != parameter.scalar_type
+                    || placement.shape != *expected_shape
+                {
                     return Err(LoweringError::CallArgumentTypeMismatch {
                         callee: *callee,
                         argument: *source_value,
@@ -234,7 +262,7 @@ pub(in crate::lowering) fn lower_scalar_call(
                     parameter_index: u32::try_from(parameter_index).map_err(|_| {
                         LoweringError::UnitScalarCallTargetShapeUnsupported(*callee)
                     })?,
-                    source: known.into_target_source(*source_value),
+                    source,
                     placement: placement.clone(),
                 })
             },
@@ -243,11 +271,13 @@ pub(in crate::lowering) fn lower_scalar_call(
     let result_home = TargetUnitScalarHomeRequirement {
         defining_operation: *psi_operation,
         source_value: *result,
-        scalar_type: ScalarType::Integer(*result_type),
+        scalar_type: *scalar_type,
         shape: result_shape,
     };
-    insert_known_unit_integer(values, *result, KnownUnitInteger::Home(result_home))?;
-    operations.push(TargetUnitOperation::ScalarCall {
+    if resolve_source(*result).is_ok() {
+        return Err(LoweringError::DuplicateValue(*result));
+    }
+    Ok(TargetUnitOperation::ScalarCall {
         psi_operation: *psi_operation,
         callee: *callee,
         call_plan,
@@ -255,9 +285,7 @@ pub(in crate::lowering) fn lower_scalar_call(
         arguments: target_arguments,
         requirement_obligations: requirement_obligations.clone(),
         crash_continuations: crash_continuations.clone(),
-    });
-    provenance.operations.push(*psi_operation);
-    Ok(())
+    })
 }
 
 fn require_exact_target_abi(

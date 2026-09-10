@@ -44,6 +44,7 @@ pub(in crate::tests) fn microsoft_selection_environment() -> (
             address_offset: Some(isa_x86_64::X86_64_ADDRESS_OFFSET),
             call_i64: Vec::new(),
             materialize_i64: X86_64_MATERIALIZE_I64,
+            materialize_boolean: isa_x86_64::X86_64_MATERIALIZE_BOOLEAN,
             copy_i64: X86_64_COPY_I64,
             float32_to_bits: None,
             float64_to_bits: None,

@@ -140,7 +140,9 @@ pub(super) fn graph(
             edge: edge(5),
             value: LegalizedScalarReturnValue::Value {
                 value: value(8),
-                scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                scalar_type: semantic_vocabulary::ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                ),
             },
             fuel: Vec::new(),
             effect,
@@ -684,7 +686,9 @@ fn edge_transport_names_durable_call_result_not_abi_temporary() {
             .unwrap();
         returned(joined).value = LegalizedScalarReturnValue::Value {
             value: ValueId::new(4).unwrap(),
-            scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+            scalar_type: semantic_vocabulary::ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+            ),
         };
         let selected = build(
             0,

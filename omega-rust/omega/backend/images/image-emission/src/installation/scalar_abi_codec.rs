@@ -138,8 +138,7 @@ mod tests {
         boolean_bytes[10] = 1;
         assert!(decode_abi_value(&mut Reader::new(&boolean_bytes)).is_err());
 
-        // A representable raw scalar kind does not broaden the current
-        // integer-result function admission contract.
+        // Boolean results retain their exact carrier and canonical one-byte ABI.
         let mut boolean_result = abi;
         boolean_result.call_plan = evaluate_call_plan(
             CallingPolicy::SystemVAMD64,
@@ -152,7 +151,7 @@ mod tests {
         boolean_result.result.scalar_type = ScalarType::Boolean;
         boolean_result.result.placement = boolean_result.call_plan.result.clone().unwrap();
         assert!(
-            !super::super::installed_unit_scalar_transport::installed_scalar_abi_is_canonical(
+            super::super::installed_unit_scalar_transport::installed_scalar_abi_is_canonical(
                 &boolean_result,
                 target::NativeTarget::linux_x64(),
             )

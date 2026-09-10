@@ -83,11 +83,13 @@ fn process_exit_admits_runtime_and_constant_i32_and_replays_exact_role() {
             };
             returned.value = legalized_operations::LegalizedScalarReturnValue::Value {
                 value: ValueId::new(5).unwrap(),
-                scalar_type: semantic_vocabulary::IntegerType::new(
-                    semantic_vocabulary::IntegerSign::Signed,
-                    32,
-                )
-                .unwrap(),
+                scalar_type: semantic_vocabulary::ScalarType::Integer(
+                    semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Signed,
+                        32,
+                    )
+                    .unwrap(),
+                ),
             };
             assert!(validate_legalized_operations(&target, &source, &unit, wrong_return).is_err());
             let position = usize::from(constant);

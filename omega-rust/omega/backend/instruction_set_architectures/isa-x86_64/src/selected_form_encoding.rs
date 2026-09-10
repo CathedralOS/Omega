@@ -473,6 +473,29 @@ fn family_and_operand_count(
             (MachineAlternativeFamily::MaterializeI64, 1, 0..=0)
         }
         SelectedInstructionKind::CopyI64 => (MachineAlternativeFamily::CopyI64, 2, 0..=0),
+        SelectedInstructionKind::MaterializeBooleanEqual => {
+            (MachineAlternativeFamily::MaterializeBooleanEqual, 1, 0..=0)
+        }
+        SelectedInstructionKind::MaterializeBooleanU64LessThan => (
+            MachineAlternativeFamily::MaterializeBooleanU64LessThan,
+            1,
+            0..=0,
+        ),
+        SelectedInstructionKind::MaterializeBooleanI64LessThan => (
+            MachineAlternativeFamily::MaterializeBooleanI64LessThan,
+            1,
+            0..=0,
+        ),
+        SelectedInstructionKind::MaterializeBooleanU64LessOrEqual => (
+            MachineAlternativeFamily::MaterializeBooleanU64LessOrEqual,
+            1,
+            0..=0,
+        ),
+        SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => (
+            MachineAlternativeFamily::MaterializeBooleanI64LessOrEqual,
+            1,
+            0..=0,
+        ),
         SelectedInstructionKind::ZeroExtendU8 => (MachineAlternativeFamily::ZeroExtendU8, 2, 0..=0),
         SelectedInstructionKind::ZeroExtendU16 => {
             (MachineAlternativeFamily::ZeroExtendU16, 2, 0..=0)
@@ -704,6 +727,33 @@ fn encode_unchecked(
             bytes.extend([0x48 | (registers[0] >> 3), 0xb8 | (registers[0] & 7)]);
             bytes.extend(integer_bits(value)?.to_le_bytes());
         }
+        SelectedInstructionKind::MaterializeBooleanEqual
+        | SelectedInstructionKind::MaterializeBooleanU64LessThan
+        | SelectedInstructionKind::MaterializeBooleanI64LessThan
+        | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
+        | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => {
+            let condition = match kind {
+                SelectedInstructionKind::MaterializeBooleanEqual => 4,
+                SelectedInstructionKind::MaterializeBooleanU64LessThan => 2,
+                SelectedInstructionKind::MaterializeBooleanI64LessThan => 12,
+                SelectedInstructionKind::MaterializeBooleanU64LessOrEqual => 6,
+                SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => 14,
+                _ => unreachable!("Boolean condition arm"),
+            };
+            let destination = registers[0];
+            // Always carry REX so low-byte views never name AH/CH/DH/BH.
+            // MOVZX into the 32-bit view then defines all 64 result bits.
+            bytes.extend([
+                0x40 | (destination >> 3),
+                0x0f,
+                0x90 | condition,
+                0xc0 | (destination & 7),
+                0x40 | ((destination >> 3) << 2) | (destination >> 3),
+                0x0f,
+                0xb6,
+                0xc0 | ((destination & 7) << 3) | (destination & 7),
+            ]);
+        }
         SelectedInstructionKind::ZeroExtendU8 => {
             bytes.extend([
                 0x40 | ((registers[1] >> 3) << 2) | (registers[0] >> 3),
@@ -827,6 +877,10 @@ fn encode_unchecked(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DecodedInstruction {
+    SetBoolean {
+        condition: u8,
+        destination: u8,
+    },
     ZeroExtendU16 {
         source: u8,
         destination: u8,
@@ -909,6 +963,19 @@ fn decode_all(bytes: &[u8]) -> Result<Vec<DecodedInstruction>, X86_64SelectedFor
 fn decode_one(
     bytes: &[u8],
 ) -> Result<(DecodedInstruction, usize), X86_64SelectedFormEncodingError> {
+    if let [rex, 0x0f, opcode, modrm, ..] = bytes
+        && rex & !1 == 0x40
+        && matches!(*opcode, 0x92 | 0x94 | 0x96 | 0x9c | 0x9e)
+        && modrm & 0xf8 == 0xc0
+    {
+        return Ok((
+            DecodedInstruction::SetBoolean {
+                condition: opcode & 0x0f,
+                destination: (modrm & 7) | ((rex & 1) << 3),
+            },
+            4,
+        ));
+    }
     if let [rex, 0x0f, 0xb6, modrm, ..] = bytes
         && rex & !0x05 == 0x40
         && modrm & 0xc0 == 0xc0
@@ -1124,6 +1191,31 @@ fn validate_decoded(
                     value: integer_bits(value)?,
                 }]
         }
+        SelectedInstructionKind::MaterializeBooleanEqual
+        | SelectedInstructionKind::MaterializeBooleanU64LessThan
+        | SelectedInstructionKind::MaterializeBooleanI64LessThan
+        | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
+        | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => {
+            let condition = match kind {
+                SelectedInstructionKind::MaterializeBooleanEqual => 4,
+                SelectedInstructionKind::MaterializeBooleanU64LessThan => 2,
+                SelectedInstructionKind::MaterializeBooleanI64LessThan => 12,
+                SelectedInstructionKind::MaterializeBooleanU64LessOrEqual => 6,
+                SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => 14,
+                _ => unreachable!("Boolean condition arm"),
+            };
+            decoded
+                == [
+                    DecodedInstruction::SetBoolean {
+                        condition,
+                        destination: registers[0],
+                    },
+                    DecodedInstruction::ZeroExtendU8 {
+                        source: registers[0],
+                        destination: registers[0],
+                    },
+                ]
+        }
         SelectedInstructionKind::ZeroExtendU8 => {
             decoded
                 == [DecodedInstruction::ZeroExtendU8 {
@@ -1292,6 +1384,13 @@ fn footprint(
     operands: &[RegisterViewId],
 ) -> X86_64SelectedFormFootprint {
     let (reads, writes, writes_rflags) = match kind {
+        SelectedInstructionKind::MaterializeBooleanEqual
+        | SelectedInstructionKind::MaterializeBooleanU64LessThan
+        | SelectedInstructionKind::MaterializeBooleanI64LessThan
+        | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
+        | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => {
+            (vec![], vec![operands[0]], false)
+        }
         SelectedInstructionKind::MaterializeI64 { .. } => (vec![], vec![operands[0]], false),
         SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::ZeroExtendU8
@@ -1396,7 +1495,12 @@ fn footprint(
     } else {
         let mut effects = MachineEncodedEffects::fallthrough_v1(
             match kind {
-                SelectedInstructionKind::MaterializeI64 { .. } => vec![],
+                SelectedInstructionKind::MaterializeBooleanEqual
+                | SelectedInstructionKind::MaterializeBooleanU64LessThan
+                | SelectedInstructionKind::MaterializeBooleanI64LessThan
+                | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
+                | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual
+                | SelectedInstructionKind::MaterializeI64 { .. } => vec![],
                 SelectedInstructionKind::CopyI64
                 | SelectedInstructionKind::ZeroExtendU8
                 | SelectedInstructionKind::ZeroExtendU16
@@ -1417,7 +1521,12 @@ fn footprint(
                 _ => unreachable!("control forms handled separately"),
             },
             match kind {
-                SelectedInstructionKind::MaterializeI64 { .. } => vec![0],
+                SelectedInstructionKind::MaterializeBooleanEqual
+                | SelectedInstructionKind::MaterializeBooleanU64LessThan
+                | SelectedInstructionKind::MaterializeBooleanI64LessThan
+                | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
+                | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual
+                | SelectedInstructionKind::MaterializeI64 { .. } => vec![0],
                 SelectedInstructionKind::CopyI64
                 | SelectedInstructionKind::ZeroExtendU8
                 | SelectedInstructionKind::ZeroExtendU16
@@ -1443,6 +1552,16 @@ fn footprint(
         }
         if matches!(kind, SelectedInstructionKind::ExactSubtractI64 { .. }) {
             effects.implicit_unit_clobbers = units("rflags");
+        }
+        if matches!(
+            kind,
+            SelectedInstructionKind::MaterializeBooleanEqual
+                | SelectedInstructionKind::MaterializeBooleanU64LessThan
+                | SelectedInstructionKind::MaterializeBooleanI64LessThan
+                | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
+                | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual
+        ) {
+            effects.implicit_unit_uses = units("rflags");
         }
         effects
     };
@@ -2154,3 +2273,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod boolean_materialization_tests;

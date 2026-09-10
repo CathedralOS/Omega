@@ -1,6 +1,7 @@
 //! Projection controls over raw graph data; no source-admission receipt is invented.
 use super::*;
 mod boolean_equality;
+mod boolean_values;
 mod borrowed_calls;
 mod byte_input;
 mod byte_output;
@@ -289,7 +290,7 @@ fn scalar_returns_and_entry_parameters_keep_short_abi_transport() {
                 } else {
                     ValueId::new(4).unwrap()
                 },
-                scalar_type: integer,
+                scalar_type: semantic_vocabulary::ScalarType::Integer(integer),
             };
             let selected = build(
                 0,
@@ -445,7 +446,9 @@ fn exact_binary_graph_rows_retain_proof_operands_and_occurrence_custody() {
             // Returning an earlier value must not erase the later exact operation.
             returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Value {
                 value: ValueId::new(first).unwrap(),
-                scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                scalar_type: semantic_vocabulary::ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                ),
             };
             let selected = build(
                 0,
@@ -583,7 +586,9 @@ fn widening_copy_keeps_distinct_typed_value_and_conversion_custody() {
         }];
         returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Value {
             value: widen.result.unwrap().value,
-            scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+            scalar_type: semantic_vocabulary::ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+            ),
         };
         source.blocks[0].instructions.push(widen);
         let selected = build(

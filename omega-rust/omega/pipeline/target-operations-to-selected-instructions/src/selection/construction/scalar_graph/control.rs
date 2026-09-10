@@ -42,7 +42,9 @@ pub(super) fn build(
                 LegalizedScalarReturnValue::Value { value, scalar_type } => {
                     let (_, input, site, value_type) =
                         builder.resolve(value).ok_or_else(invalid)?;
-                    if value_type != ScalarType::Integer(scalar_type) {
+                    if value_type != scalar_type
+                        || !matches!(scalar_type, ScalarType::Boolean | ScalarType::Integer(_))
+                    {
                         return Err(invalid());
                     }
                     let result = source.call_plan.result.as_ref().ok_or_else(invalid)?;
@@ -124,9 +126,10 @@ pub(super) fn build(
             let mut suffix_start = block.instructions.len();
             let mut inverted = false;
             let mut not_rows = Vec::new();
-            while let Some(previous) = suffix_start
-                .checked_sub(1)
-                .and_then(|index| block.instructions.get(index))
+            while builder.resolve(base).is_none()
+                && let Some(previous) = suffix_start
+                    .checked_sub(1)
+                    .and_then(|index| block.instructions.get(index))
             {
                 let LegalizedScalarInstructionKind::BooleanNot { operand } = previous.kind else {
                     break;
@@ -146,6 +149,9 @@ pub(super) fn build(
                 .checked_sub(1)
                 .and_then(|index| block.instructions.get(index))
                 .filter(|row| {
+                    if builder.resolve(base).is_some() {
+                        return false;
+                    }
                     row.result
                         .as_ref()
                         .is_some_and(|result| result.value == base)
@@ -348,8 +354,12 @@ pub(super) fn block_order(
     crate::selection::block_order::derive(source)
 }
 
-pub(super) fn branch_suffix(block: &LegalizedScalarBlock, index: usize) -> bool {
-    let Some(result) = block.instructions[index].result else {
+pub(super) fn branch_suffix(
+    source: &LegalizedScalarFunction,
+    block: &LegalizedScalarBlock,
+    index: usize,
+) -> bool {
+    let Some(result) = block.instructions.get(index).and_then(|row| row.result) else {
         return false;
     };
     let mut value = result.value;
@@ -365,6 +375,43 @@ pub(super) fn branch_suffix(block: &LegalizedScalarBlock, index: usize) -> bool 
             return false;
         };
         value = result.value;
+    }
+
+    for (position, row) in block.instructions.iter().enumerate().skip(index) {
+        let Some(result) = row.result else {
+            return false;
+        };
+        for owner in &source.blocks {
+            for (consumer_index, consumer) in owner.instructions.iter().enumerate() {
+                if owner.id == block.id && consumer_index == position + 1 {
+                    continue;
+                }
+                if consumer.references_value(result.value) {
+                    return false;
+                }
+            }
+            if owner.id == block.id && position + 1 == block.instructions.len() {
+                let legalized_operations::LegalizedScalarTerminator::Conditional {
+                    condition,
+                    when_true,
+                    when_false,
+                    ..
+                } = &owner.terminator
+                else {
+                    return false;
+                };
+                if *condition != result.value
+                    || [when_true, when_false]
+                        .into_iter()
+                        .flat_map(|edge| &edge.bindings)
+                        .any(|binding| binding.argument == result.value)
+                {
+                    return false;
+                }
+            } else if owner.terminator.references_value(result.value) {
+                return false;
+            }
+        }
     }
     matches!(block.terminator, LegalizedScalarTerminator::Conditional {condition,..}
         if condition == value)

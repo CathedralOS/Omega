@@ -1186,18 +1186,6 @@ Owners include
   Ordered scalar completion contracts and result
   refinements need their complete predicate/evidence path; preserve existing
   scalar-only contract lowering while extending that route.
-  Computed Boolean values also need native predicate materialization and exact
-  Boolean return transport. Preserve both authored entry machines in
-  `tests/omega/pass/collections/owned_array_scalar_comparisons/main.omg`.
-  After integration with `7d7b6cb147`, the scalar-completion regression in
-  `checked-trees-to-lowered-psi/src/tests/scalar_graph.rs` verifies both Terminal
-  entries and rejects substituted expressions and statement order. Native
-  acceptance remains open: `scalar_comparison` returns its comparison, and
-  `array_comparison` stores the computed comparison in its returned array.
-  Resume at `target-operations-to-selected-instructions/src/legalization/scalar_graph_input/boolean.rs`
-  and scalar return legalization/selection; comparisons currently serve branch
-  predicates, not materialized values. Do not rewrite the source into branches
-  or integer substitutes to claim that acceptance.
   Borrowed/projected payloads, state transfers, and boundary-provider array
   results also remain unsupported. The focused
   `cargo nextest run -p terminal-psi-to-abstract-operations --test scalar_array_construction --no-fail-fast`

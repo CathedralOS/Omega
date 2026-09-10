@@ -80,14 +80,8 @@ impl Checker<'_> {
                 *source_value == value && parameter.value == resolved && location_matches(*location,&parameter.placement)
             }
             Expression::Call {psi_operation,source_value,callee,arguments,requirement_obligations,crash_continuations} => {
-                let Some(node) = self.optimized.blocks.iter().flat_map(|block|&block.nodes).find(|node|matches!(&node.operation,AbstractOperation::Call {psi_operation:operation,..} if operation == psi_operation)) else {return false;};
-                let AbstractOperation::Call {result,callee:actual,arguments:sources,requirement_obligations:requirements,crash_continuations:crashes,..} = &node.operation else {return false;};
-                let Ok(call) = callee_plan(*callee,self.native,self.plan,self.unit) else {return false;};
-                if *source_value != resolved || *result != resolved || actual != callee || requirement_obligations != requirements || crash_continuations != crashes || arguments.len() != sources.len() || arguments.len() != call.parameters.len() {return false;}
-                arguments.iter().zip(sources).zip(&call.parameters).all(|((argument,source),placement)| {
-                    let TargetScalarExpression::Integer {scalar_type,expression} = &argument.expression else {return false;};
-                    argument.scalar_type == ScalarType::Integer(*scalar_type) && value_type(self.optimized, *source) == Some(argument.scalar_type) && scalar_shape(argument.scalar_type) == Some(placement.shape) && location_matches(argument.location,placement) && self.expression(expression,*source,aliases)
-                })
+                let Some(carrier @ ScalarType::Integer(_)) = value_type(self.optimized, resolved) else { return false; };
+                self.call(*psi_operation, *source_value, *callee, arguments, requirement_obligations, crash_continuations, resolved, carrier, aliases)
             }
             Expression::ExactAdd {psi_operation,obligation,left,right} | Expression::ExactSubtract {psi_operation,obligation,left,right} => {
                 let Some(node) = self.optimized.blocks.iter().flat_map(|block|&block.nodes).find(|node| matches!(&node.operation,
@@ -118,6 +112,27 @@ impl Checker<'_> {
         value: ValueId,
         aliases: &[(ValueId, ValueId)],
     ) -> bool {
+        if let Boolean::Call {
+            psi_operation,
+            source_value,
+            callee,
+            arguments,
+            requirement_obligations,
+            crash_continuations,
+        } = expression
+        {
+            return self.call(
+                *psi_operation,
+                *source_value,
+                *callee,
+                arguments,
+                requirement_obligations,
+                crash_continuations,
+                resolve(value, aliases),
+                ScalarType::Boolean,
+                aliases,
+            );
+        }
         if let Boolean::BlockParameter(parameter) = expression {
             return parameter.value == resolve(value, aliases)
                 && parameter.scalar_type == ScalarType::Boolean
@@ -251,5 +266,68 @@ impl Checker<'_> {
             && value_type(self.optimized, source_left) == Some(ScalarType::Integer(scalar_type))
             && self.expression(left, source_left, aliases)
             && self.expression(right, source_right, aliases)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn call(
+        &self,
+        operation: semantic_vocabulary::OperationId,
+        source: ValueId,
+        target: MachineId,
+        arguments: &[target_operations::TargetCallArgument],
+        requirement_obligations: &[semantic_vocabulary::ObligationId],
+        crash_continuations: &[terminal_psi::CrashRouteBucket],
+        resolved: ValueId,
+        carrier: ScalarType,
+        aliases: &[(ValueId, ValueId)],
+    ) -> bool {
+        let psi_operation = &operation;
+        let source_value = &source;
+        let callee = &target;
+        let Some(node) = self.optimized.blocks.iter().flat_map(|block|&block.nodes).find(|node|matches!(&node.operation,AbstractOperation::Call {psi_operation:operation,..} if operation == psi_operation)) else {return false;};
+        let AbstractOperation::Call {
+            result,
+            callee: actual,
+            arguments: sources,
+            requirement_obligations: requirements,
+            crash_continuations: crashes,
+            ..
+        } = &node.operation
+        else {
+            return false;
+        };
+        let Ok(call) = callee_plan(*callee, self.native, self.plan, self.unit) else {
+            return false;
+        };
+        if value_type(self.optimized, resolved) != Some(carrier)
+            || *source_value != resolved
+            || *result != resolved
+            || actual != callee
+            || requirement_obligations != requirements
+            || crash_continuations != crashes
+            || arguments.len() != sources.len()
+            || arguments.len() != call.parameters.len()
+        {
+            return false;
+        }
+        arguments.iter().zip(sources).zip(&call.parameters).all(
+            |((argument, source), placement)| {
+                value_type(self.optimized, *source) == Some(argument.scalar_type)
+                    && scalar_shape(argument.scalar_type) == Some(placement.shape)
+                    && location_matches(argument.location, placement)
+                    && match &argument.expression {
+                        TargetScalarExpression::Integer {
+                            scalar_type,
+                            expression,
+                        } => {
+                            argument.scalar_type == ScalarType::Integer(*scalar_type)
+                                && self.expression(expression, *source, aliases)
+                        }
+                        TargetScalarExpression::Boolean(expression) => {
+                            argument.scalar_type == ScalarType::Boolean
+                                && self.boolean(expression, *source, aliases)
+                        }
+                    }
+            },
+        )
     }
 }

@@ -274,15 +274,32 @@ pub(super) fn lower_unit_body(
                 &mut provenance,
             )?,
             AbstractOperation::Call { .. } => {
-                lower_scalar_call(
-                    operation,
-                    target,
-                    functions,
-                    scalar_abis,
-                    &mut scalar_values,
-                    &mut operations,
-                    &mut provenance,
-                )?;
+                let call = lower_scalar_call(operation, target, functions, scalar_abis, |value| {
+                    super::scalar_call::unit_argument_source(
+                        value,
+                        function,
+                        &scalar_values,
+                        &boolean_constants,
+                        &operations,
+                    )
+                })?;
+                let TargetUnitOperation::ScalarCall {
+                    psi_operation,
+                    result_home: home,
+                    ..
+                } = &call
+                else {
+                    unreachable!("scalar call planner returns its owned row")
+                };
+                if matches!(home.scalar_type, ScalarType::Integer(_)) {
+                    super::scalar_call::insert_known_unit_integer(
+                        &mut scalar_values,
+                        home.source_value,
+                        super::scalar_call::KnownUnitInteger::Home(*home),
+                    )?;
+                }
+                provenance.operations.push(*psi_operation);
+                operations.push(call);
             }
             AbstractOperation::CallStructuralScalar { .. } => lower_structural_scalar_call(
                 operation,

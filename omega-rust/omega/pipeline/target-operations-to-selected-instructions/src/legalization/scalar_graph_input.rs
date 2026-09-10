@@ -13,7 +13,6 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType, ValueId};
 use target_operations::{TargetFunction, TargetOperation, TargetOperationPlan};
-mod boolean;
 mod control;
 mod custody;
 pub(super) use custody::validate_unit_custody;
@@ -385,7 +384,7 @@ pub(super) fn callee_plan(
         && ((target.attachment.is_some()
             && !matches!(abstracted.result, AbstractFunctionResult::Unit))
             || !matches!(abstracted.result, AbstractFunctionResult::Unit)
-                && !matches!(abstracted.result, AbstractFunctionResult::Scalar(result) if matches!(result.scalar_type, ScalarType::Integer(_)) && scalar_shape(result.scalar_type).is_some())
+                && !matches!(abstracted.result, AbstractFunctionResult::Scalar(result) if matches!(result.scalar_type, ScalarType::Boolean | ScalarType::Integer(_)) && scalar_shape(result.scalar_type).is_some())
             || abstracted.parameters.iter().any(|parameter| {
                 if matches!(abstracted.result, AbstractFunctionResult::Unit) {
                     scalar_shape(parameter.scalar_type).is_none()

@@ -188,6 +188,7 @@ fn selected_keys(
             crate::x86_64_microsoft_register_call_keys()
         },
         materialize_i64: X86_64_MATERIALIZE_I64,
+        materialize_boolean: crate::X86_64_MATERIALIZE_BOOLEAN,
         copy_i64: X86_64_COPY_I64,
         float32_to_bits: Some(crate::X86_64_FLOAT32_TO_BITS),
         float64_to_bits: Some(crate::X86_64_FLOAT64_TO_BITS),
@@ -339,6 +340,11 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         MachineSemanticKind::CompareI64Zero => (vec![0], vec![]),
         MachineSemanticKind::CompareI64 => (vec![0, 1], vec![]),
         MachineSemanticKind::MaterializeI64 => (vec![], vec![0]),
+        MachineSemanticKind::MaterializeBooleanEqual
+        | MachineSemanticKind::MaterializeBooleanU64LessThan
+        | MachineSemanticKind::MaterializeBooleanI64LessThan
+        | MachineSemanticKind::MaterializeBooleanU64LessOrEqual
+        | MachineSemanticKind::MaterializeBooleanI64LessOrEqual => (vec![], vec![0]),
         MachineSemanticKind::Float32ToBits
         | MachineSemanticKind::Float64ToBits
         | MachineSemanticKind::BitsToFloat32
@@ -384,6 +390,19 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
     };
     let (implicit_uses, implicit_defs, implicit_clobbers, memory, stack, trap, control) =
         match semantic {
+            MachineSemanticKind::MaterializeBooleanEqual
+            | MachineSemanticKind::MaterializeBooleanU64LessThan
+            | MachineSemanticKind::MaterializeBooleanI64LessThan
+            | MachineSemanticKind::MaterializeBooleanU64LessOrEqual
+            | MachineSemanticKind::MaterializeBooleanI64LessOrEqual => (
+                units("rflags"),
+                vec![],
+                vec![],
+                MachineEncodedMemoryEffect::NoneV1,
+                MachineEncodedStackEffect::UnchangedV1,
+                MachineEncodedTrapBehavior::NeverV1,
+                MachineEncodedControlEffect::FallThroughV1,
+            ),
             MachineSemanticKind::CompareI64Zero | MachineSemanticKind::CompareI64 => (
                 vec![],
                 units("rflags"),
@@ -477,6 +496,13 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
 
 fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
     match semantic {
+        MachineSemanticKind::MaterializeBooleanEqual
+        | MachineSemanticKind::MaterializeBooleanU64LessThan
+        | MachineSemanticKind::MaterializeBooleanI64LessThan
+        | MachineSemanticKind::MaterializeBooleanU64LessOrEqual
+        | MachineSemanticKind::MaterializeBooleanI64LessOrEqual => {
+            MachineSizeKnowledge::ExactBytes(8)
+        }
         MachineSemanticKind::Jump => MachineSizeKnowledge::ExactBytes(5),
         MachineSemanticKind::CompareI64Zero
         | MachineSemanticKind::CompareI64

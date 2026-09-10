@@ -280,6 +280,11 @@ pub const X86_64_INLINE_ASSEMBLY_DEFAULT: RegisterConstraintKey = RegisterConstr
     family: RegisterConstraintFamily::InlineAssembly,
     variant: 0,
 };
+/// Canonical Boolean materialization reads condition state and defines every GPR bit.
+pub const X86_64_MATERIALIZE_BOOLEAN: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 732,
+};
 pub const X86_64_MATERIALIZE_I64: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 0,
@@ -341,7 +346,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 58] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 59] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -466,6 +471,7 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 58] = [
     X86_64_HOSTED_READ_BYTE,
     X86_64_LOAD8,
     X86_64_LOAD16,
+    X86_64_MATERIALIZE_BOOLEAN,
 ];
 
 struct ModelBuilder {
@@ -924,6 +930,14 @@ pub fn x86_64_register_constraint_catalog(
             key: X86_64_MATERIALIZE_I64,
             operands: vec![allocatable(0, RegisterOperandAccess::Def, GPR64)],
             implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: Vec::new(),
+        },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(6),
+            key: X86_64_MATERIALIZE_BOOLEAN,
+            operands: vec![allocatable(0, RegisterOperandAccess::Def, GPR64)],
+            implicit_uses: view("rflags").units.clone(),
             implicit_defs: Vec::new(),
             clobbers: Vec::new(),
         },

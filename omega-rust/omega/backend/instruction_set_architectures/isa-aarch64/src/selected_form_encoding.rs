@@ -559,6 +559,23 @@ fn family_and_operand_count(
             (MachineAlternativeFamily::MaterializeI64, 1)
         }
         SelectedInstructionKind::CopyI64 => (MachineAlternativeFamily::CopyI64, 2),
+        SelectedInstructionKind::MaterializeBooleanEqual => {
+            (MachineAlternativeFamily::MaterializeBooleanEqual, 1)
+        }
+        SelectedInstructionKind::MaterializeBooleanU64LessThan => {
+            (MachineAlternativeFamily::MaterializeBooleanU64LessThan, 1)
+        }
+        SelectedInstructionKind::MaterializeBooleanI64LessThan => {
+            (MachineAlternativeFamily::MaterializeBooleanI64LessThan, 1)
+        }
+        SelectedInstructionKind::MaterializeBooleanU64LessOrEqual => (
+            MachineAlternativeFamily::MaterializeBooleanU64LessOrEqual,
+            1,
+        ),
+        SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => (
+            MachineAlternativeFamily::MaterializeBooleanI64LessOrEqual,
+            1,
+        ),
         SelectedInstructionKind::ZeroExtendU8 => (MachineAlternativeFamily::ZeroExtendU8, 2),
         SelectedInstructionKind::ZeroExtendU16 => (MachineAlternativeFamily::ZeroExtendU16, 2),
         SelectedInstructionKind::SignExtendI8 => (MachineAlternativeFamily::SignExtendI8, 2),
@@ -691,6 +708,22 @@ fn encode_unchecked(
     match kind {
         SelectedInstructionKind::MaterializeI64 { value } => {
             append_canonical_materialization(&mut words, registers[0], integer_bits(value)?);
+        }
+        SelectedInstructionKind::MaterializeBooleanEqual
+        | SelectedInstructionKind::MaterializeBooleanU64LessThan
+        | SelectedInstructionKind::MaterializeBooleanI64LessThan
+        | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
+        | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => {
+            let condition: u32 = match kind {
+                SelectedInstructionKind::MaterializeBooleanEqual => 0,
+                SelectedInstructionKind::MaterializeBooleanU64LessThan => 3,
+                SelectedInstructionKind::MaterializeBooleanI64LessThan => 11,
+                SelectedInstructionKind::MaterializeBooleanU64LessOrEqual => 9,
+                SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => 13,
+                _ => unreachable!("Boolean condition arm"),
+            };
+            // CSET Xd, condition is CSINC Xd, XZR, XZR, inverse(condition).
+            words.push(0x9a9f_07e0 | ((condition ^ 1) << 12) | u32::from(registers[0]));
         }
         SelectedInstructionKind::ZeroExtendU8 => {
             words.push(0xd340_1c00 | (u32::from(registers[0]) << 5) | u32::from(registers[1]));
@@ -862,6 +895,10 @@ fn encode_movn_materialization_recipe(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DecodedWord {
+    SetBoolean {
+        condition: u8,
+        destination: u8,
+    },
     ZeroExtendU16 {
         source: u8,
         destination: u8,
@@ -948,6 +985,16 @@ fn decode_words(bytes: &[u8]) -> Result<Vec<DecodedWord>, Aarch64SelectedFormEnc
 }
 
 fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingError> {
+    if word & 0xffff_0fe0 == 0x9a9f_07e0 {
+        let condition = (((word >> 12) & 15) ^ 1) as u8;
+        if matches!(condition, 0 | 3 | 9 | 11 | 13) {
+            return Ok(DecodedWord::SetBoolean {
+                condition,
+                destination: (word & 31) as u8,
+            });
+        }
+    }
+
     if word & 0xffff_fc00 == 0xd340_1c00 {
         return Ok(DecodedWord::ZeroExtendU8 {
             source: ((word >> 5) & 31) as u8,
@@ -1065,6 +1112,25 @@ fn validate_decoded(
     decoded: &[DecodedWord],
 ) -> Result<(), Aarch64SelectedFormEncodingError> {
     let valid = match kind {
+        SelectedInstructionKind::MaterializeBooleanEqual
+        | SelectedInstructionKind::MaterializeBooleanU64LessThan
+        | SelectedInstructionKind::MaterializeBooleanI64LessThan
+        | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
+        | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => {
+            let condition = match kind {
+                SelectedInstructionKind::MaterializeBooleanEqual => 0,
+                SelectedInstructionKind::MaterializeBooleanU64LessThan => 3,
+                SelectedInstructionKind::MaterializeBooleanI64LessThan => 11,
+                SelectedInstructionKind::MaterializeBooleanU64LessOrEqual => 9,
+                SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => 13,
+                _ => unreachable!("Boolean condition arm"),
+            };
+            decoded
+                == [DecodedWord::SetBoolean {
+                    condition,
+                    destination: registers[0],
+                }]
+        }
         SelectedInstructionKind::ZeroExtendU8 => {
             decoded
                 == [DecodedWord::ZeroExtendU8 {
@@ -1290,6 +1356,13 @@ fn footprint(
     operands: &[RegisterViewId],
 ) -> Aarch64SelectedFormFootprint {
     let (reads, writes, writes_nzcv) = match kind {
+        SelectedInstructionKind::MaterializeBooleanEqual
+        | SelectedInstructionKind::MaterializeBooleanU64LessThan
+        | SelectedInstructionKind::MaterializeBooleanI64LessThan
+        | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
+        | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => {
+            (vec![], vec![operands[0]], false)
+        }
         SelectedInstructionKind::MaterializeI64 { .. } => (vec![], vec![operands[0]], false),
         SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::ZeroExtendU8
@@ -1381,7 +1454,12 @@ fn footprint(
     } else {
         let mut effects = MachineEncodedEffects::fallthrough_v1(
             match kind {
-                SelectedInstructionKind::MaterializeI64 { .. } => vec![],
+                SelectedInstructionKind::MaterializeBooleanEqual
+                | SelectedInstructionKind::MaterializeBooleanU64LessThan
+                | SelectedInstructionKind::MaterializeBooleanI64LessThan
+                | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
+                | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual
+                | SelectedInstructionKind::MaterializeI64 { .. } => vec![],
                 SelectedInstructionKind::CopyI64
                 | SelectedInstructionKind::ZeroExtendU8
                 | SelectedInstructionKind::ZeroExtendU16
@@ -1399,7 +1477,12 @@ fn footprint(
                 _ => unreachable!("control forms handled separately"),
             },
             match kind {
-                SelectedInstructionKind::MaterializeI64 { .. } => vec![0],
+                SelectedInstructionKind::MaterializeBooleanEqual
+                | SelectedInstructionKind::MaterializeBooleanU64LessThan
+                | SelectedInstructionKind::MaterializeBooleanI64LessThan
+                | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
+                | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual
+                | SelectedInstructionKind::MaterializeI64 { .. } => vec![0],
                 SelectedInstructionKind::CopyI64
                 | SelectedInstructionKind::ZeroExtendU8
                 | SelectedInstructionKind::ZeroExtendU16
@@ -1419,6 +1502,16 @@ fn footprint(
         );
         if writes_nzcv {
             effects.implicit_unit_defs = units("nzcv");
+        }
+        if matches!(
+            kind,
+            SelectedInstructionKind::MaterializeBooleanEqual
+                | SelectedInstructionKind::MaterializeBooleanU64LessThan
+                | SelectedInstructionKind::MaterializeBooleanI64LessThan
+                | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
+                | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual
+        ) {
+            effects.implicit_unit_uses = units("nzcv");
         }
         effects
     };
@@ -2247,3 +2340,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod boolean_materialization_tests;

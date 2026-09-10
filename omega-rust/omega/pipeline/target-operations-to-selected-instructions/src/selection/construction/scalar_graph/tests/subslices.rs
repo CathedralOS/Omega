@@ -164,7 +164,7 @@ pub(super) fn view_fixture(target: target::NativeTarget, empty: bool) -> Legaliz
         .collect();
     returned(block).value = LegalizedScalarReturnValue::Value {
         value: value(if empty { 4 } else { 8 }),
-        scalar_type: integer,
+        scalar_type: semantic_vocabulary::ScalarType::Integer(integer),
     };
     source.provenance.operations = block.instructions.iter().map(|row| row.operation).collect();
     source

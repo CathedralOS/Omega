@@ -12,7 +12,7 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v22\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v23\0");
     encode_target(&mut bytes, catalog.target);
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
@@ -333,6 +333,11 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::SignExtendI8 => 38,
         MachineSemanticKind::SignExtendI16 => 39,
         MachineSemanticKind::SignExtendI32 => 40,
+        MachineSemanticKind::MaterializeBooleanEqual => 41,
+        MachineSemanticKind::MaterializeBooleanU64LessThan => 42,
+        MachineSemanticKind::MaterializeBooleanI64LessThan => 43,
+        MachineSemanticKind::MaterializeBooleanU64LessOrEqual => 44,
+        MachineSemanticKind::MaterializeBooleanI64LessOrEqual => 45,
         MachineSemanticKind::Load64 => 16,
         MachineSemanticKind::Load8 => 33,
         MachineSemanticKind::Load16 => 34,
@@ -379,6 +384,11 @@ pub(crate) const fn alternative_family_tag(family: MachineAlternativeFamily) -> 
         MachineAlternativeFamily::SignExtendI8 => 38,
         MachineAlternativeFamily::SignExtendI16 => 39,
         MachineAlternativeFamily::SignExtendI32 => 40,
+        MachineAlternativeFamily::MaterializeBooleanEqual => 41,
+        MachineAlternativeFamily::MaterializeBooleanU64LessThan => 42,
+        MachineAlternativeFamily::MaterializeBooleanI64LessThan => 43,
+        MachineAlternativeFamily::MaterializeBooleanU64LessOrEqual => 44,
+        MachineAlternativeFamily::MaterializeBooleanI64LessOrEqual => 45,
         MachineAlternativeFamily::Load64 => 16,
         MachineAlternativeFamily::Load8 => 33,
         MachineAlternativeFamily::Load16 => 34,

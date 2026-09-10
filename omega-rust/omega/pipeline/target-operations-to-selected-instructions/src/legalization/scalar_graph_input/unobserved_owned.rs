@@ -184,8 +184,10 @@ pub(super) fn validate(
     }
     let result_shape = match function.result {
         AbstractFunctionResult::Scalar(result)
-            if matches!(result.scalar_type, ScalarType::Integer(_))
-                && scalar_shape(result.scalar_type).is_some() =>
+            if matches!(
+                result.scalar_type,
+                ScalarType::Boolean | ScalarType::Integer(_)
+            ) && scalar_shape(result.scalar_type).is_some() =>
         {
             scalar_shape(result.scalar_type)
         }

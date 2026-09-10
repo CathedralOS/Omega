@@ -6,6 +6,7 @@ use target_operations::{
     TargetIntegerExpression as Expression, TargetScalarExpression, TargetUnitOperation,
 };
 mod boolean_parameters;
+mod boolean_return;
 mod byte_view;
 pub(in crate::legalization::scalar_graph_input) mod control_flow;
 mod expressions;
@@ -71,6 +72,9 @@ pub(super) fn validate_target(
     }
     if let TargetOperation::ControlGraph(graph) = &target.operation {
         return control_flow::validate(target, graph, abstracted, optimized, native, plan, unit);
+    }
+    if boolean_return::uses(&target.operation) {
+        return boolean_return::validate(target, abstracted, optimized, native, plan, unit);
     }
     let (scalar_type, control) = match &target.operation {
         TargetOperation::ReturnIntegerImmediate {

@@ -93,7 +93,9 @@ pub(super) fn lower(
             | AbstractOperation::IntegerExactCast { result, .. }
             | AbstractOperation::IntegerEqual { result, .. }
             | AbstractOperation::IntegerLessThan { result, .. }
-            | AbstractOperation::IntegerLessOrEqual { result, .. } => Some(*result),
+            | AbstractOperation::IntegerLessOrEqual { result, .. }
+            | AbstractOperation::BooleanNot { result, .. }
+            | AbstractOperation::BooleanEqual { result, .. } => Some(*result),
             AbstractOperation::ExactIntegerAdd { result, .. }
             | AbstractOperation::ExactIntegerSubtract { result, .. }
             | AbstractOperation::Call { result, .. } => Some(*result),

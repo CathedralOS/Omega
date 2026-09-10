@@ -102,7 +102,7 @@ fn indexed_byte_read_replay_binds_dynamic_subject_and_proof() {
         };
         returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Value {
             value: ValueId::new(3).unwrap(),
-            scalar_type: integer,
+            scalar_type: semantic_vocabulary::ScalarType::Integer(integer),
         };
         let [ValueLocation::Register { register, .. }] =
             source.parameters[0].placement.locations.as_slice()
@@ -218,7 +218,9 @@ fn byte_view_length_uses_descriptor_read_and_rejects_changed_projection() {
             };
         returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Value {
             value: ValueId::new(1).unwrap(),
-            scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+            scalar_type: semantic_vocabulary::ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+            ),
         };
         source.structural = Some(legalized_operations::LegalizedStructuralContract {
             result: None,

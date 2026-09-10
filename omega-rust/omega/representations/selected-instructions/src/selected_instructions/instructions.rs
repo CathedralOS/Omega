@@ -158,4 +158,10 @@ pub enum SelectedInstructionKind {
     CallAggregate {
         callee: MachineId,
     },
+    /// Consume target condition state and define a complete GPR containing zero or one.
+    MaterializeBooleanEqual,
+    MaterializeBooleanU64LessThan,
+    MaterializeBooleanI64LessThan,
+    MaterializeBooleanU64LessOrEqual,
+    MaterializeBooleanI64LessOrEqual,
 }

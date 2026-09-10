@@ -396,7 +396,7 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
                 LegalizedScalarReturnValue::Value { value, scalar_type } => {
                     bytes.push(1);
                     bytes.extend_from_slice(&value.get().to_le_bytes());
-                    encode_integer_type(bytes, *scalar_type);
+                    encode_scalar_type(bytes, *scalar_type);
                 }
             }
             encode_fuel(bytes, &returned.fuel);

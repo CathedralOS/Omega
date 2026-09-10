@@ -111,7 +111,9 @@ pub(super) fn borrowed_call(target: target::NativeTarget) -> LegalizedScalarFunc
         vec![optimization_unit::OwnershipEvent::ClaimTransfer(Vec::new())];
     returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Value {
         value: ValueId::new(1).unwrap(),
-        scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+        scalar_type: semantic_vocabulary::ScalarType::Integer(
+            IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+        ),
     };
     source
 }
@@ -178,7 +180,9 @@ fn mixed_borrowed_calls_preserve_separate_scalar_and_pointer_placements() {
                 vec![OperationId::new(1).unwrap(), OperationId::new(10).unwrap()];
             returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Value {
                 value: ValueId::new(10).unwrap(),
-                scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                scalar_type: semantic_vocabulary::ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                ),
             };
             let construct = |source: &LegalizedScalarFunction| {
                 build(
