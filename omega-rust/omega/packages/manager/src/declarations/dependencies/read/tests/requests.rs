@@ -106,6 +106,14 @@ fn rejects_nonliteral_wrong_type_missing_and_unknown_source_cases() {
             DependencyProjectionError::WrongSourceType,
         ),
         (
+            r#"Other::Source::Path { location: "x" }"#,
+            DependencyProjectionError::WrongSourceType,
+        ),
+        (
+            r#"Source::Nested::Path { location: "x" }"#,
+            DependencyProjectionError::WrongSourceType,
+        ),
+        (
             r#"Source { location: "x" }"#,
             DependencyProjectionError::MissingSourceCase,
         ),
@@ -194,6 +202,10 @@ fn rejects_noncanonical_git_package_selections() {
         ("selection", DependencyProjectionError::SelectionNotLiteral),
         (
             "Other::Root {}",
+            DependencyProjectionError::WrongSelectionType,
+        ),
+        (
+            "Other::PackageSelection::Root {}",
             DependencyProjectionError::WrongSelectionType,
         ),
         (

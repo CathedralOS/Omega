@@ -1148,7 +1148,8 @@ Owners include
   [module/name contract](wiki/spec/language/modules.md) for pre-resolution
   computed aggregate indices, open-template index expressions, module-owned
   templates, foreign/generic constant attachments, trait defaults,
-  operator homes, qualified constructors, and remaining declaration forms.
+  operator homes, package-prefixed bare case constructors, qualified case
+  membership, and remaining declaration forms.
   The explicit temporary fences live in
   `syntax-trees-to-symbol-resolved-trees/src/module_normalization.rs`; replace
   them with exact namespace-aware normalization, not bare-name fallback.

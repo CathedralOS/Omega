@@ -383,8 +383,40 @@ pub(in crate::symbols) fn assign_struct_literal_symbols(
     else {
         return;
     };
-    let type_symbol = top_level_symbol_for_source(symbols, SymbolKind::Data, &literal.type_name);
-    let case_symbol = literal.case_name.as_ref().map(|case_name| {
+    let (type_name, case_name, type_symbol) = if let Some(case_name) = &literal.case_name {
+        (
+            literal.type_name.clone(),
+            Some(case_name.clone()),
+            top_level_symbol_for_source(symbols, SymbolKind::Data, &literal.type_name),
+        )
+    } else if let Ok(Some((symbol, case))) = crate::symbols::constructor_type(
+        symbols,
+        literal.type_name.as_str(),
+        literal.type_name.source_span(),
+    ) {
+        let name = literal.type_name.as_str();
+        let source_span = literal.type_name.source_span();
+        match case {
+            Some(case) => {
+                let owner = &name[..name.len() - case.len() - 2];
+                let mut case_span = source_span;
+                if case_span.span.end >= case.len() {
+                    case_span.span.start = case_span.span.end - case.len();
+                }
+                (
+                    symbol_resolved_trees::name::DiagnosticName::new(owner, source_span),
+                    Some(symbol_resolved_trees::name::DiagnosticName::new(
+                        case, case_span,
+                    )),
+                    symbol,
+                )
+            }
+            None => (literal.type_name.clone(), None, symbol),
+        }
+    } else {
+        (literal.type_name.clone(), None, SymbolHandle::invalid())
+    };
+    let case_symbol = case_name.as_ref().map(|case_name| {
         if type_symbol.is_valid() {
             child_symbol_by_kinds(
                 symbols,
@@ -442,6 +474,8 @@ pub(in crate::symbols) fn assign_struct_literal_symbols(
     if let symbol_resolved_trees::expression::ExpressionNode::StructLiteral(literal) =
         expression_table.expression_mut(expression)
     {
+        literal.type_name = type_name;
+        literal.case_name = case_name;
         literal.type_symbol = type_symbol;
         literal.case_symbol = case_symbol;
     }

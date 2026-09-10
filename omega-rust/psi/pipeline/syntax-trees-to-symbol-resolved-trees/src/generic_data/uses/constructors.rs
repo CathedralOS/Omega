@@ -63,15 +63,28 @@ pub(in crate::generic_data) fn relabel_data_literal_for_expected_type(
         return;
     };
 
-    let literal_names_expected = literal.type_name.as_str() == expected_name.as_str();
-    let literal_names_generic_origin = synthesized_origins
-        .get(expected_name.as_str())
-        .is_some_and(|base| literal.type_name.as_str() == base.as_str());
-    if !literal_names_expected && !literal_names_generic_origin {
+    let names_carrier = |name: &str| {
+        name == expected_name.as_str()
+            || synthesized_origins
+                .get(expected_name.as_str())
+                .is_some_and(|base| name == base.as_str())
+    };
+    let (carrier, case_name) = if names_carrier(literal.constructor_name.as_str()) {
+        (literal.constructor_name.as_str(), None)
+    } else if let Some((carrier, case)) = literal.constructor_name.as_str().rsplit_once("::") {
+        if !names_carrier(carrier) {
+            return;
+        }
+        (carrier, Some(case.to_owned()))
+    } else {
         return;
-    }
-    if literal_names_generic_origin {
-        literal.type_name = Identifier::generated(expected_name.as_str());
+    };
+    if carrier != expected_name.as_str() {
+        let name = case_name.as_ref().map_or_else(
+            || expected_name.as_str().to_owned(),
+            |case| format!("{expected_name}::{case}"),
+        );
+        literal.constructor_name = Identifier::new(name, literal.constructor_name.source_span());
         syntax
             .expressions
             .replace_expression(expression, ExpressionNode::StructLiteral(literal.clone()));
@@ -89,7 +102,7 @@ pub(in crate::generic_data) fn relabel_data_literal_for_expected_type(
             DataMember::Variant(_) | DataMember::Retired(_) => None,
         })
         .collect::<Vec<_>>();
-    if let Some(case_name) = literal.case_name.as_ref()
+    if let Some(case_name) = case_name.as_ref()
         && let Some(variant) = syntax
             .tables
             .items

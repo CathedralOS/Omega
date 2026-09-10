@@ -608,7 +608,7 @@ fn count_expression_handle(
         }
         crate::expression::ExpressionNode::SelfValue => {}
         crate::expression::ExpressionNode::StructLiteral(struct_literal) => {
-            count_identifier(&struct_literal.type_name, counts);
+            count_identifier(&struct_literal.constructor_name, counts);
             for field in syntax_trees
                 .expressions
                 .struct_fields(struct_literal.fields)

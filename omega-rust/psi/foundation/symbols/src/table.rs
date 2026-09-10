@@ -69,6 +69,38 @@ pub struct SymbolNameStorageCounts {
     pub owned_names: usize,
 }
 
+/// Outcome after declaration eligibility and source lookup precedence.
+/// Ambiguity must remain distinct from absence when composing static names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SymbolLookup {
+    NotFound,
+    Unique(SymbolHandle),
+    Ambiguous {
+        first: SymbolHandle,
+        second: SymbolHandle,
+    },
+}
+
+impl SymbolLookup {
+    pub fn unique(self) -> Option<SymbolHandle> {
+        match self {
+            Self::Unique(symbol) => Some(symbol),
+            Self::NotFound | Self::Ambiguous { .. } => None,
+        }
+    }
+
+    fn from_candidates(mut candidates: impl Iterator<Item = SymbolHandle>) -> Self {
+        let Some(first) = candidates.next() else {
+            return Self::NotFound;
+        };
+        if let Some(second) = candidates.find(|candidate| *candidate != first) {
+            Self::Ambiguous { first, second }
+        } else {
+            Self::Unique(first)
+        }
+    }
+}
+
 impl SymbolTableBuilder {
     pub fn new() -> Self {
         Self::default()
@@ -445,14 +477,34 @@ impl SymbolTable {
         name: &str,
         kinds: &[SymbolKind],
         reference: SourceSpan,
-        mut matches_candidate: impl FnMut(SymbolHandle) -> bool,
+        matches_candidate: impl FnMut(SymbolHandle) -> bool,
     ) -> Option<SymbolHandle> {
+        self.lookup_top_level_by_name_and_kinds_from_source_matching(
+            name,
+            kinds,
+            reference,
+            matches_candidate,
+        )
+        .unique()
+    }
+
+    /// Retain ambiguity when a caller composes multiple declaration meanings.
+    /// Eligibility still precedes the ordinary source and namespace precedence.
+    pub fn lookup_top_level_by_name_and_kinds_from_source_matching(
+        &self,
+        name: &str,
+        kinds: &[SymbolKind],
+        reference: SourceSpan,
+        mut matches_candidate: impl FnMut(SymbolHandle) -> bool,
+    ) -> SymbolLookup {
         if let Some(result) =
             self.find_module_qualified_reference(name, kinds, reference, &mut matches_candidate)
         {
             return result;
         }
-        let children = self.child_handles(self.root)?;
+        let Some(children) = self.child_handles(self.root) else {
+            return SymbolLookup::NotFound;
+        };
         let reference_is_source_backed = reference.span.start != reference.span.end;
         let candidates = children
             .filter(|symbol| {
@@ -471,7 +523,10 @@ impl SymbolTable {
             .collect::<Vec<_>>();
 
         if !reference_is_source_backed {
-            return candidates.first().copied();
+            return candidates
+                .first()
+                .copied()
+                .map_or(SymbolLookup::NotFound, SymbolLookup::Unique);
         }
 
         if let Some(binding) = self
@@ -483,14 +538,13 @@ impl SymbolTable {
                     && binding.name.as_ref() == name
             })
         {
-            let mut targets = candidates.iter().copied().filter(|symbol| {
+            let targets = candidates.iter().copied().filter(|symbol| {
                 self.name(*symbol) == name
                     && self
                         .symbol_source_span(*symbol)
                         .is_some_and(|span| span.source_id == binding.declaration_source)
             });
-            let target = targets.next()?;
-            return targets.next().is_none().then_some(target);
+            return SymbolLookup::from_candidates(targets);
         }
 
         if self.has_namespace_context(reference) {
@@ -513,6 +567,7 @@ impl SymbolTable {
                 })
             })
             .or_else(|| candidates.first().copied())
+            .map_or(SymbolLookup::NotFound, SymbolLookup::Unique)
     }
 
     /// Resolve either one exact declaration or one source-scoped overloaded

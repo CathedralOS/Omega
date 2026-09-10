@@ -269,19 +269,19 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
                 .append_identifier_path_member(member)
         })?;
 
-        if context.allows_struct_literal()
-            && input.at_punctuation(PunctuationKind::LeftBrace)
-            && (path.count() == 1 || path.count() == 2)
-        {
+        if context.allows_struct_literal() && input.at_punctuation(PunctuationKind::LeftBrace) {
             let members = syntax_trees.expressions.identifier_path_members(path);
-            let type_name = members
-                .first()
-                .cloned()
-                .expect("struct literal path should have a head member");
-            // A two-member path (`Command::Say { ... }`) constructs a CASE of the
-            // head type with named payload fields; one member is a record literal.
-            let case_name = members.get(1).cloned();
-            return parse_struct_literal_handle(syntax_trees, type_name, case_name, input);
+            let first = members.first().expect("constructor path has a head");
+            let last = members.last().expect("constructor path has a tail");
+            let mut source_span = first.source_span();
+            source_span.span.end = last.source_span().span.end;
+            let mut name = first.as_str().to_owned();
+            for member in &members[1..] {
+                name.push_str("::");
+                name.push_str(member.as_str());
+            }
+            let constructor_name = Identifier::new(name, source_span);
+            return parse_struct_literal_handle(syntax_trees, constructor_name, input);
         }
 
         return Ok((
@@ -295,12 +295,11 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
 
 fn parse_struct_literal_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
-    type_name: Identifier,
-    case_name: Option<Identifier>,
+    constructor_name: Identifier,
     mut input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
     let start = input;
-    let type_name_span = type_name.source_span();
+    let type_name_span = constructor_name.source_span();
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut fields = Vec::new();
 
@@ -322,8 +321,7 @@ fn parse_struct_literal_handle<'tokens, 'source>(
     let expression = syntax_trees
         .expressions
         .insert(ExpressionNode::StructLiteral(TableStructLiteral {
-            type_name,
-            case_name,
+            constructor_name,
             fields,
         }));
     let literal_tail_span = start.source_span_until(input);

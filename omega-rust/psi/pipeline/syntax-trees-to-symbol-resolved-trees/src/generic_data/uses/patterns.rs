@@ -164,20 +164,20 @@ pub(in crate::generic_data) fn relabel_unique_closed_sum_paths(
                     membership.domain,
                     SumPathExpressionKind::Membership(membership.value),
                 ),
-                ExpressionNode::StructLiteral(literal) if literal.case_name.is_some() => {
-                    let case = literal.case_name.as_ref().expect("case literal");
+                ExpressionNode::StructLiteral(literal) => {
+                    let (carrier, case) = literal.constructor_name.as_str().rsplit_once("::")?;
                     if !variants
-                        .get(literal.type_name.as_str())
-                        .is_some_and(|names| names.contains(case.as_str()))
+                        .get(carrier)
+                        .is_some_and(|names| names.contains(case))
                     {
                         return None;
                     }
-                    let closed = synthesized_sum_instances.get(literal.type_name.as_str())?;
+                    let closed = synthesized_sum_instances.get(carrier)?;
                     return Some((
                         handle,
                         SumPathExpressionKind::StructLiteral(literal.clone()),
                         closed.clone(),
-                        case.clone(),
+                        Identifier::new(case, literal.constructor_name.source_span()),
                     ));
                 }
                 _ => return None,
@@ -208,7 +208,10 @@ pub(in crate::generic_data) fn relabel_unique_closed_sum_paths(
                 })
             }
             SumPathExpressionKind::StructLiteral(mut literal) => {
-                literal.type_name = Identifier::generated(closed);
+                literal.constructor_name = Identifier::new(
+                    format!("{closed}::{case}"),
+                    literal.constructor_name.source_span(),
+                );
                 ExpressionNode::StructLiteral(literal)
             }
         };

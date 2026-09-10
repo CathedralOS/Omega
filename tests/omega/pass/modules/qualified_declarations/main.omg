@@ -11,3 +11,15 @@ machine qualified_score() -> u32 { combat::damage() }
 
 data Main {}
 machine Main::main(&mut self) {}
+
+machine qualified_record() -> combat::Damage {
+    combat::Damage { amount: 7 }
+}
+
+machine qualified_case() -> combat::DamageResult {
+    combat::DamageResult::Hit { amount: 7 }
+}
+
+machine qualified_empty_case() -> combat::DamageResult {
+    combat::DamageResult::Miss
+}

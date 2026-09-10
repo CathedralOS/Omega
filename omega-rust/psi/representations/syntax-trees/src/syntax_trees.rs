@@ -1302,8 +1302,7 @@ impl SyntaxTrees {
             ExpressionNode::SelfValue => ExpressionNode::SelfValue,
             ExpressionNode::StructLiteral(struct_literal) => {
                 ExpressionNode::StructLiteral(TableStructLiteral {
-                    type_name: struct_literal.type_name.clone(),
-                    case_name: struct_literal.case_name.clone(),
+                    constructor_name: struct_literal.constructor_name.clone(),
                     fields: self.copy_struct_field_span(other, struct_literal.fields),
                 })
             }

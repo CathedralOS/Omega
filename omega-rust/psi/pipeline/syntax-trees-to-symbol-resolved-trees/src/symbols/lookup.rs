@@ -1,4 +1,4 @@
-use symbols::{SymbolHandle, SymbolKind, SymbolTable};
+use symbols::{SymbolHandle, SymbolKind, SymbolLookup, SymbolTable};
 
 pub(super) fn diagnostic_path_source_span(
     members: &[symbol_resolved_trees::name::DiagnosticName],
@@ -44,6 +44,73 @@ pub(super) fn top_level_symbol_for_source(
     symbols
         .find_top_level_by_name_and_kinds_from_source(name.as_str(), &[kind], name.source_span())
         .unwrap_or_else(SymbolHandle::invalid)
+}
+
+/// Select the carrier of a complete constructor name through ordinary source
+/// visibility. A full data name and a case-owner prefix are competing meanings,
+/// never alternatives selected by the number of path segments.
+pub(crate) fn constructor_type<'name>(
+    symbols: &SymbolTable,
+    name: &'name str,
+    reference: source::SourceSpan,
+) -> Result<Option<(SymbolHandle, Option<&'name str>)>, String> {
+    let record = symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
+        name,
+        &[SymbolKind::Data],
+        reference,
+        |_| true,
+    );
+    let (case, case_name) =
+        name.rsplit_once("::")
+            .map_or((SymbolLookup::NotFound, None), |(owner, case)| {
+                (
+                    symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
+                        owner,
+                        &[SymbolKind::Data],
+                        reference,
+                        |symbol| {
+                            child_symbol_by_kinds(symbols, symbol, &[SymbolKind::Variant], case)
+                                .is_valid()
+                        },
+                    ),
+                    Some(case),
+                )
+            });
+    let case_symbol = |owner| {
+        child_symbol_by_kinds(
+            symbols,
+            owner,
+            &[SymbolKind::Variant],
+            case_name.expect("eligible case owner retains its requested case"),
+        )
+    };
+    let ambiguity = |first, second| {
+        let imports = symbols
+            .source_module_import_paths(reference.source_id)
+            .collect::<Vec<_>>();
+        format!(
+            "ambiguous constructor `{name}`: competing declarations `{}` and `{}`; source imports: {}",
+            symbols.display_path(first, "::"),
+            symbols.display_path(second, "::"),
+            if imports.is_empty() {
+                "(none)".to_owned()
+            } else {
+                imports.join(", ")
+            }
+        )
+    };
+    match (record, case) {
+        (SymbolLookup::Ambiguous { first, second }, _) => Err(ambiguity(first, second)),
+        (_, SymbolLookup::Ambiguous { first, second }) => {
+            Err(ambiguity(case_symbol(first), case_symbol(second)))
+        }
+        (SymbolLookup::Unique(record), SymbolLookup::Unique(case)) => {
+            Err(ambiguity(record, case_symbol(case)))
+        }
+        (SymbolLookup::Unique(symbol), SymbolLookup::NotFound) => Ok(Some((symbol, None))),
+        (SymbolLookup::NotFound, SymbolLookup::Unique(symbol)) => Ok(Some((symbol, case_name))),
+        (SymbolLookup::NotFound, SymbolLookup::NotFound) => Ok(None),
+    }
 }
 
 pub(super) fn top_level_symbol_by_kinds(
@@ -169,4 +236,50 @@ fn symbol_name_matches_indexed_member(symbol_name: &str, member: &str, index: i6
     };
 
     index_text.parse::<i64>().ok() == Some(index)
+}
+
+#[cfg(test)]
+mod constructor_tests {
+    use super::*;
+    use symbols::{SymbolNameRef, SymbolTableBuilder};
+
+    #[test]
+    fn only_an_actual_case_competes_with_a_complete_record_name() {
+        for has_case in [false, true] {
+            let mut builder = SymbolTableBuilder::new();
+            let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let children = builder.insert_children(
+                root,
+                [
+                    (SymbolKind::Data, SymbolNameRef::Static("Owner")),
+                    (SymbolKind::Data, SymbolNameRef::Static("Owner::Value")),
+                ],
+            );
+            let mut handles = SymbolTableBuilder::child_handles(children);
+            let owner = handles.next().unwrap();
+            let record = handles.next().unwrap();
+            builder.insert_children(
+                owner,
+                [(
+                    if has_case {
+                        SymbolKind::Variant
+                    } else {
+                        SymbolKind::Field
+                    },
+                    SymbolNameRef::Static("Value"),
+                )],
+            );
+            let symbols = builder.finish();
+            let selected =
+                constructor_type(&symbols, "Owner::Value", source::SourceSpan::default());
+            if has_case {
+                assert!(
+                    selected.is_err(),
+                    "both actual meanings must remain ambiguous"
+                );
+            } else {
+                assert_eq!(selected, Ok(Some((record, None))));
+            }
+        }
+    }
 }

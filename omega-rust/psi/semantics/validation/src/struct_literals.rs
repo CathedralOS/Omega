@@ -240,14 +240,22 @@ fn scan_expression(
                 environment,
                 diagnostics,
             );
-            scan_expression(
+            if !crate::bound_expression_meaning::has_exact_case_membership_meaning(
                 program,
                 machine,
-                state,
-                binary.right,
-                environment,
-                diagnostics,
-            );
+                Some(state),
+                expression,
+                binary,
+            ) {
+                scan_expression(
+                    program,
+                    machine,
+                    state,
+                    binary.right,
+                    environment,
+                    diagnostics,
+                );
+            }
         }
         ExpressionNode::Cast(cast) => scan_expression(
             program,
@@ -323,10 +331,46 @@ fn scan_expression(
             environment,
             diagnostics,
         ),
+        ExpressionNode::Name(path) => {
+            let Some(owner) =
+                crate::bound_expression_meaning::exact_case_reference_owner(program, expression)
+            else {
+                return;
+            };
+            let Some(variant) =
+                program
+                    .data_members(owner)
+                    .iter()
+                    .find_map(|member| match member {
+                        DataMember::Variant(variant) if variant.symbol == path.symbol => {
+                            Some(variant)
+                        }
+                        _ => None,
+                    })
+            else {
+                return;
+            };
+            if !variant.payload.is_empty() {
+                diagnostics.push(Diagnostic::error(format!(
+                    "case `{}::{}` has a payload; construct it with a case literal",
+                    owner.name, variant.name,
+                )));
+                return;
+            }
+            // A borrowed empty-field view shares the ordinary construction
+            // obligations without inserting a synthetic authored expression.
+            let literal = TableStructLiteral {
+                type_name: owner.name.clone(),
+                type_symbol: owner.symbol,
+                case_name: Some(variant.name.clone()),
+                case_symbol: Some(variant.symbol),
+                fields: Default::default(),
+            };
+            validate_literal_field_names(program, machine, state, &literal, diagnostics);
+        }
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => {}
     }

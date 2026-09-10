@@ -194,7 +194,7 @@ pub(super) fn builtin_boolean_equality(
     )
 }
 
-fn has_exact_case_membership_meaning(
+pub(crate) fn has_exact_case_membership_meaning(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
@@ -242,29 +242,40 @@ fn has_exact_case_membership_meaning(
     has_owner && has_case
 }
 
-fn exact_case_reference_owner(
+// A namespace root names a declaration, not runtime storage. Rejoin the entire
+// retained chain here; authored selection and import visibility remain separate
+// source-authority checks. Payload/default obligations apply only in value roles.
+pub(crate) fn exact_case_reference_owner(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<&DataDefinition> {
     let ExpressionNode::Name(case) = program.expression_table.expression(expression) else {
         return None;
     };
-    if !case.head_symbol.is_valid()
-        || !case.symbol.is_valid()
-        || program
-            .expression_table
-            .name_path_members(case.members)
-            .len()
-            != 2
-        || program
-            .expression_table
-            .name_path_member_symbols(case.member_symbols)
-            != [case.head_symbol, case.symbol]
+    let table = &program.expression_table;
+    let members = table.name_path_members(case.members);
+    let selected = table.name_path_member_symbols(case.member_symbols);
+    if members.len() < 2
+        || selected.len() != members.len()
+        || selected.first() != Some(&case.head_symbol)
+        || selected.last() != Some(&case.symbol)
+        || selected.iter().any(|symbol| !symbol.is_valid())
+        || selected[..selected.len() - 2]
+            .iter()
+            .any(|symbol| program.symbols.get(*symbol).kind != symbols::SymbolKind::Module)
+        || selected.windows(2).any(|pair| {
+            !program
+                .symbols
+                .child_handles(pair[0])
+                .is_some_and(|mut children| children.any(|child| child == pair[1]))
+        })
     {
         return None;
     }
+    let carrier = selected[selected.len() - 2];
     program.data_definitions().iter().find(|owner| {
-        owner.symbol == case.head_symbol
+        owner.symbol == carrier
+            && program.symbols.get(case.symbol).parent == carrier
             && program.data_members(owner).iter().any(|member| {
                 matches!(member, DataMember::Variant(variant) if variant.symbol == case.symbol)
             })
