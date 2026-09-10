@@ -30,6 +30,9 @@ mod indexed;
 #[path = "receiver_call_source/aliases.rs"]
 mod aliases;
 
+#[path = "receiver_call_source/cyclic.rs"]
+mod cyclic;
+
 fn checked_from_source(source: &str) -> checked_trees::CheckedTrees {
     let tokens = Lexer::new(source)
         .tokenize()

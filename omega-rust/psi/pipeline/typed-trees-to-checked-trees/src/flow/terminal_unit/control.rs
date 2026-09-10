@@ -1070,10 +1070,11 @@ pub(super) fn build_checked_machine_with(
     let [state] = program.machine_states(machine) else {
         return None;
     };
-    // A body-only plan may use an ambient attachment, but published crash
-    // predicates need the invocation's actual receiver operand. Contextual
+    // Ambient attachment cannot replace runtime field observations or published
+    // crash predicates: both need the invocation's actual receiver. Contextual
     // cleanup requirements retain their separate receipt-bound environment.
     let retain_reference_self = retain_reference_self
+        || super::receiver_calls::reads_receiver(program, facts, state)
         || facts
             .contract_plans
             .for_machine(machine.symbol)

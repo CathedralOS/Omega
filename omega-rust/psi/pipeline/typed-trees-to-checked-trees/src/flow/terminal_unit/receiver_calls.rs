@@ -6,6 +6,9 @@
 
 use super::*;
 
+mod observations;
+pub(super) use observations::reads_receiver;
+
 pub(super) fn reconcile(
     program: &TypedTrees,
     facts: &CheckFacts,
