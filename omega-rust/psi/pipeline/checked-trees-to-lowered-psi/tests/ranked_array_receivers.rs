@@ -2,16 +2,15 @@
 
 use checked_trees::CheckedStructuralAccess;
 use semantic_vocabulary::{
-    IeeeFloatFormat, IntegerSign, IntegerType, IntegerValue, ScalarType, StructuralPlaceKind,
-    StructuralTypeId,
+    IeeeFloatFormat, IntegerSign, IntegerType, ScalarType, StructuralPlaceKind, StructuralTypeId,
 };
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use terminal_psi::{
     ProofBundle, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
-    StructuralPlaceDeclaration, StructuralTypeShape, TerminalModule,
-    TerminalRankedSuccessorArgument, Terminator,
+    StructuralPlaceDeclaration, StructuralTypeShape, TerminalModule, TerminalNaturalRankComparison,
+    TerminalRankedScc, Terminator,
 };
 use terminal_verifier::{ModuleError, VerificationError};
 use tokens_to_syntax_trees::parse_syntax_trees;
@@ -81,31 +80,35 @@ fn canonical_countdown(field_type: &str) -> (TerminalModule, ProofBundle) {
     let profile = proof_admission::AdmissionProfile::default();
     terminal_verifier::verify_module_for_interpretation(&module, &proof, &profile)
         .expect("canonical ranked receiver independently verifies");
-    assert!(matches!(
-        terminal_verifier::verify_module(&module, &proof, &profile),
-        Err(VerificationError::Module(ModuleError::NonExecutableRankedScc(machine)))
-            if machine == module.entry
-    ));
+    terminal_verifier::verify_module(&module, &proof, &profile)
+        .expect("canonical natural-ranked receiver verifies for execution");
 
     let [machine] = module.machines.as_slice() else {
         panic!("one ranked entry machine")
     };
     assert_eq!(machine.id, module.entry);
-    let rank = machine
-        .ranked_scc
-        .as_ref()
-        .and_then(|rank| rank.as_unsigned_countdown())
-        .expect("retained countdown rank");
+    let Some(TerminalRankedScc::Natural(components)) = &machine.ranked_scc else {
+        panic!("ordinary graph retains natural rank evidence")
+    };
+    let [rank] = components.as_slice() else {
+        panic!("one cyclic component")
+    };
     assert_eq!(
         rank.rank_type,
         IntegerType::new(IntegerSign::Unsigned, 32).unwrap()
     );
-    assert_eq!(rank.lower_bound, IntegerValue::Unsigned(0));
-    assert_eq!(
-        rank.upper_bound,
-        IntegerValue::Unsigned(u128::from(u32::MAX))
+    assert!(!rank.ranks.is_empty());
+    assert!(!rank.edges.is_empty());
+    assert!(
+        rank.edges
+            .iter()
+            .any(|edge| edge.comparison == TerminalNaturalRankComparison::Strict)
     );
-    assert!(!rank.covered_cyclic_edges.is_empty());
+    assert_eq!(proof.control_cycles.len(), 1);
+    assert_eq!(
+        proof.control_cycles[0].certificate.edges.len(),
+        rank.edges.len()
+    );
     let [receiver] = machine.structural_parameters.as_slice() else {
         panic!("one canonical structural receiver")
     };
@@ -243,7 +246,7 @@ fn ranked_array_receiver_rejects_missing_primitive_type_declaration() {
         .structural_types
         .retain(|declaration| declaration.id != leaf);
     assert!(matches!(
-        terminal_verifier::verify_module_for_interpretation(
+        terminal_verifier::verify_module(
             &module, &proof, &proof_admission::AdmissionProfile::default(),
         ),
         Err(VerificationError::Module(ModuleError::UnknownStructuralType(missing))) if missing == leaf
@@ -270,7 +273,7 @@ fn ranked_array_receiver_rejects_dangling_array_element_reference() {
     };
     *element = missing;
     assert!(matches!(
-        terminal_verifier::verify_module_for_interpretation(
+        terminal_verifier::verify_module(
             &module, &proof, &proof_admission::AdmissionProfile::default(),
         ),
         Err(VerificationError::Module(ModuleError::UnknownStructuralType(actual))) if actual == missing
@@ -280,17 +283,27 @@ fn ranked_array_receiver_rejects_dangling_array_element_reference() {
 #[test]
 fn ranked_array_receiver_rejects_altered_rank_successor_argument() {
     let (mut module, proof) = canonical_countdown("[u64; 3]");
-    let rank = module.machines[0]
-        .ranked_scc
-        .as_mut()
-        .and_then(|rank| rank.as_unsigned_countdown_mut())
-        .expect("ranked component");
-    let TerminalRankedSuccessorArgument::UnsignedParameterMinusOne { argument_index, .. } =
-        &mut rank.covered_cyclic_edges[0].successor_argument;
-    assert_eq!(*argument_index, 0);
-    *argument_index = 1;
+    let Some(TerminalRankedScc::Natural(components)) = &mut module.machines[0].ranked_scc else {
+        panic!("natural ranked component")
+    };
+    let [rank] = components.as_mut_slice() else {
+        panic!("one cyclic component")
+    };
+    let edge = rank
+        .edges
+        .iter_mut()
+        .find(|edge| edge.comparison == TerminalNaturalRankComparison::Strict)
+        .expect("strict decrease edge");
+    let source_rank = rank
+        .ranks
+        .iter()
+        .find(|rank| rank.block == edge.source)
+        .expect("source block rank")
+        .value;
+    assert_ne!(edge.successor_rank, source_rank);
+    edge.successor_rank = source_rank;
     assert!(
-        terminal_verifier::verify_module_for_interpretation(
+        terminal_verifier::verify_module(
             &module,
             &proof,
             &proof_admission::AdmissionProfile::default(),
@@ -302,17 +315,18 @@ fn ranked_array_receiver_rejects_altered_rank_successor_argument() {
 #[test]
 fn ranked_array_receiver_rejects_missing_decrease_evidence() {
     let (module, mut proof) = canonical_countdown("[u64; 3]");
-    assert!(
-        !proof.evidence.is_empty(),
-        "checked countdown supplies proof evidence"
-    );
-    proof.evidence.clear();
+    let [cycle] = proof.control_cycles.as_mut_slice() else {
+        panic!("one grouped cycle certificate")
+    };
+    let component = cycle.component;
+    assert!(!cycle.certificate.edges.is_empty());
+    cycle.certificate.edges.pop();
     assert!(matches!(
-        terminal_verifier::verify_module_for_interpretation(
+        terminal_verifier::verify_module(
             &module,
             &proof,
             &proof_admission::AdmissionProfile::default(),
         ),
-        Err(VerificationError::MissingEvidence(_))
+        Err(VerificationError::RejectedControlCycle { component: actual, .. }) if actual == component
     ));
 }
