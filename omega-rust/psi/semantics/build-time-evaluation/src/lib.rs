@@ -255,7 +255,7 @@ impl PreCheckEvaluation {
 pub fn evaluate_pre_resolution(
     syntax_trees: syntax_trees::SyntaxTrees,
 ) -> Result<PreResolutionEvaluation, Vec<diagnostics::Diagnostic>> {
-    evaluate_pre_resolution_with_optional_sources(syntax_trees, None, &[], None)
+    evaluate_pre_resolution_with_optional_sources(syntax_trees, None, &[], None, None)
 }
 
 /// Package-aware pre-resolution evaluation.
@@ -282,6 +282,7 @@ pub fn evaluate_pre_resolution_with_sources_and_top_level_bindings(
         syntax_trees,
         Some(sources),
         &source_scoped_top_level_bindings,
+        None,
         None,
     )
 }
@@ -312,6 +313,26 @@ pub fn evaluate_pre_resolution_with_sources_top_level_bindings_and_authority(
         Some(sources),
         &source_scoped_top_level_bindings,
         Some(selection_authority),
+        None,
+    )
+}
+
+/// Evaluate one extension unit with the retained predecessor available only
+/// for exact nominal argument selection. This does not synthesize base templates
+/// or expose other generated units to its evaluation.
+pub fn evaluate_pre_resolution_extension(
+    syntax: syntax_trees::SyntaxTrees,
+    sources: Arc<source::SourceMap>,
+    bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+    authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    retained_base: &symbol_resolved_trees::SymbolResolvedTrees,
+) -> Result<PreResolutionEvaluation, Vec<diagnostics::Diagnostic>> {
+    evaluate_pre_resolution_with_optional_sources(
+        syntax,
+        Some(sources),
+        &bindings,
+        authority,
+        Some(retained_base),
     )
 }
 
@@ -320,6 +341,7 @@ fn evaluate_pre_resolution_with_optional_sources(
     sources: Option<Arc<source::SourceMap>>,
     source_scoped_top_level_bindings: &[symbols::SourceScopedTopLevelBinding],
     selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
 ) -> Result<PreResolutionEvaluation, Vec<diagnostics::Diagnostic>> {
     let syntax_trees = const_initializers::evaluate(
         syntax_trees,
@@ -350,6 +372,7 @@ fn evaluate_pre_resolution_with_optional_sources(
         syntax_trees,
         sources,
         source_scoped_top_level_bindings,
+        retained_base,
     )?;
     let plan_laid_records = desugar_plan_laid_value_types(&mut syntax_trees)?;
     Ok(PreResolutionEvaluation {
@@ -367,9 +390,17 @@ fn normalize_generic_data_with_optional_sources(
     syntax_trees: syntax_trees::SyntaxTrees,
     sources: Option<Arc<source::SourceMap>>,
     source_scoped_top_level_bindings: &[symbols::SourceScopedTopLevelBinding],
+    retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
 ) -> Result<syntax_trees::SyntaxTrees, Vec<diagnostics::Diagnostic>> {
     match sources {
-        Some(sources) => syntax_trees_to_symbol_resolved_trees::normalize_generic_data_with_sources_and_top_level_bindings(syntax_trees, sources, source_scoped_top_level_bindings.to_vec()),
+        Some(sources) => {
+            syntax_trees_to_symbol_resolved_trees::normalize_generic_data_with_retained_base(
+                syntax_trees,
+                sources,
+                source_scoped_top_level_bindings.to_vec(),
+                retained_base,
+            )
+        }
         None => syntax_trees_to_symbol_resolved_trees::normalize_generic_data(syntax_trees),
     }
 }

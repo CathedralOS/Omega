@@ -21,7 +21,6 @@
 //! attachments still need their full owners.
 
 use diagnostics::Diagnostic;
-use source::SourceId;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::Item;
 use syntax_trees::types::TypeReferenceNode;
@@ -136,7 +135,9 @@ pub(crate) fn validate_with_const_resolution_mode(
             }
             Item::Data(data)
                 if !data.type_parameters.is_empty()
-                    && module_sources.contains(&data.name.source_span().source_id) =>
+                    && module_sources.contains(&data.name.source_span().source_id)
+                    && (syntax.items.data_members(data.members).iter().any(|member| matches!(member, syntax_trees::item::DataMember::Variant(_)))
+                        || matches!(data.name.as_str(), "IntervalSet" | "CountedQuantity")) =>
             {
                 Some((
                     &data.name,
@@ -164,49 +165,7 @@ pub(crate) fn validate_with_const_resolution_mode(
             ]);
         }
     }
-    // The pre-resolution instance cache deduplicates argument spellings.
-    // Two module-owned nominal arguments with one bare spelling cannot yet
-    // share that key, even when their template itself has no module.
-    for handle in syntax.type_references.generic_nodes() {
-        let TypeReferenceNode::Generic {
-            base_name,
-            arguments,
-            ..
-        } = syntax.type_references.type_reference(handle)
-        else {
-            continue;
-        };
-        if !generic_data
-            .iter()
-            .any(|data| data.name.as_str() == base_name.as_str())
-        {
-            continue;
-        }
-        let mut pending = syntax
-            .type_references
-            .type_reference_handles(*arguments)
-            .to_vec();
-        while let Some(argument) = pending.pop() {
-            match syntax.type_references.type_reference(argument) {
-                TypeReferenceNode::Named(name)
-                    if !name.as_str().contains("::")
-                        && nominal_argument_has_module_collision(
-                            syntax,
-                            &module_sources,
-                            name.as_str(),
-                        ) =>
-                {
-                    return Err(vec![Diagnostic::error("same-spelled nominal generic arguments from different modules require namespace-aware template normalization")
-                        .with_source_span(name.source_span())]);
-                }
-                TypeReferenceNode::Reference { referee, .. } => pending.push(*referee),
-                TypeReferenceNode::Constrained { base_type, .. } => pending.push(*base_type),
-                TypeReferenceNode::FixedArray { element_type, .. }
-                | TypeReferenceNode::Slice { element_type } => pending.push(*element_type),
-                _ => {}
-            }
-        }
-    }
+
     Ok(())
 }
 
@@ -271,29 +230,10 @@ fn scalar_literal_tree(
     }
 }
 
-fn nominal_argument_has_module_collision(
-    syntax: &SyntaxTrees,
-    module_sources: &[SourceId],
-    name: &str,
-) -> bool {
-    let declarations = syntax
-        .root_items()
-        .filter_map(|item| {
-            let Item::Data(data) = item else {
-                return None;
-            };
-            (data.name.as_str() == name).then_some(data.name.source_span().source_id)
-        })
-        .collect::<Vec<_>>();
-    declarations.len() > 1
-        && declarations
-            .iter()
-            .any(|source| module_sources.contains(source))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use source::SourceId;
     use source_files_to_tokens::Lexer;
     use tokens_to_syntax_trees::parse_syntax_trees_into_with_id;
 
@@ -449,17 +389,38 @@ mod tests {
     }
 
     #[test]
-    fn module_generic_templates_reject_before_same_name_overwrite() {
+    fn closed_record_arguments_select_current_domains_by_exact_carrier() {
+        let syntax = parse(&[
+            "data Token {} data Other {} domain Token::Issued; domain Other::Issued; data Cell<T> { value: T; } data Holder { first: Cell<Token in Issued>; second: Cell<Other in Issued>; }",
+        ]);
+        let normalized = crate::normalize_generic_data(syntax)
+            .expect("current declared domain arguments normalize");
+        let instances = normalized
+            .root_items()
+            .filter_map(|item| {
+                let Item::Data(data) = item else {
+                    return None;
+                };
+                data.generic_instance.map(|_| data.name.as_str())
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            instances.len(),
+            2,
+            "both exact carrier-domain applications must synthesize: {instances:?}"
+        );
+        assert!(instances.contains(&"Cell<Token in Issued>"));
+        assert!(instances.contains(&"Cell<Other in Issued>"));
+    }
+
+    #[test]
+    fn module_generic_records_do_not_overwrite_same_name_templates() {
         let syntax = parse(&[
             "module first; data Box<T> { value: T; }",
             "module second; data Box<T> { other: T; }",
         ]);
-        assert!(
-            crate::normalize_generic_data(syntax).expect_err("template identities are not ready")
-                [0]
-            .message
-            .contains("template normalization")
-        );
+        crate::normalize_generic_data(syntax)
+            .expect("distinct module record templates remain available");
     }
 
     #[test]
@@ -477,17 +438,14 @@ mod tests {
     }
 
     #[test]
-    fn same_spelled_module_arguments_cannot_share_one_generic_instance() {
+    fn same_spelled_module_arguments_select_their_own_declarations() {
         let syntax = parse(&[
             "data Box<T> { value: T; }",
             "module first; data Point {} data Container { value: Box<Point>; }",
             "module second; data Point {}",
         ]);
-        assert!(
-            crate::normalize_generic_data(syntax).expect_err("nominal argument owners differ")[0]
-                .message
-                .contains("nominal generic arguments")
-        );
+        crate::normalize_generic_data(syntax)
+            .expect("the argument is selected in its declaring module");
     }
 
     #[test]

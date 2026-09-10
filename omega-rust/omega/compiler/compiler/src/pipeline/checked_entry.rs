@@ -955,32 +955,29 @@ fn try_seeded_extension(
     let (extension_units, sources) = extension.into_pre_resolution_inputs(base_sources)?;
     let mut extension_syntax = syntax_trees::SyntaxTrees::new(source::SourceId(base_sources.len()));
     let mut pre_checks = Vec::with_capacity(extension_units.len());
+    // Normalize each unit against the same immutable predecessor. Retained
+    // nominal arguments are selectable; sibling units and base templates are
+    // not silently re-normalized together.
+    let resolved_base = base.resolved_base_for_extension();
     for unit in extension_units {
-        let evaluated = match package_inputs {
-            Some(package_inputs) => {
-                build_time_evaluation::evaluate_pre_resolution_with_sources_top_level_bindings_and_authority(
-                    unit,
-                    sources.clone(),
-                    Vec::new(),
-                    Arc::new(package_inputs.clone()),
-                )
-            }
-            None => {
-                build_time_evaluation::evaluate_pre_resolution_with_sources_and_top_level_bindings(unit, sources.clone(), Vec::new())
-            }
-        }?;
+        let authority = package_inputs.map(|inputs| {
+            Arc::new(inputs.clone()) as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
+        });
+        let evaluated = build_time_evaluation::evaluate_pre_resolution_extension(
+            unit,
+            sources.clone(),
+            Vec::new(),
+            authority,
+            &resolved_base,
+        )?;
         let (unit, pre_check) = evaluated.into_syntax_and_pre_check();
         extension_syntax.extend_from(&unit);
         pre_checks.push(pre_check);
     }
     let selected_target_machine_declarations = selected_target_machine_declarations
         .filter_generated_extension(&mut extension_syntax, target_name)?;
-    let seeded = resolve_seeded_syntax_extension(
-        base.resolved_base_for_extension(),
-        &extension_syntax,
-        sources,
-        timings,
-    )?;
+    let seeded =
+        resolve_seeded_syntax_extension(resolved_base, &extension_syntax, sources, timings)?;
     let rebased = seeded
         .rebase_authored_selections_for_typed_continuation(
             base.typed().authored_declaration_selections(),

@@ -318,11 +318,28 @@ pub(crate) fn validate_direct_const_arguments(
 /// symbols stay private; each erased constant argument retains its selected
 /// declaration coordinates for the complete resolver's checked join.
 pub fn normalize_generic_data_with_sources_and_top_level_bindings(
-    mut syntax: SyntaxTrees,
+    syntax: SyntaxTrees,
     sources: std::sync::Arc<source::SourceMap>,
     bindings: Vec<symbols::SourceScopedTopLevelBinding>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
-    let selection = constant_selection::ConstantSelection::new(&syntax, Some(sources), bindings)?;
+    normalize_generic_data_with_retained_base(syntax, sources, bindings, None)
+}
+
+/// Generated units may name retained nominal arguments without owning their
+/// syntax. Their immutable predecessor participates in the same header resolver;
+/// templates still come only from this unit, preserving the extension frontier.
+pub fn normalize_generic_data_with_retained_base(
+    mut syntax: SyntaxTrees,
+    sources: std::sync::Arc<source::SourceMap>,
+    bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+    retained: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
+) -> Result<SyntaxTrees, Vec<Diagnostic>> {
+    let selection = constant_selection::ConstantSelection::with_retained_base(
+        &syntax,
+        Some(sources),
+        bindings,
+        retained,
+    )?;
     crate::module_normalization::validate_with_selection(&syntax, &selection)?;
     let mut warnings = Vec::new();
     synthesis::desugar_generic_data_instances_with_selection(

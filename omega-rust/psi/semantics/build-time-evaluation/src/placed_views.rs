@@ -130,6 +130,7 @@ pub(crate) fn desugar_placed_views_with_optional_sources(
         probe,
         sources.clone(),
         source_scoped_top_level_bindings,
+        None,
     )?;
     let probe_plan_laid = crate::desugar_plan_laid_value_types(&mut probe)?;
     let resolved = crate::lower_probe_with_optional_sources(

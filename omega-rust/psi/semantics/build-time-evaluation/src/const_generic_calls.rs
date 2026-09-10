@@ -52,6 +52,7 @@ pub(crate) fn evaluate_const_generic_calls_with_optional_sources(
         probe,
         sources.clone(),
         source_scoped_top_level_bindings,
+        None,
     )?;
     let resolved = crate::lower_probe_with_optional_sources(
         &probe,

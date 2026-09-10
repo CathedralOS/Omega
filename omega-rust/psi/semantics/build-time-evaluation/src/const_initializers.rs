@@ -227,8 +227,12 @@ pub(super) fn evaluate(
                 definition.type_reference,
             );
         }
-        let probe =
-            crate::normalize_generic_data_with_optional_sources(probe, sources.clone(), bindings)?;
+        let probe = crate::normalize_generic_data_with_optional_sources(
+            probe,
+            sources.clone(),
+            bindings,
+            None,
+        )?;
         let resolved = crate::lower_probe_with_optional_sources(&probe, sources.clone(), bindings)?;
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .map_err(|error| vec![error])?;

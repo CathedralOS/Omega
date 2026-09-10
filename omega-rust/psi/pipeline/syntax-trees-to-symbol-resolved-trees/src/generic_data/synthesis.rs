@@ -26,33 +26,24 @@ pub(super) fn desugar_generic_data_instances_with_selection(
     warnings: &mut Vec<Diagnostic>,
     selection: Option<&super::constant_selection::ConstantSelection>,
 ) -> Result<(), Vec<Diagnostic>> {
-    // Index generic data definitions by name (only those with type parameters;
-    // a non-generic `Base<..>` is either plan-laid or an existing error path).
-    // Generic bases that carry attached MACHINES (a generic container like
-    // `Vec<T>` with `push`) are LEFT for the existing path: monomorphizing the
-    // data without its generic machines (Phase 2) would break method
-    // resolution (`self.items.push(..)` on a `Vec<i32>` field). Phase 1 =
-    // method-less generic data only.
-    let mut data_with_machines: std::collections::HashSet<String> =
-        std::collections::HashSet::new();
-    // Attached machines per data name, as ROOT-ITEM indexes (the synthesis
-    // loop clones them from a snapshot when it builds a container instance).
-    let mut attached_machines: HashMap<String, Vec<usize>> = HashMap::new();
+    // Attachments belong to the carrier selected in their declaring source,
+    // not to every generic declaration with the same leaf spelling.
+    let mut attached_machines: HashMap<syntax_trees::item::ItemHandle, Vec<usize>> = HashMap::new();
     for (item_index, item) in syntax.root_items().enumerate() {
         if let Item::Machine(machine) = item
             && let Some(attached) = &machine.attached_data
+            && let Some(declaration) = selected_data_item(syntax, selection, attached)
         {
-            data_with_machines.insert(attached.as_str().to_string());
             attached_machines
-                .entry(attached.as_str().to_string())
+                .entry(declaration)
                 .or_default()
                 .push(item_index);
         }
     }
 
-    let mut generic_data: HashMap<String, GenericData> = HashMap::new();
-    for item in syntax.root_items() {
-        let Item::Data(definition) = item else {
+    let mut generic_data: HashMap<syntax_trees::item::ItemHandle, GenericData> = HashMap::new();
+    for &declaration in syntax.root_item_handles() {
+        let Item::Data(definition) = syntax.root_item(declaration) else {
             continue;
         };
         if definition.type_parameters.is_empty() {
@@ -88,7 +79,7 @@ pub(super) fn desugar_generic_data_instances_with_selection(
         {
             continue;
         }
-        if data_with_machines.contains(definition.name.as_str()) {
+        if attached_machines.contains_key(&declaration) {
             // A CONTAINER (generic data with attached machines) monomorphizes
             // ONLY when every method's own type parameters are covered by the
             // data's parameter names (T-on-method matching T-on-data --
@@ -110,40 +101,35 @@ pub(super) fn desugar_generic_data_instances_with_selection(
                     )
                 })
                 .collect();
-            let all_methods_covered =
-                attached_machines[definition.name.as_str()]
+            let all_methods_covered = attached_machines[&declaration].iter().all(|&item_index| {
+                let Some(Item::Machine(machine)) = syntax.root_items().nth(item_index) else {
+                    return false;
+                };
+                // DECLARATION-ONLY methods (the stdlib `Vec<T>` surface --
+                // empty state bodies, type-check-only) must NOT clone: a
+                // concrete clone of an empty body trips the
+                // returns-but-empty check that generic templates are
+                // exempt from. Such containers stay type-check-only.
+                let has_bodies = syntax
+                    .tables
+                    .items
+                    .state_handles(machine.states)
                     .iter()
-                    .all(|&item_index| {
-                        let Some(Item::Machine(machine)) = syntax.root_items().nth(item_index)
-                        else {
-                            return false;
-                        };
-                        // DECLARATION-ONLY methods (the stdlib `Vec<T>` surface --
-                        // empty state bodies, type-check-only) must NOT clone: a
-                        // concrete clone of an empty body trips the
-                        // returns-but-empty check that generic templates are
-                        // exempt from. Such containers stay type-check-only.
-                        let has_bodies = syntax
-                            .tables
-                            .items
-                            .state_handles(machine.states)
-                            .iter()
-                            .any(|state| !syntax.tables.items.state(*state).statements.is_empty());
-                        has_bodies
-                            && syntax
-                                .tables
-                                .items
-                                .type_parameters(machine.type_parameters)
-                                .iter()
-                                .all(|parameter| {
-                                    let method_is_const =
-                                        matches!(parameter.kind, TypeParameterKind::Const { .. });
-                                    data_parameters.iter().any(|(name, data_is_const)| {
-                                        name == parameter.name.as_str()
-                                            && *data_is_const == method_is_const
-                                    })
-                                })
-                    });
+                    .any(|state| !syntax.tables.items.state(*state).statements.is_empty());
+                has_bodies
+                    && syntax
+                        .tables
+                        .items
+                        .type_parameters(machine.type_parameters)
+                        .iter()
+                        .all(|parameter| {
+                            let method_is_const =
+                                matches!(parameter.kind, TypeParameterKind::Const { .. });
+                            data_parameters.iter().any(|(name, data_is_const)| {
+                                name == parameter.name.as_str() && *data_is_const == method_is_const
+                            })
+                        })
+            });
             if !all_methods_covered {
                 continue;
             }
@@ -160,8 +146,9 @@ pub(super) fn desugar_generic_data_instances_with_selection(
             })
             .collect();
         generic_data.insert(
-            definition.name.as_str().to_string(),
+            declaration,
             GenericData {
+                declaration,
                 name: definition.name.as_str().to_owned(),
                 origin_name: definition.name.clone(),
                 is_public: definition.is_public,
@@ -239,7 +226,7 @@ pub(super) fn desugar_generic_data_instances_with_selection(
     // up and monomorphized by the NEXT round. Terminates: each round rewrites
     // >=1 Generic node to Named (permanent) or stops, and the distinct concrete
     // spellings are finite.
-    let mut synthesized: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut synthesized: Vec<Instantiation> = Vec::new();
     let mut synthesized_origins: HashMap<String, String> = HashMap::new();
     let mut synthesized_sum_instances: HashMap<String, HashSet<String>> = HashMap::new();
     loop {
@@ -256,6 +243,7 @@ pub(super) fn desugar_generic_data_instances_with_selection(
                 position,
                 &mut rewrites,
                 &mut instantiations,
+                &synthesized,
                 warnings,
             )
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -264,7 +252,7 @@ pub(super) fn desugar_generic_data_instances_with_selection(
             break; // no more monomorphizable generic spellings
         }
         for instance in &instantiations {
-            let base_info = &generic_data[&instance.base_name];
+            let base_info = &generic_data[&instance.template];
             if !matches!(
                 generic_data_shape(syntax, base_info),
                 Some(GenericDataShape::PureSum | GenericDataShape::MixedSum)
@@ -280,10 +268,14 @@ pub(super) fn desugar_generic_data_instances_with_selection(
         // the type parameters substituted for the arguments.
         for instance in &instantiations {
             synthesized_origins.insert(instance.synthetic_name.clone(), instance.base_name.clone());
-            if !synthesized.insert(instance.synthetic_name.clone()) {
+            if synthesized.iter().any(|prior| {
+                prior.template == instance.template
+                    && prior.argument_identity == instance.argument_identity
+            }) {
                 continue;
             }
-            let base_info = &generic_data[&instance.base_name];
+            synthesized.push(instance.clone());
+            let base_info = &generic_data[&instance.template];
             let substitution: HashMap<String, TypeReferenceHandle> = base_info
                 .parameter_names
                 .iter()
@@ -417,7 +409,7 @@ pub(super) fn desugar_generic_data_instances_with_selection(
                 .insert_type_reference_handles(instance.argument_handles.iter().copied());
             let generic_instance = syntax.tables.type_references.insert(
                 syntax_trees::types::TypeReferenceNode::Generic {
-                    base_name: Identifier::generated(instance.base_name.as_str()),
+                    base_name: base_info.origin_name.clone(),
                     lifetime_arguments: Vec::new(),
                     arguments: origin_arguments,
                 },
@@ -463,7 +455,7 @@ pub(super) fn desugar_generic_data_instances_with_selection(
             // while appending into &mut tables), then a WATERMARK pass
             // rewrites `Named(T)` nodes created by the copy -- only the
             // clone's own subtree is younger than the watermark.
-            let Some(machine_items) = attached_machines.get(&instance.base_name) else {
+            let Some(machine_items) = attached_machines.get(&instance.template) else {
                 continue;
             };
             let snapshot = syntax.clone();

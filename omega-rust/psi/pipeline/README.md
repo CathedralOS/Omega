@@ -229,7 +229,8 @@ have checked-source coverage. Constant substitution
 uses exact module/package selection after lexical name assignment and retains
 the selected declaration at the original use. This is not completion of the
 [module/name contract](../../../wiki/spec/language/modules.md):
-foreign/generic constant attachments and template normalization, trait defaults,
+foreign/generic constant attachments, sum and specialized template normalization,
+template attachments, trait defaults,
 operator homes, package-prefixed bare case values, qualified case membership,
 and the remaining declaration forms still need exact
 namespace-aware resolution.
@@ -238,10 +239,21 @@ initializer. This keeps constructor selection in the declaring source and
 deep-copies aggregate children at each use without re-reading the base source;
 the [generated-source continuation](../../omega/compiler/compiler/generated_source.md)
 retains its exercising compiler command.
-Unsupported scoped constants, module-owned generic templates,
-traits, conformances, domains, and operators
-currently reject before their bare-name transforms; so do generic
-carrier/argument collisions across module scopes.
+Closed ordinary record applications select their exact module-owned template
+and complete argument tuple. Nominal arguments retain declaration identity,
+including nested applications and arrays; repeated qualification or narrow
+imports of the same declaration share one instance. Each authored use retains
+its own selection authority, and typed lowering independently checks its
+application against the generated carrier's retained origin. Same-leaf templates
+and arguments in different modules remain distinct.
+The `package_compilation_inputs::module_generic_data` probes cover these
+checked-source relationships and rejection of private or transitive-only access.
+Generated-source normalization borrows the retained resolved predecessor for
+nominal argument and domain selection. It does not synthesize retained templates
+or expand the continuation's flat, root-owned nominal declaration boundary.
+Unsupported scoped constants, module-owned sum and specialized templates,
+template attachments, traits, conformances, domains, and operators still reject
+before their bare-name transforms.
 Closed data applications select named constant indices through the shared
 source-aware resolver before folding. Loader import bindings reach evaluation
 probes too. The normalizer checks the declared carrier, retains exact declaration
