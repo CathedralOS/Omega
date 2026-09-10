@@ -64,7 +64,7 @@ fn explicit_integer_spellings_and_inferred_values_share_one_instance() {
 #[test]
 fn equivalent_named_structured_and_inferred_values_share_one_instance() {
     let checked = accepts(
-        "data Config { count: u8; enabled: bool; }
+        "data Config [copy] { count: u8; enabled: bool; }
         const Values::FIRST: Config = Config { count: 2, enabled: true };
         const Values::SAME: Config = Config { enabled: true, count: 2 };
         data Witness<const N: Config> { case Only; }
@@ -104,7 +104,7 @@ fn statement_calls_admit_boolean_values_without_declaration_symbols() {
 #[test]
 fn structured_values_forward_without_becoming_integer_literals() {
     accepts(
-        "data Config { enabled: bool; }
+        "data Config [copy] { enabled: bool; }
         const Values::CONFIG: Config = Config { enabled: true };
         const Values::ARRAY: [u8; 2] = [2, 3];
         machine record_inner<const N: Config>() -> Config { N }
@@ -127,7 +127,7 @@ fn invalid_explicit_values_reject_even_when_the_binder_is_unused() {
         "machine value<const N: u8>() -> u64 { 7 } machine main() -> u64 { value<true>() }",
         "const Values::N: u16 = 2; machine value<const N: u8>() -> u64 { 7 }
          machine main() -> u64 { value<Values::N>() }",
-        "data First { count: u8; } data Second { count: u8; }
+        "data First [copy] { count: u8; } data Second [copy] { count: u8; }
          const Values::N: First = First { count: 2 };
          machine value<const N: Second>() -> u64 { 7 }
          machine main() -> u64 { value<Values::N>() }",

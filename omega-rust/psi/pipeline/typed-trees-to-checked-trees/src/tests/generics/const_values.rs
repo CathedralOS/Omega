@@ -219,7 +219,7 @@ fn boolean_const_values_check_in_original_and_cloned_bodies() {
 #[test]
 fn named_structured_const_values_check_as_executable_machine_results() {
     accepts(
-        "data Config { count: u8; enabled: bool; }
+        "data Config [copy] { count: u8; enabled: bool; }
          data Values {}
          const Values::FIRST: Config = Config { count: 2, enabled: true };
          const Values::SECOND: Config = Config { enabled: false, count: 3 };
@@ -402,7 +402,7 @@ fn authored_unit_annotation_is_not_an_inferred_temporary() {
 #[test]
 fn array_and_case_const_values_retain_their_declared_shape() {
     accepts(
-        "data Choice { case Empty; case Item(value: u8); }
+        "data Choice [copy] { case Empty; case Item(value: u8); }
          const Values::PAIR: [u8; 2] = [2, 3];
          const Values::EMPTY: Choice = Choice::Empty;
          const Values::ITEM: Choice = Choice::Item { value: 7 };
