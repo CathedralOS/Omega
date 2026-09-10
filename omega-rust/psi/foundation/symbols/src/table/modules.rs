@@ -4,6 +4,9 @@
 //! attached paths. A narrow import may expose an attached declaration's leaf;
 //! retaining that candidate does not expose sibling declarations or make its
 //! leaf a bare local name. Every candidate still needs its exact source owner.
+//! A loader-certified package alias can qualify other already-loaded sources
+//! of that same dependency; that lookup does not change which exact source
+//! must satisfy an authored import or expose additional unqualified names.
 
 use std::sync::Arc;
 
@@ -389,6 +392,36 @@ impl SymbolTable {
                 let Some(import) = &binding.module_import else {
                     return false;
                 };
+                // The loader certifies the requester's package prefix against
+                // this imported source. A full alias-qualified path may name
+                // another loaded source of that exact package, while ordinary
+                // import exposure below still requires the exact loaded file.
+                if qualified
+                    && import.exact_source
+                    && import.package_prefix_members != 0
+                    && self
+                        .symbol_provenance_source_span(candidate)
+                        .is_some_and(|span| {
+                            self.same_source_package(
+                                span,
+                                SourceSpan::new(binding.declaration_source, span.span),
+                            )
+                        })
+                {
+                    let prefix = import
+                        .path
+                        .split("::")
+                        .take(import.package_prefix_members)
+                        .collect::<Vec<_>>()
+                        .join("::");
+                    if name
+                        .strip_prefix(&prefix)
+                        .and_then(|suffix| suffix.strip_prefix("::"))
+                        == Some(candidate_path.as_str())
+                    {
+                        return true;
+                    }
+                }
                 if !self.import_owner_matches(binding, candidate) {
                     return false;
                 }
@@ -397,20 +430,6 @@ impl SymbolTable {
                     return is_module && candidate_path == logical && self.name(candidate) == name;
                 }
                 if candidate_path == name {
-                    return true;
-                }
-                let prefix = import
-                    .path
-                    .split("::")
-                    .take(import.package_prefix_members)
-                    .collect::<Vec<_>>()
-                    .join("::");
-                if !prefix.is_empty()
-                    && name
-                        .strip_prefix(&prefix)
-                        .and_then(|suffix| suffix.strip_prefix("::"))
-                        == Some(candidate_path.as_str())
-                {
                     return true;
                 }
                 if let Some(short) = logical.rsplit("::").next()

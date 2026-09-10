@@ -163,8 +163,10 @@ or runtime-dependent inline storage is part of this work.
 Authored `module` paths establish namespace symbols without moving the ordered
 root declaration slots. Semantic paths include the namespace; physical member
 ownership and exact package provenance remain separate. Cross-file imports join
-logical paths to the exact loaded source. Package aliases do not rename nominal
-identities or grant transitive selection authority. Static namespace calls retain
+logical paths to the exact loaded source. A certified package alias can qualify
+public declarations in other already-loaded sources of that same direct
+dependency; each import still validates its own exact source. Package aliases do
+not rename nominal identities or grant transitive selection authority. Static namespace calls retain
 the authored `::` distinction from value-member `.` calls through parsing.
 
 Nominal data references, scalar free-machine calls, and primitive literal
