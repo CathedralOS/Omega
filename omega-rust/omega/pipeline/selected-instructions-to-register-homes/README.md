@@ -11,9 +11,12 @@ identifies the compiler sequence.
 ## Current facts and evidence
 
 [RetainedAllocation](src/output/mod.rs) owns the current program separately from
-its source and transformation evidence. `AllocationSource::replay_allocation`
-reconstructs that evidence before exposing `AllocationOutput`. Baseline, literal
-fold, fixed-view-copy, rematerialization, and executable-spill histories share
+its source and transformation evidence. Construction independently reconstructs
+that evidence before taking private ownership of immutable replay inputs.
+`AllocationSource::replay_allocation` on this retained owner reuses their admission
+and compares every current fact against the same source; fresh inputs still need
+full replay. No detached digest or mutable source can reuse that admission.
+Baseline, literal fold, fixed-view-copy, rematerialization, and executable-spill histories share
 one downstream allocation view. Projection or hashing a raw plan is not admission.
 
 Selected liveness/range schemas belong to `selected-instructions`; allocation
@@ -61,7 +64,8 @@ replay checks the precise resulting roster before preservation or emission.
 
 Selection prepares scalar edge copies as ordinary instructions in explicit
 implementation blocks. A live destination parameter and its final transfer
-register must share a home; original arguments and snapshots remain independently live.
+register must share a home; original arguments and snapshots remain independently
+live.
 The allocator retains its interference and tied-home checks. Recovery that
 requires an authored node must match a `Source` block origin, not the semantic
 target anchor of an edge-copy block.
@@ -102,9 +106,9 @@ uses reachable without initialization, terminal/edge uses, and
 cyclic/ranked functions still reject. Only changed blocks' settlement indices
 move; edges and other blocks remain identical. Rewritten values and spill
 addresses never expand the candidate roster. Each cumulative rewrite gets fresh
-liveness, ranges, legality, and homes; independent replay reconstructs each pressure failure,
-rewrite, and final fact/manifest join. The current allocation view remains the
-same downstream representation. The manifest records exact transformed
+liveness, ranges, legality, and homes; independent replay reconstructs each
+pressure failure, rewrite, and final fact/manifest join. The current allocation
+view remains the same downstream representation. The manifest records exact transformed
 identities and realized selected storage, not final frame authority.
 These private eight-byte slots preserve full GPR payloads. They do not widen
 source referent reads, change scalar signedness, or normalize floating bits.

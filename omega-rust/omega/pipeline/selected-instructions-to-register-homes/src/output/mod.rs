@@ -19,8 +19,9 @@ mod sealed {
     pub trait Sealed {}
 }
 
-/// Sealed allocation boundary. Implementations reconstruct all source and
-/// rewrite evidence before exposing the current program and its allocation.
+/// Sealed allocation boundary. Fresh inputs independently reconstruct all source
+/// and rewrite evidence. Privately owned immutable retained inputs may reuse that
+/// admission while still checking the complete current-program join.
 pub trait AllocationSource: sealed::Sealed {
     fn replay_allocation(&self) -> Result<AllocationOutput<'_>, AllocationReplayError>;
 }

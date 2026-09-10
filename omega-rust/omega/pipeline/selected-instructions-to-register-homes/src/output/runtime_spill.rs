@@ -8,6 +8,16 @@ impl sealed::Sealed for RuntimeSpillAllocation {}
 impl AllocationSource for RuntimeSpillAllocation {
     fn replay_allocation(&self) -> Result<AllocationOutput<'_>, AllocationReplayError> {
         replay::validate(self).map_err(AllocationReplayError::RuntimeSpill)?;
+        self.project_replayed_allocation()
+    }
+}
+
+impl RuntimeSpillAllocation {
+    /// Only fresh independent replay or the retained owner's immutable admission
+    /// may use this projection. Absence of a final rewrite remains a typed error.
+    pub(super) fn project_replayed_allocation(
+        &self,
+    ) -> Result<AllocationOutput<'_>, AllocationReplayError> {
         let selected = self
             .source
             .live_range_stage()

@@ -128,8 +128,8 @@ fn mixed_call_source(length: usize) -> String {
 fn large_sysv_inline_arguments_retain_selected_call_and_stack_evidence() {
     // SysV passes this value inline on the stack. AAPCS and Microsoft use
     // indirect arguments at this size, an explicitly separate transport.
-    // This is deliberately selected-stage coverage, not native acceptance:
-    // the literal's multi-block graph needs runtime spill support (TASKS).
+    // Keep selected call/stack corruption controls separate from the full
+    // publication and matching-host runtime regression below.
     let target = NativeTarget::linux_x64();
     let staged = target_operations_to_selected_instructions::stage_optimized_instruction_selection(
         target_plan(&mixed_call_source(17), "selected", target).unwrap(),
@@ -187,7 +187,7 @@ fn large_sysv_inline_arguments_retain_selected_call_and_stack_evidence() {
 }
 
 #[test]
-fn large_sysv_inline_arguments_publish_through_block_local_spills() {
+fn large_sysv_inline_arguments_publish_through_verified_spills() {
     let (image, offset) = publish(
         &mixed_call_source(17),
         "selected",
