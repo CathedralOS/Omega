@@ -596,8 +596,9 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   exact arrival mappings and preserved premises for ranked subjects and pinned
   endpoints. Mutable premises need live write-frame evidence.
   Custom struct-view ranges involving borrowed or nested projections,
-  constrained measure parameters, and duplicated or computed-only record arrivals
-  need exact view-application evidence. Retire generated operand-call states through
+  constrained measure parameters, duplicated record roles, and dependency-free
+  initial record arrivals need exact view-application evidence.
+  Retire generated operand-call states through
   STATE-LOCAL-VALUE-FRONTIER's checked computation route rather than add ranking
   provenance for those artificial edges. Flow-dependent computed
   endpoint formation needs its own arithmetic proof, not an unchecked

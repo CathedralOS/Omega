@@ -171,21 +171,29 @@ not the normalized witness's fallback display labels. Constant endpoints use
 the same formation checks: suffixes preserve their carriers, and anonymous
 subtrees use exact rational evaluation before integer landing.
 
-Named-state arrivals reuse these field coordinates through identity-anchored
-entry-role mappings. Each demanded record role must have one immutable owned
+Named-state arrivals reuse these field coordinates through exact entry-role
+mappings. Identity forwarding anchors the first discovery tier; reconstructed
+records can establish a role directly from their field dependencies in the
+computed tier. All fields contribute, independent of constructor order. A
+unique dependency or the already-authored rank subject selects a candidate role,
+not a value equality; every eligible incoming proposal must agree.
+Each demanded record role must have one immutable owned
 formal of the exact nominal type in both source and destination; duplicated
 record roles need independent field-copy equality evidence. Root-template and
 renamed current projections share only that checked coordinate. Every arrival
 substitutes rank, auxiliary fields, and endpoints simultaneously, and cyclic
 edges additionally prove strict descent. Complete prefix write frames and
-selected builtin operand meanings remain required. Computed-only initial record
-arrivals, borrowed/nested projections, and constrained measure parameters remain
-unsupported by this tier.
+selected builtin operand meanings remain required. Dependency-free or ambiguous
+unanchored initial record arrivals, borrowed/nested projections, and constrained
+measure parameters remain unsupported by this tier.
 Check the customer with `cargo run -p omega -- --check
 tests/omega/pass/termination/measure_field_named_arrival/main.omg` (or `mbx run`).
 The `checked-interpreter` integration target `field_ranking_arrivals` executes the
 same countdown. This is checked-source support, not custom-view Terminal/native
 certificate export.
+The direct reconstructed-entry customer is `cargo run -p omega -- --check
+tests/omega/pass/termination/measure_field_computed_arrival/main.omg`; it shares
+that interpreter target and needs no extra identity-forwarding state.
 
 Descent also requires complete write frames preserving the ranked field through
 the preceding statements and edge operands; a reset cannot count as progress.

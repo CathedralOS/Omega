@@ -25,8 +25,9 @@ pub(super) fn prove<'program>(
         targets.dedup();
     }
     let entry_is_initial = !adjacency.iter().any(|targets| targets.contains(&0));
-    let scalar_subject = match measure {
+    let rank_subject = match measure {
         validation::RankingRangeMeasure::Single(subject)
+        | validation::RankingRangeMeasure::Field { subject, .. }
         | validation::RankingRangeMeasure::IncreasingTo { subject, .. } => {
             match program.expression_table.expression(subject) {
                 ExpressionNode::Name(name)
@@ -39,7 +40,7 @@ pub(super) fn prove<'program>(
         }
         _ => SymbolHandle::default(),
     };
-    let Some(mappings) = discover_mappings(program, machine, &adjacency, scalar_subject) else {
+    let Some(mappings) = discover_mappings(program, machine, &adjacency, rank_subject) else {
         return false;
     };
     let components = graph::strongly_connected_components(&adjacency);
@@ -106,7 +107,7 @@ pub(super) fn prove<'program>(
 }
 
 /// Identity transfers anchor the first closure. Computations can then establish
-/// remaining telescopes from one dependency or the already-authored scalar rank
+/// remaining telescopes from one dependency or the already-authored rank
 /// subject, including its copies, without selecting a new witness.
 /// Each state enters the worklist once per tier. Every eligible incoming edge
 /// checks its proposal, including edges to already-processed destinations, so
@@ -115,7 +116,7 @@ fn discover_mappings(
     program: &TypedTrees,
     machine: &Machine,
     adjacency: &[Vec<usize>],
-    scalar_subject: SymbolHandle,
+    rank_subject: SymbolHandle,
 ) -> Option<Vec<Vec<SymbolHandle>>> {
     let states = program.machine_states(machine);
     let root = states.first()?;
@@ -151,7 +152,7 @@ fn discover_mappings(
                         )
                     });
                     if !identity && (!computed || anchored[target_position]) {
-                        // Arithmetic actuals use an identity-anchored target;
+                        // Computed actuals use an identity-anchored target;
                         // they do not redefine its parameter correspondence.
                         continue;
                     }
@@ -162,7 +163,7 @@ fn discover_mappings(
                         target,
                         &source_mapping,
                         edge.arguments,
-                        scalar_subject,
+                        rank_subject,
                     ) else {
                         if identity {
                             return None;
@@ -195,7 +196,7 @@ fn argument_mapping(
     target: &State,
     source_mapping: &[SymbolHandle],
     arguments: &[ExpressionHandle],
-    scalar_subject: SymbolHandle,
+    rank_subject: SymbolHandle,
 ) -> Option<Vec<SymbolHandle>> {
     let source_parameters = program
         .state_parameters(source)
@@ -223,7 +224,7 @@ fn argument_mapping(
                 parameter.symbol == *subject && !parameter.is_mutable && !parameter.is_const
             })?;
             let entry_symbol = source_mapping[source_position];
-            if subjects.len() == 1 || entry_symbol == scalar_subject {
+            if subjects.len() == 1 || entry_symbol == rank_subject {
                 // Discover the authored role, not equality of current values.
                 // The edge judgment independently establishes equality of all
                 // required rank copies on every arrival before using it as an
@@ -257,7 +258,7 @@ fn argument_subjects(
         return None;
     }
     match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(_) => {}
+        ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => {}
         ExpressionNode::Name(name) if name.symbol.is_valid() && name.head_symbol == name.symbol => {
             if !subjects.contains(&name.symbol) {
                 subjects.push(name.symbol);
@@ -265,6 +266,28 @@ fn argument_subjects(
         }
         ExpressionNode::Atomic(atomic) => {
             argument_subjects(program, machine, state, atomic.value, subjects, depth + 1)?;
+        }
+        ExpressionNode::Member(member) => {
+            // A projection identifies a candidate input role, not its field's
+            // value or type. The edge owner separately resolves the exact owned
+            // declaration before binding any arithmetic coordinate.
+            argument_subjects(
+                program,
+                machine,
+                state,
+                member.receiver,
+                subjects,
+                depth + 1,
+            )?;
+        }
+        ExpressionNode::StructLiteral(literal) => {
+            // Rebuilding a record is an ordinary computed arrival. Collect all
+            // dependencies so field order cannot choose its role, and let the
+            // simultaneous field substitution prove the actual arrival. This
+            // does not infer equality, endpoint pinning, or strict descent.
+            for field in program.expression_table.struct_fields(literal.fields) {
+                argument_subjects(program, machine, state, field.value, subjects, depth + 1)?;
+            }
         }
         ExpressionNode::Indexed(indexed)
             if validation::has_builtin_subslice_meaning(
