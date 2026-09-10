@@ -92,8 +92,11 @@ The normalized semantic contract is independent of syntax and lowering.
 Published identity includes the substitutable contract, supply, and observable
 boundary calling plan. Component manifests, proof artifacts, admission, and
 replacement checks retain it when runtime lowering erases proof-only material.
-An implementation body hash, source keyword, or inferred narrow reach cannot
-replace that identity. Private ranking evidence follows the separate
+The normalized compiler-derived reach dependency is part of this contract under
+[automatic reach propagation](effects.md#static-callback-reach-dependencies).
+An implementation body hash, source keyword, or opportunistic narrowing of an
+opaque requirement cannot replace that identity. Private ranking evidence follows
+the separate
 [identity rule](termination.md#published-guarantees-and-private-witnesses).
 
 `05_machine_contracts.json` exposes this split as sibling `contract` and

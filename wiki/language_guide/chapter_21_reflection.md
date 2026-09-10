@@ -138,9 +138,9 @@ that remains compatible with subsequent calls. Borrowing never copies a linear
 resource or grants mutation.
 
 Choose an explicit callback contract covering effects, failures, progress, and
-resources. Fixed ceilings work with ordinary requirement checking. General
-[variable contract forwarding](../../OWNER_QUESTIONS.md#callback-contract-forwarding)
-remains separate work; reflection does not infer it. A finite list of fields
+resources. Reach propagates through static callback calls under the ordinary
+[reach rules](../spec/language/effects.md#static-callback-reach-dependencies);
+suspension/blocking remain fixed by the requirement. A finite list of fields
 does not prove that their encoders terminate or roll back partial output.
 
 ## Cases, Recursion, And Storage

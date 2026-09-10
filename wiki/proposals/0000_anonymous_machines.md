@@ -37,8 +37,8 @@ consumer contracts are not necessary to accept fixed-contract lambdas.
 
 ## Open questions and acceptance bar
 
-[Callback contract forwarding](../../OWNER_QUESTIONS.md#callback-contract-forwarding)
-remains an independent owner question for named generic consumers as well. No
+[Automatic reach propagation](../spec/language/effects.md#static-callback-reach-dependencies)
+is specified for named machines independently of this proposal. No explicit
 effect projection, conditional call marker, or wholesale contract forwarding is
 accepted by this proposal. The choice among no surface, simple forms, and full
 anonymous contracts remains part of this proposal, not a pending owner decision.
@@ -271,13 +271,14 @@ and resources remain independently checked. Preconditions hold at every call;
 later calls use the previous post-state. Reentrancy or concurrent invocation is
 not granted by receiver inference.
 
-A general facility forwarding a callback's variable operational envelope is
-unresolved under [callback contract forwarding](../../OWNER_QUESTIONS.md#callback-contract-forwarding).
-It is not implicit in lambda support. The question covers named generic machines
-equally and does not block fixed-ceiling callbacks. Failure remains ordinary
+[Reach dependencies](../spec/language/effects.md#static-callback-reach-dependencies)
+propagate through named static callback calls without forwarding syntax.
+Suspension/blocking remain fixed by the requirement; variable operational
+contracts for proposed anonymous forms remain an open design issue here, not
+an accepted extension. Failure remains ordinary
 result data; crash guards require substitution; repetition and overlap affect
 resource composition. A callback contract cannot be copied wholesale onto its
-consumer, and a private selected body cannot weaken the required envelope.
+consumer, and a private selected body cannot weaken the required operational envelope.
 
 ## Storage, identity, and evaluation
 

@@ -33,8 +33,13 @@ and available facts. Admission requires all of the following:
 - No escaping runtime mutation.
 - Only proof/build-admissible trust and resource inputs.
 
-Empty reach alone proves none of the other axes. Public trait requirements
-establish the floor; an incompatible conformance rejects at its declaration.
+Empty reach alone proves none of the other axes. Trait requirements bound static
+callback selections; their consumers use the application's
+[specialized published reach](effects.md#static-callback-reach-dependencies),
+not the union of all possible selections. This rule is shared with ordinary
+runtime callers and does not grant evaluation-only narrowing of opaque contracts.
+Public trait requirements establish the floor; an incompatible conformance
+rejects at its declaration.
 [Package declaration-selection authority](../packages/boundaries.md#admit-before-execution)
 also applies before evaluation, not only after the resulting value is used.
 Permission to select a declaration does not establish its execution meaning.

@@ -9,7 +9,7 @@ in [values](../resources/authority.md); implementation trust is recorded by
 
 | Clause | Meaning |
 | --- | --- |
-| `reaches A + B;` | May reach the named boundary services and their boundary parents. |
+| `reaches A + B;` | Declares reach of the named boundary services and their boundary parents. |
 | `invokes handler;` | May synchronously enter that binding before returning. |
 | `suspends;` | May park the current activation. |
 | `blocks;` | May occupy its worker while waiting. |
@@ -21,12 +21,25 @@ authors no additional `reaches` members. A wake operation may reach a scheduler
 without suspending. Mutation through ordinary borrows adds no service identity;
 its access and write frame follow [structural access](../terminal-psi/structural_access.md).
 
-Exported machines, trait requirements, boundary operations, and explicit top-level
-boundary requirements publish their ceilings. Omitted reach is empty; omitted
-`suspends` means never parks; omitted `blocks` means never blocks a worker;
-an omitted crash cause is forbidden. Private checked bodies may omit clauses
-to request inference. An authored memberless `reaches` on a private body is an
-explicit empty ceiling, not inference.
+A checked body directly invoking a boundary operation must declare the reached
+service in `reaches`, including for a receiver-free static boundary call. Ordinary
+machine calls propagate reach automatically: a wrapper need not repeat its
+callees' declarations. This applies to private and exported checked bodies alike.
+Omitting `reaches` does not promise empty transitive reach or permit undeclared
+direct boundary use. Authored members remain conservative contributions to the
+published row; they cannot mask additional transitive reach. A memberless clause
+contributes no members and is not a prohibition on callees' reach.
+
+Bodyless trait requirements and opaque boundaries publish declared reach ceilings;
+omission there is empty. A selected implementation must fit its requirement.
+Reach declarations and propagation grant no capability or provider authority.
+Reach prohibitions, including negation or Boolean restriction syntax, are outside
+this contract; `reaches` does not double as a no-effects assertion.
+
+Suspension, blocking, and crashes retain their independent rules. On published
+surfaces omitted `suspends` means never parks, omitted `blocks` means never blocks
+a worker, and an omitted crash cause is forbidden. Private checked bodies may
+omit these operational clauses to request inference.
 
 May-ceilings permit behavior; they do not assert that every run performs it.
 [`terminates`](termination.md) has the opposite polarity: a positive progress promise under its
@@ -93,20 +106,70 @@ duplicate semantic member. There is no ranking or name-based service discovery.
 For a checked body, a callee, and a provider satisfying a pinned requirement:
 
 ```text
-inferred body reach    subset-of declared reach ceiling
-callee reach          subset-of caller reach ceiling
+published body reach  = normalize(authored reach + contributions from calls)
 provider reach        subset-of requirement reach ceiling
 
 body/callee/provider may_suspend implies corresponding ceiling permits suspension
 body/callee/provider may_block   implies corresponding ceiling permits blocking
 ```
 
-Private inference computes conservative fixed points over recursive checked-call
-components. Service union and suspension/blocking booleans remain separate.
-Local checked calls may use checked summaries. Imported, generic, dynamic, and
-boundary calls use pinned requirement ceilings, not the narrower implementation
-eventually selected for them. Dynamic values retain per-requirement envelopes.
+Reach derivation computes conservative fixed points over recursive checked-call
+components. Known private helpers are included transitively. Imported checked
+machines supply their published summaries, without requiring access to private
+source. Dynamic and boundary calls retain pinned requirement ceilings, not a
+narrower provider body eventually selected for them. Static generic calls follow
+the dependency rule below. Service union and suspension/blocking booleans remain
+separate; their operational acknowledgements still use the requirement envelope.
 Every known checked helper on the path propagates the corresponding obligations.
+
+## Static callback reach dependencies
+
+A call through a nominal static machine binder contributes that binder's reach
+dependency automatically. Its named trait requirement bounds the permissible
+selection; there is no extra authored bound or `reaches Step.reaches` clause.
+Structural callable binders retain their fixed requirement contracts; this rule
+does not remove them or introduce structural row-parameter syntax.
+
+Published dependency summaries contain only finite unions of concrete service
+identities and nominal binder row variables. Each variable is bounded above by
+its requirement's declared row. No subtraction, lower bounds, Boolean formulas,
+or arbitrary author-defined row expressions are introduced. A generic body is
+checked against every permitted selection, not only observed instantiations.
+
+The compiler derives the dependency structure from the checked call graph. Each
+closed application substitutes the selected machines' published contracts into
+that structure. It does not inspect a selected opaque body to narrow its promise.
+For example, a body calling only `Step` has dependency `reach(Step)`; one also
+calling a Console-reaching helper has `reach(Step) + Console`. These expressions
+describe retained semantic data, not new source syntax. Generic wrappers compose
+these dependencies through further ordinary calls and exact substitutions.
+
+Use the ordinary deterministic service normalizer for dependency summaries:
+union is associative, commutative, and idempotent, empty is its identity, and
+boundary-parent closure applies. Binder identity is structural, not its spelling.
+Call reordering or extraction into a private helper with the same net reach must
+not change the normalized dependency. Do not prune authored call contributions
+using optimizer reachability, proof heuristics, or the current consumer set.
+
+The normalized dependency is part of the exported interface. Retain its exact
+requirement identities, substitutions, and selected contract dependencies for
+independent checking. A private-helper edit adding service reach can therefore
+change an exported interface; this is an accepted consequence of propagation.
+Changed interface identity requires ordinary revalidation, not an automatic
+package-version bump or rejection of every caller. A requirement or evaluation
+context that cannot admit the new reach rejects; unconstrained callers propagate
+it onward. Stale retained summaries cannot authorize the changed application.
+
+The application's specialized row is used by ordinary callers as well as
+evaluation admission. A no-reach callback can leave a traversal with empty reach;
+a Console-reaching callback contributes Console. Empty reach alone establishes
+none of the other evaluation obligations.
+
+Suspension and blocking do not acquire binder projections or conditional markers.
+They remain fixed by the callback requirement: calls use its exact acknowledgement
+envelope and, if it permits suspension, the restricted syntactic positions for
+all selections. Preconditions, postconditions, crashes, termination, and resource
+composition remain independently checked; no whole-contract forwarding exists.
 
 The language has no service subtraction, negation, masking, scoped allowance, or
 algebraic-effect handlers. A checked in-memory provider for `Readable` may remove
@@ -223,26 +286,29 @@ surviving components. Process exit is a distinct outcome, not an `Abort` route.
 
 ## Published identity and installation rows
 
-Deterministic normalizers own published service rows, invocation contracts,
-suspension/blocking ceilings, and crash buckets. Proof may discharge legality or
-enable optimization; it cannot shrink an authored export, rewrite its guards,
-or change interface identity. Stable syntactic/control-flow normalization is
+Deterministic normalizers own published service rows and reach dependencies,
+invocation contracts, suspension/blocking ceilings, and crash buckets. Proof may
+discharge legality or enable optimization; it cannot shrink an authored export, rewrite its guards,
+or change interface identity. Specializing a published reach dependency is
+contract substitution, not proof-based shrinking of an authored opaque ceiling.
+Stable syntactic/control-flow normalization is
 not heuristic entailment. Exact authored member/keyword spans explain review;
 inferred rows and parent closure receive no invented source locations.
 
 An installation-bound requirement uses `reaches <= Bound` for its abstract
 service row. Its exact requirement path owns the row. The selected provider's
 row must fit the finite bound and replace it throughout the owning installation
-closure before admission. Ordinary callable package/component interfaces must
-bind the provider or publish a fixed conservative row. No ordinary exported
-row variables, Boolean row formulas, or lower-bound constraints are implied.
+closure before admission. This installation rule is distinct from ordinary
+[static callback reach dependencies](#static-callback-reach-dependencies).
+Only the bounded union dependencies specified there are admitted on ordinary
+exports; no general row algebra or lower-bound constraints are implied.
 The independent bounded `reaches _;` inside a
 [transparent refinement](conformances.md#transparent-refinements) constrains its
 base requirement; it does not create another installation-row declaration form.
 [Installed roots](../build/external_roots.md#installation-bound-reach) owns
 manifest and lineage requirements; equal rows never establish protocol identity.
 
-General callback-contract projections and conditional call acknowledgements are
-unresolved under [callback contract forwarding](../../../OWNER_QUESTIONS.md#callback-contract-forwarding).
-Named callbacks with fixed authored ceilings use the existing rules.
+Automatic reach propagation does not introduce general callback-contract
+projections or conditional call acknowledgements. Named callbacks retain fixed
+suspension/blocking requirement envelopes.
 No anonymous-machine or lambda surface is accepted.

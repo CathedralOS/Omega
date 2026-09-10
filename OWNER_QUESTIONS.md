@@ -38,79 +38,7 @@ the next compiler/checker customer and compare complete audit cost. Experiments
 remain non-authoritative; changes to the trust boundary or required assurances
 must be surfaced before relying on them.
 
-## Q1 — Callback contract forwarding
-
-<a id="callback-contract-forwarding"></a>
-
-### Context
-
-Named static callbacks use ordinary requirement checking. Fixed authored callback
-ceilings already give a coherent language contract. Anonymous forms are entirely
-unaccepted under [proposal 0000](wiki/proposals/0000_anonymous_machines.md);
-their ergonomics are not a reason to introduce a contract system. The external
-customer for forwarding
-is a reusable traversal accepting either a pure calculation, a Console-writing
-callback, or a suspending callback without making every use conservatively
-effectful. Existing corpus use is not required to motivate that API.
-
-[Operational contracts](wiki/spec/language/effects.md) currently require fixed
-ordinary exported ceilings and exact call-site suspension/blocking markers.
-Private summaries cannot narrow generic calls. A static callback's declared
-contract therefore cannot vary its effects through a generic consumer without
-an additional public composition and acknowledgement rule.
-
-### Problem statement
-
-How does a generic machine expose a selected callback's permitted reach and
-operational possibilities, and acknowledge the corresponding call crossings,
-without guessing from private bodies or granting unconstrained effects?
-This is general machine-contract work, not a special lambda privilege. It does
-not block named fixed-ceiling callbacks or their repeated-reborrow implementation.
-
-### Proposed solution
-
-Keep fixed declared consumer contracts as the baseline. First compare an ordinary
-dedicated machine or a fixed-ceiling generic consumer against the annotation and
-compiler cost of callback-dependent contracts. Declining the extension is a valid
-outcome; no forwarding work is an implementation prerequisite.
-
-If that comparison justifies an extension, one candidate is typed static
-projections from a bound machine's public contract, such as
-`reaches Step.reaches;`, `suspends Step.suspends;`, and `blocks Step.blocks;`.
-Compose service rows by union and suspension/blocking independently by Boolean
-disjunction. Selections must satisfy the binder's authored bounds and retain
-their exact substitutions; opaque private body behavior cannot define an API.
-Decide the binder syntax for those variable bounds along with the projections,
-not merely the spelling used by the consumer.
-
-For call acknowledgement, consider static conditional forms such as
-`suspend(Step.suspends) block(Step.blocks) Step(context, item);`. Resolve markers
-from the same pinned contract used for admission. Check carry/loans for every
-admitted crossing; false conditions do not manufacture suspension. This syntax
-is proposed, not part of the current spec.
-
-Do not forward a whole contract mechanically. Each call proves its preconditions
-and substitutes its post-state/crash routes; recoverable failure remains result
-data. Termination includes the consumer's traversal argument, and resource
-composition accounts for call count and overlap. The result must support named
-callbacks and any separately accepted anonymous syntax identically, recursive
-generic checking, and independent
-replay of the same normalized contract dependencies.
-
-### Alternates
-
-- Fixed conservative callback ceilings or separately named pure/effectful
-  interfaces remain viable. Compare their API duplication and loss of pure or
-  no-suspend eligibility against projection complexity.
-- Explicitly bound effect rows/operational parameters are viable if they stay
-  coupled to the selected callback contract and define the same call-marker rule.
-- Implicit insertion of crossing markers would change the acknowledgement
-  policy. It is not a harmless implementation shortcut and needs its own rationale.
-- Inferring public effects from whichever body or instantiations happen to be
-  visible, weakening generic ceilings after specialization, or treating
-  `invokes Step` as an unspecified all-axis forwarding wildcard is wrong.
-
-## Q2. Gamma product checking
+## Q1. Gamma product checking
 
 <a id="gamma-product-checking"></a>
 
@@ -147,7 +75,7 @@ No product evaluator size, resource demand, or human defect-localization result
 has been measured. The choice of guarantees needs a ruling; ordinary instruction
 selection and storage design within an approved comparison do not.
 
-## Q3. Runtime source in compiler artifacts
+## Q2. Runtime source in compiler artifacts
 
 <a id="bootstrap-runtime-source-composition"></a>
 
@@ -184,7 +112,7 @@ general module language, or intermediate rung is implied. Canonical artifact
 adoption requires the boundary contract; non-authoritative comparisons may
 proceed. Proof and complete runtime conformance remain required.
 
-## Q4. Nonboundary direct operator executable supply
+## Q3. Nonboundary direct operator executable supply
 
 <a id="direct-operator-executable-supply"></a>
 

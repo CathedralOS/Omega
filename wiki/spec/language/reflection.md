@@ -244,9 +244,11 @@ generic value atoms is introduced.
 
 Every generated call retains ordinary preconditions, post-state, effects,
 suspension/blocking acknowledgements, failures, crashes, and custody. A finite
-field set does not prove callback termination. Fixed callback ceilings work
-without variable [callback contract forwarding](../../../OWNER_QUESTIONS.md#callback-contract-forwarding),
-which remains a general owner question rather than a reflection-specific rule.
+field set does not prove callback termination. Static callback reach follows
+ordinary [automatic propagation](effects.md#static-callback-reach-dependencies);
+reflection adds no effect-forwarding syntax. Suspension/blocking stay fixed by
+the requirement. Empty specialized reach does not discharge the other hermetic
+evaluation obligations.
 
 Recursive derivation is keyed by the exact type/application, selected operation
 contract and realization, and static policy dependencies. Re-entry to the same
