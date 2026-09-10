@@ -35,12 +35,13 @@ pub(in crate::flow::terminal_unit) fn reads_receiver(
         .filter(|(_, root)| root.state == state.symbol)
         .map(|(_, root)| root.root)
         .collect::<Vec<_>>();
-    let mut visited = Vec::new();
+    // Builder appends fresh operand nodes before their parents. This runs on
+    // that freshly produced graph, before externally retained checked plans;
+    // it needs no cycle-discovery or per-node visited lookup.
     while let Some(handle) = pending.pop() {
-        if !computations.nodes.is_valid(handle) || visited.contains(&handle) {
+        if !computations.nodes.is_valid(handle) {
             continue;
         }
-        visited.push(handle);
         let node = computations.nodes.get(handle);
         match &node.kind {
             CheckedScalarComputationKind::Value(expression) => {
