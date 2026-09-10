@@ -33,6 +33,7 @@ impl RangeFacts<'_> {
                     )
                     .is_some_and(|candidate| same_site(site, &candidate))
             })?;
+        let call_frames = validation::CallFrameResolver::new(program);
         let mut writes = crate::flow::call_mutated_places(
             program,
             machine.symbol,
@@ -40,6 +41,7 @@ impl RangeFacts<'_> {
             borrows,
             call,
             &self.mutation_summaries,
+            call_frames.as_ref(),
         )?;
         // Callee expressions and previously captured selector expressions do
         // not execute in the caller's current value namespace. Unknown index
@@ -51,12 +53,13 @@ impl RangeFacts<'_> {
                 }
             }
         }
-        crate::flow::close_storage_places_over_aliases(
+        crate::flow::close_storage_places_over_aliases_with_resolver(
             program,
             machine.symbol,
             state.symbol,
             self.statement_index,
             writes,
+            call_frames.as_ref(),
         )
     }
 }

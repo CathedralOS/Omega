@@ -1,6 +1,72 @@
 use super::super::*;
 
 #[test]
+fn shared_statement_resolver_preserves_aliases_across_binding_replacement() {
+    let source = r#"
+        data Pair { left: u64; right: u64; }
+        machine rewrite(pair: &mut Pair) {
+            let mut selected: &mut u64 = &mut pair.left;
+            let prior: &mut u64 = selected;
+            selected = &mut pair.right;
+            prior = 7;
+            selected = 9;
+        }
+    "#;
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+    let resolved =
+        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let program =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let shared_frames = validation::CallFrameResolver::new(&program).expect("valid symbols");
+    let fresh: Vec<_> = statements
+        .iter()
+        .enumerate()
+        .map(|(statement_index, statement)| {
+            crate::flow::statement_storage_writes(
+                &program,
+                machine.symbol,
+                state.symbol,
+                statement_index,
+                statement,
+                validation::CallFrameResolver::new(&program).as_ref(),
+            )
+        })
+        .collect();
+    let rebound_writes = fresh[2].as_ref().expect("known local binding write");
+    assert_eq!(rebound_writes.len(), 1);
+    assert!(
+        rebound_writes[0].segments.is_empty(),
+        "rebinding writes the local slot"
+    );
+    assert!(fresh[3].as_ref().is_some_and(|writes| !writes.is_empty()));
+    assert!(fresh[4].as_ref().is_some_and(|writes| !writes.is_empty()));
+    assert_ne!(
+        fresh[3], fresh[4],
+        "the old alias and rebound local reach distinct fields"
+    );
+    for statement_index in [4, 3, 2, 0, 1, 2, 3, 4] {
+        let writes = crate::flow::statement_storage_writes(
+            &program,
+            machine.symbol,
+            state.symbol,
+            statement_index,
+            &statements[statement_index],
+            Some(&shared_frames),
+        );
+        assert_eq!(writes, fresh[statement_index], "prefix {statement_index}");
+    }
+    let checked =
+        lower_typed_trees(program).expect("a call-free body still resolves assignment aliases");
+    assert!(checked.facts.borrow.calls.is_empty());
+}
+
+#[test]
 fn direct_local_alias_store_reaches_the_outer_caller_field() {
     assert_direct_alias_store_frame(
         "let alias: &mut u64 = &mut pair.left; alias = 7;",
@@ -135,7 +201,15 @@ fn assert_direct_alias_store_frame(body: &str, expected_paths: Option<&[&str]>) 
         panic!("one helper call")
     };
     let cache = StateMutationSummaryCache::default();
-    let writes = call_mutated_places(&program, caller.symbol, state.symbol, &facts, call, &cache);
+    let writes = call_mutated_places(
+        &program,
+        caller.symbol,
+        state.symbol,
+        &facts,
+        call,
+        &cache,
+        ::validation::CallFrameResolver::new(&program).as_ref(),
+    );
     let Some(expected_paths) = expected_paths else {
         assert!(
             writes.as_ref().is_none_or(|paths| !paths.is_empty()),
@@ -195,7 +269,7 @@ fn expected_segments(program: &typed_trees::TypedTrees, path: &str) -> Vec<facts
 }
 
 #[test]
-fn boundary_storage_fallback_keeps_receiver_and_exclusive_argument_reach() {
+fn shared_boundary_resolver_preserves_exact_and_opaque_storage_frames() {
     let source = r#"
         data Carrier { value: &mut u64; }
         boundary trait Device {
@@ -235,7 +309,15 @@ fn boundary_storage_fallback_keeps_receiver_and_exclusive_argument_reach() {
         .collect();
     let facts = build_borrow_facts(&program);
     let cache = StateMutationSummaryCache::default();
-    for name in ["Main::good", "Main::forward", "Main::bad"] {
+    let shared_frames = validation::CallFrameResolver::new(&program).expect("valid symbols");
+    for name in [
+        "Main::good",
+        "Main::forward",
+        "Main::bad",
+        "Main::bad",
+        "Main::forward",
+        "Main::good",
+    ] {
         let machine = program
             .machines()
             .iter()
@@ -251,8 +333,38 @@ fn boundary_storage_fallback_keeps_receiver_and_exclusive_argument_reach() {
         let [call] = facts.calls.span_or_empty(borrow_state.calls) else {
             panic!("one boundary call")
         };
-        let writes =
-            call_mutated_places(&program, machine.symbol, state.symbol, &facts, call, &cache);
+        let writes = call_mutated_places(
+            &program,
+            machine.symbol,
+            state.symbol,
+            &facts,
+            call,
+            &cache,
+            Some(&shared_frames),
+        );
+        let fresh = call_mutated_places(
+            &program,
+            machine.symbol,
+            state.symbol,
+            &facts,
+            call,
+            &StateMutationSummaryCache::default(),
+            validation::CallFrameResolver::new(&program).as_ref(),
+        );
+        assert_eq!(writes, fresh, "sharing cannot change the frame for {name}");
+        assert!(
+            call_mutated_places(
+                &program,
+                machine.symbol,
+                state.symbol,
+                &facts,
+                call,
+                &cache,
+                None,
+            )
+            .is_none(),
+            "an unavailable boundary resolver is not an empty write frame",
+        );
         if name == "Main::bad" {
             assert!(
                 writes.is_none(),
@@ -345,6 +457,7 @@ fn opaque_call_fallback_rebases_known_aliases_and_rejects_unknown_prefixes() {
         &facts,
         first,
         &cache,
+        ::validation::CallFrameResolver::new(&program).as_ref(),
     );
     assert_eq!(
         first_writes,
@@ -360,6 +473,7 @@ fn opaque_call_fallback_rebases_known_aliases_and_rejects_unknown_prefixes() {
         &facts,
         second,
         &cache,
+        ::validation::CallFrameResolver::new(&program).as_ref(),
     );
     assert!(
         second_writes.is_none(),
@@ -484,9 +598,16 @@ fn local_receiver_origins_survive_direct_and_transitive_mutation_frames() {
                     segments,
                 }]
             };
-            let writes =
-                call_mutated_places(&program, machine.symbol, state.symbol, &facts, call, &cache)
-                    .expect("complete storage frame");
+            let writes = call_mutated_places(
+                &program,
+                machine.symbol,
+                state.symbol,
+                &facts,
+                call,
+                &cache,
+                ::validation::CallFrameResolver::new(&program).as_ref(),
+            )
+            .expect("complete storage frame");
             assert_eq!(writes, expected, "{name} call {index}");
             let mut expected_accesses = expected;
             if name == "exercise" {
@@ -606,6 +727,7 @@ fn transitive_internal_frames_distinguish_exact_and_empty_may_write_sets() {
         &facts,
         relay_call,
         &cache,
+        ::validation::CallFrameResolver::new(&program).as_ref(),
     )
     .expect("complete storage frame");
     let observe_writes = call_mutated_places(
@@ -615,6 +737,7 @@ fn transitive_internal_frames_distinguish_exact_and_empty_may_write_sets() {
         &facts,
         observe_call,
         &cache,
+        ::validation::CallFrameResolver::new(&program).as_ref(),
     )
     .expect("complete storage frame");
 
@@ -694,6 +817,7 @@ fn bijective_recursive_frame_reaches_its_finite_fixed_point() {
         &facts,
         call,
         &cache,
+        ::validation::CallFrameResolver::new(&program).as_ref(),
     )
     .expect("complete storage frame");
 

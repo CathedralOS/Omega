@@ -469,6 +469,7 @@ fn instantiate_call_relative_places(
                     caller_machine_symbol,
                     caller_state_symbol,
                     borrow_call,
+                    validation::CallFrameResolver::new(program).as_ref(),
                 )
             }
             WritePlaceNamespace::Storage => rebase_local_write_places(

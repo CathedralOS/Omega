@@ -681,6 +681,7 @@ fn preserves_domain_intersection_requires_across_unrelated_machine_field_mutatio
         &borrow,
         touch_unrelated_borrow_call,
         &cache,
+        ::validation::CallFrameResolver::new(&typed).as_ref(),
     )
     .expect("complete storage frame");
     assert_eq!(

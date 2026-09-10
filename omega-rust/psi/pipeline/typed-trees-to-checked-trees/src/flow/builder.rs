@@ -88,11 +88,9 @@ pub(crate) fn build_flow_facts_with_service_reaches(
         .collect();
     // Symbol preparation depends on the immutable program, not the changing
     // incoming value facts. Prefix origins still resolve at each exact site.
-    let call_frames = if borrow.calls.is_empty() {
-        None
-    } else {
-        validation::CallFrameResolver::new(program)
-    };
+    // Direct assignments also use prefix alias closure when there are no calls.
+    // Borrow the same immutable resolver for both statement and call writes.
+    let call_frames = validation::CallFrameResolver::new(program);
     // These summaries use only program and borrow facts, neither of which
     // changes with the incoming value inputs. Keep first-demand construction
     // lazy, and never carry this table into another flow-build invocation.

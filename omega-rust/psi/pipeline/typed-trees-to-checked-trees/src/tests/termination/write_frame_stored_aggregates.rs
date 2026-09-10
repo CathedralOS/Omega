@@ -247,6 +247,7 @@ fn stored_aggregate_storage_projection_keeps_leaf_selectors() {
             state.symbol,
             statements.len() - 1,
             statements.last().expect("store"),
+            ::validation::CallFrameResolver::new(&program).as_ref(),
         )
         .map(|places| {
             let mut paths: Vec<_> = places
@@ -303,6 +304,7 @@ fn stored_aggregate_call_storage_and_access_routes_are_distinct() {
         &borrow,
         &calls[0],
         &cache,
+        ::validation::CallFrameResolver::new(&program).as_ref(),
     )
     .expect("complete storage frame");
     assert_eq!(
@@ -359,6 +361,7 @@ fn aggregate_literal_storage_origins_reach_direct_and_transitive_calls() {
             &borrow,
             &calls[0],
             &cache,
+            ::validation::CallFrameResolver::new(&program).as_ref(),
         )
         .expect("literal storage origin is complete");
         assert_eq!(
@@ -396,7 +399,8 @@ fn unproven_stored_aggregate_origins_never_become_private_storage() {
                 machine.symbol,
                 state.symbol,
                 statements.len() - 1,
-                statements.last().expect("store")
+                statements.last().expect("store"),
+                ::validation::CallFrameResolver::new(&program).as_ref(),
             )
             .is_none(),
             "unproven origin became complete: {body}"

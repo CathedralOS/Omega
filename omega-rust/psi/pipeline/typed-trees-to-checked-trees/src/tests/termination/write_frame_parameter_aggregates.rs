@@ -395,6 +395,7 @@ fn parameter_array_origin_metadata_is_independent_of_declared_length() {
             state.symbol,
             statements.len() - 2,
             &statements[statements.len() - 2],
+            ::validation::CallFrameResolver::new(&program).as_ref(),
         )
         .expect("reference write projects and reverse-closes");
         assert_eq!(
@@ -429,6 +430,7 @@ fn parameter_array_origin_metadata_is_independent_of_declared_length() {
             state.symbol,
             statements.len() - 1,
             statement,
+            ::validation::CallFrameResolver::new(&program).as_ref(),
         )
         .expect("owned sibling remains private");
         assert_eq!(owned_store.len(), 1);

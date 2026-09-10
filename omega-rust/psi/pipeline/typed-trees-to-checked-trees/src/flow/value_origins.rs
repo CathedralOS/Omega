@@ -79,6 +79,7 @@ pub(crate) fn value_origin_at_call(
                         state.state_symbol,
                         index,
                         statement,
+                        Some(&frames),
                     )?;
                     if writes.iter().any(|write| overlaps(program, &place, write)) {
                         return None;

@@ -5,8 +5,7 @@ mod operand_coordinates;
 mod receiver;
 mod summary;
 
-pub(crate) use local_origins::close_storage_places_over_aliases;
-pub(super) use local_origins::close_storage_places_over_aliases_with_resolver;
+pub(crate) use local_origins::close_storage_places_over_aliases_with_resolver;
 pub(crate) use local_origins::rebase_exact_local_place;
 pub(crate) use receiver::{
     call_receiver_is_mutable, call_receiver_mutated_place, canonical_receiver_place_for_call_site,
@@ -25,6 +24,8 @@ pub(super) enum WritePlaceNamespace {
 /// Caller storage footprint. `None` requires full invalidation; an empty
 /// complete footprint preserves facts. Neither may be represented by an
 /// unresolved reference-binding root.
+/// Reuse the resolver prepared for this immutable program; local origins still
+/// resolve at the exact caller prefix, not from an earlier query's facts.
 pub(crate) fn call_mutated_places(
     program: &typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
@@ -32,6 +33,7 @@ pub(crate) fn call_mutated_places(
     borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
     state_mutation_summaries: &StateMutationSummaryCache,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     let site = find_call_site(
         program,
@@ -56,6 +58,7 @@ pub(crate) fn call_mutated_places(
         borrow_call,
         state_mutation_summaries,
         WritePlaceNamespace::Storage,
+        call_frames,
     )
 }
 
@@ -77,6 +80,7 @@ pub(crate) fn call_write_accesses(
         borrow_call,
         state_mutation_summaries,
         WritePlaceNamespace::AccessRoute,
+        None,
     )
     .expect("access-route projection always retains the ownership fallback")
 }
@@ -89,6 +93,7 @@ fn call_write_places(
     borrow_call: &BorrowCallFact,
     state_mutation_summaries: &StateMutationSummaryCache,
     namespace: WritePlaceNamespace,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     let summarized_places = instantiate_known_call_mutation_summary_places(
         program,
@@ -192,6 +197,7 @@ fn call_write_places(
                 caller_machine_symbol,
                 caller_state_symbol,
                 borrow_call,
+                call_frames,
             );
         }
         if places.is_empty() {
@@ -222,6 +228,7 @@ fn shared_call_storage_places(
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow_call: &BorrowCallFact,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     let machine = program
         .machines()
@@ -235,7 +242,7 @@ fn shared_call_storage_places(
         borrow_call.statement_index,
         borrow_call.call_ordinal,
     )?;
-    let resolver = validation::CallFrameResolver::new(program)?;
+    let resolver = call_frames?;
     let frame = match &site {
         CallSite::Statement(call) => resolver.may_write_frame(machine, call),
         CallSite::Expression { expression, .. } => {
@@ -309,6 +316,7 @@ pub(crate) fn statement_storage_writes(
     state_symbol: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     if !matches!(statement, StatementNode::Assignment(_)) {
         return Some(Vec::new());
@@ -320,12 +328,13 @@ pub(crate) fn statement_storage_writes(
         statement_index,
         statement,
     )?;
-    local_origins::close_storage_places_over_aliases(
+    local_origins::close_storage_places_over_aliases_with_resolver(
         program,
         machine_symbol,
         state_symbol,
         statement_index,
         places,
+        call_frames,
     )
 }
 

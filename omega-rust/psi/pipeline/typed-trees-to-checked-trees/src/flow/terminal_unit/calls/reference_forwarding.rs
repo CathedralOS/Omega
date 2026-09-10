@@ -152,6 +152,7 @@ fn prefix_preserves_parameter(
         borrow_state.state_symbol,
     )?;
     let statements = program.statement_table.statements(state.statement_nodes);
+    let call_frames = validation::CallFrameResolver::new(program);
     for (statement_index, statement) in statements.get(..call.statement_index)?.iter().enumerate() {
         let writes = crate::flow::statement_storage_writes(
             program,
@@ -159,6 +160,7 @@ fn prefix_preserves_parameter(
             borrow_state.state_symbol,
             statement_index,
             statement,
+            call_frames.as_ref(),
         )?;
         if writes
             .iter()
@@ -184,13 +186,15 @@ fn prefix_preserves_parameter(
             borrow,
             preceding,
             &summaries,
+            call_frames.as_ref(),
         )?;
-        let writes = crate::flow::close_storage_places_over_aliases(
+        let writes = crate::flow::close_storage_places_over_aliases_with_resolver(
             program,
             borrow_state.machine_symbol,
             borrow_state.state_symbol,
             preceding.statement_index,
             writes,
+            call_frames.as_ref(),
         )?;
         if writes
             .iter()
