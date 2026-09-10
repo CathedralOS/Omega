@@ -169,28 +169,6 @@ implementation. They take precedence over adding another evidence carrier that
 has no exercising program. The finite definition of Rust-product completion is
 the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
-- **NATIVE-DIFFERENTIAL-ACCEPTANCE.** Restore the remaining acceptance failures in
-  `tests/native-differential/tests/{terminal_psi_source,pipeline_ownership}`.
-  Resume on macOS AArch64 with `cargo nextest run -p omega-native-differential-test
-  --test terminal_psi_source --test pipeline_ownership --no-fail-fast --no-tests fail`.
-  Next: restore build-bound progress publication in
-  `selected_source_entry_retains_build_bound_progress_for_terminal_publication`.
-  On `b76d693e30` plus the selected-syscall handoff repair, the focused command
-  above with only `--test terminal_psi_source` and
-  `-E 'test(=selected_source_entry_retains_build_bound_progress_for_terminal_publication)'`
-  reaches native receiving-policy validation and rejects unclassified syscall
-  231 under policy version 7 (macOS AArch64, pinned nightly, `RUST_MIN_STACK=33554432`).
-  The fixture still maps ordinary Unit `Scheduler::finish` to physical process
-  exit. Reconcile that with [Process-exit contract](#process-exit-contract), then
-  supply independent receiving policy and retain the existing missing-settlement,
-  exact-provider, progress-attestation, and publication assertions. Selection or
-  a syscall number must not confer canonical ProcessExit semantics or authority.
-  Owners: `compiler/src/pipeline/checked_entry.rs` and native realization's
-  `realization/providers/settlements/source_imports.rs` under
-  `omega-rust/omega/compiler/`.
-  Acceptance: both test targets and their scoped Clippy pass without filtering
-  failures; this does not replace the completion plan's hosted native matrix.
-
 - **OMEGA-PRODUCT-COMPILER-SOURCE.** Establish the production compiler as two
   sibling Omega packages: target-neutral phases under `source/psi/` and the
   Terminal-Psi-consuming product under `source/omega/`, with hosted entrypoints
@@ -1664,6 +1642,18 @@ Owners include
   consumed placement authority, W^X/coherence, physical invocation, and
   uninstall/replacement joins. Keep arbitrary runtime bytes-to-code, JIT, and
   raw executable addresses unsupported.
+
+  Close imported-image placement before admitting imported installed runnables.
+  Source inspection at `0fef6890cb`: `image-emission/src/installed_artifact.rs`
+  projects only compiler-authored text/data prefixes, excluding image-writer
+  import thunks and binding slots. The Mach-O import regression in
+  `compiler/tests/source_evaluated_native_realization.rs` checks installation
+  records, not complete installed-code custody. Bind every exercised thunk,
+  slot, relocation destination, and loader/provider lifetime to real placement;
+  reject omitted regions. A matching prefix and a resolver returning an
+  uninstalled thunk address cannot establish that closure. Acceptance: a
+  source-imported component reaches installed publication with complete custody,
+  and missing or substituted thunk/slot placement rejects independently.
 
 ## Platform-gated verification
 

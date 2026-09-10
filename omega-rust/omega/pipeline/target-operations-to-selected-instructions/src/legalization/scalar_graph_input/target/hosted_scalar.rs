@@ -1,4 +1,4 @@
-//! Join a hosted scalar occurrence to its exact admitted builtin and SSA input.
+//! Join a hosted scalar occurrence to its admitted execution and exact SSA input.
 use super::*;
 use target_operations::{
     BoundaryExecutionBinding, BoundaryRealization, CompilerBuiltinExecution, TargetBoundaryResult,
@@ -45,6 +45,14 @@ pub(super) fn validate(
         return Err(invalid);
     };
     let supported = match (execution, realization) {
+        // ProviderExecutionBinding is constructed only from nonzero execution
+        // coordinates. Its full value remains in the target settlement and the
+        // program identity; this match admits the same returning physical
+        // mechanism without replacing provider custody with builtin authority.
+        (
+            BoundaryExecutionBinding::AdmittedProvider(_),
+            BoundaryRealization::HostedWriteByteI32(_),
+        ) => target_operations::HostedWriteByteI32Realization::supports_target(native),
         (
             BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::HostedWriteByteI32),
             BoundaryRealization::HostedWriteByteI32(_),

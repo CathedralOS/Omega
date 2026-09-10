@@ -81,10 +81,13 @@ pub(crate) fn selected_byte_output_shape_is_exact(
     };
     matches!(scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed && integer.bits() == 32)
         && settlement.byte_count == byte_count
-        && settlement.execution
-            == BoundaryExecutionRecord::CompilerBuiltin(
-                CompilerBuiltinExecution::HostedWriteByteI32,
-            )
+        && matches!(
+            settlement.execution,
+            BoundaryExecutionRecord::AdmittedProvider(_)
+                | BoundaryExecutionRecord::CompilerBuiltin(
+                    CompilerBuiltinExecution::HostedWriteByteI32
+                )
+        )
         && matches!(
             settlement.realization,
             target_operations::BoundaryRealization::HostedWriteByteI32(_)

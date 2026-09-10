@@ -227,3 +227,64 @@ fn scalar_return_cannot_hide_an_unwitnessed_byte_output_boundary() {
         );
     }
 }
+
+#[test]
+fn provider_byte_output_retains_execution_custody_and_normal_return() {
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let (source, mut target, unit) = fixture(native);
+        let provider = target_operations::ProviderExecutionBinding::from_execution_record(
+            target_operations::ProviderPlanReportIdentity::new(71).unwrap(),
+            72,
+            73,
+            74,
+            75,
+        )
+        .unwrap();
+        let TargetOperation::UnitBody(body) = &mut target.functions[0].operation else {
+            panic!("Unit body")
+        };
+        let TargetUnitOperation::BoundarySettlement { execution, .. } = &mut body.operations[0]
+        else {
+            panic!("output settlement")
+        };
+        *execution = BoundaryExecutionBinding::AdmittedProvider(provider);
+        let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+        validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
+        for mutation in 0..3 {
+            let mut changed = target.clone();
+            let TargetOperation::UnitBody(body) = &mut changed.functions[0].operation else {
+                unreachable!()
+            };
+            let TargetUnitOperation::BoundarySettlement {
+                execution,
+                realization,
+                runtime_scalar_arguments,
+                ..
+            } = &mut body.operations[0]
+            else {
+                unreachable!()
+            };
+            match mutation {
+                0 => {
+                    *execution = BoundaryExecutionBinding::CompilerBuiltin(
+                        CompilerBuiltinExecution::HostedExitProcessI32,
+                    )
+                }
+                1 => *realization = BoundaryRealization::HostedExitProcessI32(Default::default()),
+                _ => {
+                    runtime_scalar_arguments[0].placement.shape =
+                        calling_conventions::ValueShape::integer(8, 8)
+                }
+            }
+            assert!(
+                validate_legalized_operations(&changed, &source, &unit, legal.plan().clone())
+                    .is_err()
+            );
+            assert!(legalize_target_operations(&changed, &source, &unit).is_err());
+        }
+    }
+}

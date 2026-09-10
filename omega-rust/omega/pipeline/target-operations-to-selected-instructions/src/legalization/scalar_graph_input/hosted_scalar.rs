@@ -1,7 +1,10 @@
-//! Read the exact admitted target role without constructing legalized instructions.
+//! Read the exact admitted target mechanism without changing execution custody.
+//! Encoding follows the closed realization. The receiving target validator keeps
+//! admitted provider execution distinct from an exact compiler-builtin identity;
+//! projecting the mechanism must not relabel the provider as a compiler builtin.
 use super::*;
 use semantic_vocabulary::OperationId;
-use target_operations::{BoundaryExecutionBinding, CompilerBuiltinExecution, TargetUnitOperation};
+use target_operations::{BoundaryRealization, TargetUnitOperation};
 
 pub(super) fn validate_tails(
     native: &TargetOperationPlan,
@@ -12,10 +15,11 @@ pub(super) fn validate_tails(
             let AbstractOperation::BoundaryCall { psi_operation, .. } = node.operation else {
                 continue;
             };
-            if hosted_execution(native, optimized.machine, psi_operation)?
-                == CompilerBuiltinExecution::HostedExitProcessI32
-                && (position + 2 != block.nodes.len()
-                    || !matches!(&block.nodes[position + 1].operation,
+            if matches!(
+                hosted_realization(native, optimized.machine, psi_operation)?,
+                BoundaryRealization::HostedExitProcessI32(_)
+            ) && (position + 2 != block.nodes.len()
+                || !matches!(&block.nodes[position + 1].operation,
                         AbstractOperation::ReturnUnit { cleanup_actions, .. } if cleanup_actions.is_empty()))
             {
                 return Err(LegalizationError::SourceCustodyMismatch);
@@ -25,11 +29,11 @@ pub(super) fn validate_tails(
     Ok(())
 }
 
-pub(in crate::legalization) fn hosted_execution(
+pub(in crate::legalization) fn hosted_realization(
     native: &TargetOperationPlan,
     machine: MachineId,
     operation: OperationId,
-) -> Result<CompilerBuiltinExecution, LegalizationError> {
+) -> Result<BoundaryRealization, LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
     let mut functions = native
         .functions
@@ -43,11 +47,11 @@ pub(in crate::legalization) fn hosted_execution(
     let mut inspect = |row: &TargetUnitOperation| -> Result<(), LegalizationError> {
         if let TargetUnitOperation::BoundarySettlement {
             psi_operation,
-            execution: BoundaryExecutionBinding::CompilerBuiltin(execution),
+            realization,
             ..
         } = row
             && *psi_operation == operation
-            && result.replace(*execution).is_some()
+            && result.replace(*realization).is_some()
         {
             return Err(invalid.clone());
         }

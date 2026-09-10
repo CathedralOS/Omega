@@ -1,5 +1,5 @@
 boundary trait Scheduler {
-    machine finish(&self, code: i32)
+    machine notify(&self, value: i32)
     requires self in WeakFair
     terminates;
 
@@ -12,9 +12,11 @@ established by Scheduler::grant;
 
 data SchedulerProvider { grant: addr; }
 
-linux_x86_64 machine SchedulerProvider::finish(&self, code: i32)
-satisfies Scheduler::finish
-via Binding::Syscall(231);
+// Notification returns normally. Provider selection does not turn this Unit
+// requirement into canonical ProcessExit or establish its progress premise.
+linux_x86_64 machine SchedulerProvider::notify(&self, value: i32)
+satisfies Scheduler::notify
+via Binding::Syscall(1);
 
 machine SchedulerProvider::grant(scheduler: Scheduler) -> Scheduler in WeakFair
 satisfies Scheduler::grant
@@ -29,5 +31,5 @@ reaches Scheduler
 requires self.scheduler in Scheduler::WeakFair
 terminates
 {
-    self.scheduler.finish(0);
+    self.scheduler.notify(65);
 }

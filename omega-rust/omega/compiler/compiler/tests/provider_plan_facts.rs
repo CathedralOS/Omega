@@ -39,11 +39,11 @@ fn checked_progress_entry_retains_selected_syscall_binding_without_table_project
     assert_eq!(external.target_name, "linux_x86_64");
     assert_eq!(
         external.binding,
-        calling_conventions::ExternalBindingKind::Syscall { number: 231 }
+        calling_conventions::ExternalBindingKind::Syscall { number: 1 }
     );
     let entry = external.boundary_entry_plan.as_ref().expect("syscall ABI");
     let [parameter] = entry.call.parameters.as_slice() else {
-        panic!("only the status crosses the ABI after fused receiver erasure");
+        panic!("only the output value crosses the ABI after fused receiver erasure");
     };
     assert_eq!(
         parameter.shape,

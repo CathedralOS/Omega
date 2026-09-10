@@ -50,7 +50,7 @@ pub use realization::{
     TerminalAuthorityPermissionPolicyRow, TerminalAuthorityPolicy,
     TerminalAuthorityPolicyBuildError, TerminalAuthorityPolicyRow,
     UnclassifiedCompilerIntrinsicTerminalMechanism, UnclassifiedTerminalMechanism,
-    current_compiler_intrinsic_terminal_authority_policy,
+    conservative_syscall_terminal_mechanism, current_compiler_intrinsic_terminal_authority_policy,
     current_terminal_authority_permission_policy, current_terminal_authority_policy,
     normalized_foreign_terminal_mechanism,
     normalized_foreign_terminal_mechanism_with_callback_materializations,

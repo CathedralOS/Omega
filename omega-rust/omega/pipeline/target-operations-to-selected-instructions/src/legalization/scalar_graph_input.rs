@@ -24,7 +24,7 @@ pub(super) mod read_byte;
 pub(super) mod scalar_sums;
 pub(super) mod structural_case;
 mod unobserved_owned;
-pub(super) use hosted_scalar::hosted_execution;
+pub(super) use hosted_scalar::hosted_realization;
 mod literals;
 mod primitive_locals;
 mod ranked;

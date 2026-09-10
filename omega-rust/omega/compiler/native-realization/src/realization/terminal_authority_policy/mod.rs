@@ -22,7 +22,7 @@ pub use normalized_foreign::{
     normalized_foreign_terminal_mechanism,
     normalized_foreign_terminal_mechanism_with_callback_materializations,
 };
-pub(crate) use syscall::conservative_syscall_terminal_mechanism;
+pub use syscall::conservative_syscall_terminal_mechanism;
 
 use commitment::complete_policy_commitment;
 

@@ -19,7 +19,11 @@ const CONSERVATIVE_ARGUMENT_CONTRACT_DOMAIN: &[u8] =
 /// that contract as reachable. Structural-domain commitments, constants,
 /// ranges, descriptor provenance, and other narrowing proofs require later
 /// distinct identities.
-pub(crate) fn conservative_syscall_terminal_mechanism(
+///
+/// Receiving consumers may use this key to supply an independent classification.
+/// Derivation grants neither a classification nor service permission, provider
+/// admission, or executable authority.
+pub fn conservative_syscall_terminal_mechanism(
     target: target::TargetProfile,
     number: i64,
     plan: &abstract_operations::AbstractOperationPlan,

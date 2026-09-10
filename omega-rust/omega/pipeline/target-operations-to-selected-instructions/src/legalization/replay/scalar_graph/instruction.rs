@@ -76,8 +76,10 @@ pub(super) fn validate(
             && boundary == expected_boundary
             && result == expected_result
             && *layout == scalar_graph_input::read_byte::layout(expected_result, plan)?
-            && scalar_graph_input::hosted_execution(native, optimized.machine, operation)?
-                == target_operations::CompilerBuiltinExecution::HostedReadByte => {}
+            && matches!(
+                scalar_graph_input::hosted_realization(native, optimized.machine, operation)?,
+                target_operations::BoundaryRealization::HostedReadByte(_)
+            ) => {}
         (
             LegalizedScalarInstructionKind::HostedWriteByteI32 { boundary, source },
             AbstractOperation::BoundaryCall {
@@ -87,8 +89,10 @@ pub(super) fn validate(
             },
         ) if boundary == expected
             && arguments.as_slice() == [*source]
-            && scalar_graph_input::hosted_execution(native, optimized.machine, operation)?
-                == target_operations::CompilerBuiltinExecution::HostedWriteByteI32 => {}
+            && matches!(
+                scalar_graph_input::hosted_realization(native, optimized.machine, operation)?,
+                target_operations::BoundaryRealization::HostedWriteByteI32(_)
+            ) => {}
         (
             LegalizedScalarInstructionKind::HostedExitProcessI32 { boundary, source },
             AbstractOperation::BoundaryCall {
@@ -98,8 +102,10 @@ pub(super) fn validate(
             },
         ) if boundary == expected
             && arguments.as_slice() == [*source]
-            && scalar_graph_input::hosted_execution(native, optimized.machine, operation)?
-                == target_operations::CompilerBuiltinExecution::HostedExitProcessI32 => {}
+            && matches!(
+                scalar_graph_input::hosted_realization(native, optimized.machine, operation)?,
+                target_operations::BoundaryRealization::HostedExitProcessI32(_)
+            ) => {}
         (
             LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
                 destination,

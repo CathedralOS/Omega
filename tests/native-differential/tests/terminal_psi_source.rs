@@ -70,7 +70,7 @@ use semantic_vocabulary::{
 use std::path::{Path, PathBuf};
 use target::NativeTarget;
 use target_operations::{
-    HostedExitProcessI32Realization, TargetBooleanControl, TargetBooleanExpression,
+    HostedWriteByteI32Realization, TargetBooleanControl, TargetBooleanExpression,
     TargetIntegerControl, TargetIntegerExpression, TargetOperation,
 };
 use terminal_codec::{
@@ -145,6 +145,26 @@ fn stage_terminal_component(
     profile: &AdmissionProfile,
     settlements: &[ComponentProviderSettlement<'_>],
 ) -> Result<ComponentCandidate, Vec<diagnostics::Diagnostic>> {
+    stage_terminal_component_with_policies(
+        checked,
+        target,
+        subsystem,
+        profile,
+        settlements,
+        native_realization::current_compiler_intrinsic_terminal_authority_policy(),
+        native_realization::current_terminal_authority_permission_policy(),
+    )
+}
+
+fn stage_terminal_component_with_policies(
+    checked: &CheckedCompilation,
+    target: NativeTarget,
+    subsystem: u16,
+    profile: &AdmissionProfile,
+    settlements: &[ComponentProviderSettlement<'_>],
+    terminal_authority_policy: native_realization::TerminalAuthorityPolicy,
+    terminal_authority_permission_policy: native_realization::TerminalAuthorityPermissionPolicy,
+) -> Result<ComponentCandidate, Vec<diagnostics::Diagnostic>> {
     let selected_target = checked.selected_native_target().ok_or_else(|| {
         vec![diagnostics::Diagnostic::error(
             "terminal component staging requires one exact selected native target",
@@ -175,10 +195,8 @@ fn stage_terminal_component(
             target,
             subsystem,
             profile,
-            terminal_authority_policy:
-                native_realization::current_compiler_intrinsic_terminal_authority_policy(),
-            terminal_authority_permission_policy:
-                native_realization::current_terminal_authority_permission_policy(),
+            terminal_authority_policy,
+            terminal_authority_permission_policy,
             program_entry: native_realization::NativeProgramEntrySettlement::new(
                 selected_program_entry.source_signature(),
                 selected_program_entry.calling_plans().map(|plans| {
@@ -858,6 +876,45 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
     assert_eq!(demand.profile_identity, "Scheduler::WeakFair");
     assert_eq!(demand.establishment_routes.len(), 1);
 
+    let terminal = terminal_production::produce_terminal_artifact(&checked, "Main::main")
+        .expect("progress source produces canonical Terminal custody");
+    let abstract_plan = lower_artifact_sections(
+        terminal.semantic_bytes(),
+        terminal.proof_bytes(),
+        &AdmissionProfile::default(),
+    )
+    .expect("independently verified abstract boundary contract");
+    let boundary = abstract_plan
+        .boundary_machines
+        .iter()
+        .find(|boundary| boundary.identity == demand.requirement_identity)
+        .expect("exact demanded notification boundary");
+    let mechanism = native_realization::conservative_syscall_terminal_mechanism(
+        target::TargetProfile::LinuxX64,
+        1,
+        &abstract_plan,
+        boundary.id,
+    )
+    .expect("checked syscall argument contract");
+    // The receiving side explicitly permits and classifies output. Selection,
+    // the syscall number, and the progress premise supply neither policy row.
+    let output = effects::TerminalAuthorityDisposition::from_classes([
+        effects::TerminalAuthorityClass::ProcessOutput,
+    ]);
+    let policy = native_realization::terminal_authority_policy_with_rows(vec![
+        native_realization::TerminalAuthorityPolicyRow::new(mechanism, output.clone()),
+    ])
+    .expect("independent output mechanism classification");
+    let permission_policy =
+        native_realization::terminal_authority_permission_policy_with_rows(vec![
+            native_realization::TerminalAuthorityPermissionPolicyRow::new(
+                selected_plan.schema.identity_digest(),
+                demand.requirement_identity.clone(),
+                output,
+            ),
+        ])
+        .expect("exact Scheduler notification permission");
+
     let direct_native = compiler::compile(
         CompileRequest::new(CompileOptions {
             root_path: progress_source_canary(),
@@ -890,9 +947,16 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         demand.provider_plan_report_identity
     );
 
-    let missing_provider =
-        stage_terminal_component(&checked, target, 3, &AdmissionProfile::default(), &[])
-            .expect_err("staging must reject an unresolved selected boundary");
+    let missing_provider = stage_terminal_component_with_policies(
+        &checked,
+        target,
+        3,
+        &AdmissionProfile::default(),
+        &[],
+        policy.clone(),
+        permission_policy.clone(),
+    )
+    .expect_err("staging must reject an unresolved selected boundary");
     assert!(
         missing_provider
             .iter()
@@ -909,7 +973,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
             result: None,
         },
     );
-    let unselected_error = stage_terminal_component(
+    let unselected_error = stage_terminal_component_with_policies(
         &checked,
         target,
         3,
@@ -917,8 +981,12 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         &[ComponentProviderSettlement {
             provider_execution: &unselected,
             provider_plan: selected_plan,
-            realization: HostedExitProcessI32Realization.into(),
+            realization: native_realization::NativeBoundaryRealization::Builtin(
+                HostedWriteByteI32Realization.into(),
+            ),
         }],
+        policy.clone(),
+        permission_policy.clone(),
     )
     .expect_err("staging must reject a provider execution outside the selected closure");
     assert!(
@@ -928,7 +996,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         "{unselected_error:#?}"
     );
 
-    let candidate = stage_terminal_component(
+    let candidate = stage_terminal_component_with_policies(
         &checked,
         target,
         3,
@@ -936,8 +1004,12 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         &[ComponentProviderSettlement {
             provider_execution: &provider,
             provider_plan: selected_plan,
-            realization: HostedExitProcessI32Realization.into(),
+            realization: native_realization::NativeBoundaryRealization::Builtin(
+                HostedWriteByteI32Realization.into(),
+            ),
         }],
+        policy.clone(),
+        permission_policy.clone(),
     )
     .expect("production staging should retain the progress-bearing terminal candidate");
     assert_eq!(candidate.entry_machine(), "Main::main");
@@ -948,6 +1020,57 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         checked.selected_provider_plans().report_fingerprint()
     );
     assert_eq!(candidate.provider_executions().len(), 1);
+    let [settlement] = candidate.object().boundary_settlements() else {
+        panic!("one exercised notification retains its admitted provider")
+    };
+    let machine_code::BoundaryExecutionRecord::AdmittedProvider(execution) =
+        settlement.settlement.execution
+    else {
+        panic!(
+            "returning output must retain provider custody rather than become a compiler builtin"
+        )
+    };
+    let admitted = &candidate.provider_executions()[0];
+    assert_eq!(
+        execution.provider_plan_report_identity,
+        admitted.provider_plan_report_identity()
+    );
+    assert_eq!(
+        execution.provider_execution_report_identity,
+        admitted.provider_execution_report_identity()
+    );
+    assert_eq!(
+        execution.provider_execution_report_fingerprint,
+        admitted.provider_execution_report_fingerprint()
+    );
+    assert_eq!(
+        execution.normalized_root_report_identity,
+        admitted.normalized_root_report_identity()
+    );
+    assert_eq!(
+        execution.boundary_contract_report_fingerprint,
+        admitted.boundary_contract_report_fingerprint()
+    );
+    let mut substituted = candidate.object().clone();
+    substituted.boundary_settlements_mut_for_test()[0]
+        .settlement
+        .execution = machine_code::BoundaryExecutionRecord::CompilerBuiltin(
+        target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+    );
+    assert!(
+        image_emission::validate_executable_image(&substituted, candidate.image()).is_err(),
+        "identical physical bytes cannot replace admitted provider custody with builtin identity"
+    );
+    // This returning output provider is entirely inside compiler-authored text:
+    // installation must not hide uninstalled import thunks, slots, or literals.
+    assert!(candidate.object().data_bytes().is_empty());
+    assert!(candidate.object().foreign_calls().is_empty());
+    assert_eq!(candidate.image().output().final_image_imports, 0);
+    assert!(candidate.image().output().final_data_bytes.is_empty());
+    assert_eq!(
+        candidate.image().output().final_text_bytes,
+        candidate.object().text_bytes()
+    );
     assert_eq!(
         candidate
             .component_progress()
@@ -1139,7 +1262,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
 
     #[cfg(unix)]
     {
-        let candidate = stage_terminal_component(
+        let candidate = stage_terminal_component_with_policies(
             &checked,
             target,
             3,
@@ -1147,8 +1270,12 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
             &[ComponentProviderSettlement {
                 provider_execution: &provider,
                 provider_plan: selected_plan,
-                realization: HostedExitProcessI32Realization.into(),
+                realization: native_realization::NativeBoundaryRealization::Builtin(
+                    HostedWriteByteI32Realization.into(),
+                ),
             }],
+            policy.clone(),
+            permission_policy.clone(),
         )
         .expect("compiler transaction should restage the progress-bearing candidate");
         let entry_offset = u64::try_from(candidate.object().entry_function().text_offset)
