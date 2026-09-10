@@ -41,8 +41,7 @@ consumer contracts are not necessary to accept fixed-contract lambdas.
 remains an independent owner question for named generic consumers as well. No
 effect projection, conditional call marker, or wholesale contract forwarding is
 accepted by this proposal. The choice among no surface, simple forms, and full
-anonymous contracts is tracked in
-[anonymous-machine scope](../../OWNER_QUESTIONS.md#q3--anonymous-machine-scope-and-contracts).
+anonymous contracts remains part of this proposal, not a pending owner decision.
 
 Before acceptance, show a named-machine/environment baseline beside each proposed
 form and price the actual boilerplate saved. Test capture-free invocation,

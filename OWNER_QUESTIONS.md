@@ -165,48 +165,7 @@ replay of the same normalized contract dependencies.
   visible, weakening generic ceilings after specialization, or treating
   `invokes Step` as an unspecified all-axis forwarding wildcard is wrong.
 
-## Q3 — Anonymous-machine scope and contracts
-
-### Context
-
-[Proposal 0000](wiki/proposals/0000_anonymous_machines.md) is entirely unaccepted,
-including its simple lambda forms. Named machines and explicit environment data
-already express the behavior. The proposed surface saves local names, data
-declarations, and association boilerplate; it is not needed for reflection.
-
-### Problem statement
-
-Does that saving justify any anonymous surface, and if so, should it stop at simple
-typed bodies and captures or admit full machine clauses, generic families, and
-internal states? Repeating effect and proof headers inside a machine may defeat
-the intended benefit. Inference, contextual permissions, and promised guarantees
-must not be conflated.
-
-### Proposed solution
-
-Start with concrete named-machine/environment versus simple-lambda examples under
-existing fixed callback requirements. Consider only sugar which elaborates to
-ordinary declarations and data, without effect polymorphism or new execution
-semantics. Decide whether custom clauses and state-bearing bodies justify their
-own complexity before admitting them; their inclusion is not the default.
-
-Private-body inference can avoid repeated local effect headers. A receiving
-requirement supplies the contract to satisfy, not an assumed proof. Termination
-must be derived or established for an invocation which promises it. Constructing
-a callable and invoking it have different obligations. Captured loans and linear
-debt remain ordinary obligations regardless of whether the body is ever called.
-
-### Alternates
-
-- No anonymous surface: use named machines and explicit context data.
-- Restricted simple lambdas: accept a precisely bounded sugar without promising
-  later support for full anonymous contracts or states.
-- Full anonymous machines: accept only if their concrete usefulness outweighs
-  the mid-machine annotation burden and implementation cost.
-- Ambient caller authority, inherited termination as an assumption, or a new
-  contract-forwarding system justified solely by lambda convenience are wrong.
-
-## Q4. Gamma product checking
+## Q3. Gamma product checking
 
 <a id="gamma-product-checking"></a>
 
@@ -243,7 +202,7 @@ No product evaluator size, resource demand, or human defect-localization result
 has been measured. The choice of guarantees needs a ruling; ordinary instruction
 selection and storage design within an approved comparison do not.
 
-## Q5. Runtime source in compiler artifacts
+## Q4. Runtime source in compiler artifacts
 
 <a id="bootstrap-runtime-source-composition"></a>
 
@@ -279,7 +238,7 @@ Audit code as code, not string fragments or per-character calls. No new file I/O
 general module language, or intermediate rung is implied. Implementation waits
 for the boundary decision; proof and complete runtime conformance remain required.
 
-## Q6. Nonboundary direct operator executable supply
+## Q5. Nonboundary direct operator executable supply
 
 <a id="direct-operator-executable-supply"></a>
 
