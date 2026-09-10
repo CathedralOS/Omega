@@ -1171,14 +1171,14 @@ Owners include
   of one identity is valid, competing carrier-qualified names reject with both
   owners/imports, and carried qualifications do not grant source selection.
 
-  Continue with computed/NaN public constant identities and foreign/generic
-  attachments in
-  `syntax-trees-to-symbol-resolved-trees`.
-  Computed declaration initializers need semantic admission and retained
-  value/selection custody before `build-time-evaluation/src/const_generic_expressions.rs`
-  constructs typed index probes: the existing declaration still fails literal
-  validation inside that probe. Changing only public value encoding cannot
-  establish this path.
+  Continue with machine-call, aggregate, constrained/target-dependent and
+  floating/NaN declaration evaluation, plus foreign/generic attachments.
+  `build-time-evaluation/src/const_initializers.rs` owns declaration readiness
+  before typed index probes; extend its semantic admission and retained
+  value/selection custody, not just public value encoding. Calls need complete
+  invocation admission, and floating public identities need determined
+  representation bits. Acceptance includes unused declarations and ordinary
+  body/index consumers without weakening those obligations.
   Scalar Match index evaluation still needs general all-arm integer bounds and
   integrality proofs for anonymous arithmetic containing nested dispatch.
   Nonzero proofs still need same-sign disjointness and correlated result facts

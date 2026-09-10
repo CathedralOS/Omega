@@ -40,6 +40,20 @@ pub(super) fn retain(
                     source::Span::new(first.source_span().span.start, last.source_span().span.end),
                 );
                 let origin = selected_constant(resolved, reference)?;
+                if let Some(normalization) = syntax.root_items().find_map(|item| match item {
+                    syntax_trees::item::Item::Const(definition)
+                        if definition.name.source_span() == origin.declaration =>
+                    {
+                        definition.normalization.as_ref()
+                    }
+                    _ => None,
+                }) {
+                    for dependency in &normalization.selections {
+                        if !origins.contains(dependency) {
+                            origins.push(dependency.clone());
+                        }
+                    }
+                }
                 if !origins.contains(&origin) {
                     origins.push(origin);
                 }

@@ -185,62 +185,17 @@ pub(super) fn evaluate(
                     .with_source_span(reference),
             ]
         };
-        let mut machines = typed
-            .machines()
-            .iter()
-            .filter(|machine| typed.symbols.symbol_source_span(machine.symbol) == Some(reference));
-        let machine = machines
-            .next()
-            .ok_or_else(|| failure("typed probe lost its source custody".to_owned()))?;
-        if machines.next().is_some() {
-            return Err(failure(
-                "typed probe source custody is ambiguous".to_owned(),
-            ));
-        }
-        let [state] = typed.machine_states(machine) else {
-            return Err(failure(
-                "typed probe lost its single expression state".to_owned(),
-            ));
-        };
-        let [typed_trees::statement::StatementNode::Transition(transition)] =
-            typed.statement_table.statements(state.statement_nodes)
-        else {
-            return Err(failure("typed probe lost its expression return".to_owned()));
-        };
-        let typed_trees::statement::TransitionTargetNode::Value(expression) =
-            typed.statement_table.transition_target(transition.target)
-        else {
-            return Err(failure("typed probe return is not a value".to_owned()));
-        };
-        let destination =
-            exact_probe_destination(&typed, state.return_type).ok_or_else(|| {
-                failure(
-                    "index destination requires an unconstrained exact builtin integer or Boolean carrier"
-                        .to_owned(),
-                )
-            })?;
-        crate::admission::require_const_expression_selection(&typed, machine, reference, authority)
-            .map_err(&failure)?;
-        let (origins, operators) =
-            expression_custody(&typed, machine, state, *expression, public).map_err(&failure)?;
-        if let Some((_, expected)) = lexical_origins
+        let expected = lexical_origins
             .iter()
             .find(|(original, _)| *original == argument)
-            && (&origins != expected)
-        {
-            return Err(failure(
-                "standalone probe changed the original machine's constant selection".to_owned(),
-            ));
-        }
-        let (result, warnings) =
-            value::evaluate(&typed, machine, state, *expression, destination).map_err(&failure)?;
-        if result.type_name != destination.name() {
-            return Err(failure(format!(
-                "landed `{}` result cannot initialize `{}`",
-                result.type_name,
-                destination.name()
-            )));
-        }
+            .map(|(_, origins)| origins.as_slice());
+        let ScalarProbeResult {
+            value: result,
+            origins,
+            operators,
+            warnings,
+        } = evaluate_probe(&typed, reference, public, authority, expected, &syntax)
+            .map_err(&failure)?;
         let replacement = match result.decode_encoding() {
             Some(DecodedCanonicalConstValue::Integer { value, .. }) => value.to_string(),
             Some(DecodedCanonicalConstValue::Boolean(_)) => result.atom(),
@@ -314,7 +269,7 @@ fn exact_probe_destination(
     })
 }
 
-fn append_probe(
+pub(super) fn append_probe(
     syntax: &mut SyntaxTrees,
     ordinal: usize,
     expression: ExpressionHandle,
@@ -380,6 +335,7 @@ fn expression_custody(
     state: &typed_trees::state::State,
     root: typed_trees::expression::ExpressionHandle,
     public: bool,
+    syntax: &SyntaxTrees,
 ) -> Result<(Vec<ConstArgumentOrigin>, Vec<SourceSpan>), String> {
     use language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionIntrinsic as Intrinsic,
@@ -438,8 +394,13 @@ fn expression_custody(
                 .symbols
                 .symbol_source_span(declaration.symbol)
                 .ok_or("selected constant lost its declaration source")?;
+            // A selected public constant may retain private implementation
+            // dependencies. Only occurrences authored in this index expression
+            // acquire its public-signature exposure; copied declaration custody
+            // remains in the declaration's original package and exposure.
             if !declaration.is_public
-                && (public
+                && ((public
+                    && !syntax.constant_initializer_owns_selection(selection.source_span()))
                     || !program
                         .symbols
                         .same_source_package(selection.source_span(), declaration_source))
@@ -483,4 +444,74 @@ fn expression_custody(
         }
     }
     Ok((origins, operators))
+}
+
+/// Evaluate one source-owned scalar probe. Both declaration initializers and
+/// index arguments use this same admission, all-operand custody and landing cut.
+pub(super) fn evaluate_probe(
+    typed: &typed_trees::TypedTrees,
+    reference: SourceSpan,
+    public: bool,
+    authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
+    expected_origins: Option<&[ConstArgumentOrigin]>,
+    syntax: &SyntaxTrees,
+) -> Result<ScalarProbeResult, String> {
+    let mut machines = typed
+        .machines()
+        .iter()
+        .filter(|machine| typed.symbols.symbol_source_span(machine.symbol) == Some(reference));
+    let machine = machines
+        .next()
+        .ok_or("typed probe lost its source custody")?;
+    if machines.next().is_some() {
+        return Err("typed probe source custody is ambiguous".to_owned());
+    }
+    let [state] = typed.machine_states(machine) else {
+        return Err("typed probe lost its single expression state".to_owned());
+    };
+    let [typed_trees::statement::StatementNode::Transition(transition)] =
+        typed.statement_table.statements(state.statement_nodes)
+    else {
+        return Err("typed probe lost its expression return".to_owned());
+    };
+    let typed_trees::statement::TransitionTargetNode::Value(expression) =
+        typed.statement_table.transition_target(transition.target)
+    else {
+        return Err("typed probe return is not a value".to_owned());
+    };
+    let destination = exact_probe_destination(typed, state.return_type).ok_or(
+        "constant destination requires an unconstrained exact builtin integer or Boolean carrier",
+    )?;
+    crate::admission::require_const_expression_selection(typed, machine, reference, authority)?;
+    let (origins, operators) =
+        expression_custody(typed, machine, state, *expression, public, syntax)?;
+    if expected_origins.is_some_and(|expected| {
+        origins.len() != expected.len() || origins.iter().any(|origin| !expected.contains(origin))
+    }) {
+        return Err(
+            "standalone probe changed the original constant selection or selected a pending value"
+                .to_owned(),
+        );
+    }
+    let (value, warnings) = value::evaluate(typed, machine, state, *expression, destination)?;
+    if value.type_name != destination.name() {
+        return Err(format!(
+            "landed `{}` result cannot initialize `{}`",
+            value.type_name,
+            destination.name(),
+        ));
+    }
+    Ok(ScalarProbeResult {
+        value,
+        origins,
+        operators,
+        warnings,
+    })
+}
+
+pub(super) struct ScalarProbeResult {
+    pub(super) value: language_semantics::const_value::CanonicalConstValue,
+    pub(super) origins: Vec<ConstArgumentOrigin>,
+    pub(super) operators: Vec<SourceSpan>,
+    pub(super) warnings: Vec<Diagnostic>,
 }

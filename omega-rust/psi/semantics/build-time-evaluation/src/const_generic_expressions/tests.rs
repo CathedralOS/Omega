@@ -132,8 +132,15 @@ fn genuine_builtin_binary_retains_exact_operator_custody() {
         .map(|selection| selection.source_span())
         .collect::<Vec<_>>();
     assert_eq!(expected.len(), 1);
-    let (constants, operators) = expression_custody(&program, machine, state, expression, false)
-        .expect("checked builtin meaning");
+    let (constants, operators) = expression_custody(
+        &program,
+        machine,
+        state,
+        expression,
+        false,
+        &syntax_trees::SyntaxTrees::default(),
+    )
+    .expect("checked builtin meaning");
     assert!(constants.is_empty());
     assert_eq!(operators, expected);
 }
@@ -169,8 +176,15 @@ fn folded_literal_cannot_promote_unresolved_operator_custody() {
     assert!(matches!(literal, ExpressionNode::Integer(_)));
     for literal in [literal, ExpressionNode::Boolean(true)] {
         *program.expression_table.expression_mut(expression) = literal;
-        let error = expression_custody(&program, &machine, &state, expression, false)
-            .expect_err("folded literal has no checked operator meaning");
+        let error = expression_custody(
+            &program,
+            &machine,
+            &state,
+            expression,
+            false,
+            &syntax_trees::SyntaxTrees::default(),
+        )
+        .expect_err("folded literal has no checked operator meaning");
         assert!(error.contains("checked builtin meaning"));
     }
 }

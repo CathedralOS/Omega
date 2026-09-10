@@ -1,0 +1,9 @@
+pub const SIZE: u64 = 7 / 2 * 2;
+pub const ENABLED: bool = SIZE == 7;
+
+pub data Buffer<const Size: u64> { value: [u8; Size]; }
+pub data Flag<const Enabled: bool> { value: u8; }
+
+machine keep(value: Buffer<SIZE>) -> Buffer<7> { value }
+machine selected(value: Flag<ENABLED>) -> Flag<true> { value }
+machine read() -> u64 { SIZE }

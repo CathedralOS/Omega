@@ -96,6 +96,27 @@ and its canonical-type, selection, and rejection controls with
 
 ## Semantic admission boundary
 
+Computed integer/Boolean declarations run through
+[initializer evaluation](src/const_initializers.rs) before index normalization.
+A non-executing resolution pass selects dependencies without inventing values;
+ready dependency layers share the existing typed scalar evaluator. Anonymous
+rationals land once, while references preserve their declared carriers. Every
+declaration must complete, including unused ones and dependencies mentioned only
+in skipped branches. Declaration-owned receipts retain original syntax, exact
+selected values and builtin operators through copying and later source extension.
+Public index exposure does not republish a selected constant's private
+implementation dependencies. Provisional probe values/layouts never supply a
+selected dependency or published identity. Long dependency chains still require
+one frontend pass per layer; no performance improvement is claimed.
+
+The source acceptance command is
+`cargo run -p omega -- --check tests/omega/pass/modules/computed_constant_initializers/main.omg`.
+Its checked body/index, module and package controls are
+`cargo nextest run -p compiler --test module_machine_indices computed_declarations:: --no-fail-fast`.
+Machine-call, aggregate, constrained/target-dependent and floating declaration
+evaluation remain separate unfinished obligations; this scalar path does not
+establish native aggregate execution or NaN representation identity.
+
 Fixed-array length calls whose reachable closure needs an authored operator
 retain their pre-check continuation until Omega supplies selected execution.
 Independent length calls still run before Build; a Build invocation that needs

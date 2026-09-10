@@ -92,7 +92,96 @@ pub fn lower_syntax_trees_for_const_argument_selection(
     sources: Option<Arc<SourceMap>>,
     bindings: Vec<symbols::SourceScopedTopLevelBinding>,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    lower_syntax_trees_with_const_selection(syntax, sources, bindings, true)
+    lower_syntax_trees_with_const_selection(
+        syntax,
+        sources,
+        bindings,
+        ConstResolutionMode::ArgumentSelection,
+    )
+}
+
+/// Private preparation evidence for semantic initializer evaluation. The forest
+/// retains unresolved values and operator obligations; it is not a completed
+/// resolution result and grants no authority to type, execute, or publish it.
+pub struct ConstInitializerSelection {
+    trees: SymbolResolvedTrees,
+}
+
+impl ConstInitializerSelection {
+    pub fn trees(&self) -> &SymbolResolvedTrees {
+        &self.trees
+    }
+}
+
+/// Resolve declaration dependencies without inventing provisional values.
+/// Computed fixed-integer/Boolean initializers remain authored expression roots
+/// with no canonical encoding. Every operator occurrence remains an obligation
+/// for ordinary typed selection, not an assertion of builtin execution meaning.
+pub fn lower_syntax_trees_for_const_initializer_selection(
+    syntax: &SyntaxTrees,
+    sources: Option<Arc<SourceMap>>,
+    bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+) -> Result<ConstInitializerSelection, Vec<Diagnostic>> {
+    let trees = lower_syntax_trees_with_const_selection(
+        syntax,
+        sources,
+        bindings,
+        ConstResolutionMode::InitializerSelection,
+    )?;
+    for definition in syntax.root_items().filter_map(|item| match item {
+        syntax_trees::item::Item::Const(definition)
+            if crate::constant::requires_scalar_const_initializer_evaluation(
+                syntax, definition,
+            ) =>
+        {
+            Some(definition)
+        }
+        _ => None,
+    }) {
+        let declaration = trees
+            .const_declarations
+            .iter()
+            .find(|declaration| {
+                trees.symbols.symbol_source_span(declaration.symbol)
+                    == Some(definition.name.source_span())
+            })
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "initializer preparation lost its exact declaration",
+                )]
+            })?;
+        use symbols::BuiltinTypeAtom;
+        let valid = match &declaration.declared_type {
+            symbol_resolved_trees::types::TypeReference::Named { symbol, .. } => matches!(
+                trees.symbols.builtin_type_atom(*symbol),
+                Some(
+                    BuiltinTypeAtom::I8
+                        | BuiltinTypeAtom::I16
+                        | BuiltinTypeAtom::I32
+                        | BuiltinTypeAtom::I64
+                        | BuiltinTypeAtom::U8
+                        | BuiltinTypeAtom::U16
+                        | BuiltinTypeAtom::U32
+                        | BuiltinTypeAtom::U64
+                        | BuiltinTypeAtom::Bool
+                )
+            ),
+            _ => false,
+        };
+        if !valid {
+            return Err(vec![Diagnostic::error("computed constant initializer requires an exact builtin integer or Boolean carrier")
+                .with_source_span(definition.name.source_span())]);
+        }
+    }
+    Ok(ConstInitializerSelection { trees })
+}
+
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) enum ConstResolutionMode {
+    #[default]
+    Complete,
+    ArgumentSelection,
+    InitializerSelection,
 }
 
 /// Append one already-parsed later-stratum syntax forest to an exact retained
@@ -254,7 +343,7 @@ fn lower_syntax_trees_with_optional_sources(
         syntax_trees,
         sources,
         source_scoped_top_level_bindings,
-        false,
+        ConstResolutionMode::Complete,
     )
 }
 
@@ -262,19 +351,23 @@ fn lower_syntax_trees_with_const_selection(
     syntax_trees: &SyntaxTrees,
     sources: Option<Arc<SourceMap>>,
     source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
-    retain_aggregate_selection: bool,
+    const_resolution_mode: ConstResolutionMode,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
     let constant_selection = crate::generic_data::constant_selection::ConstantSelection::new(
         syntax_trees,
         sources.clone(),
         source_scoped_top_level_bindings.clone(),
     )?;
-    crate::module_normalization::validate_with_selection(syntax_trees, &constant_selection)?;
+    crate::module_normalization::validate_with_const_resolution_mode(
+        syntax_trees,
+        &constant_selection,
+        const_resolution_mode,
+    )?;
     let mut syntax_trees = syntax_trees.clone();
-    crate::trait_defaults::synthesize_trait_defaults(&mut syntax_trees)?;
+    crate::trait_defaults::synthesize_trait_defaults_after_module_validation(&mut syntax_trees)?;
     let mut lowerer = Lowerer::new(sources, source_scoped_top_level_bindings);
     lowerer.constant_selection = Some(constant_selection);
-    lowerer.retain_const_argument_selection = retain_aggregate_selection;
+    lowerer.const_resolution_mode = const_resolution_mode;
 
     for item in syntax_trees.root_items() {
         lower_item(&mut lowerer, &syntax_trees, item).map_err(|diagnostic| vec![diagnostic])?;
@@ -284,6 +377,7 @@ fn lower_syntax_trees_with_const_selection(
 }
 
 pub(crate) struct Lowerer {
+    pub(crate) const_resolution_mode: ConstResolutionMode,
     pub(crate) constant_selection:
         Option<crate::generic_data::constant_selection::ConstantSelection>,
     pub(crate) namespace_declarations: crate::symbols::NamespaceDeclarations,
@@ -320,7 +414,8 @@ pub(crate) struct Lowerer {
     /// Newly authored initializer roots awaiting declaration-side resolution.
     /// Retained base roots are already resolved and must not enter this list.
     pub(crate) pending_const_values: Vec<ExpressionHandle>,
-    pub(crate) retain_const_argument_selection: bool,
+    pub(crate) pending_const_initializers:
+        Vec<crate::constant::initializer_normalization::PendingInitializer>,
     /// Outcome paths are validated against the declared result sum during
     /// lowering, then stamped with exact declaration symbols after the shared
     /// symbol-assignment pass has minted those handles.
@@ -469,6 +564,7 @@ impl Lowerer {
         source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     ) -> Self {
         Self {
+            const_resolution_mode: ConstResolutionMode::Complete,
             constant_selection: None,
             namespace_declarations: crate::symbols::NamespaceDeclarations::default(),
             pending_static_module_calls: Vec::new(),
@@ -481,7 +577,7 @@ impl Lowerer {
             pending_const_declarations: Vec::new(),
             pending_const_selections: Vec::new(),
             pending_const_values: Vec::new(),
-            retain_const_argument_selection: false,
+            pending_const_initializers: Vec::new(),
             pending_outcome_specific_contracts: Vec::new(),
             current_authored_expression_exposure: None,
             pending_const_argument_selections: Vec::new(),
@@ -696,12 +792,17 @@ impl Lowerer {
                 .chain(self.pending_const_argument_expressions.iter().copied()),
         )
         .map_err(|diagnostic| vec![diagnostic])?;
+        crate::constant::initializer_normalization::finalize(
+            &mut self.symbol_resolved_trees,
+            &self.pending_const_initializers,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
         {
             crate::constant::substitute_resolved_constants(
                 &mut self.symbol_resolved_trees,
                 &self.pending_authored_expressions,
                 &mut self.pending_const_selections,
-                self.retain_const_argument_selection,
+                self.const_resolution_mode != ConstResolutionMode::Complete,
             )
             .map_err(|diagnostic| vec![diagnostic])?;
         }
@@ -714,6 +815,11 @@ impl Lowerer {
             &mut self.symbol_resolved_trees,
             &self.pending_authored_expressions,
             &self.pending_authored_proof_memberships,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
+        crate::constant::initializer_normalization::finalize_operator_obligations(
+            &mut self.symbol_resolved_trees,
+            &self.pending_const_initializers,
         )
         .map_err(|diagnostic| vec![diagnostic])?;
         let compatibility =
@@ -955,3 +1061,113 @@ pub(crate) struct PendingSignatureServiceReach {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod initializer_selection_tests {
+    use super::*;
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
+    };
+    use source::SourceId;
+    use source_files_to_tokens::Lexer;
+    use symbol_resolved_trees::expression::ExpressionNode;
+
+    fn parse(sources: &[(SourceId, &str)]) -> SyntaxTrees {
+        let mut syntax = SyntaxTrees::default();
+        for (source, text) in sources {
+            let tokens = Lexer::new(text).tokenize().expect("tokenize initializers");
+            tokens_to_syntax_trees::parse_syntax_trees_into_with_id(&mut syntax, *source, &tokens)
+                .expect("parse initializers");
+        }
+        syntax
+    }
+
+    #[test]
+    fn initializer_preparation_retains_forward_module_dependencies_without_values() {
+        for reverse in [false, true] {
+            let mut sources = [
+                (
+                    SourceId(1),
+                    "module consumer; use settings::BASE; pub const COUNT: u64 = BASE + 1; const UNUSED: u64 = COUNT + 2;",
+                ),
+                (SourceId(2), "module settings; pub const BASE: u64 = 4;"),
+            ];
+            if reverse {
+                sources.reverse();
+            }
+            let syntax = parse(&sources);
+            assert!(lower_syntax_trees(&syntax).is_err());
+            assert!(
+                lower_syntax_trees_for_const_argument_selection(&syntax, None, Vec::new()).is_err()
+            );
+            let preparation =
+                lower_syntax_trees_for_const_initializer_selection(&syntax, None, Vec::new())
+                    .expect("prepare selected initializer dependencies");
+            let trees = preparation.trees();
+            let base = trees
+                .const_declarations
+                .iter()
+                .find(|declaration| trees.symbols.name(declaration.symbol) == "BASE")
+                .expect("retain BASE declaration");
+            assert!(base.canonical_value_encoding.is_some());
+            for (name, dependency) in [("COUNT", "BASE"), ("UNUSED", "COUNT")] {
+                let declaration = trees
+                    .const_declarations
+                    .iter()
+                    .find(|declaration| trees.symbols.name(declaration.symbol) == name)
+                    .expect("retain computed declaration");
+                assert!(declaration.canonical_value_encoding.is_none());
+                let ExpressionNode::Binary(binary) = trees
+                    .tables
+                    .bodies
+                    .expressions
+                    .expression(declaration.initializer)
+                else {
+                    panic!("preparation must retain original binary initializer");
+                };
+                assert!(matches!(
+                    trees.tables.bodies.expressions.expression(binary.left),
+                    ExpressionNode::Name(_)
+                ));
+                let mut selections = trees
+                    .tables
+                    .bodies
+                    .expressions
+                    .authored_selection_occurrences(binary.left);
+                assert!(selections.any(|occurrence| {
+                    let selection = trees.authored_declaration_selections().get(occurrence).expect("retained selection");
+                    matches!(selection.target(), AuthoredDeclarationSelectionTarget::Resolved(selected)
+                        if trees.symbols.name(selected.selected_symbol()) == dependency)
+                }));
+                assert!(
+                    trees
+                        .tables
+                        .bodies
+                        .expressions
+                        .authored_selection_occurrences(declaration.initializer)
+                        .any(|occurrence| trees
+                            .authored_declaration_selections()
+                            .get(occurrence)
+                            .is_some_and(|selection| selection.kind()
+                                == AuthoredDeclarationSelectionKind::Operator))
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn initializer_preparation_does_not_relax_literal_or_declaration_validity() {
+        for text in [
+            "const BAD: u8 = 256; const PENDING: u64 = 1 + 2;",
+            "const SAME: u64 = 1 + 2; const SAME: u64 = 3 + 4;",
+            "const BAD: f32 = 1 + 2;",
+        ] {
+            let syntax = parse(&[(SourceId(1), text)]);
+            assert!(
+                lower_syntax_trees_for_const_initializer_selection(&syntax, None, Vec::new())
+                    .is_err(),
+                "{text}"
+            );
+        }
+    }
+}

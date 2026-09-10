@@ -30,15 +30,17 @@ mod trait_definition;
 mod type_reference;
 mod wire;
 
+pub use constant::requires_scalar_const_initializer_evaluation;
 pub use generic_data::{
     closed_data_const_argument_expressions, closed_machine_const_arguments, normalize_generic_data,
     normalize_generic_data_with_sources_and_top_level_bindings,
 };
 pub use lowerer::{
-    RebasedSeededSymbolResolvedTrees, SeededSymbolResolvedTrees,
+    ConstInitializerSelection, RebasedSeededSymbolResolvedTrees, SeededSymbolResolvedTrees,
     lower_syntax_extension_against_resolved_base,
     lower_syntax_extension_with_authored_selection_frontier, lower_syntax_trees,
-    lower_syntax_trees_for_const_argument_selection, lower_syntax_trees_with_sources,
+    lower_syntax_trees_for_const_argument_selection,
+    lower_syntax_trees_for_const_initializer_selection, lower_syntax_trees_with_sources,
     lower_syntax_trees_with_sources_and_top_level_bindings,
 };
 pub use trait_defaults::synthesize_trait_defaults;
