@@ -559,14 +559,14 @@ fn lower_nonbinary_expression_node_into_table(
                     },
                 );
             }
-            let (type_name, case_name) =
-                lower_struct_literal_shape_names(syntax_trees, struct_literal)?;
+            // Keep the complete spelling until symbol assignment selects the
+            // exact nominal owner and its optional case.
             Ok(
                 expression_table(lowerer).insert(ExpressionNode::StructLiteral(
                     TableStructLiteral {
-                        type_name,
+                        type_name: lower_name(&struct_literal.constructor_name),
                         type_symbol: SymbolHandle::invalid(),
-                        case_name,
+                        case_name: None,
                         case_symbol: None,
                         fields,
                     },
@@ -615,24 +615,6 @@ pub(crate) fn lower_static_machine_argument(
 
 fn expression_table(lowerer: &mut Lowerer) -> &mut ExpressionTable {
     &mut lowerer.symbol_resolved_trees.tables.bodies.expressions
-}
-
-/// The lowered `(type_name, case_name)` pair of a brace literal. A two-member
-/// literal `Type::Case { ... }` constructs an ordinary sum case.
-fn lower_struct_literal_shape_names(
-    _syntax_trees: &SyntaxTrees,
-    struct_literal: &syntax::expression::TableStructLiteral,
-) -> Result<
-    (
-        symbol_resolved_trees::name::DiagnosticName,
-        Option<symbol_resolved_trees::name::DiagnosticName>,
-    ),
-    Diagnostic,
-> {
-    Ok((
-        lower_name(&struct_literal.type_name),
-        struct_literal.case_name.as_ref().map(lower_name),
-    ))
 }
 
 fn lower_unary_operator(operator: syntax::expression::UnaryOperator) -> UnaryOperator {

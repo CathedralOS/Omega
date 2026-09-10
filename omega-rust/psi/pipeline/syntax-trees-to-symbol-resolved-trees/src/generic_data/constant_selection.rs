@@ -10,7 +10,7 @@ use symbols::{
 };
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{ConstDefinition, DataDefinition, Item};
+use syntax_trees::item::{ConstDefinition, DataDefinition, DataMember, Item};
 
 /// Private selection state; transient symbols never escape into normalized syntax.
 pub(crate) struct ConstantSelection {
@@ -31,11 +31,13 @@ impl ConstantSelection {
                     SymbolKind::Const,
                     crate::constant::semantic_const_name(definition),
                     definition.name.source_span(),
+                    None,
                 )),
                 Item::Data(definition) => declarations.push((
                     SymbolKind::Data,
                     definition.name.as_str().to_owned(),
                     definition.name.source_span(),
+                    Some(definition),
                 )),
                 Item::Module(module) => namespaces
                     .modules
@@ -49,12 +51,15 @@ impl ConstantSelection {
         let mut builder =
             SymbolTableBuilder::with_sources_and_top_level_bindings(sources, bindings);
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-        builder.insert_children(
+        let builtin_types = builtin_type_symbols();
+        let builtin_functions = builtin_function_symbols();
+        let builtin_count = builtin_types.len() + builtin_functions.len();
+        let children = builder.insert_children(
             root,
-            builtin_type_symbols()
+            builtin_types
                 .into_iter()
-                .chain(builtin_function_symbols())
-                .chain(declarations.iter().map(|(kind, name, source_span)| {
+                .chain(builtin_functions)
+                .chain(declarations.iter().map(|(kind, name, source_span, _)| {
                     (
                         *kind,
                         SymbolNameRef::OwnedSource {
@@ -64,6 +69,33 @@ impl ConstantSelection {
                     )
                 })),
         );
+        for (symbol, (_, _, _, definition)) in SymbolTableBuilder::child_handles(children)
+            .skip(builtin_count)
+            .zip(&declarations)
+        {
+            let Some(definition) = definition else {
+                continue;
+            };
+            builder.insert_children(
+                symbol,
+                syntax
+                    .items
+                    .data_members(definition.members)
+                    .iter()
+                    .filter_map(|member| {
+                        let DataMember::Variant(variant) = member else {
+                            return None;
+                        };
+                        Some((
+                            SymbolKind::Variant,
+                            SymbolNameRef::OwnedSource {
+                                value: variant.name.as_str(),
+                                source_span: variant.name.source_span(),
+                            },
+                        ))
+                    }),
+            );
+        }
         let mut symbols = builder.finish();
         // Machine, trait and other nondata import targets are absent from this
         // partial header table. Complete resolution validates those imports.
@@ -87,6 +119,36 @@ impl ConstantSelection {
                 name.source_span(),
             )
             .ok_or_else(|| format!("`{name}` does not select one declared canonical data type"))?;
+        self.data_declaration(syntax, name, selected)
+    }
+
+    pub(super) fn constructor<'syntax>(
+        &self,
+        syntax: &'syntax SyntaxTrees,
+        name: &Identifier,
+    ) -> Result<(&'syntax DataDefinition, Option<Identifier>), String> {
+        let (selected, case) =
+            crate::symbols::constructor_type(&self.symbols, name.as_str(), name.source_span())?
+                .ok_or_else(|| {
+                    format!("`{name}` does not select one declared constructor carrier")
+                })?;
+        let definition = self.data_declaration(syntax, name, selected)?;
+        let case = case.map(|case| {
+            let mut span = name.source_span();
+            if span.span.end >= case.len() {
+                span.span.start = span.span.end - case.len();
+            }
+            Identifier::new(case, span)
+        });
+        Ok((definition, case))
+    }
+
+    fn data_declaration<'syntax>(
+        &self,
+        syntax: &'syntax SyntaxTrees,
+        name: &Identifier,
+        selected: symbols::SymbolHandle,
+    ) -> Result<&'syntax DataDefinition, String> {
         let span = self
             .symbols
             .symbol_source_span(selected)

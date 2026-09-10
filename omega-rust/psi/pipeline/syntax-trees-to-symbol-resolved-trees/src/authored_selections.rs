@@ -739,7 +739,7 @@ fn collect_statement_static_argument_candidates(
 fn expression_candidates(
     program: &SymbolResolvedTrees,
     expression: ExpressionHandle,
-) -> Vec<Candidate> {
+) -> Result<Vec<Candidate>, Diagnostic> {
     let expressions = &program.tables.bodies.expressions;
     let expression_span = expressions.source_span(expression);
     let mut candidates = Vec::new();
@@ -849,6 +849,16 @@ fn expression_candidates(
             }
         }
         ExpressionNode::StructLiteral(literal) => {
+            if !literal.type_symbol.is_valid() {
+                let _ = crate::symbols::constructor_type(
+                    &program.symbols,
+                    literal.type_name.as_str(),
+                    literal.type_name.source_span(),
+                )
+                .map_err(|message| {
+                    Diagnostic::error(message).with_source_span(literal.type_name.source_span())
+                })?;
+            }
             candidates.push(Candidate {
                 expression,
                 source_span: literal.type_name.source_span(),
@@ -892,7 +902,7 @@ fn expression_candidates(
     // source token is itself an authored declaration selection.
     candidates
         .retain(|candidate| candidate.source_span.span.start < candidate.source_span.span.end);
-    candidates
+    Ok(candidates)
 }
 
 fn is_selectable_declaration_symbol(program: &SymbolResolvedTrees, symbol: SymbolHandle) -> bool {
@@ -1040,7 +1050,7 @@ fn finalize_expression_groups(
             .bodies
             .expressions
             .compiler_selection_partition(expression);
-        for candidate in expression_candidates(program, expression) {
+        for candidate in expression_candidates(program, expression)? {
             if let Some(group) = groups.iter_mut().find(|group| {
                 group.source_span == candidate.source_span
                     && group.exposure == exposure

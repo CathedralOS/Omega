@@ -54,17 +54,22 @@ impl StateValueScope<'_, '_> {
                 let bare_identity_matches = members.len() != 1
                     || !path.head_symbol.is_valid()
                     || path.head_symbol == path.symbol;
-                if !bare_identity_matches
-                    || !crate::locals::state_value_root_is_known(
-                        self.program,
-                        self.machine,
-                        self.state,
-                        self.prior_statements,
-                        self.machine_symbols,
-                        self.symbols,
-                        root,
-                        name.as_str(),
-                    )
+                if crate::bound_expression_meaning::exact_case_reference_owner(
+                    self.program,
+                    expression,
+                )
+                .is_none()
+                    && (!bare_identity_matches
+                        || !crate::locals::state_value_root_is_known(
+                            self.program,
+                            self.machine,
+                            self.state,
+                            self.prior_statements,
+                            self.machine_symbols,
+                            self.symbols,
+                            root,
+                            name.as_str(),
+                        ))
                 {
                     diagnostics.push(Diagnostic::error(format!(
                         "machine `{}` state `{}` {} value `{}` is not in the state's explicit parameter scope or prior local declarations",

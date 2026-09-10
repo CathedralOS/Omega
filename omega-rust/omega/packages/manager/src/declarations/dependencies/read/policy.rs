@@ -3,7 +3,7 @@ use super::projection::{
     DEPEND_AS_MACHINE_NAME, DEPEND_AS_WHEN_MACHINE_NAME, DEPEND_MACHINE_NAME,
     DEPEND_WHEN_MACHINE_NAME,
 };
-use super::source_literal::{PACKAGE_SELECTION_TYPE_NAME, SOURCE_TYPE_NAME};
+use super::source_literal::{PACKAGE_SELECTION_TYPE_NAME, SOURCE_TYPE_NAME, constructor_parts};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::item::Item;
@@ -101,7 +101,7 @@ pub(super) fn reject_unprojected_dependency_syntax(
     for (expression_handle, expression) in syntax_trees.expressions.iter_expressions() {
         match expression {
             ExpressionNode::StructLiteral(literal)
-                if literal.type_name.as_str() == SOURCE_TYPE_NAME =>
+                if constructor_parts(literal).0 == SOURCE_TYPE_NAME =>
             {
                 if !accepted_sources.contains(&expression_handle) {
                     return Err(DependencyProjectionError::UnsupportedDependencyShape);

@@ -3,10 +3,17 @@ use super::model::{DependencySourceRequest, PackageSelection};
 use crate::declarations::{AliasName, PackageName};
 
 use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
+use syntax_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 
 pub(super) const SOURCE_TYPE_NAME: &str = "Source";
 pub(super) const PACKAGE_SELECTION_TYPE_NAME: &str = "PackageSelection";
+
+/// Hermetic dependency projection admits an exact toolchain constructor spelling.
+pub(super) fn constructor_parts(literal: &TableStructLiteral) -> (&str, Option<&str>) {
+    let name = literal.constructor_name.as_str();
+    name.rsplit_once("::")
+        .map_or((name, None), |(owner, case)| (owner, Some(case)))
+}
 
 pub(super) fn project_source_literal(
     syntax_trees: &SyntaxTrees,
@@ -17,14 +24,15 @@ pub(super) fn project_source_literal(
     else {
         return Err(DependencyProjectionError::SourceNotLiteral);
     };
-    if literal.type_name.as_str() != SOURCE_TYPE_NAME {
+    let (type_name, case_name) = constructor_parts(literal);
+    if type_name != SOURCE_TYPE_NAME {
         return Err(DependencyProjectionError::WrongSourceType);
     }
-    let Some(case_name) = literal.case_name.as_ref() else {
+    let Some(case_name) = case_name else {
         return Err(DependencyProjectionError::MissingSourceCase);
     };
     let fields = syntax_trees.expressions.struct_fields(literal.fields);
-    match case_name.as_str() {
+    match case_name {
         "Path" => {
             let [field] = fields else {
                 return Err(DependencyProjectionError::WrongSourceFields {
@@ -102,14 +110,15 @@ fn project_package_selection(
     else {
         return Err(DependencyProjectionError::SelectionNotLiteral);
     };
-    if literal.type_name.as_str() != PACKAGE_SELECTION_TYPE_NAME {
+    let (type_name, case_name) = constructor_parts(literal);
+    if type_name != PACKAGE_SELECTION_TYPE_NAME {
         return Err(DependencyProjectionError::WrongSelectionType);
     }
-    let Some(case_name) = literal.case_name.as_ref() else {
+    let Some(case_name) = case_name else {
         return Err(DependencyProjectionError::MissingSelectionCase);
     };
     let fields = syntax_trees.expressions.struct_fields(literal.fields);
-    match case_name.as_str() {
+    match case_name {
         "Root" if fields.is_empty() => Ok(PackageSelection::Root),
         "Root" => Err(DependencyProjectionError::WrongSelectionFields {
             case_name: "Root".to_owned(),

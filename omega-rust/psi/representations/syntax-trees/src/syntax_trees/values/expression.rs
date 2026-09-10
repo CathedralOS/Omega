@@ -341,18 +341,16 @@ pub struct EvidenceProjection {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableStructLiteral {
-    pub type_name: Identifier,
-    /// `Some` when the literal constructs a CASE of `type_name`
-    /// (`Command::Say { text: ... }`); `None` for a plain record literal.
-    pub case_name: Option<Identifier>,
+    /// Complete authored static name; resolution decides whether it selects
+    /// a record or a case. Path length does not determine that distinction.
+    pub constructor_name: Identifier,
     pub fields: HandleSpan<TableStructLiteralField>,
 }
 
 impl Default for TableStructLiteral {
     fn default() -> Self {
         Self {
-            type_name: Identifier::generated(""),
-            case_name: None,
+            constructor_name: Identifier::generated(""),
             fields: HandleSpan::empty(),
         }
     }

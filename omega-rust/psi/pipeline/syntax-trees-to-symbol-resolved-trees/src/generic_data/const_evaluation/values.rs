@@ -232,6 +232,35 @@ fn selected_data<'syntax>(
     Ok(definition)
 }
 
+fn selected_constructor<'syntax>(
+    syntax: &'syntax SyntaxTrees,
+    name: &Identifier,
+    selection: Option<&ConstantSelection>,
+) -> Result<(&'syntax DataDefinition, Option<Identifier>), String> {
+    if let Some(selection) = selection {
+        return selection.constructor(syntax, name);
+    }
+    let record = selected_data(syntax, name, None).ok();
+    let case = name.as_str().rsplit_once("::").and_then(|(owner, case)| {
+        let owner = Identifier::new(owner, name.source_span());
+        selected_data(syntax, &owner, None)
+            .ok()
+            .filter(|definition| {
+                syntax.items.data_members(definition.members).iter().any(|member| {
+                    matches!(member, DataMember::Variant(variant) if variant.name.as_str() == case)
+                })
+            })
+            .map(|definition| (definition, Identifier::new(case, name.source_span())))
+    });
+    match (record, case) {
+        (Some(definition), None) => Ok((definition, None)),
+        (None, Some((definition, case))) => Ok((definition, Some(case))),
+        _ => Err(format!(
+            "`{name}` does not select one declared constructor carrier"
+        )),
+    }
+}
+
 fn selected_type_label(
     syntax: &SyntaxTrees,
     reference: TypeReferenceHandle,
@@ -516,16 +545,15 @@ pub(in crate::generic_data) fn canonicalize_data_const_expression(
     let type_name = definition.name.as_str();
     match syntax.expressions.expression(expression) {
         ExpressionNode::StructLiteral(literal) => {
-            if !std::ptr::eq(
-                selected_data(syntax, &literal.type_name, selection)?,
-                definition,
-            ) {
+            let (constructed, case_name) =
+                selected_constructor(syntax, &literal.constructor_name, selection)?;
+            if !std::ptr::eq(constructed, definition) {
                 return Err(format!(
                     "const constructor `{}` selects a different nominal carrier than `{type_name}`",
-                    literal.type_name
+                    literal.constructor_name
                 ));
             }
-            if let Some(case_name) = &literal.case_name {
+            if let Some(case_name) = &case_name {
                 let variant = syntax
                     .tables
                     .items

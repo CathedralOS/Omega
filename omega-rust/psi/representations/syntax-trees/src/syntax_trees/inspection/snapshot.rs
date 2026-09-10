@@ -729,9 +729,7 @@ pub enum ExpressionSnapshot {
     },
     SelfValue,
     StructLiteral {
-        type_name: IdentifierSnapshot,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        case_name: Option<IdentifierSnapshot>,
+        constructor_name: IdentifierSnapshot,
         fields: Vec<StructLiteralFieldSnapshot>,
     },
     String {
@@ -2066,8 +2064,7 @@ fn snapshot_expression_handle(
         },
         ExpressionNode::SelfValue => ExpressionSnapshot::SelfValue,
         ExpressionNode::StructLiteral(value) => ExpressionSnapshot::StructLiteral {
-            type_name: snapshot_identifier(&value.type_name),
-            case_name: value.case_name.as_ref().map(snapshot_identifier),
+            constructor_name: snapshot_identifier(&value.constructor_name),
             fields: syntax_trees
                 .expressions
                 .struct_fields(value.fields)

@@ -207,6 +207,21 @@ dependency; each import still validates its own exact source. Package aliases do
 not rename nominal identities or grant transitive selection authority. Static namespace calls retain
 the authored `::` distinction from value-member `.` calls through parsing.
 
+Record and case constructors retain their complete authored static name and
+field evaluation order in syntax. Resolution selects either an exact `Data`
+declaration or an actual `Variant` child of the selected owner; competing
+interpretations reject. Path length does not choose the constructor kind.
+Lookup preserves ambiguity separately from absence, with case eligibility
+checked before precedence. Rejection diagnostics name the competing declarations
+and retain the authored source's import context.
+Resolved constructors retain the selected type, case and field symbols, the
+complete constructor occurrence span and the case identifier span. The same
+source-aware selection serves direct structural indices, so equal canonical
+values retain each authored occurrence without bypassing package visibility or
+direct-dependency authority. This follows the
+[construction contract](../../../wiki/spec/language/data_and_literals.md#construction-and-case-identity)
+and uses ordinary namespace resolution rather than a separate constructor scope.
+
 Nominal data references, scalar free-machine calls, and literal constants used
 in bodies have namespace coverage. Scalar constants include qualified Terminal
 selection and independently executable artifacts; nominal aggregate body uses
@@ -215,8 +230,9 @@ uses exact module/package selection after lexical name assignment and retains
 the selected declaration at the original use. This is not completion of the
 [module/name contract](../../../wiki/spec/language/modules.md):
 foreign/generic constant attachments and template normalization, trait defaults,
-operator homes, remaining qualified constructor forms,
-and the remaining declaration forms still need exact namespace-aware resolution.
+operator homes, package-prefixed bare case values, qualified case membership,
+and the remaining declaration forms still need exact
+namespace-aware resolution.
 Later source extensions reuse the selected declaration's detached resolved
 initializer. This keeps constructor selection in the declaring source and
 deep-copies aggregate children at each use without re-reading the base source;

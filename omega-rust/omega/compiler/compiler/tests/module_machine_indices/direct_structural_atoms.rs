@@ -264,3 +264,421 @@ fn direct_atom_package_selection_requires_direct_dependency_and_public_carrier()
     compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
         .expect_err("direct dependency does not expose private carrier");
 }
+
+#[test]
+fn qualified_record_constructors_preserve_nominal_identity_and_authored_occurrences() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("settings.omg"),
+        "module settings; pub data Leaf { count: u64; } pub data Value { leaf: Leaf; enabled: bool; }",
+    );
+    let narrow = "(Value { leaf: Leaf { count: 1 }, enabled: true })";
+    let qualified = "(settings::Value { enabled: true, leaf: settings::Leaf { count: 1 } })";
+    let source = format!(
+        "use settings::Value; use settings::Leaf; data Pick<const V: settings::Value> {{ marker: u8; }}
+         machine narrow(value: Pick<{narrow}>) -> Pick<{narrow}> {{ let local: Pick<{narrow}> = value; local }}
+         machine qualified(value: Pick<{qualified}>) -> Pick<{qualified}> {{ let local: Pick<{qualified}> = value; local }}"
+    );
+    Sources::write(root.join("main.omg"), &source);
+    let checked = compile(&root, root_inputs(&root));
+    assert_same_machine_types(&checked, "narrow", "qualified");
+    for expression in [narrow, qualified] {
+        for target in [
+            "settings::Value",
+            "settings::Value::leaf",
+            "settings::Value::enabled",
+            "settings::Leaf",
+            "settings::Leaf::count",
+        ] {
+            occurrence_selects(&checked, &root, &source, expression, target);
+        }
+    }
+}
+
+#[test]
+fn qualified_case_constructors_preserve_nominal_identity_and_authored_occurrences() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("settings.omg"),
+        "module settings; pub data Value { case Empty; case Some(count: u64); }",
+    );
+    let narrow = "(Value::Some { count: 1 })";
+    let qualified = "(settings::Value::Some { count: 1 })";
+    let source = format!(
+        "use settings::Value; data Pick<const V: settings::Value> {{ marker: u8; }}
+         machine narrow(value: Pick<{narrow}>) -> Pick<{narrow}> {{ let local: Pick<{narrow}> = value; local }}
+         machine qualified(value: Pick<{qualified}>) -> Pick<{qualified}> {{ let local: Pick<{qualified}> = value; local }}"
+    );
+    Sources::write(root.join("main.omg"), &source);
+    let checked = compile(&root, root_inputs(&root));
+    assert_same_machine_types(&checked, "narrow", "qualified");
+    for expression in [narrow, qualified] {
+        for target in [
+            "settings::Value",
+            "settings::Value::Some",
+            "settings::Value::Some::count",
+        ] {
+            occurrence_selects(&checked, &root, &source, expression, target);
+        }
+    }
+}
+
+#[test]
+fn qualified_constructor_selection_preserves_same_leaf_ambiguity_and_nominal_mismatch() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for module in ["left", "right"] {
+        Sources::write(
+            root.join(format!("{module}.omg")),
+            &format!("module {module}; pub data Value {{ count: u64; }}"),
+        );
+    }
+    let prefix =
+        "use left::Value; use right::Value; data Pick<const V: left::Value> { marker: u8; }";
+    for expression in ["(Value { count: 1 })", "(right::Value { count: 1 })"] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!("{prefix} {}", keep(expression)),
+        );
+        let errors =
+            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
+                .expect_err("qualification must not erase ambiguity or nominal mismatch");
+        let expected = if expression.starts_with("(right::") {
+            "different nominal carrier"
+        } else {
+            "ambiguous constructor"
+        };
+        assert!(
+            errors.iter().any(|error| error.message.contains(expected)),
+            "{errors:?}"
+        );
+    }
+    Sources::write(
+        root.join("main.omg"),
+        &format!("{prefix} {}", keep("(left::Value { count: 1 })")),
+    );
+    compile(&root, root_inputs(&root));
+}
+
+#[test]
+fn qualified_constructor_selection_requires_direct_package_and_public_carrier() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+    let leaf = tree.package("leaf");
+    Sources::write(
+        middle.join("bridge.omg"),
+        "use leaf::settings; pub machine bridge() -> u64 { 1 }",
+    );
+    Sources::write(
+        leaf.join("settings.omg"),
+        "module settings; pub data Value { count: u64; }",
+    );
+    let sources = vec![
+        PackageSourceBinding::new(identity(1), "root", root.clone()),
+        PackageSourceBinding::new(identity(2), "middle", middle),
+        PackageSourceBinding::new(identity(3), "leaf", leaf.clone()),
+    ];
+    let mut dependencies = vec![
+        PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+        PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+    ];
+    let source = "use middle::bridge; use leaf::settings; machine make() -> leaf::settings::Value { leaf::settings::Value { count: 1 } }";
+    Sources::write(root.join("main.omg"), source);
+    let inputs =
+        PackageCompilationInputs::new_package(identity(1), sources.clone(), dependencies.clone())
+            .unwrap();
+    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect_err("a transitive dependency cannot authorize qualified construction");
+    dependencies.push(PackageDependencyBinding::new(
+        identity(1),
+        "leaf",
+        identity(3),
+    ));
+    let inputs = || {
+        PackageCompilationInputs::new_package(identity(1), sources.clone(), dependencies.clone())
+            .unwrap()
+    };
+    let checked = compile(&root, inputs());
+    let uses = selections(&checked, "settings::Value", identity(3));
+    assert!(
+        uses.len() >= 2,
+        "return type and constructor retain exact package selection: {uses:?}"
+    );
+    Sources::write(
+        leaf.join("settings.omg"),
+        "module settings; data Value { count: u64; }",
+    );
+    let errors = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect_err("direct package access does not authorize a private constructor");
+    assert!(
+        errors.iter().any(|error| error.message.contains("private")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn qualified_constructor_ambiguous_records_cannot_fall_back_to_a_unique_case() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for module in ["left", "right"] {
+        Sources::write(
+            root.join(format!("{module}.omg")),
+            &format!("module {module}::Choice; pub data Value {{}}"),
+        );
+    }
+    Sources::write(
+        root.join("main.omg"),
+        "use left::Choice; use right::Choice;
+         data Choice { case Value; }
+         machine make() -> Choice { Choice::Value {} }",
+    );
+    let result = compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root));
+    assert!(
+        result.is_err(),
+        "ambiguous imported records must not become the unique root case"
+    );
+    assert_constructor_ambiguity(&result.unwrap_err());
+}
+
+#[test]
+fn qualified_constructor_ambiguous_case_owners_cannot_fall_back_to_a_unique_record() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for module in ["left", "right"] {
+        Sources::write(
+            root.join(format!("{module}.omg")),
+            &format!("module {module}; pub data Choice {{ case Value; }}"),
+        );
+    }
+    Sources::write(root.join("Choice.omg"), "module Choice; pub data Value {}");
+    Sources::write(
+        root.join("main.omg"),
+        "use left::Choice; use right::Choice; use Choice;
+         machine make() -> Choice::Value { Choice::Value {} }",
+    );
+    let result = compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root));
+    assert!(
+        result.is_err(),
+        "ambiguous imported case owners must not become the unique record"
+    );
+    assert_constructor_ambiguity(&result.unwrap_err());
+}
+
+fn assert_constructor_ambiguity(errors: &[diagnostics::Diagnostic]) {
+    assert!(
+        errors.iter().any(|error| {
+            error.source_span.is_some()
+                && [
+                    "ambiguous constructor `Choice::Value`",
+                    "left::Choice::Value",
+                    "right::Choice::Value",
+                    "source imports:",
+                    "left::Choice",
+                    "right::Choice",
+                ]
+                .iter()
+                .all(|expected| error.message.contains(expected))
+        }),
+        "constructor rejection must retain the competing declarations and source import context: {errors:?}"
+    );
+}
+
+#[test]
+fn qualified_constructor_ambiguous_prefixes_without_the_case_do_not_compete() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for module in ["left", "right"] {
+        Sources::write(
+            root.join(format!("{module}.omg")),
+            &format!("module {module}; pub data Choice {{ case Other; }}"),
+        );
+    }
+    Sources::write(root.join("Choice.omg"), "module Choice; pub data Value {}");
+    Sources::write(
+        root.join("main.omg"),
+        "use left::Choice; use right::Choice; use Choice;
+         machine make() -> Choice::Value { Choice::Value {} }",
+    );
+    compile(&root, root_inputs(&root));
+}
+
+#[test]
+fn qualified_constructor_case_eligibility_precedes_same_leaf_owner_ambiguity() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for (module, case) in [("left", "Value"), ("right", "Other")] {
+        Sources::write(
+            root.join(format!("{module}.omg")),
+            &format!("module {module}; pub data Choice {{ case {case}; }}"),
+        );
+    }
+    Sources::write(
+        root.join("main.omg"),
+        "use left::Choice; use right::Choice;
+         machine make() -> left::Choice { Choice::Value {} }",
+    );
+    let checked = compile(&root, root_inputs(&root));
+    assert!(!selections(&checked, "left::Choice::Value", identity(1)).is_empty());
+}
+
+#[test]
+fn qualified_bare_cases_preserve_value_construction_obligations() {
+    for (declaration, body, expected) in [
+        (
+            "pub data Choice { case Empty; case Some(value: u32); }",
+            "settings::Choice::Empty",
+            None,
+        ),
+        (
+            "pub data Choice { case Empty; case Some(value: u32); }",
+            "settings::Choice::Some",
+            Some("has a payload"),
+        ),
+        (
+            "pub data Choice { value: u32 [1..=9]; case Empty; }",
+            "settings::Choice::Empty",
+            Some("omits gated field"),
+        ),
+        (
+            "pub data Choice { case Empty; }",
+            "settings::Choice::Missing",
+            Some("not a declared local, parameter, field, or type"),
+        ),
+        (
+            "pub data Choice { case Empty; }",
+            "settings::Choice",
+            Some("type"),
+        ),
+    ] {
+        let tree = Sources::new();
+        let root = tree.package("root");
+        Sources::write(
+            root.join("settings.omg"),
+            &format!("module settings; {declaration}"),
+        );
+        Sources::write(
+            root.join("main.omg"),
+            &format!("use settings; machine make() -> settings::Choice {{ {body} }}"),
+        );
+        let result =
+            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root));
+        match expected {
+            None => {
+                result.expect("selected payload-free case is a value");
+            }
+            Some(expected) => {
+                let errors = result.expect_err("case construction must retain its obligations");
+                assert!(
+                    errors.iter().any(|error| error.message.contains(expected)),
+                    "{errors:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn qualified_bare_case_checks_preserve_payload_case_membership() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("main.omg"),
+        "data Choice { case Empty; case Some(value: u32); }
+         machine matches(value: &Choice) -> bool { value in Choice::Some }
+         machine braces() -> Choice { Choice::Some {} }",
+    );
+    compile(&root, root_inputs(&root));
+}
+
+#[test]
+fn qualified_bare_cases_do_not_turn_equality_into_membership_or_erase_nominal_identity() {
+    for (source, expected) in [
+        (
+            "use settings; machine compare() -> bool { settings::Choice::Some == settings::Choice::Some }",
+            "has a payload",
+        ),
+        (
+            "use settings; data Other { case Empty; } machine make() -> Other { settings::Choice::Empty }",
+            "terminal expression",
+        ),
+        (
+            "use settings; machine make(settings: u32) -> settings::Choice { settings::Choice::Empty }",
+            "StaticPathSegment",
+        ),
+    ] {
+        let tree = Sources::new();
+        let root = tree.package("root");
+        Sources::write(
+            root.join("settings.omg"),
+            "module settings; pub data Choice { case Empty; case Some(value: u32); }",
+        );
+        Sources::write(root.join("main.omg"), source);
+        let errors =
+            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
+                .expect_err("value expressions preserve constructor and lexical ownership");
+        assert!(
+            errors.iter().any(|error| error.message.contains(expected)),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn qualified_bare_case_selection_requires_direct_package_and_public_carrier() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+    let leaf = tree.package("leaf");
+    Sources::write(
+        middle.join("bridge.omg"),
+        "use leaf::settings; pub machine bridge() -> u64 { 1 }",
+    );
+    Sources::write(
+        leaf.join("settings.omg"),
+        "module settings; pub data Value { case Empty; }",
+    );
+    let sources = vec![
+        PackageSourceBinding::new(identity(1), "root", root.clone()),
+        PackageSourceBinding::new(identity(2), "middle", middle),
+        PackageSourceBinding::new(identity(3), "leaf", leaf.clone()),
+    ];
+    let mut dependencies = vec![
+        PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+        PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+    ];
+    let source = "use middle::bridge; use leaf::settings::Value; machine make() -> leaf::settings::Value { Value::Empty }";
+    Sources::write(root.join("main.omg"), source);
+    let inputs =
+        PackageCompilationInputs::new_package(identity(1), sources.clone(), dependencies.clone())
+            .unwrap();
+    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect_err("a transitive dependency cannot authorize qualified construction");
+    dependencies.push(PackageDependencyBinding::new(
+        identity(1),
+        "leaf",
+        identity(3),
+    ));
+    let inputs = || {
+        PackageCompilationInputs::new_package(identity(1), sources.clone(), dependencies.clone())
+            .unwrap()
+    };
+    let checked = compile(&root, inputs());
+    let uses = selections(&checked, "settings::Value", identity(3));
+    assert!(
+        uses.len() >= 2,
+        "return type and constructor retain exact package selection: {uses:?}"
+    );
+    Sources::write(
+        leaf.join("settings.omg"),
+        "module settings; data Value { case Empty; }",
+    );
+    let errors = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect_err("direct package access does not authorize a private constructor");
+    assert!(
+        errors.iter().any(|error| error.message.contains("private")),
+        "{errors:?}"
+    );
+}

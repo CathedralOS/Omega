@@ -13,7 +13,7 @@ use std::sync::Arc;
 use arena::HandleSpan;
 use source::{SourceId, SourceSpan};
 
-use super::{SourceScopedTopLevelBinding, SymbolTable};
+use super::{SourceScopedTopLevelBinding, SymbolLookup, SymbolTable};
 use crate::{Symbol, SymbolHandle, SymbolKind, SymbolName, SymbolNameRef};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -53,6 +53,18 @@ impl SourceScopedTopLevelBinding {
 }
 
 impl SymbolTable {
+    /// Authored import spellings retained for source lookup diagnostics.
+    pub fn source_module_import_paths(&self, source: SourceId) -> impl Iterator<Item = &str> {
+        self.source_scoped_top_level_bindings
+            .iter()
+            .filter_map(move |binding| {
+                (binding.reference_source == source)
+                    .then_some(binding.module_import.as_ref())
+                    .flatten()
+                    .map(|import| import.path.as_ref())
+            })
+    }
+
     /// Publish the logical namespace of one source without relocating any
     /// existing declaration or builtin slot in the symbol hierarchy.
     pub fn register_source_module<'name>(
@@ -257,7 +269,7 @@ impl SymbolTable {
         candidates: &[SymbolHandle],
         name: &str,
         reference: SourceSpan,
-    ) -> Option<SymbolHandle> {
+    ) -> SymbolLookup {
         let current_module = self.source_module(reference.source_id);
         let local = candidates
             .iter()
@@ -271,7 +283,7 @@ impl SymbolTable {
             })
             .collect::<Vec<_>>();
         if !local.is_empty() {
-            return unique(local.into_iter());
+            return SymbolLookup::from_candidates(local.into_iter());
         }
         let imported = candidates
             .iter()
@@ -299,9 +311,9 @@ impl SymbolTable {
             })
             .collect::<Vec<_>>();
         if !imported.is_empty() {
-            return unique(imported.into_iter());
+            return SymbolLookup::from_candidates(imported.into_iter());
         }
-        unique(candidates.iter().copied().filter(|candidate| {
+        SymbolLookup::from_candidates(candidates.iter().copied().filter(|candidate| {
             self.name(*candidate) == name && !self.symbol_module(*candidate).is_valid()
         }))
     }
@@ -338,7 +350,7 @@ impl SymbolTable {
         kinds: &[SymbolKind],
         reference: SourceSpan,
         matches_candidate: &mut impl FnMut(SymbolHandle) -> bool,
-    ) -> Option<Option<SymbolHandle>> {
+    ) -> Option<SymbolLookup> {
         if self.module_symbols.is_empty() {
             return None;
         }
@@ -466,13 +478,15 @@ impl SymbolTable {
             }
         }
         if !module_local_matches.is_empty() {
-            Some(unique(module_local_matches.into_iter()))
+            Some(SymbolLookup::from_candidates(
+                module_local_matches.into_iter(),
+            ))
         } else if qualified {
-            Some(unique(matches.into_iter()))
+            Some(SymbolLookup::from_candidates(matches.into_iter()))
         } else if matches.is_empty() {
             None
         } else {
-            Some(unique(matches.into_iter()))
+            Some(SymbolLookup::from_candidates(matches.into_iter()))
         }
     }
 }
@@ -486,9 +500,6 @@ fn logical_import_path(import: &ModuleImport) -> String {
         .join("::")
 }
 
-fn unique(mut candidates: impl Iterator<Item = SymbolHandle>) -> Option<SymbolHandle> {
-    let first = candidates.next()?;
-    candidates
-        .all(|candidate| candidate == first)
-        .then_some(first)
+fn unique(candidates: impl Iterator<Item = SymbolHandle>) -> Option<SymbolHandle> {
+    SymbolLookup::from_candidates(candidates).unique()
 }

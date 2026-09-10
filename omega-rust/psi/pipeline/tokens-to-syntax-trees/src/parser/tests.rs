@@ -5,6 +5,7 @@ use syntax_trees::expression::ExpressionNode;
 use syntax_trees::statement::StatementNode;
 use syntax_trees::types::TypeReferenceNode;
 
+mod constructors;
 mod expression_stack;
 mod type_constraints;
 mod value_dispatch;

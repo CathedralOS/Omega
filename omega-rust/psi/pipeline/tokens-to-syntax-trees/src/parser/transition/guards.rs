@@ -977,8 +977,7 @@ pub(super) fn rewrite_destructure_guard_expression(
                 })
                 .collect::<Vec<_>>();
             ExpressionNode::StructLiteral(TableStructLiteral {
-                type_name: struct_literal.type_name,
-                case_name: struct_literal.case_name,
+                constructor_name: struct_literal.constructor_name,
                 fields: syntax_trees.expressions.insert_struct_fields(struct_fields),
             })
         }
