@@ -103,7 +103,39 @@ pub(crate) fn build_checked_scalar_computation_plans(
                         builder.record_root(
                             pure,
                             statement_ordinal,
-                            CheckedScalarExpressionRole::ArrayElement { element_ordinal },
+                            CheckedScalarExpressionRole::ArrayElement {
+                                source: checked_trees::CheckedArrayConstructionSource::Statement,
+                                element_ordinal,
+                            },
+                            element,
+                            primitive_type,
+                        );
+                    }
+                }
+                for construction in
+                    call_array_constructions(program, flow, machine, state, statement_index)
+                {
+                    let Some(array) = validation::scalar_array_elements(
+                        program,
+                        machine.symbol,
+                        construction.expression,
+                        construction.type_reference,
+                    ) else {
+                        continue;
+                    };
+                    for (element_index, (element, primitive_type)) in
+                        array.elements.into_iter().enumerate()
+                    {
+                        let Ok(element_ordinal) = u32::try_from(element_index) else {
+                            break;
+                        };
+                        builder.record_root(
+                            pure,
+                            statement_ordinal,
+                            CheckedScalarExpressionRole::ArrayElement {
+                                source: construction.source,
+                                element_ordinal,
+                            },
                             element,
                             primitive_type,
                         );
@@ -212,12 +244,16 @@ pub(crate) fn build_checked_scalar_computation_plans(
                     continue;
                 }
                 if let StatementNode::Expression(expression) = statement
-                    && validation::unit_statement_call_is_supported(
+                    && (validation::unit_statement_call_is_supported(
                         program,
                         machine,
                         state,
                         *expression,
-                    )
+                    ) || super::call_arguments::is_scalar_return_call(
+                        program,
+                        state,
+                        *expression,
+                    ))
                     && let ExpressionNode::Call(call) =
                         program.expression_table.expression(*expression)
                 {
@@ -228,7 +264,14 @@ pub(crate) fn build_checked_scalar_computation_plans(
                         call.target_symbol,
                         program.expression_table.expression_handles(call.arguments),
                     );
-                    continue;
+                    if validation::unit_statement_call_is_supported(
+                        program,
+                        machine,
+                        state,
+                        *expression,
+                    ) {
+                        continue;
+                    }
                 }
                 if let StatementNode::Assignment(assignment) = statement {
                     if matches!(

@@ -1,19 +1,19 @@
-//! Array elements finish in index order before construction commits. Completed
-//! leaves survive later calls and selections in private scalar slots, outside
-//! the fixed source namespace; those slots never become authored local bindings.
+//! Retained scalar values share selective evaluation, whether they establish
+//! a source local or one array leaf. Completed values survive later control
+//! joins; the fixed source prefix excludes private argument and leaf slots.
 
 use super::*;
 
 impl Evaluation {
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn array_element(
+    pub(crate) fn source_value(
         &mut self,
         checked: &CheckedTrees,
         machine: symbols::SymbolHandle,
         state: symbols::SymbolHandle,
         statement: u32,
-        element_ordinal: u32,
-        element: &CheckedCallScalarArgument,
+        role: CheckedScalarExpressionRole,
+        value: &CheckedCallScalarArgument,
         source_value_count: usize,
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
@@ -23,11 +23,46 @@ impl Evaluation {
         calls: &mut CallEmissionContext<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
         if source_value_count > values.len() {
-            return unsupported("array source prefix exceeds its retained values");
+            return unsupported("scalar source prefix exceeds its retained values");
         }
-        let role = CheckedScalarExpressionRole::ArrayElement { element_ordinal };
         let source = crate::scalar_source_custody::locate(checked, state, statement, role)?;
         let scalar_type = terminal_scalar_type(source.primitive_type)?;
+        match value {
+            CheckedCallScalarArgument::Pure(value) => {
+                let (binding, retained) = checked
+                    .facts
+                    .values
+                    .scalar_expressions
+                    .bound_expression_at(state, statement, role)
+                    .ok_or(LoweringError::Unsupported(
+                        "scalar value lost its pure source binding",
+                    ))?;
+                if retained != value {
+                    return unsupported("scalar value differs from its retained source binding");
+                }
+                crate::scalar_source_custody::validate_pure(checked, binding, scalar_type)?;
+            }
+            CheckedCallScalarArgument::Computation(handle) => {
+                let mut roots = checked
+                    .facts
+                    .values
+                    .scalar_computations
+                    .roots
+                    .iter()
+                    .map(|(_, root)| root)
+                    .filter(|root| {
+                        root.state == state
+                            && root.statement_ordinal == statement
+                            && root.role == role
+                    });
+                let root = roots.next().ok_or(LoweringError::Unsupported(
+                    "scalar value lost its computation root",
+                ))?;
+                if roots.next().is_some() || root.machine != machine || root.root != *handle {
+                    return unsupported("scalar value differs from its computation root");
+                }
+            }
+        }
         let bindings = self
             .scalar_bindings
             .clone()
@@ -39,10 +74,10 @@ impl Evaluation {
             .iter()
             .map(|value| value.scalar_type)
             .collect::<Vec<_>>();
-        if let CheckedCallScalarArgument::Pure(value) = element {
+        if let CheckedCallScalarArgument::Pure(value) = value {
             let expression = bindings.expression(value)?;
             if expression.scalar_type() != scalar_type {
-                return unsupported("array operand type differs from its destination carrier");
+                return unsupported("scalar value type differs from its destination carrier");
             }
             if !direct_expression_contains_short_circuit(&expression) {
                 validate_direct_parameter_types(&expression, &source_types)?;
@@ -53,7 +88,7 @@ impl Evaluation {
             }
         }
         let mut expansion = crate::scalar_computations::Expansion::new(checked, machine, 1);
-        let entry = match element {
+        let entry = match value {
             CheckedCallScalarArgument::Pure(_) => expansion.retained_pure_value(
                 state,
                 statement,
@@ -67,7 +102,11 @@ impl Evaluation {
                 state,
                 statement,
                 role,
-                source.destination,
+                if matches!(role, CheckedScalarExpressionRole::LocalInitializer { .. }) {
+                    symbols::SymbolHandle::invalid()
+                } else {
+                    source.destination
+                },
                 &bindings,
                 &source_types,
                 scalar_type,
@@ -88,7 +127,7 @@ impl Evaluation {
         )?;
         match completed.as_slice() {
             [value] => Ok(*value),
-            _ => unsupported("array element has no single completed scalar value"),
+            _ => unsupported("scalar source has no single completed value"),
         }
     }
 }

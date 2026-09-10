@@ -169,10 +169,10 @@ fn primitive_local_mutations_preserve_input_snapshot_and_returned_binding_namesp
         CheckedUnitEffectOperationPlan::EstablishScalarLocal {
             result: snapshot,
             value:
-                CheckedScalarExpression::StorageRead {
+                checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::StorageRead {
                     symbol: snapshot_symbol,
                     primitive_type: PrimitiveType::U64,
-                },
+                }),
         },
         CheckedUnitEffectOperationPlan::ScalarCall {
             result: returned,

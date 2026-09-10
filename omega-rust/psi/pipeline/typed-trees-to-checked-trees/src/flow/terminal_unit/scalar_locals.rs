@@ -1,4 +1,4 @@
-//! Branch-free primitive locals at authored statement and dense binding positions.
+//! Primitive locals at authored statement and dense binding positions.
 
 use super::*;
 
@@ -77,9 +77,7 @@ pub(super) fn scalar_expression_local_at(
         statement_index,
         CheckedScalarExpressionRole::LocalInitializer { binding_ordinal },
     )?;
-    if crate::values::scalar_expression_type(value) != Some(primitive_type)
-        || matches!(value, CheckedScalarExpression::Boolean(expression) if checked_boolean_contains_short_circuit(expression))
-    {
+    if crate::values::scalar_expression_type(value) != Some(primitive_type) {
         return None;
     }
     Some((

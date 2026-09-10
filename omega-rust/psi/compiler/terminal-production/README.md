@@ -243,8 +243,22 @@ locals also feed ordinary calls, including nested call results. Returning a
 parameter retains its exact structural slot, separately from operation-result
 ordinals. Replay checks authored positions and source identities; repeated
 unrestricted actuals do not acquire affine disposal obligations.
-Direct array-literal operands still need source-occurrence and scalar-element
-bindings at each argument position, not a fabricated statement-local binding.
+Direct array-literal operands retain the enclosing call occurrence and authored
+formal position on their constructor and scalar-element bindings. The shared
+argument schedule interleaves constructors with scalar actuals and nested
+structural calls; no synthetic call ordinal or source local is introduced.
+Empty constructors still rejoin their exact owner and recursive type. Scalar
+locals use the same selective evaluator, preserving earlier values across joins.
+An ordinary scalar call's result can complete the ordered body, including the
+immutable local/name pair introduced by existing source normalization; completion
+rejoins that exact binding instead of dropping structural arguments through a
+scalar-only call path. This ordered scalar completion does not yet carry authored
+scalar contracts or result refinements; existing scalar-only contract lowering
+remains available for bodies it can fully represent.
+Scalar computation calls with array-valued actuals need expression-owned structural
+temporary slots in the computation evaluator; they cannot hoist construction
+out of a selective Boolean branch. Transitive scalar callees whose bodies require
+this ordered structural operation sequence also need scalar-callee catalog support.
 Array state transfers, borrowed/projected payloads, boundary-provider array
 payloads, and native construction still need their complete value/storage paths.
 General slice-backed `.len` operands require retained view formation and bounds

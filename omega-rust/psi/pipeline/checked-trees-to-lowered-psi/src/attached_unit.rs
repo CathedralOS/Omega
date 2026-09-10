@@ -21,9 +21,9 @@ mod parameters;
 pub(crate) mod primitive_locals;
 mod provider_attachments;
 mod providers;
-mod scalar_arrays;
+pub(crate) mod scalar_arrays;
 mod scalar_boundaries;
-mod scalar_locals;
+mod scalar_completion;
 mod scalar_structural_calls;
 mod selected_operator;
 pub(super) mod shared_closure;
@@ -68,7 +68,6 @@ pub(super) use parameters::{
 pub(super) use provider_attachments::lower_provider_attachment_places;
 use provider_attachments::validate_provider_attachment_requirements;
 use providers::{ProviderBody, checked_unit_provider_candidates};
-use scalar_locals::lower_scalar_expression_local;
 use selected_operator::{
     lower_selected_structural_scalar_realizations, validate_selected_operator_scalar_call,
     validate_selected_operator_structural_call, validate_selected_operator_structural_scalar_call,
@@ -544,16 +543,21 @@ fn assemble_unit_closure(
                 "Unit closure contract compatibility coordinate or strong commitment drifted",
             );
         }
-        validate_unit_operation_sequence(machine)?;
+        validate_unit_operation_sequence(checked, machine)?;
         // The nominal-cleanup owner validates a synthetic empty completion for
         // its entry, then installs the actual scalar result and full contract.
         // Ordinary entries and every transitive helper retain authored results.
         let synthetic_cleanup_entry = requirements_owner == RuntimeRequirementOwner::NominalCleanup
             && machine.machine == entry
             && machine.structural_result.is_none()
+            && machine.scalar_result.is_none()
             && matches!(machine.operations.as_slice(), [CheckedUnitEffectOperationPlan::Complete { statement_index: 0, trivial_affine_local_discard_ordinals, trivial_affine_discards }] if trivial_affine_local_discard_ordinals.is_empty() && trivial_affine_discards.is_empty());
         if !synthetic_cleanup_entry {
-            scalar_arrays::validate_result(checked, machine)?;
+            if machine.scalar_result.is_some() {
+                scalar_completion::validate(checked, machine)?;
+            } else {
+                scalar_arrays::validate_result(checked, machine)?;
+            }
         }
         crate::structural_scalar_store_source::validate(checked, machine)?;
         crate::call_source_custody::validate_store_and_initializer_calls(checked, machine)?;
@@ -573,8 +577,12 @@ fn assemble_unit_closure(
                 &machine.structural_parameters,
             )?;
             match operation {
-                CheckedUnitEffectOperationPlan::EstablishScalarArray { result, elements } => {
-                    scalar_arrays::validate(checked, machine, result, elements)?;
+                CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                    source,
+                    result,
+                    elements,
+                } => {
+                    scalar_arrays::validate(checked, machine, *source, result, elements)?;
                 }
                 CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. } => {
                     structural_calls::validate_cleanup(checked, machine, operation_index)?;
@@ -599,7 +607,7 @@ fn assemble_unit_closure(
                     ..
                 } => {
                     let body = UnitBody::find(plans, *target_machine)?;
-                    structural_calls::validate_body_result(checked, operation, body.result())?;
+                    structural_calls::validate_body_result(checked, operation, body.result()?)?;
                     let target = body.entry()?;
                     if target.state != *target_state
                         || target.contract_report_fingerprint != *target_contract_report_fingerprint
@@ -1639,6 +1647,9 @@ fn assemble_unit_closure(
                 argument_schedule::Step::Call(index) if retained_scalar_prefix.is_some() => {
                     (index, true)
                 }
+                argument_schedule::Step::Constructor(index) if retained_scalar_prefix.is_some() => {
+                    (index, true)
+                }
                 argument_schedule::Step::Ordinary(index) if retained_scalar_prefix.is_none() => {
                     (index, false)
                 }
@@ -1768,21 +1779,32 @@ fn assemble_unit_closure(
                     primitive_local_places.push(local);
                     continue;
                 }
-                CheckedUnitEffectOperationPlan::EstablishScalarArray { result, elements } => {
+                CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                    source,
+                    result,
+                    elements,
+                } => {
                     if result.binding_ordinal as usize != structural_result_places.len() {
                         return unsupported("array result binding is not dense");
                     }
-                    let source_value_count = scalar_result_values.len();
+                    // Earlier arguments are private staging slots, not source
+                    // bindings. Keep them live through every leaf's control
+                    // joins, then remove only this constructor's leaf tail.
+                    let leaf_start = scalar_result_values.len();
+                    let source_value_count = retained_scalar_prefix.unwrap_or(leaf_start);
                     for (ordinal, element) in elements.iter().enumerate() {
                         let element_ordinal = u32::try_from(ordinal).map_err(|_| {
                             LoweringError::Unsupported("array element ordinal exceeds u32")
                         })?;
-                        let value = evaluation.array_element(
+                        let value = evaluation.source_value(
                             checked,
                             plan.machine,
                             plan.state,
                             result.statement_index,
-                            element_ordinal,
+                            CheckedScalarExpressionRole::ArrayElement {
+                                source: *source,
+                                element_ordinal,
+                            },
                             element,
                             source_value_count,
                             &mut scalar_result_values,
@@ -1799,12 +1821,12 @@ fn assemble_unit_closure(
                     // Read the completed leaves only after the final element.
                     let declaration = scalar_arrays::emit(
                         result,
-                        &scalar_result_values[source_value_count..],
+                        &scalar_result_values[leaf_start..],
                         &type_ids,
                         &mut next_place,
                         &mut operations,
                     )?;
-                    scalar_result_values.truncate(source_value_count);
+                    scalar_result_values.truncate(leaf_start);
                     structural_result_places.push((declaration, false));
                     continue;
                 }
@@ -2429,17 +2451,38 @@ fn assemble_unit_closure(
                     continue;
                 }
                 CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value } => {
-                    let lowered = lower_scalar_expression_local(
+                    if usize::try_from(result.binding_ordinal)
+                        .ok()
+                        .and_then(|ordinal| ordinal.checked_add(scalar_parameter_count))
+                        != Some(scalar_result_values.len())
+                    {
+                        return unsupported(
+                            "Unit scalar expression local binding drifted from source order",
+                        );
+                    }
+                    let lowered = evaluation.source_value(
                         checked,
+                        plan.machine,
                         plan.state,
-                        result,
+                        result.statement_index,
+                        CheckedScalarExpressionRole::LocalInitializer {
+                            binding_ordinal: result.binding_ordinal,
+                        },
                         value,
-                        scalar_parameter_count,
-                        &scalar_result_values,
+                        source_value_count,
+                        &mut scalar_result_values,
                         &mut next_value_identity,
+                        &mut next_block,
+                        &mut next_edge,
                         &mut operations,
-                        &evaluation.primitive_storage,
+                        &mut scalar_calls,
                     )?;
+                    if lowered.scalar_type != terminal_scalar_type(result.primitive_type)? {
+                        return unsupported(
+                            "Unit scalar expression local type disagrees with its binding",
+                        );
+                    }
+                    next_call_obligation = scalar_calls.next_obligation_identity;
                     scalar_result_values.push(lowered);
                     continue;
                 }
@@ -3542,6 +3585,34 @@ fn assemble_unit_closure(
             }))
             .collect::<Result<Vec<_>, _>>()?;
         let block = evaluation.current;
+        let scalar_return = plan
+            .scalar_result
+            .as_ref()
+            .map(|result| {
+                let position = scalar_parameter_count
+                    .checked_add(result.binding_ordinal as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "scalar completion binding position overflows",
+                    ))?;
+                let source =
+                    scalar_result_values
+                        .get(position)
+                        .ok_or(LoweringError::Unsupported(
+                            "scalar completion binding is absent",
+                        ))?;
+                let scalar_type = terminal_scalar_type(result.primitive_type)?;
+                if source.scalar_type != scalar_type {
+                    return unsupported("scalar completion binding has a different carrier");
+                }
+                Ok::<_, LoweringError>((
+                    source.id,
+                    ValueDeclaration {
+                        id: value_id(allocate_dense(&mut next_value_identity)?),
+                        scalar_type,
+                    },
+                ))
+            })
+            .transpose()?;
         let structural_return = plan
             .structural_result
             .as_ref()
@@ -3613,7 +3684,16 @@ fn assemble_unit_closure(
             id: block,
             parameters: evaluation.parameters,
             operations: operations[evaluation.operation_start..].to_vec(),
-            terminator: if let Some((source, _)) = &structural_return {
+            terminator: if let Some((source, _)) = &scalar_return {
+                Terminator::Return {
+                    edge,
+                    value: *source,
+                    cleanup_actions: trivial_affine_discards
+                        .into_iter()
+                        .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                        .collect(),
+                }
+            } else if let Some((source, _)) = &structural_return {
                 Terminator::ReturnStructural {
                     edge,
                     source: *source,
@@ -3667,9 +3747,13 @@ fn assemble_unit_closure(
             parameters: scalar_parameters.clone(),
             structural_parameters: parameters.clone(),
             ranked_scc: None,
-            result: structural_return.map_or(TerminalMachineResult::Unit, |(_, result)| {
-                TerminalMachineResult::Structural(result)
-            }),
+            result: if let Some((_, result)) = scalar_return {
+                TerminalMachineResult::Scalar(result)
+            } else {
+                structural_return.map_or(TerminalMachineResult::Unit, |(_, result)| {
+                    TerminalMachineResult::Structural(result)
+                })
+            },
             structural_places,
             entry_claims: entry_claims.clone(),
             published_service_ceiling: if let Some(provider) = provider_candidate_plans

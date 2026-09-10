@@ -1152,21 +1152,29 @@ Owners include
   `values/scalar/constant_array_projection.rs` only selects closed literal leaves.
   General value projection needs its complete executable representation, not
   a source rewrite that makes a constant addressable storage.
-  Array transport resume evidence (macOS AArch64, base `a5f8ad21e2` plus the
-  array-argument change, Cargo with `RUST_MIN_STACK=33554432`):
-  `cargo run -p omega -- inspect-terminal --machine passed_row tests/omega/pass/modules/module_array_constant_indices/main.omg`
+  Array transport resume evidence (macOS AArch64, base `e7c27eb532` plus the
+  literal-argument change, Cargo with `RUST_MIN_STACK=33554432`):
+  `cargo run -p omega -- inspect-terminal --machine literal_row tests/omega/pass/modules/module_array_constant_indices/main.omg`
   publishes verified construction/call/parameter-return Terminal Psi. The fixture
   execution test in `compiler/tests/module_machine_indices/array_construction.rs`
   independently decodes the artifact and checks input `42u8` returns `[42u8, 9u8]`.
   Construction, named locals, nested calls, and parameter returns retain exact
   dimensions, element carriers, source positions, and unrestricted payload custody.
+  Literal operands retain enclosing call/formal ownership, including empty arrays;
+  selective scalar locals and leaves share the ordinary argument schedule.
   Source owners are
   `typed-trees-to-checked-trees/src/flow/terminal_unit/control/statement_sequence.rs`
   and `checked-trees-to-lowered-psi/src/attached_unit/scalar_arrays.rs`.
-  Next acceptance is direct array-literal operands at each authored argument
-  position: the current scalar-element binding uses statement-local ordinals,
-  so multiple literals in one call need exact source-occurrence ownership in
-  `typed-trees-to-checked-trees/src/values/scalar/` and constructor replay.
+  Next acceptance is array-valued operands inside scalar computations, including
+  selected branches. Source-inspected dependency:
+  `flow/terminal_unit/calls/computation_arguments.rs` has no expression-owned
+  structural temporary slots. The unrun next probe
+  `keep([answer([7u8, 9u8], 42u8), 9u8])` should return `[42u8, 9u8]`;
+  retain construction in the selected computation, not hoisted outside its control.
+  Transitive scalar callees with ordered structural operation bodies also need
+  the scalar-callee catalog join. Ordered scalar completion contracts and result
+  refinements need their complete predicate/evidence path; preserve existing
+  scalar-only contract lowering while extending that route.
   Borrowed/projected payloads, state transfers, and boundary-provider array
   results also remain unsupported. Native lowering rejects `EstablishScalarArray`,
   including empty payloads. Continue with complete value/storage paths and

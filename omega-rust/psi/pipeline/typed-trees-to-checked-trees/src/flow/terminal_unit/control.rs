@@ -1087,6 +1087,26 @@ pub(super) fn build_checked_machine_with(
             });
     if !is_unit(program, state.return_type)
         && !validation::is_closed_primitive_array_type(program, state.return_type)
+        && program
+            .primitive_type_reference(state.return_type)
+            .is_none()
+    {
+        return None;
+    }
+    // Scalar operation completion carries an existing call result, not scalar
+    // predicate or refinement evidence. Leave those signatures on their
+    // established scalar-graph route until this body retains that evidence.
+    if program
+        .primitive_type_reference(state.return_type)
+        .is_some()
+        && (!program.machine_contracts(machine).is_empty()
+            || !program.state_contracts(state).is_empty()
+            || matches!(
+                program
+                    .type_reference_table
+                    .type_reference(state.return_type),
+                TypeReferenceNode::Constrained { .. }
+            ))
     {
         return None;
     }
@@ -1581,7 +1601,7 @@ pub(super) fn build_checked_machine_with(
                 .map(
                     |(result, value)| CheckedUnitEffectOperationPlan::EstablishScalarLocal {
                         result,
-                        value,
+                        value: checked_trees::CheckedCallScalarArgument::Pure(value),
                     },
                 ),
         );
@@ -1590,7 +1610,13 @@ pub(super) fn build_checked_machine_with(
     let structural_result = statement_sequence
         .as_ref()
         .and_then(|sequence| sequence.structural_result.clone());
-    if !is_unit(program, state.return_type) && structural_result.is_none() {
+    let scalar_result = statement_sequence
+        .as_ref()
+        .and_then(|sequence| sequence.scalar_result);
+    if !is_unit(program, state.return_type)
+        && structural_result.is_none()
+        && scalar_result.is_none()
+    {
         return None;
     }
     if let Some(sequence) = statement_sequence {
@@ -1696,7 +1722,7 @@ pub(super) fn build_checked_machine_with(
                 operations.extend(scalar_expression_locals.iter().cloned().map(
                     |(result, value)| CheckedUnitEffectOperationPlan::EstablishScalarLocal {
                         result,
-                        value,
+                        value: checked_trees::CheckedCallScalarArgument::Pure(value),
                     },
                 ));
                 0
@@ -1931,6 +1957,7 @@ pub(super) fn build_checked_machine_with(
     };
 
     Some(CheckedUnitEffectMachinePlan {
+        scalar_result,
         structural_result,
         machine: machine.symbol,
         state: state.symbol,

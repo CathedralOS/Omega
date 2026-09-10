@@ -34,8 +34,11 @@ impl<'a> UnitBody<'a> {
         plans.for_machine(symbol).is_some() || plans.composed_for_machine(symbol).is_some()
     }
 
-    pub(crate) fn result(self) -> checked_trees::CheckedControlResultPlan {
-        match self {
+    pub(crate) fn result(self) -> Result<checked_trees::CheckedControlResultPlan, LoweringError> {
+        if matches!(self, Self::Ordinary(plan) if plan.scalar_result.is_some()) {
+            return unsupported("scalar operation-body result requires a scalar call catalog");
+        }
+        Ok(match self {
             Self::Ordinary(plan) => plan.structural_result.as_ref().map_or(
                 checked_trees::CheckedControlResultPlan::Unit,
                 |result| {
@@ -49,7 +52,7 @@ impl<'a> UnitBody<'a> {
                 },
             ),
             Self::Composed(plan) => plan.result.clone(),
-        }
+        })
     }
     pub(crate) fn find(
         plans: &'a checked_trees::CheckedUnitEffectPlans,

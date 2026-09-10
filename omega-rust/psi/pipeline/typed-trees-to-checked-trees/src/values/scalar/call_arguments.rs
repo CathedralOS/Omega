@@ -3,6 +3,26 @@
 use super::*;
 use checked_trees::FlowFacts;
 
+pub(crate) fn is_scalar_return_call(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(primitive_type) = program.primitive_type_reference(state.return_type) else {
+        return false;
+    };
+    if !matches!(program.statement_table.statements(state.statement_nodes).last(),
+        Some(StatementNode::Expression(root)) if *root == expression)
+    {
+        return false;
+    }
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    crate::find_state(program, call.target_symbol).is_some_and(|target| {
+        program.primitive_type_reference(target.return_type) == Some(primitive_type)
+    })
+}
 pub(crate) fn retain_nested_structural_call_arguments(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
@@ -37,6 +57,65 @@ pub(crate) fn retain_nested_structural_call_arguments(
                 let Ok(statement_ordinal) = u32::try_from(statement_index) else {
                     continue;
                 };
+                for construction in
+                    call_array_constructions(program, flow, machine, state, statement_index)
+                {
+                    let Some(array) = validation::scalar_array_elements(
+                        program,
+                        machine.symbol,
+                        construction.expression,
+                        construction.type_reference,
+                    ) else {
+                        continue;
+                    };
+                    for (element_index, (element, primitive_type)) in
+                        array.elements.into_iter().enumerate()
+                    {
+                        let Ok(element_ordinal) = u32::try_from(element_index) else {
+                            break;
+                        };
+                        let Some(value) = lower_return_expression(
+                            program,
+                            operators,
+                            element,
+                            &parameters,
+                            program.state_parameters(state),
+                            &parameter_types,
+                            &locals,
+                            primitive_type,
+                            exact_integer_casts,
+                        ) else {
+                            continue;
+                        };
+                        let role = CheckedScalarExpressionRole::ArrayElement {
+                            source: construction.source,
+                            element_ordinal,
+                        };
+                        plans
+                            .source_bindings
+                            .append(CheckedScalarExpressionBindings {
+                                destination: symbols::SymbolHandle::invalid(),
+                                state: state.symbol,
+                                statement_ordinal,
+                                role,
+                                expression: element,
+                                symbols: plans.binding_symbols.insert_many(
+                                    parameters.iter().map(|parameter| parameter.symbol).chain(
+                                        locals
+                                            .iter()
+                                            .filter(|local| !local.is_mutable)
+                                            .map(|local| local.symbol),
+                                    ),
+                                ),
+                            });
+                        plans.expressions.push(CheckedLocatedScalarExpression {
+                            state: state.symbol,
+                            statement_ordinal,
+                            role,
+                            expression: value,
+                        });
+                    }
+                }
                 for (call_ordinal, site) in
                     nested_structural_call_sites(program, flow, machine, state, statement_index)
                 {

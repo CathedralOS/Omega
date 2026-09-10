@@ -140,6 +140,7 @@ pub(crate) fn checked_unit_boundary_identity(
 }
 
 pub(super) fn validate_unit_operation_sequence(
+    checked: &CheckedTrees,
     machine: &CheckedUnitEffectMachinePlan,
 ) -> Result<(), LoweringError> {
     let Some(CheckedUnitEffectOperationPlan::Complete {
@@ -153,6 +154,7 @@ pub(super) fn validate_unit_operation_sequence(
     let mut coordinates = Vec::new();
     let mut next_scalar_binding = 0_u32;
     let mut next_structural_binding = 0_u32;
+    let mut has_argument_constructors = false;
     for (operation_index, operation) in machine.operations[..machine.operations.len() - 1]
         .iter()
         .enumerate()
@@ -346,6 +348,20 @@ pub(super) fn validate_unit_operation_sequence(
                         "Unit structural result binding ordinal space is exhausted",
                     ))?;
         }
+        if matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                source: checked_trees::CheckedArrayConstructionSource::CallArgument { .. },
+                ..
+            }
+        ) {
+            // A constructor is an argument-position event, not another call
+            // with ordinal zero. Keep its dense result binding check above;
+            // the authored schedule below verifies its exact position among
+            // nested calls and constructors, including missing/duplicate owners.
+            has_argument_constructors = true;
+            continue;
+        }
         let key = (coordinate.statement_index, coordinate.call_ordinal);
         let nested = matches!(
             operation,
@@ -384,6 +400,9 @@ pub(super) fn validate_unit_operation_sequence(
         return unsupported(
             "Unit machine has an anonymous structural result without its enclosing call",
         );
+    }
+    if has_argument_constructors {
+        super::argument_schedule::build(checked, machine)?;
     }
     Ok(())
 }

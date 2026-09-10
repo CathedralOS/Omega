@@ -161,6 +161,16 @@ pub(crate) fn authored_postorder(
                     ))?;
                 Some(ordinal)
             }
+            ExpressionNode::ArrayLiteral(elements) => {
+                let values = table.expression_handles(*elements);
+                if values.len() != elements.count() as usize {
+                    return unsupported("nested array argument has an invalid element span");
+                }
+                // Calls inside leaves keep their authored occurrence numbers;
+                // the leaf computation still owns selective execution.
+                children.extend(values.iter().map(|element| (*element, false, None)));
+                None
+            }
             ExpressionNode::Binary(binary) => {
                 children.extend([binary.left, binary.right].map(|child| (child, false, None)));
                 None

@@ -3,7 +3,7 @@
 use super::*;
 use checked_trees::CheckedCallScalarArgument;
 
-mod array_elements;
+mod source_values;
 
 pub(crate) struct Evaluation {
     pub primitive_storage: Vec<(symbols::SymbolHandle, PlaceId, ScalarType)>,

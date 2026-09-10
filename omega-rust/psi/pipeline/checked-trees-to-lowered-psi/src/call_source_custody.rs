@@ -176,13 +176,30 @@ pub(super) fn validate_operation(
     if let CheckedUnitEffectOperationPlan::ScalarCall { result, .. }
     | CheckedUnitEffectOperationPlan::BoundaryScalarCall { result, .. } = operation
     {
+        let (_, state) = crate::scalar_source_custody::authored_state(checked, caller_state)?;
+        let statements = checked
+            .typed
+            .statement_table
+            .statements(state.statement_nodes);
+        // A final ordinary call owns the return expression, not an invented
+        // local. Completion replay separately checks its exact result binding.
+        let role = if matches!(operation, CheckedUnitEffectOperationPlan::ScalarCall { .. })
+            && result.statement_index as usize + 1 == statements.len()
+            && matches!(
+                statements.last(),
+                Some(checked_trees::statement::StatementNode::Expression(_))
+            ) {
+            CheckedScalarExpressionRole::Return
+        } else {
+            CheckedScalarExpressionRole::LocalInitializer {
+                binding_ordinal: result.binding_ordinal,
+            }
+        };
         let source = crate::scalar_source_custody::locate(
             checked,
             caller_state,
             result.statement_index,
-            CheckedScalarExpressionRole::LocalInitializer {
-                binding_ordinal: result.binding_ordinal,
-            },
+            role,
         )?;
         if source.machine != caller_machine || source.primitive_type != result.primitive_type {
             return unsupported("call result binding disagrees with its authored scalar local");

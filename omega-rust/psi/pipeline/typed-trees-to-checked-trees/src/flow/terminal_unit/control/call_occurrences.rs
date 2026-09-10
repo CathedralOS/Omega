@@ -59,6 +59,34 @@ pub(in crate::flow::terminal_unit) fn unit_statement_call<'a>(
         .then_some((*expression, call))
 }
 
+fn ordered_statement_call<'program>(
+    program: &'program TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+) -> Option<(
+    typed_trees::expression::ExpressionHandle,
+    &'program typed_trees::expression::TableCallExpression,
+)> {
+    if let Some(call) = unit_statement_call(program, machine, state, statement_index) {
+        return Some(call);
+    }
+    let StatementNode::Expression(expression) = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)?
+    else {
+        return None;
+    };
+    if !crate::values::is_scalar_return_call(program, state, *expression) {
+        return None;
+    }
+    let ExpressionNode::Call(call) = program.expression_table.expression(*expression) else {
+        return None;
+    };
+    Some((*expression, call))
+}
+
 pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
     program: &TypedTrees,
     facts: &'a CheckFacts,
@@ -73,12 +101,48 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
         .machines()
         .iter()
         .find(|owner| owner.symbol == machine)?;
+    let mut scalar_local_count = 0u32;
     for (statement_index, statement) in program
         .statement_table
         .statements(state.statement_nodes)
         .iter()
         .enumerate()
     {
+        if let StatementNode::LocalData(local) = statement
+            && !local.is_mutable
+            && let Some(primitive_type) = program.primitive_type_reference(local.type_reference)
+        {
+            let role = CheckedScalarExpressionRole::LocalInitializer {
+                binding_ordinal: scalar_local_count,
+            };
+            scalar_local_count = scalar_local_count.checked_add(1)?;
+            if !matches!(
+                program.expression_table.expression(local.initial_value),
+                ExpressionNode::Call(_)
+            ) && let Some(root) = facts.values.scalar_computations.root_at(
+                state.symbol,
+                u32::try_from(statement_index).ok()?,
+                role,
+            ) {
+                let plans = &facts.values.scalar_computations;
+                if root.machine != machine
+                    || !plans.nodes.is_valid(root.root)
+                    || plans.nodes.get(root.root).authored_root != local.initial_value
+                    || plans.nodes.get(root.root).primitive_type != primitive_type
+                {
+                    return None;
+                }
+                collect(
+                    facts,
+                    statement_index,
+                    root.root,
+                    calls,
+                    0,
+                    &mut Vec::new(),
+                    &mut consumed,
+                )?;
+            }
+        }
         let array_destination = match statement {
             StatementNode::LocalData(local) if !local.is_mutable => {
                 Some((local.initial_value, local.type_reference))
@@ -86,15 +150,38 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
             StatementNode::Expression(expression) => Some((*expression, state.return_type)),
             _ => None,
         };
-        if let Some((expression, expected)) = array_destination
-            && let Some(elements) =
+        let arrays = array_destination
+            .into_iter()
+            .map(|(expression, expected)| {
+                (
+                    checked_trees::CheckedArrayConstructionSource::Statement,
+                    expression,
+                    expected,
+                )
+            })
+            .chain(
+                crate::values::call_array_constructions(
+                    program,
+                    &facts.flow,
+                    owner,
+                    state,
+                    statement_index,
+                )
+                .into_iter()
+                .map(|array| (array.source, array.expression, array.type_reference)),
+            );
+        for (source, expression, expected) in arrays {
+            let Some(elements) =
                 validation::scalar_array_elements(program, machine, expression, expected)
-        {
+            else {
+                continue;
+            };
             let plans = &facts.values.scalar_computations;
             for (element_index, (expression, primitive_type)) in
                 elements.elements.into_iter().enumerate()
             {
                 let role = CheckedScalarExpressionRole::ArrayElement {
+                    source,
                     element_ordinal: u32::try_from(element_index).ok()?,
                 };
                 let Some(root) =
@@ -186,7 +273,7 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
             .get(call.statement_index)?;
         if matches!(statement, StatementNode::Expression(_)) {
             let (expression, authored) =
-                unit_statement_call(program, owner, state, call.statement_index)?;
+                ordered_statement_call(program, owner, state, call.statement_index)?;
             if call.authored_expression != expression
                 || call.target_symbol != authored.target_symbol
             {
@@ -219,7 +306,7 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
             ),
             StatementNode::Expression(_) => {
                 let (_, authored) =
-                    unit_statement_call(program, owner, state, call.statement_index)?;
+                    ordered_statement_call(program, owner, state, call.statement_index)?;
                 (
                     authored.target_symbol,
                     program
