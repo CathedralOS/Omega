@@ -9,6 +9,7 @@ use legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKi
 use semantic_vocabulary::IntegerValue;
 
 mod aggregate_argument;
+mod aggregate_memory;
 mod aggregate_return;
 mod boolean_value;
 mod byte_input;

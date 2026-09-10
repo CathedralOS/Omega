@@ -126,6 +126,16 @@ fn decode_kind(
         16 => SelectedInstructionKind::Load64 {
             byte_offset: cursor.u32()?,
         },
+        tag @ (46 | 47) => {
+            let byte_offset = cursor.u32()?;
+            let width = crate::PackedByteWidth::from_byte_size(cursor.byte()?)
+                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?;
+            if tag == 46 {
+                SelectedInstructionKind::LoadPacked { byte_offset, width }
+            } else {
+                SelectedInstructionKind::StorePacked { byte_offset, width }
+            }
+        }
         33 => SelectedInstructionKind::Load8 {
             byte_offset: cursor.u32()?,
         },
@@ -332,6 +342,11 @@ fn decode_alternative_for_version(
         22 => MachineAlternativeFamily::ByteViewAddress,
         21 => MachineAlternativeFamily::Load8Indexed,
         16 => MachineAlternativeFamily::Load64,
+        46 => MachineAlternativeFamily::LoadPacked3,
+        47 => MachineAlternativeFamily::LoadPacked5,
+        48 => MachineAlternativeFamily::LoadPacked6,
+        49 => MachineAlternativeFamily::LoadPacked7,
+        50 => MachineAlternativeFamily::StorePacked,
         33 => MachineAlternativeFamily::Load8,
         34 => MachineAlternativeFamily::Load16,
         30 => MachineAlternativeFamily::Load32,
@@ -517,4 +532,41 @@ fn decode_u16s(cursor: &mut Cursor<'_>) -> Result<Vec<u16>, PreAllocationMachine
         values.push(cursor.u16()?);
     }
     Ok(values)
+}
+
+#[cfg(test)]
+mod packed_tests {
+    use super::*;
+    #[test]
+    fn packed_instruction_decode_retains_width_and_rejects_invalid_footprints() {
+        for tag in [46, 47] {
+            for raw in 0..=8 {
+                let mut bytes = vec![tag];
+                bytes.extend_from_slice(&37_u32.to_le_bytes());
+                bytes.push(raw);
+                let decoded = decode_kind(&mut Cursor::new(&bytes), true, true, true);
+                if let Some(width) = crate::PackedByteWidth::from_byte_size(raw) {
+                    let expected = if tag == 46 {
+                        SelectedInstructionKind::LoadPacked {
+                            byte_offset: 37,
+                            width,
+                        }
+                    } else {
+                        SelectedInstructionKind::StorePacked {
+                            byte_offset: 37,
+                            width,
+                        }
+                    };
+                    assert_eq!(decoded.unwrap(), expected);
+                } else {
+                    assert!(decoded.is_err());
+                }
+                for length in 0..bytes.len() {
+                    assert!(
+                        decode_kind(&mut Cursor::new(&bytes[..length]), true, true, true).is_err()
+                    );
+                }
+            }
+        }
+    }
 }

@@ -64,6 +64,11 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::AddressOffset => return self.address_offset,
             MachineSemanticKind::Load8Indexed => return self.load8_indexed,
             MachineSemanticKind::Load64 => return self.load64,
+            MachineSemanticKind::LoadPacked3
+            | MachineSemanticKind::LoadPacked5
+            | MachineSemanticKind::LoadPacked6
+            | MachineSemanticKind::LoadPacked7 => return self.load_packed,
+            MachineSemanticKind::StorePacked => return self.store_packed,
             MachineSemanticKind::Load8 => return self.load8,
             MachineSemanticKind::Load16 => return self.load16,
             MachineSemanticKind::Load32 => return self.load32,

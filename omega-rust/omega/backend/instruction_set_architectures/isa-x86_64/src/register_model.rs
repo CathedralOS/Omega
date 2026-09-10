@@ -18,6 +18,8 @@ mod mixed_calls;
 pub use mixed_calls::*;
 mod mixed_aggregate_calls;
 pub use mixed_aggregate_calls::*;
+mod packed_memory;
+pub use packed_memory::{X86_64_LOAD_PACKED, X86_64_STORE_PACKED};
 
 pub const X86_64_LOAD8: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
@@ -1328,6 +1330,7 @@ pub fn x86_64_register_constraint_catalog(
         });
     }
     mixed_calls::append_constraints(&mut constraints, model);
+    packed_memory::append_constraints(&mut constraints, model);
     mixed_aggregate_calls::append_constraints(&mut constraints, model);
     constraints.sort_by_key(|constraint| constraint.key);
     for (id, constraint) in constraints.iter_mut().enumerate() {
@@ -1338,6 +1341,7 @@ pub fn x86_64_register_constraint_catalog(
         architecture: Architecture::X86_64,
         required: {
             let mut required = X86_64_REQUIRED_REGISTER_CONSTRAINTS.to_vec();
+            required.extend([X86_64_LOAD_PACKED, X86_64_STORE_PACKED]);
             required.extend(x86_64_system_v_mixed_unit_call_keys());
             required.extend(x86_64_microsoft_mixed_unit_call_keys());
             required.extend(x86_64_system_v_mixed_aggregate_call_keys());
@@ -1658,6 +1662,7 @@ mod tests {
         assert_eq!(
             catalog.required.len(),
             X86_64_REQUIRED_REGISTER_CONSTRAINTS.len()
+                + 2
                 + x86_64_system_v_mixed_unit_call_keys().len()
                 + x86_64_microsoft_mixed_unit_call_keys().len()
                 + x86_64_system_v_mixed_aggregate_call_keys().len()

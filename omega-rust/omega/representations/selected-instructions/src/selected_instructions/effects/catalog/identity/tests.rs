@@ -31,6 +31,8 @@ fn keys() -> SelectedConstraintKeys {
         hosted_write_byte_i32: Some(instruction(24)),
         hosted_exit_process_i32: Some(instruction(32)),
         load64: Some(instruction(20)),
+        load_packed: Some(instruction(36)),
+        store_packed: Some(instruction(37)),
         load8: Some(instruction(34)),
         load16: Some(instruction(35)),
         load32: Some(instruction(27)),

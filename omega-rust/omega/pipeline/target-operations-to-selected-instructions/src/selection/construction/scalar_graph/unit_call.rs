@@ -237,14 +237,12 @@ pub(super) fn emit(
                 u32::from(*byte_size),
                 SelectedMemoryAccessRole::WritePlace,
             )?;
-            builder.emit(
-                SelectedInstructionKind::Store {
-                    byte_offset: u32::from(*value_byte_offset),
-                    byte_size: *byte_size as u8,
-                },
-                builder.constraints.keys.store.ok_or_else(invalid)?,
-                &[pointer, value],
-                Default::default(),
+            super::aggregate_memory::store(
+                builder,
+                pointer,
+                value,
+                u32::from(*value_byte_offset),
+                *byte_size,
             )?;
         }
     }

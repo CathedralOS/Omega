@@ -34,6 +34,8 @@ pub(super) fn encode_row(
         kind @ (SelectedInstructionKind::Store { .. }
         | SelectedInstructionKind::AddressOffset { .. }
         | SelectedInstructionKind::Load64 { .. }
+        | SelectedInstructionKind::LoadPacked { .. }
+        | SelectedInstructionKind::StorePacked { .. }
         | SelectedInstructionKind::Load8 { .. }
         | SelectedInstructionKind::Load16 { .. }
         | SelectedInstructionKind::Load32 { .. }

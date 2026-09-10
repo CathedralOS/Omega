@@ -12,7 +12,7 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v23\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v24\0");
     encode_target(&mut bytes, catalog.target);
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
@@ -21,6 +21,8 @@ pub fn machine_effect_catalog_identity(
         catalog.selected_keys.store,
         catalog.selected_keys.address_offset,
         catalog.selected_keys.load64,
+        catalog.selected_keys.load_packed,
+        catalog.selected_keys.store_packed,
         catalog.selected_keys.load8,
         catalog.selected_keys.load16,
         catalog.selected_keys.load32,
@@ -339,6 +341,11 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::MaterializeBooleanU64LessOrEqual => 44,
         MachineSemanticKind::MaterializeBooleanI64LessOrEqual => 45,
         MachineSemanticKind::Load64 => 16,
+        MachineSemanticKind::LoadPacked3 => 46,
+        MachineSemanticKind::LoadPacked5 => 47,
+        MachineSemanticKind::LoadPacked6 => 48,
+        MachineSemanticKind::LoadPacked7 => 49,
+        MachineSemanticKind::StorePacked => 50,
         MachineSemanticKind::Load8 => 33,
         MachineSemanticKind::Load16 => 34,
         MachineSemanticKind::Load32 => 30,
@@ -390,6 +397,11 @@ pub(crate) const fn alternative_family_tag(family: MachineAlternativeFamily) -> 
         MachineAlternativeFamily::MaterializeBooleanU64LessOrEqual => 44,
         MachineAlternativeFamily::MaterializeBooleanI64LessOrEqual => 45,
         MachineAlternativeFamily::Load64 => 16,
+        MachineAlternativeFamily::LoadPacked3 => 46,
+        MachineAlternativeFamily::LoadPacked5 => 47,
+        MachineAlternativeFamily::LoadPacked6 => 48,
+        MachineAlternativeFamily::LoadPacked7 => 49,
+        MachineAlternativeFamily::StorePacked => 50,
         MachineAlternativeFamily::Load8 => 33,
         MachineAlternativeFamily::Load16 => 34,
         MachineAlternativeFamily::Load32 => 30,

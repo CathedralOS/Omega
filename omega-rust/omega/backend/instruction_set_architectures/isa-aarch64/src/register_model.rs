@@ -21,6 +21,16 @@ pub const AARCH64_LOAD8: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 730,
 };
+/// Exact odd-width byte loads with an explicit early-clobber scratch operand.
+pub const AARCH64_LOAD_PACKED: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 750,
+};
+/// Exact odd-width byte stores preserving both inputs with explicit scratch.
+pub const AARCH64_STORE_PACKED: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 751,
+};
 pub const AARCH64_LOAD16: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 731,
@@ -312,7 +322,7 @@ pub const AARCH64_FRAME_ADDRESS: RegisterConstraintKey = RegisterConstraintKey {
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 74] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 76] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -492,6 +502,8 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 74] = [
     AARCH64_LOAD8,
     AARCH64_LOAD16,
     AARCH64_MATERIALIZE_BOOLEAN,
+    AARCH64_LOAD_PACKED,
+    AARCH64_STORE_PACKED,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1384,6 +1396,32 @@ pub fn aarch64_register_constraint_catalog(
             operands: vec![
                 allocatable(0, RegisterOperandAccess::Use, source_class),
                 allocatable(1, RegisterOperandAccess::Def, destination_class),
+            ],
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: Vec::new(),
+        });
+    }
+    for (key, load) in [(AARCH64_LOAD_PACKED, true), (AARCH64_STORE_PACKED, false)] {
+        let mut result = allocatable(
+            1,
+            if load {
+                RegisterOperandAccess::Def
+            } else {
+                RegisterOperandAccess::Use
+            },
+            GPR64,
+        );
+        result.early_clobber = load;
+        let mut scratch = allocatable(2, RegisterOperandAccess::Def, GPR64);
+        scratch.early_clobber = true;
+        constraints.push(RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key,
+            operands: vec![
+                allocatable(0, RegisterOperandAccess::Use, GPR64),
+                result,
+                scratch,
             ],
             implicit_uses: Vec::new(),
             implicit_defs: Vec::new(),

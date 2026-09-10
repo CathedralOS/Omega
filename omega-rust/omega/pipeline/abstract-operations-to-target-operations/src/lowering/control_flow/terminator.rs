@@ -71,7 +71,7 @@ pub(super) fn lower_terminator(
                                 !matches!(
                                     location,
                                     calling_conventions::ValueLocation::Register {
-                                        byte_size: 1 | 2 | 4 | 8,
+                                        byte_size: 1..=8,
                                         ..
                                     }
                                 )

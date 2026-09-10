@@ -162,7 +162,7 @@ fn physical_codec_retains_byte_view_address_family_not_exact_add() {
 #[test]
 fn physical_current_format_rejects_all_retired_versions() {
     let encoded = plan().encode();
-    for version in 0..15_u32 {
+    for version in 0..16_u32 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(

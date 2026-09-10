@@ -63,6 +63,25 @@ pub(super) fn decode_instruction(
             base_operand: u16_field(cursor)?,
             index_operand: u16_field(cursor)?,
         }),
+        tag @ (12 | 13) => {
+            let base_operand = u16_field(cursor)?;
+            let byte_offset = u32_field(cursor)?;
+            let width = selected_instructions::PackedByteWidth::from_byte_size(byte(cursor)?)
+                .ok_or(PostAllocationMachineDecodeError::InvalidField)?;
+            Some(if tag == 12 {
+                crate::PhysicalAddressOperation::LoadPacked {
+                    base_operand,
+                    byte_offset,
+                    width,
+                }
+            } else {
+                crate::PhysicalAddressOperation::StorePacked {
+                    base_operand,
+                    byte_offset,
+                    width,
+                }
+            })
+        }
         10 => Some(crate::PhysicalAddressOperation::Load8 {
             base_operand: u16_field(cursor)?,
             byte_offset: u32_field(cursor)?,

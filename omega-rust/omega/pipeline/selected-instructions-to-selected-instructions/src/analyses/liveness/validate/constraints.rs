@@ -23,7 +23,49 @@ pub(super) fn reject_v1_unsupported(
             .iter()
             .filter(|operand| operand.early_clobber)
             .collect::<Vec<_>>();
-        if let Some(definition) = early.first().copied() {
+        if early.len() > 1 {
+            let mut values = Vec::new();
+            let mut positions = Vec::new();
+            let mut uses = Vec::new();
+            for operand in &instruction.operands {
+                if values.contains(&operand.virtual_register)
+                    || positions.contains(&operand.operand)
+                    || operand.tied_to.is_some()
+                    || match operand.access {
+                        RegisterOperandAccess::Use => operand.early_clobber,
+                        RegisterOperandAccess::Def => !operand.early_clobber,
+                        RegisterOperandAccess::UseDef => true,
+                    }
+                {
+                    return Err(LivenessError::UnsupportedEarlyClobber {
+                        function: function_index,
+                        instruction: instruction.id.0,
+                        operand: operand.operand,
+                    });
+                }
+                values.push(operand.virtual_register);
+                positions.push(operand.operand);
+                if operand.access == RegisterOperandAccess::Use {
+                    uses.push((operand.virtual_register, operand.operand));
+                }
+            }
+            if uses.is_empty() {
+                return Err(LivenessError::UnsupportedEarlyClobber {
+                    function: function_index,
+                    instruction: instruction.id.0,
+                    operand: early[0].operand,
+                });
+            }
+            for definition in early {
+                early_rows.push((
+                    instruction.id.0,
+                    definition.operand,
+                    definition.virtual_register,
+                    None,
+                    uses.clone(),
+                ));
+            }
+        } else if let Some(definition) = early.first().copied() {
             let mut values = Vec::new();
             for operand in &instruction.operands {
                 if values.contains(&operand.virtual_register) {

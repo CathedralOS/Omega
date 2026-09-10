@@ -52,19 +52,27 @@ returning an incoming array retains its parameter identity. Each argument joins
 its exact producer, place, type, and destination ABI, including mixed borrowed
 arguments. Direct values retain complete graph replay at publication, not
 pointer-only legacy records.
-Direct fragments currently cover exact widths 1, 2, 4, and 8 bytes, up to two
-registers; Microsoft x64 supports its single-register direct results. Empty
-physical values, odd-width fragments, stack/indirect owned arguments, and
+Direct fragments cover exact widths 1 through 8 bytes, up to two registers;
+Microsoft x64 supports its single-register direct results. Odd widths use
+`LoadPacked`/`StorePacked` with an explicit instruction-local scratch register.
+The ISA expansion accesses each meaningful byte exactly once without rounding
+the storage extent up to a machine word. Early-write constraints keep inputs,
+load results, and scratch distinct; ordinary definition interference also keeps
+dead scratch separate from the result. Selection and physical replay retain the
+exact width and scratch identity instead of borrowing a hidden fixed register.
+Empty physical values, stack/indirect owned arguments, and
 hidden-pointer results remain explicit transport limits. Zero physical
 size never erases the semantic array type. The native differential
 `scalar_array_results` target covers full publication and matching-host execution;
-its floating cases preserve binary32/binary64 payloads, including signed zeros and
-NaN payloads. Array results keep their integer-fragment aggregate ABI; they are
+its packed cases cover 3/5/6/7-byte tails in one- and two-fragment calls and returns
+on the three direct-register targets. Its floating cases preserve binary32/binary64
+payloads, including signed zeros and NaN payloads. Array results keep their
+integer-fragment aggregate ABI; they are
 not foreign C homogeneous-floating aggregates. Scalar floating inputs use the
 ordinary float-bank transfers before bit-preserving graph and array storage.
-Calling an array-producing machine with scalar IEEE arguments still requires
-mixed-bank aggregate-call constraint rows and their independent catalog readers;
-direct construction entries and owned-array-only calls do not establish that row.
+Calls to array-producing machines reuse the mixed-bank argument constraints,
+with integer result definitions appended and independently checked by catalog
+and encoding readers. The floating regression exercises the complete caller.
 Narrow scalar calls normalize their exact signed or unsigned 8/16/32-bit carrier
 before whole-register consumers; raw array fragments need no such scalar
 interpretation. Computed Boolean comparisons establish canonical full-register

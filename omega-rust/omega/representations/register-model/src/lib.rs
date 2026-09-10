@@ -193,6 +193,8 @@ pub struct RegisterConstraintKey {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetRegisterEnvironmentConstraintKeys {
     pub load64: Option<RegisterConstraintKey>,
+    pub load_packed: Option<RegisterConstraintKey>,
+    pub store_packed: Option<RegisterConstraintKey>,
     pub load8: Option<RegisterConstraintKey>,
     pub load16: Option<RegisterConstraintKey>,
     pub load32: Option<RegisterConstraintKey>,
@@ -1631,6 +1633,8 @@ mod tests {
             call_aggregate: Vec::new(),
             return_aggregate: Vec::new(),
             load64: Some(instruction_key(30)),
+            load_packed: Some(instruction_key(36)),
+            store_packed: Some(instruction_key(37)),
             load8: None,
             load16: None,
             load32: None,
@@ -1718,6 +1722,27 @@ mod tests {
         }
 
         for changed_keys in [
+            TargetRegisterEnvironmentConstraintKeys {
+                load_packed: None,
+                ..keys.clone()
+            },
+            TargetRegisterEnvironmentConstraintKeys {
+                store_packed: None,
+                ..keys.clone()
+            },
+            TargetRegisterEnvironmentConstraintKeys {
+                load_packed: Some(instruction_key(38)),
+                ..keys.clone()
+            },
+            TargetRegisterEnvironmentConstraintKeys {
+                store_packed: Some(instruction_key(38)),
+                ..keys.clone()
+            },
+            TargetRegisterEnvironmentConstraintKeys {
+                load_packed: keys.store_packed,
+                store_packed: keys.load_packed,
+                ..keys.clone()
+            },
             TargetRegisterEnvironmentConstraintKeys {
                 hosted_read_byte: Some(keys.materialize_i64),
                 ..keys.clone()

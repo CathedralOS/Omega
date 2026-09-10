@@ -1,4 +1,5 @@
 //! Focused independent liveness replay and validation tests.
+mod parallel_early_definitions;
 
 use super::{
     constraints::reject_v1_unsupported, function_contract::validate_function,

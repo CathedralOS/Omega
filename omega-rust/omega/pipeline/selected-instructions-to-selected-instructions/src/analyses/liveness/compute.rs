@@ -196,7 +196,46 @@ pub(super) fn reject_unsupported_constraints(
             .iter()
             .filter(|operand| operand.early_clobber)
             .collect::<Vec<_>>();
-        if !early.is_empty() {
+        if early.len() > 1 {
+            // Independent early outputs share the instruction's after point,
+            // so ordinary Def/Def interference separates even dead scratch.
+            // Each output also retains every untied Use as an early hazard.
+            let mut participants = BTreeSet::new();
+            let mut positions = BTreeSet::new();
+            let valid = instruction.operands.iter().all(|operand| {
+                operand.tied_to.is_none()
+                    && matches!(
+                        (operand.access, operand.early_clobber),
+                        (RegisterOperandAccess::Use, false) | (RegisterOperandAccess::Def, true)
+                    )
+                    && participants.insert(operand.virtual_register)
+                    && positions.insert(operand.operand)
+            }) && instruction
+                .operands
+                .iter()
+                .any(|operand| operand.access == RegisterOperandAccess::Use);
+            if !valid {
+                return Err(LivenessError::UnsupportedEarlyClobber {
+                    function: function_index,
+                    instruction: instruction.id.0,
+                    operand: early[1].operand,
+                });
+            }
+            for definition in early {
+                early_rows.push((
+                    instruction.id.0,
+                    definition.operand,
+                    definition.virtual_register,
+                    None,
+                    instruction
+                        .operands
+                        .iter()
+                        .filter(|operand| operand.access == RegisterOperandAccess::Use)
+                        .map(|operand| (operand.virtual_register, operand.operand))
+                        .collect::<Vec<_>>(),
+                ));
+            }
+        } else if !early.is_empty() {
             let definition = early[0];
             let mut participants = BTreeSet::new();
             let tied_source = definition.tied_to.and_then(|operand| {

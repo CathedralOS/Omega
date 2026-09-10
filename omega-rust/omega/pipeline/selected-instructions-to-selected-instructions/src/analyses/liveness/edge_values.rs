@@ -290,6 +290,7 @@ pub(crate) fn incoming_argument(
         | VirtualRegisterOrigin::SpillAddress { .. }
         | VirtualRegisterOrigin::StructuralObservation { .. }
         | VirtualRegisterOrigin::ScalarAbiAddress { .. }
+        | VirtualRegisterOrigin::InstructionScratch { .. }
         | VirtualRegisterOrigin::AbiTransport { .. } => return Err(mismatch()),
         VirtualRegisterOrigin::EntryParameter { source_value, .. }
         | VirtualRegisterOrigin::BlockParameter { source_value, .. }

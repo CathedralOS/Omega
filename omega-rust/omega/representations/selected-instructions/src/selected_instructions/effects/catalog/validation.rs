@@ -123,6 +123,43 @@ fn validate_encoded_effects(
     declaration: &MachineEffectDeclaration,
     encoded: &MachineEncodedEffects,
 ) -> Result<(), ()> {
+    // Packed forms use a real early definition for their instruction-local
+    // scratch. Neither the memory footprint nor that interference may be
+    // weakened by a catalog row advertising only the eventual source result.
+    if matches!(
+        declaration.semantic,
+        MachineSemanticKind::LoadPacked3
+            | MachineSemanticKind::LoadPacked5
+            | MachineSemanticKind::LoadPacked6
+            | MachineSemanticKind::LoadPacked7
+            | MachineSemanticKind::StorePacked
+    ) {
+        let load = declaration.semantic != MachineSemanticKind::StorePacked;
+        if constraint.operands.len() != 3
+            || constraint
+                .operands
+                .iter()
+                .enumerate()
+                .any(|(index, operand)| {
+                    let writes = index == 2 || (load && index == 1);
+                    operand.operand != index as u16
+                        || operand.access
+                            != if writes {
+                                RegisterOperandAccess::Def
+                            } else {
+                                RegisterOperandAccess::Use
+                            }
+                        || operand.early_clobber != writes
+                        || operand.tied_to.is_some()
+                })
+            || encoded.external_operand_reads.as_slice()
+                != if load { &[0][..] } else { &[0, 1][..] }
+            || encoded.external_operand_writes.as_slice()
+                != if load { &[1, 2][..] } else { &[2][..] }
+        {
+            return Err(());
+        }
+    }
     let canonical = |values: &[u16]| values.windows(2).all(|pair| pair[0] < pair[1]);
     if !canonical(&encoded.external_operand_reads)
         || !canonical(&encoded.external_operand_writes)
@@ -397,7 +434,11 @@ fn validate_encoded_effects(
         ) if declaration.memory == crate::MachineMemoryEffect::ReadPointerV1
             && matches!(
                 (declaration.semantic, byte_count),
-                (MachineSemanticKind::Load8, 1)
+                (MachineSemanticKind::LoadPacked3, 3)
+                    | (MachineSemanticKind::LoadPacked5, 5)
+                    | (MachineSemanticKind::LoadPacked6, 6)
+                    | (MachineSemanticKind::LoadPacked7, 7)
+                    | (MachineSemanticKind::Load8, 1)
                     | (MachineSemanticKind::Load16, 2)
                     | (MachineSemanticKind::Load32, 4)
                     | (MachineSemanticKind::Load64, 8)
@@ -412,10 +453,16 @@ fn validate_encoded_effects(
             MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 },
             MachineEncodedStackEffect::UnchangedV1,
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-        ) if declaration.semantic == crate::MachineSemanticKind::Store
-            && declaration.memory == crate::MachineMemoryEffect::WritePointerV1
+        ) if matches!(
+            declaration.semantic,
+            crate::MachineSemanticKind::Store | crate::MachineSemanticKind::StorePacked
+        ) && declaration.memory == crate::MachineMemoryEffect::WritePointerV1
             && encoded.external_operand_reads == [0, 1]
-            && encoded.external_operand_writes.is_empty() => {}
+            && (if declaration.semantic == crate::MachineSemanticKind::StorePacked {
+                encoded.external_operand_writes == [2]
+            } else {
+                encoded.external_operand_writes.is_empty()
+            }) => {}
         (MachineEncodedMemoryEffect::NoneV1, MachineEncodedStackEffect::UnchangedV1, _)
             if declaration.memory == crate::MachineMemoryEffect::NoneV1 => {}
         _ => return Err(()),

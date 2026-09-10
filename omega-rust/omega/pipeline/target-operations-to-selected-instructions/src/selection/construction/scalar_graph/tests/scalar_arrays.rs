@@ -157,6 +157,9 @@ fn array_selection_rejects_reordered_operands_and_changed_layout() {
         };
         assert!(validate(&source, &changed).is_err());
         for length in [0, 3, 5, 6, 7] {
+            if length != 0 && target != target::NativeTarget::windows_x64() {
+                continue;
+            }
             assert!(
                 build(
                     0,
@@ -167,7 +170,101 @@ fn array_selection_rejects_reordered_operands_and_changed_layout() {
                     environment.constraints()
                 )
                 .is_err(),
-                "unsupported exact fragment width {length}"
+                "empty or indirect array transport {length}"
+            );
+        }
+    }
+}
+
+#[test]
+fn packed_array_selection_replays_exact_extent_and_instruction_scratch() {
+    for target in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let source = array_fixture(target, 3);
+        let environment =
+            register_environment::baseline_target_register_environment(target).unwrap();
+        let constraints = SelectedSelectionConstraints {
+            keys: environment.selected_keys(),
+            projected_structural_call: None,
+            fixed_inputs: Vec::new(),
+        };
+        let selected = build(
+            0,
+            &source,
+            target,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        let validate = |candidate: &SelectedFunction| {
+            crate::selection::validation::scalar_graph::validate(
+                0,
+                &source,
+                candidate,
+                target,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+        };
+        validate(&selected).unwrap();
+        let load_position = selected.blocks[0]
+            .instructions
+            .iter()
+            .position(|instruction| {
+                matches!(instruction.kind, SelectedInstructionKind::LoadPacked { .. })
+            })
+            .unwrap();
+        let load = &selected.blocks[0].instructions[load_position];
+        let scratch = load.operands[2].virtual_register;
+        assert_eq!(selected.local_storage_slots[0].byte_size, 3);
+        for mutation in 0..6 {
+            let mut changed = selected.clone();
+            match mutation {
+                0 => {
+                    changed.blocks[0].instructions[load_position].kind =
+                        SelectedInstructionKind::LoadPacked {
+                            byte_offset: 0,
+                            width: selected_instructions::PackedByteWidth::Five,
+                        }
+                }
+                1 => {
+                    changed.blocks[0].instructions[load_position].kind =
+                        SelectedInstructionKind::LoadPacked {
+                            byte_offset: 1,
+                            width: selected_instructions::PackedByteWidth::Three,
+                        }
+                }
+                2 => {
+                    changed.blocks[0].instructions[load_position].operands[2].early_clobber = false
+                }
+                3 => {
+                    changed.virtual_registers[scratch.0 as usize].origin =
+                        VirtualRegisterOrigin::InstructionScratch {
+                            instruction: load.id,
+                            operand: 1,
+                        }
+                }
+                4 => {
+                    changed.blocks[0].instructions[load_position].operands[2].virtual_register =
+                        load.operands[1].virtual_register
+                }
+                _ => {
+                    let access = changed
+                        .memory_accesses
+                        .iter_mut()
+                        .find(|access| access.instruction == load.id)
+                        .unwrap();
+                    access.byte_count = 4;
+                }
+            }
+            assert!(
+                validate(&changed).is_err(),
+                "{target:?} mutation {mutation}"
             );
         }
     }

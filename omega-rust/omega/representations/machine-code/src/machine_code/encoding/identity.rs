@@ -16,7 +16,7 @@ use super::{
     SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
 };
 
-const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v19";
+const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v20";
 
 pub(super) fn encoding_identity(
     selected: selected_instructions::SelectedInstructionPlanIdentity,
@@ -104,6 +104,26 @@ fn encode_encoding_row(hasher: &mut Sha256, row: &SelectedFormEncodingRow) {
                     hasher.update([4]);
                     hasher.update(base_operand.to_le_bytes());
                     hasher.update(index_operand.to_le_bytes());
+                }
+                Address::LoadPacked {
+                    base_operand,
+                    byte_offset,
+                    width,
+                } => {
+                    hasher.update([12]);
+                    hasher.update(base_operand.to_le_bytes());
+                    hasher.update(byte_offset.to_le_bytes());
+                    hasher.update([width.byte_size()]);
+                }
+                Address::StorePacked {
+                    base_operand,
+                    byte_offset,
+                    width,
+                } => {
+                    hasher.update([13]);
+                    hasher.update(base_operand.to_le_bytes());
+                    hasher.update(byte_offset.to_le_bytes());
+                    hasher.update([width.byte_size()]);
                 }
                 Address::Load8 {
                     base_operand,
@@ -412,6 +432,11 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::Store => 24,
         MachineAlternativeFamily::AddressOffset => 25,
         MachineAlternativeFamily::Load64 => 16,
+        MachineAlternativeFamily::LoadPacked3 => 46,
+        MachineAlternativeFamily::LoadPacked5 => 47,
+        MachineAlternativeFamily::LoadPacked6 => 48,
+        MachineAlternativeFamily::LoadPacked7 => 49,
+        MachineAlternativeFamily::StorePacked => 50,
         MachineAlternativeFamily::Load8 => 33,
         MachineAlternativeFamily::Load16 => 34,
         MachineAlternativeFamily::Load32 => 30,

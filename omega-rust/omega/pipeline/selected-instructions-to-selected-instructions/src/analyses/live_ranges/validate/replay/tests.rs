@@ -150,6 +150,69 @@ fn independent_tie_derivation_matches_production() {
 }
 
 #[test]
+fn parallel_early_definition_replay_requires_each_exact_use_only_hazard() {
+    let selected =
+        crate::analyses::liveness::tests::supported_parallel_early_definitions_function();
+    let live = crate::analyses::liveness::compute::compute_function(0, &selected).unwrap();
+    let expected = crate::analyses::live_ranges::compute::derive_early_clobbers(0, &live).unwrap();
+    assert_eq!(
+        independently_derive_early_clobbers(0, &live).unwrap(),
+        expected
+    );
+    assert_eq!(expected.len(), 2);
+    assert_eq!(expected[0].instruction, expected[1].instruction);
+    for mutation in 0..5 {
+        let mut changed = expected.clone();
+        match mutation {
+            0 => {
+                changed.pop();
+            }
+            1 => changed[1].def_virtual_register = changed[0].def_virtual_register,
+            2 => changed[1].uses[0].virtual_register = changed[0].def_virtual_register,
+            3 => changed[1].uses.clear(),
+            4 => changed.swap(0, 1),
+            _ => unreachable!(),
+        }
+        assert!(require_early_clobber_rows(0, &changed, &expected).is_err());
+    }
+    for mutation in 0..7 {
+        let mut changed = live.clone();
+        match mutation {
+            0 => changed.operand_positions[2].tied_to = Some(0),
+            1 => changed.operand_positions[2].early_clobber = false,
+            2 => {
+                changed.operand_positions[2].virtual_register =
+                    changed.operand_positions[1].virtual_register
+            }
+            3 => changed.operand_positions[2].operand = 1,
+            4 => changed.operand_positions[0].early_clobber = true,
+            5 => changed.operand_positions[2].access = RegisterOperandAccess::UseDef,
+            6 => {
+                let mut source = changed.operand_positions[0];
+                source.instruction = selected_instructions::SelectedInstructionId(9);
+                source.position = LivenessPosition(9);
+                source.virtual_register = VirtualRegisterId(2);
+                let mut definition = source;
+                definition.operand = 1;
+                definition.virtual_register = VirtualRegisterId(3);
+                definition.access = RegisterOperandAccess::Def;
+                definition.tied_to = Some(0);
+                changed.operand_positions.extend([source, definition]);
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            independently_derive_early_clobbers(0, &changed).is_err(),
+            "replay mutation {mutation}"
+        );
+        assert!(
+            crate::analyses::live_ranges::compute::derive_early_clobbers(0, &changed).is_err(),
+            "producer mutation {mutation}"
+        );
+    }
+}
+
+#[test]
 fn multiple_early_clobber_rows_replay_and_reject_individual_corruption() {
     let selected = crate::analyses::liveness::tests::supported_multiple_early_clobber_function();
     let live = crate::analyses::liveness::compute::compute_function(0, &selected).unwrap();

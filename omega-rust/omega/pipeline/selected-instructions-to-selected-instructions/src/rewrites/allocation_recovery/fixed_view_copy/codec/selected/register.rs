@@ -26,6 +26,14 @@ pub(super) fn encode_register(bytes: &mut Vec<u8>, register: &VirtualRegister) {
             bytes.extend_from_slice(&place.get().to_le_bytes());
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
         }
+        VirtualRegisterOrigin::InstructionScratch {
+            instruction,
+            operand,
+        } => {
+            bytes.push(9);
+            bytes.extend_from_slice(&instruction.0.to_le_bytes());
+            bytes.extend_from_slice(&operand.to_le_bytes());
+        }
         VirtualRegisterOrigin::ScalarAbiAddress {
             instruction,
             source_value,
@@ -109,6 +117,10 @@ pub(super) fn decode_register(
             instruction: SelectedInstructionId(cursor.u32()?),
             place: decode_id(cursor, semantic_vocabulary::PlaceId::new)?,
             byte_offset: cursor.u32()?,
+        },
+        9 => VirtualRegisterOrigin::InstructionScratch {
+            instruction: SelectedInstructionId(cursor.u32()?),
+            operand: cursor.u16()?,
         },
         7 => VirtualRegisterOrigin::ScalarAbiAddress {
             instruction: SelectedInstructionId(cursor.u32()?),

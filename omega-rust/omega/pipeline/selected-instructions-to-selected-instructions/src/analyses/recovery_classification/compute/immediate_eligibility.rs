@@ -28,6 +28,7 @@ pub(super) fn classify(
         | VirtualRegisterOrigin::SpillAddress { .. }
         | VirtualRegisterOrigin::StructuralObservation { .. }
         | VirtualRegisterOrigin::ScalarAbiAddress { .. }
+        | VirtualRegisterOrigin::InstructionScratch { .. }
         | VirtualRegisterOrigin::AbiTransport { .. } => {
             return no_recovery(NoAdmittedRecoveryReason::UnsupportedRangeShape);
         }
