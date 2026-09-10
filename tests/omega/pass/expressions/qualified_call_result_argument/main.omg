@@ -1,0 +1,16 @@
+domain i64::Km;
+
+machine mark(value: i64) -> i64 in Km {
+    value as i64 in Km
+}
+
+machine relay(value: i64 in Km) -> i64 in Km {
+    value
+}
+
+machine choose(select_left: bool, left: i64, right: i64) -> i64 in Km {
+    relay(match select_left {
+        true -> mark(left),
+        false -> mark(right)
+    })
+}

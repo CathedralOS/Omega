@@ -192,7 +192,7 @@ fn build_machine_graph(
     let states = source_states
         .iter()
         .map(|state| {
-            if !program.state_contracts(state).is_empty() {
+            if !validation::scalar_state_contracts_are_qualifications(program, state) {
                 return None;
             }
             let parameters = program.state_parameters(state);

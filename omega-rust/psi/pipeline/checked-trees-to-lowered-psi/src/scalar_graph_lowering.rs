@@ -336,6 +336,28 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     next_place: &mut u64,
 ) -> Result<PreparedScalarMachine, LoweringError> {
     let states = &graph.states;
+    let source_machine = checked
+        .machines()
+        .iter()
+        .find(|source| source.symbol == machine)
+        .ok_or(LoweringError::Unsupported(
+            "scalar graph has no source machine",
+        ))?;
+    for retained in states {
+        let source = checked
+            .machine_states(source_machine)
+            .iter()
+            .find(|source| source.symbol == retained.state)
+            .ok_or(LoweringError::Unsupported(
+                "scalar graph has no exact source state",
+            ))?;
+        // Qualified signatures carry these exact membership requirements.
+        // Reconstruct the source obligation; a producer's missing contract row
+        // cannot authorize erasing a predicate, route, or unrelated state clause.
+        if !validation::scalar_state_contracts_are_qualifications(&checked.typed, source) {
+            return unsupported("scalar state contract is not carried by its qualified signature");
+        }
+    }
     let entry_state = states.first().ok_or(LoweringError::Unsupported(
         "checked scalar control plan must contain an entry state",
     ))?;

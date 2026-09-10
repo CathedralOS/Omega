@@ -54,6 +54,59 @@ fn qualified_match_source_fixture_replays_both_arms_without_runtime_tags() {
 }
 
 #[test]
+fn qualified_call_arguments_replay_selected_results_with_exact_signatures() {
+    for (selected, expected) in [(true, -17), (false, 91)] {
+        let (module, execution) = execute(
+            include_str!(
+                "../../../../../tests/omega/pass/expressions/qualified_call_result_argument/main.omg"
+            ),
+            &[
+                TerminalScalarValue::Boolean(selected),
+                signed(-17),
+                signed(91),
+            ],
+        );
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(signed(expected))
+        );
+        assert_eq!(module.machines.len(), 3);
+        assert_eq!(module.scalar_qualifications.domains.len(), 1);
+    }
+}
+
+#[test]
+fn qualified_arguments_compose_casts_calls_and_transparent_aliases() {
+    for (domain, argument) in [
+        ("Km", "mark(left)"),
+        ("Km", "left as i64 in Km"),
+        (
+            "Length",
+            "match flag { true -> mark(left), false -> mark(right) }",
+        ),
+        (
+            "Km",
+            "relay(match flag { true -> mark(left), false -> mark(right) })",
+        ),
+    ] {
+        let source = format!(
+            "domain i64::Km; domain i64::Length = Km;
+            machine mark(value: i64) -> i64 in {domain} {{ value as i64 in {domain} }}
+            machine relay(value: i64 in Km) -> i64 in Km {{ value }}
+            machine choose(flag: bool, left: i64, right: i64) -> i64 in Km {{ relay({argument}) }}"
+        );
+        let (_, execution) = execute(
+            &source,
+            &[TerminalScalarValue::Boolean(true), signed(-17), signed(91)],
+        );
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(signed(-17))
+        );
+    }
+}
+
+#[test]
 fn qualified_call_results_cross_selected_prefixes_with_exact_signatures() {
     let source = "domain i64::Km;
         machine mark(value: i64) -> i64 in Km { value as i64 in Km }

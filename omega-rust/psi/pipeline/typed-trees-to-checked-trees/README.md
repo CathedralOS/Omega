@@ -48,6 +48,14 @@ outside this crate.
 
 ## Flow, ranges, and progress
 
+Computed scalar tags enter flow after expression effects and result joins, using
+validation's destination-independent result type. This transports predicate-free,
+route-free, index-free qualifications; it is not a predicate or provenance grant.
+The shared `validation/src/domains/scalar_tags.rs` classifier also identifies
+exact parameter membership requirements carried by qualified Terminal signatures.
+Graph production and source-custody replay both check that boundary. Indexed
+membership needs richer source facts before this path can preserve its identity.
+
 Flow prepares one call-frame resolver for the immutable typed program and lends
 it to call-write and assignment-alias queries, including call-free bodies.
 Resolver preparation does not depend on changing value facts. Local origins

@@ -1087,17 +1087,15 @@ Owners include
   needs operator semantic-domain results and instantiated predicate-bearing, non-builtin
   and selected-trait operator results.
   Extend qualified value composition beyond predicate-/route-free scalar
-  selection and call-result transport. The next source-proof dependency is a
-  qualified formal receiving a qualified call or Match result: with
-  `mark(value: i64) -> i64 in Km` and `relay(value: i64 in Km) -> i64 in Km`,
-  `relay(match flag { true -> mark(left), false -> mark(right) })` currently
-  fails checking with `cannot prove requires contract for call relay from choose`.
-  Rejoin expression membership in `typed-trees-to-checked-trees/src/checks/contracts/`
-  and selected-result flow; the call-result grant currently excludes empty
-  semantic domains, and branch-context intersection does not name the whole
-  Match result. Exact Terminal signature checks cannot discharge this source
-  obligation. Acceptance is canonical execution of that composition with both
-  selections, preserving nominal identity and rejecting incompatible domains.
+  selection and call transport. Indexed source-call membership still needs full
+  normalized domain instances in `ProofMembershipFact` and semantic membership
+  payloads, not just declaration symbols. Rejoin those instances against the exact
+  recipient parameter constraints in `typed-trees-to-checked-trees/src/checks/contracts/`;
+  the normal-result flow and scalar-state contract classifier deliberately exclude
+  indexed families until that evidence exists. Acceptance: a qualified formal
+  receives `Coordinate<7>` from a call or Match result and executes canonically,
+  while `Coordinate<9>` rejects. Terminal's existing instance-sensitive signature
+  checks do not discharge this source obligation.
   Explicit semantic erasure, predicate/routed membership evidence, and shared
   scalar/structural qualification transport also need their own custody.
   Native callable-entry records still need catalog-bound qualified signatures;

@@ -3,6 +3,63 @@
 use super::*;
 
 #[test]
+fn scalar_graph_replays_parameter_qualification_contracts_from_source() {
+    let original = checked_source(include_str!(
+        "../../../../../../tests/omega/pass/expressions/qualified_call_result_argument/main.omg"
+    ));
+    lower_machine(&original, "choose").expect("qualified argument composition");
+    let relay = original
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "relay")
+        .expect("relay");
+    let state = &original.machine_states(relay)[0];
+    let contract = state.contracts.start();
+    let fact = original.signature_contracts.get(contract).facts.start();
+    for mutation in 0..4 {
+        let mut changed = original.clone();
+        match mutation {
+            0 => {
+                changed.typed.signature_contracts.get_mut(contract).kind =
+                    checked_trees::signature::SignatureContractKind::Ensures
+            }
+            1 => {
+                let checked_trees::domain::ProofFact::Membership(membership) =
+                    changed.typed.proof_facts.get_mut(fact)
+                else {
+                    panic!("membership")
+                };
+                membership.domain_symbol = SymbolHandle::invalid();
+            }
+            2 => {
+                let checked_trees::domain::ProofFact::Membership(membership) =
+                    changed.typed.proof_facts.get_mut(fact)
+                else {
+                    panic!("membership")
+                };
+                membership.value = checked_trees::expression::ExpressionHandle::invalid();
+            }
+            _ => {
+                *changed.typed.proof_facts.get_mut(fact) =
+                    checked_trees::domain::ProofFact::Expression(
+                        checked_trees::expression::ExpressionHandle::invalid(),
+                    )
+            }
+        }
+        let error = lower_machine(&changed, "choose").expect_err("source contract changed");
+        assert!(
+            matches!(
+                error,
+                LoweringError::Unsupported(
+                    "scalar state contract is not carried by its qualified signature"
+                )
+            ),
+            "wrong rejection: {error:?}"
+        );
+    }
+}
+
+#[test]
 fn scalar_machine_builder_uses_a_disjoint_module_identity_namespace() {
     let identity_base = TERMINAL_MACHINE_IDENTITY_STRIDE;
     let lowered = build_scalar_graph_module(
