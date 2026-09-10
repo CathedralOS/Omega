@@ -114,6 +114,12 @@ pub(crate) fn parameter_shape(
     {
         return None;
     }
+    if parameter.access == StructuralAccess::Owned
+        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+        && !parameter.is_self
+    {
+        return primitive_array_shape(parameter.structural_type, declarations);
+    }
     let referent = shape(parameter.structural_type, declarations)?;
     match (parameter.access, parameter.multiplicity) {
         (StructuralAccess::Owned, StructuralMultiplicity::Affine) if !parameter.is_self => {
@@ -130,6 +136,54 @@ pub(crate) fn parameter_shape(
         )),
         _ => None,
     }
+}
+
+/// Owned arrays retain their full recursive type, including below empty extents.
+pub(crate) fn primitive_array_shape(
+    root: StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<ValueShape> {
+    let mut current = root;
+    let mut count = Some(1_u64);
+    let mut empty = false;
+    let mut array = false;
+    for _ in 0..declarations.len() {
+        let mut matching = declarations
+            .iter()
+            .filter(|declaration| declaration.id == current);
+        let declaration = matching.next()?;
+        if matching.next().is_some() {
+            return None;
+        }
+        match declaration.shape {
+            StructuralTypeShape::FixedArray { element, length } => {
+                array = true;
+                empty |= length == 0;
+                count = count.and_then(|count| count.checked_mul(length));
+                current = element;
+            }
+            StructuralTypeShape::PrimitiveScalar(scalar) if array => {
+                if !matches!(scalar, ScalarType::Boolean | ScalarType::Integer(_)) {
+                    return None;
+                }
+                if matches!(scalar, ScalarType::Integer(integer) if integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed)
+                {
+                    return None;
+                }
+                let leaf = scalar_shape(scalar)?;
+                let size = u16::try_from(
+                    (if empty { 0 } else { count? }).checked_mul(u64::from(leaf.byte_size))?,
+                )
+                .ok()?;
+                return Some(ValueShape::integer(
+                    size,
+                    if size == 0 { 1 } else { leaf.alignment },
+                ));
+            }
+            _ => return None,
+        }
+    }
+    None
 }
 
 /// Reconstruct an initialized fixed-array loan, not an existing slice descriptor.

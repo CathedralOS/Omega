@@ -38,7 +38,7 @@ impl LegalizedScalarCall {
                 if self.structural_result.is_some() {
                     !direct_aggregate_registers(placement)
                 } else {
-                    !direct_u64_register(placement)
+                    !direct_integer_register(placement)
                 }
             })
             || self.structural_result.is_some() && self.result_placement.is_none()
@@ -102,14 +102,16 @@ fn direct_scalar_placement(placement: &ValuePlacement) -> bool {
                     && *alignment >= placement.shape.alignment && alignment.is_power_of_two()
                     && stack_byte_offset.is_multiple_of(u32::from(*alignment))))
 }
-fn direct_u64_register(placement: &ValuePlacement) -> bool {
-    placement.shape == ValueShape::integer(8, 8)
+fn direct_integer_register(placement: &ValuePlacement) -> bool {
+    let width = placement.shape.byte_size;
+    matches!(width, 1 | 2 | 4 | 8)
+        && placement.shape == ValueShape::integer(width, width)
         && matches!(
             placement.locations.as_slice(),
             [ValueLocation::Register {
                 value_byte_offset: 0,
-                byte_size: 8,
+                byte_size,
                 ..
-            }]
+            }] if *byte_size == width
         )
 }

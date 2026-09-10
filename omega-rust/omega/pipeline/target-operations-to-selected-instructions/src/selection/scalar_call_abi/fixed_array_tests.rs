@@ -146,7 +146,7 @@ fn fixed_array_view_rejects_coherent_scalar_result_calls() {
         let operation = OperationId::new(1).unwrap();
         call.validate_shape().expect("coherent Unit call");
         assert_eq!(
-            validate_borrowed_argument(&source, &call, operation),
+            validate_borrowed_argument(&source, &call, operation, 0),
             Some(())
         );
 
@@ -167,6 +167,9 @@ fn fixed_array_view_rejects_coherent_scalar_result_calls() {
         };
         argument.destination = call.call_plan.parameters[0].clone();
         call.validate_shape().expect("coherent scalar-result call");
-        assert_eq!(validate_borrowed_argument(&source, &call, operation), None);
+        assert_eq!(
+            validate_borrowed_argument(&source, &call, operation, 0),
+            None
+        );
     }
 }

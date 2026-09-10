@@ -5,7 +5,7 @@ use target_operations::{TargetControlGraph, TargetControlSuccessor, TargetContro
 mod return_cleanup_tests;
 #[cfg(test)]
 mod scalar_return_tests;
-mod sources;
+pub(in crate::legalization::scalar_graph_input) mod sources;
 #[cfg(test)]
 mod structural_case_tests;
 mod structural_cases;
@@ -143,18 +143,25 @@ pub(super) fn validate(
                         target_operations::TargetStructuralReturnSource::Parameter(parameter) => {
                             optimized.structural_parameters.iter().any(|semantic| {
                                 semantic.place == *expected_source
-                                    && semantic.access == terminal_psi::StructuralAccess::Owned
-                                    && semantic.multiplicity
-                                        == terminal_psi::StructuralMultiplicity::Affine
-                                    && !semantic.is_self
-                                    && semantic.qualifications.is_empty()
-                                    && semantic.projected_qualifications.is_empty()
-                                    && optimized.result.structural().is_some_and(|result| {
-                                        result.structural_type == semantic.structural_type
-                                            && result.multiplicity == semantic.multiplicity
-                                            && result.qualifications.is_empty()
-                                            && result.projected_qualifications.is_empty()
-                                    })
+                            && semantic.access == terminal_psi::StructuralAccess::Owned
+                            && (semantic.multiplicity
+                                == terminal_psi::StructuralMultiplicity::Affine
+                                || semantic.multiplicity
+                                    == terminal_psi::StructuralMultiplicity::Unrestricted
+                                    && crate::structural_reference_input::primitive_array_shape(
+                                        semantic.structural_type,
+                                        &plan.structural_types,
+                                    )
+                                    .is_some())
+                            && !semantic.is_self
+                            && semantic.qualifications.is_empty()
+                            && semantic.projected_qualifications.is_empty()
+                            && optimized.result.structural().is_some_and(|result| {
+                                result.structural_type == semantic.structural_type
+                                    && result.multiplicity == semantic.multiplicity
+                                    && result.qualifications.is_empty()
+                                    && result.projected_qualifications.is_empty()
+                            })
                             }) && parameter.place == *expected_source
                                 && graph
                                     .parameters

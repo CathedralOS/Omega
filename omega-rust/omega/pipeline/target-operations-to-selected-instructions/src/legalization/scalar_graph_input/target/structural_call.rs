@@ -89,8 +89,9 @@ impl Checker<'_> {
                 else {
                     return false;
                 };
-                argument.scalar_type == ScalarType::Integer(u64_type())
-                    && *scalar_type == u64_type()
+                argument.scalar_type == ScalarType::Integer(*scalar_type)
+                    && value_type(self.optimized, *source) == Some(argument.scalar_type)
+                    && scalar_shape(argument.scalar_type) == Some(placement.shape)
                     && location_matches(argument.location, placement)
                     && self.expression(expression, *source, aliases)
             },

@@ -110,7 +110,7 @@ fn definition(operation: &TargetUnitOperation) -> Option<(ValueId, Source)> {
     }
 }
 
-pub(super) fn dominates(
+pub(in crate::legalization::scalar_graph_input) fn dominates(
     function: &PsiOptimizationFunction,
     candidate: BlockId,
     block: BlockId,

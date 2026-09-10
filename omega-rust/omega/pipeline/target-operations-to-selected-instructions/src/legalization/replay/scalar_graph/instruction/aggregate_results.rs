@@ -28,6 +28,7 @@ pub(super) fn validate(
         (
             LegalizedScalarInstructionKind::Call(call),
             AbstractOperation::CallStructural {
+                psi_operation,
                 result,
                 callee,
                 arguments,
@@ -68,7 +69,14 @@ pub(super) fn validate(
             }
             for (position, semantic) in structural_arguments.iter().enumerate() {
                 let target = scalar_graph_input::aggregate_results::call_argument(
-                    semantic, position, optimized, called, &expected, native, plan,
+                    semantic,
+                    position,
+                    *psi_operation,
+                    optimized,
+                    called,
+                    &expected,
+                    native,
+                    plan,
                 )?;
                 if call.arguments[arguments.len() + position]
                     != (LegalizedScalarArgument::Structural {

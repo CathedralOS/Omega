@@ -50,6 +50,18 @@ pub(in crate::legalization) fn argument(
     let [destination_parameter] = called.structural_parameters.as_slice() else {
         return Err(invalid);
     };
+    if semantic.access == StructuralAccess::Owned {
+        return super::aggregate_results::call_argument(
+            semantic,
+            0,
+            call_operation,
+            caller,
+            called,
+            &call,
+            native,
+            plan,
+        );
+    }
     if let Some((producer, result, value)) =
         super::primitive_locals::producer(caller, semantic.place)
     {

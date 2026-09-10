@@ -69,7 +69,6 @@ pub(super) fn lower(
         || !callee_function.published_service_ceiling.is_empty()
         || callee_function.attachment.is_some()
         || values.len() != callee_function.parameters.len()
-        || arguments.is_empty()
         || arguments.len() != callee_function.structural_parameters.len()
         || result.map(|result| result.scalar_type)
             != callee_function
@@ -102,6 +101,16 @@ pub(super) fn lower(
         .zip(&callee_function.structural_parameters)
         .zip(&signature.parameters)
         .map(|((argument, declaration), destination)| {
+            if super::scalar_arrays::is_owned_parameter(declaration, types) {
+                return super::scalar_arrays::argument(
+                    argument,
+                    declaration,
+                    destination,
+                    prepared,
+                    live,
+                    types,
+                );
+            }
             if !argument.path.is_empty()
                 || argument.access != declaration.access
                 || !super::primitive_storage::is_primitive_reference(declaration, types)

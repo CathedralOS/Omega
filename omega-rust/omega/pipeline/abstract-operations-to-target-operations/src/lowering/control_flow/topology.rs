@@ -5,6 +5,13 @@ pub(in crate::lowering) fn requires_graph(
     function: &AbstractFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<bool, LoweringError> {
+    if function
+        .structural_parameters
+        .iter()
+        .any(|parameter| super::scalar_arrays::is_owned_parameter(parameter, types))
+    {
+        return Ok(true);
+    }
     if function.result.structural().is_some_and(|result| {
         result.multiplicity == StructuralMultiplicity::Affine
             && result.qualifications.is_empty()
@@ -21,6 +28,12 @@ pub(in crate::lowering) fn requires_graph(
                 | AbstractOperation::PrimitiveLocalStore { .. }
                 | AbstractOperation::PrimitiveScalarRead { .. }
         )
+    }) {
+        return Ok(true);
+    }
+    if function.operations.iter().any(|operation| {
+        matches!(operation, AbstractOperation::CallStructuralScalar { structural_arguments, .. }
+            if structural_arguments.is_empty())
     }) {
         return Ok(true);
     }

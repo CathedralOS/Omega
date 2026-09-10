@@ -38,7 +38,7 @@ pub(super) fn project(
                 lowered.push(LegalizedScalarArgument::Structural {
                     semantic: semantic.clone(),
                     target: scalar_graph_input::aggregate_results::call_argument(
-                        semantic, position, optimized, called, &call_plan, native, plan,
+                        semantic, position, operation, optimized, called, &call_plan, native, plan,
                     )?,
                 });
             }

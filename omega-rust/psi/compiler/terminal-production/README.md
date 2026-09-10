@@ -290,8 +290,13 @@ Array state transfers, borrowed/projected payloads, and boundary-provider array
 payloads still need their complete value/storage paths. Native constructors and
 direct array results now use the ordinary aggregate graph; see the
 [native transport owner](../../../omega/pipeline/target-operations-to-selected-instructions/README.md#ordinary-selected-control-flow).
-The transitive example still needs native owned-argument and incoming-result
-transport. Floating array source also lacks its checked execution plan; native
+The transitive example also reaches native owned-argument and incoming-result
+transport through those shared homes; the native differential
+`scalar_array_results` test loads this complete source, publishes all four
+target artifacts and executes on matching supported hosts. Ordinary array result
+locals retain the regular free-machine signature even without scalar parameters;
+their presence does not imply a selected-operator affine signature.
+Floating array source still lacks its checked execution plan; native
 layout support alone does not establish source production.
 General slice-backed `.len` operands require retained view formation and bounds
 evidence; endpoint subtraction alone cannot justify eliminating the view operation.

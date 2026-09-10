@@ -182,6 +182,7 @@ pub(super) fn validate(
                     != scalar_graph_input::aggregate_results::call_argument(
                         semantic,
                         position,
+                        *psi_operation,
                         optimized,
                         called,
                         &expected_plan,

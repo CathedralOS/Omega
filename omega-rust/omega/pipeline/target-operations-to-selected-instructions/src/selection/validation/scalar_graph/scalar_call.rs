@@ -83,6 +83,16 @@ pub(super) fn validate(
     };
     let result = operation.result.ok_or_else(invalid)?;
     let scalar_type = result.scalar_type;
+    let result_shape =
+        crate::selection::scalar_call_abi::integer_call_shape(scalar_type).ok_or_else(invalid)?;
+    if call
+        .result_placement
+        .as_ref()
+        .map(|placement| placement.shape)
+        != Some(result_shape)
+    {
+        return Err(invalid());
+    }
     let key = replay
         .constraints
         .keys
@@ -104,6 +114,12 @@ pub(super) fn validate(
     let mut operands = Vec::new();
     for (argument_index, argument) in call.arguments.iter().enumerate() {
         if let LegalizedScalarArgument::Structural { semantic, target } = argument {
+            if semantic.access == StructuralAccess::Owned {
+                operands.extend(super::aggregate_argument::argument(
+                    source, operation, semantic, target, replay,
+                )?);
+                continue;
+            }
             if let Some(pointer) =
                 argument_pointer(replay, operation, argument_index, semantic, target)?
             {
@@ -114,13 +130,8 @@ pub(super) fn validate(
         let (_, input, site, argument_type) = replay
             .resolve(argument.scalar_source().ok_or_else(invalid)?)
             .ok_or_else(invalid)?;
-        let shape = match argument_type {
-            ScalarType::Boolean => calling_conventions::ValueShape::integer(1, 1),
-            ScalarType::Integer(integer) if integer.bits() == 64 => {
-                calling_conventions::ValueShape::integer(8, 8)
-            }
-            _ => return Err(invalid()),
-        };
+        let shape = crate::selection::scalar_call_abi::integer_call_shape(argument_type)
+            .ok_or_else(invalid)?;
         if argument.placement().shape != shape {
             return Err(invalid());
         }
@@ -176,10 +187,15 @@ pub(super) fn validate(
             ..Default::default()
         },
     )?;
-    replay.check_copy(
-        short_result,
-        result.value,
-        result.definition_site,
-        scalar_type,
-    )
+    let output = replay.result_register(result.value, result.definition_site, scalar_type)?;
+    replay.check_instruction(
+        crate::selection::scalar_call_abi::integer_abi_normalization(scalar_type),
+        replay.constraints.keys.copy_i64,
+        &[short_result, output],
+        &SelectedInstructionProvenance {
+            values: vec![result.value],
+            ..Default::default()
+        },
+    )?;
+    Ok(output)
 }

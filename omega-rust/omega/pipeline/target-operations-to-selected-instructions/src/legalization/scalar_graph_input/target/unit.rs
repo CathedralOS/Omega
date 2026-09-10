@@ -402,8 +402,10 @@ pub(super) fn validate_operation(
                     AbstractOperation::CallStructuralScalar { result: actual, .. },
                 ) => {
                     result == actual
-                        && actual.scalar_type == ScalarType::Integer(u64_type())
-                        && expected.result.is_some()
+                        && integer_call_shape(actual.scalar_type).is_some()
+                        && expected.result.as_ref().is_some_and(|placement| {
+                            super::super::scalar_shape(actual.scalar_type) == Some(placement.shape)
+                        })
                 }
                 _ => false,
             };

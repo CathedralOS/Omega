@@ -1,4 +1,6 @@
-//! Incoming placements and established literal roots have distinct wire tags.
+//! Incoming placements and established storage have distinct wire tags.
+//! An aggregate home names its exact producer, not an incoming ABI placement or
+//! a primitive referent; equal operation numbers must not equate those origins.
 use semantic_vocabulary::{BlockId, OperationId, PlaceId};
 use target_operations::TargetStructuralArgumentSource;
 
@@ -25,6 +27,10 @@ pub(super) fn encode_argument_source(bytes: &mut Vec<u8>, source: &TargetStructu
             bytes.push(3);
             bytes.extend_from_slice(&psi_operation.get().to_le_bytes());
         }
+        TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
+            bytes.push(4);
+            bytes.extend_from_slice(&psi_operation.get().to_le_bytes());
+        }
     }
 }
 
@@ -45,6 +51,9 @@ pub(super) fn decode_argument_source(
         3 => Ok(TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
             psi_operation: decode_id(cursor, OperationId::new)?,
         }),
+        4 => Ok(TargetStructuralArgumentSource::StructuralHome {
+            psi_operation: decode_id(cursor, OperationId::new)?,
+        }),
         tag => Err(FixedViewCopyDecodeError::UnknownOption(tag)),
     }
 }
@@ -57,6 +66,9 @@ mod tests {
     #[test]
     fn argument_source_round_trip_preserves_origin_and_establishment() {
         for source in [
+            TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: OperationId::new(313).unwrap(),
+            },
             TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
                 psi_operation: OperationId::new(313).unwrap(),
             },
@@ -89,7 +101,8 @@ mod tests {
 
     #[test]
     fn argument_source_rejects_unknown_kind_and_absent_establishment() {
-        assert!(decode_argument_source(&mut Cursor::new(&[4])).is_err());
+        assert!(decode_argument_source(&mut Cursor::new(&[5])).is_err());
+        assert!(decode_argument_source(&mut Cursor::new(&[4, 0, 0, 0, 0, 0, 0, 0, 0])).is_err());
         assert!(decode_argument_source(&mut Cursor::new(&[3, 0, 0, 0, 0, 0, 0, 0, 0])).is_err());
         assert!(decode_argument_source(&mut Cursor::new(&[2])).is_err());
         assert!(decode_argument_source(&mut Cursor::new(&[1, 0, 0, 0, 0, 0, 0, 0, 0])).is_err());
@@ -115,5 +128,14 @@ mod tests {
             first, local,
             "identical producer ID cannot equate a view and primitive local"
         );
+        let mut aggregate = Vec::new();
+        encode_argument_source(
+            &mut aggregate,
+            &TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: OperationId::new(313).unwrap(),
+            },
+        );
+        assert_ne!(aggregate, local);
+        assert_ne!(aggregate, first);
     }
 }

@@ -19,6 +19,9 @@ mod native_function;
 #[path = "scalar_array_results/admission.rs"]
 mod admission;
 
+#[path = "scalar_array_results/arguments.rs"]
+mod arguments;
+
 fn produce(
     source: &str,
     entry: &str,
@@ -47,6 +50,16 @@ fn target_plan(
 > {
     let artifact = produce(source, entry)
         .unwrap_or_else(|error| panic!("array Terminal production {entry}: {error:?}"));
+    target_artifact(artifact, target)
+}
+
+fn target_artifact(
+    artifact: terminal_codec::CanonicalTerminalArtifact,
+    target: NativeTarget,
+) -> Result<
+    abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
+    abstract_operations_to_target_operations::LoweringError,
+> {
     let artifact =
         terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
     let selections = OptimizationSelections::default();
@@ -69,6 +82,14 @@ fn publish(
 ) -> (image_emission::ExecutableImage, usize) {
     let target_plan = target_plan(source, entry, target)
         .unwrap_or_else(|error| panic!("array target lowering {entry} on {target:?}: {error:?}"));
+    publish_target(target_plan, entry, target)
+}
+
+fn publish_target(
+    target_plan: abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
+    entry: &str,
+    target: NativeTarget,
+) -> (image_emission::ExecutableImage, usize) {
     let post_terminal = target_plan.optimized().selections().project_post_terminal();
     let physical = native_realization::stage_optimized_verified_physical_pipeline(
         target_plan,
@@ -107,7 +128,18 @@ fn publish(
     );
     for function_index in 0..decoded.functions().len() {
         let mut changed = decoded.clone();
-        changed.functions_mut_for_test()[function_index].parameter_abi = None;
+        let function = &mut changed.functions_mut_for_test()[function_index];
+        if function.parameter_abi.is_some() {
+            function.parameter_abi = None;
+        } else if function.mixed_structural_scalar_abi.is_some() {
+            function.mixed_structural_scalar_abi = None;
+        } else {
+            assert!(
+                function.scalar_abi.is_some(),
+                "function must retain its exact ABI"
+            );
+            function.scalar_abi = None;
+        }
         assert!(image_emission::validate_installation_record(&changed, &image).is_err());
     }
     (image, offset)

@@ -28,6 +28,7 @@ mod boundary_result_scalar_codec;
 mod boundary_settlement_codec;
 mod call_site_owner_codec;
 mod completion_custody_codec;
+mod direct_structural;
 mod dynamic_conformance_codec;
 mod fingerprint_codec;
 mod function_affine_cleanup_codec;
@@ -2127,7 +2128,9 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                     != calling_conventions::ValueClass::BorrowedReference
                         })
                 });
-        let mixed_structural_roster_is_exact = function
+        let direct_structural_roster =
+            direct_structural::function_is_exact(function, record.target);
+        let mixed_structural_roster_is_exact = direct_structural_roster || function
             .mixed_structural_scalar_abi
             .as_ref()
             .is_none_or(|abi| {
@@ -2162,50 +2165,56 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             || !ranked_body_is_exclusive
             || !structural_call_scalar_result_is_exact
             || !mixed_structural_roster_is_exact
-            || function.unit_parameters.len() != function.unit_parameter_homes.len()
+            || (!direct_structural_roster
+                && function.unit_parameters.len() != function.unit_parameter_homes.len())
             || function.unit_body != function.unit_affine_cleanup.is_some()
             || (incoming_structural::has_incoming(function)
                 && !incoming_structural::function_is_exact(record, function))
-            || (borrowed_structural::has_borrowed(function)
+            || (!direct_structural_roster
+                && borrowed_structural::has_borrowed(function)
                 && !borrowed_structural::function_is_exact(record, function))
-            || (!incoming_structural::has_incoming(function)
+            || (!direct_structural_roster
+                && !incoming_structural::has_incoming(function)
                 && !borrowed_structural::has_borrowed(function)
                 && !function.unit_body
                 && !has_scalar_cleanup
                 && (!function.unit_parameters.is_empty()
                     || !function.unit_parameter_homes.is_empty()))
-            || (!unmaterialized_owned
+            || (!direct_structural_roster
+                && !unmaterialized_owned
                 && function.scalar_structural_parameters.len()
                     != function.scalar_structural_parameter_homes.len())
             || (!function.scalar_control_affine_cleanups.is_empty()
                 && function.scalar_control_affine_cleanups.len() < 2)
             || (function.scalar_affine_cleanup.is_some() && has_scalar_control_cleanup)
             || (has_scalar_cleanup && function.unit_body)
-            || function
-                .scalar_structural_parameters
-                .iter()
-                .zip(&function.scalar_structural_parameter_homes)
-                .any(|(parameter, home)| {
-                    parameter.place != home.place
-                        || parameter.structural_type != home.structural_type
-                        || parameter.multiplicity != home.multiplicity
-                        || parameter.access != home.access
-                        || parameter.shape != home.shape
-                })
+            || (!direct_structural_roster
+                && function
+                    .scalar_structural_parameters
+                    .iter()
+                    .zip(&function.scalar_structural_parameter_homes)
+                    .any(|(parameter, home)| {
+                        parameter.place != home.place
+                            || parameter.structural_type != home.structural_type
+                            || parameter.multiplicity != home.multiplicity
+                            || parameter.access != home.access
+                            || parameter.shape != home.shape
+                    }))
             || (!has_scalar_custody
                 && (!function.scalar_structural_parameters.is_empty()
                     || !function.scalar_structural_parameter_homes.is_empty()))
-            || function
-                .unit_parameters
-                .iter()
-                .zip(&function.unit_parameter_homes)
-                .any(|(parameter, home)| {
-                    parameter.place != home.place
-                        || parameter.structural_type != home.structural_type
-                        || parameter.multiplicity != home.multiplicity
-                        || parameter.access != home.access
-                        || parameter.shape != home.shape
-                })
+            || (!direct_structural_roster
+                && function
+                    .unit_parameters
+                    .iter()
+                    .zip(&function.unit_parameter_homes)
+                    .any(|(parameter, home)| {
+                        parameter.place != home.place
+                            || parameter.structural_type != home.structural_type
+                            || parameter.multiplicity != home.multiplicity
+                            || parameter.access != home.access
+                            || parameter.shape != home.shape
+                    }))
         {
             return Err(InstallationError::InvalidUnitAffineCleanup(
                 function.machine,
@@ -5274,6 +5283,77 @@ mod resource_tests {
             scalar_control_affine_cleanups: Vec::new(),
             scalar_structural_parameters: Vec::new(),
             scalar_structural_parameter_homes: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn direct_structural_roster_retains_exact_borrowed_home_subset() {
+        use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+        let target = target::NativeTarget::macos_arm64();
+        let mut function = installed_function_with_unit_call();
+        let shapes = [
+            ValueShape::integer(2, 1),
+            ValueShape::borrowed_reference(8, 8),
+        ];
+        let plan = evaluate_call_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: shapes.to_vec(),
+                result: Some(shapes[0]),
+            },
+        )
+        .unwrap();
+        function.unit_parameters = shapes
+            .iter()
+            .enumerate()
+            .map(|(position, shape)| machine_code::UnitParameterRecord {
+                place: PlaceId::new(position as u64 + 1).unwrap(),
+                structural_type: StructuralTypeId::new(position as u64 + 1).unwrap(),
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: if position == 0 {
+                    terminal_psi::StructuralAccess::Owned
+                } else {
+                    terminal_psi::StructuralAccess::SharedBorrow
+                },
+                shape: *shape,
+            })
+            .collect();
+        let borrowed = &function.unit_parameters[1];
+        function
+            .unit_parameter_homes
+            .push(machine_code::UnitParameterHomeRecord {
+                place: borrowed.place,
+                structural_type: borrowed.structural_type,
+                multiplicity: borrowed.multiplicity,
+                access: borrowed.access,
+                shape: borrowed.shape,
+                source: plan.parameters[1].clone(),
+                indirect: true,
+                location: machine_code::StructuralSourceLocation::IncomingBorrowedPointer {
+                    location: borrowed_structural::pointer_location(&plan.parameters[1]).unwrap(),
+                },
+            });
+        function.parameter_abi = Some(machine_code::ParameterFunctionAbiRecord {
+            call_plan: plan,
+            parameters: Vec::new(),
+            entry_register_spills: Vec::new(),
+        });
+        assert!(direct_structural::function_is_exact(&function, target));
+        for mutation in 0..4 {
+            let mut changed = function.clone();
+            match mutation {
+                0 => changed.unit_parameter_homes.clear(),
+                1 => changed.unit_parameter_homes[0].place = changed.unit_parameters[0].place,
+                2 => changed.unit_parameters[0].multiplicity = StructuralMultiplicity::Linear,
+                _ => changed
+                    .parameter_abi
+                    .as_mut()
+                    .unwrap()
+                    .call_plan
+                    .parameters
+                    .swap(0, 1),
+            }
+            assert!(!direct_structural::function_is_exact(&changed, target));
         }
     }
 

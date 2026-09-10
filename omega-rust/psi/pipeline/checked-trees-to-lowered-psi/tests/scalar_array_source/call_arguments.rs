@@ -43,6 +43,59 @@ const HELPERS: &str = "
 ";
 
 #[test]
+fn source_array_forwarding_without_scalar_parameters_uses_the_ordinary_signature() {
+    let source = "
+        machine keep(row: [u8; 1]) -> [u8; 1] { row }
+        machine forward(first: [u8; 1], second: [u8; 1]) -> [u8; 1] { keep(second) }
+        machine selected() -> [u8; 1] {
+            let first: [u8; 1] = [7u8];
+            let row: [u8; 1] = [255u8];
+            let copied: [u8; 1] = keep(row);
+            forward(first, copied)
+        }";
+    execute(source, &[255]);
+    let original = checked_source(source);
+    for mutation in [
+        "same typed parameter",
+        "borrowed parameter",
+        "affine parameter",
+        "borrowed actual",
+    ] {
+        let mut changed = original.clone();
+        let forward = plan(&mut changed, "forward");
+        match mutation {
+            "borrowed parameter" => {
+                forward.structural_parameters[1].access = CheckedStructuralAccess::SharedBorrow
+            }
+            "affine parameter" => {
+                forward.structural_parameters[1].multiplicity =
+                    language_semantics::Multiplicity::Affine
+            }
+            _ => {
+                let arguments = forward
+                    .operations
+                    .iter_mut()
+                    .find_map(|operation| match operation {
+                        CheckedUnitEffectOperationPlan::StructuralCall {
+                            structural_arguments,
+                            ..
+                        } => Some(structural_arguments),
+                        _ => None,
+                    })
+                    .expect("forward retains its ordinary call");
+                if mutation == "same typed parameter" {
+                    arguments[0].source =
+                        CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 };
+                } else {
+                    arguments[0].access = CheckedStructuralAccess::SharedBorrow;
+                }
+            }
+        }
+        reject(&changed, mutation);
+    }
+}
+
+#[test]
 fn source_scalar_return_call_accepts_whole_array_arguments() {
     for (array_type, initializer) in [("[u8; 2]", "[7, 9]"), ("[u8; 0]", "[]")] {
         execute(

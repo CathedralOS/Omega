@@ -115,7 +115,9 @@ pub(super) fn returned_parameter<'a>(
         .find(|parameter| parameter.semantic.place == *place)?;
     let semantic = &parameter.semantic;
     if semantic.access != terminal_psi::StructuralAccess::Owned
-        || semantic.multiplicity != terminal_psi::StructuralMultiplicity::Affine
+        || !(semantic.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+            || (semantic.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                && super::scalar_array_input::shape(source, semantic.structural_type).is_some()))
         || semantic.structural_type != declared.structural_type
         || semantic.multiplicity != declared.multiplicity
         || semantic.is_self
@@ -155,7 +157,7 @@ pub(super) fn direct_fragments(placement: &calling_conventions::ValuePlacement) 
         else {
             return false;
         };
-        if *value_byte_offset != offset || !matches!(byte_size, 4 | 8) {
+        if *value_byte_offset != offset || !matches!(byte_size, 1 | 2 | 4 | 8) {
             return false;
         }
         let Some(next) = offset.checked_add(*byte_size) else {

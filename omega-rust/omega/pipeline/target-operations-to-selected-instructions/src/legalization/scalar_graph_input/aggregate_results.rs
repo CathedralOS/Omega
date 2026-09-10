@@ -3,6 +3,8 @@ use super::*;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::{StructuralMultiplicity, StructuralOperationResult, StructuralTypeShape};
 
+mod owned_arguments;
+
 pub(super) fn uses(function: &PsiOptimizationFunction) -> bool {
     function.result.structural().is_some()
         || function
@@ -139,8 +141,8 @@ pub(super) fn header(
         || target.machine != optimized.machine
         || target.attachment != abstracted.attachment
         || target.attachment != optimized.attachment
-        || target.scalar_abi.is_some()
-        || target.mixed_structural_scalar_abi.is_some()
+        || (!matches!(abstracted.result, AbstractFunctionResult::Scalar(_))
+            && (target.scalar_abi.is_some() || target.mixed_structural_scalar_abi.is_some()))
         || optimized.result != abstracted.result
         || !roster(optimized)
         || optimized.structural_parameters != abstracted.structural_parameters
@@ -157,6 +159,11 @@ pub(super) fn header(
     }
     let result = match &abstracted.result {
         AbstractFunctionResult::Unit => None,
+        AbstractFunctionResult::Scalar(result)
+            if matches!(result.scalar_type, ScalarType::Integer(_)) =>
+        {
+            Some(scalar_shape(result.scalar_type).ok_or(invalid.clone())?)
+        }
         AbstractFunctionResult::Structural(result) => Some(
             if plan.structural_types.iter().any(|declaration| {
                 declaration.id == result.structural_type
@@ -214,6 +221,32 @@ pub(super) fn header(
     .map_err(|_| invalid.clone())?;
     if graph.call_plan != expected {
         return Err(invalid);
+    }
+    if let AbstractFunctionResult::Scalar(result) = abstracted.result {
+        let retained = match (&target.scalar_abi, &target.mixed_structural_scalar_abi) {
+            (Some(abi), None)
+                if graph.parameters.is_empty()
+                    && abi.call_plan == expected
+                    && abi.parameters == graph.scalar_parameters =>
+            {
+                &abi.result
+            }
+            (None, Some(abi))
+                if !graph.parameters.is_empty()
+                    && abi.call_plan == expected
+                    && abi.scalar_parameters == graph.scalar_parameters
+                    && abi.structural_parameters == graph.parameters =>
+            {
+                &abi.result
+            }
+            _ => return Err(invalid),
+        };
+        if retained.value != result.value
+            || retained.scalar_type != result.scalar_type
+            || Some(&retained.placement) != expected.result.as_ref()
+        {
+            return Err(invalid);
+        }
     }
     for (position, ((declared, actual), retained)) in abstracted
         .parameters
@@ -288,6 +321,7 @@ fn byte_parameter(
 pub(in crate::legalization) fn call_argument(
     argument: &terminal_psi::StructuralArgument,
     position: usize,
+    call_operation: semantic_vocabulary::OperationId,
     caller: &PsiOptimizationFunction,
     callee: &PsiOptimizationFunction,
     call: &CallPlan,
@@ -299,6 +333,18 @@ pub(in crate::legalization) fn call_argument(
         .structural_parameters
         .get(position)
         .ok_or(invalid.clone())?;
+    if argument.access == terminal_psi::StructuralAccess::Owned {
+        return owned_arguments::reconstruct(
+            argument,
+            position,
+            call_operation,
+            caller,
+            callee,
+            call,
+            native,
+            plan,
+        );
+    }
     let caller_target = native
         .functions
         .iter()

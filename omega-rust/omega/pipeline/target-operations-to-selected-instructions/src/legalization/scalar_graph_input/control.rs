@@ -5,6 +5,7 @@ pub(super) fn validate(
     _body: &[OptimizationNode],
     function: &PsiOptimizationFunction,
     ranked: bool,
+    plan: &AbstractOperationPlan,
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
     match (&node.operation, &function.result) {
@@ -27,7 +28,14 @@ pub(super) fn validate(
                 .find(|parameter| parameter.place == *source)
             {
                 if parameter.access != terminal_psi::StructuralAccess::Owned
-                    || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Affine
+                    || !(parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                        || parameter.multiplicity
+                            == terminal_psi::StructuralMultiplicity::Unrestricted
+                            && crate::structural_reference_input::primitive_array_shape(
+                                parameter.structural_type,
+                                &plan.structural_types,
+                            )
+                            .is_some())
                     || parameter.is_self
                     || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty()

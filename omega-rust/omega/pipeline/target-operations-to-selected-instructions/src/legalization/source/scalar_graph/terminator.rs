@@ -1,4 +1,5 @@
 use super::*;
+use semantic_vocabulary::ScalarType;
 pub(super) fn project(
     node: &optimization_unit::OptimizationNode,
     function: &optimization_unit::PsiOptimizationFunction,
@@ -45,14 +46,13 @@ pub(super) fn project(
         AbstractOperation::Return {
             psi_edge,
             value,
-            scalar_type,
+            scalar_type: ScalarType::Integer(scalar_type),
             ..
         } => Ok(LegalizedScalarTerminator::Return(LegalizedScalarReturn {
             edge: *psi_edge,
             value: LegalizedScalarReturnValue::Value {
                 value: *value,
-                scalar_type: scalar_graph_input::integer_type(*scalar_type)
-                    .ok_or(Error::SourceCustodyMismatch)?,
+                scalar_type: *scalar_type,
             },
             fuel: node.fuel.clone(),
             effect: node.effect,

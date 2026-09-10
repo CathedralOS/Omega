@@ -6,7 +6,7 @@ use target_operations::{
     TargetIntegerExpression as Expression, TargetScalarExpression, TargetUnitOperation,
 };
 mod byte_view;
-mod control_flow;
+pub(in crate::legalization::scalar_graph_input) mod control_flow;
 mod expressions;
 mod hosted_scalar;
 mod scalar_definitions;

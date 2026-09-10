@@ -84,9 +84,14 @@ pub(super) fn lower_operation(
         AbstractOperation::CallUnit {
             structural_arguments,
             ..
-        } if structural_arguments
-            .iter()
-            .any(|argument| live.structural_homes.contains_key(&argument.place)) =>
+        } if structural_arguments.iter().any(|argument| {
+            live.structural_homes.contains_key(&argument.place)
+                || (argument.access == StructuralAccess::Owned
+                    && function.structural_parameters.iter().any(|parameter| {
+                        parameter.place == argument.place
+                            && super::scalar_arrays::is_owned_parameter(parameter, structural_types)
+                    }))
+        }) =>
         {
             super::primitive_calls::lower(
                 operation,

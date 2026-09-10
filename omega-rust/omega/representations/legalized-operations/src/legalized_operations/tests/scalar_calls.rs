@@ -109,10 +109,9 @@ fn fixed_scalar_argument_widths_require_exact_register_geometry() {
             }
             call.call_plan.result = Some(call.call_plan.parameters[0].clone());
             call.result_placement = call.call_plan.result.clone();
-            assert_eq!(
+            assert!(
                 call.validate_shape().is_ok(),
-                width == 8,
-                "argument width must not widen scalar-result admission"
+                "fixed integer result geometry is valid; source replay checks supported scalar semantics"
             );
         }
     }
@@ -232,9 +231,51 @@ fn boolean_argument_shape_preserves_width_and_unit_result_absence() {
         changed.call_plan.result = Some(changed.call_plan.parameters[0].clone());
         changed.result_placement = changed.call_plan.result.clone();
         assert!(
-            changed.validate_shape().is_err(),
-            "Boolean results are not admitted by an argument-width extension"
+            changed.validate_shape().is_ok(),
+            "one-byte result geometry is valid; semantic replay distinguishes Boolean from u8"
         );
+    }
+}
+
+#[test]
+fn fixed_integer_result_widths_reject_coherent_fragment_corruption() {
+    for width in [1, 2, 4, 8] {
+        let mut plan = scalar_call_unit_plan();
+        let call = call(&mut plan);
+        call.arguments.clear();
+        call.call_plan = evaluate_call_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: Some(ValueShape::integer(width, width)),
+            },
+        )
+        .unwrap();
+        call.result_placement = call.call_plan.result.clone();
+        assert_eq!(call.validate_shape(), Ok(()));
+        for mutation in 0..3 {
+            let mut changed = call.clone();
+            let placement = changed.call_plan.result.as_mut().unwrap();
+            let calling_conventions::ValueLocation::Register {
+                value_byte_offset,
+                byte_size,
+                ..
+            } = &mut placement.locations[0]
+            else {
+                panic!("register result")
+            };
+            match mutation {
+                0 => *value_byte_offset = 1,
+                1 => *byte_size = width + 1,
+                2 => placement.shape = ValueShape::integer(3, 1),
+                _ => unreachable!(),
+            }
+            changed.result_placement = changed.call_plan.result.clone();
+            assert!(
+                changed.validate_shape().is_err(),
+                "width {width}, mutation {mutation}"
+            );
+        }
     }
 }
 

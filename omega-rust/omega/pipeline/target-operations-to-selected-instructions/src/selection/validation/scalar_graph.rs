@@ -8,6 +8,7 @@ use crate::selection::shared::*;
 use legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKind};
 use semantic_vocabulary::IntegerValue;
 
+mod aggregate_argument;
 mod aggregate_return;
 mod byte_input;
 mod byte_output;

@@ -47,13 +47,22 @@ dimensions and leaf carrier; constructor selection writes each row-major leaf at
 its exact width. [Aggregate results](src/selection/aggregate_result_input.rs)
 joins both array and sum homes to their retained calling plans. Independent replay
 checks every store, result fragment, and the single constructor fuel charge.
+Owned arguments load those same homes or copy captured incoming fragments;
+returning an incoming array retains its parameter identity. Each argument joins
+its exact producer, place, type, and destination ABI, including mixed borrowed
+arguments. Direct values retain complete graph replay at publication, not
+pointer-only legacy records.
 Direct fragments currently cover exact widths 1, 2, 4, and 8 bytes, up to two
 registers; Microsoft x64 supports its single-register direct results. Empty
-physical values, odd-width fragments, hidden-pointer results, and owned array
-actuals/incoming identity returns remain explicit transport limits. Zero physical
+physical values, odd-width fragments, stack/indirect owned arguments, and
+hidden-pointer results remain explicit transport limits. Zero physical
 size never erases the semantic array type. The native differential
 `scalar_array_results` target covers full publication and matching-host execution;
 its floating-source control records the separate checked-plan production gap.
+Narrow scalar calls use the existing unsigned-byte/word zero extensions before
+whole-register consumers. Unsigned-16 and signed-narrow scalar calls remain
+unsupported pending their normalization; raw array fragments need no such
+scalar interpretation.
 
 Multi-case dispatch uses ordinary comparisons and explicitly identified
 `CaseDispatch` continuation blocks. An unsuccessful comparison has taken no

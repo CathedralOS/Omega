@@ -1,4 +1,5 @@
 //! Physical array construction and receiving replay retain each ordered leaf.
+mod arguments;
 use super::*;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::{
