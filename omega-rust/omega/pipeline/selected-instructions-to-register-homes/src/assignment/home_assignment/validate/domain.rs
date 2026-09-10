@@ -25,6 +25,13 @@ pub(super) fn reconstruct(
     if legality.virtual_registers.len() != ranges.virtual_registers.len() {
         return Err(RegisterHomeError::FunctionMismatch { function });
     }
+    for (register, range) in legality
+        .virtual_registers
+        .iter()
+        .zip(&ranges.virtual_registers)
+    {
+        super::super::physical_requirement::validate(function, register, range, ranges)?;
+    }
     let positions = legality
         .virtual_registers
         .iter()
@@ -34,6 +41,7 @@ pub(super) fn reconstruct(
     let mut components = legality
         .virtual_registers
         .iter()
+        .filter(|register| !register.points.is_empty())
         .map(|register| BTreeSet::from([register.virtual_register]))
         .collect::<Vec<_>>();
     for tie in &ranges.tied_pairs {

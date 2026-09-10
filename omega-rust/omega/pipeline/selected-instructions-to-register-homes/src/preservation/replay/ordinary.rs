@@ -13,9 +13,9 @@ pub(super) fn reconstruct(
     function: &selected_instructions::SelectedFunction,
     homes: &crate::FunctionRegisterHomes,
 ) -> Result<(), AllocatedCalleeSavedRequirementError> {
-    if function.machine != homes.machine
-        || function.virtual_registers.len() != homes.assignments.len()
-    {
+    // The replayed allocation owns home completeness, including omitted dead
+    // parameters. Every actual write is still checked against its home below.
+    if function.machine != homes.machine {
         return Err(AllocatedCalleeSavedRequirementError::HomeRosterMismatch);
     }
     let home_index = index_homes(homes)?;

@@ -187,6 +187,34 @@ fn large_sysv_inline_arguments_retain_selected_call_and_stack_evidence() {
 }
 
 #[test]
+fn large_sysv_inline_arguments_publish_through_block_local_spills() {
+    let (image, offset) = publish(
+        &mixed_call_source(17),
+        "selected",
+        NativeTarget::linux_x64(),
+    );
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    native_function::assert_c_text(
+        &image.output().final_text_bytes,
+        offset,
+        "#include <stdint.h>
+         extern uint8_t omega_entry(uint8_t, uint8_t*);
+         int main(void) {
+             for (unsigned value = 0; value < 256; ++value) {
+                 uint8_t output = 0;
+                 if (omega_entry(value, &output) != value || output != 201) return 1;
+             }
+             return 0;
+         }",
+    );
+    #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+    {
+        let _ = (image, offset);
+        eprintln!("SKIP: 17-byte SysV runtime requires a Linux x86-64 host");
+    }
+}
+
+#[test]
 fn owned_arrays_compose_with_borrowed_outputs_and_scalar_results() {
     for target in [
         NativeTarget::linux_x64(),

@@ -1,6 +1,6 @@
 //! Independently reconstructed component constraints and view compatibility.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use register_model::{RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::VirtualRegisterId;
@@ -32,21 +32,7 @@ pub(super) fn viable_candidates(
         .collect()
 }
 
-pub(super) fn unassigned_constraint_degree(
-    domain_index: usize,
-    domains: &[ReplayDomain],
-    unassigned: &BTreeSet<usize>,
-    ranges: &crate::FunctionLiveRanges,
-) -> usize {
-    unassigned
-        .iter()
-        .copied()
-        .filter(|other| *other != domain_index)
-        .filter(|other| constrained(&domains[domain_index], &domains[*other], ranges))
-        .count()
-}
-
-fn constrained(
+pub(super) fn constrained(
     left: &ReplayDomain,
     right: &ReplayDomain,
     ranges: &crate::FunctionLiveRanges,

@@ -3,9 +3,10 @@ use optimization_unit::ValueDefinitionSite;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
 use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedOperand, SelectedTerminator,
-    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    FrameStorageSlotId, LocalStorageSlotId, SelectedBlockOrigin, SelectedCasePayloadTransport,
+    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+    SelectedOperand, SelectedStructuralTransport, SelectedSuccessorRole, SelectedTerminator,
+    SelectedValueTransport, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, ValueId};
 
@@ -14,16 +15,25 @@ use crate::ValidatedSelectedAnalysis;
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
+    pub use_blocks: Vec<usize>,
     pub victim: &'source VirtualRegister,
     pub source_value: ValueId,
     pub address_scalar_type: ScalarType,
-    pub definition: SelectedInstructionId,
+    pub definitions: Vec<StorageDefinition>,
     pub slot: LocalStorageSlotId,
     pub first_instruction: u32,
     pub first_register: u32,
     pub address: &'source RegisterInstructionConstraint,
     pub load: &'source RegisterInstructionConstraint,
     pub store: &'source RegisterInstructionConstraint,
+}
+
+/// Source definition coordinates, not proposed spill instructions. An incoming
+/// parameter has one exact edge-copy definition per predecessor.
+pub(super) struct StorageDefinition {
+    pub block_index: usize,
+    pub instruction: SelectedInstructionId,
+    pub register: VirtualRegisterId,
 }
 
 pub(super) fn admit<'source>(
@@ -41,17 +51,7 @@ pub(super) fn admit<'source>(
         .functions
         .get(function_index)
         .ok_or(RuntimeSpillError::SourceMismatch)?;
-    let [block] = function.blocks.as_slice() else {
-        return Err(RuntimeSpillError::UnsupportedControlFlow);
-    };
-    let SelectedTerminator::Return {
-        instruction: terminal,
-        ..
-    } = &block.terminator
-    else {
-        return Err(RuntimeSpillError::UnsupportedControlFlow);
-    };
-    if block.id != function.entry_block || function.ranked.is_some() {
+    if function.ranked.is_some() {
         return Err(RuntimeSpillError::UnsupportedControlFlow);
     }
     let victim = function
@@ -61,12 +61,44 @@ pub(super) fn admit<'source>(
         .ok_or(RuntimeSpillError::UnsupportedValue)?;
     let unsigned = IntegerType::new(IntegerSign::Unsigned, 64)
         .map_err(|_| RuntimeSpillError::UnsupportedValue)?;
-    let VirtualRegisterOrigin::InstructionResult {
-        instruction: definition,
-        source_value,
-    } = victim.origin
-    else {
-        return Err(RuntimeSpillError::UnsupportedValue);
+    let (source_value, definition, block_index) = match victim.origin {
+        VirtualRegisterOrigin::InstructionResult {
+            instruction,
+            source_value,
+        } => {
+            let block_index = function
+                .blocks
+                .iter()
+                .position(|block| {
+                    block
+                        .instructions
+                        .iter()
+                        .any(|candidate| candidate.id == instruction)
+                })
+                .ok_or(RuntimeSpillError::UnsupportedValue)?;
+            (source_value, Some(instruction), block_index)
+        }
+        VirtualRegisterOrigin::BlockParameter {
+            source_value,
+            block,
+            parameter_index,
+        } => {
+            let block_index = function
+                .blocks
+                .iter()
+                .position(|candidate| candidate.id == block)
+                .ok_or(RuntimeSpillError::UnsupportedValue)?;
+            if block == function.entry_block
+                || !matches!(victim.definition_site,
+                Some(ValueDefinitionSite::BlockParameter { block: semantic_block, position })
+                    if semantic_block == function.blocks[block_index].source_block()
+                        && position as usize == parameter_index)
+            {
+                return Err(RuntimeSpillError::UnsupportedValue);
+            }
+            (source_value, None, block_index)
+        }
+        _ => return Err(RuntimeSpillError::UnsupportedValue),
     };
     // This preserves a full GPR in its own eight-byte slot, not a source
     // referent. Narrow values keep their exact type and all resident bits;
@@ -77,11 +109,14 @@ pub(super) fn admit<'source>(
             !integer.is_address() && matches!(integer.bits(), 8 | 16 | 32 | 64)
         }
     };
+    // Semantic lineage alone does not locate physical storage definitions.
+    // Instruction results and incoming parameters establish those separately.
     if !scalar_payload
         || victim.entry_fixed_view.is_some()
         || !matches!(
             victim.definition_site,
             Some(ValueDefinitionSite::FunctionParameter(_))
+                | Some(ValueDefinitionSite::BlockParameter { .. })
                 | Some(ValueDefinitionSite::Node { .. })
         )
     {
@@ -92,54 +127,95 @@ pub(super) fn admit<'source>(
         .local_storage_slots
         .iter()
         .any(|storage| storage.id == slot)
-        || terminal
-            .operands
-            .iter()
-            .any(|operand| operand.virtual_register == register)
     {
         return Err(RuntimeSpillError::UnsupportedUse);
     }
-    let mut defined = false;
+    let definitions = if let Some(instruction) = definition {
+        vec![StorageDefinition {
+            block_index,
+            instruction,
+            register,
+        }]
+    } else {
+        parameter_definitions(function, block_index, victim, source_value)?
+    };
+    let mut defined = definition.is_none();
     let mut uses = 0usize;
-    for instruction in &block.instructions {
-        for operand in &instruction.operands {
-            if operand.virtual_register != register {
-                continue;
-            }
-            match operand.access {
-                RegisterOperandAccess::Def if !defined && instruction.id == definition => {
-                    if matches!(
-                        instruction.kind,
-                        SelectedInstructionKind::FrameAddress { .. }
-                            | SelectedInstructionKind::AddressOffset { .. }
-                            | SelectedInstructionKind::ByteViewAddress
-                    ) {
-                        return Err(RuntimeSpillError::UnsupportedValue);
-                    }
-                    defined = true;
+    let mut use_blocks = Vec::new();
+    for (current_block_index, block) in function.blocks.iter().enumerate() {
+        let previous_uses = uses;
+        let (terminal, successors) = super::control(&block.terminator);
+        if terminal
+            .operands
+            .iter()
+            .any(|operand| operand.virtual_register == register)
+            || successors.into_iter().flatten().any(|successor| {
+                successor.bindings.iter().any(|binding| {
+                    matches!(binding.transport,
+                SelectedValueTransport::Registers { argument, parameter }
+                    if argument == register || (parameter == register
+                        && (definition.is_some() || successor.block != function.blocks[block_index].id)))
+                }) || successor.structural_bindings.iter().any(|binding| {
+                    matches!(binding.transport,
+                SelectedStructuralTransport::Descriptor { argument, .. } if argument == register)
+                }) || successor.structural_case.as_ref().is_some_and(|case| {
+                    case.payloads.iter().any(|payload| match payload.transport {
+                        SelectedCasePayloadTransport::Registers { argument, parameter } => argument == register || parameter == register,
+                        SelectedCasePayloadTransport::Unmaterialized { parameter } => parameter == register,
+                        SelectedCasePayloadTransport::Unused => false,
+                    })
+                })
+            })
+        {
+            return Err(RuntimeSpillError::UnsupportedUse);
+        }
+        for instruction in &block.instructions {
+            for operand in &instruction.operands {
+                if operand.virtual_register != register {
+                    continue;
                 }
-                RegisterOperandAccess::Use
-                    if defined
-                        && instruction.id != definition
-                        && operand.fixed_view.is_none()
-                        && operand.tied_to.is_none()
-                        && !operand.early_clobber
-                        && operand.class == victim.class =>
-                {
-                    // An output tied to this use would extend the reload's value identity.
-                    if instruction
-                        .operands
-                        .iter()
-                        .any(|other| other.tied_to == Some(operand.operand))
+                match operand.access {
+                    RegisterOperandAccess::Def
+                        if !defined
+                            && current_block_index == block_index
+                            && Some(instruction.id) == definition =>
                     {
-                        return Err(RuntimeSpillError::UnsupportedUse);
+                        if matches!(
+                            instruction.kind,
+                            SelectedInstructionKind::FrameAddress { .. }
+                                | SelectedInstructionKind::AddressOffset { .. }
+                                | SelectedInstructionKind::ByteViewAddress
+                        ) {
+                            return Err(RuntimeSpillError::UnsupportedValue);
+                        }
+                        defined = true;
                     }
-                    uses = uses
-                        .checked_add(1)
-                        .ok_or(RuntimeSpillError::IdentityOverflow)?;
+                    RegisterOperandAccess::Use
+                        if (defined || current_block_index != block_index)
+                            && Some(instruction.id) != definition
+                            && operand.fixed_view.is_none()
+                            && operand.tied_to.is_none()
+                            && !operand.early_clobber
+                            && operand.class == victim.class =>
+                    {
+                        // An output tied to this use would extend the reload's value identity.
+                        if instruction
+                            .operands
+                            .iter()
+                            .any(|other| other.tied_to == Some(operand.operand))
+                        {
+                            return Err(RuntimeSpillError::UnsupportedUse);
+                        }
+                        uses = uses
+                            .checked_add(1)
+                            .ok_or(RuntimeSpillError::IdentityOverflow)?;
+                    }
+                    _ => return Err(RuntimeSpillError::UnsupportedUse),
                 }
-                _ => return Err(RuntimeSpillError::UnsupportedUse),
             }
+        }
+        if uses != previous_uses {
+            use_blocks.push(current_block_index);
         }
     }
     if !defined || uses == 0 {
@@ -150,16 +226,20 @@ pub(super) fn admit<'source>(
         .iter()
         .try_fold(0usize, |total, function| {
             function.blocks.iter().try_fold(total, |total, block| {
-                total.checked_add(block.instructions.len())
+                total.checked_add(block.instructions.len())?.checked_add(1)
             })
         })
         .and_then(|total| total.checked_add(uses.checked_mul(4)?))
+        .and_then(|total| total.checked_add(definitions.len()))
+        .and_then(|total| total.checked_add(function.blocks.len().checked_mul(2)?))
         .ok_or(RuntimeSpillError::IdentityOverflow)?;
     if u64::try_from(steps).map_err(|_| RuntimeSpillError::IdentityOverflow)?
         > budget.validation_steps()
     {
         return Err(RuntimeSpillError::WorkBudgetExceeded);
     }
+    super::require_acyclic(function)?;
+    super::require_dominated_uses(function, block_index, &use_blocks)?;
     let keys = environment.selected_keys();
     let address = environment
         .constraint(
@@ -204,11 +284,16 @@ pub(super) fn admit<'source>(
             }
         }
     }
-    let first_instruction = block
-        .instructions
+    let first_instruction = function
+        .blocks
         .iter()
-        .map(|instruction| instruction.id.0)
-        .chain([terminal.id.0])
+        .flat_map(|block| {
+            block
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id.0)
+                .chain([super::control(&block.terminator).0.id.0])
+        })
         .max()
         .unwrap_or(0)
         .checked_add(1)
@@ -223,10 +308,11 @@ pub(super) fn admit<'source>(
         .ok_or(RuntimeSpillError::IdentityOverflow)?;
     Ok(Admission {
         function,
+        use_blocks,
         victim,
         source_value,
         address_scalar_type: ScalarType::Integer(unsigned),
-        definition,
+        definitions,
         slot,
         first_instruction,
         first_register,
@@ -234,6 +320,104 @@ pub(super) fn admit<'source>(
         load,
         store,
     })
+}
+
+fn parameter_definitions(
+    function: &SelectedFunction,
+    destination: usize,
+    victim: &VirtualRegister,
+    source_value: ValueId,
+) -> Result<Vec<StorageDefinition>, RuntimeSpillError> {
+    let mut definitions = Vec::new();
+    for (block_index, block) in function.blocks.iter().enumerate() {
+        for successor in super::control(&block.terminator).1.into_iter().flatten() {
+            if successor.block != function.blocks[destination].id {
+                continue;
+            }
+            // Every arrival must initialize the slot on its exact edge. Do not
+            // place a store on a conditional predecessor shared by other paths.
+            if successor.role != SelectedSuccessorRole::EdgeTransferContinuation
+                || successor.structural_case.is_some()
+                || !matches!(block.terminator, SelectedTerminator::Jump { .. })
+                || !matches!(block.origin, SelectedBlockOrigin::EdgeTransfer { edge, target }
+                    if edge == successor.psi_edge && target == successor.source_target)
+            {
+                return Err(RuntimeSpillError::UnsupportedControlFlow);
+            }
+            let mut bindings = successor.bindings.iter().filter(|binding| {
+                matches!(binding.transport,
+                SelectedValueTransport::Registers { parameter, .. } if parameter == victim.id)
+            });
+            let binding = bindings.next().ok_or(RuntimeSpillError::UnsupportedUse)?;
+            if bindings.next().is_some()
+                || binding.semantic.parameter != source_value
+                || binding.semantic.scalar_type != victim.scalar_type
+            {
+                return Err(RuntimeSpillError::UnsupportedUse);
+            }
+            let SelectedValueTransport::Registers { argument, .. } = binding.transport else {
+                return Err(RuntimeSpillError::UnsupportedUse);
+            };
+            let value = function
+                .virtual_registers
+                .iter()
+                .find(|value| value.id == argument)
+                .ok_or(RuntimeSpillError::UnsupportedValue)?;
+            if value.scalar_type != victim.scalar_type || value.class != victim.class {
+                return Err(RuntimeSpillError::UnsupportedValue);
+            }
+            let VirtualRegisterOrigin::InstructionResult {
+                instruction,
+                source_value: argument_value,
+            } = value.origin
+            else {
+                return Err(RuntimeSpillError::UnsupportedValue);
+            };
+            if argument_value != binding.semantic.argument {
+                return Err(RuntimeSpillError::UnsupportedValue);
+            }
+            let mut physical_definitions =
+                function
+                    .blocks
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(owner, block)| {
+                        block.instructions.iter().flat_map(move |candidate| {
+                            candidate
+                                .operands
+                                .iter()
+                                .filter(move |operand| {
+                                    operand.virtual_register == argument
+                                        && operand.access != RegisterOperandAccess::Use
+                                })
+                                .map(move |_| (owner, candidate))
+                        })
+                    });
+            let Some((owner, copy)) = physical_definitions.next() else {
+                return Err(RuntimeSpillError::UnsupportedValue);
+            };
+            if physical_definitions.next().is_some()
+                || owner != block_index
+                || copy.id != instruction
+                || copy.kind != SelectedInstructionKind::CopyI64
+                || !copy.operands.iter().any(|operand| {
+                    operand.virtual_register == argument
+                        && operand.access == RegisterOperandAccess::Def
+                })
+            {
+                return Err(RuntimeSpillError::UnsupportedUse);
+            }
+            definitions.push(StorageDefinition {
+                block_index,
+                instruction,
+                register: argument,
+            });
+        }
+    }
+    if definitions.is_empty() {
+        return Err(RuntimeSpillError::UnsupportedUse);
+    }
+    Ok(definitions)
 }
 
 pub(super) fn fresh(next: &mut u32) -> Result<u32, RuntimeSpillError> {

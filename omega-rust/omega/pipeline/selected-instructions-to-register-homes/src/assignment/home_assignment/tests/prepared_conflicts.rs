@@ -24,9 +24,16 @@ fn prepared_constraints_match_original_scans_for_candidate_and_interference_rost
                             })
                             .collect::<Vec<_>>();
                         let ranges = ranges(3, &pairs);
+                        let expected =
+                            scan_reference::compute_function(7, &legality, &ranges, &physical);
                         assert_eq!(
                             compute_function(7, &legality, &ranges, &physical),
-                            scan_reference::compute_function(7, &legality, &ranges, &physical),
+                            expected,
+                            "candidate rosters {first:?}/{second:?}/{third:?}, interference {pairs:?}",
+                        );
+                        assert_eq!(
+                            validate::replay_function(7, &legality, &ranges, &physical),
+                            expected,
                             "candidate rosters {first:?}/{second:?}/{third:?}, interference {pairs:?}",
                         );
                     }
@@ -118,4 +125,91 @@ fn prepared_views_do_not_reorder_domain_errors_or_invalid_view_errors() {
         compute_function(4, &legality, &ranges, &physical),
         scan_reference::compute_function(4, &legality, &ranges, &physical)
     );
+}
+
+#[test]
+fn incremental_placement_preserves_sparse_rosters_and_replay() {
+    let physical = physical();
+    for register_count in [8, 32] {
+        let points = (0..register_count)
+            .map(|register| (register * 2, register * 2 + 1))
+            .collect::<Vec<_>>();
+        let legality = legality(&points);
+        for pairs in [Vec::new(), vec![(0, register_count - 1)]] {
+            let ranges = ranges(register_count, &pairs);
+            let actual = compute_function(0, &legality, &ranges, &physical);
+            assert!(actual.is_ok());
+            assert_eq!(
+                actual,
+                scan_reference::compute_function(0, &legality, &ranges, &physical)
+            );
+            assert_eq!(
+                actual,
+                validate::replay_function(0, &legality, &ranges, &physical)
+            );
+        }
+    }
+}
+
+#[test]
+fn incremental_candidates_and_degrees_match_full_rescans_after_multiple_assignments() {
+    let physical = physical();
+    let mut successes = 0;
+    let mut refusals = 0;
+    for interference_mask in 0..64 {
+        for tied in [false, true] {
+            for early_clobber in [false, true] {
+                for reverse_points in [false, true] {
+                    let points = (0..6)
+                        .map(|register| {
+                            let start = if reverse_points {
+                                5 - register
+                            } else {
+                                register
+                            } * 2;
+                            (start, start + 1)
+                        })
+                        .collect::<Vec<_>>();
+                    let mut legality = legality(&points);
+                    set_candidates(&mut legality, interference_mask % 6, &[0]);
+                    set_candidates(&mut legality, (interference_mask + 3) % 6, &[1]);
+                    let pairs = [(0, 2), (1, 3), (2, 4), (3, 5), (0, 5), (2, 3)]
+                        .into_iter()
+                        .enumerate()
+                        .filter_map(|(position, pair)| {
+                            (interference_mask & (1 << position) != 0).then_some(pair)
+                        })
+                        .collect::<Vec<_>>();
+                    let mut ranges = ranges(6, &pairs);
+                    if tied {
+                        ranges.tied_pairs = tied_ranges(&[]).tied_pairs;
+                    }
+                    if early_clobber {
+                        let mut early = early_clobber_ranges().early_clobbers.remove(0);
+                        early.def_virtual_register = VirtualRegisterId(5);
+                        early.uses[1].virtual_register = VirtualRegisterId(2);
+                        ranges.early_clobbers.push(early);
+                    }
+                    let actual = compute_function(3, &legality, &ranges, &physical);
+                    if actual.is_ok() {
+                        successes += 1;
+                    } else {
+                        refusals += 1;
+                    }
+                    assert_eq!(
+                        actual,
+                        scan_reference::compute_function(3, &legality, &ranges, &physical),
+                        "mask {interference_mask}, tie {tied}, early {early_clobber}, reverse {reverse_points}"
+                    );
+                    assert_eq!(
+                        actual,
+                        validate::replay_function(3, &legality, &ranges, &physical),
+                        "mask {interference_mask}, tie {tied}, early {early_clobber}, reverse {reverse_points}"
+                    );
+                }
+            }
+        }
+    }
+    assert!(successes > 0);
+    assert!(refusals > 0);
 }

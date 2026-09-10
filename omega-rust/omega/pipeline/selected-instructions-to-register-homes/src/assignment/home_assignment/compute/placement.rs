@@ -25,18 +25,70 @@ pub(crate) fn compute_function(
     let conflicts = PreparedConflicts::new(&domains, ranges, physical);
     let mut unassigned = (0..domains.len()).collect::<Vec<_>>();
     let mut assigned = Vec::<(usize, RegisterViewId)>::new();
+    // Preserve the original first selection's domain/candidate validation order.
+    // Thereafter all views are known, and immutable pair constraints only remove
+    // candidates: an older assignment cannot make a rejected view viable again.
+    let mut viable = domains
+        .iter()
+        .enumerate()
+        .map(|(domain_index, domain)| {
+            domain
+                .candidates
+                .iter()
+                .copied()
+                .map(|candidate| {
+                    conflicts
+                        .candidate_conflicts(function, domain_index, candidate, &[], &domains)
+                        .map(|_| candidate)
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut degrees = unassigned
+        .iter()
+        .map(|domain_index| {
+            unassigned
+                .iter()
+                .filter(|other| {
+                    *other != domain_index && conflicts.constrained(*domain_index, **other)
+                })
+                .count()
+        })
+        .collect::<Vec<_>>();
     while !unassigned.is_empty() {
-        let (position, viable) =
-            select_domain(function, &unassigned, &assigned, &domains, &conflicts)?;
+        let position = select_domain(&unassigned, &viable, &degrees, &domains);
         let domain_index = unassigned.remove(position);
-        let view = viable
-            .first()
-            .copied()
-            .ok_or(RegisterHomeError::NoCompatibleHome {
-                function,
-                register: domains[domain_index].leader().0,
-            })?;
+        let view =
+            viable[domain_index]
+                .first()
+                .copied()
+                .ok_or(RegisterHomeError::NoCompatibleHome {
+                    function,
+                    register: domains[domain_index].leader().0,
+                })?;
         assigned.push((domain_index, view));
+        for &remaining in &unassigned {
+            if !conflicts.constrained(remaining, domain_index) {
+                continue;
+            }
+            degrees[remaining] -= 1;
+            let candidates = &mut viable[remaining];
+            let mut retained = 0;
+            for position in 0..candidates.len() {
+                let candidate = candidates[position];
+                if !conflicts.candidate_conflicts(
+                    function,
+                    remaining,
+                    candidate,
+                    &[(domain_index, view)],
+                    &domains,
+                )? {
+                    candidates[retained] = candidate;
+                    retained += 1;
+                }
+            }
+            candidates.truncate(retained);
+        }
     }
     let mut homes = BTreeMap::<VirtualRegisterId, RegisterViewId>::new();
     for (domain_index, view) in assigned {
@@ -49,6 +101,7 @@ pub(crate) fn compute_function(
         assignments: legality
             .virtual_registers
             .iter()
+            .filter(|register| !register.points.is_empty())
             .map(|register| VirtualRegisterHome {
                 virtual_register: register.virtual_register,
                 class: register.class,
@@ -58,62 +111,24 @@ pub(crate) fn compute_function(
     })
 }
 
-type Selection = (usize, Vec<RegisterViewId>);
-
 fn select_domain(
-    function: usize,
     unassigned: &[usize],
-    assigned: &[(usize, RegisterViewId)],
+    viable: &[Vec<RegisterViewId>],
+    degrees: &[usize],
     domains: &[AllocationDomain<'_>],
-    conflicts: &PreparedConflicts<'_>,
-) -> Result<Selection, RegisterHomeError> {
-    let mut selected = None::<(usize, Vec<RegisterViewId>, usize)>;
-    for (position, &domain_index) in unassigned.iter().enumerate() {
-        let domain = &domains[domain_index];
-        let viable = domain
-            .candidates
-            .iter()
-            .copied()
-            .filter_map(|candidate| {
-                match conflicts.candidate_conflicts(
-                    function,
-                    domain_index,
-                    candidate,
-                    assigned,
-                    domains,
-                ) {
-                    Ok(false) => Some(Ok(candidate)),
-                    Ok(true) => None,
-                    Err(error) => Some(Err(error)),
-                }
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let degree = unassigned
-            .iter()
-            .copied()
-            .filter(|other| *other != domain_index && conflicts.constrained(domain_index, *other))
-            .count();
-        let replace = match &selected {
-            None => true,
-            Some((best_position, best_viable, best_degree)) => {
-                let best = &domains[unassigned[*best_position]];
-                (
-                    viable.len(),
-                    Reverse(degree),
-                    domain.first_point,
-                    domain.leader(),
-                ) < (
-                    best_viable.len(),
-                    Reverse(*best_degree),
-                    best.first_point,
-                    best.leader(),
-                )
-            }
-        };
-        if replace {
-            selected = Some((position, viable, degree));
-        }
-    }
-    let (position, viable, _) = selected.expect("nonempty unassigned roster");
-    Ok((position, viable))
+) -> usize {
+    unassigned
+        .iter()
+        .enumerate()
+        .min_by_key(|(_, domain_index)| {
+            let domain = &domains[**domain_index];
+            (
+                viable[**domain_index].len(),
+                Reverse(degrees[**domain_index]),
+                domain.first_point,
+                domain.leader(),
+            )
+        })
+        .map(|(position, _)| position)
+        .expect("nonempty unassigned roster")
 }

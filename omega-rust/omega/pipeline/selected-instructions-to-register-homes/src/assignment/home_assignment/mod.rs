@@ -4,6 +4,7 @@ use crate::*;
 
 pub(crate) mod compute;
 pub(crate) mod model;
+mod physical_requirement;
 pub(crate) mod validate;
 
 #[cfg(test)]

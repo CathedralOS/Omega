@@ -59,60 +59,86 @@ pub(crate) fn replay_function(
     ranges: &crate::FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<FunctionRegisterHomes, RegisterHomeError> {
-    let domains = domain::reconstruct(function, legality, ranges)?;
+    let mut domains = domain::reconstruct(function, legality, ranges)?;
     let mut unassigned = (0..domains.len()).collect::<BTreeSet<_>>();
     let mut assigned = BTreeMap::<VirtualRegisterId, RegisterViewId>::new();
+    // Admit every candidate in the original first-pass order before choosing a
+    // home. Replay owns these lists; no producer placement facts are consumed.
+    for domain in &mut domains {
+        domain.candidates =
+            conflicts::viable_candidates(function, domain, &assigned, ranges, physical)?;
+    }
+    let mut remaining_neighbors = domains
+        .iter()
+        .enumerate()
+        .map(|(domain_index, domain)| {
+            domains
+                .iter()
+                .enumerate()
+                .filter_map(|(other_index, other)| {
+                    (other_index != domain_index && conflicts::constrained(domain, other, ranges))
+                        .then_some(other_index)
+                })
+                .collect::<BTreeSet<_>>()
+        })
+        .collect::<Vec<_>>();
     while !unassigned.is_empty() {
         let mut ranked = Vec::with_capacity(unassigned.len());
         for domain_index in &unassigned {
             let candidate_domain = &domains[*domain_index];
-            let viable = conflicts::viable_candidates(
-                function,
-                candidate_domain,
-                &assigned,
-                ranges,
-                physical,
-            )?;
-            let degree = conflicts::unassigned_constraint_degree(
-                *domain_index,
-                &domains,
-                &unassigned,
-                ranges,
-            );
             ranked.push((
                 (
-                    viable.len(),
-                    Reverse(degree),
+                    candidate_domain.candidates.len(),
+                    Reverse(remaining_neighbors[*domain_index].len()),
                     candidate_domain.earliest_point,
                     candidate_domain.leader,
                 ),
                 *domain_index,
-                viable,
             ));
         }
-        ranked.sort_by_key(|(rank, _, _)| *rank);
-        let (_, selected_domain, viable) = ranked
+        ranked.sort_by_key(|(rank, _)| *rank);
+        let (_, selected_domain) = ranked
             .into_iter()
             .next()
             .expect("nonempty unassigned roster has a ranked domain");
         let domain = &domains[selected_domain];
-        let view = viable
-            .first()
-            .copied()
-            .ok_or(RegisterHomeError::NoCompatibleHome {
-                function,
-                register: domain.leader.0,
-            })?;
+        let view =
+            domain
+                .candidates
+                .first()
+                .copied()
+                .ok_or(RegisterHomeError::NoCompatibleHome {
+                    function,
+                    register: domain.leader.0,
+                })?;
+        let mut newly_assigned = BTreeMap::new();
         for register in &domain.registers {
             assigned.insert(*register, view);
+            newly_assigned.insert(*register, view);
         }
         unassigned.remove(&selected_domain);
+        // Compatibility is a conjunction over immutable assignment conflicts.
+        // Earlier assignments already filtered these lists, so only the newly
+        // chosen component can remove further candidates or reduce the degree.
+        for remaining in &unassigned {
+            if remaining_neighbors[*remaining].remove(&selected_domain) {
+                let domain = &mut domains[*remaining];
+                domain.candidates = conflicts::viable_candidates(
+                    function,
+                    domain,
+                    &newly_assigned,
+                    ranges,
+                    physical,
+                )?;
+            }
+        }
     }
     Ok(FunctionRegisterHomes {
         machine: legality.machine,
         assignments: legality
             .virtual_registers
             .iter()
+            .filter(|register| !register.points.is_empty())
             .map(|register| VirtualRegisterHome {
                 virtual_register: register.virtual_register,
                 class: register.class,
