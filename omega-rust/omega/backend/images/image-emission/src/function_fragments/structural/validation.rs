@@ -46,7 +46,7 @@ pub(in crate::function_fragments) fn validate_function(
     let pointer_parameters = || {
         parameters.iter().filter(|parameter| {
             !unused_owned
-                && !direct_owned_placement(parameter.target.access, &parameter.target.placement)
+                && !inline_owned_placement(parameter.target.access, &parameter.target.placement)
         })
     };
     if !unused_records.is_empty()

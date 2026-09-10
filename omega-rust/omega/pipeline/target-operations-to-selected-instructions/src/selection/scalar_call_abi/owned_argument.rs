@@ -32,7 +32,9 @@ pub(super) fn validate_owned_arguments(
             || target.source_byte_offset != 0
             || target.fixed_array_length.is_some()
             || target.element_stride.is_some()
-            || !crate::selection::aggregate_result_input::direct_fragments(&target.destination)
+            || !crate::selection::aggregate_result_input::inline_argument_fragments(
+                &target.destination,
+            )
         {
             return None;
         }
@@ -81,7 +83,9 @@ pub(super) fn validate_owned_arguments(
                     || !parameter.semantic.projected_qualifications.is_empty()
                     || placement != &parameter.target.placement
                     || placement.shape != shape
-                    || !crate::selection::aggregate_result_input::direct_fragments(placement)
+                    || !crate::selection::aggregate_result_input::inline_argument_fragments(
+                        placement,
+                    )
                 {
                     return None;
                 }

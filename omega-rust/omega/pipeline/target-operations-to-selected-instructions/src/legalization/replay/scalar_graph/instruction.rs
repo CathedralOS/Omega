@@ -236,13 +236,21 @@ pub(super) fn validate(
                 ..
             },
         ) => {
-            if structural_arguments.len() > 1 {
+            let called = unit
+                .functions
+                .iter()
+                .find(|function| function.machine == *callee)
+                .ok_or(invalid.clone())?;
+            if called.parameters.len() != scalar_arguments.len()
+                || called.structural_parameters.len() != structural_arguments.len()
+            {
                 return Err(invalid);
             }
             let expected = scalar_graph_input::callee_plan(*callee, native, plan, unit)?;
-            for (argument, actual) in structural_arguments
+            for (position, (argument, actual)) in structural_arguments
                 .iter()
                 .zip(call.arguments.iter().skip(scalar_arguments.len()))
+                .enumerate()
             {
                 let LegalizedScalarArgument::Structural { semantic, target } = actual else {
                     return Err(invalid);
@@ -250,9 +258,12 @@ pub(super) fn validate(
                 if semantic != argument {
                     return Err(invalid);
                 }
-                scalar_graph_input::structural_call::validate_argument(
-                    argument, target, operation, optimized, *callee, native, plan, unit,
-                )?;
+                if scalar_graph_input::structural_call::argument_at(
+                    argument, position, operation, optimized, called, &expected, native, plan,
+                )? != *target
+                {
+                    return Err(invalid);
+                }
             }
             if call.arguments.len() != scalar_arguments.len() + structural_arguments.len()
                 || expected.parameters.len() != call.arguments.len()

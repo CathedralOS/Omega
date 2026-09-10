@@ -411,7 +411,15 @@ pub(super) fn validate_operation(
                 }
                 _ => false,
             };
-            if arguments.len() != structural_arguments.len() || arguments.len() > 1 {
+            let callee_function = unit
+                .functions
+                .iter()
+                .find(|function| function.machine == *callee)
+                .ok_or(invalid.clone())?;
+            if arguments.len() != structural_arguments.len()
+                || callee_function.structural_parameters.len() != arguments.len()
+                || callee_function.parameters.len() != values.len()
+            {
                 return Err(invalid);
             }
             if !result_matches
@@ -455,17 +463,22 @@ pub(super) fn validate_operation(
                     }),
                 ));
             }
-            for (argument, semantic) in arguments.iter().zip(structural_arguments) {
-                super::super::structural_call::validate_argument(
+            for (position, (argument, semantic)) in
+                arguments.iter().zip(structural_arguments).enumerate()
+            {
+                if super::super::structural_call::argument_at(
                     semantic,
-                    argument,
+                    position,
                     *psi_operation,
                     optimized,
-                    *callee,
+                    callee_function,
+                    &expected,
                     native,
                     plan,
-                    unit,
-                )?;
+                )? != *argument
+                {
+                    return Err(invalid);
+                }
             }
         }
         (

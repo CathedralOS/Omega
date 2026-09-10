@@ -72,13 +72,11 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
         AbstractOperation::CallStructuralScalar {
             psi_operation,
             result,
-            structural_arguments,
             claim_transfers,
             requirement_obligations,
             crash_continuations,
             ..
         } if integer_call_shape(result.scalar_type).is_some()
-            && structural_arguments.len() <= 1
             && claim_transfers.is_empty()
             && requirement_obligations.is_empty()
             && crash_continuations.is_empty() =>
@@ -317,7 +315,6 @@ pub(super) fn validate(
             continue;
         }
         if let AbstractOperation::CallUnit {
-            structural_arguments,
             claim_transfers,
             requirement_obligations,
             crash_continuations,
@@ -326,7 +323,6 @@ pub(super) fn validate(
         {
             if result.is_some()
                 || !node.definitions.is_empty()
-                || structural_arguments.len() > 1
                 || !claim_transfers.is_empty()
                 || !requirement_obligations.is_empty()
                 || !crash_continuations.is_empty()

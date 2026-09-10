@@ -144,8 +144,11 @@ fn combined_plan(function: &InstalledFunction, target: target::NativeTarget) -> 
                 }
                 Some(result)
                     if result.shape.class == ValueClass::Integer
-                        && matches!(result.shape.byte_size, 4 | 8 | 12 | 16) =>
+                        && matches!(result.shape.byte_size, 1..=16) =>
                 {
+                    // A graph ABI may return a narrow scalar or an aggregate;
+                    // width does not identify its semantic result family. The
+                    // complete image join retains that semantic distinction.
                     Some(result.shape)
                 }
                 Some(_) => return None,

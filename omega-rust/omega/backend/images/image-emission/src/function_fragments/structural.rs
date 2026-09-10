@@ -82,12 +82,12 @@ pub(super) fn published_call(contract: &selected_instructions::SelectedCallContr
     // legacy singular structural-result record describes a different family
     // (whole-input returns); recording that here would misstate result custody.
     contract.call.structural_result.is_none()
-        // Direct value fragments have no pointer/copy record in the legacy
+        // Inline value fragments have no pointer/copy record in the legacy
         // projection. Their complete call operands and homes belong to the
         // mandatory selected graph replay, just like aggregate results.
         && !contract.call.arguments.iter().any(|argument| {
             matches!(argument, LegalizedScalarArgument::Structural { target, .. }
-                if direct_owned_placement(target.access, &target.destination))
+                if inline_owned_placement(target.access, &target.destination))
         })
         && (contract.call.result_placement.is_none()
             || contract
@@ -97,7 +97,7 @@ pub(super) fn published_call(contract: &selected_instructions::SelectedCallContr
                 .any(|argument| matches!(argument, LegalizedScalarArgument::Structural { .. })))
 }
 
-fn direct_owned_placement(
+pub(super) fn inline_owned_placement(
     access: terminal_psi::StructuralAccess,
     placement: &ValuePlacement,
 ) -> bool {
@@ -109,7 +109,8 @@ fn direct_owned_placement(
         || !placement.locations.is_empty() && placement
             .locations
             .iter()
-            .all(|location| matches!(location, ValueLocation::Register { .. })))
+            .all(|location| matches!(location,
+                ValueLocation::Register { .. } | ValueLocation::Stack { .. })))
 }
 fn pointer(placement: &ValuePlacement) -> Result<calling_conventions::MachineRegister, Error> {
     match placement.locations.as_slice() {
@@ -308,7 +309,7 @@ pub(super) fn populate(
             // Direct incoming values retain their complete ABI and captured
             // registers in graph replay; a pointer-only legacy home would lie
             // about their residence. Replay independently verifies each capture.
-            if unused_owned || direct_owned_placement(target.access, &target.placement) {
+            if unused_owned || inline_owned_placement(target.access, &target.placement) {
                 continue;
             }
             homes.push(UnitParameterHomeRecord {

@@ -39,7 +39,12 @@ pub(super) fn validate(
             LegalizedScalarArgument::Structural { semantic, target } => {
                 if semantic.access == StructuralAccess::Owned {
                     for register in super::aggregate_argument::argument(
-                        source, operation, semantic, target, replay,
+                        source,
+                        operation,
+                        argument_index,
+                        semantic,
+                        target,
+                        replay,
                     )? {
                         operands.push((argument_index, register));
                     }

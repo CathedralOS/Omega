@@ -305,9 +305,6 @@ pub(super) fn match_input(
         } = &node.operation
         {
             let call = callee_plan(*callee, native, plan, unit)?;
-            if structural_arguments.len() > 1 {
-                return Err(invalid);
-            }
             let called = unit
                 .functions
                 .iter()
@@ -333,15 +330,16 @@ pub(super) fn match_input(
             {
                 return Err(invalid);
             }
-            for argument in structural_arguments {
-                structural_call::argument(
+            for (position, argument) in structural_arguments.iter().enumerate() {
+                structural_call::argument_at(
                     argument,
+                    position,
                     *psi_operation,
                     optimized,
-                    *callee,
+                    called,
+                    &call,
                     native,
                     plan,
-                    unit,
                 )?;
             }
         }
@@ -414,7 +412,7 @@ pub(super) fn callee_plan(
                     && crate::structural_reference_input::parameter_shape(parameter, &plan.structural_types) == Some(placement.shape)
                     && placement.locations.iter().all(|location| matches!(location,
                         ValueLocation::Register { byte_size: 1..=8, .. }
-                        | ValueLocation::Stack { byte_size: 1 | 2 | 4 | 8, .. })))
+                        | ValueLocation::Stack { byte_size: 1..=8, .. })))
             || scalar_stack(placement)
             || crate::structural_reference_input::stack_pointer_offset(placement).is_some()
             || placement.shape.class == calling_conventions::ValueClass::BorrowedReference

@@ -121,7 +121,12 @@ pub(super) fn emit(
         {
             if semantic.access == StructuralAccess::Owned {
                 operands.extend(super::aggregate_argument::argument(
-                    source, operation, semantic, target, builder,
+                    source,
+                    operation,
+                    argument_index,
+                    semantic,
+                    target,
+                    builder,
                 )?);
                 continue;
             }
