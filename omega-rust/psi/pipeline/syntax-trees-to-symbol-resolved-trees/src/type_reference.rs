@@ -24,6 +24,19 @@ pub(crate) fn lower_type_reference_handle(
             syntax_trees.type_references.type_reference(type_reference),
             normalization,
         )?;
+        crate::constant::validate_normalized_expression(syntax_trees, normalization)?;
+        if normalization.authored_expression.is_valid()
+            && !lowerer
+                .derived_const_argument_expressions
+                .contains(&normalization.authored_expression)
+        {
+            let expression = lower_expression_into_table(
+                lowerer,
+                syntax_trees,
+                normalization.authored_expression,
+            )?;
+            lowerer.pending_const_argument_expressions.push(expression);
+        }
         for origin in syntax_trees
             .type_references
             .const_argument_origins(normalization.selections)
@@ -164,6 +177,12 @@ fn lower_type_reference_node(
             lifetime_arguments,
             arguments,
         } => {
+            crate::generic_data::validate_direct_const_arguments(
+                syntax_trees,
+                base_name,
+                *arguments,
+                lowerer.constant_selection.as_ref(),
+            )?;
             let selection_start = lowerer.pending_const_argument_selections.len();
             let lowered_arguments = lower_child_type_references(lowerer, syntax_trees, *arguments)?;
             retain_const_argument_slots(

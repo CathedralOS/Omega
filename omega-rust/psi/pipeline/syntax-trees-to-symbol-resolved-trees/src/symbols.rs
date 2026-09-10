@@ -356,3 +356,37 @@ pub(crate) fn assign_symbols_against_resolved_base(
         Err(diagnostics)
     }
 }
+
+/// Constant initializers have declaration-source lookup but no caller locals or
+/// receiver. Reuse the ordinary expression resolver before copying a selected
+/// initializer into any body; use-site namespaces never resolve its constructors.
+pub(crate) fn assign_constant_expression_symbols(
+    program: &mut SymbolResolvedTrees,
+    initializers: impl IntoIterator<Item = symbol_resolved_trees::expression::ExpressionHandle>,
+) {
+    let declarations = &mut program.tables.declarations;
+    let scope = scope::MachineScope {
+        symbol: symbols::SymbolHandle::invalid(),
+        type_parameters: &[],
+        attached_data: None,
+        attached_data_symbol: symbols::SymbolHandle::invalid(),
+        inherited_data_members: None,
+        owned_data: &[],
+        prior_statements: &[],
+        data_definitions: &program.roots.data_definitions,
+        data_members: &declarations.data_members,
+        data_payload_fields: &declarations.data_payload_fields,
+        type_constraints: &program.tables.types.constraints,
+    };
+    for initializer in initializers {
+        expressions::assign_expression_table_symbols(
+            &program.symbols,
+            &scope,
+            &[],
+            symbols::SymbolHandle::invalid(),
+            &mut program.tables.bodies.expressions,
+            &mut declarations.child_type_references,
+            initializer,
+        );
+    }
+}

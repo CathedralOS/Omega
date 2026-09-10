@@ -1,0 +1,10 @@
+// Canonical structural index eligibility does not grant named-constant copy permission.
+use omega::language::core::rat;
+
+const HALF: Rat = Rat {
+    num: IntPair { neg: Nat::Zero, pos: Nat::Succ { prev: Nat::Zero } },
+    den: Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } }
+};
+
+data Main {}
+machine Main::main(&mut self) {}

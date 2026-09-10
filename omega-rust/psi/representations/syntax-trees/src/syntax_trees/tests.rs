@@ -15,6 +15,65 @@ use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use arena::HandleSpan;
 
 #[test]
+fn normalized_structural_expression_copy_remaps_children_and_preserves_source() {
+    let mut source = SyntaxTrees::new(Default::default());
+    let child = source.expressions.insert(ExpressionNode::Boolean(true));
+    let children = source.expressions.insert_expression_handles([child]);
+    let expression = source
+        .expressions
+        .insert(ExpressionNode::ArrayLiteral(children));
+    let source_span = source::SourceSpan::new(source::SourceId(3), source::Span::new(10, 16));
+    source.expressions.set_source_span(expression, source_span);
+    let argument = source
+        .type_references
+        .insert_named(Identifier::generated("normalized-array"));
+    source.type_references.retain_const_argument_normalization(
+        argument,
+        source_span,
+        "array9:[bool; 1]13:boolean4:true".to_owned(),
+        [],
+        [],
+    );
+    source
+        .type_references
+        .retain_const_argument_expression(argument, expression);
+    let mut destination = SyntaxTrees::new(Default::default());
+    for _ in 0..8 {
+        destination
+            .expressions
+            .insert(ExpressionNode::Boolean(false));
+    }
+    let first = destination.copy_type_reference_handle(&source, argument);
+    let second = destination.copy_type_reference_handle(&source, argument);
+    let mut copied_children = Vec::new();
+    for copied in [first, second] {
+        let copied_expression = destination
+            .type_references
+            .const_argument_normalization(copied)
+            .unwrap()
+            .authored_expression;
+        assert_ne!(copied_expression, expression);
+        assert_eq!(
+            destination.expressions.source_span(copied_expression),
+            source_span
+        );
+        let ExpressionNode::ArrayLiteral(children) =
+            destination.expressions.expression(copied_expression)
+        else {
+            panic!("copied array");
+        };
+        let copied_child = destination.expressions.expression_handles(*children)[0];
+        assert_ne!(copied_child, child);
+        assert!(matches!(
+            destination.expressions.expression(copied_child),
+            ExpressionNode::Boolean(true)
+        ));
+        copied_children.push(copied_child);
+    }
+    assert_ne!(copied_children[0], copied_children[1]);
+}
+
+#[test]
 fn constant_argument_origin_survives_deep_copy_and_root_extension() {
     let span = |source_id, start| {
         source::SourceSpan::new(

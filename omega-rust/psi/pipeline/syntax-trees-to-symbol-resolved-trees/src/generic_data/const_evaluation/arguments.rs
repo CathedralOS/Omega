@@ -176,6 +176,39 @@ pub(in crate::generic_data) fn consider_generic_spelling(
                 );
             }
             TypeReferenceNode::ConstExpression(expression) => {
+                if matches!(
+                    syntax.expressions.expression(expression),
+                    syntax_trees::expression::ExpressionNode::StructLiteral(_)
+                        | syntax_trees::expression::ExpressionNode::ArrayLiteral(_)
+                ) {
+                    let value = canonicalize_selected_index_expression(
+                        syntax,
+                        parameter_type,
+                        parameter_type,
+                        expression,
+                        selection,
+                    )
+                    .map_err(|reason| {
+                        Diagnostic::error(reason)
+                            .with_source_span(syntax.expressions.source_span(expression))
+                    })?;
+                    let reference = syntax.expressions.source_span(expression);
+                    syntax.type_references.retain_const_argument_normalization(
+                        *argument,
+                        reference,
+                        value.encoding.clone(),
+                        [],
+                        [],
+                    );
+                    syntax
+                        .type_references
+                        .retain_const_argument_expression(*argument, expression);
+                    syntax.type_references.replace_type_reference(
+                        *argument,
+                        TypeReferenceNode::Named(Identifier::generated(value.atom())),
+                    );
+                    continue;
+                }
                 let destination =
                     syntax_type_identity(syntax, parameter_type).map_err(Diagnostic::error)?;
                 let value = evaluate_const_argument_expression(

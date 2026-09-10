@@ -1,34 +1,28 @@
-// PDI1: current core Rat values are eligible structured indices only in their
-// canonical representative form. Both signs are admitted after cancellation
-// and gcd reduction.
+// Core Rat structural index expressions require canonical representatives.
+// Both signs are admitted after cancellation and gcd reduction. This does not
+// grant the default-affine Rat carrier permission for named constants.
 
 use omega::language::core::rat;
-
-data RatIndices {}
-
-const RatIndices::POSITIVE_HALF: Rat = Rat {
-    num: IntPair {
-        neg: Nat::Zero,
-        pos: Nat::Succ { prev: Nat::Zero }
-    },
-    den: Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } }
-};
-
-const RatIndices::NEGATIVE_HALF: Rat = Rat {
-    den: Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } },
-    num: IntPair {
-        pos: Nat::Zero,
-        neg: Nat::Succ { prev: Nat::Zero }
-    }
-};
 
 data RatIndexed<const R: Rat> {
     marker: u8;
 }
 
 data Main {
-    positive: RatIndexed<RatIndices::POSITIVE_HALF>;
-    negative: RatIndexed<RatIndices::NEGATIVE_HALF>;
+    positive: RatIndexed<(Rat {
+        num: IntPair {
+            neg: Nat::Zero,
+            pos: Nat::Succ { prev: Nat::Zero }
+        },
+        den: Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } }
+    })>;
+    negative: RatIndexed<(Rat {
+        den: Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } },
+        num: IntPair {
+            pos: Nat::Zero,
+            neg: Nat::Succ { prev: Nat::Zero }
+        }
+    })>;
 }
 
 machine Main::main(&mut self) {

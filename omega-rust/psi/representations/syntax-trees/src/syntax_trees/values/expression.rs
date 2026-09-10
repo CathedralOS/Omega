@@ -114,6 +114,11 @@ impl ExpressionTable {
         )
     }
 
+    /// Check the live generational identity before reading retained source custody.
+    pub fn contains_expression(&self, handle: ExpressionHandle) -> bool {
+        self.expressions.is_valid(handle)
+    }
+
     pub fn expression(&self, handle: ExpressionHandle) -> &ExpressionNode {
         self.expressions.get(handle)
     }

@@ -146,71 +146,7 @@ pub(crate) fn finalize_authored_expression_selections(
         })
         .collect::<Vec<_>>();
 
-    let mut groups: Vec<CandidateGroup> = Vec::new();
-    for (expression, exposure) in authored_expressions {
-        let compiler_partition = program
-            .tables
-            .bodies
-            .expressions
-            .compiler_selection_partition(expression);
-        for candidate in expression_candidates(program, expression) {
-            if let Some(group) = groups.iter_mut().find(|group| {
-                group.source_span == candidate.source_span
-                    && group.exposure == exposure
-                    && group.kind == candidate.kind
-                    && group.compiler_partition == compiler_partition
-            }) {
-                group.target = reconcile_copy_targets(
-                    program,
-                    candidate.source_span,
-                    candidate.kind,
-                    group.target,
-                    candidate.target,
-                )?;
-                if !group.expressions.contains(&candidate.expression) {
-                    group.expressions.push(candidate.expression);
-                }
-            } else {
-                groups.push(CandidateGroup {
-                    source_span: candidate.source_span,
-                    exposure,
-                    kind: candidate.kind,
-                    compiler_partition,
-                    target: candidate.target,
-                    expressions: vec![candidate.expression],
-                });
-            }
-        }
-    }
-
-    for group in groups {
-        let occurrence = match group.target {
-            CandidateTarget::Resolved(symbol) => program
-                .record_resolved_authored_declaration_selection_in_partition(
-                    group.source_span,
-                    group.exposure,
-                    group.kind,
-                    group.compiler_partition,
-                    symbol,
-                ),
-            CandidateTarget::LateBound(binding) => program
-                .record_late_bound_authored_declaration_selection_in_partition(
-                    group.source_span,
-                    group.exposure,
-                    group.kind,
-                    group.compiler_partition,
-                    binding,
-                ),
-        }
-        .map_err(record_diagnostic)?;
-        for expression in group.expressions {
-            program
-                .tables
-                .bodies
-                .expressions
-                .attach_authored_selection_occurrences(expression, [occurrence]);
-        }
-    }
+    finalize_expression_groups(program, authored_expressions)?;
 
     for pending in pending_proof_memberships {
         let symbol_resolved_trees::domain::ProofFact::Membership(membership) =
@@ -1067,4 +1003,101 @@ fn record_diagnostic(error: AuthoredDeclarationSelectionRecordError) -> Diagnost
     Diagnostic::error(format!(
         "failed to retain authored declaration selection: {error:?}"
     ))
+}
+
+/// Mint the initializer's own constructor/field occurrences before substitution.
+/// A live use later carries these declaration-side occurrences alongside its
+/// separate constant selection, without inventing consumer-side constructor use.
+pub(crate) fn finalize_constant_expression_selections(
+    program: &mut SymbolResolvedTrees,
+    initializers: impl IntoIterator<Item = ExpressionHandle>,
+) -> Result<(), Diagnostic> {
+    let expressions = initializers
+        .into_iter()
+        .filter_map(|expression| {
+            program
+                .tables
+                .bodies
+                .expressions
+                .authored_expression_exposure(expression)
+                .map(|exposure| (expression, exposure))
+        })
+        .collect();
+    finalize_expression_groups(program, expressions)
+}
+
+fn finalize_expression_groups(
+    program: &mut SymbolResolvedTrees,
+    authored_expressions: Vec<(
+        ExpressionHandle,
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    )>,
+) -> Result<(), Diagnostic> {
+    let mut groups: Vec<CandidateGroup> = Vec::new();
+    for (expression, exposure) in authored_expressions {
+        let compiler_partition = program
+            .tables
+            .bodies
+            .expressions
+            .compiler_selection_partition(expression);
+        for candidate in expression_candidates(program, expression) {
+            if let Some(group) = groups.iter_mut().find(|group| {
+                group.source_span == candidate.source_span
+                    && group.exposure == exposure
+                    && group.kind == candidate.kind
+                    && group.compiler_partition == compiler_partition
+            }) {
+                group.target = reconcile_copy_targets(
+                    program,
+                    candidate.source_span,
+                    candidate.kind,
+                    group.target,
+                    candidate.target,
+                )?;
+                if !group.expressions.contains(&candidate.expression) {
+                    group.expressions.push(candidate.expression);
+                }
+            } else {
+                groups.push(CandidateGroup {
+                    source_span: candidate.source_span,
+                    exposure,
+                    kind: candidate.kind,
+                    compiler_partition,
+                    target: candidate.target,
+                    expressions: vec![candidate.expression],
+                });
+            }
+        }
+    }
+
+    for group in groups {
+        let occurrence = match group.target {
+            CandidateTarget::Resolved(symbol) => program
+                .record_resolved_authored_declaration_selection_in_partition(
+                    group.source_span,
+                    group.exposure,
+                    group.kind,
+                    group.compiler_partition,
+                    symbol,
+                ),
+            CandidateTarget::LateBound(binding) => program
+                .record_late_bound_authored_declaration_selection_in_partition(
+                    group.source_span,
+                    group.exposure,
+                    group.kind,
+                    group.compiler_partition,
+                    binding,
+                ),
+        }
+        .map_err(record_diagnostic)?;
+        for expression in group.expressions {
+            program
+                .tables
+                .bodies
+                .expressions
+                .attach_authored_selection_occurrences(expression, [occurrence]);
+        }
+    }
+
+    Ok(())
 }

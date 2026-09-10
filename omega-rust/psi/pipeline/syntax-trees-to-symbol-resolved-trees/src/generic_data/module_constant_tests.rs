@@ -345,3 +345,102 @@ fn qualified_module_constants_cannot_fold_through_same_spelled_type_scopes() {
         )));
     }
 }
+
+#[test]
+fn direct_structural_normalization_replays_live_expression_and_selected_parameter() {
+    let source = "data Value [copy] { value: u64; }
+        data Pick<const V: Value> { value: u64; }
+        machine keep(first: Pick<(Value { value: 1 })>, second: Pick<(Value { value: 2 })>) -> u64 { 0 }";
+    let syntax = normalize_generic_data(parse_sources(source, "", false))
+        .expect("direct structural values normalize");
+    crate::lowerer::lower_syntax_trees(&syntax).expect("actual direct arguments lower");
+    let (application, argument, normalization) = syntax
+        .type_references
+        .generic_nodes()
+        .into_iter()
+        .find_map(|application| {
+            let TypeReferenceNode::Generic { arguments, .. } =
+                syntax.type_references.type_reference(application)
+            else {
+                return None;
+            };
+            syntax
+                .type_references
+                .type_reference_handles(*arguments)
+                .iter()
+                .find_map(|argument| {
+                    let normalization = syntax
+                        .type_references
+                        .const_argument_normalization(*argument)?;
+                    normalization
+                        .authored_expression
+                        .is_valid()
+                        .then(|| (application, *argument, normalization.clone()))
+                })
+        })
+        .expect("retained direct generic application");
+    for expression in [
+        ExpressionHandle::invalid(),
+        ExpressionHandle::from_parts(
+            normalization.authored_expression.arena_index(),
+            normalization.authored_expression.generation() + 1,
+        ),
+    ] {
+        let mut changed = normalization.clone();
+        changed.authored_expression = expression;
+        assert!(crate::constant::validate_normalized_expression(&syntax, &changed).is_err());
+    }
+    let mut swapped = normalization.clone();
+    swapped.authored_expression = syntax
+        .expressions
+        .iter_expressions()
+        .find_map(|(handle, node)| {
+            (matches!(node, ExpressionNode::StructLiteral(_))
+                && syntax.expressions.source_span(handle) != normalization.reference)
+                .then_some(handle)
+        })
+        .expect("another real authored constructor");
+    assert!(crate::constant::validate_normalized_expression(&syntax, &swapped).is_err());
+
+    // The source coordinate alone cannot certify the normalized value: replay
+    // the current AST under the actual template parameter before lowering it.
+    let mut changed = syntax.clone();
+    let ExpressionNode::StructLiteral(literal) = changed
+        .expressions
+        .expression(normalization.authored_expression)
+    else {
+        panic!("record constructor");
+    };
+    let field = changed.expressions.struct_fields(literal.fields)[0].value;
+    let replacement = changed
+        .expressions
+        .iter_expressions()
+        .find_map(|(handle, node)| {
+            (handle != field && matches!(node, ExpressionNode::Integer(_))).then(|| node.clone())
+        })
+        .expect("different source integer");
+    changed.expressions.replace_expression(field, replacement);
+    let errors =
+        crate::lowerer::lower_syntax_trees(&changed).expect_err("same-span value drift rejects");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("differs from its normalized value")),
+        "{errors:?}"
+    );
+
+    let TypeReferenceNode::Generic {
+        base_name,
+        arguments,
+        ..
+    } = syntax.type_references.type_reference(application)
+    else {
+        panic!("actual application");
+    };
+    assert!(validate_direct_const_arguments(&syntax, base_name, *arguments, None).is_err());
+    crate::constant::validate_normalized_const_argument(
+        syntax.type_references.type_reference(argument),
+        &normalization,
+    )
+    .expect("atom itself remains unchanged throughout the hostile replay");
+}

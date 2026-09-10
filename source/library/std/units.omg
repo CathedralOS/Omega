@@ -8,7 +8,7 @@ use omega::language::core::float_operations;
 // deliberately publishes closed named combinations rather than computed
 // index expressions (`A / B` belongs to PDI3).
 
-data Unit {
+data Unit [copy] {
     scale_numerator: i32;
     scale_denominator: i32;
     length_exponent: i32;

@@ -225,7 +225,7 @@ fn lower_item_with_exposure(
         // substitutes the initializer. Retain only a provenance symbol for
         // authored-selection and package-authority custody.
         syntax::item::Item::Const(definition) => {
-            crate::constant::validate_const_definition(lowerer, syntax_trees, definition)?;
+            crate::constant::validate_const_definition(syntax_trees, definition)?;
             crate::constant::retain_const_initializer(lowerer, syntax_trees, definition)?;
             let canonical_value_encoding = if definition.is_public {
                 Some(

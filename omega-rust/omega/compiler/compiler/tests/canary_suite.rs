@@ -363,6 +363,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "modules/fixed_array_machine_indices",
     "modules/module_array_constant_indices",
     "modules/public_float_constants",
+    "modules/nominal_constant_bodies",
     "arithmetic/anonymous_rational_integer_landing",
     "arithmetic/anonymous_rational_arguments",
     "slices/signed_index_and_range_lower_bounds",

@@ -60,7 +60,7 @@ pub(super) fn enforce_construction_field_obligations(
     let Some(data_definition) = program
         .data_definitions()
         .iter()
-        .find(|definition| definition.name.as_str() == type_name)
+        .find(|definition| definition.symbol == literal.type_symbol)
     else {
         return;
     };
@@ -69,12 +69,9 @@ pub(super) fn enforce_construction_field_obligations(
     }
 
     for field in program.expression_table.struct_fields(literal.fields) {
-        let Some(field_type) = construction_field_type(
-            program,
-            data_definition,
-            literal.case_name.as_ref().map(|name| name.as_str()),
-            field.name.as_str(),
-        ) else {
+        let Some(field_type) =
+            selected_construction_field_type(program, literal, field.field_symbol)
+        else {
             continue;
         };
         // An array-literal field value (`Holder { arr: [300, ..] }`) is checked
@@ -500,6 +497,67 @@ pub(crate) fn construction_field_type(
                 .then_some(field.type_reference),
             _ => None,
         })
+}
+
+/// Literal children already carry selected field identities. Rejoin their
+/// exact constructor and case before choosing a destination; a same-spelled
+/// declaration in the consumer's source cannot change numeric landing or
+/// nominal field obligations. Projection-name lookup remains a separate caller.
+pub(crate) fn selected_construction_field_type(
+    program: &TypedTrees,
+    literal: &TableStructLiteral,
+    field: symbols::SymbolHandle,
+) -> Option<TypeReferenceHandle> {
+    if !literal.type_symbol.is_valid() || !field.is_valid() {
+        return None;
+    }
+    let mut definitions = program
+        .data_definitions()
+        .iter()
+        .filter(|definition| definition.symbol == literal.type_symbol);
+    let definition = definitions.next()?;
+    if definitions.next().is_some() || !definition.type_parameters.is_empty() {
+        return None;
+    }
+    let case = if let Some(case_symbol) = literal.case_symbol.filter(|symbol| symbol.is_valid()) {
+        let mut cases = program
+            .data_members(definition)
+            .iter()
+            .filter_map(|member| match member {
+                DataMember::Variant(case) if case.symbol == case_symbol => Some(case),
+                _ => None,
+            });
+        let case = cases.next()?;
+        if cases.next().is_some() {
+            return None;
+        }
+        Some(case)
+    } else {
+        if literal.case_name.is_some() {
+            return None;
+        }
+        None
+    };
+    let mut fields = program
+        .data_members(definition)
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Field(candidate) => Some(candidate),
+            _ => None,
+        })
+        .chain(
+            case.into_iter()
+                .flat_map(|case| program.data_payload_fields(case)),
+        )
+        .filter(|candidate| candidate.symbol == field);
+    let reference = fields.next()?.type_reference;
+    if fields.next().is_some() {
+        return None;
+    }
+    program
+        .type_reference_table
+        .contains_type_reference(reference)
+        .then_some(reference)
 }
 
 /// Read an integer-literal construction value (the parser folds a negative

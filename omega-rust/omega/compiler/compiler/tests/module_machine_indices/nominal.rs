@@ -7,7 +7,7 @@ fn module_record_constant_retains_nominal_carrier_in_machine_indices() {
     Sources::write(
         root.join("settings.omg"),
         "module settings;
-         pub data Value { value: u64; }
+         pub data Value [copy] { value: u64; }
          pub const VALUE: Value = Value { value: 1 };",
     );
     // The generic remains root-owned: this customer needs a selected nominal
@@ -59,8 +59,8 @@ fn module_record_indices_preserve_field_order_and_nested_nominal_selection() {
     Sources::write(
         root.join("settings.omg"),
         "module settings;
-         pub data Leaf { count: u64; }
-         pub data Value { leaf: Leaf; enabled: bool; }
+         pub data Leaf [copy] { count: u64; }
+         pub data Value [copy] { leaf: Leaf; enabled: bool; }
          pub const VALUE: Value = Value { leaf: Leaf { count: 1 }, enabled: true };
          pub const REORDERED: Value = Value { enabled: true, leaf: Leaf { count: 1 } };
          pub const OTHER: Value = Value { leaf: Leaf { count: 2 }, enabled: true };",
@@ -68,7 +68,7 @@ fn module_record_indices_preserve_field_order_and_nested_nominal_selection() {
     Sources::write(
         root.join("main.omg"),
         &format!(
-            "use settings; data Leaf {{ other: bool; }} data Value {{ other: u8; }}
+            "use settings; data Leaf [copy] {{ other: bool; }} data Value [copy] {{ other: u8; }}
          data Pick<const V: settings::Value> {{ marker: u8; }} {} {} {}",
             keep("keep", "settings::VALUE"),
             keep("reordered", "settings::REORDERED"),
@@ -99,7 +99,7 @@ fn module_nominal_indices_reject_equal_layout_root_carriers_and_constructors() {
     let root = tree.package("root");
     Sources::write(
         root.join("settings.omg"),
-        "module settings; pub data Leaf { count: u64; } pub data Value { leaf: Leaf; }
+        "module settings; pub data Leaf [copy] { count: u64; } pub data Value [copy] { leaf: Leaf; }
          pub const VALUE: Value = Value { leaf: Leaf { count: 1 } };",
     );
     for declaration in [
@@ -110,7 +110,7 @@ fn module_nominal_indices_reject_equal_layout_root_carriers_and_constructors() {
         Sources::write(
             root.join("main.omg"),
             &format!(
-                "use settings; data Leaf {{ count: u64; }} data Value {{ leaf: Leaf; }}
+                "use settings; data Leaf [copy] {{ count: u64; }} data Value [copy] {{ leaf: Leaf; }}
              {declaration} data Pick<const V: settings::Value> {{ marker: u8; }} {}",
                 keep("keep", "WRONG")
             ),
@@ -140,7 +140,7 @@ fn module_case_and_fixed_array_indices_share_structural_canonicalization() {
     let root = tree.package("root");
     Sources::write(
         root.join("settings.omg"),
-        "module settings; pub data Value { case Empty; case Some(count: u64); }
+        "module settings; pub data Value [copy] { case Empty; case Some(count: u64); }
          pub const EMPTY: Value = Value::Empty;
          pub const SOME: Value = Value::Some { count: 1 };
          pub const VALUES: [Value; 2] = [Value::Empty, Value::Some { count: 1 }];",
@@ -175,7 +175,7 @@ fn module_nominal_indices_require_direct_public_package_selection() {
     );
     let leaf_source = |visibility: &str| {
         format!(
-            "module settings; pub data Value {{ value: u64; }} {visibility} const VALUE: Value = Value {{ value: 1 }};"
+            "module settings; pub data Value [copy] {{ value: u64; }} {visibility} const VALUE: Value = Value {{ value: 1 }};"
         )
     };
     Sources::write(leaf.join("settings.omg"), &leaf_source("pub"));
@@ -237,7 +237,7 @@ fn root_nominal_domain_indices_remain_available() {
         Sources::write(
             root.join("main.omg"),
             &format!(
-                "data Value {{ value: u64; }} const VALUE: Value = Value {{ value: 1 }};
+                "data Value [copy] {{ value: u64; }} const VALUE: Value = Value {{ value: 1 }};
             domain<T, const V: Value> T::Indexed<V>; {owner}"
             ),
         );
@@ -253,7 +253,7 @@ fn nominal_constant_import_ambiguity_rejects_in_both_orders() {
         Sources::write(
             root.join(format!("{module}.omg")),
             &format!(
-                "module {module}; pub data Value {{ value: u64; }} pub const VALUE: Value = Value {{ value: 1 }};"
+                "module {module}; pub data Value [copy] {{ value: u64; }} pub const VALUE: Value = Value {{ value: 1 }};"
             ),
         );
     }
@@ -289,7 +289,7 @@ fn module_scoped_nominal_indices_retain_their_attachment_owner() {
     let root = tree.package("root");
     Sources::write(
         root.join("settings.omg"),
-        "module settings; pub data Scope {} pub data Value { value: u64; }
+        "module settings; pub data Scope {} pub data Value [copy] { value: u64; }
         pub const Scope::VALUE: Value = Value { value: 1 };",
     );
     Sources::write(

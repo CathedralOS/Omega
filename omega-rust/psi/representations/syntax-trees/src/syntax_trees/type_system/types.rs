@@ -37,6 +37,9 @@ struct RetainedConstArgumentNormalization {
 /// The selections retain authority custody, not canonical value identity.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ConstArgumentNormalization {
+    /// Exact authored structural expression before it becomes an atom. This
+    /// carries constructor selections, independently of named-constant origins.
+    pub authored_expression: crate::expression::ExpressionHandle,
     pub reference: source::SourceSpan,
     pub canonical_result_encoding: String,
     pub selections: HandleSpan<ConstArgumentOrigin>,
@@ -102,12 +105,31 @@ impl TypeReferenceTable {
             .insert(RetainedConstArgumentNormalization {
                 argument,
                 normalization: ConstArgumentNormalization {
+                    authored_expression: crate::expression::ExpressionHandle::invalid(),
                     reference,
                     canonical_result_encoding,
                     selections,
                     builtin_operators,
                 },
             });
+    }
+
+    pub fn retain_const_argument_expression(
+        &mut self,
+        argument: TypeReferenceHandle,
+        expression: crate::expression::ExpressionHandle,
+    ) {
+        let handle = self
+            .const_argument_normalizations
+            .iter()
+            .find_map(|(handle, retained)| (retained.argument == argument).then_some(handle))
+            .expect("structural expression belongs to a retained normalization");
+        let normalization = &mut self
+            .const_argument_normalizations
+            .get_mut(handle)
+            .normalization;
+        assert!(!normalization.authored_expression.is_valid());
+        normalization.authored_expression = expression;
     }
 
     pub fn const_argument_builtin_operators(

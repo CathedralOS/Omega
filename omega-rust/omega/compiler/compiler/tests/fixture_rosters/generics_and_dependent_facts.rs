@@ -187,6 +187,10 @@ pub(crate) const STRUCTURED_CONST_PASS_CANARIES: &[&str] = &[
 
 pub(crate) const STRUCTURED_CONST_FAIL_CANARIES: &[(&str, &str)] = &[
     (
+        "constants/affine_rational_named_constant",
+        "constant type must permit copying and contain no cleanup, shared ownership, or interior mutability",
+    ),
+    (
         STRUCTURED_CONST_DEFAULT_DOMAIN_UNPROVED,
         "default-domain facts whose index-site proof is not implemented",
     ),

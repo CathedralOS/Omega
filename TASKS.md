@@ -1150,8 +1150,8 @@ Owners include
   of one identity is valid, competing carrier-qualified names reject with both
   owners/imports, and carried qualifications do not grant source selection.
 
-  Continue with computed/nonfinite public constant identities, foreign/generic
-  attachments or nominal aggregate body substitution in
+  Continue with computed/nonfinite public constant identities and foreign/generic
+  attachments in
   `syntax-trees-to-symbol-resolved-trees`.
   Preserve exact carrier selection in `constant.rs` and local/narrow-import
   lookup in `symbols/src/table/modules.rs`. Closed record/case and fixed-array
@@ -1159,8 +1159,11 @@ Owners include
   exact declaration and receiving-carrier custody in machine indices. Their
   focused acceptance is `cargo nextest run -p compiler --test module_machine_indices
   nominal:: --no-fail-fast --no-tests fail` on macOS arm64 with Cargo and
-  `RUST_MIN_STACK=33554432`. This is checked-source acceptance; aggregate body
-  substitution and execution remain separate. Unused private initializers must
+  `RUST_MIN_STACK=33554432`. Nominal body substitution has checked-source acceptance
+  through `cargo run -p omega -- --check tests/omega/pass/modules/nominal_constant_bodies/main.omg`;
+  `inspect-terminal --machine keep` on that same fixture still rejects because
+  the machine has no source-independent checked scalar control plan. Aggregate
+  execution needs that producer dependency. Unused private initializers must
   still validate; public exposure of private carriers must reject.
   Root/module machine scopes
   retain original lexical selection through `build-time-evaluation/src/const_generic_expressions.rs`.

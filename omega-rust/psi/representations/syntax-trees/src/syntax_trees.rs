@@ -1133,6 +1133,13 @@ impl SyntaxTrees {
                     .copied(),
             );
         }
+        if let Some(normalization) = other.type_references.const_argument_normalization(handle)
+            && normalization.authored_expression.is_valid()
+        {
+            let expression = self.copy_expression_handle(other, normalization.authored_expression);
+            self.type_references
+                .retain_const_argument_expression(copied, expression);
+        }
         if origin.is_valid() {
             let application = self.copy_type_reference_handle(other, origin);
             self.type_references

@@ -1,0 +1,3 @@
+module settings;
+pub data Value [copy] { value: u64; }
+pub const VALUE: Value = Value { value: 1 };

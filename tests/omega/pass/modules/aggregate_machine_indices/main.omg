@@ -1,5 +1,5 @@
 // Scoped aggregate constants retain their ordinary canonical identity.
-data Index { value: u64; }
+data Index [copy] { value: u64; }
 data Sizes {}
 const Sizes::SIZE: Index = Index { value: 1 };
 data Indexed<const Selected: Index> { value: u8; }
