@@ -1,4 +1,6 @@
 mod aliases;
+#[cfg(test)]
+mod tests;
 mod transitions;
 
 use self::aliases::{seed_local_alias_facts, seed_subslice_window_facts};
@@ -185,7 +187,7 @@ pub(super) fn check_statement<'program>(
             );
         }
         StatementNode::Transition(transition) => {
-            let (mut target_facts, mut continuation_facts) = match transition.guard {
+            let readonly_guard = match transition.guard {
                 TransitionGuardNode::When(guard) => {
                     check_expression(
                         program,
@@ -196,58 +198,73 @@ pub(super) fn check_statement<'program>(
                         guard,
                         diagnostics,
                     );
-                    let mut guarded_facts = facts.clone();
-                    let mut negated_facts = facts.clone();
                     if call_frames.is_some_and(|frames| {
                         frames
                             .expression_write_frame(machine, guard)
                             .into_complete_paths()
                             .is_some_and(|paths| paths.is_empty())
                     }) {
-                        seed_guard_facts(program, machine, state, &mut guarded_facts, guard);
-                        super::guards::seed_value_vs_value_endpoints(
-                            program,
-                            machine,
-                            state,
-                            &mut guarded_facts,
-                            guard,
-                        );
-                        seed_negated_guard_facts(
-                            program,
-                            machine,
-                            state,
-                            &mut negated_facts,
-                            guard,
-                        );
+                        Some(guard)
+                    } else {
+                        None
                     }
-                    (guarded_facts, negated_facts)
                 }
-                TransitionGuardNode::Always => (facts.clone(), facts.clone()),
+                TransitionGuardNode::Always => None,
             };
-            check_transition_target(
-                program,
-                machine,
-                state,
-                call_frames,
-                &mut target_facts,
-                transition.target,
-                diagnostics,
-            );
-            check_transition_target(
-                program,
-                machine,
-                state,
-                call_frames,
-                &mut continuation_facts,
-                transition.continuation,
-                diagnostics,
-            );
+            if transition.target.is_valid() {
+                let mut target_facts = facts.clone();
+                if let Some(guard) = readonly_guard {
+                    seed_guard_facts(program, machine, state, &mut target_facts, guard);
+                    super::guards::seed_value_vs_value_endpoints(
+                        program,
+                        machine,
+                        state,
+                        &mut target_facts,
+                        guard,
+                    );
+                }
+                check_transition_target(
+                    program,
+                    machine,
+                    state,
+                    call_frames,
+                    &mut target_facts,
+                    transition.target,
+                    diagnostics,
+                );
+            }
+            if transition.continuation.is_valid() {
+                let mut continuation_facts = facts.clone();
+                if let Some(guard) = readonly_guard {
+                    seed_negated_guard_facts(
+                        program,
+                        machine,
+                        state,
+                        &mut continuation_facts,
+                        guard,
+                    );
+                }
+                check_transition_target(
+                    program,
+                    machine,
+                    state,
+                    call_frames,
+                    &mut continuation_facts,
+                    transition.continuation,
+                    diagnostics,
+                );
+            }
             // Reaching the next statement refutes a prior exit arm. Guard
             // evaluation has already retired its write-affected facts, and
             // only the existing read-only frame gate seeds a new complement.
             // Target effects belong to the selected exit, not fall-through.
-            if transition.target.is_valid() && !transition.continuation.is_valid() {
-                *facts = continuation_facts;
+            // An absent continuation already owns `facts`; cloning it only to
+            // replace the original would copy every name and dependency twice.
+            if transition.target.is_valid()
+                && !transition.continuation.is_valid()
+                && let Some(guard) = readonly_guard
+            {
+                seed_negated_guard_facts(program, machine, state, facts, guard);
             }
         }
     }
