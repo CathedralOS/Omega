@@ -773,6 +773,7 @@ fn validate_program_internal(
                         &symbols,
                         &writable_roots,
                         &value_env,
+                        &transition_values,
                         &mut boundary_operator_applications,
                         &mut diagnostics,
                     );
@@ -1260,6 +1261,13 @@ fn validate_state_statement_node(
                     assignment_target_primitive,
                     assignment.value,
                 );
+                arithmetic_domains::record_float_literal_assignment(
+                    program,
+                    value_env,
+                    arithmetic_domains::place_path(program, assignment.target),
+                    assignment_target_primitive,
+                    assignment.value,
+                );
             }
         }
         StatementNode::Call(call) => {
@@ -1725,6 +1733,13 @@ fn validate_state_statement_node(
                 );
                 if diagnostics.len() == before {
                     arithmetic_domains::record_unsigned_literal_assignment(
+                        program,
+                        value_env,
+                        Some(local_data.name.as_str().to_owned()),
+                        program.primitive_type_reference(local_data.type_reference),
+                        local_data.initial_value,
+                    );
+                    arithmetic_domains::record_float_literal_assignment(
                         program,
                         value_env,
                         Some(local_data.name.as_str().to_owned()),

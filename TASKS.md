@@ -1099,6 +1099,14 @@ Owners include
   and instantiated selected-operator results. Builtin arithmetic results use
   producer-retained carrier/policy references; input range predicates are not
   result facts. Unknown lookup must not stand in for anonymous numeric meaning.
+  Resume explicit-predicate retention with the macOS Arm64 probe
+  `(match flag { true -> 1 as u64 [0..=10] in Wrapping, false ->
+  18446744073709551616 / 18446744073709551616 }) as u64` in a machine
+  taking `flag: bool` and returning `u64`: CLI checking on `022bfe54b0`
+  rejects the anonymous peer's width. The range-proof prerequisite lives in
+  `validation/src/arithmetic_domains/cast_ranges.rs`; next acceptance must
+  retain the asserted range and policy together without using the assertion
+  to prove itself, then check and independently replay the unchanged expression.
 
 - **MODULE-NAMESPACE-RESOLUTION.** Finish the
   [module/name contract](wiki/spec/language/modules.md) for pre-resolution

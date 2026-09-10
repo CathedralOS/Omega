@@ -43,6 +43,7 @@ pub(crate) fn validate_value_position_calls(
     symbols: &TopLevelSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     value_env: &ValueEnv,
+    transition_values: &crate::transitions::TransitionValueEnvironments,
     boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -157,9 +158,17 @@ pub(crate) fn validate_value_position_calls(
                     continue;
                 }
                 let target = program.statement_table.transition_target(target_handle);
+                // Reuse the same guard and evaluation-order premises as root
+                // transition checking. Re-narrowing the aggregate statement
+                // environment could restore facts invalidated by guard calls.
                 match target {
                     TransitionTargetNode::Named { arguments, .. } => {
-                        for argument in program.statement_table.expression_handles(*arguments) {
+                        for (argument_index, argument) in program
+                            .statement_table
+                            .expression_handles(*arguments)
+                            .iter()
+                            .enumerate()
+                        {
                             scan_expression_calls(
                                 program,
                                 machine,
@@ -167,7 +176,10 @@ pub(crate) fn validate_value_position_calls(
                                 machine_symbols,
                                 symbols,
                                 writable_roots,
-                                value_env,
+                                transition_values
+                                    .for_target(target_handle)
+                                    .get(argument_index)
+                                    .unwrap_or(value_env),
                                 *argument,
                                 executes,
                                 boundary_operator_applications,
@@ -183,7 +195,10 @@ pub(crate) fn validate_value_position_calls(
                             machine_symbols,
                             symbols,
                             writable_roots,
-                            value_env,
+                            transition_values
+                                .for_target(target_handle)
+                                .first()
+                                .unwrap_or(value_env),
                             *expression,
                             executes,
                             boundary_operator_applications,
@@ -774,6 +789,16 @@ fn scan_expression_calls_at_position(
                 cast,
                 diagnostics,
             );
+            if executes {
+                crate::arithmetic_domains::validate_range_cast_at_use(
+                    program,
+                    machine,
+                    state,
+                    expression,
+                    value_env,
+                    diagnostics,
+                );
+            }
             scan_expression_calls(
                 program,
                 machine,

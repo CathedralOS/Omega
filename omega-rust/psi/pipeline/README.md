@@ -47,6 +47,13 @@ before an outer cast. A typed Match arm supplies its anonymous peers' landing
 at their own result edges, even when no enclosing consumer supplies a destination.
 Semantic-domain results, policy casts with explicit result
 predicates, and selected operators without instantiated results remain unresolved.
+Before such predicates may become result facts, each executing cast must prove
+its asserted ranges from the live source environment. The arithmetic validator
+owns that obligation; the expression scanner supplies selected reachability for
+nested casts. Policy qualification cannot repair initial membership, and bounds
+of composed operations describe each node's wrapped or saturated result, not its
+unbounded mathematical intermediate. Float membership uses same-format finite,
+non-NaN source and bound facts; unsupported membership remains a proof failure.
 Matching full-width suffixed integer leaves retain their own
 carrier through the same consumer-edge custody, including bitwise complement.
 
