@@ -1,0 +1,9 @@
+machine identity(value: f32) -> f32 { value }
+
+machine choose(value: f32, first: f32, second: f32) -> u64 {
+    match identity(value) {
+        identity(first) -> 7,
+        identity(second) -> 9,
+        _ -> 11
+    }
+}

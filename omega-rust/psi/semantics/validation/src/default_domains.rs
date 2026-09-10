@@ -1,20 +1,16 @@
-//! R2 rung 3 slice 1 (ch12 "Dependent Data"): the default-domain WRITE
-//! obligation -- every store to a `where`-mentioned field of a
-//! domain-carrying place must leave the facts TRUE at the post-write
-//! valuation. This is the strict pre-window semantics (ch11's
-//! consumption-point windows are the sanctioned ADDITIVE relaxation);
-//! obligations land BEFORE hypotheses on purpose -- over-refusal is safe,
-//! over-assumption is not, so readers may not assume the facts until the
-//! obligation net is total.
+//! Default-domain writes, cross-state facts, and invariant windows.
 //!
-//! V1 tracking model: per-state linear walk over `self`-rooted places
-//! (machine-owned data is BORN ZEROED -- ch12's machine-owned rule -- so
-//! untracked fields read 0). An integer-literal store tracks its value; a
-//! runtime-valued store to a where-mentioned field refuses (the entailment
-//! integration relaxes this later); a whole-place struct-literal store
-//! reseeds the valuation from the literal (already proven at construction
-//! by rung 2b). Resolved calls invalidate valuations overlapping their R5
-//! may-write paths; opaque calls retain the conservative whole-state fence.
+//! A store may open a window, but consumption requires its `where` facts to
+//! hold again; explicit crashes retain the open data identities as damage
+//! evidence. State walks transport three distinct facts: definite establishment
+//! by intersection, literal field valuations by agreement over reached exits,
+//! and open windows by union. Reachability and semantic map equality must stay
+//! stable across fixed-point publication; see `StateExit` and the valuation meet.
+//!
+//! Machine-owned fields are born zero only at a non-reentrant boot entry.
+//! Other entries use transported values, never an invented zero. Whole-place
+//! literals reseed fields; resolved calls invalidate valuations overlapping
+//! their may-write paths, while opaque calls retain the whole-state fence.
 
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
@@ -30,12 +26,15 @@ mod state_flow;
 mod symbolic_values;
 mod where_fact_intervals;
 
+#[cfg(test)]
+mod tests;
+
 use call_summaries::{collect_call_summaries, machine_symbol_for_state};
 use place_queries::{
     data_definition_for_expression, domain_definition_by_name, field_is_where_mentioned,
     is_self_rooted, membership_field_name, self_place_spelling,
 };
-use state_flow::{PlaceValuation, meet_valuations, state_edges};
+use state_flow::{PlaceValuation, canonicalize_valuations, meet_valuations, state_edges};
 use symbolic_values::{
     SymbolicValue, expression_contains_call, expression_sequence_measures, expression_symbol,
     expression_symbolic_value, fold_with_valuation, integer_literal_value,
@@ -43,6 +42,17 @@ use symbolic_values::{
 pub(crate) use where_fact_intervals::where_fact_interval;
 
 type InvariantWindow = (String, String, symbols::SymbolHandle);
+
+/// Reachability belongs to the entry that produced this exit, not to the
+/// entries being updated during the following meet. Otherwise a newly reached
+/// state publishes its old, unvisited walk as known-empty and cyclic constants
+/// can alternate with unknown forever.
+struct StateExit {
+    established: Vec<String>,
+    valuations: Vec<PlaceValuation>,
+    windows: Vec<InvariantWindow>,
+    was_reached: bool,
+}
 
 /// Source-independent evidence that one explicit crash occurs while at least
 /// one default-domain invariant window is open. The place spelling remains a
@@ -273,11 +283,11 @@ fn analyze_default_domain_writes(
         let is_terminal = |index: usize| !edges.iter().any(|(from, _)| *from == index);
         loop {
             let mut changed = false;
-            let exits: Vec<(Vec<String>, Vec<PlaceValuation>, Vec<InvariantWindow>)> = states
+            let exits: Vec<StateExit> = states
                 .iter()
                 .enumerate()
                 .map(|(index, state)| {
-                    walk_state(
+                    let (established, valuations, windows) = walk_state(
                         program,
                         call_frames.as_ref(),
                         machine,
@@ -291,7 +301,13 @@ fn analyze_default_domain_writes(
                         &mut throwaway,
                         &mut throwaway_crash_sites,
                         false,
-                    )
+                    );
+                    StateExit {
+                        established,
+                        valuations,
+                        windows,
+                        was_reached: entry_valuations[index].is_some(),
+                    }
                 })
                 .collect();
             for index in 1..states.len() {
@@ -306,7 +322,7 @@ fn analyze_default_domain_writes(
                 // Establishment meet (intersection over ALL predecessors).
                 let mut established_meet: Option<Vec<String>> = None;
                 for predecessor in &predecessors {
-                    let exit = &exits[*predecessor].0;
+                    let exit = &exits[*predecessor].established;
                     established_meet = Some(match established_meet {
                         None => exit.clone(),
                         Some(current) => current
@@ -323,7 +339,7 @@ fn analyze_default_domain_writes(
                 // Window MAY-union: open from ANY predecessor -> open here.
                 let mut window_union: Vec<InvariantWindow> = Vec::new();
                 for predecessor in &predecessors {
-                    for window in &exits[*predecessor].2 {
+                    for window in &exits[*predecessor].windows {
                         if !window_union.contains(window) {
                             window_union.push(window.clone());
                         }
@@ -347,20 +363,24 @@ fn analyze_default_domain_writes(
                 let visited: Vec<usize> = predecessors
                     .iter()
                     .copied()
-                    .filter(|predecessor| entry_valuations[*predecessor].is_some())
+                    .filter(|predecessor| exits[*predecessor].was_reached)
                     .collect();
                 if visited.is_empty() {
                     continue;
                 }
                 let mut valuation_meet: Option<Vec<PlaceValuation>> = None;
                 for predecessor in visited {
-                    let exit = &exits[predecessor].1;
+                    let exit = &exits[predecessor].valuations;
                     valuation_meet = Some(match valuation_meet {
                         None => exit.clone(),
                         Some(current) => meet_valuations(&current, exit),
                     });
                 }
-                let valuation_meet = valuation_meet.unwrap_or_default();
+                let mut valuation_meet = valuation_meet.unwrap_or_default();
+                // These vectors represent maps. Statement/constructor order
+                // must not count as a changed fact at the fixed-point boundary,
+                // including when there is only one predecessor and no meet.
+                canonicalize_valuations(&mut valuation_meet);
                 if entry_valuations[index].as_ref() != Some(&valuation_meet) {
                     entry_valuations[index] = Some(valuation_meet);
                     changed = true;
