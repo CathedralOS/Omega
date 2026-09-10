@@ -2,3 +2,5 @@ module settings;
 
 pub const SCALE: f32 = 1.5;
 pub const WIDE: f64 = 1.5;
+pub const POSITIVE_INFINITY: f32 = 1e40;
+pub const NEGATIVE_INFINITY: f64 = -1e9999;
