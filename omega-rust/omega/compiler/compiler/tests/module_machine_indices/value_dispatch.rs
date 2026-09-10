@@ -457,6 +457,35 @@ fn anonymous_match_divisors_preserve_opposite_signs_through_arithmetic() {
 }
 
 #[test]
+fn anonymous_match_divisors_use_lattice_gaps_through_arithmetic() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for expression in [
+        "(1 / ((match true { true -> 1, false -> 3 }) - 2) == -1)",
+        "(1 / ((match true { true -> 3, false -> 1 }) - 2) == 1)",
+        "(1 / ((match true { true -> -3, false -> -1 }) + 2) == -1)",
+        "(1 / ((match true { true -> 1, false -> 7 }) - 3) == -0.5)",
+        "(1 / ((match true { true -> 0.25, false -> 0.75 }) - 0.5) == -4)",
+        "(1 / (((match true { true -> 1, false -> 3 }) - 2) / -2) == 2)",
+        "(1 / (1 / ((match true { true -> 1, false -> 3 }) - 2)) == -1)",
+        "(1 / ((match true { true -> 1, false -> 3 }) + (match true { true -> 2, false -> 4 }) - 4) == -1)",
+        "(1 / ((match true { true -> 18446744073709551617, false -> 18446744073709551619 }) - 18446744073709551618) == -1)",
+        "(true || (1 / ((match (1u8 / 0 == 0) { true -> 1, false -> 3 }) - 2) == 0))",
+    ] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "pub data Flag<const Enabled: bool> {{ value: u8; }} {} {}",
+                keep("keep", "Flag", expression),
+                keep("oracle", "Flag", "true"),
+            ),
+        );
+        let checked = compile(&root, root_inputs(&root));
+        assert_same_machine_types(&checked, "keep", "oracle");
+    }
+}
+
+#[test]
 fn anonymous_match_divisor_proofs_preserve_undefined_and_unknown_cases() {
     let tree = Sources::new();
     let root = tree.package("root");
@@ -468,8 +497,11 @@ fn anonymous_match_divisor_proofs_preserve_undefined_and_unknown_cases() {
         "(false && (1 / (1 + 0 * (1 / (match true { true -> 1, false -> 0 }))) == 0))",
         "(false && (1 / ((match true { true -> -1, false -> 1 }) + 1) == 0))",
         "(false && (1 / ((match true { true -> -1, false -> 1 }) / (match true { true -> -2, false -> 0 })) == 0))",
-        // Same-sign gaps and correlations still require stronger evidence.
-        "(false && (1 / ((match true { true -> 1, false -> 3 }) - 2) == 0))",
+        // A later zero arm or a weakened lattice cannot inherit a prior gap.
+        "(false && (1 / ((match 0u8 { 0 -> 1, 1 -> 3, _ -> 2 }) - 2) == 0))",
+        "(false && (1 / ((match 0u8 { 0 -> 1, 1 -> 3, _ -> 4 }) - 2) == 0))",
+        "(false && (1 / (match true { true -> ((match true { true -> 1, false -> 3 }) - 2), false -> 0 }) == 0))",
+        // Correlated result facts are not reconstructed from branch selection.
         "(false && (1 / ((match true { true -> 1, false -> 2 }) - (match true { true -> 1, false -> 2 }) + 1) == 0))",
     ] {
         Sources::write(
@@ -500,6 +532,7 @@ fn anonymous_match_divisor_proofs_compose_independent_terms() {
     for (term, operation, reciprocal) in [
         ("(match true { true -> 1, false -> 2 })", " + ", "1 / 24"),
         ("(match true { true -> -1, false -> 1 })", " * ", "1"),
+        ("((match true { true -> 1, false -> 3 }) - 2)", " * ", "1"),
     ] {
         let denominator = std::iter::repeat_n(term, 24)
             .collect::<Vec<_>>()

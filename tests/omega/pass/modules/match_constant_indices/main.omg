@@ -22,3 +22,7 @@ machine divided(value: Flag<(1 / ((match true { true -> 1, false -> 2 }) + 1) ==
 machine signed_divisor(value: Flag<(1 / ((match true { true -> -1, false -> 1 }) + 0) == -1)>) -> Flag<true> {
     value
 }
+
+machine spaced_divisor(value: Flag<(1 / ((match true { true -> 1, false -> 3 }) - 2) == -1)>) -> Flag<true> {
+    value
+}

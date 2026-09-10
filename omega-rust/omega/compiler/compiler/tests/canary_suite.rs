@@ -360,6 +360,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "modules/boolean_logic_indices",
     "modules/literal_boolean_indices",
     "modules/rational_boolean_indices",
+    "modules/match_constant_indices",
     "modules/aggregate_machine_indices",
     "modules/fixed_array_machine_indices",
     "modules/module_array_constant_indices",
