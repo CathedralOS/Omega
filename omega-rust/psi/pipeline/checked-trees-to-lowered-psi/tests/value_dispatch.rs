@@ -352,3 +352,146 @@ fn typed_match_peer_supplies_anonymous_numeric_result_carrier() {
         }
     }
 }
+
+#[test]
+fn composed_integer_peers_supply_anonymous_numeric_result_carriers() {
+    // Each peer produces 24 in its actual u64 carrier before the outer OR.
+    for typed_peer in [
+        "8u64 | 16u64",
+        "8u64 + 16u64",
+        "~18446744073709551591u64",
+        "192u64 >> 3u64",
+    ] {
+        for (anonymous, when_true, when_false) in [
+            ("18446744073709551616 / 18446744073709551616", 25, 25),
+            ("7 / 2 * 2", 31, 31),
+            (
+                "match flag { true -> 18446744073709551616 / 18446744073709551616, false -> 7 / 2 * 2 }",
+                25,
+                31,
+            ),
+            (
+                "match flag { true -> match flag { _ -> 18446744073709551616 / 18446744073709551616 }, false -> match flag { _ -> 7 / 2 * 2 } }",
+                25,
+                31,
+            ),
+        ] {
+            for expression in [
+                format!("({anonymous}) | ({typed_peer})"),
+                format!("({typed_peer}) | ({anonymous})"),
+            ] {
+                let source = format!("machine choose(flag: bool) -> u64 {{ {expression} }}");
+                for (flag, expected) in [(true, when_true), (false, when_false)] {
+                    let (_, execution) = execute(&source, &[TerminalScalarValue::Boolean(flag)]);
+                    assert_eq!(
+                        execution.value(),
+                        TerminalExecutionResult::Scalar(unsigned(expected)),
+                        "{expression}; flag={flag}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn integer_cast_preserves_computed_match_arm_carrier_before_widening() {
+    for typed_arm in [
+        "8u32 | 16u32",
+        "8u32 + 16u32",
+        "~4294967271u32",
+        "192u32 >> 3u32",
+    ] {
+        for (dispatch, when_true, when_false) in [
+            (
+                format!("match flag {{ true -> {typed_arm}, false -> 7 / 2 * 2 }}"),
+                24,
+                7,
+            ),
+            (
+                format!(
+                    "match flag {{ true -> 18446744073709551616 / 18446744073709551616, false -> {typed_arm} }}"
+                ),
+                1,
+                24,
+            ),
+        ] {
+            let source = format!("machine choose(flag: bool) -> u64 {{ ({dispatch}) as u64 }}");
+            for (flag, expected) in [(true, when_true), (false, when_false)] {
+                let (module, execution) = execute(&source, &[TerminalScalarValue::Boolean(flag)]);
+                assert_eq!(
+                    execution.value(),
+                    TerminalExecutionResult::Scalar(unsigned(expected)),
+                    "{dispatch}; flag={flag}"
+                );
+                assert!(
+                    module
+                        .machines
+                        .iter()
+                        .flat_map(|machine| &machine.blocks)
+                        .flat_map(|block| &block.operations)
+                        .any(|operation| matches!(
+                            operation.kind,
+                            OperationKind::IntegerWiden { .. }
+                        )),
+                    "the computed u32 arm must retain its carrier through the match join: {dispatch}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn high_unsigned_comparisons_preserve_order_across_the_signed_boundary() {
+    let subjects = [
+        0,
+        9223372036854775807,
+        9223372036854775808,
+        18446744073709551591,
+    ];
+    for (comparison, expected_results) in [
+        ("value > 0u64", [false, true, true, true]),
+        ("0u64 < value", [false, true, true, true]),
+        ("value < 9223372036854775808u64", [true, true, false, false]),
+        (
+            "9223372036854775808u64 <= value",
+            [false, false, true, true],
+        ),
+        ("18446744073709551591u64 > value", [true, true, true, false]),
+        (
+            "value >= 18446744073709551591u64",
+            [false, false, false, true],
+        ),
+    ] {
+        let source = format!("machine choose(value: u64) -> bool {{ {comparison} }}");
+        for (subject, expected) in subjects.into_iter().zip(expected_results) {
+            let (_, execution) = execute(&source, &[unsigned(subject)]);
+            assert_eq!(
+                execution.value(),
+                TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected)),
+                "{comparison}; value={subject}"
+            );
+        }
+    }
+}
+
+#[test]
+fn high_unsigned_literals_retain_their_carrier_at_scalar_boundaries() {
+    for value in [9223372036854775808u128, 18446744073709551615] {
+        for expression in [
+            format!("{value}u64"),
+            format!("identity({value}u64)"),
+            format!("{value}u64 as u64"),
+        ] {
+            let source = format!(
+                "machine identity(value: u64) -> u64 {{ value }} machine choose() -> u64 {{ {expression} }}"
+            );
+            let (_, execution) = execute(&source, &[]);
+            assert_eq!(
+                execution.value(),
+                TerminalExecutionResult::Scalar(unsigned(value)),
+                "{expression}"
+            );
+        }
+    }
+}

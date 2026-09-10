@@ -206,7 +206,7 @@ fn admit_result_values_inner(
     if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
         // A typed arm fixes the common result before any outer cast. Only an
         // entirely anonymous result inherits that cast/consumer's destination.
-        let destination = match crate::expression_types::declared_dispatch_value_type(
+        let destination = match crate::expression_types::expression_result_type_reference(
             program, machine, state, expression,
         ) {
             Some(retained) => retained,
