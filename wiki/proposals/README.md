@@ -42,9 +42,11 @@ separate review system or historical decision ledger.
 - [0007: Checked boundary topology](0007_checked_boundary_topology.md): explicit
   service-instance wiring, routing policies, codec, and installer in an ordinary
   package; depends on 0008 for build-only imports and generic staged publication.
-  Component evidence and runtime confinement remain independently required.
+  Defines verified component consumption, independently authorized owner intent,
+  and binding/activation checks; no topology-specific compiler graph engine.
 - [0008: Build dependency scopes and isolated inputs](0008_build_dependency_scopes.md):
-  build-only imports, host/product context separation, snapshot/staging defaults,
-  explicit host grants, and generic required artifact publication.
+  build-only imports, non-executing product references, deterministic captured
+  inputs, sealed staging, linear output completion, and explicit artifact-only
+  mode; compares Cargo, Bazel, and Nix without adopting ambient host access.
 
 Temporary working notes belong in [drafts/](../drafts/README.md).
