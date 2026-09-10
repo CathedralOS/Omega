@@ -339,11 +339,17 @@ impl Context<'_> {
                 (
                     ExpressionNode::Float(literal),
                     semantic_vocabulary::IeeeFloatValue::Binary32(bits),
-                ) => literal.f32_bits() == *bits,
+                ) => {
+                    literal.landing() == Some(numerics::literals::FloatFormat::F32)
+                        && literal.f32_bits() == *bits
+                }
                 (
                     ExpressionNode::Float(literal),
                     semantic_vocabulary::IeeeFloatValue::Binary64(bits),
-                ) => literal.value_f64().to_bits() == *bits,
+                ) => {
+                    literal.landing() == Some(numerics::literals::FloatFormat::F64)
+                        && literal.value_f64().to_bits() == *bits
+                }
                 _ => false,
             },
             Scalar::IntegerBinary {

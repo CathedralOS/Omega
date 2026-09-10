@@ -27,7 +27,7 @@ pub(super) fn shape(
     native_shape(scalar.scalar_type).ok_or(LoweringError::ValueTypeMismatch(scalar.value))
 }
 
-fn native_shape(scalar: ScalarType) -> Option<ValueShape> {
+pub(super) fn native_shape(scalar: ScalarType) -> Option<ValueShape> {
     match scalar {
         ScalarType::Integer(integer) => {
             crate::lowering::scalar_abi::fixed_native_integer_shape(integer)

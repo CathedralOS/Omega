@@ -1,6 +1,6 @@
 //! Substitution copies values, not permission to infer a new array carrier.
 //!
-//! Integer leaves retain numeric landings, but empty arrays have no leaf on
+//! Numeric leaves retain their landings, but empty arrays have no leaf on
 //! which to retain their element type. The exact authored constant selection
 //! already leads to the declaration's complete type. Rejoin that type at every
 //! destination before ordinary literal checks; refinements and borrowing still
@@ -14,7 +14,8 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// A concrete primitive array type has no qualifications or ownership authority.
 /// Validate its complete shape even below empty dimensions; operand evaluation
-/// and effects remain separate expression obligations.
+/// and effects remain separate expression obligations. Admitting IEEE storage
+/// does not admit unselected floating arithmetic in its initializer.
 pub fn is_closed_primitive_array_type(
     program: &TypedTrees,
     mut reference: TypeReferenceHandle,
@@ -43,6 +44,8 @@ pub fn is_closed_primitive_array_type(
                                 | typed_trees::types::PrimitiveType::U16
                                 | typed_trees::types::PrimitiveType::U32
                                 | typed_trees::types::PrimitiveType::U64
+                                | typed_trees::types::PrimitiveType::F32
+                                | typed_trees::types::PrimitiveType::F64
                         )
                     );
             }
@@ -293,6 +296,24 @@ pub fn closed_literal_array_elements(
                     == Some(typed_trees::types::PrimitiveType::Bool) =>
             {
                 leaves.push((expression, typed_trees::types::PrimitiveType::Bool))
+            }
+            (ExpressionNode::Float(literal), TypeReferenceNode::Named { .. }) => {
+                let primitive = program.primitive_type_reference(reference)?;
+                // A projection may discard siblings only after every leaf is
+                // a closed value in its declared format, never a conversion.
+                if !matches!(
+                    (primitive, literal.landing()),
+                    (
+                        typed_trees::types::PrimitiveType::F32,
+                        Some(numerics::literals::FloatFormat::F32)
+                    ) | (
+                        typed_trees::types::PrimitiveType::F64,
+                        Some(numerics::literals::FloatFormat::F64)
+                    )
+                ) {
+                    return None;
+                }
+                leaves.push((expression, primitive));
             }
             _ => return None,
         }

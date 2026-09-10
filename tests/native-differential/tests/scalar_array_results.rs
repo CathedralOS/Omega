@@ -25,6 +25,9 @@ mod arguments;
 #[path = "scalar_array_results/tag_erasure.rs"]
 mod tag_erasure;
 
+#[path = "scalar_array_results/floating.rs"]
+mod floating;
+
 fn produce(
     source: &str,
     entry: &str,
@@ -186,6 +189,9 @@ fn native_array_shapes_preserve_leaf_bits_and_row_major_order() {
             ),
             ("nested", "uint16_t", 4, "{65535, 1, 2, 32768}"),
             ("boolean", "uint8_t", 2, "{1, 0}"),
+            // Arrays retain their integer-fragment ABI; inspect IEEE bits,
+            // not a foreign C homogeneous-floating-aggregate result.
+            ("floating", "uint32_t", 2, "{0x3fc00000U, 0xc0100000U}"),
         ] {
             let source = include_str!("scalar_array_results/shapes.omg");
             if entry == "pair" && target == NativeTarget::windows_x64() {

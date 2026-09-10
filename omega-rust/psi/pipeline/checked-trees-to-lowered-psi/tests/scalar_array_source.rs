@@ -6,6 +6,8 @@ mod call_arguments;
 mod call_results;
 #[path = "scalar_array_source/computation_arguments.rs"]
 mod computation_arguments;
+#[path = "scalar_array_source/floating.rs"]
+mod floating;
 #[path = "scalar_array_source/literal_arguments.rs"]
 mod literal_arguments;
 
@@ -93,7 +95,12 @@ fn same_typed_array_locals_return_the_authored_binding_contents() {
 fn empty_array_catalog_cannot_change_primitive_or_nested_dimensions_under_the_same_identity() {
     use checked_trees::CheckedUnitStructuralTypeShape;
 
-    for carrier in ["[u8; 0]", "[[u8; 2]; 0]"] {
+    for (carrier, primitive_type) in [
+        ("[u8; 0]", PrimitiveType::U8),
+        ("[[u8; 2]; 0]", PrimitiveType::U8),
+        ("[f32; 0]", PrimitiveType::F32),
+        ("[[f64; 2]; 0]", PrimitiveType::F64),
+    ] {
         let original = checked_source(&format!("machine selected() -> {carrier} {{ [] }}"));
         checked_trees_to_lowered_psi::lower_machine(&original, "selected")
             .expect("empty array source has complete declared shape");
@@ -108,7 +115,7 @@ fn empty_array_catalog_cannot_change_primitive_or_nested_dimensions_under_the_sa
             .find(|declaration| {
                 matches!(
                     declaration.shape,
-                    CheckedUnitStructuralTypeShape::PrimitiveScalar(PrimitiveType::U8)
+                    CheckedUnitStructuralTypeShape::PrimitiveScalar(actual) if actual == primitive_type
                 )
             })
             .expect("empty array retains its primitive declaration");
@@ -118,7 +125,7 @@ fn empty_array_catalog_cannot_change_primitive_or_nested_dimensions_under_the_sa
             "empty array primitive changed under retained identity",
         );
 
-        if carrier == "[[u8; 2]; 0]" {
+        if carrier.starts_with("[[") {
             let mut changed = original;
             let nested = changed
                 .facts

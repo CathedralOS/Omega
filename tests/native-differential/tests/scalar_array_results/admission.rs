@@ -29,15 +29,3 @@ fn zero_odd_and_indirect_result_fragments_remain_explicit_limits() {
         }
     }
 }
-
-#[test]
-fn source_float_array_still_needs_checked_execution_plan() {
-    assert!(matches!(
-        produce(include_str!("shapes.omg"), "floating"),
-        Err(
-            terminal_production::TerminalArtifactProductionError::Lowering(
-                checked_trees_to_lowered_psi::LoweringError::Unsupported(_)
-            )
-        )
-    ));
-}

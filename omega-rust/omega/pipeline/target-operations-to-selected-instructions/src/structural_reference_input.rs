@@ -163,9 +163,6 @@ pub(crate) fn primitive_array_shape(
                 current = element;
             }
             StructuralTypeShape::PrimitiveScalar(scalar) if array => {
-                if !matches!(scalar, ScalarType::Boolean | ScalarType::Integer(_)) {
-                    return None;
-                }
                 if matches!(scalar, ScalarType::Integer(integer) if integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed)
                 {
                     return None;

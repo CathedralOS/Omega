@@ -94,8 +94,11 @@ pub(in crate::lowering) fn shape(
                 current = element;
             }
             StructuralTypeShape::PrimitiveScalar(scalar_type) if array => {
-                let leaf = crate::lowering::scalar_abi::fixed_native_scalar_shape(scalar_type)
-                    .ok_or_else(invalid)?;
+                // Array leaves use the same bit-preserving storage as scalar
+                // locals. The enclosing array still has an integer-fragment
+                // aggregate ABI, including when its leaves are IEEE values.
+                let leaf =
+                    super::primitive_storage::native_shape(scalar_type).ok_or_else(invalid)?;
                 let count = if empty { 0 } else { count.ok_or_else(invalid)? };
                 let size = count
                     .checked_mul(u64::from(leaf.byte_size))

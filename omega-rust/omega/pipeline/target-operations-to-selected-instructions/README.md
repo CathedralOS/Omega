@@ -58,7 +58,13 @@ physical values, odd-width fragments, stack/indirect owned arguments, and
 hidden-pointer results remain explicit transport limits. Zero physical
 size never erases the semantic array type. The native differential
 `scalar_array_results` target covers full publication and matching-host execution;
-its floating-source control records the separate checked-plan production gap.
+its floating cases preserve binary32/binary64 payloads, including signed zeros and
+NaN payloads. Array results keep their integer-fragment aggregate ABI; they are
+not foreign C homogeneous-floating aggregates. Scalar floating inputs use the
+ordinary float-bank transfers before bit-preserving graph and array storage.
+Calling an array-producing machine with scalar IEEE arguments still requires
+mixed-bank aggregate-call constraint rows and their independent catalog readers;
+direct construction entries and owned-array-only calls do not establish that row.
 Narrow scalar calls normalize their exact signed or unsigned 8/16/32-bit carrier
 before whole-register consumers; raw array fragments need no such scalar
 interpretation. Computed Boolean comparison values still require predicate
