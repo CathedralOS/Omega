@@ -243,7 +243,7 @@ fn unsigned_maximum(primitive: typed_trees::types::PrimitiveType) -> Option<u128
 pub(crate) fn proven_slice_length_ranks(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
-) -> Option<Vec<checked_trees::CheckedStateSliceLengthRank>> {
+) -> Option<Vec<checked_trees::CheckedStateNaturalRank>> {
     let witness = machine.termination_plan.implementation_witness.as_ref()?;
     if witness.view_path != "Slice::Length"
         || !witness.view_arguments.is_empty()
@@ -273,12 +273,52 @@ pub(crate) fn proven_slice_length_ranks(
                 .state_parameters(state)
                 .iter()
                 .position(|candidate| candidate.symbol == parameter.symbol)?;
-            ranks.push(checked_trees::CheckedStateSliceLengthRank {
+            ranks.push(checked_trees::CheckedStateNaturalRank {
                 state: state.symbol,
                 parameter: parameter.symbol,
                 parameter_position: u32::try_from(parameter_position).ok()?,
+                measure: checked_trees::CheckedNaturalRankMeasure::ByteSequenceLength,
             });
         }
+    }
+    ranks.sort_by_key(|rank| (rank.state.arena_index(), rank.state.generation()));
+    (!ranks.is_empty()).then_some(ranks)
+}
+
+/// Preserve an already-proven natural measure on the shared executable state
+/// graph. This records its subject, not a fixed-work bound or Terminal proof.
+pub(crate) fn proven_state_natural_ranks(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+) -> Option<Vec<checked_trees::CheckedStateNaturalRank>> {
+    let witness = machine.termination_plan.implementation_witness.as_ref()?;
+    if witness.ranking_view == language_semantics::RankingViewId::SLICE_LENGTH {
+        return proven_slice_length_ranks(program, machine);
+    }
+    if witness.ranking_view != language_semantics::RankingViewId::NAT_DESCENDING
+        || !witness.view_arguments.is_empty()
+        || witness.rank_range.is_some()
+    {
+        return None;
+    }
+    let components = proven_nat_countdown_sccs(program, machine)?;
+    let mut ranks = Vec::new();
+    for component in components {
+        let state = program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == component.header_state)?;
+        let parameter = program
+            .state_parameters(state)
+            .get(component.header_rank_parameter_position as usize)?;
+        ranks.push(checked_trees::CheckedStateNaturalRank {
+            state: state.symbol,
+            parameter: parameter.symbol,
+            parameter_position: component.header_rank_parameter_position,
+            measure: checked_trees::CheckedNaturalRankMeasure::UnsignedParameter {
+                primitive_type: component.rank_primitive_type,
+            },
+        });
     }
     ranks.sort_by_key(|rank| (rank.state.arena_index(), rank.state.generation()));
     (!ranks.is_empty()).then_some(ranks)

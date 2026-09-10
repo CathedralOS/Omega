@@ -172,13 +172,18 @@ pub(in crate::attached_unit::composed_control) fn emit(
         let mut next_value = catalogs.next_value;
         let mut next_block = catalogs.next_block;
         let mut next_edge = catalogs.next_edge;
-        let current_rank = ranking::parameter_position(plan, state).map(|parameter_position| {
-            crate::operation_emission::emit_byte_length(
-                state_parameters[parameter_position].place,
-                &mut next_value,
-                &mut operations,
-            )
-        });
+        let current_rank =
+            if let Some(scalar_position) = ranking::scalar_parameter_position(plan, state) {
+                Some(values[scalar_position].id)
+            } else {
+                ranking::parameter_position(plan, state).map(|parameter_position| {
+                    crate::operation_emission::emit_byte_length(
+                        state_parameters[parameter_position].place,
+                        &mut next_value,
+                        &mut operations,
+                    )
+                })
+            };
         let bindings = scalars::emit_prefix(
             checked,
             state,
@@ -266,7 +271,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
                     "Unit graph target disappeared during emission",
                 ))?;
             let stage = case_edge || condition.is_some()
-                    && ((current_rank.is_some() && ranking::parameter_position(plan, &plan.states[target]).is_some()) || edge.transfers.iter().any(|transfer| matches!(
+                    && ((current_rank.is_some() && ranking::has_rank(plan, &plan.states[target])) || edge.transfers.iter().any(|transfer| matches!(
                         transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { .. }
                     )) || edge.scalar_arguments.iter().any(|argument| {
                         matches!(
@@ -395,13 +400,17 @@ pub(in crate::attached_unit::composed_control) fn emit(
                 ));
             }
             let arriving_rank = if current_rank.is_some() {
-                ranking::parameter_position(plan, target_state).map(|parameter_position| {
-                    crate::operation_emission::emit_byte_length(
-                        structural_arguments[parameter_position].place,
-                        &mut next_value,
-                        &mut operations,
-                    )
-                })
+                if let Some(position) = ranking::scalar_parameter_position(plan, target_state) {
+                    arguments.get(position).copied()
+                } else {
+                    ranking::byte_argument_position(plan, target_state).map(|parameter_position| {
+                        crate::operation_emission::emit_byte_length(
+                            structural_arguments[parameter_position].place,
+                            &mut next_value,
+                            &mut operations,
+                        )
+                    })
+                }
             } else {
                 None
             };
@@ -525,6 +534,22 @@ pub(in crate::attached_unit::composed_control) fn emit(
                 }
             }
         };
+        if let Some(rank) = current_rank {
+            // Completed evaluation blocks stay inside this authored state.
+            // Their private edges preserve its incoming rank; only the state
+            // successor constructed above claims an authored strict decrease.
+            rank_edges.extend(evaluation.blocks.iter().flat_map(|block| {
+                block.terminator.edges().map(|edge| {
+                    (
+                        edge,
+                        (
+                            rank,
+                            terminal_psi::TerminalNaturalRankComparison::Preserving,
+                        ),
+                    )
+                })
+            }));
+        }
         evaluation.blocks.push(Block {
             id: evaluation.current,
             parameters: evaluation.parameters,
