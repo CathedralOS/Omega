@@ -157,6 +157,8 @@ fn lower_typed_trees_with_policy(
         &mut facts.flow.terminal_scalar_graphs,
     );
 
+    crate::flow::finalize_scalar_unit_operations(&program, &mut facts);
+
     // This plan must be assembled only after multiplicity and carry checking:
     // their ownership events and claim policies are the authority for the
     // structural/Unit terminal slice.

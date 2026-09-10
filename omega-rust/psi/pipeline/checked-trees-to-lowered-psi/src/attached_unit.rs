@@ -14,7 +14,7 @@ mod argument_schedule;
 pub(crate) mod bodies;
 mod byte_subslices;
 mod call_closure;
-mod catalog;
+pub(crate) mod catalog;
 mod claims;
 mod composed_control;
 mod parameters;
@@ -108,6 +108,16 @@ fn retain_exact_checked_flow_call(
     coordinate: checked_trees::CheckedUnitCallCoordinate,
     target: symbols::SymbolHandle,
 ) -> Result<(), LoweringError> {
+    retain_exact_flow_call(checked, machine.machine, machine.state, coordinate, target).map(|_| ())
+}
+
+pub(crate) fn retain_exact_flow_call(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    source_state: symbols::SymbolHandle,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    target: symbols::SymbolHandle,
+) -> Result<&checked_trees::FlowCallFact, LoweringError> {
     let mut states = checked
         .facts
         .flow
@@ -115,8 +125,7 @@ fn retain_exact_checked_flow_call(
         .states
         .iter()
         .filter_map(|(_, state)| {
-            (state.machine_symbol == machine.machine && state.state_symbol == machine.state)
-                .then_some(state)
+            (state.machine_symbol == machine && state.state_symbol == source_state).then_some(state)
         });
     let Some(state) = states.next() else {
         return unsupported("Unit scalar call is missing its original checked flow state");
@@ -131,7 +140,7 @@ fn retain_exact_checked_flow_call(
         LoweringError::Unsupported("Unit scalar call ordinal coordinate exceeds usize")
     })?;
     let authored =
-        crate::call_source_custody::authored::locate_source(checked, machine.state, coordinate)?;
+        crate::call_source_custody::authored::locate_source(checked, source_state, coordinate)?;
     if authored.target_state != target {
         return unsupported("Unit result call disagrees with its authored resolved target");
     }
@@ -147,16 +156,15 @@ fn retain_exact_checked_flow_call(
         });
     // Flow retains the authored callable parameter, while the operation names
     // its resolved boundary requirement. Rejoin both identities through source.
-    if exact_calls
-        .next()
-        .is_none_or(|call| call.target_symbol != authored.source_target)
-        || exact_calls.next().is_some()
-    {
+    let exact = exact_calls.next().ok_or(LoweringError::Unsupported(
+        "Unit call has no original checked flow occurrence",
+    ))?;
+    if exact.target_symbol != authored.source_target || exact_calls.next().is_some() {
         return unsupported(
             "Unit scalar call coordinate and target do not rejoin its original checked flow call",
         );
     }
-    Ok(())
+    Ok(exact)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -301,120 +309,159 @@ fn assemble_unit_closure(
 ) -> Result<shared_closure::SharedUnitClosure, LoweringError> {
     let plans = &checked.facts.flow.terminal_unit_effects;
     let reserved_prefix = usize::from(external.is_some());
-    let ordinary_entry = unit_roots.first().copied();
+    let mut ordinary_entry = unit_roots.first().copied();
     if external.is_none() && !scalar_entry && ordinary_entry != Some(entry) {
         return unsupported("ordinary Unit closure must begin with its exact entry");
     }
     let mut retained_roots = unit_roots.get(1..).unwrap_or_default().to_vec();
-    let (closure, provider_candidate_plans) = loop {
-        let closure = match ordinary_entry {
-            Some(root) => checked_unit_call_closure_including(checked, root, &retained_roots)?,
-            None => Vec::new(),
-        };
-        if external.is_some() && closure.contains(&entry) {
-            return unsupported("external composed entry overlaps its ordinary Unit closure");
-        }
-        let candidates = checked_unit_provider_candidates(checked, &closure)?;
-        for candidate in candidates
-            .iter()
-            .filter(|candidate| candidate.body == ProviderBody::Callable)
-        {
-            if UnitBody::find(plans, candidate.candidate)?
-                .operations()
-                .any(|operation| {
-                    matches!(
-                        operation,
-                        CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
-                    )
-                })
+    // Unit bodies can invoke scalar graphs, and graph statements can invoke
+    // Unit bodies. Reach a common catalog before allocating either namespace.
+    let (closure, provider_candidate_plans, scalar_closure, scalar_roots) = loop {
+        let (closure, provider_candidate_plans) = loop {
+            let closure = match ordinary_entry {
+                Some(root) => checked_unit_call_closure_including(checked, root, &retained_roots)?,
+                None => Vec::new(),
+            };
+            if external.is_some() && closure.contains(&entry) {
+                return unsupported("external composed entry overlaps its ordinary Unit closure");
+            }
+            let candidates = checked_unit_provider_candidates(checked, &closure)?;
+            for candidate in candidates
+                .iter()
+                .filter(|candidate| candidate.body == ProviderBody::Callable)
             {
-                return unsupported(
-                    "write-only stores in opaque provider candidates require a pinned non-observation judgment",
-                );
+                if UnitBody::find(plans, candidate.candidate)?
+                    .operations()
+                    .any(|operation| {
+                        matches!(
+                            operation,
+                            CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                        )
+                    })
+                {
+                    return unsupported(
+                        "write-only stores in opaque provider candidates require a pinned non-observation judgment",
+                    );
+                }
             }
-        }
-        let new_roots = candidates
-            .iter()
-            .filter(|candidate| candidate.body == ProviderBody::Callable)
-            .map(|candidate| candidate.candidate)
-            .filter(|candidate| {
-                !retained_roots.contains(candidate) && Some(*candidate) != ordinary_entry
-            })
-            .collect::<Vec<_>>();
-        if new_roots.is_empty() {
-            break (closure, candidates);
-        }
-        retained_roots.extend(new_roots);
-    };
-    reject_recursive_unit_closure(plans, &closure)?;
+            let new_roots = candidates
+                .iter()
+                .filter(|candidate| candidate.body == ProviderBody::Callable)
+                .map(|candidate| candidate.candidate)
+                .filter(|candidate| {
+                    !retained_roots.contains(candidate) && Some(*candidate) != ordinary_entry
+                })
+                .collect::<Vec<_>>();
+            if new_roots.is_empty() {
+                break (closure, candidates);
+            }
+            retained_roots.extend(new_roots);
+        };
+        reject_recursive_unit_closure(plans, &closure)?;
 
-    let mut ordinary_scalar_roots = external
-        .as_ref()
-        .map_or_else(Vec::new, |roots| roots.scalar_roots.to_vec());
-    let mut selected_scalar_roots = Vec::new();
-    let mut structural_scalar_roots = Vec::new();
-    if scalar_entry {
-        ordinary_scalar_roots.push(entry);
-        structural_scalar_roots.push(entry);
-    }
-    for machine_symbol in &closure {
-        let computed_structural_roots =
-            crate::scalar_computations::structural_call_targets(checked, *machine_symbol)?;
-        for target in crate::scalar_computations::call_targets(checked, *machine_symbol)? {
-            if computed_structural_roots.contains(&target) {
-                CheckedScalarCallee::find_for_unit_call(checked, target)?;
-                if !structural_scalar_roots.contains(&target) {
-                    structural_scalar_roots.push(target);
+        let mut ordinary_scalar_roots = external
+            .as_ref()
+            .map_or_else(Vec::new, |roots| roots.scalar_roots.to_vec());
+        let mut selected_scalar_roots = Vec::new();
+        let mut structural_scalar_roots = Vec::new();
+        if scalar_entry {
+            ordinary_scalar_roots.push(entry);
+            structural_scalar_roots.push(entry);
+        }
+        for machine_symbol in &closure {
+            let computed_structural_roots =
+                crate::scalar_computations::structural_call_targets(checked, *machine_symbol)?;
+            for target in crate::scalar_computations::call_targets(checked, *machine_symbol)? {
+                if computed_structural_roots.contains(&target) {
+                    CheckedScalarCallee::find_for_unit_call(checked, target)?;
+                    if !structural_scalar_roots.contains(&target) {
+                        structural_scalar_roots.push(target);
+                    }
+                } else {
+                    CheckedScalarCallee::find(checked, target)?;
                 }
-            } else {
-                CheckedScalarCallee::find(checked, target)?;
+                if !ordinary_scalar_roots.contains(&target) {
+                    ordinary_scalar_roots.push(target);
+                }
             }
-            if !ordinary_scalar_roots.contains(&target) {
-                ordinary_scalar_roots.push(target);
+            for operation in UnitBody::find(plans, *machine_symbol)?.operations() {
+                match operation {
+                    CheckedUnitEffectOperationPlan::ScalarCall {
+                        target_machine,
+                        structural_arguments,
+                        claim_transfers,
+                        ..
+                    } => {
+                        if !ordinary_scalar_roots.contains(target_machine) {
+                            ordinary_scalar_roots.push(*target_machine);
+                        }
+                        if (!structural_arguments.is_empty() || !claim_transfers.is_empty())
+                            && !structural_scalar_roots.contains(target_machine)
+                        {
+                            structural_scalar_roots.push(*target_machine);
+                        }
+                    }
+                    CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
+                        realization_machine,
+                        ..
+                    } if !selected_scalar_roots.contains(realization_machine) => {
+                        selected_scalar_roots.push(*realization_machine);
+                    }
+                    _ => {}
+                }
             }
         }
-        for operation in UnitBody::find(plans, *machine_symbol)?.operations() {
-            match operation {
-                CheckedUnitEffectOperationPlan::ScalarCall {
-                    target_machine,
-                    structural_arguments,
-                    claim_transfers,
-                    ..
-                } => {
-                    if !ordinary_scalar_roots.contains(target_machine) {
-                        ordinary_scalar_roots.push(*target_machine);
-                    }
-                    if (!structural_arguments.is_empty() || !claim_transfers.is_empty())
-                        && !structural_scalar_roots.contains(target_machine)
+        let scalar_roots = ordinary_scalar_roots
+            .iter()
+            .chain(&selected_scalar_roots)
+            .copied()
+            .fold(Vec::new(), |mut roots, root| {
+                if !roots.contains(&root) {
+                    roots.push(root);
+                }
+                roots
+            });
+        let scalar_closure = checked_scalar_call_closure_with_structural_roots(
+            checked,
+            &scalar_roots,
+            &structural_scalar_roots,
+        )?;
+        let mut discovered_unit = false;
+        for source in &scalar_closure {
+            if let Some(graph) = checked
+                .facts
+                .flow
+                .terminal_scalar_graphs
+                .for_machine(*source)
+            {
+                for operation in graph.states.iter().flat_map(|state| &state.unit_operations) {
+                    let CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. } = operation
+                    else {
+                        return unsupported("scalar graph retained an unsupported Unit effect");
+                    };
+                    if !closure.contains(target_machine)
+                        && !retained_roots.contains(target_machine)
+                        && Some(*target_machine) != ordinary_entry
                     {
-                        structural_scalar_roots.push(*target_machine);
+                        if ordinary_entry.is_none() {
+                            ordinary_entry = Some(*target_machine);
+                        } else {
+                            retained_roots.push(*target_machine);
+                        }
+                        discovered_unit = true;
                     }
                 }
-                CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
-                    realization_machine,
-                    ..
-                } if !selected_scalar_roots.contains(realization_machine) => {
-                    selected_scalar_roots.push(*realization_machine);
-                }
-                _ => {}
             }
         }
-    }
-    let scalar_roots = ordinary_scalar_roots
-        .iter()
-        .chain(&selected_scalar_roots)
-        .copied()
-        .fold(Vec::new(), |mut roots, root| {
-            if !roots.contains(&root) {
-                roots.push(root);
-            }
-            roots
-        });
-    let scalar_closure = checked_scalar_call_closure_with_structural_roots(
-        checked,
-        &scalar_roots,
-        &structural_scalar_roots,
-    )?;
+        if !discovered_unit {
+            break (
+                closure,
+                provider_candidate_plans,
+                scalar_closure,
+                scalar_roots,
+            );
+        }
+    };
     if scalar_closure
         .iter()
         .any(|machine| closure.contains(machine) || (external.is_some() && *machine == entry))
@@ -4034,7 +4081,11 @@ fn assemble_unit_closure(
         semantic_module: TerminalModule {
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
-            entry: machine_id(1),
+            entry: if scalar_entry {
+                lookup_machine_id(&machine_ids, entry)?
+            } else {
+                machine_id(1)
+            },
             structural_types,
             structural_domains,
             services,

@@ -610,11 +610,12 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             });
             current_value_types.push(binding.scalar_type());
         }
-        crate::scalar_computations::arrays::emit(
+        crate::scalar_graph_effects::emit(
             &state.structural_effects,
             &current_values,
             &mut next_value_identity,
             &mut all_operations,
+            &mut call_emission,
         )?;
         let terminator_operation_start = all_operations.len();
         let terminator = match &state.terminator {

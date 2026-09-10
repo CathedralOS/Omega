@@ -113,6 +113,9 @@ owned swaps through four-target publication and matching-host execution.
 
 Scalar-returning primitive-store callees retain the same exclusive reference
 parameter, ordered store, and mixed scalar/structural ABI as their source.
+Boolean and fixed-integer referents retain their exact borrowed width; scalar
+results do not change reference identity. IEEE referents remain outside this
+scalar-returning store admission.
 The common graph reuses Unit primitive-store lowering; it does not wrap the
 callee in a Unit function or convert its referent to an owned copy.
 The [source-produced store-return tests](../../../../tests/native-differential/tests/primitive_store_return.rs)

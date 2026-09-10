@@ -6,7 +6,7 @@ use checked_trees::statement::{
     StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
 };
 
-mod computation_calls;
+pub(crate) mod computation_calls;
 pub(super) mod direct_calls;
 mod parameters;
 pub(crate) mod primitive_references;

@@ -132,6 +132,7 @@ mod runtime_requirements;
 mod scalar_bindings;
 mod scalar_call_closure;
 mod scalar_computations;
+mod scalar_graph_effects;
 mod scalar_graph_lowering;
 mod scalar_graph_module;
 mod scalar_range_invariants;
@@ -440,8 +441,24 @@ struct LoweredScalarBranchState {
     parameter_types: Vec<ScalarType>,
     bindings: Vec<LoweredScalarBinding>,
     /// Effects execute after the scalar prefix, without creating scalar slots.
-    structural_effects: Vec<LoweredScalarArrayConstruction>,
+    structural_effects: Vec<LoweredScalarEffect>,
     terminator: LoweredScalarBranchTerminator,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum LoweredScalarEffect {
+    EstablishScalarArray(LoweredScalarArrayConstruction),
+    CallUnit(LoweredUnitCall),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LoweredUnitCall {
+    source_coordinate: SourceCallCoordinate,
+    target_machine: symbols::SymbolHandle,
+    target_state: symbols::SymbolHandle,
+    arguments: Vec<LoweredDirectExpression>,
+    structural_arguments: Vec<StructuralArgument>,
+    crash_routes: Vec<checked_trees::CrashRouteBucket>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

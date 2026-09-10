@@ -2,6 +2,8 @@
 use proof_admission::AdmissionProfile;
 use terminal_codec::CanonicalTerminalArtifact;
 
+#[path = "primitive_locals/boolean_control.rs"]
+mod boolean_control;
 #[path = "primitive_locals/literals.rs"]
 mod literals;
 #[cfg(any(

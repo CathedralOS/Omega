@@ -53,9 +53,12 @@ pub(crate) fn accepts_write_borrow(
         };
         let primitive = matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_));
         // Multiple primitive references have independent incoming pointers.
-        // The existing single-record store route retains its result restriction.
+        // Scalar-returning stores admit fixed integers and Boolean referents;
+        // the narrow Boolean payload does not change reference transport. IEEE
+        // referents and the single-record store route retain their result restriction.
         if (parameters.len() > 1 && !primitive)
             || result_shape.is_some()
+                && declaration.shape != StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)
                 && !matches!(declaration.shape,
                 StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
                     if integer.carrier() == IntegerCarrier::Fixed

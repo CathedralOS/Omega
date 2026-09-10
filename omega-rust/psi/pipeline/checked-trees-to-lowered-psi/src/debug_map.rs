@@ -8,8 +8,11 @@ pub(super) fn build_debug_map(
 ) -> Result<TerminalDebugMap, LoweringError> {
     let terminal_machine = module
         .machines
-        .first()
-        .expect("the selected entry machine is first in its terminal call closure");
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .ok_or(LoweringError::Unsupported(
+            "the selected entry machine is absent from its terminal call closure",
+        ))?;
     let source_states = &plan.states;
     let has_source_file = |span: source::SourceSpan| {
         plan.source_files

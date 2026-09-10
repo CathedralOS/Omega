@@ -114,7 +114,7 @@ use typed_trees::{
     types::{PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode},
 };
 
-mod calls;
+pub(in crate::flow) mod calls;
 mod cleanup;
 mod composed_control;
 pub(crate) mod control;

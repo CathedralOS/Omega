@@ -87,7 +87,7 @@ impl<'checked> CheckedScalarCallee<'checked> {
 
     pub(crate) fn requires_structural_frame(&self) -> bool {
         !self.structural_parameters().is_empty()
-            || matches!(self, Self::Graph(graph) if graph.states.iter().any(|state| !state.primitive_locals.is_empty()))
+            || matches!(self, Self::Graph(graph) if graph.states.iter().any(|state| !state.primitive_locals.is_empty() || !state.unit_operations.is_empty()))
     }
 
     pub(crate) fn entry_claims(&self) -> &[checked_trees::CheckedUnitEntryClaimPlan] {

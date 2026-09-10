@@ -491,3 +491,53 @@ fn scalar_primitive_store_accepts_stack_input_and_reference_with_exact_return_lo
         }
     }
 }
+
+#[test]
+fn boolean_store_scalar_result_requires_exact_mixed_header() {
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let (mut source, _, _) = fixture(native, true, StructuralAccess::MutableBorrow);
+        source.structural_types[0].shape =
+            StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean);
+        source.functions[0].parameters[0].scalar_type = ScalarType::Boolean;
+        let AbstractOperation::WriteOnlyPrimitiveStore { value, .. } =
+            &mut source.functions[0].operations[0]
+        else {
+            panic!("primitive store");
+        };
+        value.scalar_type = ScalarType::Boolean;
+        let target =
+            abstract_operations_to_target_operations::lower_to_target_operations(&source, native)
+                .unwrap();
+        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
+        for mutation in 0..3 {
+            let mut changed = target.clone();
+            let header = &mut changed.functions[0].mixed_structural_scalar_abi;
+            match mutation {
+                0 => *header = None,
+                1 => {
+                    header.as_mut().unwrap().scalar_parameters[0].scalar_type =
+                        integer(IntegerSign::Unsigned, 8)
+                }
+                _ => {
+                    header.as_mut().unwrap().scalar_parameters[0].value = ValueId::new(99).unwrap()
+                }
+            }
+            assert!(legalize_target_operations(&changed, &source, &unit).is_err());
+            assert!(
+                validate_legalized_operations(&changed, &source, &unit, legalized.plan().clone())
+                    .is_err(),
+                "Boolean mixed header mutation {mutation}"
+            );
+        }
+    }
+}

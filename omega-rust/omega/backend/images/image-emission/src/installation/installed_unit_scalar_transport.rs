@@ -1,4 +1,4 @@
-//! Installation-shape validation for retained fixed-integer ABI and attached-
+//! Installation-shape validation for retained Boolean/integer ABI and attached-
 //! Unit scalar-call transport. Native byte replay remains object-owned.
 
 use calling_conventions::{
@@ -138,10 +138,7 @@ pub(super) fn installed_mixed_structural_scalar_abi_is_canonical(
     let Some(scalar_shapes) = abi
         .scalar_parameters
         .iter()
-        .map(|parameter| match parameter.scalar_type {
-            semantic_vocabulary::ScalarType::Integer(integer) => fixed_integer_shape(integer),
-            _ => None,
-        })
+        .map(|parameter| scalar_home_shape(parameter.scalar_type))
         .collect::<Option<Vec<_>>>()
     else {
         return false;

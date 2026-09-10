@@ -7,7 +7,20 @@ pub(super) struct Prepared {
     pub(super) scalar_bindings: storage::ScalarBindings,
     parameter_types: Vec<ScalarType>,
     bindings: Vec<LoweredScalarBinding>,
-    prefixes: Vec<PendingComputation>,
+    prefixes: Vec<PendingStep>,
+}
+
+enum PendingStep {
+    Value(PendingComputation),
+    Unit(PendingUnitCall),
+}
+
+struct PendingUnitCall {
+    parameter_types: Vec<ScalarType>,
+    bindings: Vec<LoweredScalarBinding>,
+    value_types: Vec<ScalarType>,
+    scalar_bindings: storage::ScalarBindings,
+    prepared: unit_operations::Prepared,
 }
 
 struct PendingComputation {
@@ -47,6 +60,7 @@ pub(super) fn prepare(
                 statement,
                 checked_trees::statement::StatementNode::LocalData(_)
                     | checked_trees::statement::StatementNode::Assignment(_)
+                    | checked_trees::statement::StatementNode::Call(_)
             )
         })
         .count();
@@ -60,10 +74,43 @@ pub(super) fn prepare(
         } => *guard_statement_ordinal,
     };
     if source_machine.symbol != machine
-        || state.bindings.len() != authored_prefix
+        || state.bindings.len() + state.unit_operations.len() != authored_prefix
         || usize::try_from(terminator_ordinal).ok() != Some(authored_prefix)
     {
         return unsupported("scalar graph lost its complete authored binding prefix");
+    }
+    let statements = checked
+        .statement_table
+        .statements(source_state.statement_nodes);
+    let mut binding_rows = state.bindings.iter();
+    let mut unit_rows = state.unit_operations.iter();
+    for (ordinal, statement) in statements[..authored_prefix].iter().enumerate() {
+        let ordinal = u32::try_from(ordinal)
+            .map_err(|_| LoweringError::Unsupported("scalar statement ordinal exceeds u32"))?;
+        match statement {
+            checked_trees::statement::StatementNode::Call(_) => {
+                let operation = unit_rows.next().ok_or(LoweringError::Unsupported(
+                    "scalar graph lost an authored Unit call",
+                ))?;
+                let coordinate = unit_operations::coordinate(operation)?;
+                if coordinate.statement_index != ordinal || coordinate.call_ordinal != 0 {
+                    return unsupported(
+                        "scalar graph Unit operation moved from its authored statement",
+                    );
+                }
+            }
+            _ => {
+                if binding_rows
+                    .next()
+                    .is_none_or(|binding| binding.statement_ordinal != ordinal)
+                {
+                    return unsupported("scalar graph binding moved from its authored statement");
+                }
+            }
+        }
+    }
+    if binding_rows.next().is_some() || unit_rows.next().is_some() {
+        return unsupported("scalar graph duplicates its authored statement roster");
     }
     let mut parameter_types = parameter_types;
     let mut prefixes = Vec::new();
@@ -92,14 +139,38 @@ pub(super) fn prepare(
     }
     let mut immutable_ordinal = 0u32;
     let mut bindings = Vec::with_capacity(state.bindings.len());
-    for (binding_index, binding) in state.bindings.iter().enumerate() {
+    let mut units = state.unit_operations.iter().peekable();
+    for binding in &state.bindings {
+        while units.peek().is_some_and(|operation| {
+            unit_operations::coordinate(operation)
+                .is_ok_and(|coordinate| coordinate.statement_index < binding.statement_ordinal)
+        }) {
+            let operation = units.next().expect("peeked Unit operation exists");
+            let coordinate = unit_operations::coordinate(operation)?;
+            scalar_bindings = scalar_bindings.with_primitive_storage(
+                &primitive_locals::storage_before(primitive_locals, coordinate.statement_index),
+            );
+            let prepared = unit_operations::prepare(
+                checked,
+                machine,
+                state,
+                operation,
+                &scalar_bindings,
+                &value_types,
+            )?;
+            prefixes.push(PendingStep::Unit(PendingUnitCall {
+                parameter_types,
+                bindings: std::mem::take(&mut bindings),
+                value_types: value_types.clone(),
+                scalar_bindings: scalar_bindings.clone(),
+                prepared,
+            }));
+            parameter_types = value_types.clone();
+        }
         use checked_trees::CheckedScalarBindingDestination;
         scalar_bindings = scalar_bindings.with_primitive_storage(
             &primitive_locals::storage_before(primitive_locals, binding.statement_ordinal),
         );
-        if usize::try_from(binding.statement_ordinal).ok() != Some(binding_index) {
-            return unsupported("scalar computations drifted from statement order");
-        }
         let binding_ordinal = immutable_ordinal;
         let role = match binding.destination {
             CheckedScalarBindingDestination::Immutable => {
@@ -145,7 +216,7 @@ pub(super) fn prepare(
         let binding_type = terminal_scalar_type(binding.primitive_type)?;
         let store = primitive_locals::destination(primitive_locals, binding)?;
         if matches!(binding.value, CheckedScalarBindingValue::Computation) {
-            prefixes.push(PendingComputation {
+            prefixes.push(PendingStep::Value(PendingComputation {
                 parameter_types,
                 bindings: std::mem::take(&mut bindings),
                 value_types: value_types.clone(),
@@ -160,7 +231,7 @@ pub(super) fn prepare(
                 result_type: binding_type,
                 value: PendingValue::Computation,
                 store,
-            });
+            }));
             parameter_types = value_types.clone();
             parameter_types.push(binding_type);
         }
@@ -211,7 +282,7 @@ pub(super) fn prepare(
         if let Some(store) = store
             && let Some(LoweredScalarBinding::Expression(expression)) = lowered.take()
         {
-            prefixes.push(PendingComputation {
+            prefixes.push(PendingStep::Value(PendingComputation {
                 parameter_types,
                 bindings: std::mem::take(&mut bindings),
                 value_types: value_types.clone(),
@@ -228,7 +299,7 @@ pub(super) fn prepare(
                 result_type: binding_type,
                 value: PendingValue::Expression(expression),
                 store: Some(store),
-            });
+            }));
             parameter_types = value_types.clone();
             parameter_types.push(binding_type);
         }
@@ -246,10 +317,31 @@ pub(super) fn prepare(
         }
         value_types.push(binding_type);
     }
+    for operation in units {
+        let coordinate = unit_operations::coordinate(operation)?;
+        scalar_bindings = scalar_bindings.with_primitive_storage(
+            &primitive_locals::storage_before(primitive_locals, coordinate.statement_index),
+        );
+        let prepared = unit_operations::prepare(
+            checked,
+            machine,
+            state,
+            operation,
+            &scalar_bindings,
+            &value_types,
+        )?;
+        prefixes.push(PendingStep::Unit(PendingUnitCall {
+            parameter_types,
+            bindings: std::mem::take(&mut bindings),
+            value_types: value_types.clone(),
+            scalar_bindings: scalar_bindings.clone(),
+            prepared,
+        }));
+        parameter_types = value_types.clone();
+    }
     scalar_bindings = scalar_bindings.with_primitive_storage(&primitive_locals::storage_before(
         primitive_locals,
-        u32::try_from(state.bindings.len())
-            .map_err(|_| LoweringError::Unsupported("scalar statement count exceeds u32"))?,
+        terminator_ordinal,
     ));
     Ok(Prepared {
         value_types,
@@ -275,7 +367,48 @@ impl Prepared {
         };
         // Construct backward so each computation sends the completed prefix and
         // its result directly to the following statements, without placeholders.
-        for prefix in self.prefixes.into_iter().rev() {
+        for step in self.prefixes.into_iter().rev() {
+            let prefix = match step {
+                PendingStep::Value(prefix) => prefix,
+                PendingStep::Unit(prefix) => {
+                    let target = computations.push(continuation);
+                    let mut argument_types = prefix.value_types.clone();
+                    argument_types.extend_from_slice(&prefix.prepared.argument_types);
+                    let call_block = computations.push(LoweredScalarBranchState {
+                        parameter_types: argument_types,
+                        bindings: Vec::new(),
+                        structural_effects: vec![LoweredScalarEffect::CallUnit(
+                            prefix.prepared.call,
+                        )],
+                        terminator: LoweredScalarBranchTerminator::Jump {
+                            target,
+                            arguments: computations::parameters(&prefix.value_types),
+                            structural_arguments: Vec::new(),
+                        },
+                    });
+                    let target = computations.call_arguments(
+                        state,
+                        prefix.prepared.coordinate,
+                        false,
+                        &prefix.prepared.arguments,
+                        0,
+                        &prefix.scalar_bindings,
+                        &prefix.value_types,
+                        call_block,
+                    )?;
+                    continuation = LoweredScalarBranchState {
+                        parameter_types: prefix.parameter_types,
+                        bindings: prefix.bindings,
+                        structural_effects: Vec::new(),
+                        terminator: LoweredScalarBranchTerminator::Jump {
+                            target,
+                            arguments: computations::parameters(&prefix.value_types),
+                            structural_arguments: Vec::new(),
+                        },
+                    };
+                    continue;
+                }
+            };
             let mut target = computations.push(continuation);
             if let Some(destination) = prefix.store {
                 let mut completed_types = prefix.value_types.clone();

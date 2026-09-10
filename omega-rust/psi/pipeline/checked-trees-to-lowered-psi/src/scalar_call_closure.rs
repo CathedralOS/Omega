@@ -27,7 +27,9 @@ pub(super) fn requires_place_namespace(
             continue;
         };
         if graph.states.iter().any(|state| {
-            !state.structural_parameters.is_empty() || !state.primitive_locals.is_empty()
+            !state.structural_parameters.is_empty()
+                || !state.primitive_locals.is_empty()
+                || !state.unit_operations.is_empty()
         }) || !crate::scalar_computations::structural_call_targets(checked, machine)?.is_empty()
         {
             // Computation-owned constructors require the shared namespace even

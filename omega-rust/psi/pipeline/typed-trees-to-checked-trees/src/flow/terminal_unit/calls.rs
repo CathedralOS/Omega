@@ -14,7 +14,7 @@ pub(crate) use computation_arguments::structural_computation_argument;
 mod scalar_argument_tests;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct AffineScalarRecordLocal {
+pub(in crate::flow) struct AffineScalarRecordLocal {
     pub(super) declaration_ordinal: u32,
     pub(super) type_identity: String,
     pub(super) field_identity: String,
@@ -488,7 +488,7 @@ pub(super) fn build_affine_array_construction_prefix(
 /// decides whether the exact requirement/realization/target tuple is native.
 pub(super) use validation::exact_compiler_intrinsic_boundary_requirement;
 
-pub(super) enum ExpectedCallValueResult<'result> {
+pub(in crate::flow) enum ExpectedCallValueResult<'result> {
     Scalar(PrimitiveType),
     Structural(&'result CheckedUnitStructuralResultBindingPlan),
 }
@@ -607,7 +607,7 @@ fn fixed_byte_array_mutable_view_is_admitted(
     }) && crate::checks::type_multiplicity(program, source) == Multiplicity::Unrestricted
 }
 
-pub(super) fn build_call_operation(
+pub(in crate::flow) fn build_call_operation(
     program: &TypedTrees,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,

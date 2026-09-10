@@ -10,7 +10,7 @@ use symbols::SymbolHandle;
 use super::{authored_state, borrow_rows, owned_arguments, primitive_arguments};
 use crate::{LoweringError, unsupported};
 
-mod access_occurrences;
+pub(super) mod access_occurrences;
 mod arrays;
 
 /// Authored formal order, preserving scalar handles and structural occurrences.

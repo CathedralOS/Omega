@@ -62,6 +62,8 @@ use typed_trees::{
 mod guards;
 mod owned_parameters;
 pub(super) mod primitive_locals;
+mod unit_operations;
+pub(crate) use unit_operations::finalize as finalize_scalar_unit_operations;
 mod ranking;
 mod successors;
 
@@ -265,7 +267,7 @@ fn build_machine_graph(
                 .collect::<Option<Vec<_>>>()?;
             let result_type = program.primitive_type_reference(state.return_type)?;
             let statements = program.statement_table.statements(state.statement_nodes);
-            let bindings = checked_binding_prefix(program, state, computations)?;
+            let bindings = checked_statement_bindings(program, state, computations, true)?;
             // Call-free primitive-reference leaves retain their existing
             // structural scalar-return owner, including its admission fences.
             if mixed
@@ -309,7 +311,17 @@ fn build_machine_graph(
                     shapes.push(shape);
                 }
             }
-            let binding_count = bindings.len();
+            let binding_count = statements
+                .iter()
+                .take_while(|statement| {
+                    matches!(
+                        statement,
+                        StatementNode::LocalData(_)
+                            | StatementNode::Assignment(_)
+                            | StatementNode::Call(_)
+                    )
+                })
+                .count();
             let terminator_ordinal = u32::try_from(binding_count).ok()?;
             let terminator = match &statements[binding_count..] {
                 [StatementNode::Expression(_)] => CheckedScalarStateTerminator::Return {
@@ -441,6 +453,7 @@ fn build_machine_graph(
                     parameter_storage: arena::HandleSpan::empty(),
                     primitive_locals,
                     bindings,
+                    unit_operations: Vec::new(),
                     result_type,
                     terminator,
                 },
@@ -473,6 +486,15 @@ pub(super) fn checked_binding_prefix(
     state: &typed_trees::state::State,
     computations: &checked_trees::CheckedScalarComputationPlans,
 ) -> Option<Vec<CheckedScalarBinding>> {
+    checked_statement_bindings(program, state, computations, false)
+}
+
+fn checked_statement_bindings(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    computations: &checked_trees::CheckedScalarComputationPlans,
+    unit_calls: bool,
+) -> Option<Vec<CheckedScalarBinding>> {
     let parameters = program.state_parameters(state);
     let statements = program.statement_table.statements(state.statement_nodes);
     let binding_count = statements
@@ -481,13 +503,14 @@ pub(super) fn checked_binding_prefix(
             matches!(
                 statement,
                 StatementNode::LocalData(_) | StatementNode::Assignment(_)
-            )
+            ) || (unit_calls && matches!(statement, StatementNode::Call(_)))
         })
         .count();
     let bindings =
         statements[..binding_count]
             .iter()
             .enumerate()
+            .filter(|(_, statement)| !matches!(statement, StatementNode::Call(_)))
             .map(|(statement_index, statement)| {
                 use checked_trees::CheckedScalarBindingDestination;
                 match statement {
