@@ -1,3 +1,4 @@
+//! Optimizer module role: executable entrance.
 //! Provider installation admits only an exactly replayed abstract plan.
 //! Optimization selection does not change the Terminal-to-abstract projection.
 
