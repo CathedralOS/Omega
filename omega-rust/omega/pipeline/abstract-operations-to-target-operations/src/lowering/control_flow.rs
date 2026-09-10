@@ -50,6 +50,9 @@ pub(super) fn lower(
 ) -> Result<TargetFunction, LoweringError> {
     let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     let unobserved_owned = super::unobserved_owned::accepts(function, structural_types);
+    // Invocation borrows keep their original places throughout the graph.
+    // Shared signature preparation owns referent layout and ABI placement;
+    // only transferred block descriptors need the narrower edge classifier.
     if !matches!(
         function.result,
         AbstractFunctionResult::Unit
@@ -57,8 +60,10 @@ pub(super) fn lower(
             | AbstractFunctionResult::Structural(_)
     ) || (!unobserved_owned
         && !function.structural_parameters.iter().all(|parameter| {
-            super::scalar::byte_views::is_byte_parameter(parameter, structural_types)
-                || (primitive_storage::is_primitive_reference(parameter, structural_types))
+            parameter.access != StructuralAccess::Owned
+                && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                && parameter.qualifications.is_empty()
+                && parameter.projected_qualifications.is_empty()
         }))
         || !function.entry_claims.is_empty()
     {
@@ -66,6 +71,7 @@ pub(super) fn lower(
     }
     let prepared =
         super::function_signature::prepare_function_signature(function, target, structural_types)?;
+    let parameters_by_place = super::function_signature::parameters_by_place(&prepared.parameters);
     let mut definitions = BTreeSet::new();
     for parameter in &function.parameters {
         if !definitions.insert(parameter.value) {
@@ -285,6 +291,7 @@ pub(super) fn lower(
                 scalar_abis,
                 native_callbacks,
                 &prepared,
+                &parameters_by_place,
                 &mut live,
                 &mut operations,
                 provenance,

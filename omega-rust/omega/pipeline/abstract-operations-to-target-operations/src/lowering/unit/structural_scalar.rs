@@ -18,7 +18,7 @@ pub(super) use dynamic_arguments::{
 };
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn lower_field_store(
+pub(in crate::lowering) fn lower_field_store(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
@@ -79,7 +79,21 @@ pub(super) fn lower_field_store(
                 .copied()
                 .ok_or(LoweringError::UnknownValue(value.value))?;
             let exact_source = match known_value {
-                KnownUnitInteger::BlockParameter { .. } => false,
+                KnownUnitInteger::BlockParameter {
+                    block,
+                    value: source,
+                    scalar_type,
+                } => {
+                    source == value.value
+                        && scalar_type == integer_type
+                        && function.block_entries.iter().any(|entry| {
+                            entry.block == block
+                                && entry.parameters.iter().any(|parameter| {
+                                    parameter.value == source
+                                        && parameter.scalar_type == value.scalar_type
+                                })
+                        })
+                }
                 KnownUnitInteger::Parameter {
                     parameter_index,
                     scalar_type,

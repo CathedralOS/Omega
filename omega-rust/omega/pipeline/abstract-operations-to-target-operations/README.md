@@ -46,6 +46,12 @@ and explicit `Jump`, `Conditional`, `StructuralCase`, `Return`, and
 `ReturnScalar` terminators in `TargetControlGraph`.
 Nonterminal definitions and calls reuse the ordered Unit operation vocabulary;
 branch targets are block identities, not nonreturning-arm layout ordinals.
+Invocation borrows retain the ordinary signature owner's referent layout and
+placement throughout the graph. Field stores reuse ordered Unit store lowering;
+loop-carried integer sources retain exact block/value/type coordinates. This
+does not add transferred record descriptors, owned cleanup, or qualification
+support to graph edges. A prepared invocation-place lookup is shared by graph
+operations rather than rebuilt for each store or call.
 Start at [control_flow.rs](src/lowering/control_flow.rs): signature preparation,
 dominance, operations, terminators, and edge bindings have separate owners.
 Lowering retains dominating definitions and authored block order independently
