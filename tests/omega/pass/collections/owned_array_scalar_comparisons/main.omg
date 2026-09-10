@@ -1,0 +1,24 @@
+// Checked source and Terminal coverage. Native comparison-value materialization
+// remains an open backend dependency for these two named entry machines.
+machine keep(value: u16, row: [u8; 2]) -> u16 { value }
+machine forward(value: u16, row: [u8; 2]) -> u16 { keep(value, row) }
+
+machine scalar_comparison(value: u16) -> bool {
+    let row: [u8; 2] = [7u8, 9u8];
+    let returned: u16 = forward(value, row);
+    returned == 65535u16
+}
+
+machine array_result(value: u16, row: [u8; 2]) -> [bool; 2] {
+    [value == 65535u16, true]
+}
+
+machine array_comparison(value: u16) -> [bool; 2] {
+    let first: [u8; 2] = [7u8, 9u8];
+    let returned: u16 = keep(value, first);
+    let second: [u8; 2] = [11u8, 13u8];
+    array_result(returned, second)
+}
+
+data Main {}
+machine Main::main(&mut self) {}

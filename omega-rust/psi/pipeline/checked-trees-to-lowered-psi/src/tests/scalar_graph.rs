@@ -60,6 +60,79 @@ fn scalar_graph_replays_parameter_qualification_contracts_from_source() {
 }
 
 #[test]
+fn scalar_completion_after_array_calls_replays_its_expression_and_statement_order() {
+    let checked = checked_source(include_str!(
+        "../../../../../../tests/omega/pass/collections/owned_array_scalar_comparisons/main.omg"
+    ));
+    for entry in ["scalar_comparison", "array_comparison"] {
+        let _artifact = produce_terminal_artifact(&checked, entry)
+            .expect("comparison completes the ordered array/call body in Terminal");
+    }
+    let selected = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "scalar_comparison")
+        .unwrap()
+        .symbol;
+    for corruption in 0..4 {
+        let mut changed = checked.clone();
+        let plan = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .find(|plan| plan.machine == selected)
+            .expect("ordered scalar completion owner");
+        let result = plan.scalar_result.unwrap();
+        match corruption {
+            0 => plan.operations.retain(|operation| {
+                !matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
+                )
+            }),
+            1 => {
+                let value = plan
+                    .operations
+                    .iter_mut()
+                    .find_map(|operation| match operation {
+                        CheckedUnitEffectOperationPlan::EstablishScalarLocal {
+                            result: candidate,
+                            value,
+                        } if *candidate == result => Some(value),
+                        _ => None,
+                    })
+                    .unwrap();
+                *value = checked_trees::CheckedCallScalarArgument::Pure(
+                    CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Constant(
+                        true,
+                    ))),
+                );
+            }
+            2 => plan.scalar_result.as_mut().unwrap().statement_index = 0,
+            3 => {
+                let final_expression = plan
+                    .operations
+                    .iter()
+                    .position(|operation| {
+                        matches!(operation, CheckedUnitEffectOperationPlan::EstablishScalarLocal {
+                        result: candidate, ..
+                    } if *candidate == result)
+                    })
+                    .unwrap();
+                plan.operations.swap(0, final_expression);
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            produce_terminal_artifact(&changed, "scalar_comparison").is_err(),
+            "corruption {corruption}"
+        );
+    }
+}
+
+#[test]
 fn scalar_machine_builder_uses_a_disjoint_module_identity_namespace() {
     let identity_base = TERMINAL_MACHINE_IDENTITY_STRIDE;
     let lowered = build_scalar_graph_module(

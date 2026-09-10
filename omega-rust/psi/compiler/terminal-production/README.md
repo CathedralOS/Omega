@@ -249,12 +249,18 @@ argument schedule interleaves constructors with scalar actuals and nested
 structural calls; no synthetic call ordinal or source local is introduced.
 Empty constructors still rejoin their exact owner and recursive type. Scalar
 locals use the same selective evaluator, preserving earlier values across joins.
-An ordinary scalar call's result can complete the ordered body, including the
-immutable local/name pair introduced by existing source normalization; completion
-rejoins that exact binding instead of dropping structural arguments through a
-scalar-only call path. This ordered scalar completion does not yet carry authored
+The ordered body can complete with its actual checked scalar expression, including
+comparisons after array construction and calls. Completion uses ordinary scalar
+establishment with the exact Return-role source binding. A final name, including
+the immutable local/name pair introduced by existing source normalization, reuses
+its existing value without repeating the call or charging another operation.
+This ordered scalar completion does not yet carry authored
 scalar contracts or result refinements; existing scalar-only contract lowering
 remains available for bodies it can fully represent.
+The comparison probes are
+`cargo run -p omega -- inspect-terminal --machine scalar_comparison --target macos_arm64 tests/omega/pass/collections/owned_array_scalar_comparisons/main.omg`
+and the same command with `--machine array_comparison`. These publish Terminal
+Psi; native predicate materialization and Boolean return transport remain open.
 Scalar computation calls retain array-valued actuals in expression-owned structural
 slots. The shared evaluator completes each array's scalar leaves, establishes its
 real structural result, then evaluates the next authored formal. Empty arrays use
