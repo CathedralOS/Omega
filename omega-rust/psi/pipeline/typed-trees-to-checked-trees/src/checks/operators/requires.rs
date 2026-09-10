@@ -43,6 +43,98 @@ use crate::labels::{
 mod invocation;
 use invocation::InvocationContexts;
 
+/// Crash refinement needs proof of falsity, not failure to prove a precondition.
+/// Only Boolean structure and exact evaluated predicate facts supply polarity;
+/// selected comparisons have no inferred arithmetic/complement laws here.
+pub(crate) fn operator_route_is_false(
+    program: &TypedTrees,
+    flow: &checked_trees::FlowFacts,
+    semantic: &FactPlan,
+    operator_use: arena::Handle<checked_trees::CheckedOperatorUseFact>,
+    parameters: &[StateParameter],
+    operands: &[ExpressionHandle],
+    expression: ExpressionHandle,
+) -> bool {
+    let contexts = InvocationContexts::from_flow(flow, operator_use, operands);
+    expression_has_polarity(
+        program, semantic, &contexts, parameters, operands, expression, false,
+    )
+}
+
+fn expression_has_polarity(
+    program: &TypedTrees,
+    semantic: &FactPlan,
+    contexts: &InvocationContexts<'_>,
+    parameters: &[StateParameter],
+    operands: &[ExpressionHandle],
+    expression: ExpressionHandle,
+    polarity: bool,
+) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Boolean(value) => return *value == polarity,
+        ExpressionNode::Unary(unary)
+            if unary.operator == typed_trees::expression::UnaryOperator::LogicalNot =>
+        {
+            return expression_has_polarity(
+                program,
+                semantic,
+                contexts,
+                parameters,
+                operands,
+                unary.operand,
+                !polarity,
+            );
+        }
+        ExpressionNode::Binary(binary)
+            if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) =>
+        {
+            let left = expression_has_polarity(
+                program,
+                semantic,
+                contexts,
+                parameters,
+                operands,
+                binary.left,
+                polarity,
+            );
+            let right = expression_has_polarity(
+                program,
+                semantic,
+                contexts,
+                parameters,
+                operands,
+                binary.right,
+                polarity,
+            );
+            return if (binary.operator == BinaryOperator::And) == polarity {
+                left && right
+            } else {
+                left || right
+            };
+        }
+        _ => {}
+    }
+    if polarity {
+        return contexts_prove_boolean_leaf(
+            program, semantic, contexts, parameters, operands, expression,
+        );
+    }
+    let required =
+        instantiate_operator_contract_expression_label(program, parameters, operands, expression);
+    contexts
+        .for_expressions(program, parameters, [expression])
+        .iter()
+        .any(|context| {
+            semantic
+                .context_view(semantic.contexts.get(*context))
+                .facts()
+                .any(|fact| {
+                    matches!(fact.payload, FactPayload::BooleanValue { expression, value: false }
+                if program.expression_table.display_name(expression) == required)
+                })
+        })
+}
+
 /// Checks selected binary and implicit comparison preconditions against their
 /// available invocation facts, reporting each unproven clause.
 /// Slice `[]`/`[..]` uses discharge through the ranges seam and are

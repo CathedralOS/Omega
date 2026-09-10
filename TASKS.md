@@ -917,26 +917,33 @@ Owners include
   fact. Acceptance: safe calls discharge every route and mutations to guards,
   substitutions, or sites reject.
 
-  Spelled and implicit selected operators need shared invocation custody before
-  crash-qualified uses can pass `typed-trees-to-checked-trees/src/checks/operators.rs`: declaration
-  buckets currently feed package review, while `facts/crash_calls.rs` propagates
-  only machine/state `FlowCallFact` invocations. Join the selected occurrence,
-  saved actual operands, and post-evaluation live facts to same-cause caller
-  coverage and private/transitive summaries; do not fabricate source calls or
-  narrow an opaque requirement using a selected provider body. This also owns
-  the crash-qualified equality dependency of `MATCH-SELECTIVE-LOWERING`.
-  Reuse `flow/expression.rs` invocation and operand snapshots: copied scalar
-  facts and live reference facts have different capture times. Their current
-  consumer is selected `requires`; statement-entry facts are not a replacement.
-  Non-scalar transport conservatively intersects capture/live contexts until
-  exact payload and referent custody supports newer facts.
+  Complete downstream consumption of spelled/implicit operator crash invocation
+  rows from `typed-trees-to-checked-trees/src/facts/operator_crashes.rs` and
+  `CrashPlan::checked_operators`. Source checking retains selected occurrence,
+  saved actuals, examined/discharged routes, caller coverage and private summaries;
+  it is not portable proof. Terminal/native production, runtime/build-time
+  execution, and both package review/policy crash projections remain fenced.
+  Preserve exact operator requirement identity and individual Match arms through
+  lowering, certificates and independent replay; do not fabricate machine calls
+  or narrow an opaque requirement using a selected provider body. This owns the
+  crash-qualified equality dependency of `MATCH-SELECTIVE-LOWERING`.
+  Extend captured-value-to-entry provenance beyond literals and immutable entry
+  scalars, including state arrivals, reference rebinding and structural fields.
+  Unknown provenance currently widens a surviving cause to `Truth`. Reuse the
+  operand snapshots in `flow/expression.rs`; statement-entry facts and current
+  source spelling are not captured values. Non-scalar transport conservatively
+  intersects capture/live contexts until exact payload/referent custody exists.
   Named operator invocations need the same audit; their separate `named_uses`
   roster is outside this gate.
-  Regression: `mbx nextest run -p typed-trees-to-checked-trees --lib
-  --no-fail-fast -E 'test(operators::crashes) | test(crash_qualified_float_equality)'`.
-  The missing invocation support is an implementation limit, not an owner decision;
-  next acceptance is correct guard discharge and retained surviving-route evidence
-  for spelled operators and individual Match arms through independent replay.
+  Loose-source probe: `mbx run -p omega -- --check --output-only
+  tests/omega/pass/operators/crash_routes/main.omg` passes on macOS AArch64
+  (source milestone based on `62d7e3590b`); package-aware checks still
+  require the missing package projection. Regression: `mbx nextest run
+  -p typed-trees-to-checked-trees --lib --no-fail-fast
+  -E 'test(operators::crash) | test(crash_qualified_float_equality)'`.
+  Remaining support is an implementation obligation, not an owner decision.
+  Next acceptance is exact surviving-route evidence through independent Terminal
+  replay, then the corresponding execution and package-projection customers.
 
 - **PROOF-CONTRACT-MIGRATION.** Migrate the proof surface to
   [ordinary machine contracts and trait bundles](wiki/spec/proofs/contracts.md#machines-and-bundles).

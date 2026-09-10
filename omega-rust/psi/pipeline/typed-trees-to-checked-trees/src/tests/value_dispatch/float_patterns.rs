@@ -311,12 +311,15 @@ fn float_equality_requires_use_the_comparison_invocation_context() {
 }
 
 #[test]
-fn crash_qualified_float_equality_requires_arm_local_crash_custody() {
+fn crash_qualified_float_equality_requires_same_cause_ceiling() {
     let declarations =
         "boundary operator == Float::equal(left: f32, right: f32) -> bool crashes Trap;";
-    let diagnostics = check(&source("f32", declarations, "identity(first)"))
-        .err()
-        .expect("a selected crash contract cannot disappear at an implicit comparison");
+    let diagnostics = check(
+        &source("f32", declarations, "identity(first)")
+            .replace("machine choose(", "pub machine choose("),
+    )
+    .err()
+    .expect("a selected crash contract cannot disappear at an implicit comparison");
     assert!(
         diagnostics
             .iter()

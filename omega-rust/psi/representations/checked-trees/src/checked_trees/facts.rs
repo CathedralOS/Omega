@@ -1,6 +1,7 @@
 mod blocking;
 mod calls;
 mod carry;
+mod checked_crash_operator_site;
 mod collection;
 mod content;
 mod contract_plans;
@@ -19,6 +20,7 @@ mod termination;
 pub use blocking::*;
 pub use calls::*;
 pub use carry::*;
+pub use checked_crash_operator_site::*;
 pub use collection::*;
 pub use content::*;
 pub use contract_plans::*;

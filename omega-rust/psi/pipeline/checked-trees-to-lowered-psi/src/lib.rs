@@ -1049,6 +1049,13 @@ pub fn lower_machine(
     checked: &CheckedTrees,
     machine_name: &str,
 ) -> Result<LoweredPsi, LoweringError> {
+    if checked
+        .facts
+        .operators
+        .has_crash_qualified_uses(&checked.typed)
+    {
+        return unsupported("selected operator crash invocations have no Terminal replay support");
+    }
     attached_unit::validate_direct_unit_parameter_custody(checked)?;
     let selection = select_terminal_machine(checked, machine_name)?;
     let exact_guarded_payloadless = checked

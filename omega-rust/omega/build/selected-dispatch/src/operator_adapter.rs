@@ -87,6 +87,15 @@ pub fn validate_selected_operator_terminal_custody(
     checked: &CheckedTrees,
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<Diagnostic>> {
+    if checked
+        .facts
+        .operators
+        .has_crash_qualified_uses(&checked.typed)
+    {
+        return Err(vec![Diagnostic::error(
+            "selected operator crash invocations have no Terminal replay support",
+        )]);
+    }
     let mut diagnostics = Vec::new();
     for machine in &checked.facts.flow.terminal_unit_effects.machines {
         for operation in &machine.operations {
@@ -844,6 +853,44 @@ pub(super) fn resolve_exact_selected_plan<'plans>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn selected_operator_crash_invocations_reject_terminal_custody() {
+        for (operator_contract, caller_contract) in [
+            ("crashes Trap", "crashes Trap"),
+            ("crashes Abort", "crashes Abort"),
+            ("crashes Trap false", ""),
+        ] {
+            let source = format!(
+                "boundary operator == Comparison::equal(left: i32, right: i32) -> bool {operator_contract};
+                 pub machine compare(left: i32, right: i32) -> bool {caller_contract} {{ left == right }}"
+            );
+            let tokens = source_files_to_tokens::Lexer::new(&source)
+                .tokenize()
+                .unwrap();
+            let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+            let resolved =
+                syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+            let typed =
+                symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                    .unwrap();
+            let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
+                .expect("matched ceiling or false route must pass source checking");
+            let diagnostics = validate_selected_operator_terminal_custody(
+                &checked,
+                &effects::SelectedProviderPlanFacts::default(),
+            )
+            .unwrap_err();
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains(
+                        "selected operator crash invocations have no Terminal replay support"
+                    )),
+                "{diagnostics:#?}"
+            );
+        }
+    }
 
     const SOURCE: &str = r#"
         data CheckedMath {}

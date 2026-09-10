@@ -6,6 +6,8 @@ use crate::labels::symbol_name;
 mod destinations;
 mod requires;
 
+pub(crate) use requires::operator_route_is_false;
+
 pub(crate) fn check_operator_resolution(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
@@ -29,32 +31,6 @@ pub(crate) fn check_operator_resolution(
     diagnostics.extend(destinations::check(program, facts));
     for (_, operator_use) in facts.operators.uses.iter() {
         let selected = facts.operators.selected_candidate(operator_use);
-        // Declaration buckets are not invocation evidence. Crash propagation
-        // currently consumes machine/state FlowCallFact records, not selected
-        // operator occurrences. Fence both spelled and implicit uses until their
-        // exact operands, live guards, and surviving routes reach caller coverage
-        // and private/transitive summaries. A caller ceiling (or a false route)
-        // alone cannot supply that missing custody. Inspect only the selected
-        // candidate: unused declarations do not create invocation obligations.
-        if selected.is_some_and(|selected| {
-            program
-                .signature_contracts
-                .span_or_empty(selected.contracts)
-                .iter()
-                .any(|contract| {
-                    matches!(
-                        contract.kind,
-                        typed_trees::signature::SignatureContractKind::Crashes { .. }
-                    )
-                })
-        }) {
-            diagnostics.push(Diagnostic::error(match operator_use.occurrence {
-                checked_trees::CheckedOperatorOccurrence::Expression =>
-                    "selected operator with a crashes contract requires invocation-specific crash support",
-                checked_trees::CheckedOperatorOccurrence::MatchEquality { .. } =>
-                    "selected Match equality with a crashes contract requires arm-local crash invocation support",
-            }));
-        }
         if operator_use.occurrence == checked_trees::CheckedOperatorOccurrence::Expression {
             continue;
         }

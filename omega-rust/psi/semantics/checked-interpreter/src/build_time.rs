@@ -215,3 +215,25 @@ pub struct SelectedBuildTimeBinaryOperator {
     pub policy: checked_trees::CheckedArithmeticPolicyAdapter,
     pub provider: checked_trees::CheckedProviderPlanCommitment,
 }
+
+impl SelectedBuildTimeBinaryOperator {
+    /// Inspect only this supplied selection, never unrelated operator overloads.
+    pub fn has_crash_contract(&self, program: &typed_trees::TypedTrees) -> bool {
+        program
+            .operators()
+            .iter()
+            .filter(|operator| operator.symbol == self.requirement)
+            .any(|operator| {
+                program
+                    .signature_contracts
+                    .span_or_empty(operator.contracts)
+                    .iter()
+                    .any(|contract| {
+                        matches!(
+                            contract.kind,
+                            typed_trees::signature::SignatureContractKind::Crashes { .. }
+                        )
+                    })
+            })
+    }
+}

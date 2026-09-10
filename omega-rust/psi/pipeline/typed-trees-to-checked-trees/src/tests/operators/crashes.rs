@@ -18,20 +18,18 @@ fn selected_expression_operator_cannot_drop_its_crash_contract() {
             ("crashes Abort", ""),
             ("crashes Trap", "crashes Abort"),
             ("crashes Abort", "crashes Trap"),
-            ("crashes Trap", "crashes Trap"),
-            ("crashes Trap false", ""),
         ] {
             let source = format!(
                 "boundary operator == Comparison::equal(left: {format}, right: {format}) -> bool {operator_contract};
-                 machine compare(left: {format}, right: {format}) -> bool {caller_contract} {{ left == right }}"
+                 pub machine compare(left: {format}, right: {format}) -> bool {caller_contract} {{ left == right }}"
             );
             let diagnostics = check(&source).err().unwrap_or_else(|| {
                 panic!("selected operator crash contract disappeared: {source}")
             });
             assert!(
-                diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
-                    "selected operator with a crashes contract requires invocation-specific crash support"
-                )),
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("uncovered")),
                 "{source}\n{diagnostics:#?}"
             );
         }

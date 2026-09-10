@@ -69,6 +69,27 @@ fn checked_source(source: &str) -> checked_trees::CheckedTrees {
     lower_typed_trees(typed).expect("check")
 }
 
+#[test]
+fn selected_operator_crash_invocations_reject_direct_terminal_lowering() {
+    for (operator_contract, caller_contract) in [
+        ("crashes Trap", "crashes Trap"),
+        ("crashes Abort", "crashes Abort"),
+        ("crashes Trap false", ""),
+    ] {
+        let checked = checked_source(&format!(
+            "boundary operator == Comparison::equal(left: i32, right: i32) -> bool {operator_contract};
+             pub machine compare(left: i32, right: i32) -> bool {caller_contract} {{ left == right }}"
+        ));
+        let error = lower_machine(&checked, "compare")
+            .err()
+            .expect("direct Terminal lowering must retain its execution fence");
+        assert!(
+            format!("{error:?}")
+                .contains("selected operator crash invocations have no Terminal replay support")
+        );
+    }
+}
+
 fn checked_scalar_suspension_fixture() -> checked_trees::CheckedTrees {
     checked_source(
         r#"

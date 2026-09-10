@@ -168,7 +168,15 @@ impl SummaryCrashBucket {
             .filter_map(|guard| match guard {
                 SummaryCrashRouteGuard::Truth => Some(SummaryCrashRouteGuard::Truth),
                 SummaryCrashRouteGuard::Predicate(predicate) => {
-                    let identity = predicate.identity.substitute(&arguments.identity);
+                    let Some(identity) = super::operator_crashes::substitute_entry(
+                        &predicate.identity,
+                        &arguments.identity,
+                    ) else {
+                        // A current storage read with no entry-value custody
+                        // cannot become a caller Parameter. Retain its cause,
+                        // without inventing a guard in the caller namespace.
+                        return Some(SummaryCrashRouteGuard::Truth);
+                    };
                     match identity.boolean_value() {
                         Some(false) => None,
                         Some(true) => Some(SummaryCrashRouteGuard::Truth),
@@ -275,51 +283,59 @@ fn call_argument_substitution(
     operators: &checked_trees::CheckedOperatorFacts,
     target_parameters: &[typed_trees::signature::StateParameter],
     arguments: &[typed_trees::expression::ExpressionHandle],
-    caller_parameter_names: &[String],
     caller_state: SymbolHandle,
     before_statement: usize,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> CallArgumentSubstitution {
-    let state = program.machines().iter().find_map(|machine| {
+    // Both direct published routes and private/transitive summaries cross the
+    // same namespace boundary. Source spelling and statement position cannot
+    // prove that a current actual still denotes the caller's entry value.
+    // Retain exact immutable entry inputs/literals; unsupported current-value
+    // provenance leaves a missing substitution, which widens the cause below.
+    let owner = program.machines().iter().find_map(|machine| {
         program
             .machine_states(machine)
             .iter()
             .find(|state| state.symbol == caller_state)
+            .map(|state| (machine, state))
     });
     let mut argument_index = 0usize;
     let mut identity = Vec::with_capacity(target_parameters.len());
     let mut scalar = Vec::with_capacity(target_parameters.len());
     for parameter in target_parameters {
         if parameter.is_self {
-            // Receiver substitution remains outside the free scalar-call
-            // slice. Preserve its identity spelling but no portable scalar
-            // meaning.
-            identity.push(Some(CrashPredicateExpression::Name(vec![
-                parameter.name.as_str().to_owned(),
-            ])));
+            // Receiver-entry identity needs retained referent custody. A name
+            // alone must not impersonate a caller entry value.
+            identity.push(None);
             scalar.push(None);
             continue;
         }
         let argument = arguments.get(argument_index).copied();
         argument_index = argument_index.saturating_add(1);
-        identity.push(Some(argument.map_or_else(
-            || CrashPredicateExpression::Name(vec![parameter.name.as_str().to_owned()]),
-            |argument| {
-                crash_predicate_from_expression(program, argument, caller_parameter_names, None)
-            },
-        )));
+        let entry_identity = argument.and_then(|argument| {
+            let (machine, state) = owner?;
+            super::operator_crashes::entry_operand(
+                program,
+                machine.symbol,
+                state.symbol,
+                before_statement,
+                argument,
+            )
+        });
         scalar.push(argument.and_then(|argument| {
+            entry_identity.as_ref()?;
             let expected = program.primitive_type_reference(parameter.type_reference)?;
             crate::values::lower_state_scalar_expression(
                 program,
                 operators,
-                state?,
+                owner?.1,
                 before_statement,
                 argument,
                 expected,
                 exact_integer_casts,
             )
         }));
+        identity.push(entry_identity);
     }
     CallArgumentSubstitution { identity, scalar }
 }
@@ -459,7 +475,6 @@ fn refine_published_crash_routes(
     target_parameter_names: &[String],
     buckets: &[checked_trees::CrashRouteBucket],
     contracts: &[typed_trees::signature::SignatureContract],
-    caller_parameter_names: &[String],
     content_conservation: &[validation::ContentConservationSourcePlan],
 ) -> Vec<SummaryCrashBucket> {
     let route_expressions = crash_route_expressions_by_identity(
@@ -474,7 +489,6 @@ fn refine_published_crash_routes(
         operators,
         target_parameters,
         arguments,
-        caller_parameter_names,
         state_flow.state_symbol,
         call_flow.statement_index,
         exact_integer_casts,
@@ -508,8 +522,14 @@ fn refine_published_crash_routes(
                                 expression,
                                 target_parameter_names,
                                 Some(content_conservation),
-                            )
-                            .substitute(&substitution.identity);
+                            );
+                            let Some(predicate) = super::operator_crashes::substitute_entry(
+                                &predicate,
+                                &substitution.identity,
+                            ) else {
+                                guards.push(SummaryCrashRouteGuard::Truth);
+                                continue;
+                            };
                             match predicate.boolean_value() {
                                 Some(false) => {}
                                 Some(true) => guards.push(SummaryCrashRouteGuard::Truth),
@@ -570,20 +590,6 @@ pub(super) fn attach_checked_crash_calls(
     let mut calls_by_caller =
         Vec::<(SymbolHandle, Vec<checked_trees::CheckedCrashCallSite>)>::new();
     for (_, state_flow) in flow.control.states.iter() {
-        let caller_parameter_names = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == state_flow.machine_symbol)
-            .and_then(|machine| program.machine_states(machine).first())
-            .map(|entry| {
-                program
-                    .state_parameters(entry)
-                    .iter()
-                    .map(|parameter| parameter.name.as_str().to_owned())
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-
         for call_flow in flow.control.calls.span_or_empty(state_flow.calls) {
             let Some((target_machine_symbol, target_state_symbol)) =
                 crate::contract_target_from_state_symbol(program, call_flow.target_symbol)
@@ -711,7 +717,6 @@ pub(super) fn attach_checked_crash_calls(
                         &target_parameter_names,
                         buckets,
                         contracts,
-                        &caller_parameter_names,
                         content_conservation,
                     )
                 }
@@ -721,7 +726,6 @@ pub(super) fn attach_checked_crash_calls(
                         operators,
                         target_parameters,
                         arguments,
-                        &caller_parameter_names,
                         state_flow.state_symbol,
                         call_flow.statement_index,
                         exact_integer_casts,
@@ -911,19 +915,6 @@ fn infer_private_body_summaries(
 
     let mut equations = Vec::new();
     for node in &nodes {
-        let caller_parameter_names = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == node.machine)
-            .and_then(|machine| program.machine_states(machine).first())
-            .map(|entry| {
-                program
-                    .state_parameters(entry)
-                    .iter()
-                    .map(|parameter| parameter.name.as_str().to_owned())
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
         let mut private_dependencies = Vec::new();
         let mut published_dependencies = Vec::new();
         for invocation in &node.invocations {
@@ -993,7 +984,6 @@ fn infer_private_body_summaries(
                             operators,
                             target_parameters,
                             arguments,
-                            &caller_parameter_names,
                             invocation.caller_state,
                             invocation.statement_index,
                             exact_integer_casts,
@@ -1019,7 +1009,6 @@ fn infer_private_body_summaries(
                         &target_parameter_names,
                         target_plan.crash.published(),
                         program.machine_contracts(target_machine),
-                        &caller_parameter_names,
                         content_conservation,
                     ));
                 }
@@ -1057,7 +1046,6 @@ fn infer_private_body_summaries(
                     &target_parameter_names,
                     capsule.published_buckets(),
                     program.state_signature_contracts(signature),
-                    &caller_parameter_names,
                     content_conservation,
                 ));
             }
@@ -1193,7 +1181,34 @@ fn inferred_direct_body_crash_buckets(
         .iter()
         .map(|site| SummaryCrashBucket::unconditional(site.cause()))
         .collect::<Vec<_>>();
-    normalize_summary_buckets(std::mem::take(&mut buckets))
+    // Selected operators are direct invocations in this body's summary, not
+    // fabricated machine-call edges. Their producer already distinguishes
+    // captured operands from entry values and widens unknown origins to Truth.
+    // Adding them here lets the existing private-call fixed point propagate
+    // their causes, including through recursive wrappers.
+    for operator in target.crash.checked_operators() {
+        for bucket in &operator.surviving {
+            buckets.push(SummaryCrashBucket {
+                cause: bucket.cause(),
+                alternative_guards: bucket
+                    .alternative_guards()
+                    .iter()
+                    .map(|guard| match guard {
+                        checked_trees::CrashRouteGuard::Truth => SummaryCrashRouteGuard::Truth,
+                        checked_trees::CrashRouteGuard::Predicate(predicate) => predicate
+                            .expression()
+                            .map_or(SummaryCrashRouteGuard::Truth, |identity| {
+                                SummaryCrashRouteGuard::Predicate(SummaryCrashPredicate {
+                                    identity: identity.clone(),
+                                    scalar: predicate.scalar_expression().cloned(),
+                                })
+                            }),
+                    })
+                    .collect(),
+            });
+        }
+    }
+    normalize_summary_buckets(buckets)
 }
 
 fn private_dependency_reaches(
@@ -1316,6 +1331,37 @@ mod tests {
             scalar: vec![None; identity.len()],
             identity,
         }
+    }
+
+    #[test]
+    fn missing_call_actual_provenance_widens_instead_of_retaining_callee_parameter() {
+        let route = SummaryCrashBucket {
+            cause: checked_trees::CrashCause::Trap,
+            alternative_guards: vec![predicate(CrashPredicateExpression::Parameter(0))],
+        };
+        for actuals in [Vec::new(), vec![None]] {
+            assert_eq!(
+                route.substitute(&identity_substitution(actuals)),
+                SummaryCrashBucket::unconditional(checked_trees::CrashCause::Trap),
+                "a missing actual must not relabel the callee formal as a caller entry input",
+            );
+        }
+    }
+
+    #[test]
+    fn unreferenced_unknown_actual_does_not_erase_exact_guard_substitution() {
+        let route = SummaryCrashBucket {
+            cause: checked_trees::CrashCause::Trap,
+            alternative_guards: vec![predicate(CrashPredicateExpression::Parameter(1))],
+        };
+        let substituted = route.substitute(&identity_substitution(vec![
+            None,
+            Some(CrashPredicateExpression::Parameter(2)),
+        ]));
+        assert_eq!(
+            substituted.alternative_guards,
+            vec![predicate(CrashPredicateExpression::Parameter(2))]
+        );
     }
 
     #[test]

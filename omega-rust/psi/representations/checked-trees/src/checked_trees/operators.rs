@@ -628,6 +628,26 @@ impl CheckedOperatorRealizationContract {
 }
 
 impl CheckedOperatorFacts {
+    /// Whether an actually selected occurrence requires operator crash replay.
+    /// Candidate contracts survive provider adapter rewrites of expression nodes.
+    pub fn has_crash_qualified_uses(&self, program: &typed_trees::TypedTrees) -> bool {
+        self.uses.iter().any(|(_, operator_use)| {
+            self.selected_candidate(operator_use)
+                .is_some_and(|selected| {
+                    program
+                        .signature_contracts
+                        .span_or_empty(selected.contracts)
+                        .iter()
+                        .any(|contract| {
+                            matches!(
+                                contract.kind,
+                                typed_trees::signature::SignatureContractKind::Crashes { .. }
+                            )
+                        })
+                })
+        })
+    }
+
     pub fn with_roots(
         uses: Arena<CheckedOperatorUseFact>,
         named_uses: Arena<CheckedNamedOperatorUseFact>,

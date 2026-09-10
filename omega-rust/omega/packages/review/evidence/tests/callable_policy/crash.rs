@@ -1,6 +1,44 @@
 use super::*;
 
 #[test]
+fn selected_operator_crash_evidence_is_fenced_in_review_and_callable_policy() {
+    for (operator_contract, caller_contract) in [
+        ("crashes Trap", "crashes Trap"),
+        ("crashes Abort", "crashes Abort"),
+        ("crashes Trap false", ""),
+    ] {
+        let fixture = Fixture::local(&format!(
+            "boundary operator == Comparison::equal(left: i32, right: i32) -> bool {operator_contract};
+             pub machine compare(left: i32, right: i32) -> bool {caller_contract} {{ left == right }}"
+        ));
+        assert!(
+            fixture
+                .checked
+                .facts
+                .operators
+                .has_crash_qualified_uses(&fixture.checked.typed)
+        );
+        let review = package_evidence::project_checked_package_review(&fixture.checked)
+            .err()
+            .expect("operator crash review projection remains unsupported");
+        let policy =
+            project_checked_callable_policy(&fixture.checked, fixture.target, package_identity())
+                .err()
+                .expect("operator crash callable policy remains unsupported");
+        for diagnostics in [review, policy] {
+            assert!(
+                diagnostics.iter().any(|diagnostic| {
+                    diagnostic.message.contains(
+                "selected operator crash invocations have no package evidence projection support"
+            )
+                }),
+                "{operator_contract}: {diagnostics:#?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn selected_build_inferred_crash_causes_distinguish_quiet_trap_and_abort() {
     let quiet = project(&Fixture::local(""));
     let quiet_build = callable(&quiet, "build");

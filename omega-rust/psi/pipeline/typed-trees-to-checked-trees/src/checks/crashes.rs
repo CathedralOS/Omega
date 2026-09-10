@@ -15,6 +15,48 @@ mod entry_guards;
 mod entry_requirements;
 mod source_fallthrough;
 
+/// Reconstruct the exact selected occurrence roster before relying on source
+/// crash summaries. Missing discharge rows must not look like crash-free uses;
+/// substitutions, operands, and selected requirement buckets remain checkable.
+/// Portable products still need their own invocation/certificate representation.
+pub(crate) fn check_operator_invocation_custody(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+) -> Result<(), Vec<Diagnostic>> {
+    let expected = crate::facts::operator_crashes::build(
+        program,
+        &facts.operators,
+        &facts.flow,
+        &facts.semantic,
+    )?;
+    let actual = facts
+        .contract_plans
+        .machines
+        .iter()
+        .flat_map(|machine| {
+            machine
+                .crash
+                .checked_operators()
+                .iter()
+                .map(move |site| (machine.machine, site))
+        })
+        .collect::<Vec<_>>();
+    if expected.len() != actual.len()
+        || expected.iter().any(|(machine, site)| {
+            actual
+                .iter()
+                .filter(|(owner, candidate)| owner == machine && *candidate == site)
+                .count()
+                != 1
+        })
+    {
+        return Err(vec![Diagnostic::error(
+            "selected operator crash invocation evidence does not match its captured source occurrence",
+        )]);
+    }
+    Ok(())
+}
+
 pub(crate) fn infer_path_conditioned_guard_coverage(
     program: &TypedTrees,
     facts: &mut CheckFacts,
@@ -289,6 +331,28 @@ pub(crate) fn check_published_ceiling_coverage(
                     call.location().call_ordinal(),
                     surviving.cause(),
                 )));
+            }
+        }
+        for invocation in caller.crash.checked_operators() {
+            for surviving in &invocation.surviving {
+                let covered = surviving.alternative_guards().iter().all(|route| {
+                    caller.crash.published().iter().any(|published| {
+                        published.cause() == surviving.cause()
+                            && published.alternative_guards().iter().any(|cover| {
+                                // These routes already use proven entry values.
+                                // Statement-entry/path facts are not an implicit
+                                // bridge from mutated operand storage to entry.
+                                call_route_guard_covers(cover, route, &[])
+                            })
+                    })
+                });
+                if !covered {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "selected operator `{}` in `{caller_name}` has an uncovered {:?} crash route; publish a same-cause route whose guard covers this invocation",
+                        crate::labels::symbol_name(program, invocation.selected_operator),
+                        surviving.cause(),
+                    )));
+                }
             }
         }
     }

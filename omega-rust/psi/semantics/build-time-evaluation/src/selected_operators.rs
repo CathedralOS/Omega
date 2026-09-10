@@ -8,6 +8,14 @@ pub fn validate_selected_operators(
     program: &TypedTrees,
     selected: &[SelectedBuildTimeBinaryOperator],
 ) -> Result<(), String> {
+    if selected
+        .iter()
+        .any(|operator| operator.has_crash_contract(program))
+    {
+        return Err(
+            "selected operator crash invocations have no build-time execution support".into(),
+        );
+    }
     if selected.is_empty() {
         return Ok(());
     }
