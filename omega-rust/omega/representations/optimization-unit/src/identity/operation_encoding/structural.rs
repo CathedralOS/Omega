@@ -5,6 +5,16 @@ use super::*;
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
     match operation {
+        O::EstablishScalarArray {
+            psi_operation,
+            result,
+            elements,
+        } => {
+            bytes.u8(69);
+            bytes.id(*psi_operation);
+            encode_structural_operation_result(bytes, result);
+            bytes.slice(elements, |bytes, value| bytes.id(*value));
+        }
         O::EstablishPrimitiveLocal {
             psi_operation,
             result,

@@ -164,6 +164,7 @@ pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
     use AbstractOperation as O;
     match operation {
         O::EstablishScalarCase { fields, .. } => fields.iter().map(|field| field.value).collect(),
+        O::EstablishScalarArray { elements, .. } => elements.clone(),
         O::ByteSequenceRead { index, length, .. } => vec![*index, *length],
         O::ByteSequenceWrite {
             index,

@@ -42,6 +42,7 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             places.insert(place.id);
         }
         O::EstablishPrimitiveLocal { result, .. }
+        | O::EstablishScalarArray { result, .. }
         | O::EstablishScalarCase { result, .. }
         | O::EstablishAffineScalarRecord { result, .. }
         | O::CallStructural { result, .. }
@@ -129,6 +130,11 @@ pub(super) fn collect_operation_structural_places(
             ..
         }
         | AbstractOperation::ByteSequenceSubslice {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::EstablishScalarArray {
             psi_operation,
             result,
             ..

@@ -19,6 +19,19 @@ pub(super) fn lower(
     lowered_byte_sequence_literals: &mut usize,
 ) -> Result<AbstractOperation, LoweringError> {
     Ok(match operation.kind.clone() {
+        OperationKind::EstablishScalarArray { elements } => {
+            let Some(result) = operation.result.structural().cloned() else {
+                return Err(LoweringError::UnsupportedScalarArray(operation.id));
+            };
+            // Canonical admission checked exact shape, leaf types and dominance.
+            // Preserve those operands and their result identity for independent
+            // current-IR validation; native layout is not decided by projection.
+            AbstractOperation::EstablishScalarArray {
+                psi_operation: operation.id,
+                result,
+                elements,
+            }
+        }
         OperationKind::EstablishScalarCase {
             result_case,
             fields,

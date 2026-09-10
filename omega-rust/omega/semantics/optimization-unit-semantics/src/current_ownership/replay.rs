@@ -307,7 +307,8 @@ pub(super) fn validate_current_ownership_cfg(
                 // A subslice establishes a borrowed descriptor, never an owned
                 // result or a new cleanup/claim frontier.
                 O::ByteSequenceSubslice { .. } => None,
-                O::EstablishScalarCase { result, .. }
+                O::EstablishScalarArray { result, .. }
+                | O::EstablishScalarCase { result, .. }
                 | O::EstablishAffineScalarRecord { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {

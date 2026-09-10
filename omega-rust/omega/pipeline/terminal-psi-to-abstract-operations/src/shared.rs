@@ -10,7 +10,7 @@ pub(crate) use semantic_vocabulary::{
 };
 pub(crate) use terminal_codec::{CodecError, terminal_psi_identity};
 pub(crate) use terminal_psi::{
-    CompletionReceipt, OperationKind, ProviderCandidateConformance, StructuralArgument,
-    StructuralMultiplicity, TerminalAffineCleanupAction, TerminalMachine, Terminator,
+    CompletionReceipt, ProviderCandidateConformance, StructuralArgument, StructuralMultiplicity,
+    TerminalAffineCleanupAction, TerminalMachine, Terminator,
 };
 pub(crate) use terminal_verifier::{VerifiedOptimizableTerminalModule, VerifiedTerminalModule};

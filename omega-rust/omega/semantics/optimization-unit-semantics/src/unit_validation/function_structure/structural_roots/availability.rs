@@ -23,6 +23,7 @@ pub(crate) fn validate_structural_place_availability(
             let place = match &node.operation {
                 O::EstablishPrimitiveLocal { result, .. }
                 | O::ByteSequenceSubslice { result, .. }
+                | O::EstablishScalarArray { result, .. }
                 | O::EstablishScalarCase { result, .. }
                 | O::EstablishAffineScalarRecord { result, .. }
                 | O::CallStructural { result, .. }

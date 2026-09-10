@@ -63,6 +63,7 @@ pub enum AdmittedBoundaryExecution<'execution> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    UnsupportedScalarArray(OperationId),
     /// Native continuations do not yet retain partial-owner cleanup.
     UnsupportedPartialAffineContinuation {
         machine: MachineId,

@@ -12,6 +12,11 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         }
     };
     match operation {
+        O::EstablishScalarArray { elements, .. } => {
+            for element in elements {
+                replace(element);
+            }
+        }
         O::EstablishScalarCase { fields, .. } => {
             for field in fields {
                 replace(&mut field.value);

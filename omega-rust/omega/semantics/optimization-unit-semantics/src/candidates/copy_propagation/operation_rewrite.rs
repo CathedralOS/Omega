@@ -21,6 +21,11 @@ pub(crate) fn rewrite_block_parameter_operation(
         }
     };
     match operation {
+        O::EstablishScalarArray { elements, .. } => {
+            for element in elements {
+                replace(element);
+            }
+        }
         O::EstablishScalarCase { fields, .. } => {
             for field in fields {
                 replace(&mut field.value);

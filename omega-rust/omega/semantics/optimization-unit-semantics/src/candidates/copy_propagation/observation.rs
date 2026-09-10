@@ -100,6 +100,11 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
     };
 
     match &mut normalized {
+        O::EstablishScalarArray { elements, .. } => {
+            for element in elements {
+                replace(element);
+            }
+        }
         O::EstablishScalarCase { fields, .. } => {
             for field in fields {
                 replace(&mut field.value);

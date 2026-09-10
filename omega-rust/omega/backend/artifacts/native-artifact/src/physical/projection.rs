@@ -256,6 +256,7 @@ fn abstract_operation_psi_operation(operation: &AbstractOperation) -> Option<Ope
         | AbstractOperation::PrimitiveScalarRead { psi_operation, .. }
         | AbstractOperation::StructuralScalarFieldStore { psi_operation, .. }
         | AbstractOperation::StoreDynamicDescriptor { psi_operation, .. }
+        | AbstractOperation::EstablishScalarArray { psi_operation, .. }
         | AbstractOperation::EstablishScalarCase { psi_operation, .. }
         | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
         | AbstractOperation::EstablishTrivialAffineLocal { psi_operation, .. }

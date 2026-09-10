@@ -35,6 +35,14 @@ relocations, bytes, and independently validated publication.
 
 ## Structural results and residual cleanup
 
+Primitive array construction retains its complete structural result and ordered
+scalar leaves in `EstablishScalarArray`. Ordinary, optimizer, and native artifact
+admission use this same projection, including empty recursive dimensions. Current-IR
+validation independently checks shape, leaf type/availability, and owned call/return
+custody; scalar rewrites retain every leaf occurrence. This is not native array
+storage support: `abstract-operations-to-target-operations` rejects construction
+until aggregate storage, argument/result transport, and empty-value ABI are connected.
+
 Verified branches, calls, and crash exits retain the same operation identities
 and ownership transfers regardless of result category. Local establishments are
 ordinary operations, not hidden inside a structural return. The legacy no-code
