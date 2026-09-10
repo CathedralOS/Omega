@@ -1,0 +1,14 @@
+data Countdown { remaining: u64 [0..=5]; }
+measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.remaining }
+
+machine walk(countdown: Countdown, ceiling: u64 [5..=10])
+terminates by countdown -> Countdown::Remaining in 0..=ceiling;
+-> u64 {
+    transition { _ -> iterate(ceiling, countdown) }
+    state iterate(limit: u64 [5..=10], pending: Countdown) {
+        transition pending.remaining > 0 {
+            true -> iterate(limit, Countdown { remaining: pending.remaining - 1 })
+            false -> pending.remaining
+        }
+    }
+}

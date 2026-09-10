@@ -46,6 +46,17 @@ pub(super) fn has_immutable_inputs(
                 let TypeReferenceNode::Named { symbol, .. } = base_type(program, handle) else {
                     return false;
                 };
+                // Forwarding an immutable owned record evaluates no fields or
+                // calls. It preserves other operands' guard facts without
+                // supplying scalar bounds for the record itself. Projection
+                // resolution above still refuses every reference boundary.
+                if program.symbols.builtin_type_atom(*symbol).is_none() {
+                    return symbol.is_valid()
+                        && program
+                            .data_definitions()
+                            .iter()
+                            .any(|definition| definition.symbol == *symbol);
+                }
                 program.arithmetic_domain_for_type_reference(handle) == ArithmeticDomain::Exact
                     && matches!(
                         program.symbols.builtin_type_atom(*symbol),

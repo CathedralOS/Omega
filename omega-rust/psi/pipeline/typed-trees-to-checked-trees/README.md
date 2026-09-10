@@ -170,6 +170,23 @@ overflowing intermediate. Diagnostic expressions come from retained handles,
 not the normalized witness's fallback display labels. Constant endpoints use
 the same formation checks: suffixes preserve their carriers, and anonymous
 subtrees use exact rational evaluation before integer landing.
+
+Named-state arrivals reuse these field coordinates through identity-anchored
+entry-role mappings. Each demanded record role must have one immutable owned
+formal of the exact nominal type in both source and destination; duplicated
+record roles need independent field-copy equality evidence. Root-template and
+renamed current projections share only that checked coordinate. Every arrival
+substitutes rank, auxiliary fields, and endpoints simultaneously, and cyclic
+edges additionally prove strict descent. Complete prefix write frames and
+selected builtin operand meanings remain required. Computed-only initial record
+arrivals, borrowed/nested projections, and constrained measure parameters remain
+unsupported by this tier.
+Check the customer with `cargo run -p omega -- --check
+tests/omega/pass/termination/measure_field_named_arrival/main.omg` (or `mbx run`).
+The `checked-interpreter` integration target `field_ranking_arrivals` executes the
+same countdown. This is checked-source support, not custom-view Terminal/native
+certificate export.
+
 Descent also requires complete write frames preserving the ranked field through
 the preceding statements and edge operands; a reset cannot count as progress.
 Every recursive occurrence must rebuild the exact nominal field by subtracting
@@ -181,13 +198,13 @@ may change on arrival when they remain positive, unlike invocation-fixed range
 endpoints. The [batch-size countdown](../../../../tests/omega/pass/termination/measure_field_rank_step/README.md)
 exercises this source-checking tier; it supplies no native custom-view certificate.
 
-For single-state owned direct-field measures, relational membership shares the
+For owned direct-field measures, relational membership shares the
 ordinary scalar range proof. Entry requirements may relate the selected field
 to scalar or direct field endpoints, including nonzero floors and exclusive
 ceilings. Additional owned `u64` fields remain independent coordinates by exact
-parameter and declared field identity. Every self-edge substitutes the exact
-reconstructed fields and scalar actuals simultaneously, proves
-endpoint equality and membership, and establishes strict descent. Entry facts
+parameter and declared field identity. Every checked arrival substitutes the exact
+reconstructed fields and scalar actuals simultaneously and proves endpoint
+equality and membership; cyclic edges also establish strict descent. Entry facts
 may recur only if every edge re-establishes them; a backedge guard cannot prove
 initial membership. Prefix stores need complete disjoint frames, and calls in
 edge operands cannot supply immutable snapshots. Unrelated mutable scratch
@@ -207,8 +224,8 @@ write frames on each input field rather than requiring unrelated fields to stay
 unchanged. Arithmetic formation remains with the shared bounds owner; this
 pinning rule does not interpret division or remainder as a polynomial.
 Flow-dependent formation, algebraic replacement of non-polynomial endpoint
-inputs, named-state transport, broader projections and constrained measure
-parameters still need their own evidence.
+inputs (including their named-state transport), broader projections and
+constrained measure parameters still need their own evidence.
 
 Entry backedges re-establish machine `requires`; internal named-state transfers
 owe their target state's requirements. Neither imports machine `ensures`.

@@ -47,6 +47,17 @@ impl<'program> FieldCoordinate<'program> {
         field: SymbolHandle,
     ) -> Option<Self> {
         let parameter = parameter(program, state, subject)?;
+        Self::for_parameter(program, parameter, field)
+    }
+
+    fn for_parameter(
+        program: &'program TypedTrees,
+        parameter: &'program StateParameter,
+        field: SymbolHandle,
+    ) -> Option<Self> {
+        if parameter.is_self || parameter.is_mutable || parameter.is_const {
+            return None;
+        }
         let (owner, field) = declared_field(program, parameter, field)?;
         // The independently selected direct-field view produces builtin u64.
         // Other carriers need their own view-application proof.
@@ -59,6 +70,29 @@ impl<'program> FieldCoordinate<'program> {
             owner,
             identity: format!("\0ranking:field:{:?}:{:?}", parameter.symbol, field.symbol),
         })
+    }
+
+    /// A telescope names a role, not record compatibility or equality between
+    /// copies. Only a unique owned formal with the exact declaration can carry
+    /// this coordinate; duplicated record roles need independent field facts.
+    pub(super) fn at_arrival(
+        &self,
+        program: &'program TypedTrees,
+        arrival: RankingRangeState<'_>,
+        entry_symbol: SymbolHandle,
+    ) -> Option<Self> {
+        let mut parameters = program
+            .state_parameters(arrival.state)
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .zip(arrival.entry_parameters)
+            .filter_map(|(parameter, entry)| (*entry == entry_symbol).then_some(parameter));
+        let parameter = parameters.next()?;
+        if parameters.next().is_some() {
+            return None;
+        }
+        let coordinate = Self::for_parameter(program, parameter, self.field.symbol)?;
+        (coordinate.owner == self.owner).then_some(coordinate)
     }
 
     pub(super) fn value(&self) -> Polynomial {

@@ -183,19 +183,6 @@ fn prove_edge(
 ) -> Option<RankingRangeEdgeProof> {
     let states = program.machine_states(machine);
     let root = states.first()?;
-    let mut field_rank = match measure {
-        RankingRangeMeasure::Field { subject, field } => {
-            // Field arrival mappings are not scalar aliases. Only exact root
-            // self-edges currently supply the record reconstruction evidence.
-            if states.len() != 1 || !matches!(context, EdgeContext::Root) {
-                return None;
-            }
-            Some(field_coordinates::FieldCoordinates::new(
-                fields::FieldCoordinate::resolve(program, root, subject, field)?,
-            ))
-        }
-        _ => None,
-    };
     if !states
         .iter()
         .any(|candidate| candidate.symbol == state.symbol)
@@ -223,6 +210,27 @@ fn prove_edge(
             )?;
             (Some(*source_parameters), Some(*destination))
         }
+    };
+    let mut field_rank = match measure {
+        RankingRangeMeasure::Field { subject, field } => {
+            // Scalar telescope compatibility says nothing about records.
+            // Rebind the selected field only after proving its unique owned
+            // nominal arrival; template spellings cannot supply that proof.
+            let coordinate = fields::FieldCoordinate::resolve(program, root, subject, field)?;
+            let coordinate = match entry_parameters {
+                Some(entries) => coordinate.at_arrival(
+                    program,
+                    RankingRangeState {
+                        state,
+                        entry_parameters: entries,
+                    },
+                    coordinate.parameter.symbol,
+                )?,
+                None => coordinate,
+            };
+            Some(field_coordinates::FieldCoordinates::new(coordinate))
+        }
+        _ => None,
     };
     let ExpressionNode::Range(range) = program.expression_table.expression(range) else {
         return None;
@@ -379,7 +387,14 @@ fn prove_edge(
             &expressions,
         )?;
         if let Some(field) = &mut field_rank {
-            field.install(program, state, &mut engine, &expressions)?;
+            field.install(
+                program,
+                state,
+                root,
+                entry_parameters,
+                &mut engine,
+                &expressions,
+            )?;
         }
     }
     let auxiliary =
@@ -481,6 +496,8 @@ fn prove_edge(
             && field.substitute(
                 program,
                 state,
+                entry_parameters,
+                destination,
                 &mut engine,
                 source_symbol,
                 *argument,

@@ -114,8 +114,15 @@ fn prove(
     }
     let mut source_fields = FieldCoordinates::empty();
     let mut goal_fields = FieldCoordinates::empty();
-    source_fields.install(program, caller_state, &mut source_engine, &expressions)?;
-    goal_fields.install(program, target, &mut goal_engine, &[goal])?;
+    source_fields.install(
+        program,
+        caller_state,
+        caller_state,
+        None,
+        &mut source_engine,
+        &expressions,
+    )?;
+    goal_fields.install(program, target, target, None, &mut goal_engine, &[goal])?;
     let source_lengths = lengths::bindings(program, caller_state, None);
     let goal_lengths = lengths::bindings(program, target, None);
     lengths::install(
