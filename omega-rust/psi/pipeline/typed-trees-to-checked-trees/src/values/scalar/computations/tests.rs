@@ -1,5 +1,6 @@
 use super::*;
 
+mod array_arguments;
 mod assignments;
 mod borrowed_arguments;
 mod dispatch;

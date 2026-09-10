@@ -760,6 +760,16 @@ Owners include
 
 ## P3 - Terminal Psi, PCC, and observation
 
+- **SCALAR-SOURCE-DEBUG-MAP.** Reconcile source-backed owned scalar graph
+  publication with its retained debug plans in
+  `typed-trees-to-checked-trees/src/flow/terminal_debug.rs` and
+  `checked-trees-to-lowered-psi/src/lib.rs`. On unchanged `5d5333554e`, macOS
+  AArch64 with a fresh build cache and `RUST_MIN_STACK=33554432`,
+  `cargo nextest run -p checked-trees-to-lowered-psi --test owned_scalar_graphs --no-fail-fast`
+  fails thirteen tests at `support.rs:38`: successful lowering has no debug map.
+  Acceptance: the existing target passes, preserving canonical debug-map
+  round trips and independent source/ownership rejection checks.
+
 - **PSIIR.** Extend Terminal Psi only in complete vertical slices through
   canonical encoding, independent reconstruction, verification,
   interpretation, resource analysis, native lowering, artifact custody, and
@@ -1155,35 +1165,15 @@ Owners include
   `values/scalar/constant_array_projection.rs` only selects closed literal leaves.
   General value projection needs its complete executable representation, not
   a source rewrite that makes a constant addressable storage.
-  Array transport resume evidence (macOS AArch64, base `e7c27eb532` plus the
-  literal-argument change, Cargo with `RUST_MIN_STACK=33554432`):
-  `cargo run -p omega -- inspect-terminal --machine literal_row tests/omega/pass/modules/module_array_constant_indices/main.omg`
-  publishes verified construction/call/parameter-return Terminal Psi. The fixture
-  execution test in `compiler/tests/module_machine_indices/array_construction.rs`
-  independently decodes the artifact and checks input `42u8` returns `[42u8, 9u8]`.
-  Construction, named locals, nested calls, and parameter returns retain exact
-  dimensions, element carriers, source positions, and unrestricted payload custody.
-  Literal operands retain enclosing call/formal ownership, including empty arrays;
-  selective scalar locals and leaves share the ordinary argument schedule.
-  Source owners are
-  `typed-trees-to-checked-trees/src/flow/terminal_unit/control/statement_sequence.rs`
-  and `checked-trees-to-lowered-psi/src/attached_unit/scalar_arrays.rs`.
-  Next acceptance is array-valued operands inside scalar computations, including
-  selected branches. On macOS AArch64, base `71868fe4db` plus the array-availability
-  change, the probe is
-  `cargo run -p omega -- inspect-terminal --machine computation_row tests/omega/pass/modules/module_array_constant_indices/main.omg`:
-  `keep_row([answer_row([7u8, 9u8], value), 9u8])` still rejects with
-  `machine has no source-independent checked scalar control plan`.
-  It must return `[42u8, 9u8]` for input `42u8`. Source-inspected dependencies:
-  `flow/terminal_unit/calls/computation_arguments.rs` has no expression-owned
-  structural temporaries, and `checked-trees-to-lowered-psi/src/scalar_computations.rs`
-  expands into private bindings that each require a scalar result. Extend the
-  shared evaluation sequence with actual structural results, not fake scalar slots
-  (empty arrays have no scalar leaf). Preserve authored formal order and construct
-  only in the selected computation. Terminal array availability is independently
-  checked by dominance and same-block order; unused unrestricted payloads do not
-  enter the disposal frontier or prevent a scalar continuation join. Array-producing
-  cycles and structural block-parameter payload transport remain explicit fences.
+  Array transport resume evidence (macOS AArch64, base `5d5333554e` plus the
+  computation-argument change, Cargo with `RUST_MIN_STACK=33554432`):
+  `cargo run -p omega -- inspect-terminal --machine computation_row tests/omega/pass/modules/module_array_constant_indices/main.omg`
+  publishes verified Terminal Psi for the unchanged nested array customer.
+  The [array production map](omega-rust/psi/compiler/terminal-production/README.md)
+  retains the executable probes and source owners. Continue from its shared
+  evaluation sequence, preserving authored order, selective construction, exact
+  source custody, and actual payloads. Array-producing cycles and structural
+  block-parameter payload transport remain explicit fences.
   Transitive scalar callees with ordered structural operation bodies also need
   the scalar-callee catalog join. Ordered scalar completion contracts and result
   refinements need their complete predicate/evidence path; preserve existing

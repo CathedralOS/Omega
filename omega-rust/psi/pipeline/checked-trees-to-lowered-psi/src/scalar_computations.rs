@@ -1,7 +1,10 @@
-//! Expand checked expression evaluation into private typed scalar blocks.
+//! Expand checked expression evaluation into private typed blocks.
 //!
-//! Source values remain the input prefix. Every completed operand is appended
-//! before the next operand starts; selection converges with one result value.
+//! Source values remain the input prefix. Completed scalar operands extend that
+//! prefix; array constructors establish separate places at their authored formal
+//! positions. Selection converges with one scalar result, without hoisting the
+//! selected path's structural effects. The calls and arrays modules own that
+//! mixed schedule and its real structural results.
 
 use super::*;
 use crate::scalar_bindings as storage;
@@ -9,6 +12,8 @@ use crate::scalar_graph_lowering::lower_scalar_call;
 use arena::Handle;
 use checked_trees::{CheckedScalarComputation, CheckedScalarComputationKind};
 
+pub(crate) mod arrays;
+mod calls;
 mod dispatch;
 mod source_custody;
 mod structural_arguments;
@@ -32,6 +37,7 @@ pub(super) struct Expansion<'a> {
     base: usize,
     states: Vec<LoweredScalarBranchState>,
     calls: Vec<SourceCallCoordinate>,
+    arrays: Vec<arrays::Slot>,
 }
 
 impl<'a> Expansion<'a> {
@@ -46,11 +52,17 @@ impl<'a> Expansion<'a> {
             base,
             states: Vec::new(),
             calls: Vec::new(),
+            arrays: Vec::new(),
         }
     }
 
     pub(super) fn finish(self) -> Vec<LoweredScalarBranchState> {
         self.states
+    }
+
+    pub(super) fn with_arrays(mut self, arrays: &[arrays::Slot]) -> Self {
+        self.arrays = arrays.to_vec();
+        self
     }
 
     /// Retain the caller prefix while completing each operand in source order.
@@ -354,6 +366,7 @@ impl<'a> Expansion<'a> {
         let mut completed_types = source_types.to_vec();
         completed_types.extend(&argument_types);
         let completion = self.push(LoweredScalarBranchState {
+            structural_effects: Vec::new(),
             parameter_types: completed_types.clone(),
             bindings: Vec::new(),
             terminator: LoweredScalarBranchTerminator::Jump {
@@ -424,6 +437,7 @@ impl<'a> Expansion<'a> {
         let mut arguments = parameters(&input_types[..retained]);
         arguments.push(parameter(input_types.len(), binding.scalar_type()));
         self.push(LoweredScalarBranchState {
+            structural_effects: Vec::new(),
             parameter_types: input_types.to_vec(),
             bindings: vec![binding],
             terminator: LoweredScalarBranchTerminator::Jump {
@@ -513,6 +527,7 @@ impl<'a> Expansion<'a> {
                 let mut condition_types = input_types.to_vec();
                 condition_types.push(ScalarType::Boolean);
                 let dispatch = self.push(LoweredScalarBranchState {
+                    structural_effects: Vec::new(),
                     parameter_types: condition_types,
                     bindings: Vec::new(),
                     terminator: LoweredScalarBranchTerminator::Conditional {
@@ -540,89 +555,19 @@ impl<'a> Expansion<'a> {
                 call_ordinal,
                 arguments,
                 structural_arguments,
-            } => {
-                let control = &self.checked.facts.flow.control;
-                if !control.calls.is_valid(source_call) {
-                    return unsupported("scalar computation lost its exact checked invocation");
-                }
-                let source = control.calls.get(source_call);
-                let state = control
-                    .states
-                    .iter()
-                    .map(|(_, state)| state)
-                    .find(|state| {
-                        state.machine_symbol == self.machine && state.state_symbol == site.state
-                    })
-                    .ok_or(LoweringError::Unsupported(
-                        "scalar computation invocation state is absent",
-                    ))?;
-                if !control
-                    .calls
-                    .span_or_empty(state.calls)
-                    .iter()
-                    .any(|call| std::ptr::eq(call, source))
-                    || source.statement_index != site.statement as usize
-                    || source.call_ordinal != call_ordinal as usize
-                    || source.target_symbol != target_state
-                {
-                    return unsupported("scalar computation invocation coordinate disagrees");
-                }
-                let structural_arguments = plans
-                    .structural_arguments
-                    .span(structural_arguments)
-                    .ok_or(LoweringError::Unsupported(
-                        "computed borrow arguments have a stale span",
-                    ))?;
-                let structural_arguments = structural_arguments::lower(
-                    self.checked,
-                    target_machine,
-                    target_state,
-                    structural_arguments,
-                    site.bindings,
-                )?;
-                let arguments = plans
-                    .operands
-                    .span(arguments)
-                    .ok_or(LoweringError::Unsupported(
-                        "scalar computation call has an invalid argument span",
-                    ))?
-                    .iter()
-                    .copied()
-                    .map(Argument::Computation)
-                    .collect::<Vec<_>>();
-                let mut call_types = input_types.to_vec();
-                for argument in &arguments {
-                    call_types.push(self.argument_type(argument)?);
-                }
-                let call = lower_scalar_call(
-                    self.checked,
-                    self.machine,
-                    site.state,
-                    site.statement,
-                    target_machine,
-                    target_state,
-                    call_ordinal,
-                    result_type,
-                    &call_types,
-                    parameters(&call_types)
-                        .into_iter()
-                        .skip(input_types.len())
-                        .collect(),
-                    structural_arguments,
-                    ScalarCallCrashScope::Arguments,
-                )?;
-                if self.calls.contains(&call.source_coordinate) {
-                    return unsupported("scalar computation repeats a call occurrence");
-                }
-                self.calls.push(call.source_coordinate);
-                let invoke = self.binding(
-                    &call_types,
-                    input_types.len(),
-                    target,
-                    LoweredScalarBinding::DirectCall(call),
-                );
-                self.sequence(&arguments, input_types, invoke, site, active)?
-            }
+            } => self.call(
+                source_call,
+                target_machine,
+                target_state,
+                call_ordinal,
+                arguments,
+                structural_arguments,
+                result_type,
+                input_types,
+                target,
+                site,
+                active,
+            )?,
             CheckedScalarComputationKind::Apply {
                 expression,
                 operands,
@@ -703,13 +648,42 @@ fn collect_call_targets(
     structural_only: bool,
 ) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
     let plans = &checked.facts.values.scalar_computations;
-    let mut pending = plans
+    let roots = plans
         .roots
         .iter()
         .filter_map(|(_, root)| (root.machine == machine).then_some(root.root))
         .collect::<Vec<_>>();
-    let mut visited = Vec::new();
     let mut targets = Vec::new();
+    for handle in reachable_nodes(checked, &roots)? {
+        if let CheckedScalarComputationKind::Call {
+            target_machine,
+            structural_arguments,
+            ..
+        } = plans.nodes.get(handle).kind
+        {
+            let arguments = plans
+                .structural_arguments
+                .span(structural_arguments)
+                .ok_or(LoweringError::Unsupported(
+                    "scalar computation closure has invalid structural arguments",
+                ))?;
+            if !structural_only || !arguments.is_empty() {
+                targets.push(target_machine);
+            }
+        }
+    }
+    Ok(targets)
+}
+
+/// Discovery walks only retained roots, never abandoned speculative arena nodes.
+/// Source correspondence and cycle rejection remain independent checks.
+pub(crate) fn reachable_nodes(
+    checked: &CheckedTrees,
+    roots: &[Computation],
+) -> Result<Vec<Computation>, LoweringError> {
+    let plans = &checked.facts.values.scalar_computations;
+    let mut pending = roots.to_vec();
+    let mut visited = Vec::new();
     while let Some(handle) = pending.pop() {
         if visited.contains(&handle) {
             continue;
@@ -741,9 +715,10 @@ fn collect_call_targets(
                 when_true,
                 when_false,
                 ..
-            } => pending.extend([*condition, *when_true, *when_false]),
+            } => {
+                pending.extend([*condition, *when_true, *when_false]);
+            }
             CheckedScalarComputationKind::Call {
-                target_machine,
                 arguments,
                 structural_arguments,
                 ..
@@ -754,9 +729,7 @@ fn collect_call_targets(
                     .ok_or(LoweringError::Unsupported(
                     "scalar computation closure has invalid structural arguments",
                 ))?;
-                if !structural_only || !structural_arguments.is_empty() {
-                    targets.push(*target_machine);
-                }
+                arrays::extend_elements(plans, structural_arguments, &mut pending)?;
                 pending.extend(plans.operands.span(*arguments).ok_or(
                     LoweringError::Unsupported("scalar computation closure has invalid arguments"),
                 )?);
@@ -771,5 +744,5 @@ fn collect_call_targets(
             ),
         }
     }
-    Ok(targets)
+    Ok(visited)
 }

@@ -72,6 +72,7 @@ impl Expansion<'_> {
             )?;
             let entry = match arm.pattern {
                 CheckedScalarDispatchPattern::Wildcard => self.push(LoweredScalarBranchState {
+                    structural_effects: Vec::new(),
                     parameter_types: saved_types.clone(),
                     bindings: Vec::new(),
                     terminator: LoweredScalarBranchTerminator::Jump {
@@ -115,6 +116,7 @@ impl Expansion<'_> {
                         }
                     };
                     let tested = self.push(LoweredScalarBranchState {
+                        structural_effects: Vec::new(),
                         parameter_types: tested_types.clone(),
                         bindings: Vec::new(),
                         terminator,

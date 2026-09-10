@@ -143,6 +143,11 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         let mut current_values = current_parameters.clone();
         let mut current_value_types = state.parameter_types.clone();
         if let Some((binding_plans, continuation_plan)) = staged_short_circuit_terminator {
+            if !state.structural_effects.is_empty() {
+                return unsupported(
+                    "structural effects require their own completed scalar evaluation state",
+                );
+            }
             let mut stage_block = source_block;
             let mut stage_parameters = current_parameters.clone();
             let mut stage_parameter_types = state.parameter_types.clone();
@@ -605,6 +610,12 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             });
             current_value_types.push(binding.scalar_type());
         }
+        crate::scalar_computations::arrays::emit(
+            &state.structural_effects,
+            &current_values,
+            &mut next_value_identity,
+            &mut all_operations,
+        )?;
         let terminator_operation_start = all_operations.len();
         let terminator = match &state.terminator {
             LoweredScalarBranchTerminator::Jump {
@@ -1172,6 +1183,9 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     for place in partition_compositions.structural_places {
         merge_content_place_declaration(&mut structural_places, place)
             .expect("checked lowering rejects conflicting structural places");
+    }
+    for place in crate::scalar_computations::arrays::declarations(&all_operations) {
+        merge_content_place_declaration(&mut structural_places, place)?;
     }
     for parameter in structural_parameters {
         merge_content_place_declaration(

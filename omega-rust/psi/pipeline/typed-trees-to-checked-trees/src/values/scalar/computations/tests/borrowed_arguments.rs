@@ -155,14 +155,17 @@ fn borrowed_computation_arguments_reach_outer_unit_with_source_order() {
             panic!("one exact structural actual");
         };
         assert_eq!(
-            argument.source,
+            argument.as_place().unwrap().source,
             CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
                 symbol: local.symbol
             }
         );
-        assert_eq!(argument.access, CheckedStructuralAccess::MutableBorrow);
-        assert!(argument.path.is_empty());
-        assert!(!argument.type_identity.is_empty());
+        assert_eq!(
+            argument.as_place().unwrap().access,
+            CheckedStructuralAccess::MutableBorrow
+        );
+        assert!(argument.as_place().unwrap().path.is_empty());
+        assert!(!argument.as_place().unwrap().type_identity.is_empty());
     }
 }
 
@@ -231,12 +234,15 @@ fn borrowed_computation_arguments_keep_dynamic_mutation_in_selected_operand() {
         panic!("exact conditional borrow");
     };
     assert_eq!(
-        argument.source,
+        argument.as_place().unwrap().source,
         CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
             symbol: local.symbol
         }
     );
-    assert_eq!(argument.access, CheckedStructuralAccess::MutableBorrow);
+    assert_eq!(
+        argument.as_place().unwrap().access,
+        CheckedStructuralAccess::MutableBorrow
+    );
     let machine = checked
         .machines()
         .iter()
@@ -304,12 +310,15 @@ fn borrowed_computation_arguments_keep_sibling_occurrences_on_the_same_local_dis
             panic!("one sibling borrow");
         };
         assert_eq!(
-            argument.source,
+            argument.as_place().unwrap().source,
             CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
                 symbol: local.symbol
             }
         );
-        assert_eq!(argument.access, CheckedStructuralAccess::MutableBorrow);
+        assert_eq!(
+            argument.as_place().unwrap().access,
+            CheckedStructuralAccess::MutableBorrow
+        );
         let [value] = plans.operands.span(arguments).unwrap() else {
             panic!("one scalar actual");
         };
@@ -418,10 +427,10 @@ fn borrowed_computation_arguments_retain_parameter_access_and_dense_positions() 
             panic!("borrowed actual");
         };
         assert_eq!(
-            argument.source,
+            argument.as_place().unwrap().source,
             CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 }
         );
-        assert_eq!(argument.access, expected);
+        assert_eq!(argument.as_place().unwrap().access, expected);
         let call = checked.facts.flow.control.calls.get(source_call);
         let parameters = crate::call_target_parameters(&checked.typed, call.target_symbol).unwrap();
         assert_eq!(parameters.len(), 3);
@@ -661,9 +670,9 @@ fn borrowed_computation_arguments_admit_each_local_borrow_access() {
             panic!("whole primitive local");
         };
         assert!(
-            matches!(argument.source, CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } if symbol.is_valid())
+            matches!(argument.as_place().unwrap().source, CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } if symbol.is_valid())
         );
-        assert_eq!(argument.access, expected);
+        assert_eq!(argument.as_place().unwrap().access, expected);
     }
 }
 
@@ -742,15 +751,19 @@ fn borrowed_computation_shared_occurrences_keep_scalar_reads_between_same_root_b
             .span(structural_arguments)
             .unwrap();
         assert_eq!(structural.len(), 2);
-        assert_eq!(structural[0].source, structural[1].source);
+        assert_eq!(
+            structural[0].as_place().unwrap().source,
+            structural[1].as_place().unwrap().source
+        );
         assert!(
             structural
                 .iter()
-                .all(|argument| argument.access == CheckedStructuralAccess::SharedBorrow)
+                .all(|argument| argument.as_place().unwrap().access
+                    == CheckedStructuralAccess::SharedBorrow)
         );
         assert_eq!(plans.operands.span(arguments).unwrap().len(), 1);
         let CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } =
-            structural[0].source
+            structural[0].as_place().unwrap().source
         else {
             panic!("local shared root");
         };

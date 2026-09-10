@@ -5,7 +5,7 @@ use super::*;
 pub(crate) mod callee;
 pub(crate) mod embedded;
 
-/// A scalar-only entry can still call a helper that owns real primitive places.
+/// A scalar-only entry can still call a helper that owns real structural places.
 /// Select the shared assembler before the scalar-only catalog rejects its leaves.
 pub(super) fn requires_place_namespace(
     checked: &CheckedTrees,
@@ -28,7 +28,10 @@ pub(super) fn requires_place_namespace(
         };
         if graph.states.iter().any(|state| {
             !state.structural_parameters.is_empty() || !state.primitive_locals.is_empty()
-        }) {
+        }) || !crate::scalar_computations::structural_call_targets(checked, machine)?.is_empty()
+        {
+            // Computation-owned constructors require the shared namespace even
+            // when neither this machine nor its callers have structural formals.
             return Ok(true);
         }
         pending.extend(

@@ -255,16 +255,23 @@ rejoins that exact binding instead of dropping structural arguments through a
 scalar-only call path. This ordered scalar completion does not yet carry authored
 scalar contracts or result refinements; existing scalar-only contract lowering
 remains available for bodies it can fully represent.
-Scalar computation calls with array-valued actuals need expression-owned structural
-temporary slots in the computation evaluator; they cannot hoist construction
-out of a selective Boolean branch. The verifier checks unrestricted array payload
+Scalar computation calls retain array-valued actuals in expression-owned structural
+slots. The shared evaluator completes each array's scalar leaves, establishes its
+real structural result, then evaluates the next authored formal. Empty arrays use
+the same constructor step without a fabricated scalar result. Boolean selection
+and Match arms retain construction on their selected path. Source replay rejoins
+the exact call, formal, recursive type, leaf expressions, and indexing selections.
+The verifier checks unrestricted array payload
 availability through producer dominance and same-block order, separately from
 the exact affine/linear ownership frontier. Branch-local unused arrays therefore
 permit scalar continuation joins; use outside their dominating scope still rejects.
 Repeated array establishment in cycles and block-parameter payload transport remain
 unsupported. The source probe is
 `cargo run -p omega -- inspect-terminal --machine computation_row tests/omega/pass/modules/module_array_constant_indices/main.omg`;
-its next dependency is the computation evaluator, not a new Terminal opcode.
+decoded execution returns `[42u8, 9u8]` for input `42u8`. The
+[`computation argument tests`](../../pipeline/checked-trees-to-lowered-psi/tests/scalar_array_source/computation_arguments.rs)
+exercise nested/empty arrays, mixed formal effects, selective construction,
+source substitutions, and fuel suspension without replay.
 Transitive scalar callees whose bodies require
 this ordered structural operation sequence also need scalar-callee catalog support.
 Array state transfers, borrowed/projected payloads, boundary-provider array

@@ -103,6 +103,24 @@ pub(super) fn rejoin(
                     children.extend_from_slice(arguments);
                     (None, BorrowAccessKind::Read)
                 }
+                ExpressionNode::ArrayLiteral(elements) => {
+                    let values = table.expression_handles(*elements);
+                    if values.len() != elements.count() as usize {
+                        return unsupported("computed array has stale scalar observations");
+                    }
+                    children.extend_from_slice(values);
+                    (None, BorrowAccessKind::Read)
+                }
+                ExpressionNode::Indexed(indexed)
+                    if is_array_value_projection(checked, indexed.collection) =>
+                {
+                    // The borrow collector cannot form a place rooted in an
+                    // array literal (including substituted constant values).
+                    // Its only observation is the selector. Array source replay
+                    // separately validates every projection and closed sibling.
+                    children.push(indexed.index);
+                    (None, BorrowAccessKind::Read)
+                }
                 ExpressionNode::Boolean(_)
                 | ExpressionNode::Integer(_)
                 | ExpressionNode::Float(_)
@@ -182,4 +200,18 @@ pub(super) fn rejoin(
         return unsupported("computed shared borrow has extra observation rows");
     }
     Ok(positions)
+}
+
+fn is_array_value_projection(checked: &CheckedTrees, mut expression: ExpressionHandle) -> bool {
+    let table = &checked.expression_table;
+    let mut visited = Vec::new();
+    while table.expression_is_valid(expression) && !visited.contains(&expression) {
+        visited.push(expression);
+        match table.expression(expression) {
+            ExpressionNode::ArrayLiteral(_) => return true,
+            ExpressionNode::Indexed(indexed) => expression = indexed.collection,
+            _ => return false,
+        }
+    }
+    false
 }

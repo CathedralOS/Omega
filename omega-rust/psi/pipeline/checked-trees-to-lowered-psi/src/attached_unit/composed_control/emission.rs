@@ -240,6 +240,12 @@ pub(in crate::attached_unit) fn emit_callable_body(
     machine.contract.crash_routes =
         lower_checked_crash_route_buckets(&catalogs.root_crash_routes, &machine.parameters)?;
     machine.blocks.sort_by_key(|block| block.id);
+    machine.structural_places.extend(
+        machine
+            .blocks
+            .iter()
+            .flat_map(|block| crate::scalar_computations::arrays::declarations(&block.operations)),
+    );
     machine
         .structural_places
         .append(&mut catalogs.literal_store_places);
@@ -271,6 +277,12 @@ pub(crate) fn emit_call_leaf(
 ) -> Result<(Vec<Block>, Vec<LoweredSourceCallOccurrence>), LoweringError> {
     let mut operations = OperationBuffer::new(*next_operation - 1);
     let mut evaluation = super::super::argument_evaluation::Evaluation {
+        arrays: crate::scalar_computations::arrays::prepare(
+            checked,
+            machine,
+            &catalogs.structural_types,
+            &mut catalogs.next_place,
+        )?,
         primitive_storage: Vec::new(),
         scalar_bindings: None,
         structural_fields: Vec::new(),

@@ -1535,6 +1535,12 @@ fn assemble_unit_closure(
         let mut primitive_local_places = Vec::<primitive_locals::PrimitiveLocal>::new();
         let mut structural_result_places = Vec::<(StructuralPlaceDeclaration, bool)>::new();
         let mut evaluation = argument_evaluation::Evaluation::new(&mut next_block)?;
+        evaluation.arrays = crate::scalar_computations::arrays::prepare(
+            checked,
+            plan.machine,
+            &structural_types,
+            &mut next_place,
+        )?;
         evaluation.structural_parameters = plan
             .structural_parameters
             .iter()
@@ -3708,6 +3714,16 @@ fn assemble_unit_closure(
             },
         });
         evaluation.blocks.sort_by_key(|block| block.id);
+        let computed_array_places = evaluation
+            .blocks
+            .iter()
+            .flat_map(|block| crate::scalar_computations::arrays::declarations(&block.operations))
+            .filter(|place| {
+                !structural_result_places
+                    .iter()
+                    .any(|(existing, _)| existing.id == place.id)
+            })
+            .collect::<Vec<_>>();
         let OperationBuffer {
             source_calls,
             selected_ieee_float_fmas,
@@ -3731,6 +3747,7 @@ fn assemble_unit_closure(
             .chain(literal_places.iter().copied())
             .chain(subslice_places.iter().copied())
             .chain(structural_result_places.iter().map(|(place, _)| *place))
+            .chain(computed_array_places)
             .collect::<Vec<_>>();
         // Argument-time view producers interleave with reserved call results.
         // Declaration order is canonical identity order, not execution order.

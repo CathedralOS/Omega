@@ -65,6 +65,18 @@ pub(in crate::flow) fn collect(
                         .structural_arguments
                         .span(*structural_arguments)?
                     {
+                        let argument = match argument {
+                            checked_trees::CheckedScalarComputationStructuralArgument::Place(
+                                argument,
+                            ) => argument,
+                            checked_trees::CheckedScalarComputationStructuralArgument::Array {
+                                elements,
+                                ..
+                            } => {
+                                pending.extend_from_slice(computations.operands.span(*elements)?);
+                                continue;
+                            }
+                        };
                         let CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } =
                             argument.source
                         else {
