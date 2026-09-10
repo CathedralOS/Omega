@@ -238,6 +238,10 @@ pub(crate) fn project_contracts(
                     )?)
                 }
                 ProofFact::Membership(membership) => {
+                    super::memberships::require_declaration_membership(
+                        &compilation.typed,
+                        membership,
+                    )?;
                     let domain = compilation
                         .domain_definitions()
                         .iter()

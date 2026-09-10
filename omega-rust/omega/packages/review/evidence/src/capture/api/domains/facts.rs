@@ -79,6 +79,10 @@ pub(crate) fn project_definition_contract_fact(
             )?,
         )),
         ProofFact::Membership(membership) => {
+            crate::capture::contracts::memberships::require_declaration_membership(
+                &compilation.typed,
+                membership,
+            )?;
             let domain = compilation
                 .domain_definitions()
                 .iter()
@@ -194,11 +198,13 @@ pub(crate) fn semantic_fact_matches_definition_fact(
                 value,
                 domain,
                 domain_symbol,
+                semantic_domain,
             },
         ) => {
             expected.value == value
                 && expected.domain == domain
                 && expected.domain_symbol == domain_symbol
+                && expected.semantic_domain == semantic_domain
         }
         (
             ProofFact::Proposition(expected),

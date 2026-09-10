@@ -1,5 +1,5 @@
 mod scalar_tags;
-pub use scalar_tags::{scalar_state_contracts_are_qualifications, scalar_type_index_free_tags};
+pub use scalar_tags::{scalar_state_contracts_are_qualifications, scalar_type_tags};
 
 use crate::proof_facts::{ProofFactOwner, validate_domain_fact_payloads};
 use crate::symbols::TopLevelSymbols;
@@ -264,11 +264,16 @@ fn normalized_domain_facts(
             facts::FactPayload::DomainMembership {
                 value,
                 domain_symbol,
+                semantic_domain,
                 ..
             } => {
-                let semantic_id = domain_definition_by_symbol(program, domain_symbol)
-                    .map(|domain| domain.semantic_id)
-                    .unwrap_or_default();
+                let semantic_id = if semantic_domain.is_valid() {
+                    semantic_domain
+                } else {
+                    domain_definition_by_symbol(program, domain_symbol)
+                        .map(|domain| domain.semantic_id)
+                        .unwrap_or_default()
+                };
                 Some(format!(
                     "membership:{}:{semantic_id:?}",
                     program.expression_table.display_name(value)

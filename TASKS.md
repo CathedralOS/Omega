@@ -1087,15 +1087,10 @@ Owners include
   needs operator semantic-domain results and instantiated predicate-bearing, non-builtin
   and selected-trait operator results.
   Extend qualified value composition beyond predicate-/route-free scalar
-  selection and call transport. Indexed source-call membership still needs full
-  normalized domain instances in `ProofMembershipFact` and semantic membership
-  payloads, not just declaration symbols. Rejoin those instances against the exact
-  recipient parameter constraints in `typed-trees-to-checked-trees/src/checks/contracts/`;
-  the normal-result flow and scalar-state contract classifier deliberately exclude
-  indexed families until that evidence exists. Acceptance: a qualified formal
-  receives `Coordinate<7>` from a call or Match result and executes canonically,
-  while `Coordinate<9>` rejects. Terminal's existing instance-sensitive signature
-  checks do not discharge this source obligation.
+  selection and call transport. Indexed predicate/theorem applications still need
+  exact static-argument substitution where quotient fact matching currently
+  rejects unapplied bindings; canonical package-review membership records also
+  need application arguments before indexed proof clauses can be exported.
   Explicit semantic erasure, predicate/routed membership evidence, and shared
   scalar/structural qualification transport also need their own custody.
   Native callable-entry records still need catalog-bound qualified signatures;

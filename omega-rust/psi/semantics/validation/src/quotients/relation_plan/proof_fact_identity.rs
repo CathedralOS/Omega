@@ -345,6 +345,13 @@ pub(super) fn proof_facts_match(
         (ProofFact::Membership(left), ProofFact::Membership(right)) => {
             left.domain_symbol.is_valid()
                 && left.domain_symbol == right.domain_symbol
+                && membership_arguments_match(
+                    program,
+                    left,
+                    right,
+                    left_context.static_bindings,
+                    right_context.static_bindings,
+                )
                 && expression_matches(left.value, right.value)
         }
         (ProofFact::Proposition(left), ProofFact::Proposition(right)) => {
@@ -374,6 +381,52 @@ pub(super) fn proof_facts_match(
         }
         _ => false,
     }
+}
+
+fn membership_arguments_match(
+    program: &TypedTrees,
+    left: &typed_trees::domain::ProofMembershipFact,
+    right: &typed_trees::domain::ProofMembershipFact,
+    left_bindings: &[RepresentativeStaticBinding],
+    right_bindings: &[RepresentativeStaticBinding],
+) -> bool {
+    let left_arguments = program
+        .type_reference_table
+        .type_reference_handles(left.domain_arguments);
+    let right_arguments = program
+        .type_reference_table
+        .type_reference_handles(right.domain_arguments);
+    left_arguments.len() == left.domain_arguments.len()
+        && right_arguments.len() == right.domain_arguments.len()
+        && left_arguments.len() == right_arguments.len()
+        && left_arguments
+            .iter()
+            .zip(right_arguments)
+            .all(|(left, right)| {
+                let independent = |argument, bindings: &[RepresentativeStaticBinding]| {
+                    // This context retains StaticMachineArgument, not substituted
+                    // type references. Do not equate open indices before applying
+                    // those bindings. The existing structural alpha normalizer
+                    // detects dependence, including nested const expressions,
+                    // without inventing a second type/expression traversal.
+                    let first = bindings
+                        .iter()
+                        .map(|binding| (binding.parameter, "membership-static-a".to_owned()))
+                        .collect::<Vec<_>>();
+                    let second = bindings
+                        .iter()
+                        .map(|binding| (binding.parameter, "membership-static-b".to_owned()))
+                        .collect::<Vec<_>>();
+                    program.normalized_type_identity_with_binders(argument, &first)
+                        == program.normalized_type_identity_with_binders(argument, &second)
+                };
+                program.type_reference_table.contains_type_reference(*left)
+                    && program.type_reference_table.contains_type_reference(*right)
+                    && independent(*left, left_bindings)
+                    && independent(*right, right_bindings)
+                    && program.normalized_type_identity(*left)
+                        == program.normalized_type_identity(*right)
+            })
 }
 
 fn proof_expression_identity(

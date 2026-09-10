@@ -112,11 +112,35 @@ pub(super) fn semantic_contexts_prove_contract_fact(
     fact: &facts::Fact,
 ) -> bool {
     match fact.payload {
-        FactPayload::DomainMembership { domain_symbol, .. }
-        | FactPayload::ContractDomainMembership { domain_symbol, .. } => {
+        FactPayload::DomainMembership {
+            domain_symbol,
+            semantic_domain,
+            ..
+        }
+        | FactPayload::ContractDomainMembership {
+            domain_symbol,
+            semantic_domain,
+            ..
+        } => {
             let FactPlace::Place(place) = fact.place else {
                 return false;
             };
+            if indexed_membership(program, fact.payload) {
+                // Indexed applications are invariant. In particular, neither
+                // declaration implication nor a scalar value alone supplies
+                // equality of their indices. Flow has already substituted
+                // exact caller subjects and refreshed specialized identities.
+                return semantic_domain.is_valid() && entry_contexts.iter().any(|entry_context| {
+                    semantic.context_view(semantic.contexts.get(*entry_context)).facts().any(|candidate| {
+                        matches!(candidate.payload,
+                            FactPayload::DomainMembership { domain_symbol: candidate_domain, semantic_domain: candidate_instance, .. }
+                            | FactPayload::ContractDomainMembership { domain_symbol: candidate_domain, semantic_domain: candidate_instance, .. }
+                            if candidate_domain == domain_symbol && candidate_instance == semantic_domain)
+                            && matches!(candidate.place, FactPlace::Place(candidate_place)
+                                if semantic.places_match(program, candidate_place, place))
+                    })
+                });
+            }
             entry_contexts.iter().any(|entry_context| {
                 let context = semantic.contexts.get(*entry_context);
                 semantic
@@ -227,4 +251,16 @@ pub(super) fn semantic_contexts_prove_contract_fact(
         | FactPayload::ProofObligation { .. }
         | FactPayload::Contract { .. } => false,
     }
+}
+
+pub(super) fn indexed_membership(program: &typed_trees::TypedTrees, payload: FactPayload) -> bool {
+    let (FactPayload::DomainMembership { domain_symbol, .. }
+    | FactPayload::ContractDomainMembership { domain_symbol, .. }) = payload
+    else {
+        return false;
+    };
+    program.domain_definitions().iter().any(|domain| {
+        domain.symbol == domain_symbol
+            && !typed_trees::domain::index_parameters(program, domain).is_empty()
+    })
 }

@@ -3040,6 +3040,7 @@ fn fixed_representative_call_rejects_unknown_refuted_mixed_and_identity_drift() 
                     domain: HandleSpan::empty(),
                     domain_symbol: symbol(1140),
                     authored_domain_selection: None,
+                    ..Default::default()
                 }),
             ],
             ProofFact::Expression(p),
@@ -3336,6 +3337,7 @@ fn direct_lift_arithmetic_implication_rejects_unknown_stronger_and_mixed_facts()
                         domain: HandleSpan::empty(),
                         domain_symbol: symbol(1040),
                         authored_domain_selection: None,
+                        ..Default::default()
                     }),
                 ],
                 ProofFact::Expression(p),
@@ -4113,12 +4115,14 @@ fn proof_fact_literal_substitution_retains_value_landing_and_recursive_fact_shap
             domain: HandleSpan::empty(),
             domain_symbol,
             authored_domain_selection: None,
+            ..Default::default()
         }),
         &ProofFact::Membership(ProofMembershipFact {
             value: exact_integer,
             domain: HandleSpan::empty(),
             domain_symbol,
             authored_domain_selection: None,
+            ..Default::default()
         }),
         context(&exact_value),
         context(&no_values),
@@ -4643,6 +4647,71 @@ fn proof_fact_literal_substitution_retains_value_landing_and_recursive_fact_shap
             context(&no_values),
         ));
     }
+}
+
+#[test]
+fn membership_identity_retains_indices_and_rejects_unapplied_static_bindings() {
+    use super::proof_fact_identity::{ProofFactIdentityContext, proof_facts_match};
+    let mut program = TypedTrees::default();
+    let value = program
+        .expression_table
+        .insert(ExpressionNode::Boolean(true));
+    let mut argument = |name: &str, argument_symbol| {
+        let handle = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: argument_symbol,
+                name: Identifier::generated(name),
+            });
+        program
+            .type_reference_table
+            .insert_type_reference_handles(vec![handle])
+    };
+    let seven = argument("7", SymbolHandle::invalid());
+    let same_seven = argument("7", SymbolHandle::invalid());
+    let nine = argument("9", SymbolHandle::invalid());
+    let parameter = symbol(995);
+    let open = argument("Index", parameter);
+    let membership = |arguments| {
+        ProofFact::Membership(ProofMembershipFact {
+            value,
+            domain_symbol: symbol(996),
+            domain_arguments: arguments,
+            ..Default::default()
+        })
+    };
+    let bindings = [super::RepresentativeStaticBinding {
+        parameter,
+        kind: super::RepresentativeStaticBindingKind::Const,
+        argument: static_argument("7"),
+    }];
+    let context = |static_bindings| ProofFactIdentityContext {
+        values: &[],
+        static_bindings,
+    };
+    assert!(proof_facts_match(
+        &program,
+        &membership(seven),
+        &membership(same_seven),
+        context(&[]),
+        context(&bindings)
+    ));
+    assert!(!proof_facts_match(
+        &program,
+        &membership(seven),
+        &membership(nine),
+        context(&[]),
+        context(&[])
+    ));
+    // Even identical source binders do not establish equality after different
+    // application contexts; this path has not substituted those arguments.
+    assert!(!proof_facts_match(
+        &program,
+        &membership(open),
+        &membership(open),
+        context(&bindings),
+        context(&[])
+    ));
 }
 
 #[test]

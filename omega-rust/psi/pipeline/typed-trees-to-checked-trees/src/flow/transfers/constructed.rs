@@ -120,11 +120,13 @@ pub(super) fn append_constructed_field_values(
                 FactPayload::DomainMembership {
                     domain,
                     domain_symbol,
+                    semantic_domain,
                     ..
                 }
                 | FactPayload::ContractDomainMembership {
                     domain,
                     domain_symbol,
+                    semantic_domain,
                     ..
                 } if program.domain_definitions().iter().any(|definition| {
                     definition.symbol == domain_symbol
@@ -137,6 +139,7 @@ pub(super) fn append_constructed_field_values(
                         value: ExpressionHandle::invalid(),
                         domain,
                         domain_symbol,
+                        semantic_domain,
                     }
                 }
                 _ => continue,

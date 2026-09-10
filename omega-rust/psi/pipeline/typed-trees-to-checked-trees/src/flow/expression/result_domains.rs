@@ -7,9 +7,9 @@
 //! occurrence, not storage read while producing it.
 //!
 //! This is tag transport, not predicate proof or establishment authority. The
-//! current membership payload identifies a domain declaration but cannot retain
-//! index arguments, so indexed families are excluded even when an instance's
-//! predicate is vacuous. Those need exact-instance proof vocabulary first.
+//! normalized instance travels with the declaration through every fact copy.
+//! Equality of exact instances is not a license to equate different open index
+//! expressions; those still require their selected normalization/equality proof.
 
 use super::*;
 
@@ -37,7 +37,7 @@ impl Execution<'_, '_, '_> {
         ) else {
             return;
         };
-        let domains = validation::scalar_type_index_free_tags(self.program, reference);
+        let domains = validation::scalar_type_tags(self.program, reference);
         if domains.is_empty() {
             return;
         }
@@ -48,7 +48,7 @@ impl Execution<'_, '_, '_> {
             statement_index: self.statement_index,
         };
         let mut refs = HandleSpan::empty();
-        for domain_symbol in domains {
+        for (domain_symbol, semantic_domain) in domains {
             let fact = self.semantic.append_fact(Fact {
                 place: FactPlace::Place(place),
                 point,
@@ -61,6 +61,7 @@ impl Execution<'_, '_, '_> {
                     value: expression,
                     domain: HandleSpan::empty(),
                     domain_symbol,
+                    semantic_domain,
                 },
             });
             self.semantic.append_ref(&mut refs, fact);

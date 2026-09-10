@@ -24,6 +24,8 @@ use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceN
 mod candidate;
 mod const_arguments;
 mod const_values;
+#[cfg(test)]
+mod membership_tests;
 mod result_locals;
 mod saved_calls;
 
@@ -2646,6 +2648,27 @@ fn copy_signature_contract(
                 ))
             }
             typed_trees::domain::ProofFact::Membership(membership) => {
+                let source_arguments = source
+                    .type_reference_table
+                    .type_reference_handles(membership.domain_arguments);
+                let domain_arguments = if source_arguments.len()
+                    != membership.domain_arguments.len()
+                {
+                    // Retain invalidity until the fallible instance refresh;
+                    // never turn a stale span into an empty valid application.
+                    arena::HandleSpan::from_parts(
+                        arena::Handle::invalid(),
+                        membership.domain_arguments.count(),
+                    )
+                } else {
+                    let arguments = source_arguments
+                        .iter()
+                        .map(|argument| copy_type_reference(source, program, *argument, symbols))
+                        .collect::<Vec<_>>();
+                    program
+                        .type_reference_table
+                        .insert_type_reference_handles(arguments)
+                };
                 typed_trees::domain::ProofFact::Membership(
                     typed_trees::domain::ProofMembershipFact {
                         value: copy_expression(source, program, membership.value, symbols),
@@ -2656,6 +2679,8 @@ fn copy_signature_contract(
                                 .cloned(),
                         ),
                         domain_symbol: remapped_symbol(membership.domain_symbol, symbols),
+                        domain_arguments,
+                        semantic_domain: membership.semantic_domain,
                         authored_domain_selection: membership.authored_domain_selection,
                     },
                 )
@@ -2899,6 +2924,29 @@ fn candidate_const_index_expressions(
         );
     }
 
+    // Membership contracts retain their own instance arguments. They can be
+    // copied independently of the parameter type and must undergo the same
+    // computed-index substitution as signature and local type roots.
+    for contracts in std::iter::once(machine.contracts).chain(
+        program
+            .machine_states(machine)
+            .iter()
+            .map(|state| state.contracts),
+    ) {
+        for contract in program.signature_contracts.span_or_empty(contracts) {
+            for fact in program.proof_facts.span_or_empty(contract.facts) {
+                if let typed_trees::domain::ProofFact::Membership(membership) = fact {
+                    roots.extend(
+                        program
+                            .type_reference_table
+                            .type_reference_handles(membership.domain_arguments)
+                            .iter()
+                            .copied(),
+                    );
+                }
+            }
+        }
+    }
     let mut visited = Vec::new();
     let mut expressions = Vec::new();
     for root in roots {
@@ -3738,6 +3786,50 @@ pub fn refresh_closed_domain_instance_identities(
         cast.semantic_domain_id = semantic_id;
     }
 
+    let mut membership_updates = Vec::new();
+    for (handle, fact) in program.proof_facts.iter() {
+        let typed_trees::domain::ProofFact::Membership(membership) = fact else {
+            continue;
+        };
+        if !membership.domain_symbol.is_valid() {
+            // Compiler carry permissions and unresolved authored facts have
+            // their own validation; they are not declared-domain instances.
+            continue;
+        }
+        let domain = program
+            .domain_definitions()
+            .iter()
+            .find(|domain| domain.symbol == membership.domain_symbol)
+            .ok_or_else(|| Diagnostic::error("membership instance has no declared domain"))?;
+        let arguments = program
+            .type_reference_table
+            .type_reference_handles(membership.domain_arguments);
+        let parameters = typed_trees::domain::index_parameters(program, domain);
+        if arguments.len() != membership.domain_arguments.len()
+            || arguments.len() != parameters.len()
+            || arguments.iter().any(|argument| {
+                !program
+                    .type_reference_table
+                    .contains_type_reference(*argument)
+            })
+        {
+            return Err(Diagnostic::error(
+                "membership instance has missing or invalid domain arguments",
+            ));
+        }
+        let identity = typed_trees::domain::indexed_domain_instance_name(
+            program, domain, parameters, arguments,
+        )?;
+        membership_updates.push((handle, identity));
+    }
+    for (handle, identity) in membership_updates {
+        let semantic_domain = program.semantic_domains.intern(&identity);
+        if let typed_trees::domain::ProofFact::Membership(membership) =
+            program.proof_facts.get_mut(handle)
+        {
+            membership.semantic_domain = semantic_domain;
+        }
+    }
     Ok(())
 }
 
@@ -5110,14 +5202,30 @@ fn contract_fact_text(program: &TypedTrees, fact: &typed_trees::domain::ProofFac
             program.expression_table.display_name(*expression)
         }
         typed_trees::domain::ProofFact::Membership(membership) => format!(
-            "{} in {}",
+            "{} in {}{}",
             program.expression_table.display_name(membership.value),
             program
                 .domain_path_members(membership.domain)
                 .iter()
                 .map(|member| member.as_str())
                 .collect::<Vec<_>>()
-                .join("::")
+                .join("::"),
+            if membership.domain_arguments.is_empty() {
+                String::new()
+            } else {
+                // Contract identity follows normalized argument contents, not
+                // source spellings or the program-local semantic interner ID.
+                format!(
+                    "<{}>",
+                    program
+                        .type_reference_table
+                        .type_reference_handles(membership.domain_arguments)
+                        .iter()
+                        .map(|argument| program.normalized_type_identity(*argument).to_string())
+                        .collect::<Vec<_>>()
+                        .join(",")
+                )
+            }
         ),
         typed_trees::domain::ProofFact::Proposition(application) => format!(
             "{}({})",

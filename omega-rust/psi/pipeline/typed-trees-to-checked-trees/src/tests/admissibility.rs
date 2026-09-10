@@ -470,6 +470,7 @@ fn acceptance_views_publish_exact_statement_owned_qualification_correspondences(
     let facts::QualificationPayloadIdentity::DomainMembership {
         domain,
         domain_symbol,
+        semantic_domain: _,
     } = correspondence.payload
     else {
         panic!("operator correspondence should retain exact domain membership")

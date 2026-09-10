@@ -37,6 +37,7 @@ pub(super) fn semantic_contract_payload(
                 value: membership.value,
                 domain: membership.domain,
                 domain_symbol: membership.domain_symbol,
+                semantic_domain: membership.semantic_domain,
             }
         }
         typed_trees::domain::ProofFact::Proposition(application) => {

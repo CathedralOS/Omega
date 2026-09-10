@@ -20,17 +20,37 @@ pub(crate) fn semantic_fact_requirement_label(
     fact: &Fact,
 ) -> String {
     match fact.payload {
-        FactPayload::ContractDomainMembership { domain_symbol, .. }
-        | FactPayload::DomainMembership { domain_symbol, .. } => {
+        FactPayload::ContractDomainMembership {
+            domain_symbol,
+            semantic_domain,
+            ..
+        }
+        | FactPayload::DomainMembership {
+            domain_symbol,
+            semantic_domain,
+            ..
+        } => {
             let place = match fact.place {
                 facts::FactPlace::Place(place) => place,
                 _ => return "unknown domain membership".to_owned(),
             };
             let place = semantic.places.get(place);
+            let domain = if program.domain_definitions().iter().any(|domain| {
+                domain.symbol == domain_symbol
+                    && !typed_trees::domain::index_parameters(program, domain).is_empty()
+            }) {
+                program
+                    .semantic_domains
+                    .name(semantic_domain)
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| symbol_name(program, domain_symbol))
+            } else {
+                symbol_name(program, domain_symbol)
+            };
             format!(
                 "{} in {}",
                 requirement_place_label(program, semantic, place),
-                symbol_name(program, domain_symbol)
+                domain
             )
         }
         FactPayload::ContractCarryPermission { permission, .. }

@@ -32,6 +32,7 @@ fn builds_definition_fact_plan_for_domains() {
             domain: HandleSpan::empty(),
             domain_symbol: valid_domain_symbol,
             authored_domain_selection: None,
+            ..Default::default()
         }));
     assert_eq!(membership.arena_index(), fact.arena_index() + 1);
     program.push_domain_definition(DomainDefinition {
@@ -96,7 +97,7 @@ fn builds_definition_fact_plan_for_domains() {
         .next()
         .expect("domain context");
     assert_eq!(domain_context.boolean_facts().count(), 1);
-    assert!(domain_context.proves_domain_membership(expression, valid_domain_symbol));
+    assert!(domain_context.proves_domain_membership(&program, expression, valid_domain_symbol));
     for (_, record) in facts.domain_definition_facts.iter() {
         assert_eq!(record.domain_symbol, alive_domain_symbol);
         assert!(record.fact == fact || record.fact == membership);
@@ -149,6 +150,7 @@ fn builds_checked_ownership_for_every_data_where_fact_form() {
             domain: HandleSpan::empty(),
             domain_symbol,
             authored_domain_selection: None,
+            ..Default::default()
         }));
     let proposition_fact =
         program
@@ -347,6 +349,7 @@ fn domain_membership_queries_follow_domain_imports() {
             domain: HandleSpan::empty(),
             domain_symbol: valid_domain_symbol,
             authored_domain_selection: None,
+            ..Default::default()
         }));
     program.push_domain_definition(DomainDefinition {
         symbol: alive_domain_symbol,
@@ -394,11 +397,13 @@ fn domain_membership_queries_follow_domain_imports() {
             value: expression,
             domain: HandleSpan::empty(),
             domain_symbol: alive_domain_symbol,
+            semantic_domain: Default::default(),
         },
     });
 
     assert!(facts.domain_implies(alive_domain_symbol, valid_domain_symbol));
     assert!(facts.proves_domain_membership_at_point(
+        &program,
         ProgramPoint::Global,
         expression,
         valid_domain_symbol

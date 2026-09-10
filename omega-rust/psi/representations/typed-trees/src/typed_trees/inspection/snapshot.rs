@@ -650,6 +650,8 @@ pub enum ProofFactSnapshot {
         value: ExpressionSnapshot,
         domain: Vec<String>,
         domain_symbol: u32,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        domain_arguments: Vec<TypeReferenceSnapshot>,
     },
     Proposition {
         proposition_symbol: u32,
@@ -1303,6 +1305,12 @@ fn domain_fact_snapshots(
                     .map(ToString::to_string)
                     .collect(),
                 domain_symbol: membership.domain_symbol.arena_index(),
+                domain_arguments: program
+                    .type_reference_table
+                    .type_reference_handles(membership.domain_arguments)
+                    .iter()
+                    .map(|argument| type_reference_snapshot(program, *argument))
+                    .collect(),
             },
             ProofFact::Proposition(application) => ProofFactSnapshot::Proposition {
                 proposition_symbol: application.proposition.arena_index(),
@@ -1748,6 +1756,12 @@ fn contract_fact_snapshots(
                     .map(ToString::to_string)
                     .collect(),
                 domain_symbol: membership.domain_symbol.arena_index(),
+                domain_arguments: program
+                    .type_reference_table
+                    .type_reference_handles(membership.domain_arguments)
+                    .iter()
+                    .map(|argument| type_reference_snapshot(program, *argument))
+                    .collect(),
             },
             ProofFact::Proposition(application) => ProofFactSnapshot::Proposition {
                 proposition_symbol: application.proposition.arena_index(),

@@ -1932,6 +1932,21 @@ fn encode_contract_fact_canonical(
                 output.extend(member.as_str().as_bytes());
                 output.push(b':');
             }
+            if !membership.domain_arguments.is_empty() {
+                // Source-instance contents are stable across interner order;
+                // SemanticDomainId itself is only a program-local lookup key.
+                output.push(b'<');
+                output.extend_from_slice(&(membership.domain_arguments.len() as u64).to_le_bytes());
+                for argument in program
+                    .type_reference_table
+                    .type_reference_handles(membership.domain_arguments)
+                {
+                    let identity = program.normalized_type_identity(*argument);
+                    output.extend_from_slice(&(identity.as_str().len() as u64).to_le_bytes());
+                    output.extend_from_slice(identity.as_str().as_bytes());
+                }
+                output.push(b'>');
+            }
         }
         typed_trees::domain::ProofFact::Proposition(application) => {
             output.push(3);

@@ -37,6 +37,7 @@ pub(super) fn append_concatenated_predicates(
     for domain in program.domain_definitions() {
         // Concatenation proves a byte predicate, never a routed qualification.
         if !domain.establishment_routes.is_empty()
+            || !typed_trees::domain::index_parameters(program, domain).is_empty()
             || domain.alias.is_some()
             || !domain.predicate_body.is_present()
             || !crate::field_domain::domain_is_concat_preserving(program, domain.symbol)
@@ -60,6 +61,7 @@ pub(super) fn append_concatenated_predicates(
                 value: ExpressionHandle::invalid(),
                 domain: HandleSpan::empty(),
                 domain_symbol: domain.symbol,
+                semantic_domain: language_semantics::SemanticDomainId::NULL,
             },
         });
         semantic.append_ref(references, fact);
@@ -109,12 +111,21 @@ fn value_proves_predicate(
             return false;
         }
         match fact.payload {
-            FactPayload::DomainMembership { domain_symbol, .. }
-            | FactPayload::ContractDomainMembership { domain_symbol, .. } => {
+            FactPayload::DomainMembership {
+                domain_symbol,
+                semantic_domain,
+                ..
+            }
+            | FactPayload::ContractDomainMembership {
+                domain_symbol,
+                semantic_domain,
+                ..
+            } => {
                 // The materialized bytes retain the same primitive predicate
                 // across bounded carriers. This is not carrier/domain identity.
-                crate::field_domain::domain_byte_predicate(program, domain_symbol)
-                    == crate::field_domain::domain_byte_predicate(program, domain)
+                index_free_membership(program, domain_symbol, semantic_domain)
+                    && crate::field_domain::domain_byte_predicate(program, domain_symbol)
+                        == crate::field_domain::domain_byte_predicate(program, domain)
             }
             FactPayload::AssignedValue { value } => {
                 crate::field_domain::string_literal_expression_grants_domain(program, value, domain)
@@ -336,12 +347,37 @@ fn carrier_proves_predicate(
                 ExpressionNode::String(literal) if predicate.holds_for(literal)
             ),
             FactPayload::BytePredicate { predicate: proved } => proved.implies(predicate),
-            FactPayload::DomainMembership { domain_symbol, .. }
-            | FactPayload::ContractDomainMembership { domain_symbol, .. } => {
-                crate::field_domain::domain_byte_predicate(program, domain_symbol)
-                    .is_some_and(|proved| proved.implies(predicate))
+            FactPayload::DomainMembership {
+                domain_symbol,
+                semantic_domain,
+                ..
+            }
+            | FactPayload::ContractDomainMembership {
+                domain_symbol,
+                semantic_domain,
+                ..
+            } => {
+                index_free_membership(program, domain_symbol, semantic_domain)
+                    && crate::field_domain::domain_byte_predicate(program, domain_symbol)
+                        .is_some_and(|proved| proved.implies(predicate))
             }
             _ => false,
         }
     })
+}
+
+fn index_free_membership(
+    program: &typed_trees::TypedTrees,
+    symbol: symbols::SymbolHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
+) -> bool {
+    // Byte-predicate extraction has no substitution environment for domain indices.
+    program
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == symbol)
+        .is_some_and(|domain| {
+            typed_trees::domain::index_parameters(program, domain).is_empty()
+                && (!semantic_domain.is_valid() || semantic_domain == domain.semantic_id)
+        })
 }

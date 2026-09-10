@@ -55,23 +55,30 @@ fn qualified_match_source_fixture_replays_both_arms_without_runtime_tags() {
 
 #[test]
 fn qualified_call_arguments_replay_selected_results_with_exact_signatures() {
-    for (selected, expected) in [(true, -17), (false, 91)] {
-        let (module, execution) = execute(
-            include_str!(
-                "../../../../../tests/omega/pass/expressions/qualified_call_result_argument/main.omg"
-            ),
-            &[
-                TerminalScalarValue::Boolean(selected),
-                signed(-17),
-                signed(91),
-            ],
-        );
-        assert_eq!(
-            execution.value(),
-            TerminalExecutionResult::Scalar(signed(expected))
-        );
-        assert_eq!(module.machines.len(), 3);
-        assert_eq!(module.scalar_qualifications.domains.len(), 1);
+    for source in [
+        include_str!(
+            "../../../../../tests/omega/pass/expressions/qualified_call_result_argument/main.omg"
+        ),
+        include_str!(
+            "../../../../../tests/omega/pass/expressions/indexed_qualified_call_argument/main.omg"
+        ),
+    ] {
+        for (selected, expected) in [(true, -17), (false, 91)] {
+            let (module, execution) = execute(
+                source,
+                &[
+                    TerminalScalarValue::Boolean(selected),
+                    signed(-17),
+                    signed(91),
+                ],
+            );
+            assert_eq!(
+                execution.value(),
+                TerminalExecutionResult::Scalar(signed(expected))
+            );
+            assert_eq!(module.machines.len(), 3);
+            assert_eq!(module.scalar_qualifications.domains.len(), 1);
+        }
     }
 }
 
@@ -107,6 +114,30 @@ fn qualified_arguments_compose_casts_calls_and_transparent_aliases() {
 }
 
 #[test]
+fn indexed_call_arguments_keep_specialized_contracts() {
+    let source = "domain<const Axis: u64> i64::Coordinate<Axis>;
+        machine relay<const Axis: u64>(value: i64 in Coordinate<Axis>) -> i64 in Coordinate<Axis> { value }
+        machine other(value: i64) -> i64 in Coordinate<9> { relay<9>(value as i64 in Coordinate<9>) }
+        machine choose(flag: bool, left: i64, right: i64) -> i64 in Coordinate<7> {
+            relay<7>(match flag { true -> left as i64 in Coordinate<7>, false -> right as i64 in Coordinate<7> })
+        }";
+    for (selected, expected) in [(true, -17), (false, 91)] {
+        let (_, execution) = execute(
+            source,
+            &[
+                TerminalScalarValue::Boolean(selected),
+                signed(-17),
+                signed(91),
+            ],
+        );
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(signed(expected))
+        );
+    }
+}
+
+#[test]
 fn qualified_call_results_cross_selected_prefixes_with_exact_signatures() {
     let source = "domain i64::Km;
         machine mark(value: i64) -> i64 in Km { value as i64 in Km }
@@ -135,7 +166,10 @@ fn qualified_call_results_cross_selected_prefixes_with_exact_signatures() {
 fn qualified_selection_normalizes_aliases_and_indexed_instances() {
     for (declaration, domain) in [
         ("domain i64::Km; domain i64::Length = Km;", "Length"),
-        ("domain<const Axis: u64> i64::Coordinate;", "Coordinate<7>"),
+        (
+            "domain<const Axis: u64> i64::Coordinate<Axis>;",
+            "Coordinate<7>",
+        ),
     ] {
         let source = format!(
             "{declaration} machine choose(flag: bool, left: i64, right: i64) -> i64 in {domain} {{ match flag {{ true -> left as i64 in {domain}, false -> right as i64 in {domain} }} }}"

@@ -352,6 +352,14 @@ pub(crate) fn domain_membership_implies(
     source_domain: SymbolHandle,
     target_domain: SymbolHandle,
 ) -> bool {
+    // This legacy relation has no instance arguments. Even an intermediate
+    // indexed membership must not be reduced to its family symbol: another
+    // application of that family has no implicit variance relationship.
+    if !typed_trees::domain::supports_symbol_only_proof(program, source_domain)
+        || !typed_trees::domain::supports_symbol_only_proof(program, target_domain)
+    {
+        return false;
+    }
     if declared_domain_implies(program, source_domain, target_domain) {
         return true;
     }

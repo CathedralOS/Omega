@@ -390,22 +390,24 @@ impl FactPlan {
 
     pub fn proves_domain_membership_at_point(
         &self,
+        program: &TypedTrees,
         point: ProgramPoint,
         value: ExpressionHandle,
         domain_symbol: SymbolHandle,
     ) -> bool {
         self.contexts_at_point(point)
-            .any(|context| context.proves_domain_membership(value, domain_symbol))
+            .any(|context| context.proves_domain_membership(program, value, domain_symbol))
     }
 
     pub fn proves_place_domain_membership_at_point(
         &self,
+        program: &TypedTrees,
         point: ProgramPoint,
         place: PlaceHandle,
         domain_symbol: SymbolHandle,
     ) -> bool {
         self.contexts_at_point(point)
-            .any(|context| context.proves_place_domain_membership(place, domain_symbol))
+            .any(|context| context.proves_place_domain_membership(program, place, domain_symbol))
     }
 
     pub fn symbol_references_domain(
@@ -473,16 +475,19 @@ impl FactPlan {
                     value,
                     domain,
                     domain_symbol,
+                    semantic_domain,
                 }
                 | FactPayload::ContractDomainMembership {
                     value,
                     domain,
                     domain_symbol,
+                    semantic_domain,
                     ..
                 } => Some(DomainMembershipFact {
                     value,
                     domain,
                     domain_symbol,
+                    semantic_domain,
                 }),
                 _ => None,
             })

@@ -110,11 +110,13 @@ pub(super) fn propagate_statement_transfers(
                     FactPayload::DomainMembership {
                         domain,
                         domain_symbol,
+                        semantic_domain,
                         ..
                     }
                     | FactPayload::ContractDomainMembership {
                         domain,
                         domain_symbol,
+                        semantic_domain,
                         ..
                     } => {
                         let FactPlace::Place(fact_place) = fact.place else {
@@ -133,6 +135,7 @@ pub(super) fn propagate_statement_transfers(
                                     value: ExpressionHandle::invalid(),
                                     domain,
                                     domain_symbol,
+                                    semantic_domain,
                                 },
                                 fact.evidence,
                                 Some((reference.fact, fact_place)),
@@ -442,6 +445,7 @@ pub(super) fn propagate_statement_transfers(
                 value: ExpressionHandle::invalid(),
                 domain: HandleSpan::empty(),
                 domain_symbol,
+                semantic_domain: language_semantics::SemanticDomainId::NULL,
             },
         });
         semantic.append_ref(&mut refs, fact);
@@ -574,8 +578,11 @@ fn exact_qualification_payload(
         QualificationPayloadIdentity::DomainMembership {
             domain,
             domain_symbol,
+            semantic_domain,
         } => {
-            domain_symbol.is_valid()
+            (!semantic_domain.is_valid()
+                || program.semantic_domains.name(semantic_domain).is_some())
+                && domain_symbol.is_valid()
                 && program.symbols.get(domain_symbol).kind == symbols::SymbolKind::Domain
                 && program.domain_path_members.span(domain).is_some()
         }
@@ -1030,6 +1037,7 @@ mod tests {
             value: ExpressionHandle::invalid(),
             domain: HandleSpan::empty(),
             domain_symbol: domain,
+            semantic_domain: language_semantics::SemanticDomainId::NULL,
         };
         let evidence = QualificationEvidence::from_origin(
             language_semantics::QualificationEvidenceOrigin::CheckedTransformation,
@@ -1261,6 +1269,50 @@ mod tests {
             fixture.payload,
             fixture.evidence,
         );
+    }
+
+    #[test]
+    fn qualification_correspondence_retains_exact_semantic_domain_identity() {
+        let mut fixture = correspondence_fixture();
+        let identity = fixture.program.semantic_domains.intern("Ready<7>");
+        let FactPayload::DomainMembership {
+            semantic_domain, ..
+        } = &mut fixture.payload
+        else {
+            panic!("membership fixture");
+        };
+        *semantic_domain = identity;
+        fixture.semantic.facts.get_mut(fixture.source_fact).payload = fixture.payload;
+        fixture
+            .semantic
+            .facts
+            .get_mut(fixture.destination_fact)
+            .payload = fixture.payload;
+        retain(&mut fixture);
+        let (_, correspondence) = fixture
+            .semantic
+            .qualification_correspondences
+            .iter()
+            .next()
+            .unwrap();
+        assert!(matches!(correspondence.payload,
+            QualificationPayloadIdentity::DomainMembership { semantic_domain, .. } if semantic_domain == identity));
+
+        let mut mismatched = correspondence_fixture();
+        let identity = mismatched.program.semantic_domains.intern("Ready<8>");
+        let FactPayload::DomainMembership {
+            semantic_domain, ..
+        } = &mut mismatched
+            .semantic
+            .facts
+            .get_mut(mismatched.source_fact)
+            .payload
+        else {
+            panic!("membership fixture");
+        };
+        *semantic_domain = identity;
+        retain(&mut mismatched);
+        assert!(mismatched.semantic.qualification_correspondences.is_empty());
     }
 
     #[test]

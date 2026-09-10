@@ -252,6 +252,11 @@ pub struct ProofMembershipFact {
     pub value: crate::expression::ExpressionHandle,
     pub domain: HandleSpan<Identifier>,
     pub domain_symbol: SymbolHandle,
+    /// Exact source instance arguments, retained for ordinary specialization.
+    /// The semantic identity is refreshed after their substitution; a nonzero
+    /// identity alone does not establish that these arguments are closed.
+    pub domain_arguments: HandleSpan<TypeReferenceHandle>,
+    pub semantic_domain: language_semantics::SemanticDomainId,
     pub authored_domain_selection:
         Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
 }
@@ -262,9 +267,48 @@ impl Default for ProofMembershipFact {
             value: crate::expression::ExpressionHandle::invalid(),
             domain: HandleSpan::empty(),
             domain_symbol: SymbolHandle::invalid(),
+            domain_arguments: HandleSpan::empty(),
+            semantic_domain: language_semantics::SemanticDomainId::NULL,
             authored_domain_selection: None,
         }
     }
+}
+
+/// Whether a legacy declaration-only proof reader can consume this theory.
+/// Indexed membership requires exact arguments and cannot be projected to a
+/// family symbol, including through an alias or an intermediate membership.
+/// Carrier-only generic parameters remain eligible. This is a fail-closed
+/// proof-reader fence, not an identity or metadata-normalization judgment.
+pub fn supports_symbol_only_proof(program: &TypedTrees, domain_symbol: SymbolHandle) -> bool {
+    fn visit(program: &TypedTrees, symbol: SymbolHandle, visited: &mut Vec<SymbolHandle>) -> bool {
+        let Some(domain) = program
+            .domain_definitions()
+            .iter()
+            .find(|domain| domain.symbol == symbol)
+        else {
+            return false;
+        };
+        if !index_parameters(program, domain).is_empty() || !domain.index_arguments.is_empty() {
+            return false;
+        }
+        if visited.contains(&symbol) {
+            return true;
+        }
+        visited.push(symbol);
+        domain.alias.as_ref().is_none_or(|alias| {
+            alias
+                .constituents
+                .iter()
+                .all(|constituent| visit(program, constituent.domain_symbol, visited))
+        }) && program.proof_facts(domain).iter().all(|fact| match fact {
+            ProofFact::Membership(membership) => {
+                membership.domain_arguments.is_empty()
+                    && visit(program, membership.domain_symbol, visited)
+            }
+            _ => true,
+        })
+    }
+    visit(program, domain_symbol, &mut Vec::new())
 }
 
 /// Whether one declared domain implies another by normalized semantic identity
@@ -334,4 +378,95 @@ pub fn declared_domain_implies(
     }
 
     inner(program, source_domain, target_domain, &mut Vec::new())
+}
+
+#[cfg(test)]
+mod symbol_only_proof_tests {
+    use super::*;
+
+    #[test]
+    fn indexed_membership_cannot_enter_a_symbol_only_implication_chain() {
+        let mut program = TypedTrees::default();
+        let symbol = |index| SymbolHandle::from_arena_index(index);
+        let mut plain = DomainDefinition {
+            symbol: symbol(1),
+            ..Default::default()
+        };
+        let mut indexed = DomainDefinition {
+            symbol: symbol(2),
+            ..Default::default()
+        };
+        program.push_domain_type_parameter(
+            &mut indexed,
+            crate::data::TypeParameter {
+                kind: crate::data::TypeParameterKind::Const {
+                    type_reference: TypeReferenceHandle::invalid(),
+                },
+                ..Default::default()
+            },
+        );
+        let target = DomainDefinition {
+            symbol: symbol(3),
+            ..Default::default()
+        };
+        program.proof_facts.append_to_span(
+            &mut plain.facts,
+            ProofFact::Membership(ProofMembershipFact {
+                domain_symbol: indexed.symbol,
+                ..Default::default()
+            }),
+        );
+        program.proof_facts.append_to_span(
+            &mut indexed.facts,
+            ProofFact::Membership(ProofMembershipFact {
+                domain_symbol: target.symbol,
+                ..Default::default()
+            }),
+        );
+        program.push_domain_definition(plain);
+        program.push_domain_definition(indexed);
+        program.push_domain_definition(target);
+        assert!(
+            declared_domain_implies(&program, symbol(1), symbol(3)),
+            "metadata still sees the declared relationship"
+        );
+        assert!(
+            !supports_symbol_only_proof(&program, symbol(1)),
+            "an intermediate indexed family cannot grant a proof"
+        );
+        assert!(
+            !supports_symbol_only_proof(&program, symbol(2)),
+            "an indexed source cannot lose its instance"
+        );
+        assert!(
+            supports_symbol_only_proof(&program, symbol(3)),
+            "an unrelated unindexed theory remains eligible"
+        );
+    }
+
+    #[test]
+    fn retained_membership_arguments_cannot_be_erased_after_specialization() {
+        let mut program = TypedTrees::default();
+        let symbol = |index| SymbolHandle::from_arena_index(index);
+        let mut source = DomainDefinition {
+            symbol: symbol(1),
+            ..Default::default()
+        };
+        let target = DomainDefinition {
+            symbol: symbol(2),
+            ..Default::default()
+        };
+        program.proof_facts.append_to_span(
+            &mut source.facts,
+            ProofFact::Membership(ProofMembershipFact {
+                domain_symbol: target.symbol,
+                domain_arguments: HandleSpan::from_parts(arena::Handle::from_arena_index(1), 1),
+                ..Default::default()
+            }),
+        );
+        program.push_domain_definition(source);
+        program.push_domain_definition(target);
+        assert!(!supports_symbol_only_proof(&program, symbol(1)));
+        assert!(supports_symbol_only_proof(&program, symbol(2)));
+    }
 }
