@@ -62,60 +62,19 @@ pub(in crate::legalization) fn argument(
             plan,
         );
     }
-    if let Some((producer, result, value)) =
-        super::primitive_locals::producer(caller, semantic.place)
-    {
-        if !super::primitive_locals::valid_result(caller, producer, result)
-            || !semantic.path.is_empty()
-            || semantic.access == StructuralAccess::Owned
-            || destination_parameter.access != semantic.access
-            || destination_parameter.structural_type != result.structural_type
-            || destination_parameter.multiplicity
-                != terminal_psi::StructuralMultiplicity::Unrestricted
-            || !destination_parameter.qualifications.is_empty()
-            || !destination_parameter.projected_qualifications.is_empty()
-            || super::primitive_locals::scalar(&plan.structural_types, result.structural_type)
-                != Some(value.scalar_type)
-        {
-            return Err(invalid);
-        }
-        let referent = super::scalar_shape(value.scalar_type).ok_or(invalid.clone())?;
-        let shape = ValueShape::borrowed_reference(referent.byte_size, referent.alignment);
-        let destination = call
-            .parameters
-            .get(called.parameters.len())
-            .ok_or(invalid.clone())?
-            .clone();
-        if destination.shape != shape {
-            return Err(invalid);
-        }
-        return Ok(TargetStructuralArgument {
-            place: semantic.place,
-            access: semantic.access,
-            path: Vec::new(),
-            root_structural_type: result.structural_type,
-            structural_type: result.structural_type,
-            shape,
-            source_byte_offset: 0,
-            fixed_array_length: None,
-            element_stride: None,
-            source: TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
-                psi_operation: producer,
-            },
-            destination,
-        });
-    }
-    if matches!(
-        semantic.access,
-        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-    ) || semantic.access == StructuralAccess::SharedBorrow
-        && super::primitive_locals::scalar(
-            &plan.structural_types,
-            destination_parameter.structural_type,
+    if super::primitive_locals::producer(caller, semantic.place).is_some()
+        || matches!(
+            semantic.access,
+            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
         )
-        .is_some()
+        || semantic.access == StructuralAccess::SharedBorrow
+            && super::primitive_locals::scalar(
+                &plan.structural_types,
+                destination_parameter.structural_type,
+            )
+            .is_some()
     {
-        return exclusive::argument(
+        return primitive_argument(
             semantic,
             caller,
             destination_parameter,
@@ -212,6 +171,72 @@ pub(in crate::legalization) fn argument(
             .ok_or(invalid)?
             .clone(),
     })
+}
+
+/// Reconstruct a primitive borrow at its actual ordered call ABI position.
+pub(super) fn primitive_argument(
+    semantic: &StructuralArgument,
+    caller: &PsiOptimizationFunction,
+    destination_parameter: &terminal_psi::StructuralParameterDeclaration,
+    call: &CallPlan,
+    parameter_ordinal: usize,
+    native: &TargetOperationPlan,
+    plan: &AbstractOperationPlan,
+) -> Result<TargetStructuralArgument, LegalizationError> {
+    use target_operations::TargetStructuralArgumentSource;
+    let invalid = LegalizationError::SourceCustodyMismatch;
+    if let Some((producer, result, value)) =
+        super::primitive_locals::producer(caller, semantic.place)
+    {
+        if !super::primitive_locals::valid_result(caller, producer, result)
+            || !semantic.path.is_empty()
+            || semantic.access == StructuralAccess::Owned
+            || destination_parameter.access != semantic.access
+            || destination_parameter.structural_type != result.structural_type
+            || destination_parameter.multiplicity
+                != terminal_psi::StructuralMultiplicity::Unrestricted
+            || !destination_parameter.qualifications.is_empty()
+            || !destination_parameter.projected_qualifications.is_empty()
+            || super::primitive_locals::scalar(&plan.structural_types, result.structural_type)
+                != Some(value.scalar_type)
+        {
+            return Err(invalid);
+        }
+        let referent = super::scalar_shape(value.scalar_type).ok_or(invalid.clone())?;
+        let shape = ValueShape::borrowed_reference(referent.byte_size, referent.alignment);
+        let destination = call
+            .parameters
+            .get(parameter_ordinal)
+            .ok_or(invalid.clone())?
+            .clone();
+        if destination.shape != shape {
+            return Err(invalid);
+        }
+        return Ok(TargetStructuralArgument {
+            place: semantic.place,
+            access: semantic.access,
+            path: Vec::new(),
+            root_structural_type: result.structural_type,
+            structural_type: result.structural_type,
+            shape,
+            source_byte_offset: 0,
+            fixed_array_length: None,
+            element_stride: None,
+            source: TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+                psi_operation: producer,
+            },
+            destination,
+        });
+    }
+    exclusive::argument(
+        semantic,
+        caller,
+        destination_parameter,
+        call,
+        parameter_ordinal,
+        native,
+        plan,
+    )
 }
 
 /// Whole-unit custody has already checked exact CFG dominance and producer

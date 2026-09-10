@@ -16,6 +16,7 @@ mod byte_input;
 mod byte_output;
 mod control;
 mod process_exit;
+mod provenance;
 mod register_entry;
 mod scalar_call;
 mod scalar_stack;
@@ -58,6 +59,7 @@ pub(in crate::selection) fn validate(
         return Err(invalid());
     };
     let mut replay = Replay {
+        pending_provenance: SelectedInstructionProvenance::default(),
         required_values: super::value_transport::required_values(source),
         function,
         selected,
@@ -421,7 +423,9 @@ pub(in crate::selection) fn validate(
                 .push((result.value, output, result.definition_site, scalar_type));
         }
         control::validate(source, source_block, &mut replay, &environment, catalog)?;
-        if replay.block_cursor != block.instructions.len() {
+        if !replay.pending_provenance.operations.is_empty()
+            || replay.block_cursor != block.instructions.len()
+        {
             return Err(invalid());
         }
         replay.instruction_cursor = replay
@@ -445,6 +449,9 @@ pub(in crate::selection) fn validate(
 }
 
 struct Replay<'a> {
+    // Zero-payload constructors retain their source position without storage.
+    // The next instruction in this same block carries their ordered charges.
+    pending_provenance: SelectedInstructionProvenance,
     required_values: std::collections::BTreeSet<ValueId>,
     transport: structural::Transport,
     function: usize,
@@ -545,6 +552,9 @@ impl Replay<'_> {
             .instructions
             .get(self.block_cursor)
             .ok_or_else(|| self.invalid())?;
+        let settled = (!self.pending_provenance.operations.is_empty())
+            .then(|| self.settle_provenance(provenance.clone()));
+        let provenance = settled.as_ref().unwrap_or(provenance);
         if instruction.id.0 as usize != self.instruction_cursor
             || instruction.kind != kind
             || instruction.constraint != key

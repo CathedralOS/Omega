@@ -116,7 +116,8 @@ pub(super) fn function_is_exact(
                 parameter.multiplicity,
                 StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
             ) || placement.shape.class != ValueClass::Integer
-                || placement.locations.is_empty()
+                || (placement.locations.is_empty()
+                    && placement.shape != calling_conventions::ValueShape::integer(0, 1))
                 || !placement
                     .locations
                     .iter()

@@ -150,7 +150,13 @@ pub(super) fn unit_key(
         }
     }
     let keys = environment.selected_keys();
-    let candidate_keys = if call.structural_result.is_some() {
+    let empty_result = call.structural_result.is_some()
+        && call
+            .result_placement
+            .as_ref()
+            .is_some_and(empty_aggregate_placement)
+        && call.result_placement == call.call_plan.result;
+    let candidate_keys = if call.structural_result.is_some() && !empty_result {
         keys.call_aggregate.iter().collect::<Vec<_>>()
     } else {
         keys.call_unit.iter().chain(&keys.call_unit_mixed).collect()
@@ -174,6 +180,12 @@ pub(super) fn unit_key(
         });
     let result = *matches.next()?;
     matches.next().is_none().then_some(result)
+}
+
+/// Physical classification only; source/result admission still owns structural identity.
+pub(super) fn empty_aggregate_placement(placement: &calling_conventions::ValuePlacement) -> bool {
+    placement.shape == calling_conventions::ValueShape::integer(0, 1)
+        && placement.locations.is_empty()
 }
 
 pub(super) fn validate(

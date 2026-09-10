@@ -25,6 +25,8 @@ pub(super) fn validate(
             Some(slot),
         )
     };
+    let empty_return = crate::selection::scalar_call_abi::empty_aggregate_placement(placement);
+    let slot = slot.filter(|_| !empty_return);
     if slot.is_some_and(|slot| {
         replay
             .transport
@@ -50,7 +52,9 @@ pub(super) fn validate(
             }]
         )
         && placement.shape == calling_conventions::ValueShape::integer(8, 8);
-    let keys = if scalar_return {
+    let keys = if empty_return {
+        std::slice::from_ref(&replay.constraints.keys.return_unit)
+    } else if scalar_return {
         std::slice::from_ref(&replay.constraints.keys.return_i64)
     } else {
         &replay.constraints.keys.return_aggregate
@@ -130,6 +134,11 @@ pub(super) fn validate(
             registers.push(output);
         }
     }
+    let provenance = replay.settle_provenance(SelectedInstructionProvenance {
+        edges: vec![returned.edge],
+        fuel: returned.fuel.clone(),
+        ..Default::default()
+    });
     let SelectedTerminator::Return {
         instruction,
         psi_return_edge,
@@ -140,7 +149,9 @@ pub(super) fn validate(
     if *psi_return_edge != returned.edge
         || instruction.id.0 as usize != replay.instruction_cursor
         || instruction.kind
-            != (if scalar_return {
+            != (if empty_return {
+                SelectedInstructionKind::ReturnUnit
+            } else if scalar_return {
                 SelectedInstructionKind::ReturnI64
             } else {
                 SelectedInstructionKind::ReturnAggregate {
@@ -153,12 +164,7 @@ pub(super) fn validate(
             .iter()
             .map(|operand| operand.virtual_register)
             .ne(registers)
-        || instruction.provenance
-            != (SelectedInstructionProvenance {
-                edges: vec![returned.edge],
-                fuel: returned.fuel.clone(),
-                ..Default::default()
-            })
+        || instruction.provenance != provenance
     {
         return Err(invalid());
     }

@@ -111,64 +111,15 @@ pub(super) fn lower(
                     types,
                 );
             }
-            if !argument.path.is_empty()
-                || argument.access != declaration.access
-                || !super::primitive_storage::is_primitive_reference(declaration, types)
-            {
-                return Err(invalid());
-            }
-            let (identity, source) = if let Some(home) = live.structural_homes.get(&argument.place)
-            {
-                if !function.operations.iter().any(|operation| {
-                    matches!(operation,
-                    AbstractOperation::EstablishPrimitiveLocal { psi_operation, result, .. }
-                    if *psi_operation == home.defining_operation && *result == home.result)
-                }) {
-                    return Err(invalid());
-                }
-                (
-                    home.result.structural_type,
-                    TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
-                        psi_operation: home.defining_operation,
-                    },
-                )
-            } else {
-                let source = prepared
-                    .parameters
-                    .iter()
-                    .find(|source| source.place == argument.place)
-                    .ok_or_else(invalid)?;
-                let allowed = match source.access {
-                    StructuralAccess::MutableBorrow => argument.access != StructuralAccess::Owned,
-                    StructuralAccess::SharedBorrow => {
-                        argument.access == StructuralAccess::SharedBorrow
-                    }
-                    StructuralAccess::WriteOnlyBorrow => {
-                        argument.access == StructuralAccess::WriteOnlyBorrow
-                    }
-                    StructuralAccess::Owned => false,
-                };
-                if !allowed {
-                    return Err(invalid());
-                }
-                (source.structural_type, source.placement.clone().into())
-            };
-            if identity != declaration.structural_type {
-                return Err(invalid());
-            }
-            Ok(TargetStructuralArgument {
-                place: argument.place,
-                access: argument.access,
-                path: Vec::new(),
-                root_structural_type: identity,
-                structural_type: identity,
-                shape: destination.shape,
-                source_byte_offset: 0,
-                fixed_array_length: None,
-                element_stride: None,
-                source,
-                destination: destination.placement.clone(),
-            })
+            self::argument(
+                argument,
+                declaration,
+                destination,
+                function,
+                prepared,
+                live,
+                types,
+            )
         })
         .collect::<Result<Vec<_>, _>>()?;
     if let Some(result) = result {
@@ -198,4 +149,72 @@ pub(super) fn lower(
     }
     provenance.operations.push(psi_operation);
     Ok(())
+}
+
+/// Retain the same primitive referent custody independently of the call result.
+pub(super) fn argument(
+    argument: &terminal_psi::StructuralArgument,
+    declaration: &terminal_psi::StructuralParameterDeclaration,
+    destination: &TargetStructuralParameter,
+    function: &AbstractFunction,
+    prepared: &PreparedFunctionSignature,
+    live: &LiveDefinitions,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Result<TargetStructuralArgument, LoweringError> {
+    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
+    if !argument.path.is_empty()
+        || argument.access != declaration.access
+        || !super::primitive_storage::is_primitive_reference(declaration, types)
+    {
+        return Err(invalid());
+    }
+    let (identity, source) = if let Some(home) = live.structural_homes.get(&argument.place) {
+        if !function.operations.iter().any(|operation| {
+            matches!(operation,
+            AbstractOperation::EstablishPrimitiveLocal { psi_operation, result, .. }
+            if *psi_operation == home.defining_operation && *result == home.result)
+        }) {
+            return Err(invalid());
+        }
+        (
+            home.result.structural_type,
+            TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+                psi_operation: home.defining_operation,
+            },
+        )
+    } else {
+        let source = prepared
+            .parameters
+            .iter()
+            .find(|source| source.place == argument.place)
+            .ok_or_else(invalid)?;
+        let allowed = match source.access {
+            StructuralAccess::MutableBorrow => argument.access != StructuralAccess::Owned,
+            StructuralAccess::SharedBorrow => argument.access == StructuralAccess::SharedBorrow,
+            StructuralAccess::WriteOnlyBorrow => {
+                argument.access == StructuralAccess::WriteOnlyBorrow
+            }
+            StructuralAccess::Owned => false,
+        };
+        if !allowed {
+            return Err(invalid());
+        }
+        (source.structural_type, source.placement.clone().into())
+    };
+    if identity != declaration.structural_type {
+        return Err(invalid());
+    }
+    Ok(TargetStructuralArgument {
+        place: argument.place,
+        access: argument.access,
+        path: Vec::new(),
+        root_structural_type: identity,
+        structural_type: identity,
+        shape: destination.shape,
+        source_byte_offset: 0,
+        fixed_array_length: None,
+        element_stride: None,
+        source,
+        destination: destination.placement.clone(),
+    })
 }

@@ -1,4 +1,7 @@
 //! Structural signature and call records projected from ordinary function data.
+//! Source replay checks complete ordered provenance. An instruction's final
+//! operation owns its physical action; earlier operations may be zero-payload
+//! constructors whose charges are settled here, never extra physical effects.
 mod byte_input;
 mod byte_output;
 pub(super) use byte_input::cleanup_actions_match as read_result_cleanup_actions_match;
@@ -99,11 +102,14 @@ fn direct_owned_placement(
     placement: &ValuePlacement,
 ) -> bool {
     access == terminal_psi::StructuralAccess::Owned
-        && !placement.locations.is_empty()
-        && placement
+        // Empty values have no pointer home either; full graph replay retains
+        // their typed argument identity independently of the absent bytes.
+        && ((placement.shape == calling_conventions::ValueShape::integer(0, 1)
+            && placement.locations.is_empty())
+        || !placement.locations.is_empty() && placement
             .locations
             .iter()
-            .all(|location| matches!(location, ValueLocation::Register { .. }))
+            .all(|location| matches!(location, ValueLocation::Register { .. })))
 }
 fn pointer(placement: &ValuePlacement) -> Result<calling_conventions::MachineRegister, Error> {
     match placement.locations.as_slice() {

@@ -2,9 +2,8 @@
 use super::*;
 
 #[test]
-fn zero_and_indirect_result_fragments_remain_explicit_limits() {
+fn indirect_result_fragments_remain_explicit_limits() {
     for (shape, value) in [
-        ("[u8; 0]", "[]"),
         ("[u8; 3]", "[1u8, 2u8, 3u8]"),
         ("[u64; 3]", "[1u64, 2u64, 3u64]"),
     ] {

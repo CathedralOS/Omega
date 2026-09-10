@@ -47,6 +47,7 @@ pub(super) fn build(
     };
     let class = operand.class;
     let mut builder = Builder {
+        pending_provenance: SelectedInstructionProvenance::default(),
         required_values: crate::selection::value_transport::required_values(source),
         class,
         constraints,
@@ -396,6 +397,9 @@ pub(super) fn build(
             } else {
                 control::build(function, source, block, &order, &mut builder, &environment)?
             };
+        if !builder.pending_provenance.operations.is_empty() {
+            return Err(invalid());
+        }
         let body_end = builder.case_body_end.take().unwrap_or(
             builder
                 .instructions
@@ -429,6 +433,9 @@ pub(super) fn build(
 }
 
 struct Builder<'a> {
+    // Zero-payload constructors retain their source position without storage.
+    // The next instruction in this same block carries their ordered charges.
+    pending_provenance: SelectedInstructionProvenance,
     required_values: std::collections::BTreeSet<ValueId>,
     transport: structural::Transport,
     class: RegisterClassId,
@@ -442,6 +449,22 @@ struct Builder<'a> {
 }
 
 impl Builder<'_> {
+    fn settle_provenance(
+        &mut self,
+        provenance: SelectedInstructionProvenance,
+    ) -> SelectedInstructionProvenance {
+        if self.pending_provenance.operations.is_empty() {
+            return provenance;
+        }
+        let mut pending = std::mem::take(&mut self.pending_provenance);
+        pending.operations.extend(provenance.operations);
+        pending.values.extend(provenance.values);
+        pending.edges.extend(provenance.edges);
+        pending.obligations.extend(provenance.obligations);
+        pending.fuel.extend(provenance.fuel);
+        pending
+    }
+
     fn resolve(
         &self,
         value: ValueId,
@@ -496,6 +519,7 @@ impl Builder<'_> {
                 .try_into()
                 .map_err(|_| SelectedInstructionError::SourceCustodyMismatch)?,
         );
+        let provenance = self.settle_provenance(provenance);
         self.instructions.push(instruction(
             id,
             kind,

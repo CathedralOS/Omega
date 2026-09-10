@@ -60,9 +60,13 @@ the storage extent up to a machine word. Early-write constraints keep inputs,
 load results, and scratch distinct; ordinary definition interference also keeps
 dead scratch separate from the result. Selection and physical replay retain the
 exact width and scratch identity instead of borrowing a hidden fixed register.
-Empty physical values, stack/indirect owned arguments, and
-hidden-pointer results remain explicit transport limits. Zero physical
-size never erases the semantic array type. The native differential
+Empty arrays retain their complete type and `Some(empty)` ABI placement but have
+no payload slot, address, register, or memory access. Constructor operation/fuel
+provenance prefixes the next instruction in the same block, including a terminator;
+independent replay reconstructs that ordered prefix. Empty-result calls and returns
+reuse physical Unit instructions without changing their structural contracts.
+Stack/indirect owned arguments and hidden-pointer results remain explicit transport
+limits. Zero physical size never erases the semantic array type. The native differential
 `scalar_array_results` target covers full publication and matching-host execution;
 its packed cases cover 3/5/6/7-byte tails in one- and two-fragment calls and returns
 on the three direct-register targets. Its floating cases preserve binary32/binary64

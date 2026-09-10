@@ -1202,7 +1202,7 @@ Owners include
   The complete transitive customer now transports actual payloads through
   `keep_row` and `answer_row`, publishes on all four targets, and executes on
   macOS. Preserve it while extending the remaining value/storage paths below.
-  Empty ABI values, stack/indirect owned arguments, and hidden-pointer
+  Stack/indirect owned arguments and hidden-pointer
   results remain explicit limits; the selected owner is
   `target-operations-to-selected-instructions/src/selection/aggregate_result_input.rs`.
   No new language decision is required for these implementation gaps.

@@ -33,6 +33,9 @@ mod floating;
 #[path = "scalar_array_results/packed.rs"]
 mod packed;
 
+#[path = "scalar_array_results/empty.rs"]
+mod empty;
+
 fn produce(
     source: &str,
     entry: &str,

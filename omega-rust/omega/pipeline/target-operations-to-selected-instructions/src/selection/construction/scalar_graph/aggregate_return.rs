@@ -24,6 +24,8 @@ pub(super) fn build(
             Some(slot),
         )
     };
+    let empty_return = crate::selection::scalar_call_abi::empty_aggregate_placement(placement);
+    let slot = slot.filter(|_| !empty_return);
     if slot.is_some_and(|slot| {
         builder
             .transport
@@ -49,7 +51,9 @@ pub(super) fn build(
             }]
         )
         && placement.shape == calling_conventions::ValueShape::integer(8, 8);
-    let keys = if scalar_return {
+    let keys = if empty_return {
+        std::slice::from_ref(&builder.constraints.keys.return_unit)
+    } else if scalar_return {
         std::slice::from_ref(&builder.constraints.keys.return_i64)
     } else {
         &builder.constraints.keys.return_aggregate
@@ -130,7 +134,9 @@ pub(super) fn build(
         }
     }
     builder.emit(
-        if scalar_return {
+        if empty_return {
+            SelectedInstructionKind::ReturnUnit
+        } else if scalar_return {
             SelectedInstructionKind::ReturnI64
         } else {
             SelectedInstructionKind::ReturnAggregate {

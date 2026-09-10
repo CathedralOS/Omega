@@ -44,7 +44,7 @@ pub(super) fn settlement(
     if located.instruction_index as usize != block.instructions.len()
         || instruction.kind != SelectedInstructionKind::HostedExitProcessI32
         || instruction.operands.len() != 1
-        || instruction.provenance.operations != [operation]
+        || instruction.provenance.operations.last() != Some(&operation)
         || instruction.provenance.values != [value]
     {
         return Err(Error::Mismatch("process exit source substitution"));
@@ -185,7 +185,7 @@ pub(super) fn validate(
     if located.instruction_index as usize != block.instructions.len()
         || instruction.kind != SelectedInstructionKind::HostedExitProcessI32
         || instruction.operands.len() != 1
-        || instruction.provenance.operations != [operation]
+        || instruction.provenance.operations.last() != Some(&operation)
         || instruction.provenance.values != [value]
         || source_value != value
         || source_instruction != instruction.id

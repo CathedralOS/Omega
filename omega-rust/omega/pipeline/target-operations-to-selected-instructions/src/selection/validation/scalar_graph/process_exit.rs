@@ -26,6 +26,12 @@ pub(super) fn validate(
         return Err(replay.invalid());
     };
     let (_, input, _, scalar_type) = replay.resolve(source).ok_or_else(|| replay.invalid())?;
+    let provenance = replay.settle_provenance(SelectedInstructionProvenance {
+        operations: vec![row.operation],
+        values: vec![source],
+        fuel: row.fuel.clone(),
+        ..Default::default()
+    });
     if returned.value != LegalizedScalarReturnValue::Unit
         || !matches!(returned.ownership.as_slice(), [optimization_unit::OwnershipEvent::Cleanup(actions)] if actions.is_empty())
         || row.result.is_some()
@@ -40,13 +46,7 @@ pub(super) fn validate(
             .iter()
             .map(|operand| operand.virtual_register)
             .ne([input])
-        || instruction.provenance
-            != (SelectedInstructionProvenance {
-                operations: vec![row.operation],
-                values: vec![source],
-                fuel: row.fuel.clone(),
-                ..Default::default()
-            })
+        || instruction.provenance != provenance
     {
         return Err(replay.invalid());
     }

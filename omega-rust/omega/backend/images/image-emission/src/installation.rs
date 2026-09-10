@@ -5290,70 +5290,73 @@ mod resource_tests {
     fn direct_structural_roster_retains_exact_borrowed_home_subset() {
         use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
         let target = target::NativeTarget::macos_arm64();
-        let mut function = installed_function_with_unit_call();
-        let shapes = [
-            ValueShape::integer(2, 1),
-            ValueShape::borrowed_reference(8, 8),
-        ];
-        let plan = evaluate_call_plan(
-            CallingPolicy::native_for_target(target),
-            &CallSignature {
-                parameters: shapes.to_vec(),
-                result: Some(shapes[0]),
-            },
-        )
-        .unwrap();
-        function.unit_parameters = shapes
-            .iter()
-            .enumerate()
-            .map(|(position, shape)| machine_code::UnitParameterRecord {
-                place: PlaceId::new(position as u64 + 1).unwrap(),
-                structural_type: StructuralTypeId::new(position as u64 + 1).unwrap(),
-                multiplicity: StructuralMultiplicity::Unrestricted,
-                access: if position == 0 {
-                    terminal_psi::StructuralAccess::Owned
-                } else {
-                    terminal_psi::StructuralAccess::SharedBorrow
+        for owned_bytes in [0, 2] {
+            let mut function = installed_function_with_unit_call();
+            let shapes = [
+                ValueShape::integer(owned_bytes, 1),
+                ValueShape::borrowed_reference(8, 8),
+            ];
+            let plan = evaluate_call_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: shapes.to_vec(),
+                    result: Some(shapes[0]),
                 },
-                shape: *shape,
-            })
-            .collect();
-        let borrowed = &function.unit_parameters[1];
-        function
-            .unit_parameter_homes
-            .push(machine_code::UnitParameterHomeRecord {
-                place: borrowed.place,
-                structural_type: borrowed.structural_type,
-                multiplicity: borrowed.multiplicity,
-                access: borrowed.access,
-                shape: borrowed.shape,
-                source: plan.parameters[1].clone(),
-                indirect: true,
-                location: machine_code::StructuralSourceLocation::IncomingBorrowedPointer {
-                    location: borrowed_structural::pointer_location(&plan.parameters[1]).unwrap(),
-                },
+            )
+            .unwrap();
+            function.unit_parameters = shapes
+                .iter()
+                .enumerate()
+                .map(|(position, shape)| machine_code::UnitParameterRecord {
+                    place: PlaceId::new(position as u64 + 1).unwrap(),
+                    structural_type: StructuralTypeId::new(position as u64 + 1).unwrap(),
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access: if position == 0 {
+                        terminal_psi::StructuralAccess::Owned
+                    } else {
+                        terminal_psi::StructuralAccess::SharedBorrow
+                    },
+                    shape: *shape,
+                })
+                .collect();
+            let borrowed = &function.unit_parameters[1];
+            function
+                .unit_parameter_homes
+                .push(machine_code::UnitParameterHomeRecord {
+                    place: borrowed.place,
+                    structural_type: borrowed.structural_type,
+                    multiplicity: borrowed.multiplicity,
+                    access: borrowed.access,
+                    shape: borrowed.shape,
+                    source: plan.parameters[1].clone(),
+                    indirect: true,
+                    location: machine_code::StructuralSourceLocation::IncomingBorrowedPointer {
+                        location: borrowed_structural::pointer_location(&plan.parameters[1])
+                            .unwrap(),
+                    },
+                });
+            function.parameter_abi = Some(machine_code::ParameterFunctionAbiRecord {
+                call_plan: plan,
+                parameters: Vec::new(),
+                entry_register_spills: Vec::new(),
             });
-        function.parameter_abi = Some(machine_code::ParameterFunctionAbiRecord {
-            call_plan: plan,
-            parameters: Vec::new(),
-            entry_register_spills: Vec::new(),
-        });
-        assert!(direct_structural::function_is_exact(&function, target));
-        for mutation in 0..4 {
-            let mut changed = function.clone();
-            match mutation {
-                0 => changed.unit_parameter_homes.clear(),
-                1 => changed.unit_parameter_homes[0].place = changed.unit_parameters[0].place,
-                2 => changed.unit_parameters[0].multiplicity = StructuralMultiplicity::Linear,
-                _ => changed
-                    .parameter_abi
-                    .as_mut()
-                    .unwrap()
-                    .call_plan
-                    .parameters
-                    .swap(0, 1),
+            assert!(direct_structural::function_is_exact(&function, target));
+            for mutation in 0..4 {
+                let mut changed = function.clone();
+                match mutation {
+                    0 => changed.unit_parameter_homes.clear(),
+                    1 => changed.unit_parameter_homes[0].place = changed.unit_parameters[0].place,
+                    2 => changed.unit_parameters[0].multiplicity = StructuralMultiplicity::Linear,
+                    _ => changed
+                        .parameter_abi
+                        .as_mut()
+                        .unwrap()
+                        .call_plan
+                        .parameters
+                        .swap(0, 1),
+                }
+                assert!(!direct_structural::function_is_exact(&changed, target));
             }
-            assert!(!direct_structural::function_is_exact(&changed, target));
         }
     }
 

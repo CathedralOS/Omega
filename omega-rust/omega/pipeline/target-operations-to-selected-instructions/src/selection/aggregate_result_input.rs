@@ -127,6 +127,9 @@ pub(super) fn returned_parameter<'a>(
 }
 
 pub(super) fn direct_fragments(placement: &calling_conventions::ValuePlacement) -> bool {
+    if super::scalar_call_abi::empty_aggregate_placement(placement) {
+        return true;
+    }
     if placement.shape.class != calling_conventions::ValueClass::Integer
         || !(1..=2).contains(&placement.locations.len())
     {

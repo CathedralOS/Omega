@@ -149,7 +149,12 @@ pub(super) fn emit(
         ownership: operation.ownership.clone(),
     });
     builder.emit(
-        if call.structural_result.is_some() {
+        if call.structural_result.is_some()
+            && !call
+                .result_placement
+                .as_ref()
+                .is_some_and(crate::selection::scalar_call_abi::empty_aggregate_placement)
+        {
             SelectedInstructionKind::CallAggregate {
                 callee: call.callee,
             }
@@ -175,6 +180,11 @@ pub(super) fn emit(
     if let Some((result, placement)) =
         crate::selection::aggregate_result_input::call_result(source, call)
     {
+        // The call and complete structural result remain retained, but an
+        // empty payload owns no physical result home or address operation.
+        if crate::selection::scalar_call_abi::empty_aggregate_placement(placement) {
+            return Ok(());
+        }
         use selected_instructions::{
             FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot,
             SelectedMemoryAccessRole,
