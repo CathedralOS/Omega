@@ -532,9 +532,9 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   native canaries, preserving bounds, exact bytes, prefix/count, access, and
   alias checks. The old hidden-replacement signature is not an acceptance target.
 
-  Extend retained receiver forwarding to shared and indexed projections,
-  owned/local receiver roots, composed control flow, and scalar-result receiver
-  callees. Reconcile each exact receiver operand in
+  Finish shared and indexed projections not covered by the existing borrow/view
+  contracts, owned/local receiver roots, and scalar-result receiver callees.
+  Reconcile each exact receiver operand in
   `typed-trees-to-checked-trees/src/flow/terminal_unit/receiver_calls.rs`;
   preserve the source place, access, and ownership across each supported call
   shape and validate the resulting Terminal closure. Do not erase a required
