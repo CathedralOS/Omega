@@ -1304,8 +1304,14 @@ Owners include
   Psi parser/type-role resolution, generic-data substitution, machine inference,
   canonical type identity, and checked branch facts own the route; static
   evaluation/layout and artifact readers must use the same normalizer. Existing
-  const-range substitution is not reverse endpoint extraction. Replace the
-  range-argument exclusion in `generic_data/arguments.rs` only with exact identity
+  literal-endpoint machine inference in
+  `typed-trees-to-checked-trees/src/monomorphization/range_arguments.rs` must extend
+  to computed/symbolic endpoints through the shared semantic normalizer; do not
+  use the i64 compatibility interval evaluator as canonical type identity.
+  Keep `tests/omega/pass/generics/declared_range_endpoint_inference/main.omg`
+  as the checked call regression (`cargo run -p omega -- --check <path>`;
+  macOS, baseline `f5854ca447` rejects the omitted bound).
+  Replace the range-argument exclusion in `generic_data/arguments.rs` only with exact identity
   and constrained-shell substitution, not a source-display cache key.
 
   Acceptance: TinyBytes' `Length == u64[0..=Capacity]` binds omitted Capacity from
@@ -1313,9 +1319,9 @@ Owners include
   select identical static capacity without runtime arithmetic overflow. Primitive
   equality and its static branches check all admitted alternatives. Repeat and
   explicit binder conflicts, absent/ambiguous endpoints, occurs cycles, and
-  type/value-kind mismatch reject. Range-only call inference selects declared
-  endpoints before ordinary compatibility; explicit larger call bounds remain
-  distinct from exact type equations. Local flow narrowing cannot alter inferred
+  type/value-kind mismatch reject. Extend the existing literal range-only call
+  inference while keeping explicit larger compatible bounds distinct from exact
+  type equations. Local flow narrowing cannot alter inferred
   layout; arbitrary domain predicates do not collapse nominal identity. Preserve
   const staging, initialization, stack supply, and artifact replay. Runtime endpoint
   applications depend on RUNTIME-VALUE-GENERICS; static matching can proceed first.

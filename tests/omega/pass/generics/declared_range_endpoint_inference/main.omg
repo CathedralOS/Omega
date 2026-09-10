@@ -1,0 +1,4 @@
+machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+
+machine inferred(value: u64[0..=256]) -> u64 { upper_bound(value) }
+machine explicit(value: u64[0..=256]) -> u64 { upper_bound<512>(value) }

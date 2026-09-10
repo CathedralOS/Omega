@@ -18,6 +18,29 @@ fn assert_seven(source: &str) {
 }
 
 #[test]
+fn declared_range_endpoints_execute_independently_of_value_and_flow_narrowing() {
+    assert_seven(
+        "data Scenario { value: u64[0..=256]; }
+        machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+        machine Scenario::selected(&self) -> i32 {
+            transition self.value < 10 {
+                true -> narrowed()
+                false -> 0
+            }
+            state narrowed(&self) -> i32 {
+                let inferred: u64 = upper_bound(self.value);
+                let explicit: u64 = upper_bound<512>(self.value);
+                transition inferred == 256 && explicit == 512 { true -> 7 false -> 0 }
+            }
+        }
+        machine main() -> i32 {
+            let scenario: Scenario = Scenario { value: 5 };
+            scenario.selected()
+        }",
+    );
+}
+
+#[test]
 fn type_qualified_const_calls_execute_the_selected_instance() {
     assert_seven(
         "data Selector {}

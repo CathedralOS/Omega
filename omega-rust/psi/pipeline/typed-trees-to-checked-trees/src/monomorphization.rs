@@ -26,6 +26,7 @@ mod const_arguments;
 mod const_values;
 #[cfg(test)]
 mod membership_tests;
+mod range_arguments;
 mod result_locals;
 mod saved_calls;
 
@@ -72,6 +73,7 @@ struct CallSelection {
     caller_is_generic: bool,
     self_forwarded_machine_parameters: bool,
     self_forwarded_evidence_parameters: bool,
+    unresolved_const_parameters: bool,
     type_bindings: Vec<Option<TypeReferenceHandle>>,
     const_bindings: Vec<Option<TypeReferenceHandle>>,
     machine_bindings: Vec<Option<StaticMachineArgument>>,
@@ -84,6 +86,7 @@ impl CallSelection {
         !self.conflicted
             && !self.self_forwarded_machine_parameters
             && !self.self_forwarded_evidence_parameters
+            && !self.unresolved_const_parameters
             && self.type_bindings.iter().all(Option::is_some)
             && self.const_bindings.iter().all(Option::is_some)
             && self.machine_bindings.iter().all(Option::is_some)
@@ -344,7 +347,8 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
             }
             if argument.application.is_none()
                 && argument.symbol.is_valid()
-                && matches!(program.symbols.get(argument.symbol).kind, SymbolKind::Data)
+                && (matches!(program.symbols.get(argument.symbol).kind, SymbolKind::Data)
+                    || const_arguments::forwarded_type(program, argument).is_valid())
                 && let Some(name) = argument.path.last()
                 && !types.iter().any(|(symbol, _)| *symbol == argument.symbol)
             {
@@ -382,6 +386,14 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
                 | typed_trees::types::FixedArrayLength::ConstCall { .. } => None,
             }),
     );
+    // Open array extents also participate in inference. Retain their binder
+    // identity so another occurrence cannot prematurely close the same slot.
+    for (_, length) in program.type_reference_table.fixed_array_lengths() {
+        if let typed_trees::types::FixedArrayLength::ConstParameter { symbol, name } = length {
+            types.push((*symbol, name.clone()));
+        }
+    }
+    range_arguments::collect_literals(program, &mut literals);
     literals.sort();
     literals.dedup();
     for literal in literals {
@@ -464,6 +476,17 @@ fn collect_call_proposals(
         const_proposals,
     );
 
+    // An explicit bound is selected before compatibility. It must not conflict
+    // with an ordinary argument's narrower declared endpoint.
+    let fixed_range_parameters: Vec<_> = machine_arguments
+        .iter()
+        .filter(|argument| {
+            const_arguments::spelling(program, argument).is_some()
+                || const_arguments::forwarded_type(program, argument).is_valid()
+        })
+        .enumerate()
+        .map(|(parameter_index, _)| parameter_index)
+        .collect();
     let candidate = &candidates[callee.candidate_index];
     let skip = callee.parameter_types.len().saturating_sub(arguments.len());
     for (argument, required) in arguments
@@ -484,18 +507,29 @@ fn collect_call_proposals(
             actual,
             &candidate.type_parameters,
             &candidate.const_parameters,
+            Some(&fixed_range_parameters),
             callee.candidate_index,
             type_proposals,
             const_proposals,
         );
     }
     if let Some(actual) = expected_return {
+        // Result context can fill an omitted endpoint, but cannot reselect a
+        // bound already supplied by an argument (even a still-open one).
+        // The destination's range is a later compatibility obligation.
+        let mut fixed_result_parameters = fixed_range_parameters;
+        fixed_result_parameters.extend(const_proposals.iter().filter_map(
+            |(candidate_index, parameter_index, _)| {
+                (*candidate_index == callee.candidate_index).then_some(*parameter_index)
+            },
+        ));
         infer_static_bindings(
             program,
             callee.return_type,
             actual,
             &candidate.type_parameters,
             &candidate.const_parameters,
+            Some(&fixed_result_parameters),
             callee.candidate_index,
             type_proposals,
             const_proposals,
@@ -519,6 +553,19 @@ fn collect_machine_proposals_for_callee(
     let mut machine_index = 0usize;
     let mut evidence_index = 0usize;
     for selected in machine_arguments {
+        // A forwarded binder occupies its explicit slot even before it has a
+        // closed value. Keep this call incomplete until the caller specializes;
+        // neither range inference nor a later explicit argument may fill it.
+        if const_arguments::forwarded_type(program, selected).is_valid() {
+            if let Some(binding) = program
+                .type_reference_table
+                .find_named_type_reference(selected.symbol)
+            {
+                const_proposals.push((callee.candidate_index, const_index, binding));
+            }
+            const_index += 1;
+            continue;
+        }
         if let Some(literal) = const_arguments::spelling(program, selected) {
             if const_index < candidate.const_parameters.len()
                 && let Some((handle, _, _)) = program
@@ -589,6 +636,7 @@ fn collect_machine_proposals_for_callee(
                 actual_type,
                 &candidate.type_parameters,
                 &candidate.const_parameters,
+                None,
                 callee.candidate_index,
                 type_proposals,
                 const_proposals,
@@ -600,6 +648,7 @@ fn collect_machine_proposals_for_callee(
             actual_state.return_type,
             &candidate.type_parameters,
             &candidate.const_parameters,
+            None,
             callee.candidate_index,
             type_proposals,
             const_proposals,
@@ -996,6 +1045,7 @@ fn selection_from_proposals(
         caller_is_generic,
         self_forwarded_machine_parameters: false,
         self_forwarded_evidence_parameters: false,
+        unresolved_const_parameters: false,
         type_bindings: vec![None; candidate.type_parameters.len()],
         const_bindings: vec![None; candidate.const_parameters.len()],
         machine_bindings: vec![None; candidate.machine_parameters.len()],
@@ -1015,7 +1065,10 @@ fn selection_from_proposals(
         }
     }
     for (_, parameter, binding) in const_proposals {
-        if type_reference_is_any_generic_parameter(program, binding) {
+        if !binding.is_valid() || type_reference_is_any_generic_parameter(program, binding) {
+            // A concrete proposal from another occurrence cannot erase the
+            // need to check this occurrence after its caller specializes.
+            selection.unresolved_const_parameters = true;
             continue;
         }
         match selection.const_bindings[parameter] {
@@ -1207,6 +1260,7 @@ fn infer_static_bindings(
     actual: TypeReferenceHandle,
     type_parameters: &[(SymbolHandle, String)],
     const_parameters: &[(SymbolHandle, String, TypeReferenceHandle)],
+    fixed_range_parameters: Option<&[usize]>,
     candidate_index: usize,
     type_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
     const_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
@@ -1272,6 +1326,7 @@ fn infer_static_bindings(
                     application,
                     type_parameters,
                     const_parameters,
+                    fixed_range_parameters,
                     candidate_index,
                     type_proposals,
                     const_proposals,
@@ -1291,6 +1346,7 @@ fn infer_static_bindings(
             *actual,
             type_parameters,
             const_parameters,
+            fixed_range_parameters,
             candidate_index,
             type_proposals,
             const_proposals,
@@ -1311,6 +1367,7 @@ fn infer_static_bindings(
             actual,
             type_parameters,
             const_parameters,
+            fixed_range_parameters,
             candidate_index,
             type_proposals,
             const_proposals,
@@ -1331,16 +1388,31 @@ fn infer_static_bindings(
                 *actual_base,
                 type_parameters,
                 const_parameters,
+                // Inspect the entire constrained shell once below. Peeling a
+                // range or policy here must not expose a different endpoint.
+                None,
                 candidate_index,
                 type_proposals,
                 const_proposals,
             );
+            if let Some(fixed_parameters) = fixed_range_parameters {
+                range_arguments::infer(
+                    program,
+                    required,
+                    actual,
+                    const_parameters,
+                    fixed_parameters,
+                    candidate_index,
+                    const_proposals,
+                );
+            }
             infer_domain_argument_bindings(
                 program,
                 *required_constraints,
                 *actual_constraints,
                 type_parameters,
                 const_parameters,
+                fixed_range_parameters,
                 candidate_index,
                 type_proposals,
                 const_proposals,
@@ -1352,6 +1424,7 @@ fn infer_static_bindings(
             validation::unwrapped_type_reference(program, actual).unwrap_or(actual),
             type_parameters,
             const_parameters,
+            fixed_range_parameters,
             candidate_index,
             type_proposals,
             const_proposals,
@@ -1369,6 +1442,7 @@ fn infer_static_bindings(
             *actual,
             type_parameters,
             const_parameters,
+            fixed_range_parameters,
             candidate_index,
             type_proposals,
             const_proposals,
@@ -1397,6 +1471,7 @@ fn infer_static_bindings(
                 *actual_element,
                 type_parameters,
                 const_parameters,
+                fixed_range_parameters,
                 candidate_index,
                 type_proposals,
                 const_proposals,
@@ -1430,6 +1505,7 @@ fn infer_static_bindings(
                     *actual,
                     type_parameters,
                     const_parameters,
+                    fixed_range_parameters,
                     candidate_index,
                     type_proposals,
                     const_proposals,
@@ -1498,6 +1574,7 @@ fn infer_domain_argument_bindings(
     actual_constraints: HandleSpan<TypeConstraintNode>,
     type_parameters: &[(SymbolHandle, String)],
     const_parameters: &[(SymbolHandle, String, TypeReferenceHandle)],
+    fixed_range_parameters: Option<&[usize]>,
     candidate_index: usize,
     type_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
     const_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
@@ -1529,6 +1606,7 @@ fn infer_domain_argument_bindings(
                 *actual,
                 type_parameters,
                 const_parameters,
+                fixed_range_parameters,
                 candidate_index,
                 type_proposals,
                 const_proposals,
