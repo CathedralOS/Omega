@@ -458,6 +458,15 @@ staging tree and publishes explicit generated-source handoffs, and `BuildLog`
 records observations. Helpers inherit no extra authority; their effects compose
 into the root.
 
+The [scoped build contract](../spec/build/scoped_execution.md) requires an exact
+captured input inventory, no implicit symlink traversal, deterministic logical
+metadata, and fresh append-and-seal staging. A build dependency grants code
+nameability, not host authority. Pass narrowed inputs and linear required-output
+obligations to helpers; borrowing the whole builder delegates its operations.
+No new successful result set is published after a required output fails or final
+product checking rejects. These requirements are not a claim that every current
+filesystem facet already implements snapshot isolation.
+
 The resolver retrieves dependencies before their code runs. Its transport and
 credential authority does not pass to dependency builds. Generated source also
 inherits no build authority: ordinary runtime contracts apply to it. Release
@@ -468,6 +477,30 @@ Package acceptance is a root policy decision over compiler-derived findings,
 not proof that a human audited or understood the source. A signature identifies
 key control; a certificate proves only its checked claim.
 [Package review](../spec/packages/review.md) keeps these evidence roles separate.
+
+### Checked topology and actual authorization
+
+An ordinary [topology package](../spec/packages/topology.md) can check a finite
+graph of verified component instances. `no_route(S, T)` requires no directed
+invocation/message path. `only_via(S, T, V)` requires at least one S-to-T path
+and requires every such path to visit V. With multiple sources this does not
+promise connectivity for each source; register a separate check for each when
+that is required. Empty and overlapping selectors reject in the initial API.
+
+API -> Authorization -> Billing is a routing restriction, not evidence that a
+particular charge was approved. Approval still needs qualified evidence for the
+exact operation. Replies over a permitted connection can disclose secrets;
+topology does not prove confidentiality or information-flow security.
+
+The package consumes complete independently verified component descriptions,
+not reflected field names or a writer's inventory. Its installer receives current
+owner intent separately from the plan, rechecks policies, and establishes every
+actual binding before activation. Published plan bytes grant no execution or
+endpoint authority. Partial startup failure requires supervised cleanup, not a
+false success receipt or a claim to roll back external side effects. The first
+implementation customer is three checked processes with private pipes on Windows
+and macOS; runtime enforcement remains an acceptance obligation, not an existing
+feature demonstrated by graph tests.
 
 ### Origin and custody
 

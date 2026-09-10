@@ -14,6 +14,15 @@ edges, complete normalized accepted policy, and explicit project decisions.
 Policy includes capability, public API, and assumption meaning, scoped to each
 actually reviewed target where necessary. A digest alone cannot explain a change.
 
+Alias edges retain explicit build/product purpose. Checked and accepted sections
+also bind the admitted execution profile and requested product target where
+applicable. Matching source bytes permit acquisition reuse, not reuse of host
+build results or policy as product evidence. Purpose-specific scheduling and
+legacy migration follow [scoped execution](../build/scoped_execution.md#two-checked-contexts).
+A legacy edge remains product-only; a missing build edge requires an explicit
+declaration. A lock without purpose information cannot certify scoped execution,
+and migration must recheck the edges without inferring permission from imports.
+
 Use bounded deterministic diffable text with explicit outer and baseline schema
 versions. Loading requires neither an old checkout nor a compiler invocation.
 Unknown formats or unrecoverable baseline meaning reject with recovery guidance;

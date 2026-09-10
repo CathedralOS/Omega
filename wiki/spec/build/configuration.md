@@ -12,6 +12,13 @@ use compiler-owned facets, not runtime `FilesystemHost`. Roots, handles, and
 rooted paths expire with the activation and cannot enter runtime data or the
 durable build result.
 
+[Snapshot and staging semantics](scoped_execution.md#snapshot-and-staging-protocol)
+require an explicit captured inventory, deterministic logical observations, and
+append-and-seal files. Extra captured inputs have separately scoped roots; no
+ambient consumer tree or live-host authority follows from a dependency. Existing
+live-filesystem modes must be explicitly admitted and identified as transitional,
+not represented as snapshot-isolated execution or silently cached as such.
+
 A facet binds canonical relative bytes to an exact root occurrence. An erased
 qualification over bare bytes cannot replace that identity. Reject absolute
 input, traversal outside the root, ambiguous membership, and symlink escape
@@ -66,9 +73,12 @@ from validated target packages in the selected toolchain closure, not authored
 reinterpretation or a forever-fixed compiler enum. Use exact canonical spellings,
 not extra aliases such as `windows_x64` for `windows_x86_64`.
 
-Admissibility depends on product role: an application needs its selected
-ProgramEntry; a component closes declared slots; a library or target-neutral
-artifact does not acquire a native entry merely to pass checking. Target
+Admissibility depends on product role and output mode: an executable application
+needs its selected ProgramEntry; an explicitly artifact-only application requires
+completed artifacts and rejects executable root/provider selections. A component
+closes declared slots; a library or target-neutral artifact does not acquire a
+native entry merely to pass checking. Artifact-only mode still binds an explicit
+target and does not imply target-neutral identity. Target
 semantics, ABI/layout, resources, and reach must validate. This is mechanical
 closure, not a claim of human testing. Target assumptions must be checked facts.
 

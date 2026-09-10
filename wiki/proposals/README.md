@@ -39,14 +39,4 @@ separate review system or historical decision ledger.
   require no runtime checking independently of this design.
 - [0003: Proof-search caching](0003_proof_search_cache.md): untrusted derivation reuse;
   persistence, keys, and granularity remain unselected.
-- [0004: Checked boundary topology](0004_checked_boundary_topology.md): explicit
-  service-instance wiring, routing policies, codec, and installer in an ordinary
-  package; depends on 0005 for build-only imports and generic staged publication.
-  Defines verified component consumption, independently authorized owner intent,
-  and binding/activation checks; no topology-specific compiler graph engine.
-- [0005: Build dependency scopes and isolated inputs](0005_build_dependency_scopes.md):
-  build-only imports, non-executing product references, deterministic captured
-  inputs, sealed staging, linear output completion, and explicit artifact-only
-  mode; compares Cargo, Bazel, and Nix without adopting ambient host access.
-
 Temporary working notes belong in [drafts/](../drafts/README.md).

@@ -11,6 +11,12 @@ Freestanding programs need no std, and the compiler-owned Build protocol works
 without it. Package-aware compilation admits only core's magic toolchain mount;
 ordinary libraries use declared dependency edges and package-local imports.
 
+Core is available in both checked build and product contexts. Std use in build
+code requires a build dependency; product use requires an ordinary dependency;
+both uses require both edges. Neither edge grants ambient host services or makes
+host and target type instances interchangeable. See
+[dependency scopes](../build/scoped_execution.md#two-checked-contexts).
+
 ## Consumer-supplied semantic bindings
 
 When target entry/profile integration or risk classification needs to recognize

@@ -20,6 +20,17 @@ declaration's visibility. Fully qualified spelling and inferred receivers obey
 the same rule. Tooling may discover an enclosing package; source cannot walk
 parent directories to gain undeclared reach.
 
+Dependency authority is context-specific. Build entry/local-helper imports use
+build dependencies; product and generated-product imports use ordinary product
+dependencies. The same alias can have distinct meanings in those scopes, with
+no fallback. A host library uses its own ordinary edges for implementation code.
+[Scoped build execution](../build/scoped_execution.md#two-checked-contexts) defines
+these checked occurrences; source acquisition alone grants neither scope.
+Only designated toolchain
+[product-reference operands](../build/scoped_execution.md#selecting-product-declarations-without-executing-them)
+resolve product declarations during build execution. Host imports, ordinary
+calls, and generic helpers do not acquire that exception.
+
 The [package boundary](../packages/boundaries.md) distinguishes authored
 selection from carrying a foreign nominal type through a declared dependency's
 API. Carrying does not add a direct dependency or grant selection authority.
@@ -81,7 +92,7 @@ Name resolution considers, in order:
 3. Machine parameters.
 4. Receiver fields through the explicit `self` receiver.
 5. Imported names.
-6. Fully qualified package/module paths within the declared dependency set.
+6. Fully qualified package/module paths within the occurrence's declared dependency scope.
 
 Ambiguous imported declarations reject. Compiler traversal order cannot select
 between them. An explicit receiver field projection is not an implicit bare-name

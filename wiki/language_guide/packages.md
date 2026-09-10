@@ -20,6 +20,14 @@ An executable uses `builder.application("name")`; a workspace lists
 `arithmetic_kernels`; use `--as` to choose another. See
 [build declarations](../spec/build/declarations.md) for identity and projection.
 
+Product dependencies use `depend`/`depend_as`; build-only helpers use
+`build_depend`/`build_depend_as`. They are separate checked scopes, including
+when the same library is used in both. The
+[build dependency guide](chapter_15_modules_imports_visibility.md#build-and-product-dependencies)
+explains target separation, helper imports, and explicit legacy migration.
+Purpose-aware installation/lock support is implementation work; the current
+command list below does not imply a new build-dependency CLI option.
+
 ## Install and update
 
 ```text

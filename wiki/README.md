@@ -66,6 +66,7 @@ beside code; completed work belongs in Git, not current reference material.
   [bounded byte input](spec/resources/bounded_input.md), and
   [bounded growth](spec/resources/bounded_growth.md).
 - Build: [declarations and package identity](spec/build/declarations.md),
+  [dependency scopes, product references, and isolated I/O](spec/build/scoped_execution.md),
   [configuration and targets](spec/build/configuration.md),
   [optimization selection and validation](spec/build/optimizations.md),
   [target slots and entry roots](spec/build/entry_roots.md),
@@ -90,6 +91,7 @@ beside code; completed work belongs in Git, not current reference material.
   [hardware materialization](spec/build/hardware_materialization.md), and
   [executable installation](spec/build/executable_installation.md).
 - Packages: [source selection](spec/packages/sources.md),
+  [checked boundary topology](spec/packages/topology.md),
   [project locks](spec/packages/locks.md),
   [declaration and carried-type boundaries](spec/packages/boundaries.md),
   [core and ordinary libraries](spec/packages/toolchain.md),

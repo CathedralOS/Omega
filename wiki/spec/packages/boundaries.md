@@ -4,15 +4,19 @@ The package is the dependency-reach boundary. `pub` exposes declarations owned
 by the package; `build.omg` declares its dependencies and selections. Undeclared
 aliases are not nameable, and fully qualified spelling does not bypass that
 boundary. There is no export item that relabels a dependency declaration.
-A subsystem needing a different dependency-reach set is a separate package,
-not a hidden nested manifest.
+A subsystem needing a different dependency-reach set within a checked context
+is a separate package, not a hidden nested manifest. The root's explicit
+[build and product scopes](../build/scoped_execution.md#two-checked-contexts)
+are distinct contexts, not nested manifests. Both scopes remain package-owned;
+neither loaded source nor a borrowed Build grants the other's nameability.
 
 [Modules and visibility](../language/modules.md) owns source path syntax,
 resolution order, and public structural data access.
 
 ## Selection versus carrying a type
 
-A direct dependency authorizes authored selection of its declarations. It is
+A direct dependency in the requesting occurrence's scope authorizes authored
+selection of its declarations. It is
 not required merely because that package's nominal type arrives through an
 already-declared dependency's API. Such a value may be moved, borrowed, stored,
 returned, passed back through that API, and checked for multiplicity.
