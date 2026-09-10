@@ -400,3 +400,87 @@ fn skipped_anonymous_match_comparisons_cannot_hide_undefined_division() {
         );
     }
 }
+
+#[test]
+fn anonymous_match_divisors_have_compositional_nonzero_proofs() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for expression in [
+        "(1 / ((match true { true -> 1, false -> 2 }) + 1) == 0.5)",
+        "(1 / (1 - (match true { true -> 3, false -> 4 })) == -0.5)",
+        "(1 / ((match true { true -> -2, false -> -3 }) * -2) == 0.25)",
+        "(1 / ((match true { true -> 2, false -> 4 }) / -2) == -1)",
+        "(1 / ((match true { true -> 0.25, false -> 0.5 }) + 0.25) == 2)",
+        "(1 / ((match true { true -> 18446744073709551616, false -> 18446744073709551617 }) - 18446744073709551615) == 1)",
+        "(1 / (match true { true -> -1, false -> 1 }) == -1)",
+        "(true || (1 / ((match (1u8 / 0 == 0) { true -> 1, false -> 2 }) + 1) == 0))",
+        "(true || (1 / ((match 0u8 { (1u8 / 0) -> 1, _ -> 2 }) + 1) == 0))",
+        "(1 / ((match true { true -> 1, false -> 2 }) + (match false { true -> 2, false -> 3 })) == 0.25)",
+    ] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "pub data Flag<const Enabled: bool> {{ value: u8; }} {} {}",
+                keep("keep", "Flag", expression),
+                keep("oracle", "Flag", "true"),
+            ),
+        );
+        let checked = compile(&root, root_inputs(&root));
+        assert_same_machine_types(&checked, "keep", "oracle");
+    }
+}
+
+#[test]
+fn anonymous_match_divisor_proofs_preserve_undefined_and_unknown_cases() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for expression in [
+        "(false && (1 / ((match true { true -> 1, false -> -2 }) + 2) == 0))",
+        "(false && (1 / (2 - (match true { true -> 1, false -> 2 })) == 0))",
+        "(false && (1 / ((match true { true -> 1, false -> 0 }) * 2) == 0))",
+        "(false && (1 / ((match true { true -> 1, false -> 2 }) / (match true { true -> 1, false -> 0 })) == 0))",
+        "(false && (1 / (1 + 0 * (1 / (match true { true -> 1, false -> 0 }))) == 0))",
+        // The convex range loses disjointness and correlation. Neither case
+        // proves an actual zero, but both still require a stronger proof.
+        "(false && (1 / ((match true { true -> -1, false -> 1 }) + 0) == 0))",
+        "(false && (1 / ((match true { true -> 1, false -> 2 }) - (match true { true -> 1, false -> 2 }) + 1) == 0))",
+    ] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "pub data Flag<const Enabled: bool> {{ value: u8; }} {}",
+                keep("keep", "Flag", expression),
+            ),
+        );
+        let Err(diagnostics) =
+            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
+        else {
+            panic!("missing all-arm nonzero proof accepted: {expression}");
+        };
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("nonzero divisor")),
+            "{expression}: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn anonymous_match_divisor_proofs_compose_independent_terms() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    let denominator = std::iter::repeat_n("(match true { true -> 1, false -> 2 })", 24)
+        .collect::<Vec<_>>()
+        .join(" + ");
+    Sources::write(
+        root.join("main.omg"),
+        &format!(
+            "pub data Flag<const Enabled: bool> {{ value: u8; }} {} {}",
+            keep("keep", "Flag", &format!("(1 / ({denominator}) == 1 / 24)")),
+            keep("oracle", "Flag", "true"),
+        ),
+    );
+    let checked = compile(&root, root_inputs(&root));
+    assert_same_machine_types(&checked, "keep", "oracle");
+}
