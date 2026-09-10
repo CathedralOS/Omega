@@ -29,7 +29,3 @@ pub fn admit_provider_installation(
         selected,
     )
 }
-
-/// Compatibility name for the same projection; optimizer verification remains
-/// a separate owner and is not invoked by provider installation.
-pub use admit_provider_installation as admit_provider_installation_for_optimization;

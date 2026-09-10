@@ -238,15 +238,14 @@ fn stage(
         )
         .expect("structural target lowering")
     } else {
-        let installation =
-            terminal_psi_to_abstract_operations::admit_provider_installation_for_optimization(
-                optimized.plan(),
-                semantic,
-                proof,
-                &AdmissionProfile::default(),
-                providers,
-            )
-            .expect("independently admitted structural provider");
+        let installation = terminal_psi_to_abstract_operations::admit_provider_installation(
+            optimized.plan(),
+            semantic,
+            proof,
+            &AdmissionProfile::default(),
+            providers,
+        )
+        .expect("independently admitted structural provider");
         lower_optimized_to_target_operations_with_provider_executions_and_installation(
             optimized,
             NativeTarget::uefi_x64(),

@@ -10,8 +10,7 @@ use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalStructuralValue,
 };
 use terminal_psi_to_abstract_operations::{
-    SelectedProviderAdapter, admit_provider_installation,
-    admit_provider_installation_for_optimization, lower_artifact_sections,
+    SelectedProviderAdapter, admit_provider_installation, lower_artifact_sections,
     lower_artifact_sections_for_optimization,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
@@ -116,14 +115,9 @@ fn check_source(source: &str) {
         assert_eq!(evidence[0].result, operation.result);
         let optimized =
             lower_artifact_sections_for_optimization(&semantic, &proof, &profile).unwrap();
-        let optimized_installation = admit_provider_installation_for_optimization(
-            optimized.plan(),
-            &semantic,
-            &proof,
-            &profile,
-            &selected,
-        )
-        .unwrap();
+        let optimized_installation =
+            admit_provider_installation(optimized.plan(), &semantic, &proof, &profile, &selected)
+                .unwrap();
         assert_eq!(
             optimized_installation.installed_calls(),
             installation.installed_calls()

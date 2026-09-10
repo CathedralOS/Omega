@@ -27,5 +27,4 @@ pub use optimization::{
 pub use provider_installation::{
     AdmittedInstalledProviderCall, AdmittedProviderInstallation, ProviderInstallationError,
     SelectedProviderAdapter, admit_provider_installation,
-    admit_provider_installation_for_optimization,
 };

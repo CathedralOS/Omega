@@ -14,8 +14,7 @@ use terminal_psi::{
     Operation, OperationKind, OperationResult, ProviderSignatureParameter, StructuralMultiplicity,
 };
 use terminal_psi_to_abstract_operations::{
-    ProviderInstallationError, admit_provider_installation,
-    admit_provider_installation_for_optimization, lower_artifact_sections,
+    ProviderInstallationError, admit_provider_installation, lower_artifact_sections,
     lower_replay_artifact_sections, lower_replay_artifact_sections_for_optimization,
 };
 use terminal_verifier::{ModuleError, validate_module};
@@ -76,7 +75,7 @@ fn omega_installs_only_the_checked_adapter_selected_by_provider_plan_facts() {
     let installation =
         admit_provider_installation(&plan, &semantic, &proof, &profile, &selected_facts)
             .expect("Omega derives the exact selected terminal row");
-    let optimized_installation = admit_provider_installation_for_optimization(
+    let optimized_installation = admit_provider_installation(
         replayed_optimizer_input.plan(),
         &semantic,
         &proof,
