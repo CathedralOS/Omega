@@ -12,8 +12,13 @@
 //! resolved declaration identity and the declared numeric landing, just as for
 //! unscoped constants. Primitive arrays use this same selection for body copies,
 //! preserving their declared element landings and full array type at destinations.
-//! Foreign or generic attachments and nominal record/case initializers still
-//! need their full owners.
+//! Nominal constants use the same structural encoder after the
+//! shared header resolver selects their carrier and every nested constructor
+//! in its declaring source. Their uses retain exact declaration custody and
+//! rejoin the receiving parameter after symbol allocation; equal layouts and
+//! encoded labels never grant nominal identity. Scoped nominal constants use
+//! the same exact attachment finalization as scoped scalars. Foreign/generic
+//! attachments still need their full owners.
 
 use diagnostics::Diagnostic;
 use source::SourceId;
@@ -22,6 +27,15 @@ use syntax_trees::item::Item;
 use syntax_trees::types::TypeReferenceNode;
 
 pub(crate) fn validate_module_normalization(syntax: &SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
+    let selection =
+        crate::generic_data::constant_selection::ConstantSelection::new(syntax, None, Vec::new())?;
+    validate_with_selection(syntax, &selection)
+}
+
+pub(crate) fn validate_with_selection(
+    syntax: &SyntaxTrees,
+    selection: &crate::generic_data::constant_selection::ConstantSelection,
+) -> Result<(), Vec<Diagnostic>> {
     let module_sources = syntax
         .root_items()
         .filter_map(|item| {
@@ -94,10 +108,12 @@ pub(crate) fn validate_module_normalization(syntax: &SyntaxTrees) -> Result<(), 
                     }
                     None
                 } else {
-                    Some((
-                        &constant.name,
-                        "module-owned nominal or nonliteral constants require namespace-aware initializer normalization",
-                    ))
+                    crate::generic_data::canonicalize_selected_declared_const_definition(syntax, constant, Some(selection))
+                        .map_err(|reason| vec![Diagnostic::error(format!(
+                            "module-owned nominal constant `{}` is invalid: {reason}", constant.name
+                        )).with_source_span(constant.name.source_span())])?;
+                    None
+
                 }
             }
             Item::Data(data)
@@ -379,9 +395,8 @@ mod tests {
     }
 
     #[test]
-    fn module_arrays_with_nominal_or_unchecked_leaf_types_remain_fenced() {
+    fn module_arrays_with_unchecked_leaf_types_remain_fenced() {
         for source in [
-            "module settings; data Item { value: u8; } const SIZE: [Item; 0] = [];",
             "module settings; const SIZE: [f32; 0] = [];",
             "module settings; const SIZE: [string; 0] = [];",
         ] {
@@ -389,22 +404,30 @@ mod tests {
                 crate::normalize_generic_data(parse(&[source]))
                     .expect_err("array shape cannot bypass missing namespace or value owners")[0]
                     .message
-                    .contains("initializer normalization")
+                    .contains("runtime floating/text identity")
             );
         }
     }
 
     #[test]
-    fn module_aggregate_constants_reject_before_initializer_normalization() {
-        let syntax = parse(&[
+    fn module_aggregate_constants_check_unused_initializers() {
+        for source in [
             "module first; data Value { value: u64; } const VALUE: Value = Value { value: 1 };",
-        ]);
-        assert!(
-            crate::normalize_generic_data(syntax)
-                .expect_err("nominal initializer identities are not ready")[0]
-                .message
-                .contains("initializer normalization")
-        );
+            "module first; data Value { value: u64; } const VALUE: [Value; 0] = [];",
+        ] {
+            crate::normalize_generic_data(parse(&[source])).expect("selected nominal initializer");
+        }
+        for initializer in [
+            "Value { value: 256 }",
+            "Value {}",
+            "Value { value: 1, extra: 2 }",
+        ] {
+            let source = format!(
+                "module first; data Value {{ value: u8; }} const VALUE: Value = {initializer};"
+            );
+            crate::normalize_generic_data(parse(&[&source]))
+                .expect_err("unused nominal initializer must still check");
+        }
     }
 
     #[test]

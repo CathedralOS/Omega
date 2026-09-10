@@ -308,7 +308,7 @@ pub(in crate::generic_data) fn canonicalize_closed_domain_application(
                         // resolution; never select from the legacy string map.
                         continue;
                     };
-                    let value = canonicalize_const_definition(syntax, &definition, *parameter_type)
+                    let value = canonicalize_selected_const_definition(syntax, &definition, *parameter_type, Some(selection))
                         .map_err(|reason| Diagnostic::error(format!(
                             "index argument for `{family_name}::{parameter_name}` is invalid: {reason}"
                         )).with_source_span(name.source_span()))?;

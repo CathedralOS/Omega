@@ -354,7 +354,7 @@ fn normalized_constant_argument_rejects_missing_and_drifted_declaration_custody(
             exposure: AuthoredDeclarationSelectionExposure::PrivateImplementation,
         };
         assert!(
-            crate::constant::finalize_const_argument_selections(&mut program, &[selection])
+            crate::constant::finalize_const_argument_selections(&mut program, &[selection], &[])
                 .is_err(),
             "{corruption} custody must reject"
         );
@@ -480,7 +480,7 @@ fn normalized_result_is_independent_of_each_selected_declaration_value() {
             exposure: AuthoredDeclarationSelectionExposure::PrivateImplementation,
         })
         .collect::<Vec<_>>();
-    crate::constant::finalize_const_argument_selections(&mut program, &pending)
+    crate::constant::finalize_const_argument_selections(&mut program, &pending, &[])
         .expect("both occurrences retain declaration value 2 independently of result 4");
     for origin in &origins {
         assert!(
@@ -493,7 +493,8 @@ fn normalized_result_is_independent_of_each_selected_declaration_value() {
     let mut drifted_leaf = pending[0].clone();
     drifted_leaf.origin.canonical_value_encoding = normalization.canonical_result_encoding.clone();
     assert!(
-        crate::constant::finalize_const_argument_selections(&mut program, &[drifted_leaf]).is_err(),
+        crate::constant::finalize_const_argument_selections(&mut program, &[drifted_leaf], &[])
+            .is_err(),
         "argument result cannot stand in for the declaration value"
     );
 }
@@ -564,6 +565,192 @@ fn normalized_builtin_operators_keep_occurrence_exposure_and_exact_exclusions() 
             crate::type_reference::lower_type_reference_handle(&mut lowerer, &syntax, argument)
                 .is_err(),
             "synthetic exclusion must not suppress payload validation"
+        );
+    }
+}
+
+#[test]
+fn nominal_constant_receiving_slot_rejects_carrier_and_parent_substitution() {
+    use symbol_resolved_trees::types::TypeReference;
+    let syntax = crate::normalize_generic_data(domain_index_sources(&[
+        (
+            SourceId(0),
+            "use settings; data Value { value: u64; }
+          data Pick<const V: settings::Value> { marker: u8; }
+          data OtherPick<const V: Value> { marker: u8; }
+          machine keep(value: Pick<settings::VALUE>) -> Pick<settings::VALUE> { value }",
+        ),
+        (
+            SourceId(1),
+            "module settings; pub data Value { value: u64; }
+          pub const VALUE: Value = Value { value: 1 };",
+        ),
+    ]))
+    .expect("normalize nominal arguments");
+    let original = syntax
+        .type_references
+        .generic_nodes()
+        .into_iter()
+        .find_map(|handle| {
+            let TypeReferenceNode::Generic { arguments, .. } =
+                syntax.type_references.type_reference(handle)
+            else {
+                return None;
+            };
+            syntax
+                .type_references
+                .type_reference_handles(*arguments)
+                .iter()
+                .find_map(|argument| {
+                    let normalization = syntax
+                        .type_references
+                        .const_argument_normalization(*argument)?;
+                    syntax
+                        .type_references
+                        .const_argument_origins(normalization.selections)
+                        .first()
+                        .cloned()
+                })
+        })
+        .expect("retained nominal occurrence");
+    let program = lower_syntax_trees(&syntax).expect("resolve nominal receiving slot");
+    let (parameter_handle, application) = program
+        .tables
+        .declarations
+        .state_parameters
+        .iter()
+        .find_map(|(handle, parameter)| {
+            let TypeReference::Generic(application) = &parameter.type_reference else {
+                return None;
+            };
+            Some((handle, application.clone()))
+        })
+        .expect("actual generic parameter");
+    let selection = crate::lowerer::PendingConstArgumentSelection {
+        origin: original,
+        exposure: AuthoredDeclarationSelectionExposure::PrivateImplementation,
+    };
+    let slot = crate::lowerer::PendingConstArgumentSlot {
+        selection: 0,
+        arguments: application.arguments,
+        ordinal: 0,
+    };
+    crate::constant::finalize_const_argument_selections(
+        &mut program.clone(),
+        std::slice::from_ref(&selection),
+        &[slot],
+    )
+    .expect("unchanged receiving custody replays");
+    let root_value = program
+        .data_definitions
+        .iter()
+        .find(|definition| program.symbols.display_path(definition.symbol, "::") == "Value")
+        .expect("root nominal lookalike");
+    let other_template = program
+        .data_definitions
+        .iter()
+        .find(|definition| definition.name.as_str() == "OtherPick")
+        .expect("other generic template")
+        .symbol;
+    for corruption in [
+        "nominal",
+        "scalar",
+        "unit",
+        "parent",
+        "conflicting_parent",
+        "argument",
+        "arity",
+        "ordinal",
+        "missing_slot",
+    ] {
+        let mut changed = program.clone();
+        let mut changed_slot = slot;
+        match corruption {
+            "nominal" | "scalar" | "unit" => {
+                let replacement = match corruption {
+                    "nominal" => TypeReference::Named {
+                        symbol: root_value.symbol,
+                        name: root_value.name.clone(),
+                    },
+                    "scalar" => TypeReference::Named {
+                        symbol: changed
+                            .symbols
+                            .find_top_level_by_name_and_kinds_from_source(
+                                "u64",
+                                &[symbols::SymbolKind::BuiltinType],
+                                selection.origin.reference,
+                            )
+                            .expect("integer carrier"),
+                        name: symbol_resolved_trees::name::DiagnosticName::generated("u64"),
+                    },
+                    _ => TypeReference::Unit,
+                };
+                changed
+                    .roots
+                    .const_declarations
+                    .for_each_mut(|declaration| declaration.declared_type = replacement.clone());
+            }
+            "parent" => {
+                let TypeReference::Generic(application) = &mut changed
+                    .tables
+                    .declarations
+                    .state_parameters
+                    .get_mut(parameter_handle)
+                    .type_reference
+                else {
+                    panic!("generic parameter");
+                };
+                application.base_symbol = other_template;
+            }
+            "conflicting_parent" => {
+                let mut other = application.clone();
+                other.base_symbol = other_template;
+                changed
+                    .tables
+                    .declarations
+                    .child_type_references
+                    .insert(TypeReference::Generic(other));
+            }
+            "argument" => {
+                let argument = changed
+                    .tables
+                    .declarations
+                    .child_type_references
+                    .span_mut_or_empty(slot.arguments)
+                    .first_mut()
+                    .expect("actual argument");
+                *argument = TypeReference::Unit;
+            }
+            "arity" => {
+                let TypeReference::Generic(application) = &mut changed
+                    .tables
+                    .declarations
+                    .state_parameters
+                    .get_mut(parameter_handle)
+                    .type_reference
+                else {
+                    panic!("generic parameter");
+                };
+                application.arguments = arena::HandleSpan::empty();
+                changed_slot.arguments = application.arguments;
+            }
+            "ordinal" => changed_slot.ordinal += 1,
+            "missing_slot" => {}
+            _ => unreachable!(),
+        }
+        let slots = if corruption == "missing_slot" {
+            &[][..]
+        } else {
+            std::slice::from_ref(&changed_slot)
+        };
+        assert!(
+            crate::constant::finalize_const_argument_selections(
+                &mut changed,
+                std::slice::from_ref(&selection),
+                slots
+            )
+            .is_err(),
+            "{corruption} retains value encoding but loses nominal receiving custody"
         );
     }
 }

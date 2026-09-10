@@ -1,4 +1,4 @@
-//! Constant substitution; value contract: wiki/spec/language/constants.md.
+//! Constant substitution and exact const-index declaration custody; value contract: wiki/spec/language/constants.md.
 //!
 //! Const VALUE semantics exist only until symbol resolution:
 //! A constant declares a named pure value; each selected expression path gets
@@ -21,6 +21,12 @@
 //! Numeric and Boolean initializers owe their declared landing even when private
 //! and unused. Check declarations before substitution, reusing the same validator
 //! during module normalization so public identity construction cannot bypass it.
+//!
+//! Nominal index values retain a private link to the actual parent-owned
+//! argument span while lowering. Finalization rejoins the resolved parameter
+//! and selected declaration before publishing occurrence custody. The ordinary
+//! generic application and indexed-domain owners provide that relationship;
+//! this does not add nominal aggregate body substitution.
 //!
 //! Remaining boundaries, enforced loudly:
 //! - LITERAL-ONLY initializers (scalars, negated scalars -- already folded by
@@ -915,8 +921,9 @@ pub(crate) fn validate_normalized_const_argument(
 pub(crate) fn finalize_const_argument_selections(
     program: &mut SymbolResolvedTrees,
     pending: &[crate::lowerer::PendingConstArgumentSelection],
+    slots: &[crate::lowerer::PendingConstArgumentSlot],
 ) -> Result<(), Diagnostic> {
-    for selection in pending {
+    for (selection_ordinal, selection) in pending.iter().enumerate() {
         let origin = &selection.origin;
         let mut declarations = program.const_declarations.iter().filter(|declaration| {
             program.symbols.symbol_source_span(declaration.symbol) == Some(origin.declaration)
@@ -933,6 +940,77 @@ pub(crate) fn finalize_const_argument_selections(
             return Err(Diagnostic::error(
                 "normalized constant argument declaration or value custody drifted before resolution",
             ).with_source_span(origin.reference));
+        }
+        let requires_nominal_slot =
+            carrier::has_nominal_carrier(program, &declaration.declared_type)
+                || carrier::encoding_has_nominal_carrier(&origin.canonical_value_encoding);
+        let mut matched = false;
+        for slot in slots
+            .iter()
+            .filter(|slot| slot.selection == selection_ordinal)
+        {
+            let parameters =
+                carrier::receiving_parameters(program, slot.arguments).ok_or_else(|| {
+                    Diagnostic::error("constant lost its actual receiving application")
+                        .with_source_span(origin.reference)
+                })?;
+            let arguments = program.child_type_references(slot.arguments);
+            if parameters.len() != arguments.len() {
+                return Err(Diagnostic::error(
+                    "constant receiving application has mismatched argument arity",
+                )
+                .with_source_span(origin.reference));
+            }
+            let argument = arguments.get(slot.ordinal).ok_or_else(|| {
+                Diagnostic::error("constant lost its actual receiving argument")
+                    .with_source_span(origin.reference)
+            })?;
+            let parameter = parameters.get(slot.ordinal).ok_or_else(|| {
+                Diagnostic::error("constant lost its receiving generic slot")
+                    .with_source_span(origin.reference)
+            })?;
+            let symbol_resolved_trees::data::TypeParameterKind::Const { type_reference } =
+                &parameter.kind
+            else {
+                return Err(
+                    Diagnostic::error("constant did not enter a const parameter")
+                        .with_source_span(origin.reference),
+                );
+            };
+            if requires_nominal_slot || carrier::has_nominal_carrier(program, type_reference) {
+                if !carrier::same_resolved_carrier(
+                    program,
+                    &declaration.declared_type,
+                    type_reference,
+                ) {
+                    return Err(Diagnostic::error("selected constant nominal carrier differs from its receiving generic parameter").with_source_span(origin.reference));
+                }
+                let symbol_resolved_trees::types::TypeReference::Named { symbol, name } = argument
+                else {
+                    return Err(Diagnostic::error(
+                        "nominal constant receiving argument lost its canonical value",
+                    )
+                    .with_source_span(origin.reference));
+                };
+                if symbol.is_valid()
+                    || !language_semantics::const_value::CanonicalConstValue::from_atom(
+                        name.as_str(),
+                    )
+                    .is_some_and(|value| value.encoding == origin.canonical_value_encoding)
+                {
+                    return Err(Diagnostic::error(
+                        "nominal constant receiving argument differs from its selected value",
+                    )
+                    .with_source_span(origin.reference));
+                }
+            }
+            matched = true;
+        }
+        if requires_nominal_slot && !matched {
+            return Err(Diagnostic::error(
+                "nominal constant argument has no retained receiving generic slot",
+            )
+            .with_source_span(origin.reference));
         }
         let selected = declaration.symbol;
         program

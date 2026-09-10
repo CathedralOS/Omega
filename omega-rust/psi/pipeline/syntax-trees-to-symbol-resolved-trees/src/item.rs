@@ -229,9 +229,10 @@ fn lower_item_with_exposure(
             crate::constant::retain_const_initializer(lowerer, syntax_trees, definition)?;
             let canonical_value_encoding = if definition.is_public {
                 Some(
-                    crate::generic_data::canonicalize_declared_const_definition(
+                    crate::generic_data::canonicalize_selected_declared_const_definition(
                         syntax_trees,
                         definition,
+                        lowerer.constant_selection.as_ref(),
                     )
                     .map_err(|reason| {
                         diagnostics::Diagnostic::error(format!(
@@ -243,9 +244,10 @@ fn lower_item_with_exposure(
                     .encoding,
                 )
             } else {
-                crate::generic_data::canonicalize_declared_const_definition(
+                crate::generic_data::canonicalize_selected_declared_const_definition(
                     syntax_trees,
                     definition,
+                    lowerer.constant_selection.as_ref(),
                 )
                 .ok()
                 .map(|value| value.encoding)

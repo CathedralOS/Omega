@@ -163,17 +163,28 @@ fn lower_type_reference_node(
             base_name,
             lifetime_arguments,
             arguments,
-        } => Ok(TypeReference::Generic(GenericTypeReference {
-            storage: GenericTypeReferenceStorage {
-                base_symbol: SymbolHandle::invalid(),
-                base_name: crate::name::lower_name(base_name),
-                lifetime_arguments: lifetime_arguments
-                    .iter()
-                    .map(crate::name::lower_name)
-                    .collect(),
-                arguments: lower_child_type_references(lowerer, syntax_trees, *arguments)?,
-            },
-        })),
+        } => {
+            let selection_start = lowerer.pending_const_argument_selections.len();
+            let lowered_arguments = lower_child_type_references(lowerer, syntax_trees, *arguments)?;
+            retain_const_argument_slots(
+                lowerer,
+                syntax_trees,
+                *arguments,
+                lowered_arguments,
+                selection_start,
+            );
+            Ok(TypeReference::Generic(GenericTypeReference {
+                storage: GenericTypeReferenceStorage {
+                    base_symbol: SymbolHandle::invalid(),
+                    base_name: crate::name::lower_name(base_name),
+                    lifetime_arguments: lifetime_arguments
+                        .iter()
+                        .map(crate::name::lower_name)
+                        .collect(),
+                    arguments: lowered_arguments,
+                },
+            }))
+        }
         syntax::types::TypeReferenceNode::ConstExpression(expression) => {
             let expression = lower_expression_into_table(lowerer, syntax_trees, *expression)?;
             Ok(TypeReference::ConstExpression(expression))
@@ -331,6 +342,7 @@ fn lower_type_constraint_handle(
             Ok(TypeConstraint::Named(crate::name::lower_name(name)))
         }
         syntax::types::TypeConstraintNode::Domain(domain) => {
+            let selection_start = lowerer.pending_const_argument_selections.len();
             let mut arguments = HandleSpan::empty();
             for argument in syntax_trees
                 .type_references
@@ -344,6 +356,13 @@ fn lower_type_constraint_handle(
                     .child_type_references
                     .append_to_span(&mut arguments, argument);
             }
+            retain_const_argument_slots(
+                lowerer,
+                syntax_trees,
+                domain.arguments,
+                arguments,
+                selection_start,
+            );
             Ok(TypeConstraint::Domain(
                 symbol_resolved_trees::types::DomainConstraint {
                     name: crate::name::lower_name(&domain.name),
@@ -358,6 +377,55 @@ fn lower_type_constraint_handle(
         }
         syntax::types::TypeConstraintNode::ArithmeticDomain(domain) => {
             Ok(TypeConstraint::ArithmeticDomain(*domain))
+        }
+    }
+}
+
+// Both ordinary data applications and indexed domain constraints own their
+// exact argument spans. Carry that relationship privately through resolution;
+// source names and equal encoded atoms cannot reconstruct a receiving slot.
+fn retain_const_argument_slots(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    arguments: HandleSpan<syntax::types::TypeReferenceHandle>,
+    lowered_arguments: HandleSpan<TypeReference>,
+    selection_start: usize,
+) {
+    for (ordinal, argument) in syntax_trees
+        .type_references
+        .type_reference_handles(arguments)
+        .iter()
+        .enumerate()
+    {
+        let Some(normalization) = syntax_trees
+            .type_references
+            .const_argument_normalization(*argument)
+        else {
+            continue;
+        };
+        // The actual Generic owns this immutable child span. Nested
+        // applications carry their own spans; equal value encodings
+        // never establish which parent parameter received a value.
+        for selected in syntax_trees
+            .type_references
+            .const_argument_origins(normalization.selections)
+        {
+            for (selection, pending) in lowerer
+                .pending_const_argument_selections
+                .iter()
+                .enumerate()
+                .skip(selection_start)
+            {
+                if pending.origin == *selected {
+                    lowerer.pending_const_argument_slots.push(
+                        crate::lowerer::PendingConstArgumentSlot {
+                            selection,
+                            arguments: lowered_arguments,
+                            ordinal,
+                        },
+                    );
+                }
+            }
         }
     }
 }

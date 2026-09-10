@@ -37,6 +37,9 @@ mod comparisons;
 #[path = "module_machine_indices/noninteger.rs"]
 mod noninteger;
 
+#[path = "module_machine_indices/nominal.rs"]
+mod nominal;
+
 #[path = "module_machine_indices/rational.rs"]
 mod rational;
 

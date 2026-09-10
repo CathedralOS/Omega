@@ -198,10 +198,10 @@ selection and independently executable constant artifacts. Constant substitution
 uses exact module/package selection after lexical name assignment and retains
 the selected declaration at the original use. This is not completion of the
 [module/name contract](../../../wiki/spec/language/modules.md):
-nominal aggregate constants, remaining type-scoped constants and template
-normalization, trait defaults, operator homes, qualified constructors, and the
-remaining declaration forms still need exact namespace-aware resolution.
-Module-owned nominal aggregates, unsupported scoped constants, generic templates,
+nominal aggregate body substitution, foreign/generic constant attachments and
+template normalization, trait defaults, operator homes, qualified constructors,
+and the remaining declaration forms still need exact namespace-aware resolution.
+Unsupported scoped constants, module-owned generic templates,
 traits, conformances, domains, and operators
 currently reject before their bare-name transforms; so do generic
 carrier/argument collisions across module scopes.
@@ -250,9 +250,17 @@ collisions and runtime qualifiers still reject. Scoped numeric/Boolean literals
 also substitute into scalar bodies and computed machine indices; unused private
 initializers still validate their declared carrier. Private floats retain their
 declared format and round directly to it. Public float constant identities remain
-unsupported by the existing canonical declaration encoder. Nominal record/sum
-initializers (including a type merely named `string`) and foreign/generic
-attachments still need namespace-aware normalization. Integer/Boolean array body
+unsupported by the existing canonical declaration encoder. Closed module-owned
+record/case constants, including nested records and fixed arrays, use the existing
+structural encoder after selecting each declared carrier and constructor in its
+own source. Module-local nongeneric attachments use the same scope checks as
+scalar constants. Receiving generic and domain arguments independently rejoin
+the exact nominal carrier before accepting the canonical value; equal layouts
+and encoded labels cannot grant identity. Fields encode in declaration order.
+The `module_machine_indices::nominal` integration probes cover these checked-source
+uses and hostile carrier, import and visibility controls. Module-owned templates,
+foreign/generic attachments and nominal aggregate body substitution remain separate.
+Integer/Boolean array body
 references use the same exact selector and deep-copy their literal trees per use.
 Destination checks rejoin their declared dimensions and element identity, including
 empty and nested-empty arrays; scalar leaf landings alone cannot retain that shape.
@@ -298,7 +306,7 @@ rejects undefined rational values even in unselected comparisons; typed operands
 still require ordinary peer landing. The two-file CLI check
 `cargo run -p omega -- --check tests/omega/pass/modules/rational_boolean_indices/main.omg`
 covers fractional and decimal comparisons with their canonical Boolean results.
-Open templates, nominal aggregate evaluation, constrained destinations, authored operators
+Open templates, machine-computed nominal aggregate indices, constrained destinations, authored operators
 and module-owned domain families remain outside this probe.
 Domain indices retain the declared family's identity; equal results share canonical
 type identity without discarding the original constant or operator occurrences.
