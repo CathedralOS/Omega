@@ -48,6 +48,13 @@ outside this crate.
 
 ## Flow, ranges, and progress
 
+Flow prepares one call-frame resolver for the immutable typed program and lends
+it to call-write and assignment-alias queries, including call-free bodies.
+Resolver preparation does not depend on changing value facts. Local origins
+still resolve at each exact statement prefix; sharing preparation must not reuse
+an earlier prefix's aliases. Standalone consumers prepare their own resolver
+and reuse it across write projection and alias closure within that query.
+
 Semantic contexts maintain exact program-point groups as they are appended.
 Global and machine declaration groups are selected once per flow invocation,
 then carried in typed-machine order across states and input passes. These small

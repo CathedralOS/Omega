@@ -188,6 +188,7 @@ pub(super) fn append_state_statement_flow_facts(
             state.symbol,
             statement_index,
             statement,
+            ctx.call_frames,
         );
         if storage_writes.is_none() {
             *active_contexts = HandleSpan::empty();

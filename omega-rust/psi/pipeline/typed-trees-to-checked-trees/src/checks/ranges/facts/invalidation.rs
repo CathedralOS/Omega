@@ -29,6 +29,7 @@ impl RangeFacts<'_> {
                     state.symbol,
                     self.statement_index,
                     statement,
+                    validation::CallFrameResolver::new(program).as_ref(),
                 )
             })
             .flatten();

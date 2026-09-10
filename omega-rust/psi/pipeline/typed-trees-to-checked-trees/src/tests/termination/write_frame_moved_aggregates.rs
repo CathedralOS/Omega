@@ -293,6 +293,7 @@ fn moved_aggregate_storage_keeps_selected_leaf_precision() {
             state.symbol,
             statements.len() - 1,
             statements.last().expect("store"),
+            ::validation::CallFrameResolver::new(&program).as_ref(),
         )
         .unwrap_or_else(|| panic!("{name}: complete storage origin"));
         let mut actual: Vec<_> = places

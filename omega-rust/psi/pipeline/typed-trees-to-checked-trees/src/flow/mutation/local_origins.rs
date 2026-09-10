@@ -31,7 +31,7 @@ pub(crate) fn close_storage_places_over_aliases(
     )
 }
 
-pub(in crate::flow) fn close_storage_places_over_aliases_with_resolver(
+pub(crate) fn close_storage_places_over_aliases_with_resolver(
     program: &typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
