@@ -1406,7 +1406,9 @@ fn checked_operator_target(
         .uses
         .iter()
         .filter_map(|(_, operator_use)| {
-            (operator_use.expression == expression).then_some(operator_use)
+            (operator_use.expression == expression
+                && operator_use.occurrence == checked_trees::CheckedOperatorOccurrence::Expression)
+                .then_some(operator_use)
         })
         .collect::<Vec<_>>();
 
@@ -1504,6 +1506,7 @@ fn checked_operator_expression_is_intrinsic_primitive(
 ) -> bool {
     facts.operators.uses.iter().any(|(_, operator_use)| {
         operator_use.expression == expression
+            && operator_use.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
             && operator_use.status == CheckedOperatorResolutionStatus::BuiltinFallback
     })
 }

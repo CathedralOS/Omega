@@ -1,5 +1,6 @@
 use super::*;
 
+mod float_patterns;
 mod semantic_results;
 
 fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {

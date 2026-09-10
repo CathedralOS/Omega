@@ -117,27 +117,11 @@ fn domain_is_active_at_use(
     operator_use: &CheckedOperatorUseFact,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    operator_operands(program, operator_use.expression)
+    operator_use
+        .operands(program)
+        .unwrap_or_default()
         .into_iter()
         .any(|operand| operand_selects_domain(program, operator_use.origin, operand, domain_symbol))
-}
-
-fn operator_operands(program: &TypedTrees, expression: ExpressionHandle) -> Vec<ExpressionHandle> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Binary(binary) => vec![binary.left, binary.right],
-        ExpressionNode::Indexed(indexed) => {
-            let mut operands = vec![indexed.collection];
-            match program.expression_table.expression(indexed.index) {
-                ExpressionNode::Range(range) => {
-                    operands.push(range.start);
-                    operands.push(range.end);
-                }
-                _ => operands.push(indexed.index),
-            }
-            operands
-        }
-        _ => Vec::new(),
-    }
 }
 
 fn operand_selects_domain(
@@ -335,7 +319,12 @@ fn direct_binding_symbol(
 /// primitive scalar does, a user data type does not. Indexed core surfaces
 /// normally retain their root candidate and therefore do not need this path.
 fn builtin_meaning_exists(program: &TypedTrees, operator_use: &CheckedOperatorUseFact) -> bool {
-    let Some(left_operand) = operator_operands(program, operator_use.expression)
+    if operator_use.occurrence != checked_trees::CheckedOperatorOccurrence::Expression {
+        return false;
+    }
+    let Some(left_operand) = operator_use
+        .operands(program)
+        .unwrap_or_default()
         .first()
         .copied()
     else {

@@ -283,6 +283,8 @@ fn exact_authored_uses(
                 .iter()
                 .filter_map(|(_, operator_use)| {
                     (operator_use.expression == expression
+                        && operator_use.occurrence
+                            == checked_trees::CheckedOperatorOccurrence::Expression
                         && operator_use.origin == origin
                         && operator_use.selected_operator_symbol == requirement
                         && operator_use.status == CheckedOperatorResolutionStatus::Resolved

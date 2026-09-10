@@ -6,7 +6,7 @@ use checked_trees::{
     CheckedSymbolicBoundaryOperatorApplicationDemand, CheckedValueOrigin,
 };
 use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionNode;
 use typed_trees::operator::ClosedOperatorApplicationArgument;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
@@ -44,8 +44,7 @@ pub(crate) fn bind_boundary_operator_application_demands(
             program,
             &symbols,
             operator,
-            operator_use.expression,
-            operator_use.origin,
+            operator_use,
             &spelled_operand_types(program, operator_use),
         ) {
             Ok(Some(application)) => applications.push(application),
@@ -206,12 +205,11 @@ fn checked_spelled_boundary_application(
     program: &TypedTrees,
     symbols: &validation::TopLevelSymbols<'_>,
     operator: &typed_trees::operator::OperatorDefinition,
-    expression: ExpressionHandle,
-    origin: CheckedValueOrigin,
+    operator_use: &CheckedOperatorUseFact,
     operand_types: &[Option<TypeReferenceHandle>],
 ) -> Result<Option<CheckedBoundaryOperatorApplicationDemand>, diagnostics::Diagnostic> {
     let bindings = if matches!(
-        program.expression_table.expression(expression),
+        program.expression_table.expression(operator_use.expression),
         ExpressionNode::Indexed(_)
     ) {
         typed_trees::operator::closed_indexed_operator_application_for_operands(
@@ -232,7 +230,7 @@ fn checked_spelled_boundary_application(
     validation::validate_closed_operator_application(program, symbols, operator, &bindings)?;
     Ok(Some(checked_boundary_application_from_bindings(
         operator,
-        CheckedBoundaryOperatorApplicationUseSite::Expression { expression, origin },
+        operator_use.application_site(),
         bindings,
     )))
 }
@@ -540,6 +538,16 @@ fn spelled_operand_types(
     program: &TypedTrees,
     operator_use: &CheckedOperatorUseFact,
 ) -> Vec<Option<TypeReferenceHandle>> {
+    if operator_use.occurrence != checked_trees::CheckedOperatorOccurrence::Expression {
+        return operator_use
+            .operands(program)
+            .unwrap_or_default()
+            .iter()
+            .map(|operand| {
+                expression_type_reference_for_origin(program, *operand, operator_use.origin)
+            })
+            .collect();
+    }
     match program.expression_table.expression(operator_use.expression) {
         ExpressionNode::Binary(binary) => vec![
             expression_type_reference_for_origin(program, binary.left, operator_use.origin),

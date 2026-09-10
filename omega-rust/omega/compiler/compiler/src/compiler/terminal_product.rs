@@ -652,6 +652,8 @@ fn project_compiler_intrinsic_application_realization(
                 .iter()
                 .filter_map(|(_, operator_use)| {
                     (operator_use.expression == expression
+                        && operator_use.occurrence
+                            == checked_trees::CheckedOperatorOccurrence::Expression
                         && operator_use.origin == origin
                         && operator_use.selected_operator_symbol == application.requirement_symbol
                         && operator_use.status

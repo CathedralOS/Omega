@@ -90,6 +90,23 @@ pub(in crate::flow) fn append_match_pattern_context(
     let Some((subject, pattern, _)) = payload.match_pattern_comparison(program) else {
         return;
     };
+    let FactPayload::MatchPattern { expression, .. } = payload else {
+        return;
+    };
+    let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) else {
+        return;
+    };
+    // Selected float equality need not mean mathematical equality. Missing
+    // selection is rejected by checking, never promoted to builtin evidence.
+    if matches!(
+        validation::match_subject_primitive_type(program, dispatch),
+        Some(typed_trees::types::PrimitiveType::F32 | typed_trees::types::PrimitiveType::F64)
+    ) || ctx.operators.uses.iter().any(|(_, operator_use)| {
+        operator_use.expression == expression
+            && operator_use.occurrence != checked_trees::CheckedOperatorOccurrence::Expression
+    }) {
+        return;
+    }
     if !expression_is_stable_predicate(program, subject)
         || !expression_is_stable_predicate(program, pattern)
         || !match_input_has_builtin_meaning(program, ctx.operators, subject)

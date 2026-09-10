@@ -9,6 +9,14 @@ pub(crate) fn build_contract_operator_use_facts(
     let mut operator_uses = arena::Arena::with_capacity(operators.resolved_contract_uses().count());
 
     for operator_use in operators.resolved_contract_uses() {
+        // These declaration-backed rows are expression-scoped. An implicit
+        // comparison needs arm-local invocation custody before its ensures
+        // can become flow evidence; its requires are checked separately.
+        if operator_use.operator_use.occurrence
+            != checked_trees::CheckedOperatorOccurrence::Expression
+        {
+            continue;
+        }
         append_contract_operator_use(
             program,
             contract_facts,

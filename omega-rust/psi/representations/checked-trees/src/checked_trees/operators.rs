@@ -1,3 +1,10 @@
+//! Operator meaning belongs to an authored occurrence, not just an expression.
+//! A Match equality computes one arm decision, never the enclosing Match result.
+//! Its root, arm, and origin therefore travel together through application and
+//! provider joins. Ordinary expression readers use `expression_use` to exclude
+//! these implicit comparisons; source operands are not permission to evaluate
+//! the saved subject again or to publish builtin equality facts.
+
 use crate::{CheckedValueOrigin, CrashCause};
 use arena::{Arena, Handle, HandleSpan};
 use language_core::operator_spelling::OperatorSpelling;
@@ -61,6 +68,7 @@ pub enum CheckedOperatorResolutionStatus {
 pub struct CheckedOperatorUseFact {
     pub expression: ExpressionHandle,
     pub origin: CheckedValueOrigin,
+    pub occurrence: CheckedOperatorOccurrence,
     pub spelling: OperatorSpelling,
     pub policy_adapter: CheckedArithmeticPolicyAdapter,
     /// Compact report coordinate for the selected ProviderPlan. Authority uses
@@ -72,6 +80,89 @@ pub struct CheckedOperatorUseFact {
     pub candidates: HandleSpan<CheckedOperatorCandidateFact>,
     pub candidate_count: usize,
     pub status: CheckedOperatorResolutionStatus,
+}
+
+/// An implicit comparison belongs to its authored arm, not to an invented
+/// binary expression or to the operator inside that arm's pattern value.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum CheckedOperatorOccurrence {
+    #[default]
+    Expression,
+    MatchEquality {
+        source_arm: Handle<typed_trees::expression::TableMatchArm>,
+    },
+}
+
+impl CheckedOperatorUseFact {
+    pub fn application_site(&self) -> CheckedBoundaryOperatorApplicationUseSite {
+        match self.occurrence {
+            CheckedOperatorOccurrence::Expression => {
+                CheckedBoundaryOperatorApplicationUseSite::Expression {
+                    expression: self.expression,
+                    origin: self.origin,
+                }
+            }
+            CheckedOperatorOccurrence::MatchEquality { source_arm } => {
+                CheckedBoundaryOperatorApplicationUseSite::MatchEquality {
+                    expression: self.expression,
+                    source_arm,
+                    origin: self.origin,
+                }
+            }
+        }
+    }
+
+    /// Recover original operands without creating evaluations. Match's first
+    /// operand denotes the subject saved before any pattern is evaluated.
+    pub fn operands(&self, program: &typed_trees::TypedTrees) -> Option<Vec<ExpressionHandle>> {
+        use typed_trees::expression::{ExpressionNode, MatchPattern};
+        if !program
+            .expression_table
+            .expression_is_valid(self.expression)
+        {
+            return None;
+        }
+        match self.occurrence {
+            CheckedOperatorOccurrence::Expression => match program
+                .expression_table
+                .expression(self.expression)
+            {
+                ExpressionNode::Binary(binary) => Some(vec![binary.left, binary.right]),
+                ExpressionNode::Indexed(indexed) => {
+                    let mut operands = vec![indexed.collection];
+                    match program.expression_table.expression(indexed.index) {
+                        ExpressionNode::Range(range) => operands.extend([range.start, range.end]),
+                        _ => operands.push(indexed.index),
+                    }
+                    Some(operands)
+                }
+                _ => None,
+            },
+            CheckedOperatorOccurrence::MatchEquality { source_arm } => {
+                let ExpressionNode::Match(dispatch) =
+                    program.expression_table.expression(self.expression)
+                else {
+                    return None;
+                };
+                if self.spelling != OperatorSpelling::Equal
+                    || source_arm.generation() != dispatch.arms.start().generation()
+                {
+                    return None;
+                }
+                let ordinal = source_arm
+                    .arena_index()
+                    .checked_sub(dispatch.arms.start().arena_index())?;
+                let arm = program
+                    .expression_table
+                    .match_arms(dispatch.arms)
+                    .get(ordinal as usize)?;
+                let MatchPattern::Value(pattern) = arm.pattern else {
+                    return None;
+                };
+                Some(vec![dispatch.subject, pattern])
+            }
+        }
+    }
 }
 
 /// One uniquely resolved named operator call retained as checked evidence.
@@ -125,6 +216,11 @@ pub enum CheckedBoundaryOperatorApplicationUseSite {
         expression: ExpressionHandle,
         origin: CheckedValueOrigin,
     },
+    MatchEquality {
+        expression: ExpressionHandle,
+        source_arm: Handle<typed_trees::expression::TableMatchArm>,
+        origin: CheckedValueOrigin,
+    },
     Statement(StatementHandle),
 }
 
@@ -153,6 +249,7 @@ impl Default for CheckedOperatorUseFact {
         Self {
             expression: ExpressionHandle::invalid(),
             origin: CheckedValueOrigin::default(),
+            occurrence: CheckedOperatorOccurrence::Expression,
             spelling: OperatorSpelling::Index,
             policy_adapter: CheckedArithmeticPolicyAdapter::None,
             provider_plan_report_fingerprint: 0,
@@ -558,7 +655,9 @@ impl CheckedOperatorFacts {
 
     pub fn expression_use(&self, expression: ExpressionHandle) -> Option<&CheckedOperatorUseFact> {
         self.uses.iter().find_map(|(_, operator_use)| {
-            (operator_use.expression == expression).then_some(operator_use)
+            (operator_use.expression == expression
+                && operator_use.occurrence == CheckedOperatorOccurrence::Expression)
+                .then_some(operator_use)
         })
     }
 
@@ -568,7 +667,9 @@ impl CheckedOperatorFacts {
         origin: CheckedValueOrigin,
     ) -> Option<&CheckedOperatorUseFact> {
         self.uses.iter().find_map(|(_, operator_use)| {
-            (operator_use.expression == expression && operator_use.origin == origin)
+            (operator_use.expression == expression
+                && operator_use.origin == origin
+                && operator_use.occurrence == CheckedOperatorOccurrence::Expression)
                 .then_some(operator_use)
         })
     }
@@ -705,6 +806,7 @@ impl CheckedOperatorFacts {
     ) -> Option<&CheckedOperatorCandidateFact> {
         self.uses.iter().find_map(|(_, operator_use)| {
             (operator_use.expression == expression
+                && operator_use.occurrence == CheckedOperatorOccurrence::Expression
                 && operator_use.origin.machine_symbol() == Some(machine_symbol)
                 && operator_use.status == CheckedOperatorResolutionStatus::Resolved)
                 .then(|| self.selected_candidate(operator_use))
@@ -798,6 +900,7 @@ mod tests {
         uses.append(CheckedOperatorUseFact {
             expression,
             origin: CheckedValueOrigin::default(),
+            occurrence: CheckedOperatorOccurrence::Expression,
             spelling: OperatorSpelling::Index,
             policy_adapter: CheckedArithmeticPolicyAdapter::None,
             provider_plan_report_fingerprint: 0,
@@ -810,6 +913,7 @@ mod tests {
         uses.append(CheckedOperatorUseFact {
             expression: ExpressionHandle::from_arena_index(3),
             origin: CheckedValueOrigin::default(),
+            occurrence: CheckedOperatorOccurrence::Expression,
             spelling: OperatorSpelling::Range,
             policy_adapter: CheckedArithmeticPolicyAdapter::None,
             provider_plan_report_fingerprint: 0,
