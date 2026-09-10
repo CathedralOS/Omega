@@ -191,10 +191,13 @@ fn local_location(
             selected_instructions::SelectedMemoryAccessOrigin::Operation(producer) => {
                 instruction.provenance.operations != [producer]
             }
-            selected_instructions::SelectedMemoryAccessOrigin::Block(_) => {
+            selected_instructions::SelectedMemoryAccessOrigin::Block(owner) => {
+                // Edge copies initialize this descriptor independently. Its pure
+                // address is formed in the owning block, keeping the pointer
+                // lifetime out of earlier calls rather than hoisting it to entry.
                 instruction.provenance != Default::default()
                     || !selected.blocks.iter().any(|block| {
-                        block.id == selected.entry_block
+                        block.origin == selected_instructions::SelectedBlockOrigin::Source(owner)
                             && block
                                 .instructions
                                 .iter()
