@@ -390,6 +390,7 @@ mod tests {
 
     fn scalar_result() -> OperationResult {
         OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(1).unwrap(),
             scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
         })

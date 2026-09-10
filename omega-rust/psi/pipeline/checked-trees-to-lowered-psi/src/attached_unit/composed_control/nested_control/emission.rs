@@ -21,6 +21,7 @@ pub(super) fn emit(
             (0..state.scalar_parameters.len())
                 .map(|_| {
                     Ok(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value_id(allocate_dense(&mut next_value)?),
                         scalar_type: ScalarType::Boolean,
                     })

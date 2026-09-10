@@ -30,6 +30,7 @@ fn fixture(bytes: &[u8]) -> (TerminalModule, ProofBundle) {
         },
     });
     machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(2).unwrap(),
         scalar_type: ScalarType::Integer(integer()),
     });
@@ -45,6 +46,7 @@ fn fixture(bytes: &[u8]) -> (TerminalModule, ProofBundle) {
         Operation {
             id: OperationId::new(2).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Integer(integer()),
             }),
@@ -139,6 +141,7 @@ fn malformed_literal_establishments_do_not_supply_extent_facts() {
             }
             3 => {
                 operations[1].result = OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: ValueId::new(1).unwrap(),
                     scalar_type: ScalarType::Integer(
                         IntegerType::new(IntegerSign::Signed, 64).unwrap(),
@@ -210,6 +213,7 @@ fn redirected_source_and_repeated_reads_keep_exact_place_and_value_identity() {
     machine.blocks[0].operations.push(Operation {
         id: OperationId::new(4).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(3).unwrap(),
             scalar_type: ScalarType::Integer(integer()),
         }),
@@ -220,6 +224,7 @@ fn redirected_source_and_repeated_reads_keep_exact_place_and_value_identity() {
     machine.blocks[0].operations.push(Operation {
         id: OperationId::new(5).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(4).unwrap(),
             scalar_type: ScalarType::Integer(integer()),
         }),

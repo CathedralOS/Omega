@@ -37,6 +37,7 @@ pub enum SuspensionCallPlanError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModuleError {
+    InvalidScalarQualification(&'static str),
     NonCanonicalScalarRangeInvariants,
     InvalidScalarRangeInvariant {
         machine: MachineId,

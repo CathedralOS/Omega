@@ -76,16 +76,20 @@ const SOURCE: &str = include_str!(concat!(
 ));
 
 #[test]
-fn qualification_match_replays_checked_custody_but_does_not_publish_erased_terminal() {
+fn qualification_match_replays_checked_custody_and_publishes_exact_terminal_membership() {
     let checked = checked(SOURCE);
     assert_eq!(qualifications(&checked).len(), 2);
     replay(&checked).expect("exact source, membership, and operand custody");
-    assert!(matches!(
-        crate::lower_machine(&checked, "choose"),
-        Err(LoweringError::Unsupported(
-            "scalar qualification requires Terminal membership transport"
-        ))
-    ));
+    let lowered = crate::lower_machine(&checked, "choose").expect("qualified Terminal graph");
+    let catalog = &lowered.semantic_module.scalar_qualifications;
+    assert_eq!(catalog.domains.len(), 1);
+    assert_eq!(catalog.sets.len(), 1);
+    assert_eq!(catalog.coercions.len(), 2);
+    let result = lowered.semantic_module.machines[0]
+        .result
+        .scalar_ref()
+        .expect("scalar result");
+    assert_eq!(result.qualifications, catalog.sets[0].id);
 }
 
 #[test]

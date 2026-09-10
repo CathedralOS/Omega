@@ -226,6 +226,7 @@ mod tests {
                 .map(|ordinal| Operation {
                     id: OperationId::new(ordinal).unwrap(),
                     result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: ValueId::new(ordinal).unwrap(),
                         scalar_type: ScalarType::Boolean,
                     }),

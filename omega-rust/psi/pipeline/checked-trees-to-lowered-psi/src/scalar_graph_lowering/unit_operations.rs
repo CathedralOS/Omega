@@ -7,7 +7,7 @@ use checked_trees::{CheckedUnitCallCoordinate, CheckedUnitEffectOperationPlan};
 pub(super) struct Prepared {
     pub(super) coordinate: CheckedUnitCallCoordinate,
     pub(super) arguments: Vec<checked_trees::CheckedCallScalarArgument>,
-    pub(super) argument_types: Vec<ScalarType>,
+    pub(super) argument_types: Vec<QualifiedScalarType>,
     pub(super) call: LoweredUnitCall,
 }
 
@@ -26,7 +26,7 @@ pub(super) fn prepare(
     state: &checked_trees::CheckedScalarStateGraph,
     operation: &CheckedUnitEffectOperationPlan,
     bindings: &storage::ScalarBindings,
-    value_types: &[ScalarType],
+    value_types: &[QualifiedScalarType],
 ) -> Result<Prepared, LoweringError> {
     let CheckedUnitEffectOperationPlan::CallUnit {
         coordinate,
@@ -260,6 +260,6 @@ pub(super) fn prepare(
             structural_arguments: lowered_arguments,
             crash_routes: contract.crash.published().to_vec(),
         },
-        argument_types,
+        argument_types: argument_types.into_iter().map(Into::into).collect(),
     })
 }

@@ -35,7 +35,11 @@ pub(crate) fn scalar_call_unit_artifact_with(
     let third_result = ValueId::new(SCALAR_CALL_UNIT_THIRD_RESULT).unwrap();
     let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
     let scalar_type = ScalarType::Integer(integer_type);
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     let callee =
         conditional_u64_integer_equal_parameters_machine(SCALAR_CALL_UNIT_CALLEE_BASE, [1, 0]);
     let call = |id, result, arguments| Operation {

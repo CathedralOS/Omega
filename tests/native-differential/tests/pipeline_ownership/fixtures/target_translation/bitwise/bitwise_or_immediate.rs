@@ -13,6 +13,7 @@ pub(crate) fn integer_bitwise_or_immediate_return_artifact(
     let right = ValueId::new(78_006).unwrap();
     let bitwise_or = ValueId::new(78_008).unwrap();
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -46,6 +47,7 @@ pub(crate) fn integer_bitwise_or_immediate_return_artifact(
             structural_parameters: Vec::new(),
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(78_010).unwrap(),
                 scalar_type: ScalarType::Integer(scalar_type),
             }),
@@ -64,6 +66,7 @@ pub(crate) fn integer_bitwise_or_immediate_return_artifact(
                     Operation {
                         id: OperationId::new(78_003).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: left,
                             scalar_type: ScalarType::Integer(scalar_type),
                         }),
@@ -72,6 +75,7 @@ pub(crate) fn integer_bitwise_or_immediate_return_artifact(
                     Operation {
                         id: OperationId::new(78_005).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: right,
                             scalar_type: ScalarType::Integer(scalar_type),
                         }),
@@ -80,6 +84,7 @@ pub(crate) fn integer_bitwise_or_immediate_return_artifact(
                     Operation {
                         id: OperationId::new(78_007).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: bitwise_or,
                             scalar_type: ScalarType::Integer(scalar_type),
                         }),

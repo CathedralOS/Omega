@@ -73,6 +73,7 @@ fn execution() -> (TerminalExecution, Operation) {
                 Operation {
                     id: OperationId::new(1).unwrap(),
                     result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value(3),
                         scalar_type: count(0).scalar_type(),
                     }),

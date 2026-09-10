@@ -71,6 +71,7 @@ fn dead_scalar_fixture() -> LoweredPsi {
             Operation {
                 id: OperationId::new(2001).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: first,
                     scalar_type: ScalarType::Boolean,
                 }),
@@ -79,6 +80,7 @@ fn dead_scalar_fixture() -> LoweredPsi {
             Operation {
                 id: OperationId::new(2002).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: second,
                     scalar_type: ScalarType::Boolean,
                 }),
@@ -251,6 +253,7 @@ fn dead_scalar_elimination_keeps_the_transitive_returned_value_chain() {
     let mut lowered = dead_scalar_fixture();
     let machine = &mut lowered.semantic_module.machines[0];
     machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(2003).unwrap(),
         scalar_type: ScalarType::Boolean,
     });

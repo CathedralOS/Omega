@@ -55,23 +55,28 @@ fn two_returns(late_value: u64) -> TerminalModule {
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
     machine.parameters = vec![
         ValueDeclaration {
+            qualifications: Default::default(),
             id: id(10, ValueId::new),
             scalar_type: ScalarType::Boolean,
         },
         ValueDeclaration {
+            qualifications: Default::default(),
             id: id(11, ValueId::new),
             scalar_type: ScalarType::Boolean,
         },
         ValueDeclaration {
+            qualifications: Default::default(),
             id: id(12, ValueId::new),
             scalar_type,
         },
         ValueDeclaration {
+            qualifications: Default::default(),
             id: id(13, ValueId::new),
             scalar_type,
         },
     ];
     machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: id(14, ValueId::new),
         scalar_type,
     });

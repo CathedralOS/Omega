@@ -51,6 +51,7 @@ fn cyclic_scalar_sibling_definition_does_not_dominate_join() {
     let machine = &mut module.machines[0];
     let scalar_type = machine.parameters[0].scalar_type;
     machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: id(20, ValueId::new),
         scalar_type,
     });
@@ -96,6 +97,7 @@ fn multiple_entry_cycle_retains_every_predecessor_for_scalar_dominance() {
         block.operations.push(Operation {
             id: id(value, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: id(value, ValueId::new),
                 scalar_type: ScalarType::Boolean,
             }),
@@ -154,6 +156,7 @@ fn cyclic_conditional_arguments_bind_target_parameters_exactly() {
     module.machines[0].blocks[2]
         .parameters
         .push(ValueDeclaration {
+            qualifications: Default::default(),
             id: id(20, ValueId::new),
             scalar_type,
         });

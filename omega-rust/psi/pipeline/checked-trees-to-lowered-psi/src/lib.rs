@@ -227,6 +227,13 @@ use lowered_psi::{
     CallbackTerminalLoweringReceipt, LoweredCallbackPsi, LoweredPsi,
     LoweredSelectedIeeeFloatFmaOccurrence, LoweredSourceCallOccurrence,
 };
+use semantic_vocabulary::QualifiedScalarType;
+mod scalar_qualifications;
+use scalar_qualifications::PreparedScalarQualifications;
+
+fn scalar_carriers(types: &[QualifiedScalarType]) -> Vec<ScalarType> {
+    types.iter().map(|value| value.scalar_type).collect()
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum LoweredDirectExpression {
@@ -287,6 +294,36 @@ enum LoweredDirectExpression {
 }
 
 impl LoweredDirectExpression {
+    fn value_type(
+        &self,
+        parameters: &[QualifiedScalarType],
+    ) -> Result<QualifiedScalarType, LoweringError> {
+        let position = match self {
+            Self::Parameter { position, .. } | Self::Local { position, .. } => Some(*position),
+            Self::Boolean { expression } => match expression.as_ref() {
+                LoweredBooleanReturnExpression::Parameter { position }
+                | LoweredBooleanReturnExpression::Local { position } => Some(*position),
+                _ => None,
+            },
+            _ => None,
+        };
+        if let Some(position) = position {
+            let value_type =
+                parameters
+                    .get(position)
+                    .copied()
+                    .ok_or(LoweringError::Unsupported(
+                        "scalar value has no typed parameter",
+                    ))?;
+            if value_type.scalar_type != self.scalar_type() {
+                return unsupported("scalar value carrier disagrees with its parameter");
+            }
+            Ok(value_type)
+        } else {
+            Ok(self.scalar_type().into())
+        }
+    }
+
     const fn scalar_type(&self) -> ScalarType {
         match self {
             Self::Parameter { scalar_type, .. }
@@ -411,6 +448,13 @@ enum LoweredIntegerBinaryKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum LoweredScalarBranchTerminator {
+    /// A representation-identical transfer establishing the final argument's
+    /// explicit qualification on a fresh successor parameter, not its source.
+    Qualify {
+        target: usize,
+        arguments: Vec<LoweredDirectExpression>,
+        structural_arguments: Vec<StructuralArgument>,
+    },
     Jump {
         target: usize,
         arguments: Vec<LoweredDirectExpression>,
@@ -438,7 +482,7 @@ struct LoweredCrashExit {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LoweredScalarBranchState {
-    parameter_types: Vec<ScalarType>,
+    parameter_types: Vec<QualifiedScalarType>,
     bindings: Vec<LoweredScalarBinding>,
     /// Effects execute after the scalar prefix, without creating scalar slots.
     structural_effects: Vec<LoweredScalarEffect>,
@@ -480,10 +524,22 @@ enum LoweredScalarBinding {
 }
 
 impl LoweredScalarBinding {
+    fn value_type(
+        &self,
+        parameters: &[QualifiedScalarType],
+    ) -> Result<QualifiedScalarType, LoweringError> {
+        match self {
+            Self::Expression(expression)
+            | Self::StoredValue {
+                value: expression, ..
+            } => expression.value_type(parameters),
+            Self::DirectCall(call) => Ok(call.result_type),
+        }
+    }
     const fn scalar_type(&self) -> ScalarType {
         match self {
             Self::Expression(expression) => expression.scalar_type(),
-            Self::DirectCall(call) => call.result_type,
+            Self::DirectCall(call) => call.result_type.scalar_type,
             Self::StoredValue { value, .. } => value.scalar_type(),
         }
     }
@@ -493,7 +549,7 @@ impl LoweredScalarBinding {
 struct LoweredDirectCallBinding {
     source_coordinate: SourceCallCoordinate,
     target_machine: symbols::SymbolHandle,
-    result_type: ScalarType,
+    result_type: QualifiedScalarType,
     arguments: Vec<LoweredDirectExpression>,
     structural_arguments: Vec<StructuralArgument>,
     uses_structural_frame: bool,
@@ -517,7 +573,8 @@ struct SourceCallCoordinate {
 struct PreparedScalarMachine {
     source_machine: symbols::SymbolHandle,
     states: Vec<LoweredScalarBranchState>,
-    result_type: ScalarType,
+    result_type: QualifiedScalarType,
+    scalar_qualifications: terminal_psi::ScalarQualificationCatalog,
     contract: PreparedScalarContract,
     crash_routes: Vec<checked_trees::CrashRouteBucket>,
     identity_reshuffles: LoweredContentIdentityReshuffles,

@@ -224,10 +224,12 @@ fn scalar_case_call_module() -> TerminalModule {
     let callee = &mut module.machines[1];
     callee.parameters = vec![
         ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(20),
             scalar_type,
         },
         ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(21),
             scalar_type,
         },
@@ -258,15 +260,18 @@ fn scalar_case_call_module() -> TerminalModule {
     let caller = &mut module.machines[0];
     caller.parameters = vec![
         ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(10),
             scalar_type,
         },
         ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(11),
             scalar_type,
         },
     ];
     caller.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(40),
         scalar_type,
     });
@@ -304,10 +309,12 @@ fn scalar_case_call_module() -> TerminalModule {
         structural_parameters: vec![],
         parameters: vec![
             ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(30),
                 scalar_type,
             },
             ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(31),
                 scalar_type,
             },
@@ -580,6 +587,7 @@ fn scalar_case_constructor_result_disposes_on_ordinary_returns_and_edges() {
                 caller.blocks[0].operations.push(Operation {
                     id: operation_id(3),
                     result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value_id(12),
                         scalar_type: ScalarType::Boolean,
                     }),
@@ -643,6 +651,7 @@ fn scalar_case_constructor_returns_from_a_checked_unranked_loop() {
     let constant = |operation, value, integer| Operation {
         id: operation_id(operation),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(value),
             scalar_type,
         }),
@@ -670,10 +679,12 @@ fn scalar_case_constructor_returns_from_a_checked_unranked_loop() {
             structural_parameters: vec![],
             parameters: vec![
                 ValueDeclaration {
+                    qualifications: Default::default(),
                     id: value_id(22),
                     scalar_type,
                 },
                 ValueDeclaration {
+                    qualifications: Default::default(),
                     id: value_id(23),
                     scalar_type,
                 },
@@ -683,6 +694,7 @@ fn scalar_case_constructor_returns_from_a_checked_unranked_loop() {
                 Operation {
                     id: operation_id(4),
                     result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value_id(25),
                         scalar_type: ScalarType::Boolean,
                     }),
@@ -707,6 +719,7 @@ fn scalar_case_constructor_returns_from_a_checked_unranked_loop() {
                 Operation {
                     id: operation_id(6),
                     result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value_id(27),
                         scalar_type,
                     }),

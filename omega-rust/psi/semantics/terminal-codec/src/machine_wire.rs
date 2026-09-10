@@ -109,6 +109,7 @@ pub(super) fn encode_declarations(
 pub(super) fn encode_declaration(writer: &mut Writer, declaration: ValueDeclaration) {
     writer.id(declaration.id);
     encode_scalar_type(writer, declaration.scalar_type);
+    writer.u64(declaration.qualifications.get());
 }
 
 pub(super) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine, CodecError> {
@@ -366,5 +367,6 @@ pub(super) fn decode_declaration(reader: &mut Reader<'_>) -> Result<ValueDeclara
     Ok(ValueDeclaration {
         id: reader.id("ValueId")?,
         scalar_type: decode_scalar_type(reader)?,
+        qualifications: semantic_vocabulary::ScalarQualificationSetId::new(reader.u64()?),
     })
 }

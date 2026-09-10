@@ -149,6 +149,7 @@ pub(super) fn module_with_blocks(
     blocks: Vec<Block>,
 ) -> TerminalModule {
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,

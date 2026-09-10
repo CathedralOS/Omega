@@ -74,11 +74,17 @@ route-free scalar casts now retain explicit `Qualification` computation nodes,
 including their exact operands and normalized result types. Source replay checks
 the authored selection, unique checked membership use, declaration obligations,
 alias expansion and canonical indices; a pure payload node cannot replace the
-cast. This is checked-custody coverage, not executable Terminal support.
+cast. Terminal declarations retain the full scalar type: canonical domain sets
+are shared across the reachable call closure, and explicit qualification binds
+a fresh successor value without a runtime tag or operation. Every incoming edge,
+ordinary call and result independently preserves that type.
 `cargo run -p omega -- inspect-terminal --machine choose --target macos_arm64 tests/omega/pass/expressions/match_domain_results/main.omg`
-still rejects: scalar qualifications need membership transport through Terminal
-values, joins, signatures and calls. Preserve that meaning before enabling
-publication; a same-carrier cast is not permission to erase it.
+publishes this fixture; `value_dispatch` replays both selections from canonical
+bytes. Predicate/routed evidence, explicit semantic erasure and shared structural
+qualification transport remain separate obligations, not bare-carrier fallbacks.
+The source checker still needs expression-membership grants when a qualified
+call or Match result supplies a qualified formal; exact Terminal call signature
+checking does not discharge that upstream source obligation.
 
 `cargo run -p omega -- --check tests/omega/pass/expressions/declared_operator_match_result/main.omg`
 checks a wider declared operator result joined with an anonymous numeric arm.

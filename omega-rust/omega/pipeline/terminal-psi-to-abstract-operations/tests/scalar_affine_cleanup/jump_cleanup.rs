@@ -24,6 +24,7 @@ use super::support::{
 fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
     let place = place_id(1);
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
@@ -58,6 +59,7 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
             id: machine_id(1),
             attachment: None,
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(1),
                 scalar_type: ScalarType::Boolean,
             }],
@@ -73,6 +75,7 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
             }],
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(2),
                 scalar_type: ScalarType::Boolean,
             }),
@@ -108,6 +111,7 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
                     structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: vec![ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value_id(3),
                         scalar_type: ScalarType::Boolean,
                     }],

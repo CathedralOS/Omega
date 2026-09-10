@@ -3,9 +3,9 @@
 use super::*;
 
 pub(super) struct Prepared {
-    pub(super) value_types: Vec<ScalarType>,
+    pub(super) value_types: Vec<QualifiedScalarType>,
     pub(super) scalar_bindings: storage::ScalarBindings,
-    parameter_types: Vec<ScalarType>,
+    parameter_types: Vec<QualifiedScalarType>,
     bindings: Vec<LoweredScalarBinding>,
     prefixes: Vec<PendingStep>,
 }
@@ -16,22 +16,22 @@ enum PendingStep {
 }
 
 struct PendingUnitCall {
-    parameter_types: Vec<ScalarType>,
+    parameter_types: Vec<QualifiedScalarType>,
     bindings: Vec<LoweredScalarBinding>,
-    value_types: Vec<ScalarType>,
+    value_types: Vec<QualifiedScalarType>,
     scalar_bindings: storage::ScalarBindings,
     prepared: unit_operations::Prepared,
 }
 
 struct PendingComputation {
-    parameter_types: Vec<ScalarType>,
+    parameter_types: Vec<QualifiedScalarType>,
     bindings: Vec<LoweredScalarBinding>,
-    value_types: Vec<ScalarType>,
+    value_types: Vec<QualifiedScalarType>,
     scalar_bindings: storage::ScalarBindings,
     statement_ordinal: u32,
     role: CheckedScalarExpressionRole,
     destination: symbols::SymbolHandle,
-    result_type: ScalarType,
+    result_type: QualifiedScalarType,
     value: PendingValue,
     store: Option<primitive_locals::StoreDestination>,
 }
@@ -43,9 +43,10 @@ enum PendingValue {
 
 pub(super) fn prepare(
     checked: &CheckedTrees,
+    qualifications: &PreparedScalarQualifications,
     machine: symbols::SymbolHandle,
     state: &checked_trees::CheckedScalarStateGraph,
-    parameter_types: Vec<ScalarType>,
+    parameter_types: Vec<QualifiedScalarType>,
     structural_parameters: &[StructuralParameterDeclaration],
     primitive_locals: &[primitive_locals::PrimitiveLocal],
     structural_types: &[StructuralTypeDeclaration],
@@ -213,8 +214,62 @@ pub(super) fn prepare(
                 );
             }
         }
-        let binding_type = terminal_scalar_type(binding.primitive_type)?;
+        let mut prepared_expression =
+            if matches!(binding.value, CheckedScalarBindingValue::Expression) {
+                Some(scalar_bindings.expression_at(
+                    checked,
+                    state.state,
+                    binding.statement_ordinal,
+                    role,
+                )?)
+            } else {
+                None
+            };
+        let binding_type = match &binding.value {
+            CheckedScalarBindingValue::Computation => {
+                let root = checked
+                    .facts
+                    .values
+                    .scalar_computations
+                    .root_at(state.state, binding.statement_ordinal, role)
+                    .ok_or(LoweringError::Unsupported(
+                        "scalar binding has no unique computation root",
+                    ))?;
+                if root.machine != machine {
+                    return unsupported("scalar binding computation belongs to another machine");
+                }
+                computations::computation_value_type(
+                    checked,
+                    qualifications,
+                    root.root,
+                    &scalar_bindings,
+                    &value_types,
+                )?
+            }
+            CheckedScalarBindingValue::DirectCall { target_state, .. } => {
+                qualifications.scalar_state_types(checked, *target_state)?.1
+            }
+            CheckedScalarBindingValue::Expression => prepared_expression
+                .as_ref()
+                .ok_or(LoweringError::Unsupported(
+                    "scalar binding lost its prepared expression",
+                ))?
+                .value_type(&value_types)?,
+        };
+        if binding_type.scalar_type != terminal_scalar_type(binding.primitive_type)? {
+            return unsupported("scalar binding carrier disagrees with its retained value");
+        }
+        if let Some(checked_trees::statement::StatementNode::LocalData(local)) =
+            statements.get(binding.statement_ordinal as usize)
+            && !local.type_is_inferred
+            && qualifications.value_type(checked, local.type_reference)? != binding_type
+        {
+            return unsupported("scalar binding does not retain its authored qualification");
+        }
         let store = primitive_locals::destination(primitive_locals, binding)?;
+        if store.is_some() && !binding_type.qualifications.is_empty() {
+            return unsupported("qualified primitive storage requires qualified storage custody");
+        }
         if matches!(binding.value, CheckedScalarBindingValue::Computation) {
             prefixes.push(PendingStep::Value(PendingComputation {
                 parameter_types,
@@ -238,18 +293,17 @@ pub(super) fn prepare(
         let mut lowered = match &binding.value {
             CheckedScalarBindingValue::Computation => None,
             CheckedScalarBindingValue::Expression => {
-                let expression = scalar_bindings.expression_at(
-                    checked,
-                    state.state,
-                    binding.statement_ordinal,
-                    role,
-                )?;
-                if expression.scalar_type() != binding_type {
+                let expression = prepared_expression
+                    .take()
+                    .ok_or(LoweringError::Unsupported(
+                        "scalar binding lost its prepared expression",
+                    ))?;
+                if expression.value_type(&value_types)? != binding_type {
                     return unsupported(
                         "checked scalar computed value type must match its binding",
                     );
                 }
-                validate_direct_parameter_types(&expression, &value_types)?;
+                validate_direct_parameter_types(&expression, &scalar_carriers(&value_types))?;
                 Some(LoweredScalarBinding::Expression(expression))
             }
             CheckedScalarBindingValue::DirectCall {
@@ -264,6 +318,7 @@ pub(super) fn prepare(
                 Some(LoweredScalarBinding::DirectCall(
                     lower_checked_direct_call_binding(
                         checked,
+                        qualifications,
                         machine,
                         state.state,
                         binding.statement_ordinal,
@@ -303,7 +358,11 @@ pub(super) fn prepare(
             parameter_types = value_types.clone();
             parameter_types.push(binding_type);
         }
-        scalar_bindings.append(binding.destination, binding_type, value_types.len())?;
+        scalar_bindings.append(
+            binding.destination,
+            binding_type.scalar_type,
+            value_types.len(),
+        )?;
         if binding.destination == CheckedScalarBindingDestination::Immutable {
             immutable_ordinal =
                 immutable_ordinal
@@ -419,7 +478,7 @@ impl Prepared {
                     bindings: vec![LoweredScalarBinding::StoredValue {
                         value: LoweredDirectExpression::Parameter {
                             position: prefix.value_types.len(),
-                            scalar_type: prefix.result_type,
+                            scalar_type: prefix.result_type.scalar_type,
                         },
                         destination,
                     }],

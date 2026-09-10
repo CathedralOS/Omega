@@ -30,6 +30,7 @@ pub(crate) fn boolean_not_immediate_return_artifact(source_value: bool) -> (Vec<
     let constant = ValueId::new(68_004).unwrap();
     let boolean_not = ValueId::new(68_006).unwrap();
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -63,6 +64,7 @@ pub(crate) fn boolean_not_immediate_return_artifact(source_value: bool) -> (Vec<
             structural_parameters: Vec::new(),
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(68_008).unwrap(),
                 scalar_type: ScalarType::Boolean,
             }),
@@ -81,6 +83,7 @@ pub(crate) fn boolean_not_immediate_return_artifact(source_value: bool) -> (Vec<
                     Operation {
                         id: OperationId::new(68_003).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: constant,
                             scalar_type: ScalarType::Boolean,
                         }),
@@ -91,6 +94,7 @@ pub(crate) fn boolean_not_immediate_return_artifact(source_value: bool) -> (Vec<
                     Operation {
                         id: OperationId::new(68_005).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: boolean_not,
                             scalar_type: ScalarType::Boolean,
                         }),
@@ -127,6 +131,7 @@ pub(crate) fn integer_bitwise_not_immediate_return_artifact(
     let constant = ValueId::new(67_004).unwrap();
     let bitwise_not = ValueId::new(67_006).unwrap();
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -160,6 +165,7 @@ pub(crate) fn integer_bitwise_not_immediate_return_artifact(
             structural_parameters: Vec::new(),
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(67_008).unwrap(),
                 scalar_type: ScalarType::Integer(scalar_type),
             }),
@@ -178,6 +184,7 @@ pub(crate) fn integer_bitwise_not_immediate_return_artifact(
                     Operation {
                         id: OperationId::new(67_003).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: constant,
                             scalar_type: ScalarType::Integer(scalar_type),
                         }),
@@ -188,6 +195,7 @@ pub(crate) fn integer_bitwise_not_immediate_return_artifact(
                     Operation {
                         id: OperationId::new(67_005).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: bitwise_not,
                             scalar_type: ScalarType::Integer(scalar_type),
                         }),
@@ -223,6 +231,7 @@ pub(crate) fn integer_widen_immediate_return_artifact() -> (Vec<u8>, Vec<u8>) {
     let constant = ValueId::new(65_004).unwrap();
     let widened = ValueId::new(65_006).unwrap();
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -256,6 +265,7 @@ pub(crate) fn integer_widen_immediate_return_artifact() -> (Vec<u8>, Vec<u8>) {
             structural_parameters: Vec::new(),
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(65_008).unwrap(),
                 scalar_type: ScalarType::Integer(target_type),
             }),
@@ -274,6 +284,7 @@ pub(crate) fn integer_widen_immediate_return_artifact() -> (Vec<u8>, Vec<u8>) {
                     Operation {
                         id: OperationId::new(65_003).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: constant,
                             scalar_type: ScalarType::Integer(source_type),
                         }),
@@ -284,6 +295,7 @@ pub(crate) fn integer_widen_immediate_return_artifact() -> (Vec<u8>, Vec<u8>) {
                     Operation {
                         id: OperationId::new(65_005).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: widened,
                             scalar_type: ScalarType::Integer(target_type),
                         }),
@@ -320,6 +332,7 @@ pub(crate) fn integer_exact_cast_immediate_operand_return_artifact() -> (Vec<u8>
     let cast = ValueId::new(66_006).unwrap();
     let obligation = ObligationId::new(66_009).unwrap();
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -353,6 +366,7 @@ pub(crate) fn integer_exact_cast_immediate_operand_return_artifact() -> (Vec<u8>
             structural_parameters: Vec::new(),
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(66_008).unwrap(),
                 scalar_type: ScalarType::Integer(target_type),
             }),
@@ -371,6 +385,7 @@ pub(crate) fn integer_exact_cast_immediate_operand_return_artifact() -> (Vec<u8>
                     Operation {
                         id: OperationId::new(66_003).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: constant,
                             scalar_type: ScalarType::Integer(source_type),
                         }),
@@ -381,6 +396,7 @@ pub(crate) fn integer_exact_cast_immediate_operand_return_artifact() -> (Vec<u8>
                     Operation {
                         id: OperationId::new(66_005).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: cast,
                             scalar_type: ScalarType::Integer(target_type),
                         }),

@@ -240,6 +240,7 @@ pub(super) fn emit_boolean_expression(
             operations.push(Operation {
                 id: operation,
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id,
                     scalar_type: ScalarType::Boolean,
                 }),
@@ -258,6 +259,7 @@ pub(super) fn emit_boolean_expression(
             operations.push(Operation {
                 id: operation,
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id,
                     scalar_type: ScalarType::Boolean,
                 }),
@@ -282,6 +284,7 @@ pub(super) fn emit_boolean_expression(
             operations.push(Operation {
                 id: operation,
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id,
                     scalar_type: ScalarType::Boolean,
                 }),
@@ -306,6 +309,7 @@ pub(super) fn emit_boolean_expression(
             operations.push(Operation {
                 id: operation,
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id,
                     scalar_type: ScalarType::Boolean,
                 }),
@@ -324,6 +328,7 @@ pub(super) fn emit_boolean_expression(
             operations.push(Operation {
                 id: operation,
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id,
                     scalar_type: ScalarType::Boolean,
                 }),
@@ -394,14 +399,25 @@ pub(super) fn emit_scalar_binding(
             operations,
         ));
     };
+    let parameter_types = parameters
+        .iter()
+        .map(|parameter| QualifiedScalarType {
+            scalar_type: parameter.scalar_type,
+            qualifications: parameter.qualifications,
+        })
+        .collect::<Vec<_>>();
     let arguments = call
         .arguments
         .iter()
-        .map(|argument| ValueDeclaration {
-            id: emit_direct_expression(argument, parameters, next_value_identity, operations),
-            scalar_type: argument.scalar_type(),
+        .map(|argument| {
+            let value_type = argument.value_type(&parameter_types)?;
+            Ok(ValueDeclaration {
+                qualifications: value_type.qualifications,
+                id: emit_direct_expression(argument, parameters, next_value_identity, operations),
+                scalar_type: value_type.scalar_type,
+            })
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, LoweringError>>()?;
     emit_direct_call_operation(
         call,
         // Terminal calls retain the callee's published routes substituted onto
@@ -422,7 +438,7 @@ pub(super) fn emit_scalar_binding(
 pub(super) fn emit_staged_scalar_call_binding(
     call: &LoweredDirectCallBinding,
     stage_parameters: &[ValueDeclaration],
-    stage_parameter_types: &[ScalarType],
+    stage_parameter_types: &[QualifiedScalarType],
     stage_block_parameters: Vec<ValueDeclaration>,
     stage_block: BlockId,
     next_block_identity: &mut u64,
@@ -447,14 +463,16 @@ pub(super) fn emit_staged_scalar_call_binding(
         next_stage_types.extend(
             call.arguments[..=argument_index]
                 .iter()
-                .map(LoweredDirectExpression::scalar_type),
+                .map(|argument| argument.value_type(stage_parameter_types))
+                .collect::<Result<Vec<_>, _>>()?,
         );
         let next_stage_parameters = next_stage_types
             .into_iter()
             .map(|scalar_type| {
                 let parameter = ValueDeclaration {
+                    qualifications: scalar_type.qualifications,
                     id: value_id(*next_value_identity),
-                    scalar_type,
+                    scalar_type: scalar_type.scalar_type,
                 };
                 *next_value_identity = next_value_identity
                     .checked_add(1)
@@ -636,8 +654,9 @@ fn emit_direct_call_operation(
     operations.push(Operation {
         id: operation,
         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+            qualifications: call.result_type.qualifications,
             id: result,
-            scalar_type: call.result_type,
+            scalar_type: call.result_type.scalar_type,
         }),
         kind: if call.structural_arguments.is_empty() && !call.uses_structural_frame {
             OperationKind::Call {
@@ -673,7 +692,11 @@ fn emit_scalar_leaf(
     let operation = operations.allocate();
     operations.push(Operation {
         id: operation,
-        result: OperationResult::Scalar(ValueDeclaration { id, scalar_type }),
+        result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
+            id,
+            scalar_type,
+        }),
         kind,
     });
     id
@@ -802,6 +825,7 @@ pub(super) fn emit_direct_expression(
             operations.push(Operation {
                 id: operation,
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id,
                     scalar_type: *scalar_type,
                 }),
@@ -823,6 +847,7 @@ pub(super) fn emit_direct_expression(
             operations.push(Operation {
                 id: operation,
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id,
                     scalar_type: *scalar_type,
                 }),
@@ -844,6 +869,7 @@ pub(super) fn emit_direct_expression(
             operations.push(Operation {
                 id: operation,
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id,
                     scalar_type: *scalar_type,
                 }),
@@ -865,6 +891,7 @@ pub(super) fn emit_direct_expression(
             operations.push(Operation {
                 id: operation,
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id,
                     scalar_type: *scalar_type,
                 }),

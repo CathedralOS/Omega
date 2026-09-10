@@ -9,6 +9,7 @@ fn ordered_branch(first_strict: bool, second_strict: bool) -> TerminalModule {
     let machine = &mut checked.machines[0];
     machine.parameters = [1, 2, 3]
         .map(|identity| ValueDeclaration {
+            qualifications: Default::default(),
             id: value(identity),
             scalar_type,
         })

@@ -182,6 +182,7 @@ pub(super) fn validate_dynamic_dispatches(
                 && arguments.is_empty()
                 && structural_arguments.as_slice() == std::slice::from_ref(&selection.source)
                 && operation_result.scalar_type == callable_result.scalar_type
+                && operation_result.qualifications == callable_result.qualifications
                 && claim_transfers.is_empty()
                 && requirement_obligations.is_empty()
                 && crash_continuations.is_empty()
@@ -448,6 +449,7 @@ pub(super) fn validate_dynamic_dispatches(
                 TerminalMachineResult::Scalar(callable_result),
             ) if *descriptor_ordinal == dispatch.descriptor_ordinal
                 && operation_result.scalar_type == callable_result.scalar_type
+                && operation_result.qualifications == callable_result.qualifications
                 && requirement_obligations.is_empty()
                 && crash_continuations.is_empty()
         ) || matches!(
@@ -829,6 +831,7 @@ fn validate_stored_dynamic_dispatches(
                 TerminalMachineResult::Scalar(callable_result),
             ) if *descriptor_ordinal == dispatch.descriptor_ordinal
                 && operation_result.scalar_type == callable_result.scalar_type
+                && operation_result.qualifications == callable_result.qualifications
                 && requirement_obligations.is_empty()
                 && crash_continuations.is_empty()
         );

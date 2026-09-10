@@ -63,6 +63,7 @@ fn integer_constant(operation: u64, value: i128) -> Operation {
     Operation {
         id: id(operation),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: id(operation),
             scalar_type: integer_type(),
         }),

@@ -402,6 +402,7 @@ fn contextual_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
         terminal_psi::Operation {
             id: semantic_vocabulary::OperationId::new(9001).unwrap(),
             result: OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                qualifications: Default::default(),
                 id: value,
                 scalar_type: ScalarType::Boolean,
             }),
@@ -427,6 +428,7 @@ fn contextual_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
     // scalar cleanup admits calls before return and carries the same goal.
     let result = semantic_vocabulary::ValueId::new(9005).unwrap();
     changed_entry.result = TerminalMachineResult::Scalar(terminal_psi::ValueDeclaration {
+        qualifications: Default::default(),
         id: semantic_vocabulary::ValueId::new(9006).unwrap(),
         scalar_type: ScalarType::Boolean,
     });
@@ -449,6 +451,7 @@ fn contextual_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
         .push(terminal_psi::Operation {
             id: semantic_vocabulary::OperationId::new(8999).unwrap(),
             result: OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                qualifications: Default::default(),
                 id: result,
                 scalar_type: ScalarType::Boolean,
             }),

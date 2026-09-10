@@ -612,12 +612,16 @@ pub(super) fn build_scalar_conditional_target(
     target: usize,
     arguments: &[LoweredDirectExpression],
     current_parameters: &[ValueDeclaration],
-    current_parameter_types: &[ScalarType],
+    current_parameter_types: &[QualifiedScalarType],
     next_block_identity: &mut u64,
     next_value_identity: &mut u64,
     pending_blocks: &mut Vec<PendingNestedBlockGroup>,
     identity_base: u64,
-) -> LoweredBooleanDecisionTarget {
+) -> Result<LoweredBooleanDecisionTarget, LoweringError> {
+    let argument_types = arguments
+        .iter()
+        .map(|argument| argument.value_type(current_parameter_types))
+        .collect::<Result<Vec<_>, _>>()?;
     let direct_arguments = arguments
         .iter()
         .map(|argument| match argument {
@@ -645,10 +649,10 @@ pub(super) fn build_scalar_conditional_target(
         })
         .collect::<Option<Vec<_>>>();
     if let Some(arguments) = direct_arguments {
-        return LoweredBooleanDecisionTarget {
+        return Ok(LoweredBooleanDecisionTarget {
             block: scalar_source_block(identity_base, target),
             arguments,
-        };
+        });
     }
 
     if arguments
@@ -678,17 +682,14 @@ pub(super) fn build_scalar_conditional_target(
         let stage_parameters = (0..=arguments.len())
             .map(|completed_argument_count| {
                 let mut scalar_types = current_parameter_types.to_vec();
-                scalar_types.extend(
-                    arguments[..completed_argument_count]
-                        .iter()
-                        .map(LoweredDirectExpression::scalar_type),
-                );
+                scalar_types.extend_from_slice(&argument_types[..completed_argument_count]);
                 scalar_types
                     .into_iter()
                     .map(|scalar_type| {
                         let parameter = ValueDeclaration {
+                            qualifications: scalar_type.qualifications,
                             id: value_id(*next_value_identity),
-                            scalar_type,
+                            scalar_type: scalar_type.scalar_type,
                         };
                         *next_value_identity = next_value_identity
                             .checked_add(1)
@@ -707,13 +708,13 @@ pub(super) fn build_scalar_conditional_target(
                 target: scalar_source_block(identity_base, target),
             },
         ));
-        return LoweredBooleanDecisionTarget {
+        return Ok(LoweredBooleanDecisionTarget {
             block: first_id,
             arguments: current_parameters
                 .iter()
                 .map(|parameter| parameter.id)
                 .collect(),
-        };
+        });
     }
 
     let id = block_id(*next_block_identity);
@@ -724,8 +725,9 @@ pub(super) fn build_scalar_conditional_target(
         .iter()
         .map(|scalar_type| {
             let parameter = ValueDeclaration {
+                qualifications: scalar_type.qualifications,
                 id: value_id(*next_value_identity),
-                scalar_type: *scalar_type,
+                scalar_type: scalar_type.scalar_type,
             };
             *next_value_identity = next_value_identity
                 .checked_add(1)
@@ -741,13 +743,13 @@ pub(super) fn build_scalar_conditional_target(
             arguments: arguments.to_vec(),
         },
     ));
-    LoweredBooleanDecisionTarget {
+    Ok(LoweredBooleanDecisionTarget {
         block: id,
         arguments: current_parameters
             .iter()
             .map(|parameter| parameter.id)
             .collect(),
-    }
+    })
 }
 
 pub(super) fn scalar_source_block(identity_base: u64, state: usize) -> BlockId {

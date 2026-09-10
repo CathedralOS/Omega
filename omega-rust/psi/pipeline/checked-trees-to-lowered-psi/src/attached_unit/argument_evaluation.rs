@@ -5,6 +5,23 @@ use checked_trees::CheckedCallScalarArgument;
 
 mod source_values;
 
+fn prepare_shared_qualifications(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    values: &[ValueDeclaration],
+) -> Result<crate::scalar_qualifications::PreparedScalarQualifications, LoweringError> {
+    let qualifications =
+        crate::scalar_qualifications::PreparedScalarQualifications::prepare(checked, &[machine])?;
+    if !qualifications.catalog().domains.is_empty()
+        || values.iter().any(|value| !value.qualifications.is_empty())
+    {
+        return unsupported(
+            "attached scalar qualifications require the enclosing catalog namespace",
+        );
+    }
+    Ok(qualifications)
+}
+
 pub(crate) struct Evaluation {
     pub(crate) arrays: Vec<crate::scalar_computations::arrays::Slot>,
     pub primitive_storage: Vec<(symbols::SymbolHandle, PlaceId, ScalarType)>,
@@ -35,7 +52,7 @@ impl Evaluation {
     ) -> Result<(), LoweringError> {
         let types = values
             .iter()
-            .map(|value| value.scalar_type)
+            .map(|value| value.value_type())
             .collect::<Vec<_>>();
         let parameters = declarations(&types, next_value)?;
         let continuation = block_id(allocate_dense(next_block)?);
@@ -215,22 +232,29 @@ impl Evaluation {
             }
             None => (arguments.as_slice(), 0),
         };
+        let qualifications = prepare_shared_qualifications(checked, machine, values)?;
         let source_types = values
             .iter()
-            .map(|value| value.scalar_type)
+            .map(|value| value.value_type())
             .collect::<Vec<_>>();
         let argument_types = arguments
             .iter()
             .map(|argument| match argument {
-                CheckedCallScalarArgument::Pure(expression) => {
-                    Ok(source_bindings.expression(expression)?.scalar_type())
-                }
+                CheckedCallScalarArgument::Pure(expression) => source_bindings
+                    .expression(expression)?
+                    .value_type(&source_types),
                 CheckedCallScalarArgument::Computation(root) => {
                     let nodes = &checked.facts.values.scalar_computations.nodes;
                     if !nodes.is_valid(*root) {
                         return unsupported("call argument computation has no live root");
                     }
-                    terminal_scalar_type(nodes.get(*root).primitive_type)
+                    crate::scalar_computations::computation_value_type(
+                        checked,
+                        &qualifications,
+                        *root,
+                        &source_bindings,
+                        &source_types,
+                    )
                 }
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -250,18 +274,20 @@ impl Evaluation {
                             "computed call argument requires ordered control",
                         ),
                     )?)?;
-                    validate_direct_parameter_types(&expression, &source_types)?;
+                    validate_direct_parameter_types(&expression, &scalar_carriers(&source_types))?;
                     Ok(ValueDeclaration {
+                        qualifications: scalar_type.qualifications,
                         id: emit_direct_expression(&expression, values, next_value, operations),
-                        scalar_type: *scalar_type,
+                        scalar_type: scalar_type.scalar_type,
                     })
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()
                 .map(Some);
         }
 
-        let mut expansion = crate::scalar_computations::Expansion::new(checked, machine, 1)
-            .with_arrays(&self.arrays);
+        let mut expansion =
+            crate::scalar_computations::Expansion::new(checked, &qualifications, machine, 1)
+                .with_arrays(&self.arrays);
         let entry_index = expansion.call_arguments(
             state,
             coordinate,
@@ -309,9 +335,10 @@ impl Evaluation {
             .with_primitive_storage(&self.primitive_storage)
             .with_structural_parameters(&self.structural_parameters)
             .with_resolved_structural_fields(&self.structural_fields);
+        let qualifications = prepare_shared_qualifications(checked, machine, values)?;
         let source_types = values
             .iter()
-            .map(|value| value.scalar_type)
+            .map(|value| value.value_type())
             .collect::<Vec<_>>();
         let scalar_type = terminal_scalar_type(store.primitive_type)?;
         crate::structural_scalar_store_source::computation_root(checked, machine, state, store)?;
@@ -327,14 +354,16 @@ impl Evaluation {
             {
                 return unsupported("field store requires a matching branch-free pure value");
             }
-            validate_direct_parameter_types(&expression, &source_types)?;
+            validate_direct_parameter_types(&expression, &scalar_carriers(&source_types))?;
             return Ok(ValueDeclaration {
+                qualifications: Default::default(),
                 id: emit_direct_expression(&expression, values, next_value, operations),
                 scalar_type,
             });
         }
-        let mut expansion = crate::scalar_computations::Expansion::new(checked, machine, 1)
-            .with_arrays(&self.arrays);
+        let mut expansion =
+            crate::scalar_computations::Expansion::new(checked, &qualifications, machine, 1)
+                .with_arrays(&self.arrays);
         let entry = expansion.retained_value(
             state,
             store.statement_index,
@@ -342,14 +371,14 @@ impl Evaluation {
             symbols::SymbolHandle::invalid(),
             &bindings,
             &source_types,
-            scalar_type,
+            scalar_type.into(),
             0,
         )?;
         let states = expansion.finish();
         let result = self.complete_expansion(
             &states,
             entry,
-            &[scalar_type],
+            &[scalar_type.into()],
             values,
             next_value,
             next_block,
@@ -368,7 +397,7 @@ impl Evaluation {
         &mut self,
         states: &[LoweredScalarBranchState],
         entry_index: usize,
-        result_types: &[ScalarType],
+        result_types: &[QualifiedScalarType],
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
         next_block: &mut u64,
@@ -376,9 +405,26 @@ impl Evaluation {
         operations: &mut OperationBuffer,
         calls: &mut CallEmissionContext<'_>,
     ) -> Result<Vec<ValueDeclaration>, LoweringError> {
+        if states.iter().any(|state| {
+            state
+                .parameter_types
+                .iter()
+                .any(|value_type| !value_type.qualifications.is_empty())
+                || matches!(
+                    state.terminator,
+                    LoweredScalarBranchTerminator::Qualify { .. }
+                )
+        }) || result_types
+            .iter()
+            .any(|value_type| !value_type.qualifications.is_empty())
+        {
+            return unsupported(
+                "attached scalar expansion requires a shared qualification catalog",
+            );
+        }
         let source_types = values
             .iter()
-            .map(|value| value.scalar_type)
+            .map(|value| value.value_type())
             .collect::<Vec<_>>();
         let mut completion_types = source_types.clone();
         completion_types.extend_from_slice(result_types);
@@ -431,15 +477,16 @@ impl Evaluation {
 }
 
 fn declarations(
-    types: &[ScalarType],
+    types: &[QualifiedScalarType],
     next_value: &mut u64,
 ) -> Result<Vec<ValueDeclaration>, LoweringError> {
     types
         .iter()
         .map(|scalar_type| {
             Ok(ValueDeclaration {
+                qualifications: scalar_type.qualifications,
                 id: value_id(allocate_dense(next_value)?),
-                scalar_type: *scalar_type,
+                scalar_type: scalar_type.scalar_type,
             })
         })
         .collect()
@@ -453,10 +500,9 @@ pub(crate) fn validated_values(
         "call has no completed scalar operands",
     ))?;
     if values.len() != types.len()
-        || values
-            .iter()
-            .zip(types)
-            .any(|(value, scalar_type)| value.scalar_type != *scalar_type)
+        || values.iter().zip(types).any(|(value, scalar_type)| {
+            value.scalar_type != *scalar_type || !value.qualifications.is_empty()
+        })
     {
         return unsupported("completed call scalar operands disagree with the target signature");
     }
@@ -500,9 +546,9 @@ fn emit_state(
             let continuation = block_id(allocate_dense(next_block)?);
             let mut types = values
                 .iter()
-                .map(|value| value.scalar_type)
+                .map(|value| value.value_type())
                 .collect::<Vec<_>>();
-            types.push(binding.scalar_type());
+            types.push(binding.value_type(&types)?);
             let continuation_parameters = declarations(&types, next_value)?;
             let prefix = operations[operation_start..].to_vec();
             let mut decisions = Vec::new();
@@ -533,10 +579,17 @@ fn emit_state(
             block_parameters = continuation_parameters;
             operation_start = operations.len();
         } else {
+            let value_type = binding.value_type(
+                &values
+                    .iter()
+                    .map(|value| value.value_type())
+                    .collect::<Vec<_>>(),
+            )?;
             let id = emit_scalar_binding(binding, &values, next_value, operations, calls)?;
             values.push(ValueDeclaration {
+                qualifications: value_type.qualifications,
                 id,
-                scalar_type: binding.scalar_type(),
+                scalar_type: value_type.scalar_type,
             });
         }
     }
@@ -571,6 +624,11 @@ fn emit_state(
                 .collect()
         };
     let terminator = match &state.terminator {
+        LoweredScalarBranchTerminator::Qualify { .. } => {
+            return unsupported(
+                "attached scalar computation qualification requires a shared catalog namespace",
+            );
+        }
         LoweredScalarBranchTerminator::Jump {
             target,
             arguments: outgoing,

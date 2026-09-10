@@ -536,6 +536,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         .iter()
         .map(|parameter| {
             Ok(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(allocate_dense(&mut next_value)?),
                 scalar_type: terminal_scalar_type(parameter.primitive_type)?,
             })
@@ -1047,7 +1048,11 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             &mut next_value,
             &mut operations,
         );
-        scalar_values.push(ValueDeclaration { id, scalar_type });
+        scalar_values.push(ValueDeclaration {
+            qualifications: Default::default(),
+            id,
+            scalar_type,
+        });
     }
     let expression = authored_return_expression;
     let expression_available_locals = source_distributed_short_circuit_bindings
@@ -1222,6 +1227,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         entry_operations.extend(root.operations);
         root.operations = entry_operations;
         let convergence_value = ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(allocate_dense(&mut next_value)?),
             scalar_type: ScalarType::Boolean,
         };
@@ -1322,6 +1328,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
     entry.parameters = scalar_parameters;
     entry.contract.requires.extend(scalar_requirements);
     entry.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(next_value),
         scalar_type: result_type,
     });

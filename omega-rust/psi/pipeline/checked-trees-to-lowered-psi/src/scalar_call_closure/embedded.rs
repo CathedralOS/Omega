@@ -69,6 +69,7 @@ impl EmbeddedScalarCalls {
             let mut helper = build_scalar_graph_module(
                 &machine.states,
                 machine.result_type,
+                &machine.scalar_qualifications,
                 machine.contract,
                 machine.crash_routes,
                 machine.identity_reshuffles,
@@ -79,6 +80,25 @@ impl EmbeddedScalarCalls {
                 &self.requirement_counts,
                 machine.loop_plan.as_ref(),
             )?;
+            // This assembler has no common qualified namespace with its root.
+            // Bare helper payloads remain compatible with any root catalog;
+            // qualified helper interfaces must not lose their definitions.
+            if !helper
+                .semantic_module
+                .scalar_qualifications
+                .domains
+                .is_empty()
+                || !helper.semantic_module.scalar_qualifications.sets.is_empty()
+                || !helper
+                    .semantic_module
+                    .scalar_qualifications
+                    .coercions
+                    .is_empty()
+            {
+                return unsupported(
+                    "embedded scalar helper qualifications require a shared root namespace",
+                );
+            }
             lowered
                 .semantic_module
                 .machines
@@ -124,6 +144,13 @@ impl EmbeddedScalarCalls {
         {
             return unsupported("embedded scalar helper overlaps an excluded source owner");
         }
+        let qualifications =
+            crate::scalar_qualifications::PreparedScalarQualifications::prepare(checked, &closure)?;
+        if !qualifications.catalog().domains.is_empty() {
+            return unsupported(
+                "embedded scalar helper qualifications require a shared root namespace",
+            );
+        }
         let prepared = closure
         .iter()
         .map(|symbol| {
@@ -138,7 +165,7 @@ impl EmbeddedScalarCalls {
             let prepared = if roots.contains(symbol) {
                 prepare_embedded_scalar_graph_machine(checked, *symbol, graph)?
             } else {
-                prepare_scalar_graph_machine(checked, *symbol, graph)?
+                prepare_scalar_graph_machine(checked, &qualifications, *symbol, graph)?
             };
             if !prepared.identity_reshuffles.structural_places.is_empty()
                 || !prepared.identity_reshuffles.entry_claims.is_empty()

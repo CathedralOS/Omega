@@ -179,6 +179,7 @@ fn lower_dynamic_unit_machine(
 
     Ok(LoweredPsi {
         semantic_module: TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: caller_machine,

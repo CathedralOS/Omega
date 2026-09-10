@@ -26,6 +26,7 @@ pub(super) fn reconstruct(
         .result
         .scalar_ref()
         .ok_or(OptimizedOrdinaryCallableEntryError::UnsupportedSignature)?;
+    validate_entry_qualifications(&machine.parameters, &result_declaration)?;
     let signature = CallSignature {
         parameters: machine
             .parameters
@@ -306,6 +307,23 @@ pub(super) fn receipt(
         manifest: manifest.identity,
     }
 }
+/// This installed interface publishes payload-only parameter/result contracts.
+/// Internal qualified values remain valid after Terminal verification, but an
+/// entry qualification needs catalog-bound invocation custody not present here.
+pub(super) fn validate_entry_qualifications(
+    parameters: &[ValueDeclaration],
+    result: &ValueDeclaration,
+) -> Result<(), OptimizedOrdinaryCallableEntryError> {
+    if !result.qualifications.is_empty()
+        || parameters
+            .iter()
+            .any(|parameter| !parameter.qualifications.is_empty())
+    {
+        return Err(OptimizedOrdinaryCallableEntryError::UnsupportedSignature);
+    }
+    Ok(())
+}
+
 fn scalar_shape(scalar: ScalarType) -> Result<ValueShape, OptimizedOrdinaryCallableEntryError> {
     let bytes = match scalar {
         ScalarType::Boolean => 1,

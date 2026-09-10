@@ -33,14 +33,15 @@ pub(super) fn validate_coordinates(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_destination(
     checked: &CheckedTrees,
+    qualifications: &PreparedScalarQualifications,
     machine: symbols::SymbolHandle,
     source_claims: &[(PermissionClaimIdentity, ClaimId)],
     states: &[checked_trees::CheckedScalarStateGraph],
     source_state: symbols::SymbolHandle,
-    source_value_types: &[ScalarType],
+    source_value_types: &[QualifiedScalarType],
     destination: &CheckedScalarBranchDestination,
     scalar_bindings: &storage::ScalarBindings,
-    result_type: ScalarType,
+    result_type: QualifiedScalarType,
     return_sink: Option<usize>,
     computations: &mut computations::Expansion<'_>,
 ) -> Result<(usize, Vec<LoweredDirectExpression>), LoweringError> {
@@ -63,6 +64,7 @@ pub(super) fn lower_destination(
         }
         CheckedScalarBranchDestination::Jump(successor) => lower_scalar_graph_successor(
             checked,
+            qualifications,
             states,
             source_state,
             source_value_types,
@@ -95,12 +97,12 @@ pub(super) fn lower_destination(
             }
             let expression =
                 scalar_bindings.expression_at(checked, source_state, *statement_ordinal, role)?;
-            if expression.scalar_type() != result_type {
+            if expression.value_type(source_value_types)? != result_type {
                 return unsupported(
                     "checked scalar branch return type must match the machine result",
                 );
             }
-            validate_direct_parameter_types(&expression, source_value_types)?;
+            validate_direct_parameter_types(&expression, &scalar_carriers(source_value_types))?;
             Ok((target, vec![expression]))
         }
     }

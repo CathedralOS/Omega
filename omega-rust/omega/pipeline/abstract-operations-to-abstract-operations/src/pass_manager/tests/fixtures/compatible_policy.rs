@@ -28,8 +28,13 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_cse_unit()
     let obligation = ObligationId::new(457).unwrap();
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
     let scalar_type = ScalarType::Integer(integer);
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -187,8 +192,13 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
     let count_type = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
     let scalar_type = ScalarType::Integer(value_type);
     let count_scalar_type = ScalarType::Integer(count_type);
-    let declaration = |id, scalar_type| ValueDeclaration { id, scalar_type };
+    let declaration = |id, scalar_type| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,

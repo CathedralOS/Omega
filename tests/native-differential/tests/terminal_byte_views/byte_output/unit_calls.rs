@@ -27,6 +27,7 @@ pub(super) fn unit_byte_output_calls_module() -> TerminalModule {
         Operation {
             id: OperationId::new(106).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(106).unwrap(),
                 scalar_type: caller.parameters[0].scalar_type,
             }),

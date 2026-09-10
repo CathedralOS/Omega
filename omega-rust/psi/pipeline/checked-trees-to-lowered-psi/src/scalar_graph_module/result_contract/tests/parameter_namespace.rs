@@ -22,6 +22,7 @@ fn namespace() -> Vec<ValueDeclaration> {
     ]
     .into_iter()
     .map(|(identity, scalar_type)| ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(identity).unwrap(),
         scalar_type,
     })
@@ -205,6 +206,7 @@ fn nested_boolean_body_locals_cannot_alias_entry_slots() {
 fn nested_boolean_equality_has_a_bounded_expansion() {
     let namespace = (0..14)
         .map(|position| ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(position + 1).unwrap(),
             scalar_type: ScalarType::Boolean,
         })

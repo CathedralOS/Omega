@@ -24,6 +24,7 @@ fn length_operation(operation: u64, value: u64, source: u64) -> Operation {
     Operation {
         id: id(operation, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: id(value, ValueId::new),
             scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
         }),
@@ -44,6 +45,7 @@ pub(super) fn view_cycle() -> TerminalModule {
     let machine = &mut module.machines[0];
     machine.ranked_scc = None;
     machine.parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: id(20, ValueId::new),
         scalar_type: ScalarType::Boolean,
     });
@@ -111,6 +113,7 @@ pub(super) fn view_cycle() -> TerminalModule {
         Operation {
             id: id(11, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: id(11, ValueId::new),
                 scalar_type: ScalarType::Integer(
                     IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),

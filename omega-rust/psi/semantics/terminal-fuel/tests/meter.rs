@@ -248,6 +248,7 @@ fn primitive_local_actions_charge_one_unit_atomically_at_their_own_sites() {
     let read = Operation {
         id: operation_id(32),
         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(47),
             scalar_type: ScalarType::Boolean,
         }),
@@ -301,6 +302,7 @@ fn operation() -> Operation {
     Operation {
         id: operation_id(1),
         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(1),
             scalar_type,
         }),

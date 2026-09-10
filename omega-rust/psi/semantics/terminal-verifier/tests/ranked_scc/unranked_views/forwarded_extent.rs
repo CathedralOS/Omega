@@ -4,6 +4,7 @@ fn forwarded(join: bool) -> TerminalModule {
     let mut module = fixture();
     let machine = &mut module.machines[0];
     machine.parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: id(40, ValueId::new),
         scalar_type: ScalarType::Boolean,
     });
@@ -60,6 +61,7 @@ fn forwarded(join: bool) -> TerminalModule {
         machine.blocks.push(Block {
             id: id(block, BlockId::new),
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: id(scalar, ValueId::new),
                 scalar_type: ScalarType::Integer(integer()),
             }],

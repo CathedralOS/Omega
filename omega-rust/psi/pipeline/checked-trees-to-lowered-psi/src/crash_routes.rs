@@ -2412,6 +2412,7 @@ mod boolean_connective_tests {
     #[test]
     fn compound_expansion_shares_its_budget_across_branches_and_conjuncts() {
         let values = [7, 19].map(|identity| ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(identity),
             scalar_type: ScalarType::Boolean,
         });
@@ -2454,6 +2455,7 @@ mod boolean_connective_tests {
     #[test]
     fn compound_equality_cannot_hide_unnormalized_constants_or_foreign_leaves() {
         let values = [7, 19].map(|identity| ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(identity),
             scalar_type: ScalarType::Boolean,
         });
@@ -2480,6 +2482,7 @@ mod boolean_connective_tests {
     #[test]
     fn scalar_atoms_keep_their_existing_crash_predicate_encoding() {
         let values = [ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(7),
             scalar_type: integer_scalar_type(PrimitiveType::U64).unwrap(),
         }];
@@ -2519,6 +2522,7 @@ mod boolean_connective_tests {
     #[test]
     fn connective_constant_children_still_require_prior_normalization() {
         let values = [ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(7),
             scalar_type: ScalarType::Boolean,
         }];
@@ -2549,6 +2553,7 @@ mod boolean_connective_tests {
     #[test]
     fn negated_connectives_lower_to_logical_propositions_without_scalar_operations() {
         let values = [7, 19].map(|identity| ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(identity),
             scalar_type: ScalarType::Boolean,
         });
@@ -2611,6 +2616,7 @@ mod runtime_requirement_tests {
     fn runtime_requirement_equality_orders_literal_and_formal_without_reversing_inequalities() {
         let scalar_type = integer_scalar_type(PrimitiveType::U64).expect("integer type");
         let formal = ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(7),
             scalar_type,
         };

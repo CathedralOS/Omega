@@ -187,10 +187,12 @@ pub(crate) fn lower_selected_operator_structural_scalar_return_machine(
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let call_result = ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(1),
         scalar_type: result_type,
     };
     let machine_result = ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(2),
         scalar_type: result_type,
     };

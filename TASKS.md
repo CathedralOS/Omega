@@ -1063,21 +1063,25 @@ Owners include
   The shared query in `validation/src/expression_types/result_type.rs` still
   needs operator semantic-domain results and instantiated predicate-bearing, non-builtin
   and selected-trait operator results.
-  Semantic qualification casts retain normalized result types; extend this to
-  execution with exact membership custody, starting from `cargo run -p omega --
-  inspect-terminal --machine choose --target macos_arm64
-  tests/omega/pass/expressions/match_domain_results/main.omg`. On macOS arm64 at
-  `3f446ca44f`, source checking passes but Terminal production rejects with
-  `scalar computation needs one checked expression and one source binding`.
-  Checked `Qualification` nodes now retain predicate-/route-free scalar casts;
-  exact source, membership-use, declaration and normalized-instance replay lives
-  in `checked-trees-to-lowered-psi/src/scalar_source_custody/computation_calls/qualifications.rs`.
-  The current publication fence is `scalar qualification requires Terminal membership transport`:
-  add qualification-preserving Terminal values, joins and call/result signatures
-  before enabling emission. Explicit semantic erasure also needs its own custody.
-  Do not erase qualification to enable the computation route or relax routed
-  provenance/ownership joins. Keep incompatible-domain rejection before any
-  outer bare-carrier cast.
+  Extend qualified value composition beyond predicate-/route-free scalar
+  selection and call-result transport. The next source-proof dependency is a
+  qualified formal receiving a qualified call or Match result: with
+  `mark(value: i64) -> i64 in Km` and `relay(value: i64 in Km) -> i64 in Km`,
+  `relay(match flag { true -> mark(left), false -> mark(right) })` currently
+  fails checking with `cannot prove requires contract for call relay from choose`.
+  Rejoin expression membership in `typed-trees-to-checked-trees/src/checks/contracts/`
+  and selected-result flow; the call-result grant currently excludes empty
+  semantic domains, and branch-context intersection does not name the whole
+  Match result. Exact Terminal signature checks cannot discharge this source
+  obligation. Acceptance is canonical execution of that composition with both
+  selections, preserving nominal identity and rejecting incompatible domains.
+  Explicit semantic erasure, predicate/routed membership evidence, and shared
+  scalar/structural qualification transport also need their own custody.
+  Native callable-entry records still need catalog-bound qualified signatures;
+  `native-artifact/src/callable_entry` rejects qualified entry parameters/results
+  rather than projecting them to its current payload-only interface.
+  Do not erase qualifications or relax provenance/ownership joins to admit them;
+  incompatible arms still reject before an outer bare-carrier cast.
   Builtin arithmetic results use
   producer-retained carrier/policy references; input range predicates are not
   result facts. Unknown lookup must not stand in for anonymous numeric meaning.

@@ -13,6 +13,7 @@ pub(crate) fn integer_less_than_immediate_return_artifact(
     let right = ValueId::new(71_006).unwrap();
     let less_than = ValueId::new(71_008).unwrap();
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -46,6 +47,7 @@ pub(crate) fn integer_less_than_immediate_return_artifact(
             structural_parameters: Vec::new(),
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(71_010).unwrap(),
                 scalar_type: ScalarType::Boolean,
             }),
@@ -64,6 +66,7 @@ pub(crate) fn integer_less_than_immediate_return_artifact(
                     Operation {
                         id: OperationId::new(71_003).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: left,
                             scalar_type: ScalarType::Integer(scalar_type),
                         }),
@@ -72,6 +75,7 @@ pub(crate) fn integer_less_than_immediate_return_artifact(
                     Operation {
                         id: OperationId::new(71_005).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: right,
                             scalar_type: ScalarType::Integer(scalar_type),
                         }),
@@ -80,6 +84,7 @@ pub(crate) fn integer_less_than_immediate_return_artifact(
                     Operation {
                         id: OperationId::new(71_007).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: less_than,
                             scalar_type: ScalarType::Boolean,
                         }),

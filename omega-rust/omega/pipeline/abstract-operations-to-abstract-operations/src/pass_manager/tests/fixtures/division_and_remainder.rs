@@ -28,10 +28,15 @@ fn verified_exact_self_division_or_remainder_unit(divide: bool) -> VerifiedPsiOp
     let obligation = ObligationId::new(436).unwrap();
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
     let scalar_type = ScalarType::Integer(integer);
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     let one = ScalarTerm::integer(integer, IntegerValue::Unsigned(1)).unwrap();
     let goal = Proposition::LessOrEqual(one, ScalarTerm::value(operand, scalar_type));
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -160,8 +165,13 @@ pub(in crate::pass_manager::tests) fn verified_exact_remainder_by_one_unit()
     let obligation = ObligationId::new(457).unwrap();
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
     let scalar_type = ScalarType::Integer(integer);
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -284,8 +294,13 @@ pub(in crate::pass_manager::tests) fn verified_exact_signed_remainder_by_negativ
     let obligation = ObligationId::new(477).unwrap();
     let integer = IntegerType::new(IntegerSign::Signed, 8).unwrap();
     let scalar_type = ScalarType::Integer(integer);
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,

@@ -272,7 +272,7 @@ impl PreparedScalarCallee<'_> {
 
     pub(crate) fn result_type(&self) -> ScalarType {
         match self {
-            Self::Graph(graph) => graph.result_type,
+            Self::Graph(graph) => graph.result_type.scalar_type,
             Self::Boundary { result_type, .. } => *result_type,
             Self::Structural { result_type, .. } => *result_type,
         }

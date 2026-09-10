@@ -8,6 +8,7 @@ fn scalar_call_cycle() -> TerminalModule {
     callee.contract.id = id(2, ContractId::new);
     callee.parameters[0].id = id(20, ValueId::new);
     callee.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: id(21, ValueId::new),
         scalar_type: ScalarType::Boolean,
     });
@@ -22,6 +23,7 @@ fn scalar_call_cycle() -> TerminalModule {
     module.machines[0].blocks[0].operations.push(Operation {
         id: id(30, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: id(30, ValueId::new),
             scalar_type: ScalarType::Boolean,
         }),
@@ -98,6 +100,7 @@ fn cyclic_scalar_call_rejects_unknown_target_wrong_arguments_and_result() {
             4 => operation.result = OperationResult::Unit,
             5 => {
                 operation.result = OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: id(30, ValueId::new),
                     scalar_type: ScalarType::Integer(
                         IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),

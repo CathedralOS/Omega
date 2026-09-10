@@ -24,8 +24,8 @@ impl Expansion<'_> {
         call_ordinal: u32,
         arguments: HandleSpan<Computation>,
         structural: HandleSpan<CheckedScalarComputationStructuralArgument>,
-        result_type: ScalarType,
-        input_types: &[ScalarType],
+        result_type: QualifiedScalarType,
+        input_types: &[QualifiedScalarType],
         target: usize,
         site: &Site<'_>,
         active: &mut Vec<Computation>,
@@ -145,7 +145,7 @@ impl Expansion<'_> {
                 ))?
                 .clone();
             if let Operand::Scalar(argument) = operand {
-                prefix.push(self.argument_type(argument)?);
+                prefix.push(self.argument_type(argument, site, input_types)?);
             }
             prefixes.push(prefix);
         }
@@ -154,6 +154,7 @@ impl Expansion<'_> {
         ))?;
         let call = lower_scalar_call(
             self.checked,
+            self.qualifications,
             self.machine,
             site.state,
             site.statement,
@@ -185,7 +186,7 @@ impl Expansion<'_> {
                 Operand::Array { slot, leaves } => {
                     let mut leaf_types = prefix.clone();
                     for leaf in leaves {
-                        leaf_types.push(self.argument_type(leaf)?);
+                        leaf_types.push(self.argument_type(leaf, site, input_types)?);
                     }
                     let constructor = self.push(LoweredScalarBranchState {
                         parameter_types: leaf_types.clone(),
@@ -211,6 +212,9 @@ impl Expansion<'_> {
     }
 }
 
-fn parameters_for_actuals(types: &[ScalarType], prefix: usize) -> Vec<LoweredDirectExpression> {
+fn parameters_for_actuals(
+    types: &[QualifiedScalarType],
+    prefix: usize,
+) -> Vec<LoweredDirectExpression> {
     super::parameters(types).into_iter().skip(prefix).collect()
 }

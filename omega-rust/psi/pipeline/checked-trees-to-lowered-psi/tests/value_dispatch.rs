@@ -16,6 +16,127 @@ fn unsigned(value: u128) -> TerminalScalarValue {
     }
 }
 
+fn signed(value: i128) -> TerminalScalarValue {
+    TerminalScalarValue::Integer {
+        scalar_type: IntegerType::new(IntegerSign::Signed, 64).expect("i64"),
+        value: IntegerValue::Signed(value),
+    }
+}
+
+#[test]
+fn qualified_match_source_fixture_replays_both_arms_without_runtime_tags() {
+    for (selected, expected) in [(true, -17), (false, 91)] {
+        let (module, execution) = execute(
+            include_str!(
+                "../../../../../tests/omega/pass/expressions/match_domain_results/main.omg"
+            ),
+            &[
+                TerminalScalarValue::Boolean(selected),
+                signed(-17),
+                signed(91),
+            ],
+        );
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(signed(expected))
+        );
+        assert_eq!(module.scalar_qualifications.domains.len(), 1);
+        assert_eq!(module.scalar_qualifications.sets.len(), 1);
+        assert_eq!(module.scalar_qualifications.coercions.len(), 2);
+        let terminal_psi::TerminalMachineResult::Scalar(result) = module.machines[0].result else {
+            panic!("qualified scalar result");
+        };
+        assert_eq!(
+            result.qualifications,
+            module.scalar_qualifications.sets[0].id
+        );
+    }
+}
+
+#[test]
+fn qualified_call_results_cross_selected_prefixes_with_exact_signatures() {
+    let source = "domain i64::Km;
+        machine mark(value: i64) -> i64 in Km { value as i64 in Km }
+        machine choose(flag: bool, left: i64, right: i64) -> i64 in Km {
+            match flag { true -> mark(left), false -> mark(right) }
+        }";
+    for (selected, expected) in [(true, -17), (false, 91)] {
+        let (module, execution) = execute(
+            source,
+            &[
+                TerminalScalarValue::Boolean(selected),
+                signed(-17),
+                signed(91),
+            ],
+        );
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(signed(expected))
+        );
+        assert_eq!(module.machines.len(), 2);
+        assert_eq!(module.scalar_qualifications.domains.len(), 1);
+    }
+}
+
+#[test]
+fn qualified_selection_normalizes_aliases_and_indexed_instances() {
+    for (declaration, domain) in [
+        ("domain i64::Km; domain i64::Length = Km;", "Length"),
+        ("domain<const Axis: u64> i64::Coordinate;", "Coordinate<7>"),
+    ] {
+        let source = format!(
+            "{declaration} machine choose(flag: bool, left: i64, right: i64) -> i64 in {domain} {{ match flag {{ true -> left as i64 in {domain}, false -> right as i64 in {domain} }} }}"
+        );
+        for (selected, expected) in [(true, -17), (false, 91)] {
+            let (module, execution) = execute(
+                &source,
+                &[
+                    TerminalScalarValue::Boolean(selected),
+                    signed(-17),
+                    signed(91),
+                ],
+            );
+            assert_eq!(
+                execution.value(),
+                TerminalExecutionResult::Scalar(signed(expected))
+            );
+            assert_eq!(module.scalar_qualifications.domains.len(), 1);
+        }
+    }
+}
+
+#[test]
+fn qualified_boolean_and_float_selection_keeps_exact_payloads() {
+    for (carrier, left, right) in [
+        (
+            "bool",
+            TerminalScalarValue::Boolean(true),
+            TerminalScalarValue::Boolean(false),
+        ),
+        (
+            "f32",
+            TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary32(0x8000_0000)),
+            TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary32(0x7fc0_0042)),
+        ),
+        (
+            "f64",
+            TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary64(0x8000_0000_0000_0000)),
+            TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary64(0x7ff8_0000_0000_0042)),
+        ),
+    ] {
+        let source = format!(
+            "domain {carrier}::Tagged; machine choose(flag: bool, left: {carrier}, right: {carrier}) -> {carrier} in Tagged {{ match flag {{ true -> left as {carrier} in Tagged, false -> right as {carrier} in Tagged }} }}"
+        );
+        for (selected, expected) in [(true, left), (false, right)] {
+            let (_, execution) = execute(
+                &source,
+                &[TerminalScalarValue::Boolean(selected), left, right],
+            );
+            assert_eq!(execution.value(), TerminalExecutionResult::Scalar(expected));
+        }
+    }
+}
+
 fn execute(
     source: &str,
     arguments: &[TerminalScalarValue],

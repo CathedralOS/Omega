@@ -23,6 +23,8 @@ mod owned_integer_fields;
 mod scalar_array_arguments;
 #[path = "canonical/scalar_case_fields.rs"]
 mod scalar_case_fields;
+#[path = "canonical/scalar_qualifications.rs"]
+mod scalar_qualifications;
 #[path = "canonical/scalar_range_invariants.rs"]
 mod scalar_range_invariants;
 use terminal_psi::{
@@ -125,7 +127,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "d5712ebf4c673fa4c94ad92b37d497bba743d2fe25af198a4bff3697b549316c"
+        "3167a03521ad342adb191b24eeeabe8a800983b90d5297647469a9d6a248669e"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -159,10 +161,12 @@ fn proof_recursive_components_round_trip_and_enter_terminal_identity() {
 fn ieee_float_constants_and_nearest_fma_round_trip_exact_interchange_bits() {
     let mut module = unit_fixture();
     let binary32 = ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(901),
         scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
     };
     let binary64 = ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(902),
         scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
     };
@@ -184,6 +188,7 @@ fn ieee_float_constants_and_nearest_fma_round_trip_exact_interchange_bits() {
         Operation {
             id: operation_id(903),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(903),
                 scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
             }),
@@ -303,7 +308,7 @@ fn natural_ranking_round_trips_exact_semantic_rows_and_rejects_malformed_coverag
     };
     module.machines[0].ranked_scc = Some(TerminalRankedScc::Natural(vec![cycle.clone()]));
     let bytes = encode_module(&module).expect("natural ranking representation encodes");
-    assert_eq!(&bytes[8..12], &[87, 0, 94, 0]);
+    assert_eq!(&bytes[8..12], &[87, 0, 95, 0]);
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_ne!(semantic_fingerprint(&module).unwrap(), countdown_identity);
     let mut stale = bytes;
@@ -451,20 +456,24 @@ fn proof_only_float_projections_round_trip_and_reject_tampering() {
     };
     let mut module = fixture();
     let direct_parameter = ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(6),
         scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
     };
     module.machines[0].parameters.push(direct_parameter);
     let direct_result_owner = machine_id(2);
     let direct_result = ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(8),
         scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
     };
     let direct_operation_result = ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(9),
         scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
     };
     let direct_block_parameter = ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(20),
         scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
     };
@@ -473,6 +482,7 @@ fn proof_only_float_projections_round_trip_and_reject_tampering() {
         id: direct_result_owner,
         attachment: None,
         parameters: vec![ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(7),
             scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
         }],
@@ -673,6 +683,7 @@ fn proof_only_float_projections_round_trip_and_reject_tampering() {
     changed_direct_parameter.machines[0]
         .parameters
         .push(ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(10),
             scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
         });
@@ -689,6 +700,7 @@ fn proof_only_float_projections_round_trip_and_reject_tampering() {
     );
     let mut changed_direct_result = module.clone();
     changed_direct_result.machines[1].result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(10),
         scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
     });
@@ -1117,11 +1129,13 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     let mut module = nominal_affine_fixture();
     let machine = &mut module.machines[0];
     let source = ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(50),
         scalar_type: ScalarType::Boolean,
     };
     machine.parameters = vec![source];
     machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(51),
         scalar_type: ScalarType::Boolean,
     });
@@ -1279,6 +1293,7 @@ fn nominal_affine_unit_return_round_trips_five_roots() {
 fn nominal_affine_unit_return_rejects_malformed_source_carriers() {
     let mut valued = nominal_affine_fixture();
     valued.machines[0].result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(99),
         scalar_type: ScalarType::Integer(i32_type()),
     });
@@ -1579,6 +1594,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
         },
     };
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine.id,
@@ -1629,10 +1645,12 @@ fn scalar_jump_affine_discard_round_trips_canonically() {
     machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
     machine.entry_claims.clear();
     machine.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(50),
         scalar_type: ScalarType::Boolean,
     }];
     machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(51),
         scalar_type: ScalarType::Boolean,
     });
@@ -1649,6 +1667,7 @@ fn scalar_jump_affine_discard_round_trips_canonically() {
         structural_parameters: Vec::new(),
         id: block_id(102),
         parameters: vec![ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(52),
             scalar_type: ScalarType::Boolean,
         }],
@@ -1675,10 +1694,12 @@ fn conditional_affine_discards_round_trip_canonically() {
     machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
     machine.entry_claims.clear();
     machine.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(50),
         scalar_type: ScalarType::Boolean,
     }];
     machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(51),
         scalar_type: ScalarType::Boolean,
     });
@@ -1711,6 +1732,7 @@ fn conditional_affine_discards_round_trip_canonically() {
             structural_parameters: Vec::new(),
             id: block_id(102),
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(52),
                 scalar_type: ScalarType::Boolean,
             }],
@@ -1725,6 +1747,7 @@ fn conditional_affine_discards_round_trip_canonically() {
             structural_parameters: Vec::new(),
             id: block_id(103),
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(53),
                 scalar_type: ScalarType::Boolean,
             }],
@@ -3105,6 +3128,7 @@ fn partial_affine_fixture() -> TerminalModule {
     let pair_place = place_id(1);
     let token_place = place_id(2);
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
@@ -3373,6 +3397,7 @@ fn nominal_affine_fixture() -> TerminalModule {
     let owner_type = structural_type_id(2);
     let source_place = place_id(1);
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
@@ -3518,6 +3543,7 @@ fn structural_effect_fixture() -> TerminalModule {
             projected_qualifications: Vec::new(),
         };
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(100),
@@ -4157,6 +4183,7 @@ fn boundary_scalar_parameter_and_argument_order_round_trips_canonically() {
             Operation {
                 id: operation_id(2),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: first,
                     scalar_type: ScalarType::Boolean,
                 }),
@@ -4165,6 +4192,7 @@ fn boundary_scalar_parameter_and_argument_order_round_trips_canonically() {
             Operation {
                 id: operation_id(3),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: second,
                     scalar_type: ScalarType::Boolean,
                 }),
@@ -4387,6 +4415,7 @@ fn proof_recursive_component_fixture() -> TerminalProofRecursiveComponent {
 
 fn unit_fixture() -> TerminalModule {
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(900),
@@ -4469,6 +4498,7 @@ fn ranked_countdown_fixture() -> TerminalModule {
     let return_edge = edge_id(904);
     let machine = &mut module.machines[0];
     machine.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: initial,
         scalar_type: scalar,
     }];
@@ -4518,6 +4548,7 @@ fn ranked_countdown_fixture() -> TerminalModule {
             structural_parameters: Vec::new(),
             id: header,
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: rank,
                 scalar_type: scalar,
             }],
@@ -4525,6 +4556,7 @@ fn ranked_countdown_fixture() -> TerminalModule {
                 Operation {
                     id: operation_id(901),
                     result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: zero,
                         scalar_type: scalar,
                     }),
@@ -4535,6 +4567,7 @@ fn ranked_countdown_fixture() -> TerminalModule {
                 Operation {
                     id: operation_id(902),
                     result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: condition,
                         scalar_type: ScalarType::Boolean,
                     }),
@@ -4570,6 +4603,7 @@ fn ranked_countdown_fixture() -> TerminalModule {
                 Operation {
                     id: operation_id(903),
                     result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: one,
                         scalar_type: scalar,
                     }),
@@ -4580,6 +4614,7 @@ fn ranked_countdown_fixture() -> TerminalModule {
                 Operation {
                     id: operation_id(904),
                     result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: next,
                         scalar_type: scalar,
                     }),
@@ -4622,6 +4657,7 @@ fn fixture() -> TerminalModule {
         |value| ScalarTerm::integer(unsigned_type, IntegerValue::Unsigned(value)).unwrap();
 
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
@@ -4655,11 +4691,13 @@ fn fixture() -> TerminalModule {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(5),
                 scalar_type: ScalarType::Boolean,
             }],
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(4),
                 scalar_type,
             }),
@@ -4676,6 +4714,7 @@ fn fixture() -> TerminalModule {
                     operations: vec![Operation {
                         id: operation_id(1),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: value_id(1),
                             scalar_type,
                         }),
@@ -4696,12 +4735,14 @@ fn fixture() -> TerminalModule {
                     structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: vec![ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value_id(2),
                         scalar_type,
                     }],
                     operations: vec![Operation {
                         id: operation_id(2),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: value_id(3),
                             scalar_type,
                         }),
@@ -4780,6 +4821,7 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
         ContentTerm::separate([right, left]).expect("canonical separation"),
     ));
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker,
         entry: machine_id(80),
@@ -4813,11 +4855,13 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(80),
                 scalar_type: ScalarType::Boolean,
             }],
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(81),
                 scalar_type: ScalarType::Boolean,
             }),
@@ -5010,10 +5054,12 @@ fn partition_composition_fixture() -> TerminalModule {
 
 fn call_fixture() -> TerminalModule {
     let boolean = |id| ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(id),
         scalar_type: ScalarType::Boolean,
     };
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(100),

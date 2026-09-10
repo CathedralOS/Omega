@@ -7,6 +7,7 @@ fn integer_guard(expected: bool) -> TerminalModule {
     let integer = IntegerType::new(IntegerSign::Signed, 32).unwrap();
     let scalar_type = ScalarType::Integer(integer);
     let integer_declaration = |identity| ValueDeclaration {
+        qualifications: Default::default(),
         id: value(identity),
         scalar_type,
     };

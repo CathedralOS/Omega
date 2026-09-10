@@ -59,6 +59,7 @@ fn verified_field_length_and_indexed_store_reject_at_every_native_entrance() {
     let scalar = |operation, value, scalar_type, kind| Operation {
         id: id(operation),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: id(value),
             scalar_type,
         }),

@@ -20,6 +20,7 @@ pub(super) fn dead_scalar_literals_verified() -> VerifiedPsiOptimizationUnit {
                     Operation {
                         id: OperationId::new(1_085).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: boolean,
                             scalar_type: ScalarType::Boolean,
                         }),
@@ -28,6 +29,7 @@ pub(super) fn dead_scalar_literals_verified() -> VerifiedPsiOptimizationUnit {
                     Operation {
                         id: OperationId::new(1_086).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: integer,
                             scalar_type: ScalarType::Integer(
                                 IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
@@ -57,6 +59,7 @@ pub(super) fn dead_wrapping_add_verified() -> VerifiedPsiOptimizationUnit {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
     let declaration = |id| {
         OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id,
             scalar_type: ScalarType::Integer(integer),
         })

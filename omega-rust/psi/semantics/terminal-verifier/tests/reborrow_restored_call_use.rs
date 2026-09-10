@@ -51,6 +51,7 @@ fn restored_call_use_module() -> TerminalModule {
     };
     let root_identity = borrow_identity('d');
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: caller,
@@ -500,6 +501,7 @@ fn restored_parent_call_use_rejects_call_shape_substitution() {
     });
     assert_invalid(|module| {
         module.machines[1].result = TerminalMachineResult::Scalar(terminal_psi::ValueDeclaration {
+            qualifications: Default::default(),
             id: id(1, ValueId::new),
             scalar_type: semantic_vocabulary::ScalarType::Boolean,
         });

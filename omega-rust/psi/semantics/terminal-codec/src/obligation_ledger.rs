@@ -408,6 +408,7 @@ mod tests {
 
     fn fixture() -> TerminalModule {
         TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: MachineId::new(1).unwrap(),

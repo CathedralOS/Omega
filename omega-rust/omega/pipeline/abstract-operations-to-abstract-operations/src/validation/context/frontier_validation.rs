@@ -169,6 +169,7 @@ fn validate_surviving_byte_operations(
                     ..
                 } => (
                     terminal_psi::OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                        qualifications: Default::default(),
                         id: result.value,
                         scalar_type: result.scalar_type,
                     }),
@@ -181,6 +182,7 @@ fn validate_surviving_byte_operations(
                 ),
                 O::ByteSequenceLength { result, source, .. } => (
                     terminal_psi::OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                        qualifications: Default::default(),
                         id: result.value,
                         scalar_type: result.scalar_type,
                     }),

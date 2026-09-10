@@ -254,6 +254,7 @@ fn decoded_source_array_constructor_returns_through_an_ordinary_call() {
             Operation {
                 id: OperationId::new(10001).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: value,
                     scalar_type,
                 }),

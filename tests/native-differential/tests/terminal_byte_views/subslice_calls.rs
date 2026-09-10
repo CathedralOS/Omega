@@ -16,6 +16,7 @@ pub(super) fn suffix_call_module() -> TerminalModule {
     let suffix = PlaceId::new(130).unwrap();
     let structural_type = caller.structural_parameters[0].structural_type;
     caller.parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: position,
         scalar_type,
     });
@@ -77,6 +78,7 @@ pub(super) fn suffix_call_module() -> TerminalModule {
                 Operation {
                     id: OperationId::new(121).unwrap(),
                     result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: length,
                         scalar_type,
                     }),
@@ -87,6 +89,7 @@ pub(super) fn suffix_call_module() -> TerminalModule {
                 Operation {
                     id: OperationId::new(122).unwrap(),
                     result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: condition,
                         scalar_type: ScalarType::Boolean,
                     }),
@@ -110,6 +113,7 @@ pub(super) fn suffix_call_module() -> TerminalModule {
             operations: vec![Operation {
                 id: OperationId::new(141).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: ValueId::new(141).unwrap(),
                     scalar_type,
                 }),

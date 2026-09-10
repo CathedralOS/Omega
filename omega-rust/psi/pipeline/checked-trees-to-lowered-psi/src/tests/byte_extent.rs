@@ -89,6 +89,7 @@ fn fixture() -> LoweredPsi {
         Operation {
             id: operation_id(next_operation),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: extent,
                 scalar_type: terminal_scalar_type(PrimitiveType::U64).unwrap(),
             }),
@@ -97,6 +98,7 @@ fn fixture() -> LoweredPsi {
         Operation {
             id: operation_id(next_operation + 1),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: byte,
                 scalar_type: terminal_scalar_type(PrimitiveType::U8).unwrap(),
             }),

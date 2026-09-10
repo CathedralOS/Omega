@@ -13,6 +13,7 @@ pub(super) fn emit(
     let control_parameters = (0..admitted.controls.len())
         .map(|_| {
             Ok(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(allocate_dense(&mut next_value)?),
                 scalar_type: ScalarType::Boolean,
             })

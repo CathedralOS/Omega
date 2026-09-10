@@ -10,6 +10,7 @@ pub(super) fn lower_affine_return_machine(
     let plans = &checked.facts.flow.terminal_structural_returns;
     let terminal_machine = machine_id(1);
     let mut semantic_module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: terminal_machine,
@@ -156,6 +157,7 @@ pub(super) fn lower_claim_free_affine_return_machines(
             .iter()
             .map(|parameter| {
                 Ok(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: value_id(allocate_dense(&mut next_value)?),
                     scalar_type: terminal_scalar_type(parameter.primitive_type)?,
                 })

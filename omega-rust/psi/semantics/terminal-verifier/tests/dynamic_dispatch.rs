@@ -111,6 +111,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
     };
     let application = closed_application(caller, realization);
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: caller,
@@ -208,6 +209,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
                     operations: vec![Operation {
                         id: operation,
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: id::<ValueId>(1),
                             scalar_type: ScalarType::Boolean,
                         }),
@@ -234,6 +236,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
                 structural_parameters: vec![parameter(2, 2, StructuralMultiplicity::Unrestricted)],
                 ranked_scc: None,
                 result: TerminalMachineResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: id::<ValueId>(2),
                     scalar_type: ScalarType::Boolean,
                 }),
@@ -251,6 +254,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
                     operations: vec![Operation {
                         id: id::<OperationId>(2),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: id::<ValueId>(3),
                             scalar_type: ScalarType::Boolean,
                         }),
@@ -387,6 +391,7 @@ fn parameter_dynamic_dispatch_module() -> TerminalModule {
         structural_parameters: Vec::new(),
         ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: id::<ValueId>(4),
             scalar_type: ScalarType::Boolean,
         }),
@@ -404,6 +409,7 @@ fn parameter_dynamic_dispatch_module() -> TerminalModule {
             operations: vec![Operation {
                 id: helper_operation,
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: id::<ValueId>(5),
                     scalar_type: ScalarType::Boolean,
                 }),

@@ -957,6 +957,7 @@ mod tests {
         let block = BlockId::new(900).expect("block");
         let obligation = ObligationId::new(900).expect("obligation");
         let module = TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine,

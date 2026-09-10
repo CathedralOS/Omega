@@ -1,6 +1,7 @@
 //! Scalar-graph preparation, validation, partial evaluation, and lowering.
 
 use super::*;
+use crate::scalar_qualifications::PreparedScalarQualifications;
 
 mod bindings;
 mod branch_destinations;
@@ -70,7 +71,8 @@ fn evaluate_known_scalar_graph(states: &[LoweredScalarBranchState]) -> Option<Kn
     let successors = states
         .iter()
         .map(|state| match &state.terminator {
-            LoweredScalarBranchTerminator::Jump { target, .. } => vec![*target],
+            LoweredScalarBranchTerminator::Jump { target, .. }
+            | LoweredScalarBranchTerminator::Qualify { target, .. } => vec![*target],
             LoweredScalarBranchTerminator::Conditional {
                 when_true_target,
                 when_false_target,
@@ -108,6 +110,9 @@ fn evaluate_known_scalar_graph(states: &[LoweredScalarBranchState]) -> Option<Kn
         };
         match &states[state_index].terminator {
             LoweredScalarBranchTerminator::Jump {
+                target, arguments, ..
+            }
+            | LoweredScalarBranchTerminator::Qualify {
                 target, arguments, ..
             } => {
                 merge_known_parameters(
@@ -169,6 +174,7 @@ pub(super) fn lower_scalar_graph_machine(
     let lowered = build_scalar_graph_module(
         &prepared.states,
         prepared.result_type,
+        &prepared.scalar_qualifications,
         prepared.contract,
         prepared.crash_routes,
         prepared.identity_reshuffles,
@@ -198,6 +204,7 @@ pub(super) fn lower_selected_scalar_graph_machine(
     let mut lowered = build_scalar_graph_module(
         &prepared.states,
         prepared.result_type,
+        &prepared.scalar_qualifications,
         prepared.contract,
         prepared.crash_routes,
         prepared.identity_reshuffles,
@@ -214,11 +221,13 @@ pub(super) fn lower_selected_scalar_graph_machine(
 
 pub(super) fn prepare_scalar_graph_machine(
     checked: &CheckedTrees,
+    qualifications: &PreparedScalarQualifications,
     machine: symbols::SymbolHandle,
     graph: &CheckedScalarMachineGraph,
 ) -> Result<PreparedScalarMachine, LoweringError> {
     prepare_scalar_graph_machine_with_contract_mode(
         checked,
+        qualifications,
         machine,
         graph,
         ScalarContractMode::ClosedRuntimeValue,
@@ -234,8 +243,10 @@ fn prepare_standalone_scalar_graph_machine(
     machine: symbols::SymbolHandle,
     graph: &CheckedScalarMachineGraph,
 ) -> Result<PreparedScalarMachine, LoweringError> {
+    let qualifications = PreparedScalarQualifications::prepare(checked, &[machine])?;
     prepare_scalar_graph_machine_with_contract_mode(
         checked,
+        &qualifications,
         machine,
         graph,
         ScalarContractMode::StandaloneProofOnlyFloatResult,
@@ -255,8 +266,15 @@ pub(super) fn prepare_embedded_scalar_graph_machine(
     machine: symbols::SymbolHandle,
     graph: &CheckedScalarMachineGraph,
 ) -> Result<PreparedScalarMachine, LoweringError> {
+    let qualifications = PreparedScalarQualifications::prepare(checked, &[machine])?;
+    if !qualifications.catalog().domains.is_empty() {
+        return unsupported(
+            "embedded scalar qualifications require the enclosing catalog namespace",
+        );
+    }
     prepare_scalar_graph_machine_with_contract_mode(
         checked,
+        &qualifications,
         machine,
         graph,
         ScalarContractMode::EmbeddedByEnclosingCall,
@@ -276,8 +294,15 @@ pub(crate) fn prepare_scalar_graph_in_namespace(
     structural_types: &[StructuralTypeDeclaration],
     next_place: &mut u64,
 ) -> Result<PreparedScalarMachine, LoweringError> {
+    let qualifications = PreparedScalarQualifications::prepare(checked, &[graph.machine])?;
+    if !qualifications.catalog().domains.is_empty() {
+        return unsupported(
+            "embedded scalar qualifications require the enclosing catalog namespace",
+        );
+    }
     prepare_scalar_graph_machine_with_contract_mode(
         checked,
+        &qualifications,
         graph.machine,
         graph,
         if embedded {
@@ -301,6 +326,7 @@ enum ScalarContractMode {
 
 fn prepare_scalar_graph_machine_with_contract_mode(
     checked: &CheckedTrees,
+    qualifications: &PreparedScalarQualifications,
     machine: symbols::SymbolHandle,
     graph: &CheckedScalarMachineGraph,
     contract_mode: ScalarContractMode,
@@ -313,7 +339,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     let entry_state = states.first().ok_or(LoweringError::Unsupported(
         "checked scalar control plan must contain an entry state",
     ))?;
-    let result_type = terminal_scalar_type(entry_state.result_type)?;
+    let (_, result_type) = qualifications.scalar_state_types(checked, entry_state.state)?;
     if entry_state.structural_parameters.len() != structural_parameters.len()
         || ((!structural_parameters.is_empty() || !primitive_locals.is_empty())
             && states.len() != 1)
@@ -362,20 +388,28 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     let mut lowered_states = Vec::with_capacity(lowered_state_count);
     let arrays = computations::arrays::prepare(checked, machine, structural_types, next_place)?;
     let mut computations =
-        computations::Expansion::new(checked, machine, lowered_state_count).with_arrays(&arrays);
+        computations::Expansion::new(checked, qualifications, machine, lowered_state_count)
+            .with_arrays(&arrays);
 
     for state in states {
-        if terminal_scalar_type(state.result_type)? != result_type {
+        let (parameter_types, state_result_type) =
+            qualifications.scalar_state_types(checked, state.state)?;
+        if state_result_type != result_type
+            || state_result_type.scalar_type != terminal_scalar_type(state.result_type)?
+            || parameter_types.len() != state.parameter_types.len()
+        {
             return unsupported("scalar graph state result types must match exactly");
         }
-        let parameter_types = state
-            .parameter_types
-            .iter()
-            .copied()
-            .map(terminal_scalar_type)
-            .collect::<Result<Vec<_>, _>>()?;
+        for (actual, retained) in parameter_types.iter().zip(&state.parameter_types) {
+            if actual.scalar_type != terminal_scalar_type(*retained)? {
+                return unsupported(
+                    "scalar graph parameter carrier disagrees with its declaration",
+                );
+            }
+        }
         let prepared = bindings::prepare(
             checked,
+            qualifications,
             machine,
             state,
             parameter_types,
@@ -413,12 +447,12 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                         *statement_ordinal,
                         CheckedScalarExpressionRole::Return,
                     )?;
-                    if expression.scalar_type() != result_type {
+                    if expression.value_type(value_types)? != result_type {
                         return unsupported(
                             "checked scalar return type must match the machine result",
                         );
                     }
-                    validate_direct_parameter_types(&expression, value_types)?;
+                    validate_direct_parameter_types(&expression, &scalar_carriers(value_types))?;
                     LoweredScalarBranchTerminator::Return { expression }
                 }
             }
@@ -444,6 +478,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                 let (when_true_target, when_true_arguments) =
                     branch_destinations::lower_destination(
                         checked,
+                        qualifications,
                         machine,
                         &identity_reshuffles.source_claims,
                         states,
@@ -458,6 +493,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                 let (when_false_target, when_false_arguments) =
                     branch_destinations::lower_destination(
                         checked,
+                        qualifications,
                         machine,
                         &identity_reshuffles.source_claims,
                         states,
@@ -489,6 +525,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                 }
                 let (target, arguments) = lower_scalar_graph_successor(
                     checked,
+                    qualifications,
                     states,
                     state.state,
                     value_types,
@@ -517,7 +554,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             terminator: LoweredScalarBranchTerminator::Return {
                 expression: LoweredDirectExpression::Parameter {
                     position: 0,
-                    scalar_type: result_type,
+                    scalar_type: result_type.scalar_type,
                 },
             },
         });
@@ -527,7 +564,8 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     let successors = lowered_states
         .iter()
         .map(|state| match &state.terminator {
-            LoweredScalarBranchTerminator::Jump { target, .. } => vec![*target],
+            LoweredScalarBranchTerminator::Jump { target, .. }
+            | LoweredScalarBranchTerminator::Qualify { target, .. } => vec![*target],
             LoweredScalarBranchTerminator::Conditional {
                 when_true_target,
                 when_false_target,
@@ -598,7 +636,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             && exact_direct_result_float_meaning_reflexivity_contract(
                 checked,
                 machine,
-                result_type,
+                result_type.scalar_type,
                 has_crash,
             )
         {
@@ -618,7 +656,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             PreparedScalarContract::ClosedLiteral(validate_closed_scalar_contract(
                 checked,
                 machine,
-                result_type,
+                result_type.scalar_type,
                 expected_value,
                 // A published crash clause is a ceiling, not a requirement
                 // that the body retain a reachable crash. Checked selection
@@ -647,6 +685,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     };
     Ok(PreparedScalarMachine {
         source_machine: machine,
+        scalar_qualifications: qualifications.catalog().clone(),
         states: lowered_states,
         result_type,
         contract,
@@ -660,6 +699,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
 #[allow(clippy::too_many_arguments)]
 fn lower_checked_direct_call_binding(
     checked: &CheckedTrees,
+    qualifications: &PreparedScalarQualifications,
     caller_machine: symbols::SymbolHandle,
     caller_state: symbols::SymbolHandle,
     statement_ordinal: u32,
@@ -668,8 +708,8 @@ fn lower_checked_direct_call_binding(
     target_state: symbols::SymbolHandle,
     call_ordinal: u32,
     argument_count: u32,
-    result_type: ScalarType,
-    caller_value_types: &[ScalarType],
+    result_type: QualifiedScalarType,
+    caller_value_types: &[QualifiedScalarType],
     scalar_bindings: &storage::ScalarBindings,
 ) -> Result<LoweredDirectCallBinding, LoweringError> {
     source_custody::direct_calls::validate(
@@ -682,7 +722,7 @@ fn lower_checked_direct_call_binding(
         target_state,
         call_ordinal,
         argument_count,
-        result_type,
+        result_type.scalar_type,
     )?;
     let arguments = (0..argument_count)
         .map(|argument_ordinal| {
@@ -699,6 +739,7 @@ fn lower_checked_direct_call_binding(
         .collect::<Result<Vec<_>, _>>()?;
     lower_scalar_call(
         checked,
+        qualifications,
         caller_machine,
         caller_state,
         statement_ordinal,
@@ -716,14 +757,15 @@ fn lower_checked_direct_call_binding(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_scalar_call(
     checked: &CheckedTrees,
+    qualifications: &PreparedScalarQualifications,
     caller_machine: symbols::SymbolHandle,
     caller_state: symbols::SymbolHandle,
     statement_ordinal: u32,
     target_machine: symbols::SymbolHandle,
     target_state: symbols::SymbolHandle,
     call_ordinal: u32,
-    result_type: ScalarType,
-    caller_value_types: &[ScalarType],
+    result_type: QualifiedScalarType,
+    caller_value_types: &[QualifiedScalarType],
     arguments: Vec<LoweredDirectExpression>,
     structural_arguments: Vec<StructuralArgument>,
     crash_scope: ScalarCallCrashScope,
@@ -744,23 +786,24 @@ pub(super) fn lower_scalar_call(
     {
         return unsupported("computed scalar call requires exact whole structural custody");
     }
-    let target_parameter_types = target.parameter_types()?;
+    let (target_parameter_types, target_result_type) =
+        qualifications.scalar_state_types(checked, target_state)?;
     if target.entry_state()? != target_state {
         return unsupported("direct scalar call must target the callee entry state");
     }
-    if target.result_type()? != result_type {
+    if target_result_type != result_type {
         return unsupported("direct scalar call result type must match its local binding");
     }
     if arguments.len() != target_parameter_types.len() {
         return unsupported("direct scalar call argument count must match the callee signature");
     }
     for (expression, target_type) in arguments.iter().zip(&target_parameter_types) {
-        if expression.scalar_type() != terminal_scalar_type(*target_type)? {
+        if expression.value_type(caller_value_types)? != *target_type {
             return unsupported(
                 "checked scalar call argument type must match its callee parameter",
             );
         }
-        validate_direct_parameter_types(expression, caller_value_types)?;
+        validate_direct_parameter_types(expression, &scalar_carriers(caller_value_types))?;
     }
     let checked_call = checked
         .facts
@@ -828,9 +871,10 @@ pub(super) fn lower_scalar_call(
 
 fn lower_scalar_graph_successor(
     checked: &CheckedTrees,
+    qualifications: &PreparedScalarQualifications,
     states: &[checked_trees::CheckedScalarStateGraph],
     source_state: symbols::SymbolHandle,
-    source_value_types: &[ScalarType],
+    source_value_types: &[QualifiedScalarType],
     successor: &CheckedScalarSuccessor,
     scalar_bindings: &storage::ScalarBindings,
     computations: &mut computations::Expansion<'_>,
@@ -842,7 +886,8 @@ fn lower_scalar_graph_successor(
         .ok_or(LoweringError::Unsupported(
             "scalar graph successor must belong to the selected machine",
         ))?;
-    let target_parameter_types = &states[target].parameter_types;
+    let (target_parameter_types, _) =
+        qualifications.scalar_state_types(checked, states[target].state)?;
     let plans = &checked.facts.flow.terminal_scalar_graphs;
     let scalar_arguments = plans
         .scalar_arguments
@@ -893,7 +938,7 @@ fn lower_scalar_graph_successor(
         scalar_bindings,
         source_value_types,
         target,
-        target_parameter_types,
+        &target_parameter_types,
         &structural_arguments,
     )? {
         return Ok((entry, computations::parameters(source_value_types)));
@@ -901,9 +946,8 @@ fn lower_scalar_graph_successor(
     let arguments = scalar_arguments
         .iter()
         .map(|argument| argument.argument_ordinal)
-        .zip(target_parameter_types)
+        .zip(&target_parameter_types)
         .map(|(argument_ordinal, target_type)| {
-            let target_type = terminal_scalar_type(*target_type)?;
             let expression = scalar_bindings.expression_at(
                 checked,
                 source_state,
@@ -914,8 +958,8 @@ fn lower_scalar_graph_successor(
                     CheckedScalarExpressionRole::TransitionArgument { argument_ordinal }
                 },
             )?;
-            validate_direct_parameter_types(&expression, source_value_types)?;
-            (expression.scalar_type() == target_type)
+            validate_direct_parameter_types(&expression, &scalar_carriers(source_value_types))?;
+            (expression.value_type(source_value_types)? == *target_type)
                 .then_some(expression)
                 .ok_or(LoweringError::Unsupported(
                     "checked scalar successor expression type must match its target",

@@ -13,6 +13,7 @@ fn branched_locals() -> TerminalModule {
     let machine = &mut module.machines[0];
     let condition = ValueId::new(901).unwrap();
     machine.parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: condition,
         scalar_type: ScalarType::Boolean,
     });

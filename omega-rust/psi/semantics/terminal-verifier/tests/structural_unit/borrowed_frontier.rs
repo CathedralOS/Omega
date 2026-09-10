@@ -115,12 +115,14 @@ fn shared_result_module(boundary: bool, scalar: bool, duplicate: bool) -> Termin
     callee.blocks[0].operations.clear();
     if scalar {
         callee.result = TerminalMachineResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(21).unwrap(),
             scalar_type: ScalarType::Boolean,
         });
         callee.blocks[0].operations.push(Operation {
             id: operation_id(10),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(20).unwrap(),
                 scalar_type: ScalarType::Boolean,
             }),
@@ -198,6 +200,7 @@ fn shared_result_module(boundary: bool, scalar: bool, duplicate: bool) -> Termin
             id: operation_id(ordinal),
             result: if scalar {
                 OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: ValueId::new(20 + ordinal).unwrap(),
                     scalar_type: ScalarType::Boolean,
                 })

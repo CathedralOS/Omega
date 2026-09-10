@@ -15,6 +15,7 @@ pub(super) fn emit_composed_unit_control(
         .iter()
         .map(|parameter| {
             Ok(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(allocate_dense(&mut next_value)?),
                 scalar_type: terminal_scalar_type(parameter.primitive_type)?,
             })
@@ -124,6 +125,7 @@ pub(in crate::attached_unit) fn emit_callable_body(
             &mut entry_operations,
         );
         scalar_values.push(ValueDeclaration {
+            qualifications: Default::default(),
             id,
             scalar_type: expected_type,
         });
@@ -705,6 +707,7 @@ pub(super) fn finish_module(
     }
     let mut lowered = LoweredPsi {
         semantic_module: TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry,

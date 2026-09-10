@@ -335,6 +335,7 @@ fn literal_reestablishment_in_a_cycle_consumes_fuel_without_losing_field_bytes()
             + 1,
     );
     machine.parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: condition,
         scalar_type: ScalarType::Boolean,
     });

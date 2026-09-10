@@ -2,6 +2,7 @@ use super::*;
 
 fn boolean_parameter() -> ValueDeclaration {
     ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(1),
         scalar_type: ScalarType::Boolean,
     }
@@ -41,6 +42,7 @@ fn boolean_parameters_require_exact_namespace_and_actual_carriers() {
     let expression = CheckedBooleanExpression::Parameter { position: 0 };
     let proposition = lower(&expression).unwrap();
     let wrong_type = ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(2),
         scalar_type: integer_scalar_type(PrimitiveType::U8).unwrap(),
     };
@@ -53,6 +55,7 @@ fn boolean_parameters_require_exact_namespace_and_actual_carriers() {
         );
     }
     let actual = ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(8),
         scalar_type: ScalarType::Boolean,
     };
@@ -81,10 +84,12 @@ fn logical_substitution_preserves_requirement_children_and_equality_order() {
         ]),
     ]);
     let first_actual = ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(9),
         scalar_type: ScalarType::Boolean,
     };
     let second_actual = ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(3),
         scalar_type: ScalarType::Boolean,
     };
@@ -118,6 +123,7 @@ fn logical_substitution_preserves_requirement_children_and_equality_order() {
 fn strict_integer_requirements_keep_original_relation_and_reject_new_arithmetic() {
     let scalar_type = integer_scalar_type(PrimitiveType::U16).unwrap();
     let formal = ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(1),
         scalar_type,
     };

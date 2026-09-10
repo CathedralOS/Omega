@@ -38,6 +38,7 @@ fn execution(terminator: Terminator) -> TerminalExecution {
     let structural_type = StructuralTypeId::new(1).unwrap();
     let parameters = (1..=2)
         .map(|ordinal| ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(ordinal).unwrap(),
             scalar_type: ScalarType::Boolean,
         })

@@ -151,6 +151,7 @@ pub(crate) fn emit_boundary_scalar_return(
         .iter()
         .map(|parameter| {
             Ok(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(allocate_dense(&mut next_value_identity)?),
                 scalar_type: terminal_scalar_type(parameter.primitive_type)?,
             })
@@ -179,6 +180,7 @@ pub(crate) fn emit_boundary_scalar_return(
             .collect();
     let scalar_type = terminal_scalar_type(plan.result_type)?;
     let call_result = ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(next_value_identity),
         scalar_type,
     };
@@ -232,6 +234,7 @@ pub(crate) fn emit_boundary_scalar_return(
     };
     operations.push(operation);
     let machine_result = ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(next_value_identity),
         scalar_type,
     };

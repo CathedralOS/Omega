@@ -33,6 +33,7 @@ pub(super) fn module() -> TerminalModule {
         Operation {
             id: operation_id(211),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(211),
                 scalar_type: ScalarType::Boolean,
             }),

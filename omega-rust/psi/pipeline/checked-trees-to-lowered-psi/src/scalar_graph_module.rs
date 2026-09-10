@@ -3,13 +3,15 @@
 use super::*;
 
 mod owned_parameters;
+mod qualifications;
 mod ranking;
 pub(crate) mod result_contract;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build_scalar_graph_module(
     states: &[LoweredScalarBranchState],
-    result_type: ScalarType,
+    result_type: QualifiedScalarType,
+    scalar_qualifications: &terminal_psi::ScalarQualificationCatalog,
     contract: PreparedScalarContract,
     crash_routes: Vec<checked_trees::CrashRouteBucket>,
     identity_reshuffles: LoweredContentIdentityReshuffles,
@@ -23,6 +25,7 @@ pub(super) fn build_scalar_graph_module(
     build_scalar_graph_module_in_namespace(
         states,
         result_type,
+        scalar_qualifications,
         contract,
         crash_routes,
         identity_reshuffles,
@@ -39,7 +42,8 @@ pub(super) fn build_scalar_graph_module(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn build_scalar_graph_module_in_namespace(
     states: &[LoweredScalarBranchState],
-    result_type: ScalarType,
+    result_type: QualifiedScalarType,
+    scalar_qualifications: &terminal_psi::ScalarQualificationCatalog,
     contract: PreparedScalarContract,
     crash_routes: Vec<checked_trees::CrashRouteBucket>,
     identity_reshuffles: LoweredContentIdentityReshuffles,
@@ -51,6 +55,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     structural_parameters: &[StructuralParameterDeclaration],
     loop_plan: Option<&crate::scalar_graph_lowering::cycles::ScalarLoopPlan>,
 ) -> Result<LoweredPsi, LoweringError> {
+    let mut scalar_qualifications = scalar_qualifications.clone();
     let parameters = states[0]
         .parameter_types
         .iter()
@@ -65,7 +70,8 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                     .checked_add(1)
                     .expect("parameter identity is nonzero"),
             ),
-            scalar_type: *scalar_type,
+            scalar_type: scalar_type.scalar_type,
+            qualifications: scalar_type.qualifications,
         })
         .collect::<Vec<_>>();
     let crash_routes = lower_checked_crash_route_buckets(&crash_routes, &parameters)?;
@@ -89,7 +95,8 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                 .map(|scalar_type| {
                     let parameter = ValueDeclaration {
                         id: value_id(next_value_identity),
-                        scalar_type: *scalar_type,
+                        scalar_type: scalar_type.scalar_type,
+                        qualifications: scalar_type.qualifications,
                     };
                     next_value_identity = next_value_identity
                         .checked_add(1)
@@ -154,14 +161,15 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             let mut stage_block_parameters = source_block_parameters;
             for (binding_index, binding) in binding_plans.iter().enumerate() {
                 let mut next_stage_types = stage_parameter_types.clone();
-                next_stage_types.push(binding.scalar_type());
+                next_stage_types.push(binding.value_type(&stage_parameter_types)?);
                 let next_stage_parameters = next_stage_types
                     .iter()
                     .copied()
                     .map(|scalar_type| {
                         let parameter = ValueDeclaration {
                             id: value_id(next_value_identity),
-                            scalar_type,
+                            scalar_type: scalar_type.scalar_type,
+                            qualifications: scalar_type.qualifications,
                         };
                         next_value_identity = next_value_identity
                             .checked_add(1)
@@ -406,7 +414,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                     &mut next_value_identity,
                     &mut pending_blocks,
                     identity_base,
-                );
+                )?;
                 let when_false = build_scalar_conditional_target(
                     *when_false_target,
                     when_false_arguments,
@@ -416,7 +424,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                     &mut next_value_identity,
                     &mut pending_blocks,
                     identity_base,
-                );
+                )?;
                 let (root, children) = emit_inlined_boolean_guard_blocks(
                     &decision,
                     &stage_parameters,
@@ -436,6 +444,21 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
 
             let operation_start = all_operations.len();
             let terminator = match continuation_plan {
+                LoweredScalarBranchTerminator::Qualify {
+                    target,
+                    arguments,
+                    structural_arguments,
+                } => qualifications::emit(
+                    target,
+                    &arguments,
+                    &structural_arguments,
+                    &stage_parameters,
+                    &state_parameters,
+                    terminal_machine,
+                    identity_base,
+                    &mut next_edge_identity,
+                    &mut scalar_qualifications,
+                )?,
                 LoweredScalarBranchTerminator::Return { expression } => {
                     let value = emit_direct_expression(
                         &expression,
@@ -475,7 +498,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                         &mut next_value_identity,
                         &mut pending_blocks,
                         identity_base,
-                    );
+                    )?;
                     let when_false = build_scalar_conditional_target(
                         when_false_target,
                         &when_false_arguments,
@@ -485,7 +508,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                         &mut next_value_identity,
                         &mut pending_blocks,
                         identity_base,
-                    );
+                    )?;
                     let when_true_edge = edge_id(next_edge_identity);
                     next_edge_identity = next_edge_identity
                         .checked_add(1)
@@ -543,7 +566,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                             &mut next_value_identity,
                             &mut pending_blocks,
                             identity_base,
-                        );
+                        )?;
                         Terminator::Jump {
                             structural_arguments: structural_arguments.clone(),
                             edge,
@@ -597,6 +620,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             continue;
         }
         for binding in &state.bindings {
+            let binding_type = binding.value_type(&current_value_types)?;
             let id = emit_scalar_binding(
                 binding,
                 &current_values,
@@ -606,9 +630,10 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             )?;
             current_values.push(ValueDeclaration {
                 id,
-                scalar_type: binding.scalar_type(),
+                scalar_type: binding_type.scalar_type,
+                qualifications: binding_type.qualifications,
             });
-            current_value_types.push(binding.scalar_type());
+            current_value_types.push(binding_type);
         }
         crate::scalar_graph_effects::emit(
             &state.structural_effects,
@@ -619,6 +644,21 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         )?;
         let terminator_operation_start = all_operations.len();
         let terminator = match &state.terminator {
+            LoweredScalarBranchTerminator::Qualify {
+                target,
+                arguments,
+                structural_arguments,
+            } => qualifications::emit(
+                *target,
+                arguments,
+                structural_arguments,
+                &current_values,
+                &state_parameters,
+                terminal_machine,
+                identity_base,
+                &mut next_edge_identity,
+                &mut scalar_qualifications,
+            )?,
             LoweredScalarBranchTerminator::Jump {
                 target,
                 arguments,
@@ -680,7 +720,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                         &mut next_value_identity,
                         &mut pending_blocks,
                         identity_base,
-                    );
+                    )?;
                     let edge = edge_id(next_edge_identity);
                     next_edge_identity = next_edge_identity
                         .checked_add(1)
@@ -754,7 +794,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                         &mut next_value_identity,
                         &mut pending_blocks,
                         identity_base,
-                    );
+                    )?;
                     let when_false = build_scalar_conditional_target(
                         *when_false_target,
                         when_false_arguments,
@@ -764,7 +804,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                         &mut next_value_identity,
                         &mut pending_blocks,
                         identity_base,
-                    );
+                    )?;
                     let (root, children) = emit_inlined_boolean_guard_blocks(
                         &decision,
                         &current_values,
@@ -811,7 +851,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                         &mut next_value_identity,
                         &mut pending_blocks,
                         identity_base,
-                    );
+                    )?;
                     let when_false = build_scalar_conditional_target(
                         *when_false_target,
                         when_false_arguments,
@@ -821,7 +861,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                         &mut next_value_identity,
                         &mut pending_blocks,
                         identity_base,
-                    );
+                    )?;
                     Terminator::Conditional {
                         condition,
                         when_true: SuccessorEdge {
@@ -1076,7 +1116,8 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     )?;
     let result = ValueDeclaration {
         id: value_id(next_value_identity),
-        scalar_type: result_type,
+        scalar_type: result_type.scalar_type,
+        qualifications: result_type.qualifications,
     };
     let mut resolved_partition_compositions = partition_compositions
         .compositions
@@ -1104,7 +1145,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     resolved_partition_compositions.sort();
-    let (requires, ensures, evidence) = match (result_type, contract) {
+    let (requires, ensures, evidence) = match (result_type.scalar_type, contract) {
         (
             ScalarType::Boolean,
             PreparedScalarContract::ClosedLiteral(KnownDirectScalar::Boolean(value)),
@@ -1259,8 +1300,12 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             )?;
         }
     }
+    scalar_qualifications
+        .coercions
+        .sort_by_key(|coercion| (coercion.machine, coercion.edge, coercion.argument_ordinal));
     let mut lowered = LoweredPsi {
         semantic_module: TerminalModule {
+            scalar_qualifications,
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: terminal_machine,

@@ -6,6 +6,7 @@ fn indexed_fixture(access: StructuralAccess) -> (TerminalModule, ProofBundle) {
         Operation {
             id: id(5),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: id(3),
                 scalar_type: ScalarType::Integer(integer()),
             }),
@@ -18,6 +19,7 @@ fn indexed_fixture(access: StructuralAccess) -> (TerminalModule, ProofBundle) {
         Operation {
             id: id(6),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: id(4),
                 scalar_type: ScalarType::Integer(
                     IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),

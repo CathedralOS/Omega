@@ -146,6 +146,7 @@ pub(crate) fn emit(
     operations.push(Operation {
         id,
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: length,
             scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
         }),

@@ -139,6 +139,7 @@ fn indexed_store_call_module(read_index: u64) -> TerminalModule {
     let mut second_constant = block.operations[0].clone();
     second_constant.id = operation_id(6);
     second_constant.result = OperationResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(6),
         scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap()),
     });

@@ -267,6 +267,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
     };
 
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: caller.id,
@@ -333,6 +334,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
         id: machine_id(1),
         attachment: None,
         parameters: vec![ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(10),
             scalar_type: ScalarType::Boolean,
         }],
@@ -348,6 +350,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
         }],
         ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(11),
             scalar_type: ScalarType::Boolean,
         }),
@@ -372,6 +375,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
                 scalar_operation(
                     10,
                     ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value_id(12),
                         scalar_type: ScalarType::Boolean,
                     },
@@ -491,6 +495,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
     };
 
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
@@ -551,14 +556,17 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
     let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
     let integer = ScalarType::Integer(i8_type);
     let value = |id| ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(id),
         scalar_type: integer,
     };
     let boolean = |id| ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(id),
         scalar_type: ScalarType::Boolean,
     };
     let i16_value = |id| ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(id),
         scalar_type: ScalarType::Integer(i16_type),
     };
@@ -964,6 +972,7 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
     };
 
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),

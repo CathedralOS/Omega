@@ -17,6 +17,7 @@ pub(super) fn scalar_terminal_artifact(
         .into_iter()
         .enumerate()
         .map(|(index, scalar_type)| ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(30_100 + index as u64).unwrap(),
             scalar_type,
         })
@@ -29,6 +30,7 @@ pub(super) fn scalar_terminal_artifact(
         .map(|kind| Operation {
             id: OperationId::new(30_005).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: computed,
                 scalar_type: result_type,
             }),
@@ -60,6 +62,7 @@ pub(super) fn scalar_terminal_artifact(
         _ => panic!("scalar fixture must return a value or crash"),
     };
     let mut module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -93,6 +96,7 @@ pub(super) fn scalar_terminal_artifact(
             structural_parameters: Vec::new(),
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: function_result,
                 scalar_type: result_type,
             }),

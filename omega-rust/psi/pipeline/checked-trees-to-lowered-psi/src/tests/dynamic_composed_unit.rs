@@ -1804,6 +1804,7 @@ fn lowers_rebound_dynamic_unit_to_a_resultless_indirect_dispatch() {
         }
     ));
     operation.result = OperationResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(999),
         scalar_type: semantic_vocabulary::ScalarType::Boolean,
     });

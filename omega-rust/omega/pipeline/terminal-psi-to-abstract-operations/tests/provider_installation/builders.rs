@@ -33,6 +33,7 @@ pub(super) fn artifact(module: &TerminalModule) -> (Vec<u8>, Vec<u8>) {
 pub(super) fn provider_module() -> TerminalModule {
     let service = service_id(1);
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),

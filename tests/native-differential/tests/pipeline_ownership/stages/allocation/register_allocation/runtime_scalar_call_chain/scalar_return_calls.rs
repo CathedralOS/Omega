@@ -24,6 +24,7 @@ fn artifact(value: u64) -> (Vec<u8>, Vec<u8>) {
     let call = |operation, result, callee, argument| Operation {
         id: OperationId::new(operation).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(result).unwrap(),
             scalar_type,
         }),
@@ -47,6 +48,7 @@ fn artifact(value: u64) -> (Vec<u8>, Vec<u8>) {
     entry.blocks[0].operations.push(Operation {
         id: OperationId::new(28_021).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: constant,
             scalar_type,
         }),
@@ -480,6 +482,7 @@ fn mixed_arithmetic_artifact() -> (Vec<u8>, Vec<u8>) {
     let mut module = terminal_codec::decode_module(&semantic).unwrap();
     let scalar_type = module.machines[2].parameters[0].scalar_type;
     let declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(id).unwrap(),
         scalar_type,
     };

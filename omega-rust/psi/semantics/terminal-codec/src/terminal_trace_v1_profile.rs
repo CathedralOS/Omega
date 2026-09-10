@@ -633,6 +633,7 @@ mod tests {
         let machine = id(11, MachineId::new);
         let block = id(12, BlockId::new);
         TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine,
@@ -766,10 +767,12 @@ mod tests {
         }];
         module.machines[0].parameters = vec![
             ValueDeclaration {
+                qualifications: Default::default(),
                 id: flag,
                 scalar_type: ScalarType::Boolean,
             },
             ValueDeclaration {
+                qualifications: Default::default(),
                 id: byte,
                 scalar_type: u8_type,
             },
@@ -817,6 +820,7 @@ mod tests {
             Operation {
                 id: id(2, OperationId::new),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: id(3, ValueId::new),
                     scalar_type: u8_type,
                 }),

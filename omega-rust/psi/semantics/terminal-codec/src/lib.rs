@@ -31,6 +31,7 @@ pub use provider_candidate_wire::{
 };
 mod publication;
 mod quotient_correspondence_wire;
+mod scalar_qualification_wire;
 mod scalar_term_wire;
 mod scalar_wire;
 #[cfg(test)]
@@ -130,6 +131,7 @@ const MAX_CONTENT_TERM_DEPTH: usize = 256;
 const MAX_CONTENT_IDENTITY_BYTES: usize = 1 << 20;
 
 pub fn encode_module(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
+    scalar_qualification_wire::validate(&module.scalar_qualifications)?;
     validate_canonical_order(module)?;
     validate_structural_foundation(module)?;
     validate_module_representation(module).map_err(CodecError::InvalidModule)?;
@@ -161,6 +163,7 @@ pub fn decode_module(bytes: &[u8]) -> Result<TerminalModule, CodecError> {
     if reader.remaining() != 0 {
         return Err(CodecError::TrailingBytes(reader.remaining()));
     }
+    scalar_qualification_wire::validate(&module.scalar_qualifications)?;
     validate_canonical_order(&module)?;
     validate_structural_foundation(&module)?;
     validate_module_representation(&module).map_err(CodecError::InvalidModule)?;

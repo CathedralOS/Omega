@@ -6,10 +6,12 @@ fn selected_module(dimensions: &[u64], leaves: &[TerminalScalarValue]) -> Termin
     let mut module = module(dimensions, false, false, leaves);
     let caller = &mut module.machines[0];
     caller.parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(9000),
         scalar_type: ScalarType::Boolean,
     });
     caller.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(9001),
         scalar_type: ScalarType::Boolean,
     });

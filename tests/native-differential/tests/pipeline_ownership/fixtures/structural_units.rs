@@ -6,6 +6,7 @@ pub(crate) fn unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
     let machine = MachineId::new(3_501).unwrap();
     let entry = BlockId::new(3_502).unwrap();
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -165,6 +166,7 @@ pub(crate) fn ieee_float_literal_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
     module.machines[0].blocks[0].operations.push(Operation {
         id: OperationId::new(3_518).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(3_519).unwrap(),
             scalar_type: ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64),
         }),
@@ -201,6 +203,7 @@ pub(crate) fn ieee_float_literal_sequence_unit_return_artifact() -> (Vec<u8>, Ve
         module.machines[0].blocks[0].operations.push(Operation {
             id: OperationId::new(operation).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(result).unwrap(),
                 scalar_type,
             }),
@@ -236,6 +239,7 @@ pub(crate) fn integer_literal_sequence_unit_return_artifact() -> (Vec<u8>, Vec<u
         module.machines[0].blocks[0].operations.push(Operation {
             id: OperationId::new(operation).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(result).unwrap(),
                 scalar_type: ScalarType::Integer(scalar_type),
             }),
@@ -252,6 +256,7 @@ pub(crate) fn integer_ieee_float_literal_sequence_unit_return_artifact() -> (Vec
         Operation {
             id: OperationId::new(3_550).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(3_551).unwrap(),
                 scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 8).unwrap()),
             }),
@@ -262,6 +267,7 @@ pub(crate) fn integer_ieee_float_literal_sequence_unit_return_artifact() -> (Vec
         Operation {
             id: OperationId::new(3_552).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(3_553).unwrap(),
                 scalar_type: ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32),
             }),
@@ -272,6 +278,7 @@ pub(crate) fn integer_ieee_float_literal_sequence_unit_return_artifact() -> (Vec
         Operation {
             id: OperationId::new(3_554).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(3_555).unwrap(),
                 scalar_type: ScalarType::Integer(
                     IntegerType::new(IntegerSign::Unsigned, 16).unwrap(),
@@ -306,6 +313,7 @@ pub(crate) fn nearest_ieee_float_fused_multiply_add_unit_return_artifact(
         module.machines[0].blocks[0].operations.push(Operation {
             id: OperationId::new(3_530 + position as u64 * 2).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(3_531 + position as u64 * 2).unwrap(),
                 scalar_type: ScalarType::IeeeFloat(format),
             }),
@@ -315,6 +323,7 @@ pub(crate) fn nearest_ieee_float_fused_multiply_add_unit_return_artifact(
     module.machines[0].blocks[0].operations.push(Operation {
         id: OperationId::new(3_536).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(3_537).unwrap(),
             scalar_type: ScalarType::IeeeFloat(format),
         }),
@@ -448,6 +457,7 @@ pub(crate) fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
         outcome_specific_ensures: Vec::new(),
     };
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: caller,

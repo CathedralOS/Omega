@@ -19,6 +19,7 @@ fn scalar_operation(raw: u64, kind: OperationKind) -> Operation {
     Operation {
         id: id(raw, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: id(raw, ValueId::new),
             scalar_type: ScalarType::Integer(integer()),
         }),
@@ -37,6 +38,7 @@ fn fixture() -> TerminalModule {
     let mut module = view_cycle();
     let machine = &mut module.machines[0];
     machine.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: id(30, ValueId::new),
         scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap()),
     }];
@@ -51,6 +53,7 @@ fn fixture() -> TerminalModule {
     machine.blocks[2].structural_parameters = vec![store_parameter];
     for (block, parameter) in [(1, 2), (2, 3)] {
         machine.blocks[block].parameters = vec![ValueDeclaration {
+            qualifications: Default::default(),
             id: id(parameter, ValueId::new),
             scalar_type: ScalarType::Integer(integer()),
         }];
@@ -66,6 +69,7 @@ fn fixture() -> TerminalModule {
         Operation {
             id: id(11, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: id(11, ValueId::new),
                 scalar_type: ScalarType::Boolean,
             }),

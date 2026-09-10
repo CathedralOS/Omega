@@ -24,6 +24,7 @@ fn value(identity: u64) -> ValueId {
 
 fn declaration(identity: u64) -> ValueDeclaration {
     ValueDeclaration {
+        qualifications: Default::default(),
         id: value(identity),
         scalar_type: ScalarType::Boolean,
     }
@@ -86,6 +87,7 @@ fn jump(edge: u64, target: u64, arguments: &[u64]) -> Terminator {
 
 fn module(parameter: u64, expected: bool) -> TerminalModule {
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(1).unwrap(),
@@ -382,6 +384,7 @@ fn integer_comparison_branches_prove_source_style_canonical_predicates() {
             let mut checked = derived_branch(kind, expected);
             checked.machines[0].parameters = [1, 2]
                 .map(|identity| ValueDeclaration {
+                    qualifications: Default::default(),
                     id: value(identity),
                     scalar_type,
                 })

@@ -846,6 +846,7 @@ mod tests {
         let operation = Operation {
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: result,
                 scalar_type: i8_type(),
             }),
@@ -904,6 +905,7 @@ mod tests {
         let operation = Operation {
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: result,
                 scalar_type: i8_type(),
             }),

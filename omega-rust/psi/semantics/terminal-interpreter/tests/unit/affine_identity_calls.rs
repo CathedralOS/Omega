@@ -30,6 +30,7 @@ fn identity_call_module(scalar_types: &[ScalarType]) -> TerminalModule {
             .iter()
             .enumerate()
             .map(|(position, scalar_type)| ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id((index * 100 + position + 1) as u64),
                 scalar_type: *scalar_type,
             })
@@ -522,6 +523,7 @@ fn affine_identity_calls_require_an_exact_claim_free_identity_callee() {
             2 => callee.blocks[0].operations.push(Operation {
                 id: operation_id(2),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: value_id(1),
                     scalar_type: ScalarType::Boolean,
                 }),

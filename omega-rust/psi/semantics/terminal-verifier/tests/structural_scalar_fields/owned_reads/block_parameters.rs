@@ -146,6 +146,7 @@ fn owned_backedge_rejoins_the_rebound_frontier_and_cannot_reuse_invocation_custo
     machine.blocks[1].operations.push(Operation {
         id: id::<OperationId>(5),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: id::<ValueId>(5),
             scalar_type: ScalarType::Boolean,
         }),

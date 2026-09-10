@@ -33,7 +33,7 @@ fn fixture(maximum: i128) -> TerminalModule {
 fn bounded_integer_field_bounds_round_trip_and_bind_semantic_identity() {
     let original = fixture(255);
     let bytes = encode_module(&original).unwrap();
-    assert_eq!(&bytes[8..12], &[87, 0, 94, 0]);
+    assert_eq!(&bytes[8..12], &[87, 0, 95, 0]);
     assert_eq!(decode_module(&bytes).unwrap(), original);
     assert_eq!(
         encode_module(&decode_module(&bytes).unwrap()).unwrap(),
@@ -74,8 +74,9 @@ fn structural_declaration_encoder_matches_the_existing_module_section() {
     let declaration =
         terminal_codec::encode_structural_type_declaration(&module.structural_types[0]).unwrap();
     let module_bytes = encode_module(&module).unwrap();
-    // Magic, format, vocabulary, entry machine, and structural-declaration count.
-    let declaration_start = 8 + 2 + 2 + 8 + 4;
+    // Header, entry machine, three empty scalar-qualification catalog counts,
+    // and the structural-declaration count.
+    let declaration_start = 8 + 2 + 2 + 8 + 3 * 4 + 4;
     assert_eq!(
         declaration,
         module_bytes[declaration_start..declaration_start + declaration.len()]

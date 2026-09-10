@@ -2432,6 +2432,7 @@ fn semantic_module() -> TerminalModule {
     let literal = ScalarTerm::integer(integer, IntegerValue::Signed(7)).unwrap();
     let goal = Proposition::Equal(literal.clone(), literal);
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
@@ -2467,6 +2468,7 @@ fn semantic_module() -> TerminalModule {
             parameters: Vec::new(),
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(2),
                 scalar_type,
             }),
@@ -2482,6 +2484,7 @@ fn semantic_module() -> TerminalModule {
                 operations: vec![Operation {
                     id: operation_id(1),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value_id(1),
                         scalar_type,
                     }),

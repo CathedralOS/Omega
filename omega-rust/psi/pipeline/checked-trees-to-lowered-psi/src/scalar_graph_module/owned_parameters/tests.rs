@@ -62,6 +62,7 @@ fn transfer(place: PlaceId) -> Operation {
     Operation {
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(2),
             scalar_type: terminal_scalar_type(PrimitiveType::U64).unwrap(),
         }),

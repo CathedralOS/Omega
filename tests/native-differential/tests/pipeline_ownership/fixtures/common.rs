@@ -93,8 +93,13 @@ pub(crate) fn artifact() -> (Vec<u8>, Vec<u8>) {
     let result = ValueId::new(2_008).unwrap();
     let obligation = ObligationId::new(2_009).unwrap();
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -336,6 +341,7 @@ pub(crate) fn conditional_u64_integer_not_equal_parameters_machine(
     machine.blocks[0].operations.push(Operation {
         id: OperationId::new(base + 20).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: not_equal,
             scalar_type: ScalarType::Boolean,
         }),
@@ -412,7 +418,11 @@ pub(crate) fn conditional_u64_integer_equal_parameters_machine(
     let result = ValueId::new(base + 10).unwrap();
     let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
     let scalar_type = ScalarType::Integer(integer_type);
-    let declaration = |id, scalar_type| ValueDeclaration { id, scalar_type };
+    let declaration = |id, scalar_type| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     TerminalMachine {
         id: machine,
         attachment: None,
@@ -532,6 +542,7 @@ pub(crate) fn conditional_u64_not_equal_zero_parameter_machine(
     machine.blocks[0].operations.push(Operation {
         id: OperationId::new(base + 20).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: not_equal,
             scalar_type: ScalarType::Boolean,
         }),
@@ -558,7 +569,11 @@ pub(crate) fn conditional_immediate_machine(
     let false_value = ValueId::new(base + 7).unwrap();
     let result = ValueId::new(base + 8).unwrap();
     let scalar_type = ScalarType::Integer(integer_type);
-    let declaration = |id, scalar_type| ValueDeclaration { id, scalar_type };
+    let declaration = |id, scalar_type| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     TerminalMachine {
         id: machine,
         attachment: None,
@@ -647,6 +662,7 @@ pub(crate) fn conditional_immediate_module(
     machines: Vec<TerminalMachine>,
 ) -> TerminalModule {
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry,

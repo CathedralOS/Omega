@@ -42,6 +42,7 @@ fn module(ordinary: bool, nested: bool, complete_transfer: bool) -> TerminalModu
         Operation {
             id: operation_id(10),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(1),
                 scalar_type,
             }),
@@ -66,6 +67,7 @@ fn module(ordinary: bool, nested: bool, complete_transfer: bool) -> TerminalModu
         structural_parameters: Vec::new(),
         id: block_id(4),
         parameters: vec![ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(2),
             scalar_type,
         }],

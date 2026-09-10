@@ -9,13 +9,14 @@ impl Expansion<'_> {
         &mut self,
         subject: Computation,
         arms: arena::HandleSpan<CheckedScalarDispatchArm>,
-        result_type: ScalarType,
-        input_types: &[ScalarType],
+        result_type: QualifiedScalarType,
+        input_types: &[QualifiedScalarType],
         target: usize,
         site: &Site<'_>,
         active: &mut Vec<Computation>,
     ) -> Result<usize, LoweringError> {
-        let subject_type = self.argument_type(&Argument::Computation(subject))?;
+        let subject_type =
+            self.argument_type(&Argument::Computation(subject), site, input_types)?;
         let plans = &self.checked.facts.values.scalar_computations;
         let arms = plans
             .dispatch_arms
@@ -27,7 +28,10 @@ impl Expansion<'_> {
         let mut boolean_coverage = [false; 2];
         let mut covered = false;
         for arm in &arms {
-            if covered || self.argument_type(&Argument::Computation(arm.value))? != result_type {
+            if covered
+                || self.argument_type(&Argument::Computation(arm.value), site, input_types)?
+                    != result_type
+            {
                 return unsupported(
                     "scalar dispatch has an unreachable arm or incompatible result",
                 );
@@ -35,12 +39,14 @@ impl Expansion<'_> {
             match arm.pattern {
                 CheckedScalarDispatchPattern::Wildcard => covered = true,
                 CheckedScalarDispatchPattern::Value(pattern) => {
-                    if self.argument_type(&Argument::Computation(pattern))? != subject_type {
+                    if self.argument_type(&Argument::Computation(pattern), site, input_types)?
+                        != subject_type
+                    {
                         return unsupported(
                             "scalar dispatch subject and pattern carriers disagree",
                         );
                     }
-                    if subject_type == ScalarType::Boolean
+                    if subject_type == ScalarType::Boolean.into()
                         && let CheckedScalarComputationKind::Value(
                             CheckedScalarExpression::Boolean(value),
                         ) = &plans.nodes.get(pattern).kind
@@ -83,7 +89,7 @@ impl Expansion<'_> {
                 }),
                 CheckedScalarDispatchPattern::Value(pattern) => {
                     let terminator = if let Some(when_false_target) = continuation {
-                        let condition = if subject_type == ScalarType::Boolean {
+                        let condition = if subject_type == ScalarType::Boolean.into() {
                             LoweredBooleanReturnExpression::Equal {
                                 left: Box::new(LoweredBooleanReturnExpression::Parameter {
                                     position: input_types.len(),
@@ -189,12 +195,19 @@ mod tests {
             ..Default::default()
         });
         let bindings = storage::ScalarBindings::new(1);
-        let mut expansion = Expansion::new(&checked, symbols::SymbolHandle::invalid(), 0);
+        let qualifications = PreparedScalarQualifications::prepare(&checked, &[])
+            .expect("empty fixture qualifications");
+        let mut expansion = Expansion::new(
+            &checked,
+            &qualifications,
+            symbols::SymbolHandle::invalid(),
+            0,
+        );
         let target = usize::MAX;
         expansion
             .argument(
                 &Argument::Computation(root),
-                &[ScalarType::Boolean],
+                &[ScalarType::Boolean.into()],
                 target,
                 &Site {
                     state: symbols::SymbolHandle::invalid(),

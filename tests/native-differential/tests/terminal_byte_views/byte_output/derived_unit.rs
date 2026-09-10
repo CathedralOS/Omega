@@ -34,6 +34,7 @@ fn derived_unit_output_module() -> TerminalModule {
     leaf.blocks[0].id = leaf.entry;
     leaf.blocks[0].operations[0].id = OperationId::new(206).unwrap();
     leaf.blocks[0].operations[0].result = OperationResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(206).unwrap(),
         scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap()),
     });
@@ -92,6 +93,7 @@ fn derived_unit_output_module() -> TerminalModule {
         Operation {
             id: OperationId::new(120).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(120).unwrap(),
                 scalar_type: caller.parameters[0].scalar_type,
             }),
@@ -109,6 +111,7 @@ fn derived_unit_output_module() -> TerminalModule {
         trivial_affine_discards: Vec::new(),
     };
     caller.blocks[2].operations[0].result = OperationResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(141).unwrap(),
         scalar_type: leaf.parameters[0].scalar_type,
     });

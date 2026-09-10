@@ -64,6 +64,7 @@ fn any_mutating_predecessor_invalidates_the_joined_length() {
     let replacement = repeated_replacement(&module);
     let machine = &mut module.machines[0];
     machine.parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: id(5),
         scalar_type: ScalarType::Boolean,
     });
@@ -97,6 +98,7 @@ fn backedge_replacement_invalidates_an_entry_length_but_byte_stores_do_not() {
         is_self: true,
     };
     machine.parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: id(5),
         scalar_type: ScalarType::Boolean,
     });
@@ -188,6 +190,7 @@ fn repeated_literal_replacement_and_indexed_store_reconstruct_each_iteration() {
         is_self: true,
     };
     machine.parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: id(5),
         scalar_type: ScalarType::Boolean,
     });
@@ -231,6 +234,7 @@ fn unknown_live_length_uses_only_the_selected_true_edge_bound() {
     machine.blocks[0].operations.push(Operation {
         id: id(8),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: id(5),
             scalar_type: ScalarType::Boolean,
         }),

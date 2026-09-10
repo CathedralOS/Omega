@@ -423,30 +423,33 @@ fn structural_scalar_return_maps_interleaved_scalar_parameters_before_cleanup() 
         .expect("exact mixed parameter map should lower before affine cleanup");
     let machine = &lowered.semantic_module.machines[0];
     assert!(matches!(
-        machine.parameters.as_slice(),
-        [
-            ValueDeclaration {
-                id,
-                scalar_type: ScalarType::Integer(_),
-            },
-            ValueDeclaration {
-                id: bool_id,
-                scalar_type: ScalarType::Boolean,
-            }
-        ] if *id == value_id(1) && *bool_id == value_id(2)
-    ));
+            machine.parameters.as_slice(),
+            [
+                ValueDeclaration {
+    qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+                    id,
+                    scalar_type: ScalarType::Integer(_),
+                },
+                ValueDeclaration {
+    qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+                    id: bool_id,
+                    scalar_type: ScalarType::Boolean,
+                }
+            ] if *id == value_id(1) && *bool_id == value_id(2)
+        ));
     assert_eq!(machine.structural_parameters.len(), 2);
     assert!(matches!(
-        machine.blocks[0].operations.as_slice(),
-        [Operation {
-            result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
-                id,
-                scalar_type: ScalarType::Boolean,
-            }),
-            kind: OperationKind::BooleanNot { operand },
-            ..
-        }] if *id == value_id(3) && *operand == value_id(2)
-    ));
+            machine.blocks[0].operations.as_slice(),
+            [Operation {
+                result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+    qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+                    id,
+                    scalar_type: ScalarType::Boolean,
+                }),
+                kind: OperationKind::BooleanNot { operand },
+                ..
+            }] if *id == value_id(3) && *operand == value_id(2)
+        ));
     assert!(matches!(
         &machine.blocks[0].terminator,
         Terminator::Return {

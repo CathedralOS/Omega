@@ -66,6 +66,7 @@ fn fixture(
         machine.blocks[0].operations.push(Operation {
             id: operation_id(position as u64 + 1),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(position as u64 + 1),
                 scalar_type: value.scalar_type(),
             }),
@@ -318,6 +319,7 @@ fn scalar_array_contents_survive_later_scalar_work_and_nested_local_arrays() {
     callee.entry = block_id(2);
     callee.blocks[0].id = block_id(2);
     callee.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(10),
         scalar_type: byte(0).scalar_type(),
     });
@@ -351,6 +353,7 @@ fn scalar_array_contents_survive_later_scalar_work_and_nested_local_arrays() {
         Operation {
             id: operation_id(100),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(3),
                 scalar_type: byte(0).scalar_type(),
             }),
@@ -364,6 +367,7 @@ fn scalar_array_contents_survive_later_scalar_work_and_nested_local_arrays() {
         Operation {
             id: operation_id(200),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(4),
                 scalar_type: ScalarType::Boolean,
             }),
@@ -519,6 +523,7 @@ fn internal_array_returns(dimensions: &[u64], return_prior_array: bool) -> Termi
             machine.blocks[0].operations.push(Operation {
                 id: operation_id(offset + 101),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: value_id(offset + 101),
                     scalar_type: ScalarType::Boolean,
                 }),

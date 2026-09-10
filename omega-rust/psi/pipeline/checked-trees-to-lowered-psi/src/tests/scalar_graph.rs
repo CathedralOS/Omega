@@ -7,7 +7,7 @@ fn scalar_machine_builder_uses_a_disjoint_module_identity_namespace() {
     let identity_base = TERMINAL_MACHINE_IDENTITY_STRIDE;
     let lowered = build_scalar_graph_module(
         &[LoweredScalarBranchState {
-            parameter_types: vec![ScalarType::Boolean],
+            parameter_types: vec![ScalarType::Boolean.into()],
             bindings: Vec::new(),
             structural_effects: Vec::new(),
             terminator: LoweredScalarBranchTerminator::Return {
@@ -16,7 +16,8 @@ fn scalar_machine_builder_uses_a_disjoint_module_identity_namespace() {
                 },
             },
         }],
-        ScalarType::Boolean,
+        ScalarType::Boolean.into(),
+        &terminal_psi::ScalarQualificationCatalog::default(),
         PreparedScalarContract::Empty,
         Vec::new(),
         LoweredContentIdentityReshuffles {
@@ -68,7 +69,7 @@ fn primitive_scalar_source_jump_emits_empty_affine_cleanup() {
     let lowered = build_scalar_graph_module(
         &[
             LoweredScalarBranchState {
-                parameter_types: vec![ScalarType::Boolean],
+                parameter_types: vec![ScalarType::Boolean.into()],
                 bindings: Vec::new(),
                 structural_effects: Vec::new(),
                 terminator: LoweredScalarBranchTerminator::Jump {
@@ -78,7 +79,7 @@ fn primitive_scalar_source_jump_emits_empty_affine_cleanup() {
                 },
             },
             LoweredScalarBranchState {
-                parameter_types: vec![ScalarType::Boolean],
+                parameter_types: vec![ScalarType::Boolean.into()],
                 bindings: Vec::new(),
                 structural_effects: Vec::new(),
                 terminator: LoweredScalarBranchTerminator::Return {
@@ -86,7 +87,8 @@ fn primitive_scalar_source_jump_emits_empty_affine_cleanup() {
                 },
             },
         ],
-        ScalarType::Boolean,
+        ScalarType::Boolean.into(),
+        &terminal_psi::ScalarQualificationCatalog::default(),
         PreparedScalarContract::Empty,
         Vec::new(),
         LoweredContentIdentityReshuffles {
@@ -125,7 +127,7 @@ fn primitive_scalar_source_conditional_emits_empty_affine_cleanup() {
     };
     let states = [
         LoweredScalarBranchState {
-            parameter_types: vec![ScalarType::Boolean],
+            parameter_types: vec![ScalarType::Boolean.into()],
             bindings: Vec::new(),
             structural_effects: Vec::new(),
             terminator: LoweredScalarBranchTerminator::Conditional {
@@ -137,7 +139,7 @@ fn primitive_scalar_source_conditional_emits_empty_affine_cleanup() {
             },
         },
         LoweredScalarBranchState {
-            parameter_types: vec![ScalarType::Boolean],
+            parameter_types: vec![ScalarType::Boolean.into()],
             bindings: Vec::new(),
             structural_effects: Vec::new(),
             terminator: LoweredScalarBranchTerminator::Return {
@@ -145,7 +147,7 @@ fn primitive_scalar_source_conditional_emits_empty_affine_cleanup() {
             },
         },
         LoweredScalarBranchState {
-            parameter_types: vec![ScalarType::Boolean],
+            parameter_types: vec![ScalarType::Boolean.into()],
             bindings: Vec::new(),
             structural_effects: Vec::new(),
             terminator: LoweredScalarBranchTerminator::Return {
@@ -155,7 +157,8 @@ fn primitive_scalar_source_conditional_emits_empty_affine_cleanup() {
     ];
     let lowered = build_scalar_graph_module(
         &states,
-        ScalarType::Boolean,
+        ScalarType::Boolean.into(),
+        &terminal_psi::ScalarQualificationCatalog::default(),
         PreparedScalarContract::Empty,
         Vec::new(),
         LoweredContentIdentityReshuffles {

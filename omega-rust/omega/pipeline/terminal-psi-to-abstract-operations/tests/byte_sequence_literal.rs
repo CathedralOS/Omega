@@ -67,6 +67,7 @@ fn byte_sequence_length_retains_exact_source_result_type_and_rejects_drift() {
         Operation {
             id: operation_id(3),
             result: OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                qualifications: Default::default(),
                 id: semantic_vocabulary::ValueId::new(1).unwrap(),
                 scalar_type: semantic_vocabulary::ScalarType::Integer(
                     semantic_vocabulary::IntegerType::new(
@@ -187,6 +188,7 @@ fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
     let structural_type = StructuralTypeId::new(1).unwrap();
     let literal = place_id(1);
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),

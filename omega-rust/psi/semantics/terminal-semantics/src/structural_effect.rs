@@ -1188,6 +1188,7 @@ mod tests {
             claims: Vec::new(),
         });
         let scalar = OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(47).unwrap(),
             scalar_type: ScalarType::Boolean,
         });
@@ -1335,6 +1336,7 @@ mod tests {
         );
         let mut malformed = operation;
         malformed.result = OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(7).unwrap(),
             scalar_type: ScalarType::Boolean,
         });
@@ -1346,6 +1348,7 @@ mod tests {
         let operation = Operation {
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(2).unwrap(),
                 scalar_type: ScalarType::Integer(
                     IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
@@ -1368,6 +1371,7 @@ mod tests {
         assert_eq!(observation.local_equation(), None);
         let mut wrong_result = operation;
         wrong_result.result = OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(2).unwrap(),
             scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap()),
         });
@@ -1496,6 +1500,7 @@ mod tests {
         let operation = Operation {
             id: OperationId::new(5).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(6).unwrap(),
                 scalar_type: ScalarType::Integer(
                     IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
@@ -1552,6 +1557,7 @@ mod tests {
         assert!(structural_effect_leaf_observation_in(&operation, &drifted).is_err());
         let mut wrong_result = operation;
         wrong_result.result = OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(6).unwrap(),
             scalar_type: count_type,
         });
@@ -1582,6 +1588,7 @@ mod tests {
 
         let mut forged = operation;
         forged.result = OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(4).unwrap(),
             scalar_type: ScalarType::Boolean,
         });
@@ -1625,6 +1632,7 @@ mod tests {
         let operation = Operation {
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Boolean,
             }),
@@ -1647,6 +1655,7 @@ mod tests {
         let boolean = Operation {
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: result,
                 scalar_type: ScalarType::Boolean,
             }),
@@ -1721,6 +1730,7 @@ mod tests {
                 &Operation {
                     id: OperationId::new(2).unwrap(),
                     result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: ValueId::new(1).unwrap(),
                         scalar_type: ScalarType::Boolean,
                     }),

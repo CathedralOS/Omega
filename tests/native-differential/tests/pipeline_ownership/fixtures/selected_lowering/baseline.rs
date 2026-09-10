@@ -45,13 +45,18 @@ pub(crate) fn conditional_exact_binary_artifact_with_values(
     let true_obligation = ObligationId::new(5_031).unwrap();
     let false_obligation = ObligationId::new(5_032).unwrap();
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
-    let declaration = |id, scalar_type| ValueDeclaration { id, scalar_type };
+    let declaration = |id, scalar_type| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     let integer_operation = |id, result, kind| Operation {
         id,
         result: OperationResult::Scalar(declaration(result, scalar_type)),
         kind,
     };
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,

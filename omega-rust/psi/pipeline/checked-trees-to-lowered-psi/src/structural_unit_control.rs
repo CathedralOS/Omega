@@ -110,6 +110,7 @@ pub(super) fn lower_structural_unit_control_machine(
                 .iter()
                 .map(|parameter| {
                     Ok(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value_id(allocate_dense(&mut next_value)?),
                         scalar_type: terminal_scalar_type(parameter.primitive_type)?,
                     })
@@ -605,6 +606,7 @@ pub(super) fn lower_structural_unit_control_machine(
     };
     Ok(LoweredPsi {
         semantic_module: TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
@@ -783,6 +785,7 @@ fn lower_ranked_structural_unit_countdown(
     let backedge = edge_id(4);
     let return_edge = edge_id(5);
     let rank_declaration = ValueDeclaration {
+        qualifications: Default::default(),
         id: rank,
         scalar_type: rank_scalar_type,
     };
@@ -790,6 +793,7 @@ fn lower_ranked_structural_unit_countdown(
         id: machine_id(1),
         attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
         parameters: vec![ValueDeclaration {
+            qualifications: Default::default(),
             id: initial,
             scalar_type: rank_scalar_type,
         }],
@@ -861,6 +865,7 @@ fn lower_ranked_structural_unit_countdown(
                     Operation {
                         id: operation_id(1),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: zero,
                             scalar_type: rank_scalar_type,
                         }),
@@ -871,6 +876,7 @@ fn lower_ranked_structural_unit_countdown(
                     Operation {
                         id: operation_id(2),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: condition,
                             scalar_type: ScalarType::Boolean,
                         }),
@@ -906,6 +912,7 @@ fn lower_ranked_structural_unit_countdown(
                     Operation {
                         id: operation_id(3),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: one,
                             scalar_type: rank_scalar_type,
                         }),
@@ -916,6 +923,7 @@ fn lower_ranked_structural_unit_countdown(
                     Operation {
                         id: operation_id(4),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: next,
                             scalar_type: rank_scalar_type,
                         }),
@@ -961,6 +969,7 @@ fn lower_ranked_structural_unit_countdown(
     };
     let mut lowered = LoweredPsi {
         semantic_module: TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,

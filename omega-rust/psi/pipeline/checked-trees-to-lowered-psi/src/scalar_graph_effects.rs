@@ -34,6 +34,7 @@ pub(crate) fn emit(
                         }
                         let id = emit_direct_expression(argument, values, next_value, operations);
                         Ok(ValueDeclaration {
+                            qualifications: Default::default(),
                             id,
                             scalar_type: argument.scalar_type(),
                         })

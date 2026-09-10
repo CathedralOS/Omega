@@ -71,6 +71,7 @@ fn module(scalar_call: bool) -> TerminalModule {
     let mut caller = machine(1);
     caller.parameters = [1, 2]
         .map(|identity| ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(identity).unwrap(),
             scalar_type: ScalarType::Boolean,
         })
@@ -87,12 +88,14 @@ fn module(scalar_call: bool) -> TerminalModule {
     };
     let call = if scalar_call {
         callee.result = TerminalMachineResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(4).unwrap(),
             scalar_type: ScalarType::Boolean,
         });
         Operation {
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(3).unwrap(),
                 scalar_type: ScalarType::Boolean,
             }),
@@ -119,6 +122,7 @@ fn module(scalar_call: bool) -> TerminalModule {
     };
     caller.blocks[0].operations.push(call);
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: caller.id,
@@ -207,6 +211,7 @@ fn every_disjunct_must_establish_the_same_call_ceiling() {
     for scalar_call in [false, true] {
         let mut module = module(scalar_call);
         module.machines[0].parameters.push(ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(5).unwrap(),
             scalar_type: ScalarType::Boolean,
         });
@@ -262,6 +267,7 @@ fn current_body_values_are_not_entry_requirement_assumptions() {
         Operation {
             id: OperationId::new(2).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(5).unwrap(),
                 scalar_type: ScalarType::Boolean,
             }),
@@ -459,6 +465,7 @@ fn proving_one_alternative_does_not_reset_the_whole_union_conversion_budget() {
         let mut checked = module(scalar_call);
         checked.machines[0].parameters = (10_u64..1110)
             .map(|identity| ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(identity).unwrap(),
                 scalar_type: ScalarType::Boolean,
             })

@@ -254,6 +254,7 @@ mod tests {
             id: owner,
             attachment: None,
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: parameter,
                 scalar_type,
             }],
@@ -282,6 +283,7 @@ mod tests {
         let owner = semantic_id(1, MachineId::new);
         let parameter = semantic_id(1, ValueId::new);
         TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: owner,
@@ -333,6 +335,7 @@ mod tests {
         let owner = module.entry;
         let result = semantic_id(2, ValueId::new);
         module.machines[0].result = TerminalMachineResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: result,
             scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
         });
@@ -355,12 +358,14 @@ mod tests {
             id: block,
             structural_parameters: Vec::new(),
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: semantic_id(3, ValueId::new),
                 scalar_type: ScalarType::IeeeFloat(format),
             }],
             operations: vec![Operation {
                 id: producer,
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: result,
                     scalar_type: ScalarType::IeeeFloat(format),
                 }),
@@ -888,6 +893,7 @@ mod tests {
 
         let mut redirected_to_machine_result = module.clone();
         let machine_result = ValueDeclaration {
+            qualifications: Default::default(),
             id: semantic_id(4, ValueId::new),
             scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
         };

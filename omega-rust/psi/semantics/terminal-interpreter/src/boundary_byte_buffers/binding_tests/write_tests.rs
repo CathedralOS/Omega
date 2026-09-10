@@ -148,6 +148,7 @@ fn dominated_mutable_block_parameter_supports_fresh_length_and_write() {
                 Operation {
                     id: OperationId::new(1).unwrap(),
                     result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: scalar(3),
                         scalar_type: ScalarType::Integer(
                             IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
@@ -382,6 +383,7 @@ fn fixed_view_write_survives_suspension_nested_return_and_preserves_immutable_ta
         Operation {
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: scalar(3),
                 scalar_type: ScalarType::Integer(
                     IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),

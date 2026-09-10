@@ -69,6 +69,7 @@ fn owned_execution(
         parameter.place = PlaceId::new(position as u64 + 3).unwrap();
     }
     let integer_read = ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(3).unwrap(),
         scalar_type: unsigned(0).scalar_type(),
     };
@@ -84,6 +85,7 @@ fn owned_execution(
         Operation {
             id: OperationId::new(2).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(4).unwrap(),
                 scalar_type: ScalarType::Boolean,
             }),
@@ -132,6 +134,7 @@ fn owned_execution(
             }))
             .collect();
     machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(9).unwrap(),
         scalar_type: integer_read.scalar_type,
     });

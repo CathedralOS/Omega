@@ -8,6 +8,7 @@ fn length_operation(ordinal: u64, source: u64) -> Operation {
     Operation {
         id: operation_id(ordinal),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(ordinal),
             scalar_type: byte_count_type(),
         }),
@@ -19,6 +20,7 @@ fn length_operation(ordinal: u64, source: u64) -> Operation {
 
 fn return_length(machine: &mut TerminalMachine, result: u64, edge: u64) {
     machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(result + 100),
         scalar_type: byte_count_type(),
     });
@@ -116,8 +118,8 @@ fn literal_lengths_are_exact_u64_and_meter_once_across_resume() {
 #[test]
 fn byte_sequence_length_artifact_rejects_stale_vocabulary() {
     let semantic = encode_module(&literal_module(vec![0xff])).unwrap();
-    assert_eq!(&semantic[10..12], &94_u16.to_le_bytes());
-    for generation in [90_u16, 91, 92, 93, 95] {
+    assert_eq!(&semantic[10..12], &95_u16.to_le_bytes());
+    for generation in [90_u16, 91, 92, 93, 94, 96] {
         let mut stale = semantic.clone();
         stale[10..12].copy_from_slice(&generation.to_le_bytes());
         assert!(decode_module(&stale).is_err());
@@ -135,6 +137,7 @@ fn verifier_rejects_wrong_length_result_and_unknown_or_unestablished_source() {
         let mut module = base.clone();
         module.machines[0].blocks[0].operations[1].result =
             OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(2),
                 scalar_type,
             });

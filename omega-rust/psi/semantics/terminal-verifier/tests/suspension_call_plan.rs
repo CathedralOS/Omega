@@ -27,34 +27,42 @@ fn cpu_local() -> CarryPolicy {
 fn fixture() -> TerminalModule {
     let boolean = semantic_vocabulary::ScalarType::Boolean;
     let caller_parameter = ValueDeclaration {
+        qualifications: Default::default(),
         id: id(1),
         scalar_type: boolean,
     };
     let second_parameter = ValueDeclaration {
+        qualifications: Default::default(),
         id: id(2),
         scalar_type: boolean,
     };
     let caller_result = ValueDeclaration {
+        qualifications: Default::default(),
         id: id(3),
         scalar_type: boolean,
     };
     let local = ValueDeclaration {
+        qualifications: Default::default(),
         id: id(4),
         scalar_type: boolean,
     };
     let call_result = ValueDeclaration {
+        qualifications: Default::default(),
         id: id(5),
         scalar_type: boolean,
     };
     let callee_parameter = ValueDeclaration {
+        qualifications: Default::default(),
         id: id(6),
         scalar_type: boolean,
     };
     let callee_result = ValueDeclaration {
+        qualifications: Default::default(),
         id: id(7),
         scalar_type: boolean,
     };
     let second_call_result = ValueDeclaration {
+        qualifications: Default::default(),
         id: id(8),
         scalar_type: boolean,
     };
@@ -67,6 +75,7 @@ fn fixture() -> TerminalModule {
         effective,
     };
     let mut module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: id(1),

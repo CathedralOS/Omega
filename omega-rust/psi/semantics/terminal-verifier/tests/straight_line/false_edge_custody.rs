@@ -14,6 +14,7 @@ fn integer_type() -> IntegerType {
 }
 fn declaration(identity: u64) -> ValueDeclaration {
     ValueDeclaration {
+        qualifications: Default::default(),
         id: value(identity),
         scalar_type: ScalarType::Integer(integer_type()),
     }
@@ -33,6 +34,7 @@ fn comparison(identity: u64, result: u64, operand: u64) -> Operation {
     Operation {
         id: OperationId::new(identity).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: value(result),
             scalar_type: ScalarType::Boolean,
         }),

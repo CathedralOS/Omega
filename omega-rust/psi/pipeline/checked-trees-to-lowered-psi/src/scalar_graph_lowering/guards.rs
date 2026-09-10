@@ -8,7 +8,7 @@ pub(super) fn lower(
     state: symbols::SymbolHandle,
     statement: u32,
     bindings: &storage::ScalarBindings,
-    source_types: &[ScalarType],
+    source_types: &[QualifiedScalarType],
     when_true: (usize, Vec<LoweredDirectExpression>),
     when_false: (usize, Vec<LoweredDirectExpression>),
     fallback: &CheckedScalarBranchDestination,
@@ -43,7 +43,7 @@ pub(super) fn lower(
             return unsupported("checked scalar graph guard must be Boolean");
         };
         validate_short_circuit_expression(&expression)?;
-        validate_boolean_parameter_types(&expression, source_types)?;
+        validate_boolean_parameter_types(&expression, &scalar_carriers(source_types))?;
         *expression
     };
     let branch = LoweredScalarBranchTerminator::Conditional {
@@ -59,7 +59,7 @@ pub(super) fn lower(
     // Branch arguments still refer to the unchanged source prefix. Only the
     // condition consumes the appended result; neither arm starts before it.
     let mut parameter_types = source_types.to_vec();
-    parameter_types.push(ScalarType::Boolean);
+    parameter_types.push(ScalarType::Boolean.into());
     let target = computations.push(LoweredScalarBranchState {
         structural_effects: Vec::new(),
         parameter_types,
@@ -73,7 +73,7 @@ pub(super) fn lower(
         symbols::SymbolHandle::invalid(),
         bindings,
         source_types,
-        ScalarType::Boolean,
+        ScalarType::Boolean.into(),
         target,
     )?;
     Ok(LoweredScalarBranchTerminator::Jump {

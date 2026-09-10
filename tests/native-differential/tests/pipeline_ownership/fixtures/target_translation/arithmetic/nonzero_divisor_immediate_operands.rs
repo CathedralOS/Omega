@@ -22,6 +22,7 @@ pub(super) fn nonzero_divisor_integer_immediate_operands_return_artifact(
     let operation_result = ValueId::new(84_008).unwrap();
     let obligation = ObligationId::new(84_011).unwrap();
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -55,6 +56,7 @@ pub(super) fn nonzero_divisor_integer_immediate_operands_return_artifact(
             structural_parameters: Vec::new(),
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(84_010).unwrap(),
                 scalar_type: ScalarType::Integer(scalar_type),
             }),
@@ -73,6 +75,7 @@ pub(super) fn nonzero_divisor_integer_immediate_operands_return_artifact(
                     Operation {
                         id: OperationId::new(84_003).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: left_result,
                             scalar_type: ScalarType::Integer(scalar_type),
                         }),
@@ -81,6 +84,7 @@ pub(super) fn nonzero_divisor_integer_immediate_operands_return_artifact(
                     Operation {
                         id: OperationId::new(84_005).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: right_result,
                             scalar_type: ScalarType::Integer(scalar_type),
                         }),
@@ -89,6 +93,7 @@ pub(super) fn nonzero_divisor_integer_immediate_operands_return_artifact(
                     Operation {
                         id: OperationId::new(84_007).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: operation_result,
                             scalar_type: ScalarType::Integer(scalar_type),
                         }),

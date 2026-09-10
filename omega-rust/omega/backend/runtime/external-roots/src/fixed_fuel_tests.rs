@@ -203,6 +203,7 @@ fn terminal_fixture() -> TerminalModule {
     let block = BlockId::new(0x7201).expect("block identity");
     let final_block = BlockId::new(0x7202).expect("final block identity");
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -305,6 +306,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
     let return_edge = core_id(0x7425, EdgeId::new);
 
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -338,6 +340,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: initial,
                 scalar_type: scalar,
             }],
@@ -393,6 +396,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
                     structural_parameters: Vec::new(),
                     id: header,
                     parameters: vec![ValueDeclaration {
+                        qualifications: Default::default(),
                         id: rank,
                         scalar_type: scalar,
                     }],
@@ -400,6 +404,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
                         Operation {
                             id: core_id(0x7431, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
+                                qualifications: Default::default(),
                                 id: zero,
                                 scalar_type: scalar,
                             }),
@@ -410,6 +415,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
                         Operation {
                             id: core_id(0x7432, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
+                                qualifications: Default::default(),
                                 id: condition,
                                 scalar_type: ScalarType::Boolean,
                             }),
@@ -445,6 +451,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
                         Operation {
                             id: core_id(0x7433, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
+                                qualifications: Default::default(),
                                 id: one,
                                 scalar_type: scalar,
                             }),
@@ -455,6 +462,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
                         Operation {
                             id: core_id(0x7434, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
+                                qualifications: Default::default(),
                                 id: next,
                                 scalar_type: scalar,
                             }),

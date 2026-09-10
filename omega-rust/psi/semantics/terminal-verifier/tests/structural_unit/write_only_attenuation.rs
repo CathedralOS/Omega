@@ -119,6 +119,7 @@ fn give_receiver_call_scalar_result(module: &mut TerminalModule) {
     let structural_arguments = call_arguments(module).clone();
     let operation = &mut module.machines[0].blocks[0].operations[0];
     operation.result = OperationResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(1).unwrap(),
         scalar_type: ScalarType::Boolean,
     });
@@ -132,12 +133,14 @@ fn give_receiver_call_scalar_result(module: &mut TerminalModule) {
     };
     let callee = &mut module.machines[1];
     callee.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(2).unwrap(),
         scalar_type: ScalarType::Boolean,
     });
     callee.blocks[0].operations.push(Operation {
         id: operation_id(2),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(3).unwrap(),
             scalar_type: ScalarType::Boolean,
         }),
