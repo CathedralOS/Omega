@@ -3384,7 +3384,9 @@ fn register_home_validation_cannot_reenter_its_producer() {
     let validation = recursive_rust_source(&stage.join("validate"));
     for forbidden in [
         "crate::allocation::home_assignment::compute",
+        "crate::assignment::home_assignment::compute",
         "super::super::compute",
+        "PreparedConflicts",
         "build_domains",
         "candidate_conflicts",
         "select_domain",
@@ -3398,7 +3400,8 @@ fn register_home_validation_cannot_reenter_its_producer() {
         "struct ReplayDomain",
         "fn reconstruct(",
         "fn viable_candidates(",
-        "fn unassigned_constraint_degree(",
+        "fn constrained(",
+        "Reverse(remaining_neighbors[",
         "fn replay_function(",
     ] {
         assert!(
@@ -3409,7 +3412,7 @@ fn register_home_validation_cannot_reenter_its_producer() {
     for forbidden in [
         "ReplayDomain",
         "viable_candidates",
-        "unassigned_constraint_degree",
+        "remaining_neighbors",
         "replay_function",
     ] {
         assert!(

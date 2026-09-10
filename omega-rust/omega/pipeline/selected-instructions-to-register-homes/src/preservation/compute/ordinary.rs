@@ -16,9 +16,9 @@ pub(super) fn derive(
         return Err(AllocatedCalleeSavedRequirementError::FunctionRosterMismatch);
     }
     for (function, homes) in selected.iter().zip(homes) {
-        if function.machine != homes.machine
-            || function.virtual_registers.len() != homes.assignments.len()
-        {
+        // Allocation replay already establishes the exact physical home roster;
+        // dead semantic parameters remain selected without requiring a home.
+        if function.machine != homes.machine {
             return Err(AllocatedCalleeSavedRequirementError::HomeRosterMismatch);
         }
         traversal.function_count = add(traversal.function_count, 1)?;

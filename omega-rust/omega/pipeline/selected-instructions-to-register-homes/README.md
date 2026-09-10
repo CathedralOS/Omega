@@ -49,10 +49,19 @@ The producer prepares domain-pair interference, both directional early-clobber
 relations, and candidate view lookups once per allocation attempt. These private
 facts avoid repeating source scans during greedy placement; they do not change
 candidate order, ranking, error order, or the independently reconstructed result.
+Each new assignment can only remove viable views from remaining domains.
+Producer and replay retain their own candidate sets and remaining constraint
+counts, applying only the newest assignment instead of rescanning earlier ones.
+Replay reconstructs its relationships from current ranges, not the producer's
+prepared facts. Initial view validation keeps the original error order.
+Genuinely empty physical ranges need no home: selected semantic registers can
+remain for exact bindings, but empty legality must also have no occurrences,
+fixed claims, transfers, ties, or other physical constraints. Independent home
+replay checks the precise resulting roster before preservation or emission.
 
 Selection prepares scalar edge copies as ordinary instructions in explicit
-implementation blocks. Only the final transfer register and destination parameter
-must share a home; original arguments and snapshots remain independently live.
+implementation blocks. A live destination parameter and its final transfer
+register must share a home; original arguments and snapshots remain independently live.
 The allocator retains its interference and tied-home checks. Recovery that
 requires an authored node must match a `Source` block origin, not the semantic
 target anchor of an edge-copy block.
@@ -74,15 +83,26 @@ transformed identity and are independently reconstructed.
 
 Without an optional recovery selection, genuine `NoCompatibleHome` pressure
 can enter [runtime spill recovery](src/assignment/runtime_spill/mod.rs). It
-visits a finite roster of original instruction-result values, restricted to the
-failing function and values interfering with its failed register. The selected
-rewrite owner admits ordinary nonaddress fixed 8/16/32/64-bit integer, Boolean,
-and GPR-resident IEEE
-payloads in a single returning block, preserving exact scalar type and
-source-definition lineage, storing once, and reloading at
-each flexible use. Rewritten values and spill addresses never expand the
-candidate roster. Each cumulative rewrite gets fresh liveness, ranges,
-legality, and homes; independent replay reconstructs each pressure failure,
+visits a finite roster of original instruction-result and block-parameter values,
+restricted to the failing function and values interfering with its failed
+register. The selected rewrite owner admits ordinary nonaddress fixed
+8/16/32/64-bit integer, Boolean, and GPR-resident IEEE payloads with one
+instruction definition dominating their uses in an acyclic function.
+Same-block uses must follow the definition. An edge-copy snapshot can
+retain a semantic block-parameter identity without being a physical entry
+parameter. Actual block parameters require a separate complete incoming-edge
+join: every predecessor is a dedicated edge-transfer block whose authentic
+argument is stored immediately after its defining copy, before reaching the
+destination. That destination must dominate every reload, which retains the
+parameter's exact type and lineage. Entry reachability with the initialization
+block removed detects any path that could bypass the store.
+Original bindings and registers remain intact; the now-unused parameter no
+longer contributes a live edge tie. Entry parameters, unsupported incoming paths,
+uses reachable without initialization, terminal/edge uses, and
+cyclic/ranked functions still reject. Only changed blocks' settlement indices
+move; edges and other blocks remain identical. Rewritten values and spill
+addresses never expand the candidate roster. Each cumulative rewrite gets fresh
+liveness, ranges, legality, and homes; independent replay reconstructs each pressure failure,
 rewrite, and final fact/manifest join. The current allocation view remains the
 same downstream representation. The manifest records exact transformed
 identities and realized selected storage, not final frame authority.

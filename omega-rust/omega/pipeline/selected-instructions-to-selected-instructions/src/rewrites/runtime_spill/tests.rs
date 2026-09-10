@@ -15,6 +15,9 @@ use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 use super::*;
 
+mod control_flow;
+mod dominance;
+mod parameters;
 mod scalar_payloads;
 
 fn budget() -> OptimizationWorkBudget {

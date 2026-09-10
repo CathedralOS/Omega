@@ -32,8 +32,16 @@ pub(super) fn build_domains<'a>(
     legality: &'a crate::FunctionAllocationLegality,
     ranges: &crate::FunctionLiveRanges,
 ) -> Result<Vec<AllocationDomain<'a>>, RegisterHomeError> {
+    for (register, range) in legality
+        .virtual_registers
+        .iter()
+        .zip(&ranges.virtual_registers)
+    {
+        super::super::physical_requirement::validate(function, register, range, ranges)?;
+    }
     tied_components(function, legality, ranges)?
         .into_iter()
+        .filter(|members| members.iter().any(|member| !member.points.is_empty()))
         .map(|members| {
             let edge = ranges.edge_transfers.iter().find(|edge| {
                 members
