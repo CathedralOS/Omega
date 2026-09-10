@@ -79,7 +79,9 @@ impl<'checked> CheckedScalarCallee<'checked> {
                 // contract lowering. An ordered body is borrowed only when it
                 // owns a real scalar completion; the shared Unit assembler
                 // validates its authored result, contracts and refinements.
-                let Some(plan) = operation_body.filter(|plan| plan.scalar_result.is_some()) else {
+                let Some(plan) = operation_body
+                    .filter(|plan| plan.scalar_result.is_some() || plan.scalar_control.is_some())
+                else {
                     return unsupported("scalar callee has no checked executable body");
                 };
                 if plan.structural_result.is_some() {
@@ -184,10 +186,16 @@ impl<'checked> CheckedScalarCallee<'checked> {
             Self::Operations(plan) => plan
                 .scalar_result
                 .as_ref()
+                .map(|result| result.primitive_type)
+                .or_else(|| {
+                    plan.scalar_control
+                        .as_ref()
+                        .map(|control| control.primitive_type)
+                })
                 .ok_or(LoweringError::Unsupported(
                     "scalar operation body has no checked scalar result",
                 ))
-                .and_then(|result| terminal_scalar_type(result.primitive_type)),
+                .and_then(terminal_scalar_type),
         }
     }
 

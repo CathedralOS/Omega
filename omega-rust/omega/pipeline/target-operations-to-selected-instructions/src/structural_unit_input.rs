@@ -72,7 +72,10 @@ pub(crate) fn accepts_write_borrow(
         return false;
     };
     let result_shape = call_plan.result.as_ref().map(|placement| placement.shape);
-    if result_shape.is_some_and(|shape| shape != calling_conventions::ValueShape::integer(8, 8)) {
+    if result_shape.is_some_and(|shape| {
+        ![1, 2, 4, 8].contains(&shape.byte_size)
+            || shape != calling_conventions::ValueShape::integer(shape.byte_size, shape.byte_size)
+    }) {
         return false;
     }
     let mut shapes = call_plan.parameters[..scalar_count]

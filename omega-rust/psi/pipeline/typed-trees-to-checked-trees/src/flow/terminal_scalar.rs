@@ -322,128 +322,8 @@ fn build_machine_graph(
                     )
                 })
                 .count();
-            let terminator_ordinal = u32::try_from(binding_count).ok()?;
-            let terminator = match &statements[binding_count..] {
-                [StatementNode::Expression(_)] => CheckedScalarStateTerminator::Return {
-                    statement_ordinal: terminator_ordinal,
-                },
-                [StatementNode::Transition(transition)]
-                    if transition.exit == TransitionExit::Ordinary
-                        && transition.guard == TransitionGuardNode::Always
-                        && !transition.continuation.is_valid()
-                        && matches!(
-                            program.statement_table.transition_target(transition.target),
-                            TransitionTargetNode::Value(_)
-                        ) =>
-                {
-                    CheckedScalarStateTerminator::Return {
-                        statement_ordinal: terminator_ordinal,
-                    }
-                }
-                [StatementNode::Transition(transition)]
-                    if matches!(transition.exit, TransitionExit::Crash(_))
-                        && transition.guard == TransitionGuardNode::Always
-                        && !transition.continuation.is_valid()
-                        && program
-                            .statement_table
-                            .transition_target_is_valid(transition.target)
-                        && matches!(
-                            program.statement_table.transition_target(transition.target),
-                            TransitionTargetNode::Terminal
-                        ) =>
-                {
-                    CheckedScalarStateTerminator::Crash {
-                        statement_ordinal: terminator_ordinal,
-                    }
-                }
-                [
-                    StatementNode::Transition(when_true),
-                    StatementNode::Transition(when_false),
-                ] if matches!(when_true.guard, TransitionGuardNode::When(_))
-                    && (when_false.guard == TransitionGuardNode::Always
-                        || guards::complementary(
-                            expressions,
-                            state.symbol,
-                            terminator_ordinal,
-                        ))
-                    && !when_true.continuation.is_valid()
-                    && !when_false.continuation.is_valid() =>
-                {
-                    CheckedScalarStateTerminator::Conditional {
-                        guard_statement_ordinal: terminator_ordinal,
-                        when_true: checked_branch_destination(
-                            program,
-                            machine,
-                            terminator_ordinal,
-                            when_true,
-                            false,
-                        )?,
-                        when_false: checked_branch_destination(
-                            program,
-                            machine,
-                            terminator_ordinal.checked_add(1)?,
-                            when_false,
-                            false,
-                        )?,
-                    }
-                }
-                [StatementNode::Transition(transition)]
-                    if matches!(transition.guard, TransitionGuardNode::When(_))
-                        && transition.continuation.is_valid() =>
-                {
-                    CheckedScalarStateTerminator::Conditional {
-                        guard_statement_ordinal: terminator_ordinal,
-                        when_true: checked_branch_destination(
-                            program,
-                            machine,
-                            terminator_ordinal,
-                            transition,
-                            false,
-                        )?,
-                        when_false: checked_branch_destination(
-                            program,
-                            machine,
-                            terminator_ordinal,
-                            transition,
-                            true,
-                        )?,
-                    }
-                }
-                [
-                    StatementNode::Transition(transition),
-                    StatementNode::Expression(_),
-                ] if matches!(transition.guard, TransitionGuardNode::When(_))
-                    && !transition.continuation.is_valid() =>
-                {
-                    CheckedScalarStateTerminator::Conditional {
-                        guard_statement_ordinal: terminator_ordinal,
-                        when_true: checked_branch_destination(
-                            program,
-                            machine,
-                            terminator_ordinal,
-                            transition,
-                            false,
-                        )?,
-                        when_false: CheckedScalarBranchDestination::Return {
-                            statement_ordinal: terminator_ordinal.checked_add(1)?,
-                            is_continuation: false,
-                        },
-                    }
-                }
-                [StatementNode::Transition(transition)]
-                    if transition.guard == TransitionGuardNode::Always
-                        && !transition.continuation.is_valid() =>
-                {
-                    CheckedScalarStateTerminator::Jump(checked_successor(
-                        program,
-                        machine,
-                        terminator_ordinal,
-                        transition,
-                        false,
-                    )?)
-                }
-                _ => return None,
-            };
+            let terminator =
+                checked_terminator(program, machine, state, expressions, binding_count)?;
             Some((
                 CheckedScalarStateGraph {
                     state: state.symbol,
@@ -693,6 +573,135 @@ fn checked_successor(
             .ok()?,
         structural_transfers: arena::HandleSpan::empty(),
         scalar_arguments: arena::HandleSpan::empty(),
+    })
+}
+
+/// Retain authored exit coordinates independently of the preceding operation values.
+pub(super) fn checked_terminator(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expressions: &checked_trees::CheckedScalarExpressionPlans,
+    binding_count: usize,
+) -> Option<CheckedScalarStateTerminator> {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let terminator_ordinal = u32::try_from(binding_count).ok()?;
+    Some(match &statements[binding_count..] {
+        [StatementNode::Expression(_)] => CheckedScalarStateTerminator::Return {
+            statement_ordinal: terminator_ordinal,
+        },
+        [StatementNode::Transition(transition)]
+            if transition.exit == TransitionExit::Ordinary
+                && transition.guard == TransitionGuardNode::Always
+                && !transition.continuation.is_valid()
+                && matches!(
+                    program.statement_table.transition_target(transition.target),
+                    TransitionTargetNode::Value(_)
+                ) =>
+        {
+            CheckedScalarStateTerminator::Return {
+                statement_ordinal: terminator_ordinal,
+            }
+        }
+        [StatementNode::Transition(transition)]
+            if matches!(transition.exit, TransitionExit::Crash(_))
+                && transition.guard == TransitionGuardNode::Always
+                && !transition.continuation.is_valid()
+                && program
+                    .statement_table
+                    .transition_target_is_valid(transition.target)
+                && matches!(
+                    program.statement_table.transition_target(transition.target),
+                    TransitionTargetNode::Terminal
+                ) =>
+        {
+            CheckedScalarStateTerminator::Crash {
+                statement_ordinal: terminator_ordinal,
+            }
+        }
+        [
+            StatementNode::Transition(when_true),
+            StatementNode::Transition(when_false),
+        ] if matches!(when_true.guard, TransitionGuardNode::When(_))
+            && (when_false.guard == TransitionGuardNode::Always
+                || guards::complementary(expressions, state.symbol, terminator_ordinal))
+            && !when_true.continuation.is_valid()
+            && !when_false.continuation.is_valid() =>
+        {
+            CheckedScalarStateTerminator::Conditional {
+                guard_statement_ordinal: terminator_ordinal,
+                when_true: checked_branch_destination(
+                    program,
+                    machine,
+                    terminator_ordinal,
+                    when_true,
+                    false,
+                )?,
+                when_false: checked_branch_destination(
+                    program,
+                    machine,
+                    terminator_ordinal.checked_add(1)?,
+                    when_false,
+                    false,
+                )?,
+            }
+        }
+        [StatementNode::Transition(transition)]
+            if matches!(transition.guard, TransitionGuardNode::When(_))
+                && transition.continuation.is_valid() =>
+        {
+            CheckedScalarStateTerminator::Conditional {
+                guard_statement_ordinal: terminator_ordinal,
+                when_true: checked_branch_destination(
+                    program,
+                    machine,
+                    terminator_ordinal,
+                    transition,
+                    false,
+                )?,
+                when_false: checked_branch_destination(
+                    program,
+                    machine,
+                    terminator_ordinal,
+                    transition,
+                    true,
+                )?,
+            }
+        }
+        [
+            StatementNode::Transition(transition),
+            StatementNode::Expression(_),
+        ] if matches!(transition.guard, TransitionGuardNode::When(_))
+            && !transition.continuation.is_valid() =>
+        {
+            CheckedScalarStateTerminator::Conditional {
+                guard_statement_ordinal: terminator_ordinal,
+                when_true: checked_branch_destination(
+                    program,
+                    machine,
+                    terminator_ordinal,
+                    transition,
+                    false,
+                )?,
+                when_false: CheckedScalarBranchDestination::Return {
+                    statement_ordinal: terminator_ordinal.checked_add(1)?,
+                    is_continuation: false,
+                },
+            }
+        }
+        [StatementNode::Transition(transition)]
+            if transition.guard == TransitionGuardNode::Always
+                && !transition.continuation.is_valid() =>
+        {
+            CheckedScalarStateTerminator::Jump(checked_successor(
+                program,
+                machine,
+                terminator_ordinal,
+                transition,
+                false,
+            )?)
+        }
+        _ => return None,
     })
 }
 

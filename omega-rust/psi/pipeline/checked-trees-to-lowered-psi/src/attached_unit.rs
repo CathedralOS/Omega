@@ -451,9 +451,10 @@ fn assemble_unit_closure(
             && machine.machine == entry
             && machine.structural_result.is_none()
             && machine.scalar_result.is_none()
+            && machine.scalar_control.is_none()
             && matches!(machine.operations.as_slice(), [CheckedUnitEffectOperationPlan::Complete { statement_index: 0, trivial_affine_local_discard_ordinals, trivial_affine_discards }] if trivial_affine_local_discard_ordinals.is_empty() && trivial_affine_discards.is_empty());
         if !synthetic_cleanup_entry {
-            if machine.scalar_result.is_some() {
+            if machine.scalar_result.is_some() || machine.scalar_control.is_some() {
                 scalar_completion::validate(checked, machine)?;
             } else {
                 scalar_arrays::validate_result(checked, machine)?;
@@ -1225,7 +1226,9 @@ fn assemble_unit_closure(
                 |(source, requirements)| {
                     plans
                         .for_machine(*source)
-                        .filter(|plan| plan.scalar_result.is_some())
+                        .filter(|plan| {
+                            plan.scalar_result.is_some() || plan.scalar_control.is_some()
+                        })
                         .map(|_| (*source, requirements.len()))
                 },
             ))
@@ -1768,6 +1771,15 @@ fn assemble_unit_closure(
                     )?;
                     scalar_result_values.truncate(leaf_start);
                     structural_result_places.push((declaration, false));
+                    if *source == checked_trees::CheckedArrayConstructionSource::Statement {
+                        scalar_arrays::bind_local(
+                            checked,
+                            plan,
+                            operation,
+                            declaration.id,
+                            &mut evaluation.array_locals,
+                        )?;
+                    }
                     continue;
                 }
                 CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
@@ -1887,6 +1899,13 @@ fn assemble_unit_closure(
                         &structural_result_places,
                         &mut next_place,
                         &mut operations,
+                    )?;
+                    scalar_arrays::bind_local(
+                        checked,
+                        plan,
+                        operation,
+                        result.0.id,
+                        &mut evaluation.array_locals,
                     )?;
                     structural_result_places.push(result);
                     continue;
@@ -2132,6 +2151,13 @@ fn assemble_unit_closure(
                             },
                             *discard_result_on_return,
                         ));
+                        scalar_arrays::bind_local(
+                            checked,
+                            plan,
+                            operation,
+                            place,
+                            &mut evaluation.array_locals,
+                        )?;
                         continue;
                     }
                     OperationKind::CallUnit {
@@ -3508,6 +3534,30 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
         if next_literal_argument != call_literal_count {
             return unsupported("byte-sequence literal argument consumption is incomplete");
         }
+        let controlled_result = if plan.scalar_control.is_some() {
+            // Prefix values and structural locals are already established. The
+            // completion adds only the selected guard/arm evaluation and join.
+            let mut scalar_calls = CallEmissionContext {
+                machine_ids: &machine_ids,
+                requirement_counts: &scalar_requirement_counts,
+                next_obligation_identity: next_call_obligation,
+                obligation_limit: u64::MAX,
+            };
+            let result = evaluation.scalar_control_result(
+                checked,
+                plan,
+                &mut scalar_result_values,
+                &mut next_value_identity,
+                &mut next_block,
+                &mut next_edge,
+                &mut operations,
+                &mut scalar_calls,
+            )?;
+            next_call_obligation = scalar_calls.next_obligation_identity;
+            Some(result)
+        } else {
+            None
+        };
         next_operation = operations.next_identity;
         let CheckedUnitEffectOperationPlan::Complete {
             trivial_affine_local_discard_ordinals,
@@ -3546,7 +3596,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
             }))
             .collect::<Result<Vec<_>, _>>()?;
         let block = evaluation.current;
-        let scalar_return = plan
+        let mut scalar_return = plan
             .scalar_result
             .as_ref()
             .map(|result| {
@@ -3575,6 +3625,16 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                 ))
             })
             .transpose()?;
+        if let Some(source) = controlled_result {
+            scalar_return = Some((
+                source.id,
+                ValueDeclaration {
+                    qualifications: Default::default(),
+                    id: value_id(allocate_dense(&mut next_value_identity)?),
+                    scalar_type: source.scalar_type,
+                },
+            ));
+        }
         // Completion reserves its own scalar result identity after the body.
         // Include it before the next helper borrows the shared value allocator.
         next_value = next_value_identity;

@@ -270,7 +270,8 @@ exact scalar demand, fuel, and the incoming parameter roster. Local storage does
 not add an ABI parameter or a synthetic aggregate.
 
 The ordinary control graph also composes Boolean and fixed-integer primitive
-writes with a 64-bit integer result. Independent input replay joins the complete mixed ABI,
+writes with Boolean and fixed 8/16/32/64-bit integer results. Independent input
+replay joins the complete mixed ABI,
 exact incoming reference, ordered store source, and scalar return. Selection
 uses the existing pointer store and result constraint; it introduces neither a
 Unit wrapper nor legacy store-byte records. Object/image publication retains

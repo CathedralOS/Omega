@@ -13,7 +13,19 @@ fn fixture(
     TargetOperationPlan,
     PsiOptimizationUnit,
 ) {
-    let scalar = integer(IntegerSign::Unsigned, 64);
+    fixture_with_scalar(native, runtime, access, integer(IntegerSign::Unsigned, 64))
+}
+
+fn fixture_with_scalar(
+    native: NativeTarget,
+    runtime: bool,
+    access: StructuralAccess,
+    scalar: ScalarType,
+) -> (
+    AbstractOperationPlan,
+    TargetOperationPlan,
+    PsiOptimizationUnit,
+) {
     let (mut source, _, _) = super::fixture(native, scalar, !runtime);
     let function = &mut source.functions[0];
     function.structural_parameters[0].access = access;
@@ -32,12 +44,20 @@ fn fixture(
         scalar_type: scalar,
     });
     function.operations.extend([
-        AbstractOperation::IntegerConstant {
+        if scalar == ScalarType::Boolean {
+            AbstractOperation::BooleanConstant {
+                psi_operation: OperationId::new(3).unwrap(),
+                result: returned,
+                value: true,
+            }
+        } else { AbstractOperation::IntegerConstant {
             psi_operation: OperationId::new(3).unwrap(),
             result: returned,
             scalar_type: scalar,
-            value: IntegerValue::Unsigned(0),
-        },
+            value: if matches!(scalar, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed) {
+                IntegerValue::Signed(0)
+            } else { IntegerValue::Unsigned(0) },
+        } },
         AbstractOperation::Return {
             psi_edge,
             result,
@@ -62,6 +82,73 @@ fn graph(target: &mut TargetOperationPlan) -> &mut TargetControlGraph {
         panic!("scalar store graph")
     };
     graph
+}
+
+#[test]
+fn borrowed_primitive_writes_retain_boolean_and_fixed_integer_results() {
+    let scalars = std::iter::once(ScalarType::Boolean).chain(
+        [IntegerSign::Unsigned, IntegerSign::Signed]
+            .into_iter()
+            .flat_map(|sign| [8, 16, 32, 64].map(|bits| integer(sign, bits))),
+    );
+    for scalar in scalars {
+        for native in [
+            NativeTarget::linux_x64(),
+            NativeTarget::linux_arm64(),
+            NativeTarget::macos_arm64(),
+            NativeTarget::windows_x64(),
+        ] {
+            let (source, target, unit) =
+                fixture_with_scalar(native, true, StructuralAccess::MutableBorrow, scalar);
+            let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
+            validate_legalized_operations(&target, &source, &unit, legalized.plan().clone())
+                .unwrap();
+            let environment =
+                register_environment::baseline_target_register_environment(native).unwrap();
+            let constraints = crate::selection_constraints(&legalized, &environment);
+            crate::select_instructions(
+                &legalized,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            for mutation in ["type", "shape", "result identity"] {
+                let mut changed = target.clone();
+                let result = &mut changed.functions[0]
+                    .mixed_structural_scalar_abi
+                    .as_mut()
+                    .unwrap()
+                    .result;
+                match mutation {
+                    "type" => {
+                        result.scalar_type = if scalar == ScalarType::Boolean {
+                            integer(IntegerSign::Unsigned, 8)
+                        } else {
+                            ScalarType::Boolean
+                        }
+                    }
+                    "shape" => result.placement.shape.byte_size = 3,
+                    "result identity" => result.value = ValueId::new(99).unwrap(),
+                    _ => unreachable!(),
+                }
+                assert!(
+                    legalize_target_operations(&changed, &source, &unit).is_err(),
+                    "{scalar:?} {mutation}"
+                );
+                assert!(
+                    validate_legalized_operations(
+                        &changed,
+                        &source,
+                        &unit,
+                        legalized.plan().clone()
+                    )
+                    .is_err(),
+                    "{scalar:?} {mutation}"
+                );
+            }
+        }
+    }
 }
 
 fn store(target: &mut TargetOperationPlan) -> &mut TargetUnitOperation {

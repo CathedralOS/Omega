@@ -1593,9 +1593,13 @@ pub(super) fn build_checked_machine_with(
     let scalar_result = statement_sequence
         .as_ref()
         .and_then(|sequence| sequence.scalar_result);
+    let scalar_control = statement_sequence
+        .as_ref()
+        .and_then(|sequence| sequence.scalar_control.clone());
     if !is_unit(program, state.return_type)
         && structural_result.is_none()
         && scalar_result.is_none()
+        && scalar_control.is_none()
     {
         return None;
     }
@@ -1938,6 +1942,7 @@ pub(super) fn build_checked_machine_with(
 
     Some(CheckedUnitEffectMachinePlan {
         scalar_result,
+        scalar_control,
         structural_result,
         machine: machine.symbol,
         state: state.symbol,

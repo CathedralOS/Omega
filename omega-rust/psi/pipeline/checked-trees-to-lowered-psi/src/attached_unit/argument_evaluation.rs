@@ -3,6 +3,7 @@
 use super::*;
 use checked_trees::CheckedCallScalarArgument;
 
+mod scalar_control;
 mod source_values;
 
 fn prepare_shared_qualifications(
@@ -23,6 +24,7 @@ fn prepare_shared_qualifications(
 }
 
 pub(crate) struct Evaluation {
+    pub(crate) array_locals: Vec<(symbols::SymbolHandle, StructuralArgument)>,
     pub(crate) arrays: Vec<crate::scalar_computations::arrays::Slot>,
     pub primitive_storage: Vec<(symbols::SymbolHandle, PlaceId, ScalarType)>,
     /// State-local storage has its own namespace; it is not an immutable slot.
@@ -80,6 +82,7 @@ impl Evaluation {
     pub(crate) fn new(next_block: &mut u64) -> Result<Self, LoweringError> {
         let entry = block_id(allocate_dense(next_block)?);
         Ok(Self {
+            array_locals: Vec::new(),
             arrays: Vec::new(),
             primitive_storage: Vec::new(),
             scalar_bindings: None,
@@ -189,7 +192,9 @@ impl Evaluation {
             .unwrap_or_else(|| crate::scalar_bindings::ScalarBindings::new(source_value_count))
             .with_structural_parameters(&self.structural_parameters)
             .with_resolved_structural_fields(&self.structural_fields);
-        let source_bindings = source_bindings.with_primitive_storage(&self.primitive_storage);
+        let source_bindings = source_bindings
+            .with_primitive_storage(&self.primitive_storage)
+            .with_array_locals(&self.array_locals);
         let (coordinate, arguments, boundary) = match operation {
             CheckedUnitEffectOperationPlan::CallUnit {
                 coordinate,

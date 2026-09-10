@@ -1297,6 +1297,8 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
     Parameter { parameter_index: u32 },
     /// Exact initialized mutable primitive storage in the caller state.
     PrimitiveLocal { symbol: SymbolHandle },
+    /// Exact immutable owned array declaration; the operation sequence owns its slot.
+    ArrayLocal { symbol: SymbolHandle },
     /// Dense declaration ordinal in the caller's checked trivial-affine-local
     /// table. This source is always the exact whole local.
     TrivialAffineLocal { declaration_ordinal: u32 },
@@ -1354,6 +1356,7 @@ impl CheckedUnitStructuralArgumentPlan {
                 Some(parameter_index)
             }
             CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::ArrayLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
@@ -1368,6 +1371,7 @@ impl CheckedUnitStructuralArgumentPlan {
                 declaration_ordinal,
             } => Some(declaration_ordinal),
             CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::ArrayLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
@@ -1382,6 +1386,7 @@ impl CheckedUnitStructuralArgumentPlan {
                 declaration_ordinal,
             } => Some(declaration_ordinal),
             CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::ArrayLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
@@ -1396,6 +1401,7 @@ impl CheckedUnitStructuralArgumentPlan {
                 Some(binding_ordinal)
             }
             CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::ArrayLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal { .. }
@@ -1408,6 +1414,7 @@ impl CheckedUnitStructuralArgumentPlan {
         match &self.source {
             CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } => Some(bytes),
             CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::ArrayLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
             | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
@@ -1865,8 +1872,8 @@ pub enum CheckedUnitEffectOperationPlan {
     StructuralByteSequenceFieldStore(CheckedStructuralByteSequenceFieldStorePlan),
     StructuralByteSequenceFieldByteStore(CheckedStructuralByteSequenceFieldByteStorePlan),
     ByteSequenceWrite(CheckedByteSequenceWritePlan),
-    /// Finish the body after cleanup, yielding the machine's retained structural
-    /// binding when present and Unit otherwise.
+    /// Finish the body after cleanup, yielding its retained structural/scalar
+    /// binding or scalar control result when present, and Unit otherwise.
     Complete {
         statement_index: u32,
         /// Exact local declaration coordinates cleaned before parameters, in
@@ -1879,9 +1886,18 @@ pub enum CheckedUnitEffectOperationPlan {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedUnitScalarControlPlan {
+    pub primitive_type: PrimitiveType,
+    /// Exact authored conditional and return coordinates after the ordered body.
+    pub terminator: CheckedScalarStateTerminator,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitEffectMachinePlan {
-    /// Final ordinary scalar call result, mutually exclusive with a structural result.
+    /// Final ordinary scalar binding, mutually exclusive with the other completions.
     pub scalar_result: Option<CheckedUnitScalarResultBindingPlan>,
+    /// Scalar control completion, mutually exclusive with either result binding.
+    pub scalar_control: Option<CheckedUnitScalarControlPlan>,
     /// Optional unrestricted structural value returned after ordinary sequencing.
     pub structural_result: Option<CheckedUnitStructuralReturnPlan>,
     pub machine: SymbolHandle,

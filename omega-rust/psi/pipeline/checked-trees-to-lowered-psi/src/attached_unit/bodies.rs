@@ -35,7 +35,8 @@ impl<'a> UnitBody<'a> {
     }
 
     pub(crate) fn result(self) -> Result<checked_trees::CheckedControlResultPlan, LoweringError> {
-        if matches!(self, Self::Ordinary(plan) if plan.scalar_result.is_some()) {
+        if matches!(self, Self::Ordinary(plan) if plan.scalar_result.is_some() || plan.scalar_control.is_some())
+        {
             return unsupported("scalar operation-body result requires a scalar call catalog");
         }
         Ok(match self {

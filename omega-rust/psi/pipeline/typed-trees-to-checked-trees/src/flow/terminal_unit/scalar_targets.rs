@@ -265,9 +265,19 @@ pub(super) fn is_available(
         let Some(plan) = targets.next() else {
             return false;
         };
-        let Some(completion) = &plan.scalar_result else {
-            return false;
+        let primitive_type = match (&plan.scalar_result, &plan.scalar_control) {
+            (Some(completion), None) => completion.primitive_type,
+            (None, Some(completion)) => completion.primitive_type,
+            _ => return false,
         };
+        if plan.scalar_control.as_ref().is_some_and(|completion| {
+            super::control::statement_sequence::scalar_control(program, facts, machine, state)
+                .as_ref()
+                .map(|(expected, _)| expected)
+                != Some(completion)
+        }) {
+            return false;
+        }
         if targets.next().is_some()
             || plan.state != *target_state
             || plan.structural_result.is_some()
@@ -308,18 +318,19 @@ pub(super) fn is_available(
         if attachment != plan.attachment_type_identity
             || structural != plan.structural_parameters
             || scalar != plan.scalar_parameters
-            || plan
-                .operations
-                .iter()
-                .filter(|operation| {
-                    matches!(operation,
-                        CheckedUnitEffectOperationPlan::ScalarCall { result, .. }
-                        | CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. }
-                            if result == completion
-                    )
-                })
-                .count()
-                != 1
+            || plan.scalar_result.as_ref().is_some_and(|completion| {
+                plan.operations
+                    .iter()
+                    .filter(|operation| {
+                        matches!(operation,
+                            CheckedUnitEffectOperationPlan::ScalarCall { result, .. }
+                            | CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. }
+                                if result == completion
+                        )
+                    })
+                    .count()
+                    != 1
+            })
         {
             return false;
         }
@@ -327,7 +338,7 @@ pub(super) fn is_available(
             &plan.structural_parameters,
             &plan.scalar_parameters,
             plan.entry_claims.as_slice(),
-            completion.primitive_type,
+            primitive_type,
         )
     };
     if structural_arguments.len() != structural.len()

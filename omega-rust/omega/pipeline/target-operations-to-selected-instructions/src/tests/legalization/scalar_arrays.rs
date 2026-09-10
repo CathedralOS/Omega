@@ -11,6 +11,7 @@ use terminal_psi::{StructuralMultiplicity, StructuralTypeShape};
 
 mod floating_parameters;
 mod incoming_stack;
+mod primitive_locals;
 
 fn fixture(
     length: u64,

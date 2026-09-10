@@ -2,7 +2,7 @@
 
 use super::*;
 
-pub(super) fn validate_coordinates(
+pub(crate) fn validate_coordinates(
     guard: u32,
     when_true: &CheckedScalarBranchDestination,
     when_false: &CheckedScalarBranchDestination,

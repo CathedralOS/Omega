@@ -39,7 +39,10 @@ pub(super) fn validate(
             )
         }
         (AbstractFunctionResult::Scalar(result), _, Some(abi))
-            if result.scalar_type == ScalarType::Integer(u64_type())
+            if matches!(
+                result.scalar_type,
+                ScalarType::Boolean | ScalarType::Integer(_)
+            ) && scalar_shape(result.scalar_type) == Some(abi.result.placement.shape)
                 && abi.result.value == result.value
                 && abi.result.scalar_type == result.scalar_type
                 && Some(&abi.result.placement) == abi.call_plan.result.as_ref() =>
