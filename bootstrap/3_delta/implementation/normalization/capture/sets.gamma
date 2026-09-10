@@ -3,12 +3,12 @@
 (def capture_sort ((count Int) (bindings Int)) Int
   (if (lt count 2)
     (pair count bindings)
-    (let half Int (/ count 2)
-      (let split Int (capture_split half bindings 0)
-        (let left Int (capture_sort half (first split))
-          (let right Int (capture_sort (- count half) (second split))
-            (capture_union (first left) (second left)
-              (first right) (second right) 0 0)))))))
+    (let ((half Int (/ count 2))
+          (split Int (capture_split half bindings 0))
+          (left Int (capture_sort half (first split)))
+          (right Int (capture_sort (- count half) (second split))))
+      (capture_union (first left) (second left)
+        (first right) (second right) 0 0))))
 
 (def capture_split ((remaining Int) (bindings Int) (prefix Int)) Int
   (if (eq remaining 0)

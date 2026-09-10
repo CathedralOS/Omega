@@ -167,14 +167,23 @@ it does not enter called bodies. During evaluation, ordinary call depth is
 bounded by the 256 live contexts, while tail `if`, tail `let`, and tail calls
 loop or reuse the current activation.
 
+Grouped `let` validation and execution loop over binding rows. They retain one
+saved outer scope and only the current initializer's name coordinates; completed
+initializers do not accumulate temporary-value entries or native return addresses.
+Each binding still occupies its ordinary lexical row. A group's initializer has
+three authored enclosing lists (the `let`, binding list, and binding row), while
+its final expression has one. Census measures these actual lists. The binding
+helper adds one pending native call while evaluating an initializer; reserve two
+additional return addresses per expression level in the bound below.
+
 Function-index search, comparison, and insertion use bounded loops, not
 recursive calls. The evaluator's Alpha call graph has no other recursive cycle.
-A conservative bound of 16 live Alpha return addresses per expression level
+A conservative bound of 18 live Alpha return addresses per expression level
 per active Gamma frame, plus 512 fixed helper slots, is
-`16 * 256 * 257 + 512 = 1,053,184` return addresses, or 8,425,472 bytes. The
+`18 * 256 * 257 + 512 = 1,184,768` return addresses, or 9,478,144 bytes. The
 output buffer stops at `0x0efffffc`, leaving 16,777,220 bytes below Alpha's
 initial `0x10000000` stack pointer. The hidden stack therefore remains more than
-8 MiB above every lower-memory allocation even at the conservative bound.
+6 MiB above every lower-memory allocation even at the conservative bound.
 The pair arena starts at the initial stack pointer and grows upward, while
 every live return address is strictly below it. Its complete-node preflight
 keeps all pair stores below Alpha's `0x70000000` memory end. Pair projection
@@ -191,13 +200,13 @@ exposes an Alpha arithmetic trap as a Gamma outcome. Gamma has no time or fuel
 bound; a nonterminating program diverges.
 
 The selected implementation is
-[`gamma_evaluator.beta`](gamma_evaluator.beta), a 1,632-line,
-46,489-byte addressed Beta program assembling to an 8,355-byte Alpha tape. Its
+[`gamma_evaluator.beta`](gamma_evaluator.beta), a 1,666-line,
+47,748-byte addressed Beta program assembling to an 8,575-byte Alpha tape. Its
 current SHA-256 identities are:
 
 ```text
-Beta source  6f441a73df46b42d0280a31e13a9ed4d55db6a4c39163fb39958f9c8906b11d7
-Alpha tape   324b7eeca5f877240175d42fe69d83083c9d768c60b49772a788823af08a7de4
+Beta source  8b4d2b8d27fb6ab23bd732abf6615012b92c739fb6d7cdb220dbd557c1d8925f
+Alpha tape   ad55c3f18d3c7bd3e1189635bf34ff6595ca97c34afe85412a6127ed2d29e015
 ```
 
 Proper-tail execution, static validation of unreachable bodies, exact resource

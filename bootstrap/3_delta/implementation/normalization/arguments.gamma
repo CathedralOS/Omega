@@ -14,10 +14,10 @@
 
 (def normalization_argument_done
   ((value Int) (payload Int) (depth Int) (frames Int) (state Int)) Int
-  (let total Int (second payload)
-    (let remaining Int (second total)
-      (let nodes Int (second remaining)
-        (let built Int (second nodes)
-          (normalization_arguments (first payload) (first total) (first remaining)
-            (first nodes) (pair value (first built)) (second built)
-            depth frames state))))))
+  (let ((total Int (second payload))
+        (remaining Int (second total))
+        (nodes Int (second remaining))
+        (built Int (second nodes)))
+    (normalization_arguments (first payload) (first total) (first remaining)
+      (first nodes) (pair value (first built)) (second built)
+      depth frames state)))

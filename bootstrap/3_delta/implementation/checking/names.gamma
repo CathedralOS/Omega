@@ -10,11 +10,11 @@
 (def name_child ((children Int) (byte Int)) Int
   (if (eq (first children) 0)
     children
-    (let row Int (second children)
-      (let child_and_rest Int (second row)
-        (if (eq (first row) byte)
-          (first child_and_rest)
-          (name_child (second child_and_rest) byte))))))
+    (let ((row Int (second children))
+          (child_and_rest Int (second row)))
+      (if (eq (first row) byte)
+        (first child_and_rest)
+        (name_child (second child_and_rest) byte)))))
 
 (def name_children_prepend
   ((children Int) (byte Int) (child Int)) Int
@@ -24,16 +24,16 @@
   ((children Int) (byte Int) (child Int)) Int
   (if (eq (first children) 0)
     (fail)
-    (let row Int (second children)
-      (let stored_byte Int (first row)
-        (let child_and_rest Int (second row)
-          (if (eq stored_byte byte)
-            (pair 1 (pair stored_byte (pair child (second child_and_rest))))
-            (pair 1
-              (pair stored_byte
-                (pair (first child_and_rest)
-                  (name_children_replace
-                    (second child_and_rest) byte child))))))))))
+    (let ((row Int (second children))
+          (stored_byte Int (first row))
+          (child_and_rest Int (second row)))
+      (if (eq stored_byte byte)
+        (pair 1 (pair stored_byte (pair child (second child_and_rest))))
+        (pair 1
+          (pair stored_byte
+            (pair (first child_and_rest)
+              (name_children_replace
+                (second child_and_rest) byte child))))))))
 
 ; Trie tags: 0 is absent; 1 carries terminal option and child rows; byte+2
 ; carries one child directly and has no terminal. Long unbranched names need
@@ -99,25 +99,25 @@
         (fail)
         (name_trie_rebuild (name_trie_with_terminal trie payload)
           index depth ancestors))
-      (let byte Int (source_read index)
-        (let child Int (name_trie_child trie byte)
-          (if (first child)
-            (name_trie_descend child end (+ index 1) payload
-              (+ depth 1) (pair trie ancestors))
-            (let inserted Int
-              (name_trie_new_path end (+ index 1) payload child)
-              (name_trie_rebuild (name_trie_with_child trie byte inserted)
-                index depth ancestors))))))))
+      (let ((byte Int (source_read index))
+            (child Int (name_trie_child trie byte)))
+        (if (first child)
+          (name_trie_descend child end (+ index 1) payload
+            (+ depth 1) (pair trie ancestors))
+          (let inserted Int
+            (name_trie_new_path end (+ index 1) payload child)
+            (name_trie_rebuild (name_trie_with_child trie byte inserted)
+              index depth ancestors)))))))
 
 (def name_trie_rebuild
   ((child Int) (index Int) (depth Int) (ancestors Int)) Int
   (if (eq depth 0)
     child
-    (let parent Int (first ancestors)
-      (let previous_index Int (- index 1)
-        (name_trie_rebuild
-          (name_trie_replace_child parent (source_read previous_index) child)
-          previous_index (- depth 1) (second ancestors))))))
+    (let ((parent Int (first ancestors))
+          (previous_index Int (- index 1)))
+      (name_trie_rebuild
+        (name_trie_replace_child parent (source_read previous_index) child)
+        previous_index (- depth 1) (second ancestors)))))
 
 (def name_trie_find_option ((trie Int) (end Int) (index Int)) Int
   (if (eq (first trie) 0)

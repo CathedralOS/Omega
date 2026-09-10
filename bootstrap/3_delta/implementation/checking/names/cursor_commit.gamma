@@ -3,21 +3,20 @@
 ; receives only its absent terminal, preserving all children and payload types.
 ; Commit changes only focus, sharing the unchanged depth/source/ancestor tail.
 (def identity_cursor_commit ((cursor Int) (end Int) (payload Int)) Int
-  (let depth Int (identity_cursor_depth cursor)
-    (let start Int (identity_cursor_source cursor)
-      (let focus Int (identity_cursor_focus cursor)
-        (let index Int (+ start depth)
-          (let updated Int
-            (if (eq (first focus) 0)
-              (name_trie_new_path end index payload focus)
-              (if (eq index end)
-                (if (first (name_trie_terminal focus))
-                  (fail)
-                  (name_trie_with_terminal focus payload))
-                (name_trie_with_child focus (source_read index)
-                  (name_trie_new_path end (+ index 1) payload
-                    (empty_name_children)))))
-            (pair updated (second cursor))))))))
+  (let ((depth Int (identity_cursor_depth cursor))
+        (start Int (identity_cursor_source cursor))
+        (focus Int (identity_cursor_focus cursor))
+        (index Int (+ start depth))
+        (updated Int (if (eq (first focus) 0)
+            (name_trie_new_path end index payload focus)
+            (if (eq index end)
+              (if (first (name_trie_terminal focus))
+                (fail)
+                (name_trie_with_terminal focus payload))
+              (name_trie_with_child focus (source_read index)
+                (name_trie_new_path end (+ index 1) payload
+                  (empty_name_children)))))))
+    (pair updated (second cursor))))
 
 ; Resolution updates an existing admitted identity, never inserts a new row.
 ; Preserve child edges and every earlier immutable root. The caller retains

@@ -8,22 +8,22 @@
   (if (eq remaining 0)
     (compiler_complete
       (gamma_program count (syntax_reverse_nodes count reversed 0)))
-    (let node Int (first forms)
-      (let head Int (syntax_child node 0)
-        (if (token_data (syntax_start head) (syntax_after head))
-          ; Grammar places all data before functions. During this prefix,
-          ; count is zero or the one already-installed shared projection body.
-          (let install Int
-            (if (eq count 0)
-              (lowering_wide_constructor (- (syntax_count node) 2)
-                (second (second (syntax_children node))))
-              0)
-            (lowering_definitions (- remaining 1) (second forms) globals
-              (+ count install)
-              (if install (pair (lowering_projection_definition) reversed) reversed)))
-          (let definition Int (lowering_definition node globals)
-            (lowering_definitions (- remaining 1) (second forms) globals
-              (+ count 1) (pair definition reversed))))))))
+    (let ((node Int (first forms))
+          (head Int (syntax_child node 0)))
+      (if (token_data (syntax_start head) (syntax_after head))
+        ; Grammar places all data before functions. During this prefix,
+        ; count is zero or the one already-installed shared projection body.
+        (let install Int
+          (if (eq count 0)
+            (lowering_wide_constructor (- (syntax_count node) 2)
+              (second (second (syntax_children node))))
+            0)
+          (lowering_definitions (- remaining 1) (second forms) globals
+            (+ count install)
+            (if install (pair (lowering_projection_definition) reversed) reversed)))
+        (let definition Int (lowering_definition node globals)
+          (lowering_definitions (- remaining 1) (second forms) globals
+            (+ count 1) (pair definition reversed)))))))
 
 (def lowering_wide_constructor ((remaining Int) (constructors Int)) Int
   (if (eq remaining 0)
@@ -33,13 +33,12 @@
       (lowering_wide_constructor (- remaining 1) (second constructors)))))
 
 (def lowering_definition ((node Int) (globals Int)) Int
-  (let parameters Int (syntax_child node 2)
-    (let bindings Int
-      (lowering_parameters (syntax_count parameters) (syntax_children parameters)
-        (empty_name_trie) 0)
-      (let body Int (lowering_visit (syntax_child node 4) (first bindings) 0 0 globals)
-        (gamma_definition (gamma_function (syntax_child node 1)) (syntax_count parameters)
-          (syntax_reverse_nodes (syntax_count parameters) (second bindings) 0) body)))))
+  (let ((parameters Int (syntax_child node 2))
+        (bindings Int (lowering_parameters (syntax_count parameters) (syntax_children parameters)
+            (empty_name_trie) 0))
+        (body Int (lowering_visit (syntax_child node 4) (first bindings) 0 0 globals)))
+    (gamma_definition (gamma_function (syntax_child node 1)) (syntax_count parameters)
+      (syntax_reverse_nodes (syntax_count parameters) (second bindings) 0) body)))
 
 ; Only parameters retain a declaration-order spine; local scope needs the trie.
 (def lowering_parameters

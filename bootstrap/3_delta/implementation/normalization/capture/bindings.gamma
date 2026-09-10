@@ -2,20 +2,20 @@
 ; explicit identity, never pair provenance or printed spelling. This ordering
 ; lets small generated prefixes share the tail of existing source batches.
 (def capture_compare_binding ((left Int) (right Int)) Int
-  (let kind Int (gamma_kind left)
-    (let other_kind Int (gamma_kind right)
-      (if (eq kind other_kind)
-        (let left_identity Int (gamma_payload left)
-          (let right_identity Int (gamma_payload right)
-            (if (eq kind 2)
-              (capture_compare_number
-                (syntax_start left_identity) (syntax_start right_identity))
-              (let marker_order Int
-                (capture_compare_number (first left_identity) (first right_identity))
-                (if (eq marker_order 0)
-                  (capture_compare_number (second left_identity) (second right_identity))
-                  marker_order)))))
-        (if (eq kind 4) -1 1)))))
+  (let ((kind Int (gamma_kind left))
+        (other_kind Int (gamma_kind right)))
+    (if (eq kind other_kind)
+      (let ((left_identity Int (gamma_payload left))
+            (right_identity Int (gamma_payload right)))
+        (if (eq kind 2)
+          (capture_compare_number
+            (syntax_start left_identity) (syntax_start right_identity))
+          (let marker_order Int
+            (capture_compare_number (first left_identity) (first right_identity))
+            (if (eq marker_order 0)
+              (capture_compare_number (second left_identity) (second right_identity))
+              marker_order))))
+      (if (eq kind 4) -1 1))))
 
 (def capture_compare_number ((left Int) (right Int)) Int
   (if (eq left right) 0 (if (lt left right) -1 1)))

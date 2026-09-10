@@ -5,9 +5,9 @@
   (name_trie_find_packed_option (global_functions globals) 4 1852399981))
 
 (def reject_entry_schema ((metadata Int)) Int
-  (let declaration Int (- (function_metadata_owner metadata) 1)
-    (let name Int (skip (form_head_end declaration))
-      (compiler_source_rejection 20 name))))
+  (let ((declaration Int (- (function_metadata_owner metadata) 1))
+        (name Int (skip (form_head_end declaration))))
+    (compiler_source_rejection 20 name)))
 
 (def validate_conformance_profile ((metadata Int)) Int
   (if (eq (function_metadata_arity metadata) 1)

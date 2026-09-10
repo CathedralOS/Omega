@@ -11,25 +11,25 @@
 
 (def emission_visit
   ((node Int) (depth Int) (frames Int) (closes Int) (written Int)) Int
-  (let kind Int (gamma_kind node)
-    (let payload Int (gamma_payload node)
-      (if (eq kind 7)
-        (let unary_word Int (gamma_unary_word node)
-          (if unary_word
-            (let prefix Int (emission_write_unary_word unary_word written)
-              (emission_visit (first (second (second payload))) depth frames
-                (+ closes 1) prefix))
-            (let head Int (emission_call_prefix (first payload) 1 written)
-              (emission_arguments (first (second payload)) (second (second payload))
-                depth frames closes head))))
-        (if (eq kind 8)
-          (let initializer_space Int (emission_let_prefix (first payload) 1 written)
-            (emission_visit (first (second payload)) (+ depth 1)
-              (emission_frame 2 (pair (second (second payload)) closes) frames)
-              0 initializer_space))
-          (let atom Int (emit_gamma_atom node 1 written)
-            (let closed Int (emit_closes closes 1 atom)
-              (emission_resume depth frames closed))))))))
+  (let ((kind Int (gamma_kind node))
+        (payload Int (gamma_payload node)))
+    (if (eq kind 7)
+      (let unary_word Int (gamma_unary_word node)
+        (if unary_word
+          (let prefix Int (emission_write_unary_word unary_word written)
+            (emission_visit (first (second (second payload))) depth frames
+              (+ closes 1) prefix))
+          (let head Int (emission_call_prefix (first payload) 1 written)
+            (emission_arguments (first (second payload)) (second (second payload))
+              depth frames closes head))))
+      (if (eq kind 8)
+        (let initializer_space Int (emission_let_prefix (first payload) 1 written)
+          (emission_visit (first (second payload)) (+ depth 1)
+            (emission_frame 2 (pair (second (second payload)) closes) frames)
+            0 initializer_space))
+        (let ((atom Int (emit_gamma_atom node 1 written))
+              (closed Int (emit_closes closes 1 atom)))
+          (emission_resume depth frames closed))))))
 
 ; Nonfinal arguments suspend their siblings and outer closes. A final argument
 ; needs no frame: after it finishes, the current call and outer suffix close.
@@ -53,16 +53,16 @@
   ((depth Int) (frames Int) (written Int)) Int
   (if (eq depth 0)
     written
-    (let kind Int (first frames)
-      (let retained Int (second frames)
-        (let payload Int (first retained)
-          (let previous Int (second retained)
-            (let next_depth Int (- depth 1)
-              (if (eq kind 1)
-                (emission_arguments (first payload) (first (second payload))
-                  next_depth previous (second (second payload)) written)
-                (if (eq kind 2)
-                  (let separator Int (emit_character '\s' 1 written)
-                    (emission_visit (first payload) next_depth previous
-                      (+ (second payload) 1) separator))
-                  (fail))))))))))
+    (let ((kind Int (first frames))
+          (retained Int (second frames))
+          (payload Int (first retained))
+          (previous Int (second retained))
+          (next_depth Int (- depth 1)))
+      (if (eq kind 1)
+        (emission_arguments (first payload) (first (second payload))
+          next_depth previous (second (second payload)) written)
+        (if (eq kind 2)
+          (let separator Int (emit_character '\s' 1 written)
+            (emission_visit (first payload) next_depth previous
+              (+ (second payload) 1) separator))
+          (fail))))))

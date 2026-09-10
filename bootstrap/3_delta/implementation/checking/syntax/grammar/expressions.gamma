@@ -13,51 +13,49 @@
 ; Lexical admission owns integer spelling and range. One-byte arithmetic
 ; punctuation remains valid only as a list head, never as an expression atom.
 (def grammar_expression_atom ((node Int) (count Int) (work Int) (used Int)) Int
-  (let start Int (syntax_start node)
-    (let after Int (syntax_after node)
-      (let byte Int (source_read start)
-        (let valid Int
-          (if (is_digit byte)
+  (let ((start Int (syntax_start node))
+        (after Int (syntax_after node))
+        (byte Int (source_read start))
+        (valid Int (if (is_digit byte)
             1
             (if (if (eq byte 45) (lt (+ start 1) after) 0)
               1
               (if (upper_name_valid start after)
                 1
-                (value_name_valid start after))))
-          (if valid (grammar_run count work used) (grammar_reject node)))))))
+                (value_name_valid start after))))))
+    (if valid (grammar_run count work used) (grammar_reject node))))
 
 (def grammar_expression_head
   ((node Int) (head Int) (depth Int) (count Int) (work Int) (used Int)) Int
-  (let start Int (syntax_start head)
-    (let after Int (syntax_after head)
-      (if (token_if start after)
-        (grammar_if node depth count work used)
-        (if (token_let start after)
-          (grammar_let node depth count work used)
-          (if (token_match start after)
-            (grammar_match node depth count work used)
-            (grammar_application node head depth count work used)))))))
+  (let ((start Int (syntax_start head))
+        (after Int (syntax_after head)))
+    (if (token_if start after)
+      (grammar_if node depth count work used)
+      (if (token_let start after)
+        (grammar_let node depth count work used)
+        (if (token_match start after)
+          (grammar_match node depth count work used)
+          (grammar_application node head depth count work used))))))
 
 ; Call-like heads retain all argument nodes. Their semantic arity is not
 ; converted into syntax rejection by this structural grammar phase.
 (def grammar_application
   ((node Int) (head Int) (depth Int) (count Int) (work Int) (used Int)) Int
-  (let start Int (syntax_start head)
-    (let after Int (syntax_after head)
-      (let valid Int
-        (if (upper_name_valid start after)
-          1
-          (if (value_name_valid start after)
+  (let ((start Int (syntax_start head))
+        (after Int (syntax_after head))
+        (valid Int (if (upper_name_valid start after)
             1
-            (if (operator_arity_plus_one start after)
+            (if (value_name_valid start after)
               1
-              (if (token_bytes_builtin start after)
+              (if (operator_arity_plus_one start after)
                 1
-                (if (token_eq start after) 1 (token_lt start after))))))
-        (if valid
-          (grammar_sequence 1 (- (syntax_count node) 1)
-            (second (syntax_children node)) (+ depth 1) count work used)
-          (grammar_reject head))))))
+                (if (token_bytes_builtin start after)
+                  1
+                  (if (token_eq start after) 1 (token_lt start after))))))))
+    (if valid
+      (grammar_sequence 1 (- (syntax_count node) 1)
+        (second (syntax_children node)) (+ depth 1) count work used)
+      (grammar_reject head))))
 
 (def grammar_if ((node Int) (depth Int) (count Int) (work Int) (used Int)) Int
   (let shape Int (grammar_exact_count node 4)

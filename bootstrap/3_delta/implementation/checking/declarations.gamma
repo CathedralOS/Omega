@@ -16,25 +16,25 @@
       (pair (global_types collected_globals)
         (pair (identity_cursor_finish resolved_constructor_rows)
           (identity_cursor_finish resolved_function_rows))))
-    (let form Int (first forms)
-      (let head Int (syntax_child form 0)
-        (if (token_data (syntax_start head) (syntax_after head))
-          (let checked Int
-            (resolve_collected_data form collected_globals resolved_constructor_rows)
-            (if (eq (first checked) 0)
+    (let ((form Int (first forms))
+          (head Int (syntax_child form 0)))
+      (if (token_data (syntax_start head) (syntax_after head))
+        (let checked Int
+          (resolve_collected_data form collected_globals resolved_constructor_rows)
+          (if (eq (first checked) 0)
+            (resolve_declaration_nodes (- remaining 1) (second forms)
+              collected_globals resolved_function_rows (second checked))
+            checked))
+        (if (token_def (syntax_start head) (syntax_after head))
+          (let ((name Int (syntax_child form 1))
+                (resolved Int (resolve_collected_function form collected_globals)))
+            (if (eq (first resolved) 0)
               (resolve_declaration_nodes (- remaining 1) (second forms)
-                collected_globals resolved_function_rows (second checked))
-              checked))
-          (if (token_def (syntax_start head) (syntax_after head))
-            (let name Int (syntax_child form 1)
-              (let resolved Int (resolve_collected_function form collected_globals)
-                (if (eq (first resolved) 0)
-                  (resolve_declaration_nodes (- remaining 1) (second forms)
-                    collected_globals
-                    (identity_cursor_replace
-                      (identity_cursor_seek resolved_function_rows
-                        (syntax_start name) (syntax_after name))
-                      (syntax_after name) (second resolved))
-                    resolved_constructor_rows)
-                  resolved)))
-            (fail)))))))
+                collected_globals
+                (identity_cursor_replace
+                  (identity_cursor_seek resolved_function_rows
+                    (syntax_start name) (syntax_after name))
+                  (syntax_after name) (second resolved))
+                resolved_constructor_rows)
+              resolved))
+          (fail))))))

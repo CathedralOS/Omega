@@ -12,11 +12,11 @@
           (if (eq end 0)
             (compiler_source_rejection 4 start)
             (validate_source_tokens end)))
-        (let end Int (token_end start)
-          (let code Int (source_token_rejection_code start end)
-            (if (eq code 0)
-              (validate_source_tokens end)
-              (compiler_source_rejection code start))))))))
+        (let ((end Int (token_end start))
+              (code Int (source_token_rejection_code start end)))
+          (if (eq code 0)
+            (validate_source_tokens end)
+            (compiler_source_rejection code start)))))))
 
 ; The first byte is already an identifier start. Scan each tail byte once,
 ; leaving delimiters for the next token. A malformed tail cannot be repaired

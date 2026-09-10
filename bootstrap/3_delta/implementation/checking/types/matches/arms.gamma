@@ -37,17 +37,17 @@
 
 (def typing_resume_arm
   ((type Int) (payload Int) (depth Int) (frames Int) (globals Int)) Int
-  (let context Int (first payload)
-    (let state Int (second payload)
-      (let arms Int (first state)
-        (let coverage Int (second state)
-          (let covered Int (second coverage)
-            (if (if (eq covered 1) 1 (eq type (typing_match_result_type context)))
-              (let agreed Int
-                (if (eq covered 1)
-                  (typing_match_context_types context
-                    (typing_match_constructor_count context) type)
-                  context)
-                (typing_match_next agreed (second arms) (first coverage) covered
-                  depth frames globals))
-              (typing_reject 15 (syntax_child (first arms) 1)))))))))
+  (let ((context Int (first payload))
+        (state Int (second payload))
+        (arms Int (first state))
+        (coverage Int (second state))
+        (covered Int (second coverage)))
+    (if (if (eq covered 1) 1 (eq type (typing_match_result_type context)))
+      (let agreed Int
+        (if (eq covered 1)
+          (typing_match_context_types context
+            (typing_match_constructor_count context) type)
+          context)
+        (typing_match_next agreed (second arms) (first coverage) covered
+          depth frames globals))
+      (typing_reject 15 (syntax_child (first arms) 1)))))

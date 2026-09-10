@@ -2,10 +2,10 @@
 ; cannot denote an unrelated free reference in the initializer or a sibling.
 ; Collect it once and subtract it after visiting both children.
 (def capture_let ((node Int) (state Int) (depth Int) (frames Int)) Int
-  (let payload Int (gamma_payload node)
-    (let expressions Int (second payload)
-      (let retained Int (second state)
-        (capture_visit (first expressions)
-          (pair (first state)
-            (pair (capture_prepend (first payload) (first retained)) (second retained)))
-          (+ depth 1) (capture_frame 2 (second expressions) frames))))))
+  (let ((payload Int (gamma_payload node))
+        (expressions Int (second payload))
+        (retained Int (second state)))
+    (capture_visit (first expressions)
+      (pair (first state)
+        (pair (capture_prepend (first payload) (first retained)) (second retained)))
+      (+ depth 1) (capture_frame 2 (second expressions) frames))))
