@@ -12,6 +12,7 @@ mod float_cast_proofs;
 mod float_destinations;
 mod match_dispatch;
 mod operator_validation;
+pub(crate) use match_dispatch::declared_value_type as declared_dispatch_value_type;
 pub(crate) use match_dispatch::match_children;
 pub use match_dispatch::match_subject_primitive_type;
 pub(crate) use match_dispatch::validate_match_dispatch;

@@ -1,0 +1,8 @@
+machine choose(flag: bool) -> u64 {
+    (match flag {
+        true -> 1u32
+        false -> 4294967296
+    }) as u64
+}
+
+machine main() -> u64 { choose(true) }

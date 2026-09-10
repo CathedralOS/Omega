@@ -210,3 +210,145 @@ fn value_dispatch_arms_land_exact_arithmetic_at_the_result_destination() {
         }
     }
 }
+
+#[test]
+fn anonymous_numeric_trees_land_at_either_typed_integer_peer() {
+    for (anonymous, expected) in [
+        ("18446744073709551616 / 18446744073709551616", 9),
+        ("7 / 2 * 2", 15),
+    ] {
+        for expression in [
+            format!("({anonymous}) | 8u64"),
+            format!("8u64 | ({anonymous})"),
+        ] {
+            let source = format!("machine choose() -> u64 {{ {expression} }}");
+            let (_, execution) = execute(&source, &[]);
+            assert_eq!(
+                execution.value(),
+                TerminalExecutionResult::Scalar(unsigned(expected)),
+                "{expression}"
+            );
+        }
+    }
+}
+
+#[test]
+fn anonymous_match_results_land_at_either_typed_integer_peer() {
+    for dispatch in [
+        "match flag { true -> 18446744073709551616 / 18446744073709551616, false -> 7 / 2 * 2 }",
+        "match flag { true -> match flag { _ -> 18446744073709551616 / 18446744073709551616 }, false -> match flag { _ -> 7 / 2 * 2 } }",
+    ] {
+        for expression in [
+            format!("({dispatch}) | 8u64"),
+            format!("8u64 | ({dispatch})"),
+        ] {
+            let source = format!("machine choose(flag: bool) -> u64 {{ {expression} }}");
+            for (flag, expected) in [(true, 9), (false, 15)] {
+                let (_, execution) = execute(&source, &[TerminalScalarValue::Boolean(flag)]);
+                assert_eq!(
+                    execution.value(),
+                    TerminalExecutionResult::Scalar(unsigned(expected)),
+                    "{expression}; flag={flag}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn anonymous_numeric_trees_land_at_explicit_integer_cast() {
+    for (anonymous, expected) in [
+        ("18446744073709551616 / 18446744073709551616", 1),
+        ("7 / 2 * 2", 7),
+    ] {
+        let source = format!("machine choose() -> u64 {{ ({anonymous}) as u64 }}");
+        let (_, execution) = execute(&source, &[]);
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(unsigned(expected)),
+            "{anonymous}"
+        );
+    }
+}
+
+#[test]
+fn anonymous_match_results_land_at_explicit_integer_cast() {
+    for dispatch in [
+        "match flag { true -> 18446744073709551616 / 18446744073709551616, false -> 7 / 2 * 2 }",
+        "match flag { true -> match flag { _ -> 18446744073709551616 / 18446744073709551616 }, false -> match flag { _ -> 7 / 2 * 2 } }",
+    ] {
+        let source = format!("machine choose(flag: bool) -> u64 {{ ({dispatch}) as u64 }}");
+        for (flag, expected) in [(true, 1), (false, 7)] {
+            let (_, execution) = execute(&source, &[TerminalScalarValue::Boolean(flag)]);
+            assert_eq!(
+                execution.value(),
+                TerminalExecutionResult::Scalar(unsigned(expected)),
+                "{dispatch}; flag={flag}"
+            );
+        }
+    }
+}
+
+#[test]
+fn integer_cast_preserves_typed_match_result_before_widening() {
+    for (dispatch, false_result) in [
+        ("match flag { true -> 1u32, false -> 7 / 2 * 2 }", 7),
+        (
+            "match flag { true -> 1u32, false -> 18446744073709551616 / 18446744073709551616 }",
+            1,
+        ),
+        (
+            "match flag { true -> 18446744073709551616 / 18446744073709551616, false -> 7u32 }",
+            7,
+        ),
+    ] {
+        let source = format!("machine choose(flag: bool) -> u64 {{ ({dispatch}) as u64 }}");
+        for flag in [true, false] {
+            let expected = if flag { 1 } else { false_result };
+            let (module, execution) = execute(&source, &[TerminalScalarValue::Boolean(flag)]);
+            assert_eq!(
+                execution.value(),
+                TerminalExecutionResult::Scalar(unsigned(expected)),
+                "{dispatch}; flag={flag}"
+            );
+            assert!(
+                module
+                    .machines
+                    .iter()
+                    .flat_map(|machine| &machine.blocks)
+                    .flat_map(|block| &block.operations)
+                    .any(|operation| matches!(operation.kind, OperationKind::IntegerWiden { .. })),
+                "the u32 result must survive until the explicit u64 conversion"
+            );
+        }
+    }
+}
+
+#[test]
+fn typed_match_peer_supplies_anonymous_numeric_result_carrier() {
+    let typed_peer = "match flag { true -> 8u64, false -> 9u64 }";
+    for (anonymous, when_true, when_false) in [
+        ("18446744073709551616 / 18446744073709551616", 9, 9),
+        ("7 / 2 * 2", 15, 15),
+        (
+            "match flag { true -> match flag { _ -> 18446744073709551616 / 18446744073709551616 }, false -> match flag { _ -> 7 / 2 * 2 } }",
+            9,
+            15,
+        ),
+    ] {
+        for expression in [
+            format!("({anonymous}) | ({typed_peer})"),
+            format!("({typed_peer}) | ({anonymous})"),
+        ] {
+            let source = format!("machine choose(flag: bool) -> u64 {{ {expression} }}");
+            for (flag, expected) in [(true, when_true), (false, when_false)] {
+                let (_, execution) = execute(&source, &[TerminalScalarValue::Boolean(flag)]);
+                assert_eq!(
+                    execution.value(),
+                    TerminalExecutionResult::Scalar(unsigned(expected)),
+                    "{expression}; flag={flag}"
+                );
+            }
+        }
+    }
+}

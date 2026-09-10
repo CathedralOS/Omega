@@ -79,16 +79,20 @@ impl Builder<'_, '_> {
                 let mut result_type = None;
                 let mut domain = ArithmeticDomain::Exact;
                 let mut boolean_coverage = [false; 2];
+                let mut contextual_results = Vec::new();
                 for arm in self.program.expression_table.match_arms(dispatch.arms) {
-                    let operand = self.integer_operand(arm.value)?;
-                    domain = combine_arithmetic_domains(domain, operand.domain)?;
-                    if let Some(primitive_type) = scalar_expression_type(&operand.value) {
-                        if !is_integer(primitive_type)
-                            || result_type.is_some_and(|existing| existing != primitive_type)
-                        {
-                            return None;
+                    if let Some(operand) = self.integer_operand(arm.value) {
+                        domain = combine_arithmetic_domains(domain, operand.domain)?;
+                        if let Some(primitive_type) = scalar_expression_type(&operand.value) {
+                            if !is_integer(primitive_type)
+                                || result_type.is_some_and(|existing| existing != primitive_type)
+                            {
+                                return None;
+                            }
+                            result_type = Some(primitive_type);
                         }
-                        result_type = Some(primitive_type);
+                    } else {
+                        contextual_results.push(arm.value);
                     }
                     match arm.pattern {
                         typed_trees::expression::MatchPattern::Wildcard => break,
@@ -105,6 +109,12 @@ impl Builder<'_, '_> {
                     }
                 }
                 let primitive_type = result_type?;
+                if !contextual_results
+                    .iter()
+                    .all(|result| self.anonymous_result_lands(*result, primitive_type))
+                {
+                    return None;
+                }
                 let computation = self.dispatch(expression, &dispatch, primitive_type)?;
                 Some(IntegerOperand {
                     value: parameter(0, primitive_type),
@@ -186,7 +196,13 @@ impl Builder<'_, '_> {
                 self.integer_application(expression, value, domain, [operand])
             }
             ExpressionNode::Cast(cast) => {
-                let operand = self.integer_operand(cast.value)?;
+                // A typed result retains its own carrier before conversion.
+                // Only wholly anonymous result leaves receive the cast target;
+                // the match subject and selected evaluation remain computations.
+                let operand = self.integer_operand(cast.value).or_else(|| {
+                    let destination = self.program.primitive_type_reference(cast.target_type)?;
+                    self.contextual_match_operand(cast.value, destination)
+                })?;
                 let (value, domain) = construct_integer_cast(
                     self.program,
                     expression,
@@ -282,21 +298,7 @@ impl Builder<'_, '_> {
         else {
             return None;
         };
-        if !self
-            .program
-            .expression_table
-            .match_arms(dispatch.arms)
-            .iter()
-            .all(|arm| {
-                land_anonymous_scalar_expression(
-                    self.program,
-                    self.operators,
-                    arm.value,
-                    destination,
-                )
-                .is_some()
-            })
-        {
+        if !self.anonymous_result_lands(expression, destination) {
             return None;
         }
         let computation = self.dispatch(expression, &dispatch, destination)?;
@@ -306,6 +308,26 @@ impl Builder<'_, '_> {
             domain: ArithmeticDomain::Exact,
             computation,
         })
+    }
+
+    /// Result joins propagate a real destination to anonymous leaves only.
+    /// Walking result edges never evaluates or substitutes dispatch subjects.
+    fn anonymous_result_lands(
+        &self,
+        expression: ExpressionHandle,
+        destination: PrimitiveType,
+    ) -> bool {
+        if let ExpressionNode::Match(dispatch) =
+            self.program.expression_table.expression(expression)
+        {
+            let arms = self.program.expression_table.match_arms(dispatch.arms);
+            return !arms.is_empty()
+                && arms
+                    .iter()
+                    .all(|arm| self.anonymous_result_lands(arm.value, destination));
+        }
+        land_anonymous_scalar_expression(self.program, self.operators, expression, destination)
+            .is_some()
     }
 
     pub(super) fn integer_comparison(

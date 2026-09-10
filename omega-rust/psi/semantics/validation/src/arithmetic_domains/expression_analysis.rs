@@ -267,11 +267,24 @@ pub(super) fn analyze(
                         .primitive
                         .filter(|primitive| integer_bit_width(*primitive).is_some())
                 })
-                && crate::bound_expression_meaning::has_builtin_bound_expression_meaning(
+                && crate::bound_expression_meaning::has_builtin_binary_expression_meaning(
                     program, machine, state, expression,
                 )
             {
                 for (operand, analysis) in [(binary.left, &mut left), (binary.right, &mut right)] {
+                    if matches!(
+                        program.expression_table.expression(operand),
+                        ExpressionNode::Match(_)
+                    ) {
+                        super::validate_anonymous_integer_primitive_range(
+                            program,
+                            primitive,
+                            operand,
+                            owner,
+                            diagnostics,
+                        );
+                        continue;
+                    }
                     let Some(evaluated) = crate::literals::anonymous_numeric_value(
                         program,
                         operand,
@@ -854,6 +867,24 @@ pub(super) fn analyze(
                 };
             }
             let primitive = program.primitive_type_reference(cast.target_type);
+            if cast.semantic_domain.is_empty()
+                && let Some(primitive) = primitive
+                && matches!(
+                    program.expression_table.expression(cast.value),
+                    ExpressionNode::Match(_)
+                )
+                && crate::literals::has_anonymous_numeric_results(program, cast.value)
+            {
+                // A retained arm carrier precedes conversion. Its anonymous
+                // peers land at that result join, not in this cast target.
+                super::validate_anonymous_integer_primitive_range(
+                    program,
+                    primitive,
+                    cast.value,
+                    owner,
+                    diagnostics,
+                );
+            }
             // The explicit cast supplies the first rendering of a wholly
             // anonymous calculation. Its target cannot retype already-landed
             // operations, and the enclosing destination never flows inward.

@@ -165,3 +165,80 @@ fn match_result_destinations_do_not_repair_invalid_numeric_arms() {
         }
     }
 }
+
+#[test]
+fn operand_and_cast_destinations_check_every_anonymous_match_result() {
+    for value in ["7 / 2", "256"] {
+        let dispatch = format!("match flag {{ _ -> 1, false -> {value} }}");
+        for expression in [
+            format!("({dispatch}) | 8u8"),
+            format!("8u8 | ({dispatch})"),
+            format!("({dispatch}) as u8"),
+        ] {
+            let source = format!("machine run(flag: bool) -> u8 {{ {expression} }}");
+            let errors = diagnostics(&source);
+            assert!(
+                errors.iter().any(|error| error.contains("not an integer")
+                    || error.contains("does not fit destination `u8`")),
+                "{source}: {errors:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_widening_cast_cannot_retarget_a_typed_match_arm() {
+    for expression in [
+        "(match flag { true -> 1u32, false -> 4294967296 }) as u64",
+        "(match flag { true -> 4294967296, false -> 1u32 }) as u64",
+    ] {
+        let errors = diagnostics(&format!(
+            "machine run(flag: bool) -> u64 {{ {expression} }}"
+        ));
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("does not fit destination `u32`")),
+            "{expression}: {errors:?}"
+        );
+    }
+}
+
+#[test]
+fn integer_cast_does_not_reland_a_typed_float_match_arm() {
+    for arms in [
+        "true -> value, false -> 7 / 2",
+        "true -> 7 / 2, false -> value",
+    ] {
+        let source = format!(
+            "machine run(flag: bool, value: f64) -> u8 {{ (match flag {{ {arms} }}) as u8 }}"
+        );
+        let errors = diagnostics(&source);
+        // The Exact conversion may still require a finite/in-range proof.
+        // Its source arm first lands in the retained f64 result carrier;
+        // conversion is not anonymous integer initial landing.
+        assert!(
+            !errors.iter().any(|error| {
+                error.contains("anonymous value") && error.contains("not an integer")
+            }),
+            "{source}: {errors:?}"
+        );
+    }
+}
+
+#[test]
+fn integer_cast_does_not_reland_a_suffixed_float_match_arm() {
+    for arms in [
+        "true -> 3.5f64, false -> 7 / 2",
+        "true -> 7 / 2, false -> 3.5f64",
+    ] {
+        let source = format!("machine run(flag: bool) -> u8 {{ (match flag {{ {arms} }}) as u8 }}");
+        let errors = diagnostics(&source);
+        assert!(
+            !errors.iter().any(|error| {
+                error.contains("anonymous value") && error.contains("not an integer")
+            }),
+            "{source}: {errors:?}"
+        );
+    }
+}
