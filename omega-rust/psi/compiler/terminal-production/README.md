@@ -356,6 +356,14 @@ Mutable-to-write-only attenuation preserves root access and independently
 records the callee's weaker access. Shared projections preserve unrestricted
 multiplicity and cannot originate from write-only roots.
 
+Ordinary Unit helpers retain borrowed `self` when checked scalar operands read
+its fields, including through computed arguments. Attachment metadata cannot
+supply the referent. Helpers without runtime receiver reads keep their existing
+erasure eligibility. The `receiver_call_source::cyclic` tests observe a projected
+unranked callee's writes after return and across every interpreter fuel pause;
+scalar Natural-ranked Unit witness retention and native publication remain
+separate obligations.
+
 Projection replay rejoins every field/index, array bound, type, and source
 application. Nonescaping alias prefixes with immutable bindings to mutable or
 write-only references capture whole roots or static field/literal-index
