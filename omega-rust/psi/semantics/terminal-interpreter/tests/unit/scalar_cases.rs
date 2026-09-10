@@ -752,3 +752,6 @@ fn scalar_case_constructor_returns_from_a_checked_unranked_loop() {
         ]
     );
 }
+
+#[path = "scalar_cases/owned_state.rs"]
+mod owned_state;

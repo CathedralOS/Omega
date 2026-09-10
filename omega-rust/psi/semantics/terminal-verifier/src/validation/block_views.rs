@@ -101,11 +101,13 @@ pub(super) fn validate_declarations(
 }
 
 pub(super) fn validate_successor(
+    module: &TerminalModule,
     machine: &TerminalMachine,
     edge: EdgeId,
     target: &terminal_psi::Block,
     arguments: &[StructuralArgument],
     available: &BTreeSet<PlaceId>,
+    dominating_blocks: &BTreeSet<BlockId>,
 ) -> Result<(), ModuleError> {
     if arguments.len() != target.structural_parameters.len() {
         return Err(ModuleError::StructuralJumpArityMismatch {
@@ -137,6 +139,21 @@ pub(super) fn validate_successor(
                 && source.multiplicity == expected.multiplicity
                 && source.qualifications == expected.qualifications
                 && source.projected_qualifications == expected.projected_qualifications
+        } else if expected.access == StructuralAccess::Owned {
+            super::scalar_case::plain_return_source(module, machine, argument.place)
+                && machine.blocks.iter().any(|block| {
+                    dominating_blocks.contains(&block.id)
+                        && block.operations.iter().any(|operation| {
+                            operation.result.structural().is_some_and(|result| {
+                                result.place == argument.place
+                                    && result.structural_type == expected.structural_type
+                                    && result.multiplicity == expected.multiplicity
+                                    && result.qualifications == expected.qualifications
+                                    && result.projected_qualifications
+                                        == expected.projected_qualifications
+                            })
+                        })
+                })
         } else {
             expected.access == StructuralAccess::SharedBorrow
                 && expected.multiplicity == StructuralMultiplicity::Unrestricted

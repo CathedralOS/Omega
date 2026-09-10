@@ -29,6 +29,7 @@ pub(super) fn source_signature(
         .structural_parameters
         .iter()
         .find(|parameter| parameter.place == source)
+        .or_else(|| super::block_views::parameter(machine, source))
         .map(|parameter| StructuralResultSignature {
             structural_type: parameter.structural_type,
             multiplicity: parameter.multiplicity,

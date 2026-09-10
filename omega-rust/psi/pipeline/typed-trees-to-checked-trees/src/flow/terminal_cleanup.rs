@@ -200,8 +200,14 @@ fn build_state_plan(
     state: &typed_trees::state::State,
 ) -> Option<CheckedStructuralControlStateCleanupPlan> {
     let parameters = program.state_parameters(state);
-    let discard_parameters =
-        checked_whole_affine_discard_parameters(program, facts, machine.symbol, state)?;
+    let transferred_results = wholly_transferred_result_locals(program, facts, machine, state)?;
+    let discard_parameters = checked_whole_affine_discard_parameters_excluding_results(
+        program,
+        facts,
+        machine.symbol,
+        state,
+        &transferred_results,
+    )?;
 
     let statements = program.statement_table.statements(state.statement_nodes);
     let has_structural_control = statements.iter().any(|statement| {
@@ -314,6 +320,16 @@ pub(super) fn checked_whole_affine_discard_parameters(
     machine: symbols::SymbolHandle,
     state: &typed_trees::state::State,
 ) -> Option<Vec<(symbols::SymbolHandle, u32)>> {
+    checked_whole_affine_discard_parameters_excluding_results(program, facts, machine, state, &[])
+}
+
+fn checked_whole_affine_discard_parameters_excluding_results(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: symbols::SymbolHandle,
+    state: &typed_trees::state::State,
+    transferred_results: &[symbols::SymbolHandle],
+) -> Option<Vec<(symbols::SymbolHandle, u32)>> {
     let parameters = program.state_parameters(state);
     let entry_claim_roots = facts
         .flow
@@ -357,6 +373,10 @@ pub(super) fn checked_whole_affine_discard_parameters(
                 && event.kind == PermissionEventKind::AffineDrop
         })
     {
+        if matches!(event.root, facts::PlaceRoot::Symbol(symbol) if transferred_results.contains(&symbol))
+        {
+            continue;
+        }
         if event.access != PermissionAccess::Owned
             || event.multiplicity != Multiplicity::Affine
             || event.obligation_live
@@ -390,4 +410,196 @@ pub(super) fn checked_whole_affine_discard_parameters(
         return None;
     }
     Some(discard_parameters)
+}
+
+/// Separate fresh results only after every actual outgoing edge transfers the
+/// whole value. The retained cleanup row continues to describe parameters; an
+/// unhandled local, return, continuation, or duplicate transfer rejects instead.
+fn wholly_transferred_result_locals(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+) -> Option<Vec<symbols::SymbolHandle>> {
+    let parameters = program.state_parameters(state);
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let permissions = &facts.flow.ownership;
+    let mut results = Vec::new();
+    for (_, drop) in permissions.permissions.iter().filter(|(_, event)| {
+        event.machine_symbol == machine.symbol
+            && event.state_symbol == state.symbol
+            && event.source == PermissionEventSource::StateExit
+            && event.kind == PermissionEventKind::AffineDrop
+    }) {
+        let facts::PlaceRoot::Symbol(symbol) = drop.root else {
+            return None;
+        };
+        if parameters
+            .iter()
+            .any(|parameter| parameter.symbol == symbol)
+        {
+            continue;
+        }
+        let PermissionProvenance::Established {
+            machine_symbol,
+            state_symbol,
+            source: PermissionEventSource::Statement { statement_index },
+        } = drop.provenance
+        else {
+            return None;
+        };
+        if machine_symbol != machine.symbol
+            || state_symbol != state.symbol
+            || drop.multiplicity != Multiplicity::Affine
+            || drop.access != PermissionAccess::Owned
+            || drop.claim_identity != PermissionClaimIdentity::Unknown
+            || drop.obligation_live
+            || !drop.segments.is_empty()
+            || results.contains(&symbol)
+        {
+            return None;
+        }
+        let StatementNode::LocalData(local) = statements.get(statement_index)? else {
+            return None;
+        };
+        if local.symbol != symbol
+            || local.is_mutable
+            || program.type_multiplicity(local.type_reference) != Multiplicity::Affine
+            || !matches!(
+                program.expression_table.expression(local.initial_value),
+                typed_trees::expression::ExpressionNode::Call(_)
+            )
+            || !validation::has_plain_owned_contents_with_numeric_constraints(
+                program,
+                local.type_reference,
+            )
+        {
+            return None;
+        }
+        let exact = |event: &checked_trees::FlowPermissionEventFact| {
+            event.machine_symbol == machine.symbol
+                && event.state_symbol == state.symbol
+                && event.root == drop.root
+                && event.multiplicity == drop.multiplicity
+                && event.access == drop.access
+                && event.claim_identity == drop.claim_identity
+                && event.provenance == drop.provenance
+                && !event.obligation_live
+                && event.segments.is_empty()
+        };
+        let mut establishments = permissions.permissions.iter().filter(|(_, event)| {
+            event.machine_symbol == machine.symbol
+                && event.state_symbol == state.symbol
+                && event.root == drop.root
+                && event.kind == PermissionEventKind::Establish
+        });
+        let (_, establish) = establishments.next()?;
+        if establishments.next().is_some()
+            || !exact(establish)
+            || establish.source != (PermissionEventSource::Statement { statement_index })
+        {
+            return None;
+        }
+        if statements[..=statement_index]
+            .iter()
+            .any(|statement| matches!(statement, StatementNode::Transition(_)))
+        {
+            return None;
+        }
+        let mut edge_count = 0;
+        for (ordinal, statement) in statements.iter().enumerate().skip(statement_index + 1) {
+            let StatementNode::Transition(transition) = statement else {
+                if matches!(statement, StatementNode::Expression(expression) if !matches!(program.expression_table.expression(*expression), typed_trees::expression::ExpressionNode::Call(_)))
+                {
+                    return None;
+                }
+                continue;
+            };
+            if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid() {
+                return None;
+            }
+            let TransitionTargetNode::Named {
+                path, arguments, ..
+            } = program.statement_table.transition_target(transition.target)
+            else {
+                return None;
+            };
+            let target_index = crate::checks::termination::named_transition_target_state_index(
+                program,
+                machine,
+                path.symbol,
+            )?;
+            let target = &program.machine_states(machine)[target_index];
+            let arguments = program.statement_table.expression_handles(*arguments);
+            let target_parameters = program
+                .state_parameters(target)
+                .iter()
+                .filter(|parameter| !parameter.is_self);
+            if target_parameters.clone().count() != arguments.len() {
+                return None;
+            }
+            let mut matching = arguments
+                .iter()
+                .zip(target_parameters)
+                .filter(|(argument, _)| {
+                    let typed_trees::expression::ExpressionNode::Name(name) =
+                        program.expression_table.expression(**argument)
+                    else {
+                        return false;
+                    };
+                    name.symbol == symbol
+                        && name.head_symbol == symbol
+                        && program
+                            .expression_table
+                            .name_path_members(name.members)
+                            .len()
+                            == 1
+                });
+            let (_, parameter) = matching.next()?;
+            if matching.next().is_some()
+                || program.normalized_type_identity(parameter.type_reference)
+                    != program.normalized_type_identity(local.type_reference)
+            {
+                return None;
+            }
+            let mut transfers = permissions.permissions.iter().filter(|(_, event)| {
+                event.machine_symbol == machine.symbol
+                    && event.state_symbol == state.symbol
+                    && event.root == drop.root
+                    && event.kind == PermissionEventKind::Transfer
+                    && matches!(event.source,
+                        PermissionEventSource::Call { statement_index, .. }
+                        | PermissionEventSource::Statement { statement_index }
+                        if statement_index == ordinal)
+            });
+            let (_, transfer) = transfers.next()?;
+            if transfers.next().is_some()
+                || !exact(transfer)
+                || transfer.source
+                    != (PermissionEventSource::Call {
+                        statement_index: ordinal,
+                        call_ordinal: 0,
+                        target_symbol: path.symbol,
+                    })
+            {
+                return None;
+            }
+            edge_count += 1;
+        }
+        let retained_transfers = permissions
+            .permissions
+            .iter()
+            .filter(|(_, event)| {
+                event.machine_symbol == machine.symbol
+                    && event.state_symbol == state.symbol
+                    && event.root == drop.root
+                    && event.kind == PermissionEventKind::Transfer
+            })
+            .count();
+        if edge_count == 0 || retained_transfers != edge_count {
+            return None;
+        }
+        results.push(symbol);
+    }
+    Some(results)
 }

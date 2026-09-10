@@ -333,7 +333,17 @@ pub(super) fn build(
         bindings: Vec::new(),
         binding_initializers: Vec::new(),
         operations: vec![boundary_call],
-        terminator: CheckedComposedUnitControlTerminatorPlan::ClosedSum { result, cases },
+        terminator: CheckedComposedUnitControlTerminatorPlan::ClosedSum {
+            subject: CheckedUnitStructuralArgumentPlan {
+                source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal: result.binding_ordinal,
+                },
+                path: Vec::new(),
+                type_identity: result.type_identity,
+                access: CheckedStructuralAccess::Owned,
+            },
+            cases,
+        },
     }];
     states.extend(leaf_states);
     super::assembly::finish(

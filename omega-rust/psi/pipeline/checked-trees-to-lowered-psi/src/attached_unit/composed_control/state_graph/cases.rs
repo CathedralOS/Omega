@@ -61,44 +61,118 @@ fn identity(variant: &DataVariant) -> String {
 
 fn result_source<'a>(
     checked: &'a CheckedTrees,
+    machine: symbols::SymbolHandle,
     source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
 ) -> Result<
     (
-        &'a checked_trees::statement::TableLocalData,
+        symbols::SymbolHandle,
         &'a checked_trees::data::DataDefinition,
+        language_semantics::PermissionProvenance,
     ),
     LoweringError,
 > {
-    let CheckedComposedUnitControlTerminatorPlan::ClosedSum { result, .. } = &state.terminator
+    let CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, .. } = &state.terminator
     else {
-        return unsupported("Unit case has no structural result");
+        return unsupported("Unit case has no structural subject");
     };
-    let Some(StatementNode::LocalData(local)) = checked
-        .statement_table
-        .statements(source.statement_nodes)
-        .get(result.statement_index as usize)
-    else {
-        return unsupported("Unit case lost its result local");
+    if subject.access != checked_trees::CheckedStructuralAccess::Owned || !subject.path.is_empty() {
+        return unsupported("Unit case subject is not whole owned custody");
+    }
+    let (symbol, reference, provenance) = match subject.source {
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+            let retained = state
+                .structural_parameters
+                .get(parameter_index as usize)
+                .ok_or(LoweringError::Unsupported("Unit case parameter missing"))?;
+            let parameter = checked
+                .state_parameters(source)
+                .get(retained.position as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit case source parameter missing",
+                ))?;
+            if retained.access != checked_trees::CheckedStructuralAccess::Owned
+                || retained.multiplicity != Multiplicity::Affine
+                || !retained.qualifications.is_empty()
+                || retained.type_identity != subject.type_identity
+            {
+                return unsupported("Unit case parameter custody drifted");
+            }
+            (
+                parameter.symbol,
+                parameter.type_reference,
+                language_semantics::PermissionProvenance::Unknown,
+            )
+        }
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            binding_ordinal,
+        } => {
+            let mut matching = state
+                .operations
+                .iter()
+                .filter_map(|operation| match operation {
+                    CheckedUnitEffectOperationPlan::StructuralCall {
+                        result,
+                        discard_result_on_return: false,
+                        ..
+                    }
+                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                        result,
+                        discard_result_on_return: false,
+                        ..
+                    } if result.binding_ordinal == binding_ordinal => Some(result),
+                    _ => None,
+                });
+            let result = matching.next().ok_or(LoweringError::Unsupported(
+                "Unit case result producer missing",
+            ))?;
+            if matching.next().is_some()
+                || result.type_identity != subject.type_identity
+                || result.multiplicity != Multiplicity::Affine
+            {
+                return unsupported("Unit case result producer duplicated or drifted");
+            }
+            let Some(StatementNode::LocalData(local)) = checked
+                .statement_table
+                .statements(source.statement_nodes)
+                .get(result.statement_index as usize)
+            else {
+                return unsupported("Unit case result local missing");
+            };
+            if local.is_mutable {
+                return unsupported("Unit case local is mutable");
+            }
+            (
+                local.symbol,
+                local.type_reference,
+                language_semantics::PermissionProvenance::Established {
+                    machine_symbol: machine,
+                    state_symbol: state.state,
+                    source: language_semantics::PermissionEventSource::Statement {
+                        statement_index: result.statement_index as usize,
+                    },
+                },
+            )
+        }
+        _ => return unsupported("Unit case subject has unsupported ownership"),
     };
-    let TypeReferenceNode::Named { symbol, .. } = checked
-        .type_reference_table
-        .type_reference(local.type_reference)
+    let TypeReferenceNode::Named {
+        symbol: type_symbol,
+        ..
+    } = checked.type_reference_table.type_reference(reference)
     else {
-        return unsupported("Unit case result is not a closed declaration");
+        return unsupported("Unit case subject is not a closed declaration");
     };
     let declaration = checked
         .data_definitions()
         .iter()
-        .find(|definition| definition.symbol == *symbol)
+        .find(|definition| definition.symbol == *type_symbol)
         .ok_or(LoweringError::Unsupported(
-            "Unit case result declaration is absent",
+            "Unit case subject declaration absent",
         ))?;
-    if result.multiplicity != Multiplicity::Affine
-        || !validation::has_plain_owned_contents_with_numeric_constraints(
-            &checked.typed,
-            local.type_reference,
-        )
+    if checked.type_multiplicity(reference) != Multiplicity::Affine
+        || checked.normalized_type_identity(reference).as_str() != subject.type_identity
+        || !validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, reference)
         || checked
             .data_members(declaration)
             .iter()
@@ -113,13 +187,14 @@ fn result_source<'a>(
                 DataMember::Field(_) => true,
             })
     {
-        return unsupported("Unit case result lacks plain affine sum custody");
+        return unsupported("Unit case lacks exact plain affine sum custody");
     }
-    Ok((local, declaration))
+    Ok((symbol, declaration, provenance))
 }
 
 pub(super) fn validate_markers(
     checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
     source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
     end: usize,
@@ -130,7 +205,7 @@ pub(super) fn validate_markers(
     ) {
         return Ok(0);
     }
-    let (result_local, declaration) = result_source(checked, source, state)?;
+    let (result_symbol, declaration, _) = result_source(checked, machine, source, state)?;
     let statements = checked.statement_table.statements(source.statement_nodes);
     let start = state.bindings.len() + state.operations.len();
     let markers = statements
@@ -174,7 +249,7 @@ pub(super) fn validate_markers(
             });
         let declared = checked.data_payload_fields(variant);
         if local.is_mutable
-            || !root(checked, local.initial_value, result_local.symbol)
+            || !root(checked, local.initial_value, result_symbol)
             || subject.parse::<u32>().is_err()
             || fields.iter().enumerate().any(|(position, field)| {
                 fields[..position].contains(field)
@@ -236,32 +311,16 @@ pub(super) fn validate(
     tail: &[StatementNode],
     ordinal: usize,
 ) -> Result<(), LoweringError> {
-    let CheckedComposedUnitControlTerminatorPlan::ClosedSum { result, cases } = &state.terminator
+    let CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, cases } = &state.terminator
     else {
         return unsupported("Unit case terminator missing");
     };
-    let (local, declaration) = result_source(checked, source, state)?;
-    // This lane has no owned parameter cleanup: its only dying owned root is
-    // the inspected boundary local. Rejoin that evidence directly rather than
-    // requiring the parameter-only cleanup catalog to describe a local root.
-    if state.structural_parameters.iter().any(|parameter| {
-        parameter.multiplicity != Multiplicity::Unrestricted
-            || !matches!(
-                parameter.access,
-                checked_trees::CheckedStructuralAccess::SharedBorrow
-                    | checked_trees::CheckedStructuralAccess::MutableBorrow
-            )
-    }) {
-        return unsupported("Unit case cleanup requires unrestricted borrowed parameters");
-    }
+    let (result_symbol, declaration, expected_provenance) =
+        result_source(checked, plan.machine, source, state)?;
+    if state.structural_parameters.iter().enumerate().any(|(index, parameter)| {
+        !(matches!(subject.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } if parameter_index as usize == index)) && (parameter.multiplicity != Multiplicity::Unrestricted || !matches!(parameter.access, checked_trees::CheckedStructuralAccess::SharedBorrow | checked_trees::CheckedStructuralAccess::MutableBorrow))
+    }) { return unsupported("Unit case has unrelated owned parameter cleanup"); }
     let mut has_result_discard = false;
-    let expected_provenance = language_semantics::PermissionProvenance::Established {
-        machine_symbol: plan.machine,
-        state_symbol: state.state,
-        source: language_semantics::PermissionEventSource::Statement {
-            statement_index: result.statement_index as usize,
-        },
-    };
     for (_, event) in checked
         .facts
         .flow
@@ -275,11 +334,12 @@ pub(super) fn validate(
                 && event.kind == language_semantics::PermissionEventKind::AffineDrop
         })
     {
-        if event.root != facts::PlaceRoot::Symbol(local.symbol)
+        if event.root != facts::PlaceRoot::Symbol(result_symbol)
             || event.access != language_semantics::PermissionAccess::Owned
             || event.multiplicity != Multiplicity::Affine
             || event.claim_identity != language_semantics::PermissionClaimIdentity::Unknown
             || event.provenance != expected_provenance
+            || has_result_discard
             || event.obligation_live
             || !checked
                 .facts
@@ -298,44 +358,81 @@ pub(super) fn validate(
     }
     let declared = checked.data_members(declaration);
     if cases.is_empty()
-        || cases.len() != tail.len()
+        || tail.is_empty()
+        || cases.len() < tail.len()
         || cases.len() != declared.len()
-        || result.binding_ordinal != 0
-        || state
-            .operations
-            .iter()
-            .filter(|operation| {
-                matches!(
-                    operation,
-                    CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
-                        | CheckedUnitEffectOperationPlan::StructuralCall { .. }
-                )
-            })
-            .count()
-            != 1
     {
         return unsupported("Unit case result or complete case roster drifted");
     }
-    for (offset, (case, statement)) in cases.iter().zip(tail).enumerate() {
+    let mut previous_case_order = None;
+    for (offset, case) in cases.iter().enumerate() {
+        let source_offset = (case.successor.statement_ordinal as usize)
+            .checked_sub(ordinal)
+            .ok_or(LoweringError::Unsupported(
+                "Unit case source ordinal precedes dispatch",
+            ))?;
+        let statement = tail.get(source_offset).ok_or(LoweringError::Unsupported(
+            "Unit case source ordinal exceeds dispatch",
+        ))?;
         let StatementNode::Transition(transition) = statement else {
             return unsupported("Unit case tail contains an effect");
         };
-        let TransitionGuardNode::When(guard) = transition.guard else {
-            return unsupported("Unit case guard is not an exact case test");
+        let (tested_subject, variant) = match transition.guard {
+            TransitionGuardNode::When(guard) => {
+                let (tested, variant_symbol) = case_test(checked, guard).ok_or(
+                    LoweringError::Unsupported("Unit case guard lost its source identity"),
+                )?;
+                let variant = declared
+                    .iter()
+                    .find_map(|member| match member {
+                        DataMember::Variant(variant) if variant.symbol == variant_symbol => {
+                            Some(variant)
+                        }
+                        _ => None,
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit case guard names another sum",
+                    ))?;
+                (Some(tested), variant)
+            }
+            TransitionGuardNode::Always if source_offset + 1 == tail.len() => {
+                let variant = declared
+                    .iter()
+                    .find_map(|member| match member {
+                        DataMember::Variant(variant) if identity(variant) == case.case_identity => {
+                            Some(variant)
+                        }
+                        _ => None,
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit case fallback names absent case",
+                    ))?;
+                if tail[..source_offset]
+                    .iter()
+                    .any(|statement| match statement {
+                        StatementNode::Transition(transition) => match transition.guard {
+                            TransitionGuardNode::When(guard) => case_test(checked, guard)
+                                .is_some_and(|(_, selected)| selected == variant.symbol),
+                            _ => true,
+                        },
+                        _ => true,
+                    })
+                {
+                    return unsupported("Unit case fallback overlaps an earlier case");
+                }
+                (None, variant)
+            }
+            _ => return unsupported("Unit case guard is not an exact case test"),
         };
-        let (subject, variant_symbol) = case_test(checked, guard).ok_or(
-            LoweringError::Unsupported("Unit case guard lost its source identity"),
-        )?;
-        let variant = declared
-            .iter()
-            .find_map(|member| match member {
-                DataMember::Variant(variant) if variant.symbol == variant_symbol => Some(variant),
-                _ => None,
-            })
-            .ok_or(LoweringError::Unsupported(
-                "Unit case guard names another sum",
-            ))?;
-        if !root(checked, subject, local.symbol)
+        let declaration_position = declared.iter().position(|member| {
+            matches!(member, DataMember::Variant(candidate) if candidate.symbol == variant.symbol)
+        }).ok_or(LoweringError::Unsupported("Unit case declaration position missing"))?;
+        let order = (source_offset, declaration_position);
+        if previous_case_order.is_some_and(|previous| previous >= order) {
+            return unsupported("Unit case roster no longer follows authored dispatch order");
+        }
+        previous_case_order = Some(order);
+        if tested_subject.is_some_and(|tested| !root(checked, tested, result_symbol))
             || identity(variant) != case.case_identity
             || cases[..offset]
                 .iter()
@@ -392,7 +489,7 @@ pub(super) fn validate(
                 ))?;
             let valid_path = match checked.expression_table.expression(*argument) {
                 ExpressionNode::Member(member) => {
-                    root(checked, member.receiver, local.symbol)
+                    root(checked, member.receiver, result_symbol)
                         && member.member == field.name
                         && (member.member_symbol == field.symbol
                             || (!member.member_symbol.is_valid()
@@ -406,7 +503,7 @@ pub(super) fn validate(
                             .is_none_or(|name| name.as_str() == variant.name.as_str())
                 }
                 ExpressionNode::Name(path) => {
-                    path.head_symbol == local.symbol
+                    path.head_symbol == result_symbol
                         && path.symbol == field.symbol
                         && checked
                             .expression_table
@@ -439,9 +536,16 @@ pub(super) fn validate(
             state,
             transition,
             &case.successor,
-            ordinal + offset,
+            case.successor.statement_ordinal as usize,
             &case.payloads,
         )?;
+    }
+    if tail.iter().enumerate().any(|(offset, _)| {
+        !cases
+            .iter()
+            .any(|case| case.successor.statement_ordinal as usize == ordinal + offset)
+    }) {
+        return unsupported("Unit case omitted an authored arm");
     }
     Ok(())
 }

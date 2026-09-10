@@ -610,7 +610,7 @@ pub(super) fn retain_call_boundary<'a>(
         } => {
             let target = unique_unit_boundary(plans, *target_machine)?;
             if (!*discard_result_on_return
-                && !matches!(&state.terminator, CheckedComposedUnitControlTerminatorPlan::ClosedSum { result: selected, .. } if selected == result))
+                && !matches!(&state.terminator, CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, .. } if subject.type_identity == result.type_identity && subject.source == (checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal: result.binding_ordinal })))
                 || result.binding_ordinal as usize != state.operations.iter().filter(|operation| {
                     matches!(operation, CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
                         coordinate: previous, ..

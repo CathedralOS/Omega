@@ -345,11 +345,13 @@ pub(super) fn validate_control_flow(
                     &defined,
                 )?;
                 super::block_views::validate_successor(
+                    module,
                     machine,
                     *edge,
                     blocks[target],
                     structural_arguments,
                     &available_views,
+                    block_dominators,
                 )?;
             }
             Terminator::Conditional {
@@ -368,11 +370,13 @@ pub(super) fn validate_control_flow(
                 }
                 for successor in [when_true, when_false] {
                     super::block_views::validate_successor(
+                        module,
                         machine,
                         successor.edge,
                         blocks[&successor.target],
                         &successor.structural_arguments,
                         &available_views,
+                        block_dominators,
                     )?;
                     validate_successor_bindings(
                         successor.edge,
@@ -401,11 +405,13 @@ pub(super) fn validate_control_flow(
                 }
                 for successor in cases {
                     super::block_views::validate_successor(
+                        module,
                         machine,
                         successor.edge,
                         blocks[&successor.target],
                         &[],
                         &available_views,
+                        block_dominators,
                     )?;
                 }
                 let source_signature = super::structural_result_contracts::source_signature(
@@ -417,6 +423,13 @@ pub(super) fn validate_control_flow(
                     place: *source,
                 })?;
                 let source_definition = machine.blocks.iter().find_map(|candidate| {
+                    if candidate
+                        .structural_parameters
+                        .iter()
+                        .any(|parameter| parameter.place == *source)
+                    {
+                        return Some(candidate.id);
+                    }
                     candidate.operations.iter().find_map(|operation| {
                         operation
                             .result

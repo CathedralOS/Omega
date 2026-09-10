@@ -10,8 +10,9 @@ use terminal_psi::{
 
 use super::byte_sequence_binding::ByteSequenceBinding;
 use super::{
-    TerminalExecution, TerminalInterpretError, TerminalScalarValue, TerminalStructuralValue,
-    bind_affine_frontier, bind_arguments, bind_structural_arguments, remove_affine_root,
+    TerminalExecution, TerminalInterpretError, TerminalScalarCaseValue, TerminalScalarValue,
+    TerminalStructuralValue, bind_affine_frontier, bind_arguments, bind_structural_arguments,
+    remove_affine_root,
 };
 
 #[cfg(test)]
@@ -20,6 +21,7 @@ mod tests;
 pub(super) struct BlockBindings {
     scalars: BTreeMap<ValueId, TerminalScalarValue>,
     structural: BTreeMap<PlaceId, TerminalStructuralValue>,
+    scalar_cases: BTreeMap<PlaceId, TerminalScalarCaseValue>,
     byte_sequences: BTreeMap<PlaceId, ByteSequenceBinding>,
     affine_sources: BTreeSet<PlaceId>,
     affine_destinations: BTreeSet<StructuralAffineDiscard>,
@@ -33,10 +35,18 @@ impl BlockBindings {
     pub(super) fn commit(self, execution: &mut TerminalExecution) {
         for source in self.affine_sources {
             execution.structural_values.remove(&source);
+            execution.scalar_case_values.remove(&source);
             remove_affine_root(&mut execution.live_affine_frontier, source);
+        }
+        for destination in self.structural.keys() {
+            execution.scalar_case_values.remove(destination);
+        }
+        for destination in self.scalar_cases.keys() {
+            execution.structural_values.remove(destination);
         }
         execution.values.extend(self.scalars);
         execution.structural_values.extend(self.structural);
+        execution.scalar_case_values.extend(self.scalar_cases);
         execution.byte_sequence_values.extend(self.byte_sequences);
         execution
             .live_affine_frontier
@@ -91,14 +101,19 @@ impl BlockBindings {
         }
         // A swap may replace another transferred root. Replacing a different
         // live destination requires its explicit whole-root discard first.
-        if self.structural.keys().any(|place| {
-            execution
-                .live_affine_frontier
-                .iter()
-                .any(|entry| entry.place == *place)
-                && !self.affine_sources.contains(place)
-                && !discarded.contains(place)
-        }) {
+        if self
+            .structural
+            .keys()
+            .chain(self.scalar_cases.keys())
+            .any(|place| {
+                execution
+                    .live_affine_frontier
+                    .iter()
+                    .any(|entry| entry.place == *place)
+                    && !self.affine_sources.contains(place)
+                    && !discarded.contains(place)
+            })
+        {
             return Err(TerminalInterpretError::AffineFrontierMismatch);
         }
         Ok(())
@@ -133,6 +148,13 @@ impl TerminalExecution {
             });
         }
         let mut resolved_arguments = Vec::with_capacity(structural_arguments.len());
+        let contains_cases = structural_arguments
+            .iter()
+            .any(|argument| self.scalar_case_values.contains_key(&argument.place));
+        let mut descriptor_parameters = Vec::new();
+        let mut descriptor_arguments = Vec::new();
+        let mut scalar_cases = BTreeMap::new();
+        let mut case_destinations = BTreeSet::new();
         let mut affine_sources = BTreeSet::new();
         for (position, (parameter, argument)) in block
             .structural_parameters
@@ -152,24 +174,37 @@ impl TerminalExecution {
             {
                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
             }
-            let value = self.structural_values.get(&argument.place).ok_or(
-                TerminalInterpretError::VerifiedStructuralPlaceMissing(argument.place),
-            )?;
-            if !value.qualifications.is_empty()
-                || (parameter.access != StructuralAccess::MutableBorrow && !value.path.is_empty())
-            {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            let value = self.structural_values.get(&argument.place);
+            let case = self.scalar_case_values.get(&argument.place);
+            match (value, case) {
+                (Some(value), None)
+                    if value.qualifications.is_empty()
+                        && (parameter.access == StructuralAccess::MutableBorrow
+                            || value.path.is_empty()) => {}
+                (None, Some(case))
+                    if parameter.access == StructuralAccess::Owned
+                        && case.structural_type == parameter.structural_type => {}
+                (None, None) => {
+                    return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                        argument.place,
+                    ));
+                }
+                _ => return Err(TerminalInterpretError::VerifiedOperationMalformed),
             }
             match parameter.access {
                 StructuralAccess::Owned => {
-                    let source = self
-                        .owned_block_source(argument.place)
-                        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                    if source.structural_type != parameter.structural_type
-                        || source.multiplicity != parameter.multiplicity
-                        || source.access != StructuralAccess::Owned
-                        || !source.qualifications.is_empty()
-                        || !source.projected_qualifications.is_empty()
+                    let source_matches =
+                        self.owned_block_source(argument.place)
+                            .is_some_and(|source| {
+                                source.structural_type == parameter.structural_type
+                                    && source.multiplicity == parameter.multiplicity
+                                    && source.access == StructuralAccess::Owned
+                                    && source.qualifications.is_empty()
+                                    && source.projected_qualifications.is_empty()
+                            })
+                            || (case.is_some()
+                                && self.owned_case_result_matches(argument.place, parameter));
+                    if !source_matches
                         || !matches!(
                             parameter.multiplicity,
                             StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
@@ -228,25 +263,93 @@ impl TerminalExecution {
                 }
                 _ => return Err(TerminalInterpretError::VerifiedOperationMalformed),
             }
-            resolved_arguments.push(value.clone());
+            if let Some(case) = case {
+                if scalar_cases.insert(parameter.place, case.clone()).is_some() {
+                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                }
+                if parameter.multiplicity == StructuralMultiplicity::Affine {
+                    case_destinations.insert(StructuralAffineDiscard {
+                        place: parameter.place,
+                        path: Vec::new(),
+                        structural_type: parameter.structural_type,
+                    });
+                }
+            } else {
+                if contains_cases {
+                    descriptor_parameters.push(parameter.clone());
+                    descriptor_arguments.push(argument.clone());
+                }
+                resolved_arguments
+                    .push(value.expect("one structural carrier was validated").clone());
+            }
         }
-        let structural =
-            bind_structural_arguments(&block.structural_parameters, &resolved_arguments)?;
-        let affine_destinations = bind_affine_frontier(&block.structural_parameters, &structural)?;
+        // Existing descriptor-only edges reuse their original declaration and
+        // argument slices. Only mixed representations need a selected roster.
+        let descriptor_parameters = if contains_cases {
+            descriptor_parameters.as_slice()
+        } else {
+            &block.structural_parameters
+        };
+        let descriptor_arguments = if contains_cases {
+            descriptor_arguments.as_slice()
+        } else {
+            structural_arguments
+        };
+        let structural = bind_structural_arguments(descriptor_parameters, &resolved_arguments)?;
+        let mut affine_destinations = bind_affine_frontier(descriptor_parameters, &structural)?;
+        affine_destinations.extend(case_destinations);
         // Existing borrowed-byte bindings retain their exact checks. Owned
         // record fields are keyed by runtime referent identity, not SSA place.
         let byte_sequences = self.bind_byte_sequence_arguments(
-            &block.structural_parameters,
-            structural_arguments,
+            descriptor_parameters,
+            descriptor_arguments,
             &resolved_arguments,
         )?;
         Ok(BlockBindings {
             scalars,
             structural,
+            scalar_cases,
             byte_sequences,
             affine_sources,
             affine_destinations,
         })
+    }
+
+    fn owned_case_result_matches(
+        &self,
+        place: PlaceId,
+        parameter: &StructuralParameterDeclaration,
+    ) -> bool {
+        let Some(machine) = self.machines.get(&self.current_machine) else {
+            return false;
+        };
+        let Some(StructuralPlaceKind::OperationResult {
+            producer,
+            structural_type,
+        }) = machine
+            .structural_places
+            .iter()
+            .find(|declaration| declaration.id == place)
+            .map(|declaration| declaration.kind)
+        else {
+            return false;
+        };
+        structural_type == parameter.structural_type
+            && machine.blocks.values().flat_map(|block| &block.operations).any(|operation| {
+                operation.id == producer
+                    && matches!(operation.kind,
+                        terminal_psi::OperationKind::EstablishScalarCase { .. }
+                            | terminal_psi::OperationKind::CallStructural { .. }
+                            | terminal_psi::OperationKind::CallStructuralWithScalarArguments { .. })
+                    && operation.result.structural().is_some_and(|result| {
+                        result.place == place
+                            && result.structural_type == structural_type
+                            && result.multiplicity == parameter.multiplicity
+                            && result.qualifications.is_empty()
+                            && result.projected_qualifications.is_empty()
+                            && result.claims.is_empty()
+                    })
+            })
     }
 
     fn owned_block_source(&self, place: PlaceId) -> Option<&StructuralParameterDeclaration> {

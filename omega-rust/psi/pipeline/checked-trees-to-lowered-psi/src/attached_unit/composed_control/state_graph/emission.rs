@@ -59,7 +59,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
                         .clone();
                 } else {
                     // The persistent receiver is not a block parameter. Only
-                    // transferred descriptors occupy its dense namespace.
+                    // transferred structural values occupy its dense namespace.
                     parameter.position = block_position;
                     block_position =
                         block_position
@@ -246,7 +246,13 @@ pub(in crate::attached_unit::composed_control) fn emit(
                 None
             };
         let body_end = operations.len();
-        let prepared_cases = case_emission::prepare(state, catalogs, &operations, &mut next_value)?;
+        let prepared_cases = case_emission::prepare(
+            state,
+            catalogs,
+            &state_parameters,
+            &operations,
+            &mut next_value,
+        )?;
         let returned_case = returns::emit(
             checked,
             state,
@@ -315,6 +321,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
                         continue;
                     }
                     let place = match transfer.source {
+                            checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => case_emission::result(state, binding_ordinal, &operations)?.place,
                             checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
                                 state_parameters.get(index as usize).ok_or(
                                     LoweringError::Unsupported("Unit graph transfer source descriptor disappeared"),
@@ -336,6 +343,9 @@ pub(in crate::attached_unit::composed_control) fn emit(
                         place,
                         path: Vec::new(),
                         access: match target_parameter.access {
+                            checked_trees::CheckedStructuralAccess::Owned => {
+                                StructuralAccess::Owned
+                            }
                             checked_trees::CheckedStructuralAccess::MutableBorrow => {
                                 StructuralAccess::MutableBorrow
                             }
@@ -485,10 +495,29 @@ pub(in crate::attached_unit::composed_control) fn emit(
                     trivial_affine_discards: Vec::new(),
                 }
             }
-            CheckedComposedUnitControlTerminatorPlan::ReturnUnit => Terminator::ReturnUnit {
-                edge: edge_id(allocate_dense(&mut next_edge)?),
-                trivial_affine_discards: Vec::new(),
-            },
+            CheckedComposedUnitControlTerminatorPlan::ReturnUnit => {
+                let source = checked
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == plan.machine)
+                    .and_then(|machine| {
+                        checked
+                            .machine_states(machine)
+                            .iter()
+                            .find(|source| source.symbol == state.state)
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit return source state missing",
+                    ))?;
+                let discards = edges::return_discards(checked, plan.machine, source, state)?;
+                Terminator::ReturnUnit {
+                    edge: edge_id(allocate_dense(&mut next_edge)?),
+                    trivial_affine_discards: discards
+                        .into_iter()
+                        .map(|index| state_parameters[index].place)
+                        .collect(),
+                }
+            }
             CheckedComposedUnitControlTerminatorPlan::Jump { successor: edge } => {
                 let edge = successor(edge, &[], false)?;
                 Terminator::Jump {

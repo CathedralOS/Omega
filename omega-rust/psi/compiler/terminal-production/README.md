@@ -139,17 +139,51 @@ replay rejoins local statement, binding ordinal, boundary contract, and return
 disposition. This leaf-only route does not admit later structural consumption
 or nominal cleanup.
 
-The general state graph additionally inspects a state-local, claim-free affine
-sum returned by a boundary or an ordinary graph call and transfers its selected
-primitive payloads alongside ordinary
-scalar arguments and borrowed views. Source replay rejoins the complete case
-roster, field paths, successor positions, and the local result's exact cleanup
-provenance. Case edges bind payload scalars into small staging blocks, then use
-ordinary jumps for the remaining arguments; no separate Terminal edge format is
-needed. Each selected edge disposes its own completed result before reentry.
-The source state currently begins with that result call and dispatches directly;
-interleaved effects, structural payloads, and loop-carried owned results remain
-outside this producer family.
+The general state graph inspects an owned, claim-free affine sum parameter or
+a result of a boundary or ordinary graph call. Calls and effects retain their
+authored order before and after result establishment. Ordinary successor
+arguments can move a completed scalar-sum result into an exact owned state
+parameter; the result binding rejoins its producing call and local declaration.
+Source replay checks the subject, complete case roster, field paths, successor
+positions, and cleanup provenance. A wildcard selects the remaining declared
+cases. Case edges bind primitive payloads into staging blocks, then use ordinary
+jumps for the remaining scalar arguments and borrowed views. The selected edge
+disposes its affine subject after materializing those payloads.
+
+Terminal receiving checks reconstruct producer dominance, exact nominal type,
+and the live ownership frontier. An edge cannot transfer and discard the same
+value or revive its old place. Decoded execution preserves the case and payload
+through simultaneous state bindings and fuel suspension. Borrowed receiver
+payload extraction, nested structural payload construction/transport,
+loop-carried owned results, and whole nominal receiver replacement remain
+separate dependencies. The `owned_case_state_transport` compiler test exercises
+the filesystem's actual `ErrorKind` through calls and owned state dispatch; it
+does not establish the complete filesystem entry or native realization of that
+state transport.
+
+Keep the complete filesystem fixture as the outer acceptance check. On macOS:
+
+```sh
+OMEGA_PASS_CANARY_FILTER=filesystem/windows_canonicalize_exit \
+  mbx nextest run -p compiler --test canary_suite --no-fail-fast --no-tests fail \
+  -E 'test(=entry_and_abi::pass_canaries_compile)'
+```
+
+On PowerShell, set the same filter for the command and restore it afterward:
+
+```powershell
+$previousCanaryFilter = $env:OMEGA_PASS_CANARY_FILTER
+try {
+    $env:OMEGA_PASS_CANARY_FILTER = 'filesystem/windows_canonicalize_exit'
+    mbx nextest run -p compiler --test canary_suite --no-fail-fast --no-tests fail -E 'test(=entry_and_abi::pass_canaries_compile)'
+    if ($LASTEXITCODE -ne 0) { throw "Filesystem acceptance failed: $LASTEXITCODE" }
+} finally {
+    $env:OMEGA_PASS_CANARY_FILTER = $previousCanaryFilter
+}
+```
+
+Use `cargo` in place of `mbx` when the wrapper is unavailable. This fixture
+cross-compiles its Windows target on macOS; it does not execute Windows code.
 
 The same graph retains its normal result explicitly: Unit or a closed,
 claim-free affine/unrestricted scalar sum. Free and attached constructors and

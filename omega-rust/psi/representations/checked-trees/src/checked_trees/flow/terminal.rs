@@ -474,6 +474,10 @@ impl Default for CheckedStructuralControlTransferPlan {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedStructuralControlTransferSourcePlan {
+    /// Exact earlier state-local call result; rejoined to its producing operation.
+    StructuralResult {
+        binding_ordinal: u32,
+    },
     Parameter {
         index: u32,
     },
@@ -846,12 +850,12 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
         when_true: CheckedStructuralControlSuccessorPlan,
         when_false: CheckedStructuralControlSuccessorPlan,
     },
-    /// Inspect one whole structural result established by this state's
+    /// Consume one whole owned parameter or exact result from this state's
     /// operation prefix and transfer control through the exact closed case
     /// roster. Payload scalars are introduced only on their selected edge;
     /// they are not speculative reads from inactive storage.
     ClosedSum {
-        result: CheckedUnitStructuralResultBindingPlan,
+        subject: CheckedUnitStructuralArgumentPlan,
         cases: Vec<CheckedClosedSumCaseSuccessorPlan>,
     },
 }

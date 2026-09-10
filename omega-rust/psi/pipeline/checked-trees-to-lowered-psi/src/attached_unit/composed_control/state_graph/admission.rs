@@ -30,12 +30,9 @@ pub(in crate::attached_unit::composed_control) fn has_shared_graph_custody(
         && plan.states.iter().all(|state| {
             state.entry_claims.is_empty()
                 && state.structural_parameters.iter().all(|parameter| {
-                    parameter.multiplicity == Multiplicity::Unrestricted
-                        && matches!(
-                            parameter.access,
-                            checked_trees::CheckedStructuralAccess::SharedBorrow
-                                | checked_trees::CheckedStructuralAccess::MutableBorrow
-                        )
+                    ((parameter.multiplicity == Multiplicity::Unrestricted
+                        && matches!(parameter.access, checked_trees::CheckedStructuralAccess::SharedBorrow | checked_trees::CheckedStructuralAccess::MutableBorrow))
+                        || (parameter.access == checked_trees::CheckedStructuralAccess::Owned && matches!(parameter.multiplicity, Multiplicity::Affine | Multiplicity::Unrestricted)))
                         && parameter.qualifications.is_empty()
                 })
         })
@@ -126,6 +123,49 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
             let source = source_parameters.get(parameter.position as usize).ok_or(
                 LoweringError::Unsupported("Unit graph view parameter position is invalid"),
             )?;
+            if parameter.access == checked_trees::CheckedStructuralAccess::Owned {
+                if source.is_self
+                    || source.is_const
+                    || source.is_mutable
+                    || parameter.is_self
+                    || parameter.fused_service_erasure.is_some()
+                    || !parameter.qualifications.is_empty()
+                    || !matches!(
+                        parameter.multiplicity,
+                        Multiplicity::Affine | Multiplicity::Unrestricted
+                    )
+                    || checked.type_multiplicity(source.type_reference) != parameter.multiplicity
+                    || checked
+                        .normalized_type_identity(source.type_reference)
+                        .as_str()
+                        != parameter.type_identity
+                    || !matches!(
+                        checked
+                            .type_reference_table
+                            .type_reference(source.type_reference),
+                        TypeReferenceNode::Named { .. }
+                    )
+                    || !validation::has_plain_owned_contents_with_numeric_constraints(
+                        &checked.typed,
+                        source.type_reference,
+                    )
+                {
+                    return unsupported(
+                        "Unit graph owned parameter differs from exact source custody",
+                    );
+                }
+                let mut shapes = checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .structural_types
+                    .iter()
+                    .filter(|shape| shape.identity == parameter.type_identity);
+                if shapes.next().is_none() || shapes.next().is_some() {
+                    return unsupported("Unit graph owned parameter type missing or duplicated");
+                }
+                continue;
+            }
             let TypeReferenceNode::Reference {
                 referee, access, ..
             } = checked
@@ -191,7 +231,10 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
                 super::cases::validate(checked, plan, source, state, tail, terminator_ordinal)?;
             }
             (CheckedComposedUnitControlTerminatorPlan::ReturnUnit, [])
-                if plan.result == checked_trees::CheckedControlResultPlan::Unit => {}
+                if plan.result == checked_trees::CheckedControlResultPlan::Unit =>
+            {
+                edges::return_discards(checked, plan.machine, source, state)?;
+            }
             (
                 CheckedComposedUnitControlTerminatorPlan::ReturnCase { .. },
                 [StatementNode::Expression(_)],

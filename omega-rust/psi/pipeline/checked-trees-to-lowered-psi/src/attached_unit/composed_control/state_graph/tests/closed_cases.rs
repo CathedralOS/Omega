@@ -60,7 +60,7 @@ fn closed_case_graph_rejoins_source_and_rejects_drift() {
                 )
             })
             .unwrap();
-        let CheckedComposedUnitControlTerminatorPlan::ClosedSum { result, cases } =
+        let CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, cases } =
             &mut state.terminator
         else {
             panic!("selected case state");
@@ -70,7 +70,12 @@ fn closed_case_graph_rejoins_source_and_rejects_drift() {
             1 => cases[0].case_identity.push_str("-forged"),
             2 => cases[0].payloads[0].field_identity.push_str("-forged"),
             3 => cases[0].successor.transfers.clear(),
-            4 => result.statement_index += 1,
+            4 => {
+                subject.source =
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal: u32::MAX,
+                    }
+            }
             5 => state.operations.clear(),
             6 => cases[0].payloads[0].target_scalar_parameter_index += 1,
             7 => cases[0].successor.statement_ordinal += 1,
@@ -130,5 +135,123 @@ fn closed_case_graph_rejects_missing_or_substituted_local_cleanup() {
             }
         }
         assert!(admission::admit(&checked, &plan).is_err());
+    }
+}
+
+#[test]
+fn owned_result_edges_and_return_rejoin_actual_permission_rows() {
+    use language_semantics::{PermissionEventKind, PermissionEventSource, PermissionProvenance};
+    let source = r#"
+        data Kind { case Missing; case Other; }
+        machine make() -> Kind { Kind::Missing }
+        machine route(choose: bool) {
+            let kind: Kind = make();
+            transition choose { true -> first(kind) false -> second(kind) }
+            state first(kind: Kind) {}
+            state second(kind: Kind) {}
+        }
+    "#;
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "route")
+        .unwrap()
+        .symbol;
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine)
+        .unwrap()
+        .clone();
+    admission::admit(&checked, &plan).expect("actual result transfers and parameter returns");
+    let transfers = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter(|(_, event)| {
+            event.machine_symbol == machine && event.kind == PermissionEventKind::Transfer
+        })
+        .map(|(handle, event)| (handle, event.clone()))
+        .collect::<Vec<_>>();
+    assert_eq!(transfers.len(), 2);
+    for (handle, original) in transfers {
+        for mutation in [
+            "missing",
+            "duplicate",
+            "stale path",
+            "extra transfer",
+            "origin",
+        ] {
+            let mut changed = checked.clone();
+            let permissions = &mut changed.facts.flow.ownership.permissions;
+            match mutation {
+                "missing" => permissions.get_mut(handle).machine_symbol = Default::default(),
+                "duplicate" => {
+                    permissions.insert(original.clone());
+                }
+                "stale path" => {
+                    permissions.get_mut(handle).segments =
+                        arena::HandleSpan::from_parts(arena::Handle::invalid(), 1)
+                }
+                "extra transfer" => {
+                    let mut extra = original.clone();
+                    extra.source = PermissionEventSource::Statement { statement_index: 0 };
+                    permissions.insert(extra);
+                }
+                "origin" => permissions.get_mut(handle).provenance = PermissionProvenance::Unknown,
+                _ => unreachable!(),
+            }
+            assert!(
+                admission::admit(&changed, &plan).is_err(),
+                "{mutation} must reject without rebuilding plans"
+            );
+        }
+    }
+    let drops = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter(|(_, event)| {
+            event.machine_symbol == machine
+                && event.state_symbol != plan.states[0].state
+                && event.kind == PermissionEventKind::AffineDrop
+        })
+        .map(|(handle, event)| (handle, event.clone()))
+        .collect::<Vec<_>>();
+    assert_eq!(drops.len(), 2);
+    for (handle, original) in drops {
+        for mutation in ["missing", "duplicate", "stale path", "root"] {
+            let mut changed = checked.clone();
+            let permissions = &mut changed.facts.flow.ownership.permissions;
+            match mutation {
+                "missing" => permissions.get_mut(handle).machine_symbol = Default::default(),
+                "duplicate" => {
+                    permissions.insert(original.clone());
+                }
+                "stale path" => {
+                    permissions.get_mut(handle).segments =
+                        arena::HandleSpan::from_parts(arena::Handle::invalid(), 1)
+                }
+                "root" => permissions.get_mut(handle).root = facts::PlaceRoot::Unknown,
+                _ => unreachable!(),
+            }
+            assert!(
+                admission::admit(&changed, &plan).is_err(),
+                "return {mutation} must reject"
+            );
+        }
     }
 }

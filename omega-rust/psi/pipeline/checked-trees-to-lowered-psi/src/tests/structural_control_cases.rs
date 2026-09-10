@@ -1749,19 +1749,41 @@ fn ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64() {
             }
         "#,
     );
-    let lowered =
-        lower_machine(&checked, "Root::countdown").expect("u64 ranked representation should lower");
+    let general = lower_machine(&checked, "Root::countdown")
+        .expect("ordinary owned state parameters use the general Natural graph");
+    let verified_general = terminal_verifier::verify_module_for_fixed_fuel(
+        &general.semantic_module,
+        &general.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("general Natural graph verifies independently");
+    assert!(
+        matches!(terminal_fixed_fuel::derive_ranked_countdown_entry_fuel(
+        &verified_general, general.semantic_module.entry),
+        Err(terminal_fixed_fuel::FixedFuelError::NotRankedCountdown(machine)) if machine == general.semantic_module.entry)
+    );
+
+    // The legacy unsigned-countdown estimator still owes its exact overflow fence.
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_unit_controls
+        .machines
+        .iter()
+        .find(|plan| plan.ranked_scc.is_some())
+        .expect("retained unsigned countdown plan");
+    let lowered = lower_structural_unit_control_machine(&checked, plan)
+        .expect("unsigned countdown representation should lower");
     let verified = terminal_verifier::verify_module_for_fixed_fuel(
         &lowered.semantic_module,
         &lowered.proof_bundle,
         &proof_admission::AdmissionProfile::default(),
     )
-    .expect("u64 ranked proof closes for fixed-fuel admission");
-
+    .expect("unsigned countdown proof closes for fixed-fuel admission");
     assert!(matches!(
         terminal_fixed_fuel::derive_ranked_countdown_entry_fuel(
             &verified,
-            lowered.semantic_module.entry,
+            lowered.semantic_module.entry
         ),
         Err(terminal_fixed_fuel::FixedFuelError::BoundOverflow)
     ));

@@ -24,7 +24,7 @@ pub(super) fn validate(
             }
         });
     let prefix = state.bindings.len();
-    let marker_count = super::cases::validate_markers(checked, source, state, end)?;
+    let marker_count = super::cases::validate_markers(checked, machine, source, state, end)?;
     if prefix > end || state.operations.len() + marker_count != end - prefix {
         return unsupported("Unit graph dropped or added a body effect");
     }
@@ -42,7 +42,7 @@ pub(super) fn validate(
             ) if coordinate.statement_index as usize == ordinal
                 && coordinate.call_ordinal == 0
                 && !discard_result_on_return
-                && matches!(&state.terminator, CheckedComposedUnitControlTerminatorPlan::ClosedSum { result: selected, .. } if selected == result) =>
+                && result.statement_index as usize == ordinal =>
             {
                 crate::call_source_custody::validate_operation(
                     checked,
@@ -65,7 +65,7 @@ pub(super) fn validate(
                 && coordinate.statement_index as usize == ordinal
                 && coordinate.call_ordinal == 0
                 && !discard_result_on_return
-                && matches!(&state.terminator, CheckedComposedUnitControlTerminatorPlan::ClosedSum { result: selected, .. } if selected == result) =>
+                && result.statement_index as usize == ordinal =>
             {
                 crate::call_source_custody::validate_operation(
                     checked,
