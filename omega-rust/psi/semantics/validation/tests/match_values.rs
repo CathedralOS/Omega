@@ -205,6 +205,24 @@ fn a_widening_cast_cannot_retarget_a_typed_match_arm() {
 }
 
 #[test]
+fn a_widening_cast_cannot_retarget_a_computed_integer_match_arm() {
+    for arms in [
+        "true -> 1u32 + 1u32, false -> 4294967296",
+        "true -> 4294967296, false -> 1u32 | 1u32",
+    ] {
+        let source =
+            format!("machine run(flag: bool) -> u64 {{ (match flag {{ {arms} }}) as u64 }}");
+        let errors = diagnostics(&source);
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("does not fit destination `u32`")),
+            "{source}: {errors:?}"
+        );
+    }
+}
+
+#[test]
 fn integer_cast_does_not_reland_a_typed_float_match_arm() {
     for arms in [
         "true -> value, false -> 7 / 2",

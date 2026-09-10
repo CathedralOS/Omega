@@ -1,6 +1,7 @@
 //! Ordered value-pattern compatibility and coverage. Destination checks still
 //! visit every result arm, including arms whose runtime execution is excluded.
 
+use super::expression_result_type_reference as declared_value_type;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{
@@ -321,57 +322,6 @@ fn selected_expression_transfers_owned(
         crate::literals::expression_children::children(program, node, |child| pending.push(child));
     }
     false
-}
-
-/// Read a retained result declaration before an enclosing destination requests
-/// anonymous landing. This does not infer a carrier for untyped arithmetic.
-pub(crate) fn declared_value_type(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    expression: ExpressionHandle,
-) -> Option<TypeReferenceHandle> {
-    let mut pending = vec![expression];
-    let mut visited = Vec::new();
-    while let Some(expression) = pending.pop() {
-        if !program.expression_table.expression_is_valid(expression)
-            || visited.contains(&expression)
-        {
-            continue;
-        }
-        visited.push(expression);
-        if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
-            pending.extend(
-                program
-                    .expression_table
-                    .match_arms(dispatch.arms)
-                    .iter()
-                    .rev()
-                    .map(|arm| arm.value),
-            );
-            continue;
-        }
-        let declared = match program.expression_table.expression(expression) {
-            ExpressionNode::Call(call) => crate::calls::resolved_call_result_type(program, call)
-                .or_else(|| {
-                    typed_trees::operator::resolve_named_expression_call(program, call)
-                        .map(|operator| operator.return_type)
-                }),
-            ExpressionNode::StructLiteral(literal) => program
-                .type_reference_table
-                .find_named_type_reference(literal.type_symbol),
-            ExpressionNode::Cast(cast) => Some(cast.target_type),
-            ExpressionNode::ZeroValue(reference) => Some(*reference),
-            ExpressionNode::Integer(_) => {
-                crate::operators::landed_integer_literal_type_reference(program, expression)
-            }
-            _ => crate::places::declared_place_type_raw(program, machine, Some(state), expression),
-        };
-        if declared.is_some() {
-            return declared;
-        }
-    }
-    None
 }
 
 fn check_compatible_values(

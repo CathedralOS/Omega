@@ -39,6 +39,216 @@ fn builtin_operand_edges_use_retained_peer_carriers_on_either_side() {
 }
 
 #[test]
+fn composed_integer_results_supply_the_actual_peer_destination() {
+    for peer in [
+        "(8u64 | 16u64)",
+        "(8u64 + 16u64)",
+        "(8u64 + (16u64 | 1u64))",
+        "(~8u64)",
+        "(8u64 << 1u32)",
+        "(match subject { true -> 8u64 + 16u64, false -> 1u64 | 8u64 })",
+    ] {
+        for anonymous in [
+            LARGE_ARGUMENT.to_owned(),
+            format!("match subject {{ true -> {LARGE_ARGUMENT}, false -> 7 / 2 * 2 }}"),
+        ] {
+            for expression in [
+                format!("({anonymous}) | {peer}"),
+                format!("{peer} | ({anonymous})"),
+            ] {
+                let source = format!("machine result(subject: bool) -> u64 {{ {expression} }}");
+                assert_eq!(width_grants(&typed(&source)).len(), 2, "{source}");
+            }
+        }
+    }
+}
+
+#[test]
+fn retained_large_integer_payloads_keep_their_own_carrier() {
+    for expression in [
+        "18446744073709551615u64",
+        "~18446744073709551615u64",
+        "18446744073709551615u64 | 0u64",
+        "18446744073709551615u64 as u64",
+        "accept(18446744073709551615u64)",
+    ] {
+        let source = format!(
+            "machine accept(value: u64) -> u64 {{ value }} machine result() -> u64 {{ {expression} }}"
+        );
+        let program = typed(&source);
+        assert_eq!(width_grants(&program).len(), 1, "{source}");
+        assert!(
+            anonymous_integer_landing_warnings(&program).is_empty(),
+            "{source}"
+        );
+    }
+    for expression in [
+        "18446744073709551616u64",
+        "18446744073709551615u32",
+        "18446744073709551615i64",
+        "18446744073709551615u64 as u32",
+        "18446744073709551615u64 as i64",
+        "18446744073709551615u64 as f64",
+    ] {
+        let source = format!("machine result() -> u64 {{ {expression} }}");
+        assert!(width_grants(&typed(&source)).is_empty(), "{source}");
+    }
+}
+
+#[test]
+fn boolean_results_and_untyped_operations_do_not_supply_integer_destinations() {
+    for peer in [
+        "(8u64 == 8u64)",
+        "(8u64 < 16u64)",
+        "(!false)",
+        "(true && false)",
+        "(8 + 16)",
+    ] {
+        let source = format!("machine result() -> u64 {{ ({LARGE_ARGUMENT}) | {peer} }}");
+        assert!(width_grants(&typed(&source)).is_empty(), "{source}");
+    }
+}
+
+#[test]
+fn an_authored_heterogeneous_result_cannot_borrow_its_operand_carrier() {
+    let source = format!(
+        "operator + u64::authored(left: u64, right: u64) -> bool;
+         machine result(value: u64) -> u64 {{ ({LARGE_ARGUMENT}) | (value + value) }}"
+    );
+    assert!(width_grants(&typed(&source)).is_empty());
+}
+
+#[test]
+fn computed_result_queries_follow_boolean_and_float_signatures() {
+    use typed_trees::statement::StatementNode;
+    use typed_trees::types::PrimitiveType;
+    for (parameters, destination, expression, expected) in [
+        ("value: u64", "bool", "value < 8u64", PrimitiveType::Bool),
+        ("value: u64", "bool", "value == 8u64", PrimitiveType::Bool),
+        ("value: bool", "bool", "!value && true", PrimitiveType::Bool),
+        ("value: f64", "f64", "value + 1.0", PrimitiveType::F64),
+        ("value: f32", "f32", "value * 2.0", PrimitiveType::F32),
+    ] {
+        let source = format!("machine result({parameters}) -> {destination} {{ {expression} }}");
+        let program = typed(&source);
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let [StatementNode::Expression(result)] =
+            program.statement_table.statements(state.statement_nodes)
+        else {
+            panic!("result expression");
+        };
+        let actual = crate::expression_types::expression_result_type_reference(
+            &program, machine, state, *result,
+        )
+        .and_then(|reference| program.primitive_type_reference(reference));
+        assert_eq!(actual, Some(expected), "{source}");
+    }
+}
+
+#[test]
+fn computed_result_queries_accept_shared_children_but_not_cycles() {
+    use typed_trees::statement::StatementNode;
+    let returned = |program: &TypedTrees| {
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let [StatementNode::Expression(result)] =
+            program.statement_table.statements(state.statement_nodes)
+        else {
+            panic!("result expression");
+        };
+        *result
+    };
+    let query = |program: &TypedTrees| {
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        crate::expression_types::expression_result_type_reference(
+            program,
+            machine,
+            state,
+            returned(program),
+        )
+    };
+    let program = typed("machine result() -> u64 { (8u64 | 16u64) | (1u64 | 2u64) }");
+    let root = returned(&program);
+    assert!(query(&program).is_some());
+    let mut shared = program.clone();
+    let ExpressionNode::Binary(binary) = shared.expression_table.expression_mut(root) else {
+        panic!("binary result");
+    };
+    binary.right = binary.left;
+    assert!(query(&shared).is_some());
+    for right in [root, ExpressionHandle::invalid()] {
+        let mut invalid = program.clone();
+        let ExpressionNode::Binary(binary) = invalid.expression_table.expression_mut(root) else {
+            panic!("binary result");
+        };
+        binary.right = right;
+        assert!(query(&invalid).is_none());
+    }
+    let mut unary = typed("machine result() -> u64 { ~8u64 }");
+    let root = returned(&unary);
+    let ExpressionNode::Unary(operation) = unary.expression_table.expression_mut(root) else {
+        panic!("unary result");
+    };
+    operation.operand = root;
+    assert!(query(&unary).is_none());
+}
+
+#[test]
+fn computed_result_queries_do_not_copy_refinements_or_erase_policy() {
+    use typed_trees::statement::StatementNode;
+    use typed_trees::types::TypeReferenceNode;
+
+    for (parameter_type, expression) in [
+        ("u64 [0..=10]", "value + 1u64"),
+        ("u64 in Wrapping", "value + 1"),
+        ("u64 in Saturating", "value + 1"),
+        ("u64 in Trapping", "value + 1"),
+        ("u64", "(value as u64 in Wrapping) + 1"),
+    ] {
+        let source = format!("machine result(value: {parameter_type}) -> u64 {{ {expression} }}");
+        let program = typed(&source);
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let [StatementNode::Expression(result)] =
+            program.statement_table.statements(state.statement_nodes)
+        else {
+            panic!("result expression");
+        };
+        let result = crate::expression_types::expression_result_type_reference(
+            &program, machine, state, *result,
+        );
+        // Unresolved is permitted until qualified results are retained. A
+        // discovered type must not claim an operand range or erase its policy.
+        if let Some(result) = result {
+            if parameter_type.contains("[0..=10]") {
+                assert!(
+                    !matches!(
+                        program.type_reference_table.type_reference(result),
+                        TypeReferenceNode::Constrained { .. }
+                    ),
+                    "{source}"
+                );
+            } else {
+                let expected = if expression.contains("Wrapping") {
+                    numerics::arithmetic::ArithmeticDomain::Wrapping
+                } else {
+                    program.arithmetic_domain_for_type_reference(
+                        program.state_parameters(state)[0].type_reference,
+                    )
+                };
+                assert_eq!(
+                    program.arithmetic_domain_for_type_reference(result),
+                    expected,
+                    "{source}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn match_result_edges_forward_the_typed_operand_destination() {
     let dispatch =
         format!("match subject {{ true -> {LARGE_ARGUMENT}, false -> {LARGE_ARGUMENT} }}");
@@ -146,11 +356,16 @@ fn shift_operands_do_not_acquire_symmetric_peer_destinations() {
 
 #[test]
 fn shared_operand_grants_do_not_escape_to_float_cast_or_shift_count_edges() {
+    check_shared_operand_custody(LARGE_ARGUMENT, 2);
+    check_shared_operand_custody("18446744073709551615u64", 1);
+}
+
+fn check_shared_operand_custody(value: &str, expected_grants: usize) {
     let source = format!(
-        "machine result() -> u64 {{ let saved: u64 = ({LARGE_ARGUMENT}) | 8u64; let floating: f64 = 0u64 as f64; saved << 0u64 }}"
+        "machine result() -> u64 {{ let saved: u64 = ({value}) | 8u64; let floating: f64 = 0u64 as f64; saved << 0u64 }}"
     );
     let program = typed(&source);
-    assert_eq!(width_grants(&program).len(), 2);
+    assert_eq!(width_grants(&program).len(), expected_grants);
     let operation = first_binary(&program, BinaryOperator::BitwiseOr);
     let ExpressionNode::Binary(binary) = program.expression_table.expression(operation) else {
         panic!("operand owner");

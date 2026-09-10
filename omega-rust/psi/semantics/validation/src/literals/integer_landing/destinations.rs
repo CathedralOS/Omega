@@ -88,13 +88,14 @@ pub(in crate::literals) fn append_destination_literals(
             && program
                 .primitive_type_reference(destination)
                 .is_some_and(|primitive| {
-                    land_anonymous_integer_expression(
-                        program,
-                        expression,
-                        primitive,
-                        |expression| has_anonymous_operator_meaning(program, expression),
-                    )
-                    .is_some()
+                    retained_integer_fits(program, expression, primitive)
+                        || land_anonymous_integer_expression(
+                            program,
+                            expression,
+                            primitive,
+                            |expression| has_anonymous_operator_meaning(program, expression),
+                        )
+                        .is_some()
                 })
     };
     let DestinationTrees {
@@ -148,6 +149,26 @@ pub(in crate::literals) fn append_destination_literals(
             blessed.push(expression);
         }
     }
+}
+
+/// A suffix already chose this literal's representation. Admitting its exact
+/// payload at a matching consumer does not re-land it or make a typed operation
+/// anonymous; independent lowering still checks the retained width and sign.
+fn retained_integer_fits(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    destination: PrimitiveType,
+) -> bool {
+    let ExpressionNode::Integer(literal) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    literal.landing().is_some()
+        && crate::operators::landed_integer_literal_type_reference(program, expression)
+            .and_then(|reference| program.primitive_type_reference(reference))
+            == Some(destination)
+        && literal
+            .value_bignum()
+            .is_some_and(|value| land_integer_value(&value, destination).is_some())
 }
 
 #[derive(Default)]
@@ -369,6 +390,13 @@ fn collect_destination_trees(
                     }
                 };
                 match node {
+                    ExpressionNode::Unary(unary)
+                        if unary.operator == typed_trees::expression::UnaryOperator::BitwiseNot =>
+                    {
+                        if let Some(destination) = crate::expression_types::expression_result_type_reference(program, machine, state, expression) {
+                            admit_edge(0, destination, unary.operand);
+                        }
+                    }
                     ExpressionNode::Cast(cast)
                         if !cast.form.is_recast() && cast.semantic_domain.is_empty() =>
                     {
@@ -381,7 +409,7 @@ fn collect_destination_trees(
                             ) =>
                     {
                         for (ordinal, (operand, peer)) in [(binary.left, binary.right), (binary.right, binary.left)].into_iter().enumerate() {
-                            let destination = crate::expression_types::declared_dispatch_value_type(program, machine, state, peer)
+                            let destination = crate::expression_types::expression_result_type_reference(program, machine, state, peer)
                                 .and_then(|reference| crate::places::unwrapped_type_reference(program, reference));
                             if let Some(destination) = destination {
                                 admit_edge(ordinal, destination, operand);
@@ -457,9 +485,7 @@ fn has_large_leaf(program: &TypedTrees, root: ExpressionHandle) -> bool {
         }
         seen.push(expression);
         match program.expression_table.expression(expression) {
-            ExpressionNode::Integer(literal)
-                if literal.landing().is_none() && literal.value_i64().is_none() =>
-            {
+            ExpressionNode::Integer(literal) if literal.value_i64().is_none() => {
                 return true;
             }
             ExpressionNode::Binary(binary) => {

@@ -1072,7 +1072,7 @@ Owners include
   source and scalar computation route. Remaining work: ownership-bearing result
   and conditional-transfer joins, nonnumeric Terminal results, structural/case/
   domain patterns and their coverage, anonymous-only numeric subject execution,
-  result-type discovery for composed operator peers (shared with
+  qualified and selected-operator result-type retention (shared with
   `STATE-LOCAL-VALUE-FRONTIER` numeric landing), and canonical
   package-review contract/index projection where dispatch is currently rejected.
   Current ownership/pattern fences in
@@ -1094,9 +1094,10 @@ Owners include
   tests/omega/pass/expressions/match_anonymous_result_landing/main.omg`.
   Operand/cast probe: `mbx run -p omega -- --check --target macos_arm64
   tests/omega/pass/expressions/numeric_operand_destinations/main.omg`.
-  Destination discovery uses retained declarations, including nested typed Match
-  peers. Composed operator results still need their selected result type rather
-  than a width guessed from operands; keep that query shared with non-Match uses.
+  The shared query in `validation/src/expression_types/result_type.rs` still
+  needs exact qualified and instantiated selected-operator results. Preserve
+  arithmetic policy without copying operand range predicates into results;
+  unknown lookup must not stand in for anonymous numeric meaning.
 
 - **MODULE-NAMESPACE-RESOLUTION.** Finish the
   [module/name contract](wiki/spec/language/modules.md) for pre-resolution
@@ -1460,8 +1461,8 @@ Owners include
   ownership and arrival contracts rather than source-state duplication.
   Extend guarded scalar control to longer dispatches. Complete
   anonymous integer landing, width custody, and warnings for generic/evidence-adapted
-  calls and boundary calls, and full-width unsigned scalar returns still fenced by
-  `validation/src/literals/literal_widths.rs`, plus the remaining
+  calls and boundary calls, and unsigned positions without an admitted consumer
+  edge in `validation/src/literals/literal_widths.rs`, plus the remaining
   numeric operator/policy surface, so proof and execution
   consume the same values without rereading changed operands.
   Extend mutable owned parameter execution to the remaining scalar carriers and

@@ -1,6 +1,6 @@
 machine choose(flag: bool) -> u64 {
     (match flag {
-        true -> 1u32
+        true -> 1u32 + 1u32
         false -> 4294967296
     }) as u64
 }

@@ -11,4 +11,11 @@ machine direct() -> u64 {
     (18446744073709551616 / 18446744073709551616) | 8u64
 }
 
-machine main() -> u64 { combine(true) }
+machine composed(flag: bool) -> u64 {
+    (match flag {
+        true -> 18446744073709551616 / 18446744073709551616
+        false -> 7 / 2 * 2
+    }) | (8u64 | 16u64)
+}
+
+machine main() -> u64 { combine(true) | composed(false) }
