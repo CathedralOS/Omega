@@ -44,6 +44,16 @@ does not. Compare simpler alternatives before adding machinery.
 
 ## Work from a should-be-working example
 
+Resolve unfamiliar paths with `rg --files <existing-directory> -g '<pattern>'`.
+For content searches, pass an existing directory and use `-g` for filename
+patterns; wildcard path arguments such as `src/values*` fail under Windows
+PowerShell. This form also works in macOS shells.
+
+Locate relevant headings or symbols before reading large boards or source files,
+then read their complete relevant sections within the output budget. Avoid dumping
+all boards together. If output is truncated, retrieve the missing relevant section
+before relying on it; do not treat an omitted section as absent evidence.
+
 Use the customer's actual command as the outer loop, including CLI, package
 preparation, publication, and execution where applicable. Trace expected output
 and exit status backward through the producer and consumers. Existing logs and
