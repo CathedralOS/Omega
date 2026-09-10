@@ -32,8 +32,267 @@ fn computed_constant_customer_checks_integer_boolean_indices_and_body() {
     );
     let checked = compile(&root, root_inputs(&root));
     assert_body_value(&checked, "read", 7);
+    assert_body_value(&checked, "read_match", 7);
     assert!(!selections(&checked, "SIZE", identity(1)).is_empty());
     assert!(!selections(&checked, "ENABLED", identity(1)).is_empty());
+}
+
+#[test]
+fn computed_match_arithmetic_lands_once_at_each_integer_destination_and_typed_peer() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for carrier in ["i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64"] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "const FINAL: {carrier} = (match true {{ true -> 7 / 2, false -> 9 / 2 }}) * 2;
+                 const PEER: {carrier} = ((match false {{ true -> 7 / 2, false -> 9 / 2 }}) * 2) + 0{carrier};
+                 machine final_read() -> {carrier} {{ FINAL }}
+                 machine peer_read() -> {carrier} {{ PEER }}"
+            ),
+        );
+        let checked = compile(&root, root_inputs(&root));
+        assert_body_value(&checked, "final_read", 7);
+        assert_body_value(&checked, "peer_read", 9);
+    }
+}
+
+#[test]
+fn computed_match_arithmetic_composes_before_final_and_typed_peer_landings() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for (expression, expected) in [
+        ("((match true { true -> 7 / 2, false -> 9 / 2 }) * 2)", 7),
+        ("(2 * (match true { true -> 7 / 2, false -> 9 / 2 }))", 7),
+        (
+            "((match true { true -> 7 / 2, false -> 9 / 2 }) + 1 / 2)",
+            4,
+        ),
+        (
+            "(10 - (match true { true -> 7 / 2, false -> 9 / 2 }) * 2)",
+            3,
+        ),
+        ("((match true { true -> 14, false -> 18 }) / 2)", 7),
+        ("((match true { true -> -7 / 2, false -> -9 / 2 }) * -2)", 7),
+        (
+            "((match true { true -> 18446744073709551616, false -> 18446744073709551618 }) - 18446744073709551615)",
+            1,
+        ),
+    ] {
+        for initializer in [expression.to_owned(), format!("{expression} + 0u64")] {
+            Sources::write(
+                root.join("main.omg"),
+                &format!(
+                    "{BUFFER} const SIZE: u64 = {initializer};
+                     machine read() -> u64 {{ SIZE }} {} {}",
+                    keep("keep", "SIZE"),
+                    keep("oracle", &expected.to_string()),
+                ),
+            );
+            let checked = compile(&root, root_inputs(&root));
+            assert_body_value(&checked, "read", expected);
+            assert_same_machine_types(&checked, "keep", "oracle");
+        }
+    }
+}
+
+#[test]
+fn computed_match_integer_landing_handles_twenty_four_independent_terms() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for term in [
+        "(match true { true -> 7, false -> 9 })",
+        "(((match true { true -> 7 / 2, false -> 9 / 2 }) * 2) + 0u64)",
+    ] {
+        let terms = std::iter::repeat_n(term, 24)
+            .collect::<Vec<_>>()
+            .join(" + ");
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "{BUFFER} const SIZE: u64 = ({terms}) + 0u64;
+                 machine read() -> u64 {{ SIZE }} {} {}",
+                keep("keep", "SIZE"),
+                keep("oracle", "168"),
+            ),
+        );
+        let checked = compile(&root, root_inputs(&root));
+        assert_body_value(&checked, "read", 168);
+        assert_same_machine_types(&checked, "keep", "oracle");
+    }
+}
+
+#[test]
+fn computed_match_fractional_branch_combinations_require_complete_warning_evidence() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    let terms = std::iter::repeat_n("(match true { true -> 7 / 2, false -> 9 / 2 })", 24)
+        .collect::<Vec<_>>()
+        .join(" + ");
+    for expression in [
+        "((match true { true -> 1 / 2, false -> 3 / 2 }) * (match false { true -> 2, false -> 4 }))".to_owned(),
+        "(((match true { true -> 1 / 2, false -> 3 / 2 }) + (match false { true -> 1 / 2, false -> 3 / 2 })) * 2)".to_owned(),
+        format!("(({terms}) * 2)"),
+    ] {
+        for initializer in [expression.clone(), format!("{expression} + 0u64")] {
+            Sources::write(
+                root.join("main.omg"),
+                &format!("const VALUE: u64 = {initializer};"),
+            );
+            let diagnostics =
+                compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
+                    .expect_err("integral all-arm results still need complete fractional warnings");
+            assert!(
+                diagnostics.iter().any(|diagnostic| {
+                    diagnostic.message.contains("fractional")
+                        && diagnostic.message.contains("warning")
+                }),
+                "warning evidence, not integer representability, remains unsupported for {initializer}: {diagnostics:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn computed_match_arithmetic_rejects_unselected_invalid_integer_landings() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for (carrier, expression, expected) in [
+        (
+            "u8",
+            "((match true { true -> 2, false -> 7 / 2 }) + 0)",
+            "land",
+        ),
+        (
+            "u8",
+            "((match true { true -> 2, false -> 513 / 2 }) * 2)",
+            "land",
+        ),
+        (
+            "u8",
+            "((match true { true -> 2, false -> -1 }) + 0)",
+            "land",
+        ),
+        (
+            "i8",
+            "((match true { true -> 2, false -> -129 }) + 0)",
+            "land",
+        ),
+        (
+            "u64",
+            "((match true { true -> 2, false -> 18446744073709551616 }) + 0)",
+            "land",
+        ),
+        (
+            "i64",
+            "((match true { true -> 2, false -> 9223372036854775808 }) + 0)",
+            "land",
+        ),
+        (
+            "u8",
+            "((match true { true -> 2, false -> 1 / 0 }) * 0)",
+            "defined exact numeric",
+        ),
+        ("u8", "((match true { true -> 2, false -> 3 }) / 2)", "land"),
+        (
+            "u8",
+            "((match true { true -> 2, false -> 3 }) * (match true { true -> 1 / 2, false -> 3 / 2 }))",
+            "land",
+        ),
+    ] {
+        for initializer in [expression.to_owned(), format!("{expression} + 0{carrier}")] {
+            Sources::write(
+                root.join("main.omg"),
+                &format!("const INVALID: {carrier} = {initializer};"),
+            );
+            let diagnostics =
+                compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
+                    .expect_err("unused declarations still owe every result arm's landing");
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains(expected)),
+                "{carrier} {initializer}: {diagnostics:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn computed_match_arithmetic_retains_typed_operand_width_and_selected_operation_obligations() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for (initializer, expected) in [
+        (
+            "((match true { true -> 1, false -> 256 }) + 0u8) / 2",
+            "land",
+        ),
+        (
+            "((match true { true -> 1, false -> 7 / 2 }) + 0u8) * 2",
+            "land",
+        ),
+        (
+            "((match true { true -> 255, false -> 254 }) + 1u8) - 1",
+            "Exact integer constant operation",
+        ),
+    ] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!("const INVALID: u8 = {initializer};"),
+        );
+        let diagnostics =
+            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
+                .expect_err("a safe final value cannot repair an earlier typed boundary");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "{initializer}: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn computed_match_boolean_short_circuit_keeps_static_landing_without_executing_subjects() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("main.omg"),
+        "pub data Flag<const Enabled: bool> { value: u8; }
+         const SKIPPED: bool = false && (((match (1u8 / 0 == 0) { true -> 7 / 2, false -> 9 / 2 }) * 2) == 0u8);
+         const SELECTED: bool = match true { true -> true, false -> (((match (1u8 / 0 == 0) { true -> 7 / 2, false -> 9 / 2 }) * 2) == 0u8) };
+         machine skipped(value: Flag<SKIPPED>) -> Flag<SKIPPED> { let local: Flag<SKIPPED> = value; local }
+         machine selected(value: Flag<SELECTED>) -> Flag<SELECTED> { let local: Flag<SELECTED> = value; local }
+         machine disabled(value: Flag<false>) -> Flag<false> { let local: Flag<false> = value; local }
+         machine enabled(value: Flag<true>) -> Flag<true> { let local: Flag<true> = value; local }",
+    );
+    let checked = compile(&root, root_inputs(&root));
+    assert_same_machine_types(&checked, "skipped", "disabled");
+    assert_same_machine_types(&checked, "selected", "enabled");
+
+    for expression in [
+        "(((match true { true -> 2, false -> 7 / 2 }) + 0) == 0u8)",
+        "(((match true { true -> 2, false -> 256 }) + 0) == 0u8)",
+    ] {
+        for initializer in [
+            format!("false && {expression}"),
+            format!("true || {expression}"),
+        ] {
+            Sources::write(
+                root.join("main.omg"),
+                &format!("const INVALID: bool = {initializer};"),
+            );
+            let diagnostics =
+                compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
+                    .expect_err("short circuit skips execution, not anonymous operand landing");
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("land")),
+                "{initializer}: {diagnostics:?}"
+            );
+        }
+    }
 }
 
 #[test]

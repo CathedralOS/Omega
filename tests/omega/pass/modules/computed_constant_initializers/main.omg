@@ -1,4 +1,5 @@
 pub const SIZE: u64 = 7 / 2 * 2;
+pub const MATCH_SIZE: u64 = ((match true { true -> 7 / 2, false -> 9 / 2 }) * 2) + 0u64;
 pub const ENABLED: bool = SIZE == 7;
 
 pub data Buffer<const Size: u64> { value: [u8; Size]; }
@@ -7,3 +8,5 @@ pub data Flag<const Enabled: bool> { value: u8; }
 machine keep(value: Buffer<SIZE>) -> Buffer<7> { value }
 machine selected(value: Flag<ENABLED>) -> Flag<true> { value }
 machine read() -> u64 { SIZE }
+machine keep_match(value: Buffer<MATCH_SIZE>) -> Buffer<7> { value }
+machine read_match() -> u64 { MATCH_SIZE }

@@ -261,7 +261,29 @@ pub(super) fn validate_landing(
             );
         } else if contains_match(program, expression) {
             validate_anonymous_fragments(program, machine, state, expression)?;
-            return Err("constant Match result landing through surrounding anonymous arithmetic requires an all-arm bound proof".into());
+            let fractional_history = rational_bounds::validate_integer_landing(
+                program,
+                expression,
+                carrier,
+                |operand| {
+                    validation::has_builtin_binary_expression_meaning(
+                        program,
+                        machine,
+                        Some(state),
+                        operand,
+                    )
+                },
+            )?;
+            if fractional_history {
+                validate_fractional_landings(
+                    program,
+                    machine,
+                    state,
+                    expression,
+                    destination,
+                    warnings,
+                )?;
+            }
         } else {
             land_anonymous(
                 program,
@@ -275,6 +297,95 @@ pub(super) fn validate_landing(
         }
     }
     Ok(carrier)
+}
+
+/// Bounds cannot invent the exact final value required by a fractional warning.
+/// With one varying child per operation, each complete result path can reuse
+/// ordinary landing with exact arm edges. This visits alternatives, not their
+/// Cartesian product, and never evaluates subjects or patterns. Independent
+/// fractional histories still need compositional exact diagnostic evidence.
+fn validate_fractional_landings(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    root: ExpressionHandle,
+    destination: PrimitiveType,
+    warnings: &mut Vec<Diagnostic>,
+) -> Result<(), String> {
+    let mut pending = vec![root];
+    while let Some(expression) = pending.pop() {
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => pending.extend(
+                program
+                    .expression_table
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .map(|arm| arm.value),
+            ),
+            ExpressionNode::Binary(binary) => {
+                if contains_match(program, binary.left) && contains_match(program, binary.right) {
+                    return Err("anonymous constant Match landing with independent fractional histories requires exact warning evidence".into());
+                }
+                pending.push(binary.right);
+                pending.push(binary.left);
+            }
+            _ => {}
+        }
+    }
+
+    enum Step {
+        Enter(ExpressionHandle),
+        Arm(ExpressionHandle, ExpressionHandle),
+        Restore(usize),
+    }
+    let mut pending = vec![Step::Enter(root)];
+    let mut selected = Vec::new();
+    while let Some(step) = pending.pop() {
+        match step {
+            Step::Restore(length) => selected.truncate(length),
+            Step::Arm(owner, result) => {
+                pending.push(Step::Restore(selected.len()));
+                selected.push((owner, result));
+                pending.push(Step::Enter(result));
+            }
+            Step::Enter(expression) => {
+                match program.expression_table.expression(expression) {
+                    ExpressionNode::Match(dispatch) => {
+                        pending.extend(
+                            program
+                                .expression_table
+                                .match_arms(dispatch.arms)
+                                .iter()
+                                .rev()
+                                .map(|arm| Step::Arm(expression, arm.value)),
+                        );
+                        continue;
+                    }
+                    ExpressionNode::Binary(binary) => {
+                        if contains_match(program, binary.left) {
+                            pending.push(Step::Enter(binary.left));
+                            continue;
+                        }
+                        if contains_match(program, binary.right) {
+                            pending.push(Step::Enter(binary.right));
+                            continue;
+                        }
+                    }
+                    _ => {}
+                }
+                land_anonymous(
+                    program,
+                    machine,
+                    state,
+                    root,
+                    destination,
+                    &selected,
+                    warnings,
+                )?;
+            }
+        }
+    }
+    Ok(())
 }
 
 fn contains_match(program: &TypedTrees, root: ExpressionHandle) -> bool {

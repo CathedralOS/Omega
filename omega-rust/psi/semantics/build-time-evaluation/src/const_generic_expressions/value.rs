@@ -601,12 +601,10 @@ fn validate_shapes(
     if shapes.len() != 1 {
         return Err("constant expression did not produce one type".into());
     }
-    if matches!(shapes[0], Shape::Anonymous(_))
-        && matches!(
-            program.expression_table.expression(root),
-            ExpressionNode::Match(_)
-        )
-    {
+    // The actual destination owns landing even when arithmetic surrounds a
+    // dispatch. Checking only a bare Match would let an unselected fractional
+    // or out-of-range result disappear before the selected value is published.
+    if matches!(shapes[0], Shape::Anonymous(_)) {
         match_dispatch::validate_landing(
             program,
             machine,

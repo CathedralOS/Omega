@@ -1179,8 +1179,11 @@ Owners include
   invocation admission, and floating public identities need determined
   representation bits. Acceptance includes unused declarations and ordinary
   body/index consumers without weakening those obligations.
-  Scalar Match index evaluation still needs general all-arm integer bounds and
-  integrality proofs for anonymous arithmetic containing nested dispatch.
+  Scalar Match index/declaration evaluation still needs divisibility evidence
+  for nonconstant divisors and exact fractional-warning evidence across
+  independent anonymous dispatch operands. Extend the rational bounds/lattice
+  owner and retained result-edge diagnostics; integer endpoints alone cannot
+  prove integrality, and interval-valued warnings cannot replace exact finals.
   Nonzero proofs still need same-sign disjointness and correlated result facts
   when sign-partitioned rational bounds include zero despite every executable
   divisor being nonzero.

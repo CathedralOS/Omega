@@ -86,13 +86,28 @@ alternatives remain separate through arithmetic, so direct dispatch and
 surrounding operations use the same proof. The traversal neither executes
 subjects nor enumerates independent arm combinations. A range containing zero
 leaves the obligation open; it does not prove a zero divisor actually executes.
-Same-sign disjointness/correlation proofs and all-arm integer bounds/integrality
-through surrounding anonymous arithmetic remain unfinished; rational nonzero
-bounds do not replace integer landing.
+Integer destinations additionally require all-arm carrier bounds and an exact
+rational lattice (offset plus integer multiples of a stride). Arithmetic and
+joins transport that lattice, so fractional intermediates may cancel before
+landing; integral interval endpoints alone do not prove integral interior values.
+Final declaration destinations and typed peers use the same check. Division by
+nonconstant result sets still needs stronger divisibility evidence, and nonzero
+proofs still lose same-sign gaps and correlations.
+
+Fractional warnings retain an exact origin and complete final value even inside
+skipped operations. With one dispatch-bearing operand per anonymous arithmetic
+node, the existing evaluator visits each complete result path using retained
+arm edges, without evaluating subjects or patterns. Independent integer-only
+dispatches need no warning traversal. Independent fractional histories still
+require compositional exact diagnostic evidence and reject explicitly; no arm
+Cartesian product, ranged substitute for the final value, or dropped warning
+is used to admit them.
 Exercise the source customer with
 `cargo run -p omega -- --check tests/omega/pass/modules/match_constant_indices/main.omg`
 and its canonical-type, selection, and rejection controls with
 `cargo nextest run -p compiler --test module_machine_indices value_dispatch:: --no-fail-fast`.
+Declaration landing, body/index identity and skipped invalid-arm controls use
+`cargo nextest run -p compiler --test module_machine_indices computed_declarations:: --no-fail-fast`.
 
 ## Semantic admission boundary
 
