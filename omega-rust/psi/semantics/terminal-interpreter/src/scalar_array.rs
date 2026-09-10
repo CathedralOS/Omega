@@ -14,6 +14,56 @@ pub struct TerminalScalarArrayResult {
 }
 
 impl TerminalExecution {
+    /// Copy a complete unrestricted actual into its exact callee parameter.
+    /// Opaque host roots and projected/borrowed storage carry no array payload.
+    pub(super) fn prepare_scalar_array_argument(
+        &self,
+        machine: &ExecutableMachine,
+        parameter: &StructuralParameterDeclaration,
+        argument: &StructuralArgument,
+    ) -> Result<TerminalScalarArrayValue, TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let value = self
+            .scalar_array_values
+            .get(&argument.place)
+            .ok_or_else(invalid)?;
+        let (scalar_type, count) = terminal_semantics::scalar_array_leaf_shape(
+            self.structural_types.values(),
+            parameter.structural_type,
+        )
+        .ok_or_else(invalid)?;
+        if parameter.access != StructuralAccess::Owned
+            || argument.access != StructuralAccess::Owned
+            || !argument.path.is_empty()
+            || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+            || value.structural_type != parameter.structural_type
+            || u64::try_from(value.elements.len()).ok() != Some(count)
+            || value
+                .elements
+                .iter()
+                .any(|value| value.scalar_type() != scalar_type)
+            || machine
+                .entry_claims
+                .iter()
+                .any(|claim| claim.input == parameter.place)
+            || machine
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.input.root == parameter.place)
+            || self
+                .live_claims
+                .values()
+                .any(|claim| claim.place == Some(argument.place))
+            || self.structural_values.contains_key(&argument.place)
+            || self.scalar_case_values.contains_key(&argument.place)
+        {
+            return Err(invalid());
+        }
+        Ok(value.clone())
+    }
+
     /// Preflight the result and caller slot before paying the edge. None means
     /// the caller frame was restored; Some is exhaustion or entry completion.
     pub(super) fn return_scalar_array(

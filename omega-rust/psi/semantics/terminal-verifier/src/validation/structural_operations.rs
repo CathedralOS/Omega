@@ -1224,7 +1224,8 @@ pub(super) enum StructuralArgumentSourcePolicy {
     /// but not construction-local establishments.
     ParametersOrBoundaryActuals,
     /// Unit and scalar-result calls retain construction locals and whole
-    /// ordinary and boundary affine results, plus whole immutable byte views.
+    /// ordinary and boundary affine results, whole owned primitive arrays,
+    /// and whole immutable byte views.
     ParametersOrAffineLocalsAndCallResults,
     /// Whole record establishments and claim-free affine call results.
     /// Frontier validation separately requires their producer to have run.
@@ -1314,6 +1315,15 @@ pub(super) fn validate_structural_arguments(
                         return None;
                     }
                     match place.kind {
+                        StructuralPlaceKind::OperationResult { structural_type, .. }
+                            if ordinary_call
+                                && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
+                                && argument.path.is_empty() && argument.access == StructuralAccess::Owned
+                                && super::scalar_array::plain_return_source(module, caller, argument.place) =>
+                        {
+                            Some((structural_type, StructuralMultiplicity::Unrestricted,
+                                StructuralAccess::Owned, &[][..], &[][..]))
+                        }
                         StructuralPlaceKind::OperationResult { .. }
                             if ordinary_call
                                 && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
@@ -1458,6 +1468,14 @@ pub(super) fn validate_structural_arguments(
             });
         }
         let root_type = actual_type;
+        if super::scalar_array::owned_payload_source(module, caller, argument.place)
+            && (expected.multiplicity != StructuralMultiplicity::Unrestricted
+                || expected.access != StructuralAccess::Owned
+                || !expected.qualifications.is_empty()
+                || !expected.projected_qualifications.is_empty())
+        {
+            return Err(ModuleError::ScalarArrayResultMismatch(operation));
+        }
         // Inline byte fields retain their owner/path instead of acquiring a
         // fictitious structural type identity. Ordinary calls admit only
         // an exact mutable field subloan; this grants no extent replacement.
@@ -1599,8 +1617,17 @@ pub(super) fn validate_structural_arguments(
         for second in first + 1..arguments.len() {
             let left = &arguments[first];
             let right = &arguments[second];
+            // Both arguments receive independent unrestricted array values;
+            // neither takes an exclusive loan or moves the caller's payload.
+            let copied_array = ordinary_call
+                && left.access == StructuralAccess::Owned
+                && right.access == StructuralAccess::Owned
+                && left.path.is_empty()
+                && right.path.is_empty()
+                && super::scalar_array::plain_return_source(module, caller, left.place);
             if left.place == right.place
                 && structural_paths_may_overlap(&left.path, &right.path)
+                && !copied_array
                 && (structural_access_is_exclusive(left.access)
                     || structural_access_is_exclusive(right.access)
                     || ((left.access == StructuralAccess::Owned

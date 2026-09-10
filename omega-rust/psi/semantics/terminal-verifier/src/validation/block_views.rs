@@ -34,6 +34,12 @@ pub(super) fn validate_declarations(
         }
         for (position, declaration) in block.structural_parameters.iter().enumerate() {
             if u32::try_from(position).ok() != Some(declaration.position)
+                || (declaration.access == StructuralAccess::Owned
+                    && terminal_semantics::scalar_array_leaf_shape(
+                        module.structural_types.iter(),
+                        declaration.structural_type,
+                    )
+                    .is_some())
                 || parameter(machine, declaration.place) != Some(declaration)
                 || !matches!(
                     (declaration.access, declaration.multiplicity),

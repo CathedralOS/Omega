@@ -1142,34 +1142,26 @@ Owners include
   `values/scalar/constant_array_projection.rs` only selects closed literal leaves.
   General value projection needs its complete executable representation, not
   a source rewrite that makes a constant addressable storage.
-  Array-valued constant projections preserve exact destination dimensions and
-  element carriers, including empty rows, through checked evaluation. The customer's
-  `selected_row`, `selected_empty_row`, `root_array`, and `selected_array` also
-  execute from independently decoded Terminal artifacts through ordinary ordered
-  construction and structural return. Computed integer/Boolean elements reuse
-  ordinary scalar expressions and computation graphs, preserving earlier leaves
-  across mutating calls and selective Boolean control. On macOS AArch64, the outer command
-  `cargo run -p omega -- inspect-terminal --machine computed_row tests/omega/pass/modules/module_array_constant_indices/main.omg`
-  publishes a verified runtime-parameter/addition/constructor/return artifact;
-  decoded execution with input `42u8` returns `[42u8, 9u8]`.
-  Repeat with `selected_row` and `selected_empty_row` for selected and empty shapes.
-  The source correspondence owner is
-  `checked-trees-to-lowered-psi/src/attached_unit/scalar_arrays.rs`.
-  Continue with array arguments and
-  state transfers, and native construction; exact value/type custody and
-  initialized backing must survive those boundaries. The current native consumer
-  explicitly rejects `EstablishScalarArray`, including empty payloads.
-  The customer's `called_row` and `bound_row` also lower from source through
-  ordinary calls and return `[42u8, 9u8]` after independent decoding. On macOS
-  AArch64, use the same outer command with `--machine called_row` or
-  `--machine bound_row`. Primitive-array call results retain nested/empty shapes,
-  source occurrence/result binding, and callee requirements through ordinary
-  sequencing in `typed-trees-to-checked-trees/src/flow/terminal_unit/control/statement_sequence.rs`
-  and complete body closure in `checked-trees-to-lowered-psi/src/attached_unit/`.
-  Next acceptance is carrying that payload through an ordinary array parameter;
-  the current portable consumer explicitly rejects that transport. Boundary-provider
-  array result payloads also remain unsupported. Preserve independent custody
-  checks; do not substitute opaque structural identities for executable values.
+  Array transport resume evidence (macOS AArch64, base `a5f8ad21e2` plus the
+  array-argument change, Cargo with `RUST_MIN_STACK=33554432`):
+  `cargo run -p omega -- inspect-terminal --machine passed_row tests/omega/pass/modules/module_array_constant_indices/main.omg`
+  publishes verified construction/call/parameter-return Terminal Psi. The fixture
+  execution test in `compiler/tests/module_machine_indices/array_construction.rs`
+  independently decodes the artifact and checks input `42u8` returns `[42u8, 9u8]`.
+  Construction, named locals, nested calls, and parameter returns retain exact
+  dimensions, element carriers, source positions, and unrestricted payload custody.
+  Source owners are
+  `typed-trees-to-checked-trees/src/flow/terminal_unit/control/statement_sequence.rs`
+  and `checked-trees-to-lowered-psi/src/attached_unit/scalar_arrays.rs`.
+  Next acceptance is direct array-literal operands at each authored argument
+  position: the current scalar-element binding uses statement-local ordinals,
+  so multiple literals in one call need exact source-occurrence ownership in
+  `typed-trees-to-checked-trees/src/values/scalar/` and constructor replay.
+  Borrowed/projected payloads, state transfers, and boundary-provider array
+  results also remain unsupported. Native lowering rejects `EstablishScalarArray`,
+  including empty payloads. Continue with complete value/storage paths and
+  independent custody checks; do not
+  substitute opaque structural identities for executable values.
   General slice-backed `.len` operands also need retained view formation and bounds
   obligations before folding; a known endpoint difference alone cannot erase that
   operation. The array operand correspondence owner rejects missing view evidence.

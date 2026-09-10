@@ -32,6 +32,8 @@ use terminal_verifier::{
 mod byte_views;
 #[path = "calls/provider_results.rs"]
 mod provider_results;
+#[path = "calls/scalar_array_arguments.rs"]
+mod scalar_array_arguments;
 
 #[test]
 fn scalar_call_reconstructs_requirements_and_imports_verified_guarantees() {

@@ -263,7 +263,7 @@ pub(super) fn validate_structural_frontier(
             snapshots
                 .operation_entries
                 .insert(operation.id, frontier.snapshot());
-            validate_owned_reads(machine, operation, &frontier)?;
+            validate_owned_reads(module, machine, operation, &frontier)?;
             if let OperationKind::EstablishTrivialAffineLocal { destination } = operation.kind
                 && frontier
                     .owned_places
@@ -765,6 +765,7 @@ pub(super) fn validate_structural_frontier(
                             && parameter.access == StructuralAccess::Owned);
                 if frontier.owned_places.remove(source).is_none()
                     && !exact_unrestricted_parameter_return
+                    && !super::scalar_array::plain_parameter(module, machine, *source)
                 {
                     return Err(ModuleError::StructuralReturnSourceNotLive {
                         machine: machine.id,
@@ -943,6 +944,7 @@ pub(super) fn validate_structural_frontier(
 /// Check every read before committing any outgoing move; repeated shared
 /// arguments do not alter the frontier.
 fn validate_owned_reads(
+    module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
     frontier: &StructuralOwnershipFrontier,
@@ -970,6 +972,21 @@ fn validate_owned_reads(
         } => structural_arguments.as_slice(),
         _ => &[],
     };
+    // Unrestricted argument passing copies custody rather than consuming it,
+    // but a local payload must still have been established on this path.
+    for argument in arguments {
+        if super::scalar_array::owned_payload_source(module, machine, argument.place)
+            && !super::scalar_array::plain_parameter(module, machine, argument.place)
+            && (frontier.owned_places.get(&argument.place)
+                != Some(&StructuralMultiplicity::Unrestricted)
+                || frontier.partial_custody_paths.contains_key(&argument.place))
+        {
+            return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+                operation: operation.id,
+                place: argument.place,
+            });
+        }
+    }
     let observation = match operation.kind {
         OperationKind::IntegerStructuralField { source, .. }
         | OperationKind::BooleanStructuralField { source, .. } => Some(source),

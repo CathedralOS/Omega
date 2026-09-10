@@ -184,7 +184,7 @@ fn enter_provider(execution: &mut TerminalExecution) {
     let prepared = prepared.into_call_arguments(&[parameter(2)]).unwrap();
     assert_eq!(ordinary.values, prepared.values);
     ordinary.byte_sequences[&place(2)]
-        .validate_mutable_referent(&execution.structural_types, &prepared.values[0])
+        .validate_mutable_referent(&execution.structural_types, &prepared.values[&place(2)])
         .unwrap();
     execution
         .begin_unit_call(

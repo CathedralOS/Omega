@@ -1,9 +1,11 @@
 //! Array construction shares the ordinary structural result namespace. Replay
 //! rejoins each operand to its authored expression before emitting portable values.
 //! Returning a call result instead uses the shared call-source and callee-body
-//! checks; the final binding must still identify its exact producer below.
+//! checks. A return names either its exact operation producer or an incoming
+//! parameter slot; equal array types cannot substitute for source correspondence.
 
 use super::*;
+use checked_trees::CheckedStructuralAccess;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use checked_trees::{CheckedCallScalarArgument, CheckedUnitStructuralResultBindingPlan};
@@ -218,25 +220,91 @@ pub(super) fn validate_result(
     let Some(StatementNode::Expression(expression)) = statements.last() else {
         return unsupported("structural result source has no completion value");
     };
-    if let ExpressionNode::Name(path) = checked.typed.expression_table.expression(*expression) {
-        let Some(StatementNode::LocalData(local)) = statements.get(result.statement_index as usize)
-        else {
-            return unsupported("returned structural binding has no declaration");
-        };
-        if path.symbol != local.symbol {
-            return unsupported("returned structural binding differs from source");
+    match result.source {
+        CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
+            let mut producers = machine
+                .operations
+                .iter()
+                .filter_map(|operation| match operation {
+                    CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                        result: candidate,
+                        ..
+                    }
+                    | CheckedUnitEffectOperationPlan::StructuralCall {
+                        result: candidate, ..
+                    } if candidate.binding_ordinal == binding_ordinal => Some(candidate),
+                    _ => None,
+                });
+            let binding = producers.next().ok_or(LoweringError::Unsupported(
+                "returned structural value has no exact producer",
+            ))?;
+            if producers.next().is_some()
+                || binding.type_identity != result.type_identity
+                || binding.multiplicity != result.multiplicity
+            {
+                return unsupported("returned structural producer is ambiguous or changed");
+            }
+            if let ExpressionNode::Name(path) =
+                checked.typed.expression_table.expression(*expression)
+            {
+                let Some(StatementNode::LocalData(local)) =
+                    statements.get(binding.statement_index as usize)
+                else {
+                    return unsupported("returned structural binding has no declaration");
+                };
+                if path.symbol != local.symbol
+                    || path.head_symbol != local.symbol
+                    || checked
+                        .typed
+                        .expression_table
+                        .name_path_members(path.members)
+                        .len()
+                        != 1
+                {
+                    return unsupported("returned structural binding differs from source");
+                }
+            } else if binding.statement_index as usize + 1 != statements.len() {
+                return unsupported("returned constructor differs from source");
+            }
         }
-    } else if result.statement_index as usize + 1 != statements.len() {
-        return unsupported("returned constructor differs from source");
-    }
-    let has_exact_producer = machine.operations.iter().any(|operation| {
-        matches!(operation,
-            CheckedUnitEffectOperationPlan::EstablishScalarArray { result: candidate, .. }
-            | CheckedUnitEffectOperationPlan::StructuralCall { result: candidate, .. }
-            if candidate == result)
-    });
-    if !has_exact_producer {
-        return unsupported("returned structural value has no exact producer");
+        CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+            let parameter = machine
+                .structural_parameters
+                .get(parameter_index as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "returned structural parameter is absent",
+                ))?;
+            let source_parameter = checked
+                .typed
+                .state_parameters(state)
+                .get(parameter.position as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "returned structural source parameter is absent",
+                ))?;
+            if parameter.access != CheckedStructuralAccess::Owned
+                || source_parameter.is_const
+                || source_parameter.is_mutable
+                || source_parameter.is_self
+                || parameter.multiplicity != Multiplicity::Unrestricted
+                || !parameter.qualifications.is_empty()
+                || parameter.is_self
+                || parameter.fused_service_erasure.is_some()
+                || parameter.type_identity != result.type_identity
+                || checked
+                    .typed
+                    .normalized_type_identity(source_parameter.type_reference)
+                    .as_str()
+                    != result.type_identity
+                || !matches!(checked.typed.expression_table.expression(*expression),
+                    ExpressionNode::Name(path) if path.symbol == source_parameter.symbol
+                        && path.head_symbol == source_parameter.symbol
+                        && checked.typed.expression_table.name_path_members(path.members).len() == 1)
+            {
+                return unsupported("returned structural parameter differs from its owned source");
+            }
+            validate_shape(checked, source_parameter.type_reference)?;
+        }
+        _ => return unsupported("structural return source is not an owned whole value"),
     }
     // Every authored statement owes an operation, except a final binding use.
     for index in 0..statements.len() {

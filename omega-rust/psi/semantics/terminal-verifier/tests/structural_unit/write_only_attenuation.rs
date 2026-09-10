@@ -415,18 +415,20 @@ fn indexed_write_only_receiver_rejects_sums_and_unknown_referents() {
 #[test]
 fn indexed_write_only_attenuation_rejects_shared_and_unserved_owned_roots() {
     let mut module = indexed_attenuation_module();
+    validate_module(&module).expect("exclusive borrowed root may lend an indexed primitive");
     module.machines[0].structural_parameters[0].access = StructuralAccess::SharedBorrow;
     assert!(matches!(
         validate_module(&module),
         Err(ModuleError::StructuralArgumentAccessExceedsSource { .. })
     ));
 
-    // Owned projected loans have a separate custody contract; this change only
-    // removes observation authority from an already exclusive borrowed root.
+    // An owned primitive-array payload can be copied whole into an ordinary
+    // call, but cannot supply the projected borrowed-backing contract. Reject
+    // that presentation before the generic projected multiplicity checks.
     module.machines[0].structural_parameters[0].access = StructuralAccess::Owned;
     assert!(matches!(
         validate_module(&module),
-        Err(ModuleError::StructuralArgumentMultiplicityMismatch { .. })
+        Err(ModuleError::ScalarArrayResultMismatch(_))
     ));
 }
 

@@ -125,7 +125,7 @@ fn array_call_result_source_target_and_return_custody_reject_substitution() {
                 panic!("second source call");
             };
             if mutation == "same typed returned call" {
-                plan.structural_result = Some(other_result);
+                plan.structural_result = Some(other_result.into());
             } else if mutation == "dropped unused call" {
                 plan.operations.remove(calls[1]);
             } else {
@@ -211,14 +211,24 @@ fn array_call_callee_body_requires_one_exact_result_owner() {
 }
 
 #[test]
-fn array_call_results_do_not_enable_unimplemented_array_arguments() {
+fn array_call_results_support_whole_owned_unit_arguments() {
     let checked = checked_source(
         "machine make() -> [u8; 2] { [7, 9] }
          machine consume(row: [u8; 2]) {}
          machine selected() { let row: [u8; 2] = make(); consume(row); }",
     );
-    reject(
-        &checked,
-        "array payload argument transport remains unsupported",
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "selected")
+        .expect("ordinary Unit calls carry the completed array payload");
+    let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
+    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    assert_eq!(
+        terminal_interpreter::interpret_terminal_artifact(
+            &semantic,
+            &proof,
+            &proof_admission::AdmissionProfile::default(),
+            &[],
+        )
+        .unwrap(),
+        terminal_interpreter::TerminalExecutionResult::Unit,
     );
 }

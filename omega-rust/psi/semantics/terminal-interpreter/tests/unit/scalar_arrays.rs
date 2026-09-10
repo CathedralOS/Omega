@@ -1,6 +1,9 @@
 use super::*;
 use terminal_interpreter::{TerminalScalarArrayResult, TerminalScalarArrayValue};
 
+#[path = "scalar_arrays/arguments.rs"]
+mod arguments;
+
 fn byte(value: u8) -> TerminalScalarValue {
     TerminalScalarValue::Integer {
         scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
@@ -386,7 +389,7 @@ fn scalar_array_contents_survive_later_scalar_work_and_nested_local_arrays() {
 }
 
 #[test]
-fn scalar_array_structural_argument_transport_rejects_before_execution() {
+fn scalar_array_owned_unit_argument_preserves_caller_contents() {
     let mut module = fixture(&[2], byte(0).scalar_type(), &[byte(7), byte(9)]);
     let mut callee = unit_module().machines.remove(0);
     callee.id = machine_id(2);
@@ -433,19 +436,16 @@ fn scalar_array_structural_argument_transport_rejects_before_execution() {
             crash_continuations: vec![],
         },
     });
-    let error = verify_module(
-        &module,
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .expect_err("unsupported array transport rejects");
-    assert!(
-        matches!(error,
-            VerificationError::Module(ModuleError::ScalarArrayResultMismatch(operation))
-            | VerificationError::Module(ModuleError::UnknownStructuralArgument { operation, .. })
-                if operation == operation_id(100)
-        ),
-        "{error:?}"
+    assert_eq!(
+        interpret_terminal_artifact_measured(
+            &encode_module(&module).unwrap(),
+            &encode_proof_bundle(&ProofBundle::default()).unwrap(),
+            &AdmissionProfile::default(),
+            &[],
+        )
+        .unwrap()
+        .value(),
+        expected(vec![byte(7), byte(9)]),
     );
 }
 
@@ -756,7 +756,7 @@ fn scalar_array_call_results_do_not_erase_callee_requirements() {
 }
 
 #[test]
-fn scalar_array_call_results_do_not_gain_opaque_argument_transport() {
+fn scalar_array_call_results_keep_payload_through_unit_arguments() {
     let mut module = internal_array_returns(&[2], false);
     let mut sink = unit_module().machines.remove(0);
     sink.id = machine_id(4);
@@ -802,11 +802,15 @@ fn scalar_array_call_results_do_not_gain_opaque_argument_transport() {
             crash_continuations: vec![],
         },
     });
-    assert!(
-        matches!(verify_module(&module, &ProofBundle::default(), &AdmissionProfile::default()),
-            Err(VerificationError::Module(ModuleError::ScalarArrayResultMismatch(operation)))
-            | Err(VerificationError::Module(ModuleError::UnknownStructuralArgument { operation, .. }))
-            if operation == operation_id(302)
+    assert_eq!(
+        interpret_terminal_artifact_measured(
+            &encode_module(&module).unwrap(),
+            &encode_proof_bundle(&ProofBundle::default()).unwrap(),
+            &AdmissionProfile::default(),
+            &[],
         )
+        .unwrap()
+        .value(),
+        expected(vec![byte(9), byte(9)]),
     );
 }

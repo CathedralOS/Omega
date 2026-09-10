@@ -187,7 +187,7 @@ pub(crate) fn nested_structural_call_return_type(
         let target = program.machine_states(owner).first()?;
         (target.symbol == call.target_symbol).then_some((owner, target))
     });
-    let return_type = if let Some((owner, target)) = targets.next() {
+    let (return_type, ordinary) = if let Some((owner, target)) = targets.next() {
         if targets.next().is_some()
             || (owner.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
                 && !owner.supply_mode.is_boundary_declaration())
@@ -195,7 +195,10 @@ pub(crate) fn nested_structural_call_return_type(
         {
             return None;
         }
-        target.return_type
+        (
+            target.return_type,
+            owner.supply_mode == language_semantics::MachineSupplyMode::CheckedBody,
+        )
     } else {
         let selected = program.machine_parameter_signature(call.target_symbol);
         let requirement = match selected {
@@ -230,7 +233,7 @@ pub(crate) fn nested_structural_call_return_type(
         {
             return None;
         }
-        signature.return_type
+        (signature.return_type, false)
     };
     (return_type.is_valid()
         && program.primitive_type_reference(return_type).is_none()
@@ -238,7 +241,11 @@ pub(crate) fn nested_structural_call_return_type(
             program.type_reference_table.type_reference(return_type),
             TypeReferenceNode::Unit
         )
-        && program.type_multiplicity(return_type) == language_semantics::Multiplicity::Affine
-        && validation::has_plain_owned_contents(program, return_type))
+        && ((program.type_multiplicity(return_type) == language_semantics::Multiplicity::Affine
+            && validation::has_plain_owned_contents(program, return_type))
+            || (ordinary
+                && program.type_multiplicity(return_type)
+                    == language_semantics::Multiplicity::Unrestricted
+                && validation::is_closed_primitive_array_type(program, return_type))))
     .then_some(return_type)
 }

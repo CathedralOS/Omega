@@ -11,9 +11,9 @@ pub(super) fn validate_operation_operands(
     value_types: &BTreeMap<ValueId, ScalarType>,
     defined: &BTreeSet<ValueId>,
 ) -> Result<(), ModuleError> {
-    // Arguments do not yet transport primitive-array payloads. Reject a
-    // constructor or returned call payload before ordinary opaque-place binding
-    // could mistake type/custody metadata for initialized array contents.
+    // Ordinary calls carry complete owned array values. Boundary presentation
+    // and borrowed/projected uses cannot substitute opaque-place metadata for
+    // the initialized payload. Existing borrowed fixed-array backing is separate.
     let structural_arguments = match &operation.kind {
         OperationKind::CallUnit {
             structural_arguments,
@@ -38,25 +38,11 @@ pub(super) fn validate_operation_operands(
         _ => &[],
     };
     for argument in structural_arguments {
-        if machine
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
-            .any(|producer| {
-                matches!(
-                    producer.kind,
-                    OperationKind::EstablishScalarArray { .. }
-                        | OperationKind::CallStructural { .. }
-                        | OperationKind::CallStructuralWithScalarArguments { .. }
-                ) && producer.result.structural().is_some_and(|result| {
-                    result.place == argument.place
-                        && terminal_semantics::scalar_array_leaf_shape(
-                            module.structural_types.iter(),
-                            result.structural_type,
-                        )
-                        .is_some()
-                })
-            })
+        if super::scalar_array::owned_payload_source(module, machine, argument.place)
+            && (matches!(operation.kind, OperationKind::BoundaryCall { .. })
+                || argument.access != StructuralAccess::Owned
+                || !argument.path.is_empty()
+                || !super::scalar_array::plain_return_source(module, machine, argument.place))
         {
             return Err(ModuleError::ScalarArrayResultMismatch(operation.id));
         }

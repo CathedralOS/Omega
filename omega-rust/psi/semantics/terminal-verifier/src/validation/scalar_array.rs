@@ -1,4 +1,4 @@
-//! Complete primitive-array construction and call-result return sources.
+//! Whole owned primitive-array parameters, constructions, and call results.
 
 use super::operations::require_defined;
 use super::*;
@@ -8,33 +8,98 @@ pub(super) fn plain_return_source(
     machine: &TerminalMachine,
     source: PlaceId,
 ) -> bool {
-    machine
+    plain_parameter(module, machine, source)
+        || machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .any(|operation| {
+                operation.result.structural().is_some_and(|result| {
+                    result.place == source
+                        && result.multiplicity == StructuralMultiplicity::Unrestricted
+                        && result.qualifications.is_empty()
+                        && result.projected_qualifications.is_empty()
+                        && result.claims.is_empty()
+                        && terminal_semantics::scalar_array_leaf_shape(
+                            module.structural_types.iter(),
+                            result.structural_type,
+                        )
+                        .is_some()
+                }) && match operation.kind {
+                    OperationKind::EstablishScalarArray { .. } => {
+                        shape(module, machine, operation).is_ok()
+                    }
+                    // The complete call and its live result are validated by the
+                    // operation and frontier walks. Do not recursively inspect
+                    // callee source shapes or invent another call graph here.
+                    OperationKind::CallStructural { .. }
+                    | OperationKind::CallStructuralWithScalarArguments { .. } => true,
+                    _ => false,
+                }
+            })
+}
+
+pub(super) fn plain_parameter(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    source: PlaceId,
+) -> bool {
+    machine.structural_parameters.iter().any(|parameter| {
+        parameter.place == source
+            && parameter.access == StructuralAccess::Owned
+            && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+            && parameter.qualifications.is_empty()
+            && parameter.projected_qualifications.is_empty()
+            && !machine
+                .entry_claims
+                .iter()
+                .any(|claim| claim.input == source)
+            && !machine
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.input.root == source)
+            && machine.structural_places.iter().any(|place| {
+                place.id == source
+                    && matches!(place.kind, StructuralPlaceKind::Parameter { position, is_self }
+                    if position == parameter.position && is_self == parameter.is_self)
+            })
+            && terminal_semantics::scalar_array_leaf_shape(
+                module.structural_types.iter(),
+                parameter.structural_type,
+            )
+            .is_some()
+    })
+}
+
+/// Identify initialized-value array routes without confusing existing borrowed
+/// fixed-array backing with an owned scalar-leaf payload.
+pub(super) fn owned_payload_source(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    source: PlaceId,
+) -> bool {
+    machine.structural_parameters.iter().any(|parameter| {
+        parameter.place == source
+            && parameter.access == StructuralAccess::Owned
+            && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+            && terminal_semantics::scalar_array_leaf_shape(
+                module.structural_types.iter(),
+                parameter.structural_type,
+            )
+            .is_some()
+    }) || machine
         .blocks
         .iter()
         .flat_map(|block| &block.operations)
         .any(|operation| {
             operation.result.structural().is_some_and(|result| {
                 result.place == source
-                    && result.multiplicity == StructuralMultiplicity::Unrestricted
-                    && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
-                    && result.claims.is_empty()
                     && terminal_semantics::scalar_array_leaf_shape(
                         module.structural_types.iter(),
                         result.structural_type,
                     )
                     .is_some()
-            }) && match operation.kind {
-                OperationKind::EstablishScalarArray { .. } => {
-                    shape(module, machine, operation).is_ok()
-                }
-                // The complete call and its live result are validated by the
-                // operation and frontier walks. Do not recursively inspect
-                // callee source shapes or invent another call graph here.
-                OperationKind::CallStructural { .. }
-                | OperationKind::CallStructuralWithScalarArguments { .. } => true,
-                _ => false,
-            }
+            })
         })
 }
 

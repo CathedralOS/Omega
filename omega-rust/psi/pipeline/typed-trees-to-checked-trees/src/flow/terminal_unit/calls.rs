@@ -783,6 +783,9 @@ pub(super) fn build_call_operation(
                 continue;
             }
             let byte_sequence = byte_sequence_carrier(program, parameter.type_reference, &[]);
+            if validation::is_closed_primitive_array_type(program, parameter.type_reference) {
+                return None;
+            }
             let target_identity = if byte_sequence.is_some() {
                 byte_sequence_type_identity(program, parameter.type_reference, &[], &[])?
             } else {
@@ -820,6 +823,9 @@ pub(super) fn build_call_operation(
                 .iter()
                 .find(|(_, root)| *root == place.root)
             {
+                if result.multiplicity == Multiplicity::Unrestricted {
+                    return None;
+                }
                 structural_arguments.push(result_arguments::argument(
                     program,
                     facts,
@@ -845,6 +851,10 @@ pub(super) fn build_call_operation(
                 parameter_root_symbol(machine.symbol, candidate) == source_symbol
                     || candidate.symbol == source_symbol
             })?;
+            if validation::is_closed_primitive_array_type(program, source_parameter.type_reference)
+            {
+                return None;
+            }
             let source_position = caller_source_parameters
                 .iter()
                 .position(|candidate| candidate.symbol == source_parameter.symbol)?;
@@ -1150,18 +1160,52 @@ pub(super) fn build_call_operation(
         // A result signature is available before its ordinary or graph body plan.
         // The closure pass below retains this call only when that complete body
         // was produced, avoiding an authored machine-order dependency.
-        if structural_arguments.iter().all(|argument| {
-            (argument.source_parameter_index().is_some()
-                || argument.byte_sequence_literal().is_some()
-                || matches!(
-                    argument.source,
-                    CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
-                ))
-                && matches!(
-                    argument.access,
-                    CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
-                )
-        }) && transfers.is_empty()
+        if structural_arguments
+            .iter()
+            .enumerate()
+            .all(|(argument_index, argument)| {
+                if argument.access == CheckedStructuralAccess::Owned
+                    && argument.path.is_empty()
+                    && (argument.source_parameter_index().is_some()
+                        || argument
+                            .source_structural_result_binding_ordinal()
+                            .is_some())
+                    && program
+                        .state_parameters(target_state)
+                        .iter()
+                        .filter(|parameter| {
+                            program
+                                .primitive_type_reference(parameter.type_reference)
+                                .is_none()
+                                && !(parameter.is_self
+                                    && is_reference(program, parameter.type_reference))
+                        })
+                        .nth(argument_index)
+                        .is_some_and(|parameter| {
+                            !parameter.is_self
+                                && validation::is_closed_primitive_array_type(
+                                    program,
+                                    parameter.type_reference,
+                                )
+                                && base_type_identity(program, parameter.type_reference, &[])
+                                    .is_some_and(|identity| identity == argument.type_identity)
+                        })
+                {
+                    return true;
+                }
+                (argument.source_parameter_index().is_some()
+                    || argument.byte_sequence_literal().is_some()
+                    || matches!(
+                        argument.source,
+                        CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
+                    ))
+                    && matches!(
+                        argument.access,
+                        CheckedStructuralAccess::SharedBorrow
+                            | CheckedStructuralAccess::MutableBorrow
+                    )
+            })
+            && transfers.is_empty()
             && ((result.multiplicity == Multiplicity::Affine
                 && validation::has_plain_owned_contents_with_numeric_constraints(
                     program,
@@ -2105,9 +2149,18 @@ pub(super) fn structural_call_arguments(
             .iter()
             .find(|(_, root)| *root == place.root)
         {
+            if result.multiplicity == Multiplicity::Unrestricted
+                && target_machine.supply_mode != MachineSupplyMode::CheckedBody
+            {
+                return None;
+            }
             if !target_machine.supply_mode.is_boundary_declaration()
                 && (target_machine.supply_mode != MachineSupplyMode::CheckedBody
                     || (!is_unit(program, target_state.return_type)
+                        && !validation::is_closed_primitive_array_type(
+                            program,
+                            target_state.return_type,
+                        )
                         && facts
                             .flow
                             .terminal_structural_returns
@@ -2121,7 +2174,22 @@ pub(super) fn structural_call_arguments(
                                     target_machine.symbol,
                                     target_state.symbol,
                                     result,
+                                ) || scalar_targets::registered_primitive_store_target(
+                                    program,
+                                    facts,
+                                    target_machine.symbol,
+                                    target_state.symbol,
+                                    result,
                                 )
+                                .is_some()
+                                    || scalar_targets::registered_structural_graph_target(
+                                        program,
+                                        facts,
+                                        target_machine.symbol,
+                                        target_state.symbol,
+                                        result,
+                                    )
+                                    .is_some()
                             })))
             {
                 return None;
@@ -2274,6 +2342,18 @@ pub(super) fn structural_call_arguments(
                 )
                 .unwrap_or(u32::MAX)
         })?;
+        if validation::is_closed_primitive_array_type(program, source_parameter.type_reference)
+            && (target_machine.supply_mode != MachineSupplyMode::CheckedBody
+                || !place.segments.is_empty()
+                || caller_parameters[source_index].access != CheckedStructuralAccess::Owned
+                || caller_parameters[source_index].multiplicity != Multiplicity::Unrestricted
+                || !caller_parameters[source_index].qualifications.is_empty()
+                || !validation::is_closed_primitive_array_type(program, target.type_reference)
+                || structural_access_for_type_reference(program, target.type_reference)?
+                    != CheckedStructuralAccess::Owned)
+        {
+            return None;
+        }
         let source_identity = caller_parameters.get(source_index)?.type_identity.clone();
         let path = match place.segments.as_slice() {
             [] => Vec::new(),

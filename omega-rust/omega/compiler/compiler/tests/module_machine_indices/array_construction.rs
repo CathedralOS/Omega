@@ -191,6 +191,7 @@ fn existing_module_array_customer_returns_real_arrays_from_portable_bytes() {
         ("computed_row", vec![integer(42, 8)], 8, vec![42, 9]),
         ("called_row", vec![integer(42, 8)], 8, vec![42, 9]),
         ("bound_row", vec![integer(42, 8)], 8, vec![42, 9]),
+        ("passed_row", vec![integer(42, 8)], 8, vec![42, 9]),
     ] {
         let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, name)
             .unwrap_or_else(|error| panic!("{name}: {error:?}"));

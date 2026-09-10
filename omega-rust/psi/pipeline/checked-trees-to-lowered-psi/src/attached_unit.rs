@@ -7,6 +7,7 @@
 use super::*;
 use crate::runtime_requirements::substitute_runtime_requirement_scalar_values;
 use crate::scalar_call_closure::callee::{CheckedScalarCallee, PreparedScalarCallee};
+use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
 
 pub(crate) mod argument_evaluation;
 mod argument_schedule;
@@ -3545,13 +3546,30 @@ fn assemble_unit_closure(
             .structural_result
             .as_ref()
             .map(|result| {
-                let source = structural_result_places
-                    .get(result.binding_ordinal as usize)
-                    .ok_or(LoweringError::Unsupported(
-                        "returned structural binding is absent",
-                    ))?
-                    .0
-                    .id;
+                let source = match result.source {
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal,
+                    } => {
+                        structural_result_places
+                            .get(binding_ordinal as usize)
+                            .ok_or(LoweringError::Unsupported(
+                                "returned structural binding is absent",
+                            ))?
+                            .0
+                            .id
+                    }
+                    CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+                        parameters
+                            .get(parameter_index as usize)
+                            .ok_or(LoweringError::Unsupported(
+                                "returned structural parameter is absent",
+                            ))?
+                            .place
+                    }
+                    _ => {
+                        return unsupported("structural return source is not an owned whole value");
+                    }
+                };
                 let place = place_id(allocate_dense(&mut next_place)?);
                 let structural_type = lookup_type_id(&type_ids, &result.type_identity)?;
                 Ok::<_, LoweringError>((

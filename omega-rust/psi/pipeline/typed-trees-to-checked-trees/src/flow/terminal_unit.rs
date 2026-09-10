@@ -177,6 +177,11 @@ pub(super) fn structural_scalar_graph_signature(
                 parameter.type_reference,
             );
         }
+        // Whole array payloads include empty dimensions. Their exact recursive
+        // type, not the nominal owned-storage classifier below, admits copying.
+        if validation::is_closed_primitive_array_type(program, parameter.type_reference) {
+            return parameter.is_mutable;
+        }
         let reference = match program
             .type_reference_table
             .type_reference(parameter.type_reference)

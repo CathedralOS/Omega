@@ -19,6 +19,8 @@ mod bounded_integer_fields;
 mod contract_fields;
 #[path = "canonical/owned_integer_fields.rs"]
 mod owned_integer_fields;
+#[path = "canonical/scalar_array_arguments.rs"]
+mod scalar_array_arguments;
 #[path = "canonical/scalar_case_fields.rs"]
 mod scalar_case_fields;
 #[path = "canonical/scalar_range_invariants.rs"]

@@ -64,13 +64,19 @@ pub(crate) fn validate_structural(
             super::authored::target_signature(checked, caller_machine, authored.source_target)?;
         if machine.symbol != caller_machine
             || result.statement_index != coordinate.statement_index
-            || result.multiplicity != Multiplicity::Affine
+            || !((result.multiplicity == Multiplicity::Affine
+                && validation::has_plain_owned_contents(&checked.typed, target.return_type))
+                || (result.multiplicity == Multiplicity::Unrestricted
+                    && !authored.boundary
+                    && validation::is_closed_primitive_array_type(
+                        &checked.typed,
+                        target.return_type,
+                    )))
             || checked
                 .normalized_type_identity(target.return_type)
                 .into_string()
                 != result.type_identity
             || checked.type_multiplicity(target.return_type) != result.multiplicity
-            || !validation::has_plain_owned_contents(&checked.typed, target.return_type)
         {
             return unsupported("nested boundary result disagrees with its source custody");
         }

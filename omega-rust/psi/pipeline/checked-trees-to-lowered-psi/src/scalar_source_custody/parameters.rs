@@ -97,17 +97,23 @@ fn validate_structural_parameter(
     retained: &checked_trees::CheckedUnitStructuralParameterPlan,
 ) -> Result<(), LoweringError> {
     use checked_trees::types::TypeReferenceNode;
-    if matches!(
-        checked
-            .type_reference_table
-            .type_reference(parameter.type_reference),
-        TypeReferenceNode::Named { .. }
-    ) {
+    let primitive_array =
+        validation::is_closed_primitive_array_type(checked, parameter.type_reference);
+    if primitive_array
+        || matches!(
+            checked
+                .type_reference_table
+                .type_reference(parameter.type_reference),
+            TypeReferenceNode::Named { .. }
+        )
+    {
         if parameter.is_mutable
-            || !validation::has_plain_owned_contents_with_numeric_constraints(
-                checked,
-                parameter.type_reference,
-            )
+            || (!primitive_array
+                && !validation::has_plain_owned_contents_with_numeric_constraints(
+                    checked,
+                    parameter.type_reference,
+                ))
+            || (primitive_array && retained.multiplicity != Multiplicity::Unrestricted)
             || retained.is_self
             || retained.position as usize != position
             || retained.access != checked_trees::CheckedStructuralAccess::Owned

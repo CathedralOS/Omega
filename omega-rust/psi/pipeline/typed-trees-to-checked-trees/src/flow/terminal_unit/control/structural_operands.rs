@@ -170,6 +170,16 @@ pub(in crate::flow::terminal_unit) fn result(
             return None;
         }
         if !owner.supply_mode.is_boundary_declaration() {
+            if owner.supply_mode == MachineSupplyMode::CheckedBody
+                && validation::is_closed_primitive_array_type(program, return_type)
+                && machine_binders(program, owner).is_empty()
+            {
+                return Some(CheckedStructuralResultPlan {
+                    type_identity: shapes.add_type(return_type, &[], &[])?,
+                    multiplicity: Multiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                });
+            }
             let mut targets = facts
                 .flow
                 .terminal_structural_returns

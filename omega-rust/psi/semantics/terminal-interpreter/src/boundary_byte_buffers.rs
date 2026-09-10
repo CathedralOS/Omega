@@ -64,7 +64,7 @@ impl BoundaryArguments {
         parameters: &[StructuralParameterDeclaration],
     ) -> Result<StructuralCallArguments, TerminalInterpretError> {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
-        bind_structural_arguments(parameters, &self.values)?;
+        let values = bind_structural_arguments(parameters, &self.values)?;
         if parameters.len() != self.byte_sequences.len() {
             return Err(invalid());
         }
@@ -88,8 +88,9 @@ impl BoundaryArguments {
             }
         }
         Ok(StructuralCallArguments {
-            values: self.values,
+            values,
             byte_sequences,
+            scalar_arrays: BTreeMap::new(),
         })
     }
 

@@ -238,8 +238,15 @@ same sequence, either directly or into immutable locals. Their closure retains
 each complete callee body; source replay checks the exact result binding and
 call occurrence, not merely a compatible array type. Nested scalar arguments
 and borrowed primitive-local operands retain the shared evaluation schedule.
-Array arguments/state transfers, boundary-provider array payloads, and native
-array construction still need their complete value and storage paths.
+Whole owned unrestricted array parameters and immutable constructor/call-result
+locals also feed ordinary calls, including nested call results. Returning a
+parameter retains its exact structural slot, separately from operation-result
+ordinals. Replay checks authored positions and source identities; repeated
+unrestricted actuals do not acquire affine disposal obligations.
+Direct array-literal operands still need source-occurrence and scalar-element
+bindings at each argument position, not a fabricated statement-local binding.
+Array state transfers, borrowed/projected payloads, boundary-provider array
+payloads, and native construction still need their complete value/storage paths.
 General slice-backed `.len` operands require retained view formation and bounds
 evidence; endpoint subtraction alone cannot justify eliminating the view operation.
 

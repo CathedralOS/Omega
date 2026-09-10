@@ -1,4 +1,4 @@
-//! Affine result operands retain exact source access and projected storage.
+//! Result operands retain exact source access, ownership, and projected storage.
 
 use super::*;
 
@@ -20,6 +20,14 @@ pub(super) fn argument(
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let access = structural_access_for_type_reference(program, parameter.type_reference)?;
     let projected = !place.segments.is_empty();
+    let unrestricted_array = result.multiplicity == Multiplicity::Unrestricted;
+    if unrestricted_array
+        && (projected
+            || access != CheckedStructuralAccess::Owned
+            || !validation::is_closed_primitive_array_type(program, parameter.type_reference))
+    {
+        return None;
+    }
     let path = if projected {
         if !allow_projection || access != CheckedStructuralAccess::Owned {
             return None;
@@ -68,10 +76,13 @@ pub(super) fn argument(
         }
     };
     if parameter.is_self
-        || result.multiplicity != Multiplicity::Affine
+        || !matches!(
+            result.multiplicity,
+            Multiplicity::Affine | Multiplicity::Unrestricted
+        )
         || (!projected && result.type_identity != target_identity)
-        || program.type_multiplicity(referent) != Multiplicity::Affine
-        || !validation::has_plain_owned_contents(program, referent)
+        || program.type_multiplicity(referent) != result.multiplicity
+        || (!unrestricted_array && !validation::has_plain_owned_contents(program, referent))
         || usize::try_from(result.statement_index).ok()? > call.statement_index
     {
         return None;
@@ -88,7 +99,7 @@ pub(super) fn argument(
             {
                 return None;
             }
-            if access == CheckedStructuralAccess::SharedBorrow || projected {
+            if access == CheckedStructuralAccess::SharedBorrow || projected || unrestricted_array {
                 let source_state = crate::find_state(program, state)?;
                 let StatementNode::LocalData(local) = program
                     .statement_table
@@ -99,8 +110,14 @@ pub(super) fn argument(
                 };
                 if local.is_mutable
                     || local.symbol != symbol
-                    || !validation::has_plain_owned_contents(program, local.type_reference)
-                    || program.type_multiplicity(local.type_reference) != Multiplicity::Affine
+                    || (!unrestricted_array
+                        && !validation::has_plain_owned_contents(program, local.type_reference))
+                    || program.type_multiplicity(local.type_reference) != result.multiplicity
+                    || (unrestricted_array
+                        && !validation::is_closed_primitive_array_type(
+                            program,
+                            local.type_reference,
+                        ))
                     || base_type_identity(program, local.type_reference, &[])?
                         != result.type_identity
                 {
@@ -162,7 +179,7 @@ pub(super) fn argument(
         }
         _ => return None,
     }
-    if access == CheckedStructuralAccess::SharedBorrow {
+    if access == CheckedStructuralAccess::SharedBorrow || unrestricted_array {
         return Some(CheckedUnitStructuralArgumentPlan {
             source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal: result.binding_ordinal,
