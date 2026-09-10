@@ -3,7 +3,7 @@
 use super::*;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::{
-    TableTransition, TransitionExit, TransitionGuardNode, TransitionTargetNode,
+    StatementNode, TableTransition, TransitionExit, TransitionGuardNode, TransitionTargetNode,
 };
 
 pub(super) fn successors(
@@ -34,7 +34,7 @@ pub(super) fn validate(
     ordinal: usize,
 ) -> Result<(), LoweringError> {
     validate_bindings(checked, plan, source, state, transition, edge, ordinal, &[])?;
-    validate_parameter_cleanup(checked, plan, state, edge)
+    validate_parameter_cleanup(checked, plan, source, state, edge)
 }
 
 /// Case dispatch validates local-result cleanup separately from parameter cleanup.
@@ -88,14 +88,17 @@ pub(super) fn validate_bindings(
         return unsupported("Unit graph successor arity drifted");
     }
     let source_parameters = checked.state_parameters(source);
+    let explicit_argument_position = |position: u32| {
+        position as usize
+            - target
+                .structural_parameters
+                .iter()
+                .filter(|parameter| parameter.is_self && parameter.position < position)
+                .count()
+    };
     let validate_argument =
         |argument_position: u32, source_position: u32| {
-            let argument_position = argument_position as usize
-                - target
-                    .structural_parameters
-                    .iter()
-                    .filter(|parameter| parameter.is_self && parameter.position < argument_position)
-                    .count();
+            let argument_position = explicit_argument_position(argument_position);
             let expression = arguments
                 .get(argument_position)
                 .ok_or(LoweringError::Unsupported(
@@ -125,7 +128,79 @@ pub(super) fn validate_bindings(
         .zip(&edge.transfers)
         .enumerate()
     {
+        if let checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
+            binding_ordinal,
+        } = transfer.source
+        {
+            let mut matching = state
+                .operations
+                .iter()
+                .filter_map(|operation| match operation {
+                    CheckedUnitEffectOperationPlan::StructuralCall {
+                        result,
+                        discard_result_on_return: false,
+                        ..
+                    }
+                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                        result,
+                        discard_result_on_return: false,
+                        ..
+                    } if result.binding_ordinal == binding_ordinal => Some(result),
+                    _ => None,
+                });
+            let result = matching.next().ok_or(LoweringError::Unsupported(
+                "Unit graph transferred result missing",
+            ))?;
+            if matching.next().is_some()
+                || result.statement_index >= edge.statement_ordinal
+                || transfer.target_parameter_index as usize != position
+                || target.is_self
+                || target.access != checked_trees::CheckedStructuralAccess::Owned
+                || !target.qualifications.is_empty()
+                || target.multiplicity != result.multiplicity
+                || target.type_identity != result.type_identity
+            {
+                return unsupported("Unit graph transferred result custody drifted");
+            }
+            let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
+                .statement_table
+                .statements(source.statement_nodes)
+                .get(result.statement_index as usize)
+            else {
+                return unsupported("Unit graph result source local missing");
+            };
+            let argument_position = explicit_argument_position(target.position);
+            let expression = arguments
+                .get(argument_position)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph result argument missing",
+                ))?;
+            if local.is_mutable
+                || !matches!(checked.expression_table.expression(*expression), ExpressionNode::Name(path) if path.symbol == local.symbol && path.head_symbol == local.symbol && checked.expression_table.name_path_members(path.members).len() == 1)
+            {
+                return unsupported("Unit graph result argument lost its actual local");
+            }
+            validate_result_transfer_custody(
+                checked,
+                plan.machine,
+                state.state,
+                edge,
+                local,
+                result,
+                path.symbol,
+                checked
+                    .statement_table
+                    .statements(source.statement_nodes)
+                    .iter()
+                    .filter(|statement| matches!(statement, StatementNode::Transition(_)))
+                    .count(),
+            )?;
+            continue;
+        }
         let source_index = match transfer.source {
+            checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
+                ..
+            } => return unsupported("Unit graph result was not independently rejoined"),
             checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => index,
             checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
                 parameter_index,
@@ -146,6 +221,9 @@ pub(super) fn validate_bindings(
             return unsupported("Unit graph borrowed transfer type or order drifted");
         }
         match transfer.source {
+            checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
+                ..
+            } => return unsupported("Unit graph result was not independently rejoined"),
             checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { .. } => {
                 if target.is_self {
                     if source != target {
@@ -229,9 +307,41 @@ pub(super) fn validate_bindings(
 fn validate_parameter_cleanup(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
+    source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
     edge: &CheckedStructuralControlSuccessorPlan,
 ) -> Result<(), LoweringError> {
+    for (_, event) in checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter(|(_, event)| {
+            event.machine_symbol == plan.machine
+                && event.state_symbol == state.state
+                && event.source == language_semantics::PermissionEventSource::StateExit
+                && event.kind == language_semantics::PermissionEventKind::AffineDrop
+        })
+    {
+        if checked
+            .state_parameters(source)
+            .iter()
+            .any(|parameter| event.root == facts::PlaceRoot::Symbol(parameter.symbol))
+        {
+            continue;
+        }
+        let matching = edge.transfers.iter().filter(|transfer| {
+            let checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } = transfer.source else { return false; };
+            state.operations.iter().any(|operation| match operation {
+                CheckedUnitEffectOperationPlan::StructuralCall { result, .. } | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } if result.binding_ordinal == binding_ordinal => matches!(checked.statement_table.statements(source.statement_nodes).get(result.statement_index as usize), Some(checked_trees::statement::StatementNode::LocalData(local)) if event.root == facts::PlaceRoot::Symbol(local.symbol)),
+                _ => false,
+            })
+        }).count();
+        if matching != 1 {
+            return unsupported("Unit graph edge leaves an unaccounted local disposition");
+        }
+    }
     let cleanup = checked
         .facts
         .flow
@@ -281,4 +391,201 @@ pub(super) fn validate_fallback(
         return unsupported("Unit graph branch labels inspect different source values");
     }
     Ok(())
+}
+
+fn validate_result_transfer_custody(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    edge: &CheckedStructuralControlSuccessorPlan,
+    local: &checked_trees::statement::TableLocalData,
+    result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+    target: symbols::SymbolHandle,
+    expected_edges: usize,
+) -> Result<(), LoweringError> {
+    use language_semantics::{
+        PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
+        PermissionProvenance,
+    };
+    let permissions = &checked.facts.flow.ownership;
+    let transfers = permissions
+        .permissions
+        .iter()
+        .filter(|(_, event)| {
+            event.machine_symbol == machine
+                && event.state_symbol == state
+                && event.root == facts::PlaceRoot::Symbol(local.symbol)
+                && event.kind == PermissionEventKind::Transfer
+        })
+        .count();
+    if transfers != expected_edges {
+        return unsupported("Unit graph result has an unaccounted ownership transfer");
+    }
+    let provenance = PermissionProvenance::Established {
+        machine_symbol: machine,
+        state_symbol: state,
+        source: PermissionEventSource::Statement {
+            statement_index: result.statement_index as usize,
+        },
+    };
+    for (kind, expected_source) in [
+        (
+            PermissionEventKind::Establish,
+            PermissionEventSource::Statement {
+                statement_index: result.statement_index as usize,
+            },
+        ),
+        (
+            PermissionEventKind::Transfer,
+            PermissionEventSource::Call {
+                statement_index: edge.statement_ordinal as usize,
+                call_ordinal: 0,
+                target_symbol: target,
+            },
+        ),
+        (
+            PermissionEventKind::AffineDrop,
+            PermissionEventSource::StateExit,
+        ),
+    ] {
+        let mut matching = permissions.permissions.iter().filter(|(_, event)| event.machine_symbol == machine && event.state_symbol == state && event.root == facts::PlaceRoot::Symbol(local.symbol) && event.kind == kind && (kind != PermissionEventKind::Transfer || matches!(event.source, PermissionEventSource::Call { statement_index, .. } | PermissionEventSource::Statement { statement_index } if statement_index == edge.statement_ordinal as usize)));
+        let (_, event) = matching.next().ok_or(LoweringError::Unsupported(
+            "Unit graph result has missing ownership evidence",
+        ))?;
+        if matching.next().is_some()
+            || event.source != expected_source
+            || event.multiplicity != result.multiplicity
+            || event.access != PermissionAccess::Owned
+            || event.claim_identity != PermissionClaimIdentity::Unknown
+            || event.provenance != provenance
+            || event.obligation_live
+            || !event.segments.is_empty()
+        {
+            return unsupported("Unit graph result ownership origin or transfer drifted");
+        }
+    }
+    Ok(())
+}
+
+/// Reconstruct the remaining whole-parameter drops at an ordinary return.
+/// Call consumption and return disposal are separate uses of the same source root.
+pub(super) fn return_discards(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    source: &checked_trees::state::State,
+    state: &CheckedComposedUnitControlStatePlan,
+) -> Result<Vec<usize>, LoweringError> {
+    use language_semantics::{
+        PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
+        PermissionProvenance,
+    };
+    let parameters = checked.state_parameters(source);
+    let mut drops = Vec::new();
+    for (_, event) in checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter(|(_, event)| {
+            event.machine_symbol == machine
+                && event.state_symbol == state.state
+                && event.source == PermissionEventSource::StateExit
+                && event.kind == PermissionEventKind::AffineDrop
+        })
+    {
+        let index = state
+            .structural_parameters
+            .iter()
+            .position(|parameter| {
+                parameters
+                    .get(parameter.position as usize)
+                    .is_some_and(|source| event.root == facts::PlaceRoot::Symbol(source.symbol))
+            })
+            .ok_or(LoweringError::Unsupported(
+                "Unit return has an unaccounted local drop",
+            ))?;
+        let parameter = &state.structural_parameters[index];
+        if parameter.access != checked_trees::CheckedStructuralAccess::Owned
+            || parameter.multiplicity != Multiplicity::Affine
+            || event.access != PermissionAccess::Owned
+            || event.multiplicity != Multiplicity::Affine
+            || event.claim_identity != PermissionClaimIdentity::Unknown
+            || event.provenance != PermissionProvenance::Unknown
+            || event.obligation_live
+            || !event.segments.is_empty()
+            || drops.contains(&index)
+        {
+            return unsupported("Unit return parameter cleanup custody drifted");
+        }
+        drops.push(index);
+    }
+    let expected = state
+        .structural_parameters
+        .iter()
+        .enumerate()
+        .rev()
+        .filter(|(_, parameter)| {
+            parameter.access == checked_trees::CheckedStructuralAccess::Owned
+                && parameter.multiplicity == Multiplicity::Affine
+        })
+        .map(|(index, _)| index)
+        .collect::<Vec<_>>();
+    if drops != expected {
+        return unsupported("Unit return parameter cleanup roster drifted");
+    }
+    for operation in &state.operations {
+        let arguments = match operation {
+            CheckedUnitEffectOperationPlan::CallUnit {
+                structural_arguments,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::ScalarCall {
+                structural_arguments,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryCall {
+                structural_arguments,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                structural_arguments,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                structural_arguments,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::StructuralCall {
+                structural_arguments,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
+                structural_arguments,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
+                structural_arguments,
+                ..
+            } => structural_arguments.as_slice(),
+            _ => &[],
+        };
+        for argument in arguments
+            .iter()
+            .filter(|argument| argument.access == checked_trees::CheckedStructuralAccess::Owned)
+        {
+            if let Some(index) = argument.source_parameter_index() {
+                if !argument.path.is_empty() {
+                    return unsupported("Unit return has a partial parameter move");
+                }
+                if let Some(position) = drops
+                    .iter()
+                    .position(|candidate| *candidate == index as usize)
+                {
+                    drops.remove(position);
+                }
+            }
+        }
+    }
+    Ok(drops)
 }

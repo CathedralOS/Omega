@@ -18,7 +18,7 @@ fn admit<'a>(
     let [entry, first_leaf, second_leaf] = plan.states.as_slice() else {
         return unsupported("closed-sum Unit control requires exactly three states");
     };
-    let CheckedComposedUnitControlTerminatorPlan::ClosedSum { result, cases } = &entry.terminator
+    let CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, cases } = &entry.terminator
     else {
         return unsupported("closed-sum Unit entry lost its structural terminator");
     };
@@ -41,13 +41,20 @@ fn admit<'a>(
     else {
         return unsupported("closed-sum Unit entry operation is not a structural boundary call");
     };
+    let result = call_result;
     if !plan.body_qualifications.is_empty()
         || !entry.structural_parameters.is_empty()
         || !entry.scalar_parameters.is_empty()
         || !entry.entry_claims.is_empty()
         || !entry.bindings.is_empty()
         || !entry.binding_initializers.is_empty()
-        || call_result != result
+        || subject.access != checked_trees::CheckedStructuralAccess::Owned
+        || !subject.path.is_empty()
+        || subject.type_identity != call_result.type_identity
+        || subject.source
+            != (checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: call_result.binding_ordinal,
+            })
         || *discard_result_on_return
         || !scalar_arguments.is_empty()
         || !structural_arguments.is_empty()
@@ -177,7 +184,7 @@ fn emit(
     mut catalogs: catalogs::ComposedCatalogs,
 ) -> Result<SourceMappedLowered, LoweringError> {
     let entry = admitted.entry;
-    let CheckedComposedUnitControlTerminatorPlan::ClosedSum { result, cases } = &entry.terminator
+    let CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } = &entry.terminator
     else {
         unreachable!("closed-sum admission retained the exact entry terminator")
     };
@@ -187,6 +194,7 @@ fn emit(
     let CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
         coordinate,
         source_site,
+        result,
         target_machine,
         scalar_arguments,
         structural_arguments,

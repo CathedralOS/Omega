@@ -557,7 +557,41 @@ pub(super) fn validate_structural_frontier(
                         .push(frontier);
                 }
             }
-            Terminator::StructuralCase { cases, .. } => {
+            Terminator::StructuralCase { source, cases } => {
+                let owned_subject = machine
+                    .structural_parameters
+                    .iter()
+                    .chain(
+                        machine
+                            .blocks
+                            .iter()
+                            .flat_map(|block| &block.structural_parameters),
+                    )
+                    .any(|parameter| {
+                        parameter.place == *source
+                            && parameter.access == StructuralAccess::Owned
+                            && parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                    })
+                    || machine
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.operations)
+                        .any(|operation| {
+                            operation.result.structural().is_some_and(|result| {
+                                result.place == *source
+                                    && result.multiplicity != StructuralMultiplicity::Unrestricted
+                            })
+                        });
+                if owned_subject
+                    && (!frontier.owned_places.contains_key(source)
+                        || frontier.partial_custody_paths.contains_key(source))
+                {
+                    return Err(ModuleError::StructuralCaseSourceUnknown {
+                        machine: machine.id,
+                        block: block.id,
+                        place: *source,
+                    });
+                }
                 for case in cases {
                     let mut case_frontier = frontier.clone();
                     apply_edge_trivial_affine_discards(
@@ -1200,8 +1234,13 @@ fn validate_scalar_cleanup_actions(
         frontier.owned_places.remove(&parameter.place);
     }
 
+    // The frontier also records available copies. They may remain after a
+    // scalar return; only affine/linear custody requires explicit discharge.
     if actions.next().is_some()
-        || !frontier.owned_places.is_empty()
+        || frontier
+            .owned_places
+            .values()
+            .any(|multiplicity| *multiplicity != StructuralMultiplicity::Unrestricted)
         || !frontier.partial_custody_paths.is_empty()
     {
         return Err(mismatch());

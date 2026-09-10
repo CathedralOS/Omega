@@ -49,23 +49,41 @@ pub(super) fn build(
         } else {
             free_structural_scalar_signature(program, shapes, state, &[])?
         };
-        // Persistent receivers keep their invocation place. Non-receiver views
-        // retain the existing explicit descriptor transfer on every edge.
+        // Persistent receivers keep their invocation place. Other structural
+        // parameters retain explicit owned-value or borrowed-view edge custody.
         if structural.iter().any(|parameter| {
-            parameter.multiplicity != Multiplicity::Unrestricted
-                || !parameter.qualifications.is_empty()
+            !parameter.qualifications.is_empty()
+                || (parameter.access == CheckedStructuralAccess::Owned
+                    && !matches!(
+                        parameter.multiplicity,
+                        Multiplicity::Affine | Multiplicity::Unrestricted
+                    ))
                 || if parameter.is_self {
                     parameter.access != CheckedStructuralAccess::MutableBorrow
-                } else {
+                } else if parameter.access == CheckedStructuralAccess::Owned {
                     !matches!(
-                        parameter.access,
-                        CheckedStructuralAccess::SharedBorrow
-                            | CheckedStructuralAccess::MutableBorrow
-                    ) || byte_sequence_carrier(
+                        program.type_reference_table.type_reference(
+                            program.state_parameters(state)[parameter.position as usize]
+                                .type_reference
+                        ),
+                        TypeReferenceNode::Named { .. }
+                    ) || !validation::has_plain_owned_contents_with_numeric_constraints(
                         program,
                         program.state_parameters(state)[parameter.position as usize].type_reference,
-                        &[],
-                    ) != Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+                    )
+                } else {
+                    parameter.multiplicity != Multiplicity::Unrestricted
+                        || !matches!(
+                            parameter.access,
+                            CheckedStructuralAccess::SharedBorrow
+                                | CheckedStructuralAccess::MutableBorrow
+                        )
+                        || byte_sequence_carrier(
+                            program,
+                            program.state_parameters(state)[parameter.position as usize]
+                                .type_reference,
+                            &[],
+                        ) != Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
                 }
         }) {
             return None;
@@ -87,24 +105,15 @@ pub(super) fn build(
     let mut planned = Vec::new();
     for (state_index, state) in states.iter().enumerate() {
         let (structural, scalar) = &signatures[state_index];
-        if let Some(plan) =
-            closed_sum::build(program, facts, shapes, machine, state_index, &signatures)
-        {
-            planned.push(plan);
-            continue;
-        }
         let statements = program.statement_table.statements(state.statement_nodes);
-        let bindings = match crate::flow::terminal_scalar::checked_binding_prefix(
+        // A body containing structural bindings is not a scalar-only prefix.
+        // The shared sequence must account for every statement in that case.
+        let bindings = crate::flow::terminal_scalar::checked_binding_prefix(
             program,
             state,
             &facts.values.scalar_computations,
-        ) {
-            Some(bindings) => bindings,
-            // A structural assignment is an ordered effect, not scalar storage.
-            // The shared sequence must account for every statement below.
-            None if matches!(statements.first(), Some(StatementNode::Assignment(_))) => Vec::new(),
-            None => return None,
-        };
+        )
+        .unwrap_or_default();
         let binding_initializers = prefix_initializers(program, facts, state, &bindings)?;
         let binding_count = bindings.len();
         let terminator_index = statements
@@ -149,10 +158,33 @@ pub(super) fn build(
             &[],
             binding_count,
         )?;
-        if sequence.local_count != binding_count || !sequence.structural_local_symbols.is_empty() {
+        if sequence.local_count != binding_count + sequence.structural_local_symbols.len() {
             return None;
         }
-        let operations = sequence.operations;
+        let mut operations = sequence.operations;
+        // Named results remain live until the selected edge/dispatch consumes
+        // them. The complete disposition check below forbids dropped locals.
+        for operation in &mut operations {
+            match operation {
+                CheckedUnitEffectOperationPlan::StructuralCall {
+                    result,
+                    discard_result_on_return,
+                    ..
+                }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    result,
+                    discard_result_on_return,
+                    ..
+                } if matches!(
+                    statements.get(result.statement_index as usize),
+                    Some(StatementNode::LocalData(_))
+                ) =>
+                {
+                    *discard_result_on_return = false
+                }
+                _ => {}
+            }
+        }
         for operation in &operations {
             match &operation {
                 CheckedUnitEffectOperationPlan::BoundaryCall {
@@ -171,6 +203,14 @@ pub(super) fn build(
                             || (argument.source_parameter_index().is_some()
                                 && argument.access == CheckedStructuralAccess::MutableBorrow)
                     }) => {}
+                CheckedUnitEffectOperationPlan::StructuralCall {
+                    discard_result_on_return: false,
+                    ..
+                }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    discard_result_on_return: false,
+                    ..
+                } => {}
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
@@ -186,50 +226,100 @@ pub(super) fn build(
                 machine,
                 state_index,
                 &signatures,
+                &operations,
                 transition,
                 edge_ordinal,
             )
         };
-        let terminator = match &statements[terminator_index..] {
-            [] if result == checked_trees::CheckedControlResultPlan::Unit => {
-                CheckedComposedUnitControlTerminatorPlan::ReturnUnit
-            }
-            [StatementNode::Expression(expression)]
-                if result != checked_trees::CheckedControlResultPlan::Unit =>
-            {
-                returns::constructor(program, facts, state, ordinal, *expression)?
-            }
-            [StatementNode::Transition(transition)]
-                if transition.guard == TransitionGuardNode::Always =>
-            {
-                CheckedComposedUnitControlTerminatorPlan::Jump {
-                    successor: edge(transition, ordinal)?,
+        let terminator = if let Some(terminator) = closed_sum::build(
+            program,
+            facts,
+            machine,
+            state_index,
+            &signatures,
+            &operations,
+            terminator_index,
+        ) {
+            terminator
+        } else {
+            match &statements[terminator_index..] {
+                [] if result == checked_trees::CheckedControlResultPlan::Unit => {
+                    if facts.flow.ownership.permissions.iter().any(|(_, event)| {
+                        event.machine_symbol == machine.symbol
+                            && event.state_symbol == state.symbol
+                            && event.kind == PermissionEventKind::AffineDrop
+                            && !event.segments.is_empty()
+                    }) {
+                        return None;
+                    }
+                    return_unit_affine_discards(
+                        program,
+                        facts,
+                        machine.symbol,
+                        state.symbol,
+                        structural,
+                        program.state_parameters(state),
+                        &operations,
+                        &[],
+                    )?;
+                    CheckedComposedUnitControlTerminatorPlan::ReturnUnit
                 }
-            }
-            [
-                StatementNode::Transition(when_true),
-                StatementNode::Transition(when_false),
-            ] if matches!(when_true.guard, TransitionGuardNode::When(_))
-                && composed_control::topology::exact_false_fallback(
-                    program, when_true, when_false,
-                ) =>
-            {
-                let guard = facts
-                    .values
-                    .scalar_expressions
-                    .expression_at(state.symbol, ordinal, CheckedScalarExpressionRole::Guard)?
-                    .clone();
-                if !matches!(guard, CheckedScalarExpression::Boolean(_)) {
-                    return None;
+                [StatementNode::Expression(expression)]
+                    if result != checked_trees::CheckedControlResultPlan::Unit =>
+                {
+                    returns::constructor(program, facts, state, ordinal, *expression)?
                 }
-                CheckedComposedUnitControlTerminatorPlan::Conditional {
-                    guard,
-                    when_true: edge(when_true, ordinal)?,
-                    when_false: edge(when_false, ordinal.checked_add(1)?)?,
+                [StatementNode::Transition(transition)]
+                    if transition.guard == TransitionGuardNode::Always =>
+                {
+                    CheckedComposedUnitControlTerminatorPlan::Jump {
+                        successor: edge(transition, ordinal)?,
+                    }
                 }
+                [
+                    StatementNode::Transition(when_true),
+                    StatementNode::Transition(when_false),
+                ] if matches!(when_true.guard, TransitionGuardNode::When(_))
+                    && composed_control::topology::exact_false_fallback(
+                        program, when_true, when_false,
+                    ) =>
+                {
+                    let guard = facts
+                        .values
+                        .scalar_expressions
+                        .expression_at(state.symbol, ordinal, CheckedScalarExpressionRole::Guard)?
+                        .clone();
+                    if !matches!(guard, CheckedScalarExpression::Boolean(_)) {
+                        return None;
+                    }
+                    CheckedComposedUnitControlTerminatorPlan::Conditional {
+                        guard,
+                        when_true: edge(when_true, ordinal)?,
+                        when_false: edge(when_false, ordinal.checked_add(1)?)?,
+                    }
+                }
+                _ => return None,
             }
-            _ => return None,
         };
+        for operation in &operations {
+            let result = match operation {
+                CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } => result,
+                _ => continue,
+            };
+            let transferred = |edge: &CheckedStructuralControlSuccessorPlan| {
+                edge.transfers.iter().filter(|transfer| matches!(transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal)).count() == 1
+            };
+            let consumed = match &terminator {
+                CheckedComposedUnitControlTerminatorPlan::Jump { successor } => transferred(successor),
+                CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, when_false, .. } => transferred(when_true) && transferred(when_false),
+                CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, cases } => matches!(subject.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal) && cases.iter().all(|case| !case.successor.transfers.iter().any(|transfer| matches!(transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal))),
+                _ => false,
+            };
+            if !consumed {
+                return None;
+            }
+        }
         planned.push(CheckedComposedUnitControlStatePlan {
             state: state.symbol,
             structural_parameters: structural.clone(),
@@ -359,6 +449,7 @@ fn successor(
     machine: &typed_trees::machine::Machine,
     source_index: usize,
     signatures: &[Signature],
+    operations: &[CheckedUnitEffectOperationPlan],
     transition: &typed_trees::statement::TableTransition,
     ordinal: u32,
 ) -> Option<CheckedStructuralControlSuccessorPlan> {
@@ -368,6 +459,7 @@ fn successor(
         machine,
         source_index,
         signatures,
+        operations,
         transition,
         ordinal,
         &[],
@@ -397,6 +489,7 @@ fn successor_bindings(
     machine: &typed_trees::machine::Machine,
     source_index: usize,
     signatures: &[Signature],
+    operations: &[CheckedUnitEffectOperationPlan],
     transition: &typed_trees::statement::TableTransition,
     ordinal: u32,
     payload_parameters: &[u32],
@@ -522,6 +615,24 @@ fn successor_bindings(
                     },
                     target_parameter_index: u32::try_from(target_index).ok()?,
                 });
+            }
+            if target.access == CheckedStructuralAccess::Owned {
+                let place = crate::flow::canonical_place_from_expression_in_state(program, source.symbol, ordinal as usize, expression)?;
+                if place.segments.is_empty() {
+                    let mut matches = operations.iter().filter_map(|operation| match operation {
+                        CheckedUnitEffectOperationPlan::StructuralCall { result, discard_result_on_return: false, .. }
+                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, discard_result_on_return: false, .. } => Some(result),
+                        _ => None,
+                    }).filter(|result| result.statement_index < ordinal && matches!(program.statement_table.statements(source.statement_nodes).get(result.statement_index as usize), Some(StatementNode::LocalData(local)) if place.root == facts::PlaceRoot::Symbol(local.symbol)));
+                    if let Some(result) = matches.next() {
+                        if matches.next().is_some() { return None; }
+                        if result.type_identity != target.type_identity || result.multiplicity != target.multiplicity { return None; }
+                        return Some(CheckedStructuralControlTransferPlan {
+                            source: checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal: result.binding_ordinal },
+                            target_parameter_index: u32::try_from(target_index).ok()?,
+                        });
+                    }
+                }
             }
             let source_position = source_position(target.position)?;
             let source_index = source_structural

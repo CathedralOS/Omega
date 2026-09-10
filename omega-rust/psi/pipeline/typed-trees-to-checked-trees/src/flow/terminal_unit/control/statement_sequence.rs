@@ -143,6 +143,7 @@ pub(in crate::flow::terminal_unit) fn build(
         .skip(construction_statement_count)
         .take_while(|(_, statement)| {
             !matches!(statement, StatementNode::Transition(_))
+                && !matches!(statement, StatementNode::LocalData(local) if local.name.as_str().starts_with("__arm_destructure#V="))
                 && !matches!(statement, StatementNode::Expression(expression)
                     if !is_unit(program, state.return_type)
                         && !matches!(program.expression_table.expression(*expression), ExpressionNode::Call(_)))
