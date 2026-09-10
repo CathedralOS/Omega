@@ -2,8 +2,8 @@
 
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{
-    CheckedScalarComputationHandle, CheckedScalarComputationKind, CheckedTrees,
-    CheckedUnitCallCoordinate,
+    CheckedScalarComputationHandle, CheckedScalarComputationKind,
+    CheckedScalarComputationStructuralArgument, CheckedTrees, CheckedUnitCallCoordinate,
 };
 use symbols::SymbolHandle;
 
@@ -11,6 +11,7 @@ use super::{authored_state, borrow_rows, owned_arguments, primitive_arguments};
 use crate::{LoweringError, unsupported};
 
 mod access_occurrences;
+mod arrays;
 
 /// Authored formal order, preserving scalar handles and structural occurrences.
 pub(crate) enum RejoinedComputationArgument {
@@ -20,6 +21,10 @@ pub(crate) enum RejoinedComputationArgument {
     },
     Structural {
         expression: ExpressionHandle,
+    },
+    Array {
+        expression: ExpressionHandle,
+        elements: Vec<(ExpressionHandle, CheckedScalarComputationHandle)>,
     },
 }
 
@@ -162,12 +167,13 @@ pub(crate) fn rejoin_computation_call_arguments(
         }
         Some(borrow_call)
     };
-    let access_positions = if structural.iter().any(|argument| {
-        matches!(
+    let access_positions = if structural.iter().any(|argument| match argument {
+        CheckedScalarComputationStructuralArgument::Array { .. } => true,
+        CheckedScalarComputationStructuralArgument::Place(argument) => matches!(
             argument.access,
             checked_trees::CheckedStructuralAccess::SharedBorrow
                 | checked_trees::CheckedStructuralAccess::Owned
-        )
+        ),
     }) {
         Some(access_occurrences::rejoin(
             checked,
@@ -216,6 +222,21 @@ pub(crate) fn rejoin_computation_call_arguments(
             let argument = structural.next().ok_or(LoweringError::Unsupported(
                 "computed invocation omits a structural argument",
             ))?;
+            if let CheckedScalarComputationStructuralArgument::Array { .. } = argument {
+                if owner.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
+                    return unsupported(
+                        "computed array operands require an ordinary checked callee",
+                    );
+                }
+                result.push(RejoinedComputationArgument::Array {
+                    expression,
+                    elements: arrays::rejoin(checked, machine, parameter, expression, argument)?,
+                });
+                continue;
+            }
+            let CheckedScalarComputationStructuralArgument::Place(argument) = argument else {
+                return unsupported("computed structural operand has no retained place");
+            };
             let borrow_call = borrow_call.ok_or(LoweringError::Unsupported(
                 "computed invocation has no exact borrow call",
             ))?;

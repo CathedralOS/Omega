@@ -176,62 +176,13 @@ pub(crate) fn computation_targets(
     checked: &CheckedTrees,
     roots: &[checked_trees::CheckedScalarComputationHandle],
 ) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
-    let plans = &checked.facts.values.scalar_computations;
-    let mut pending = roots.to_vec();
-    let mut visited = Vec::new();
+    let nodes = &checked.facts.values.scalar_computations.nodes;
     let mut targets = Vec::new();
-    while let Some(handle) = pending.pop() {
-        if visited.contains(&handle) {
-            continue;
-        }
-        if !plans.nodes.is_valid(handle) {
-            return unsupported("embedded scalar computation contains a stale node");
-        }
-        visited.push(handle);
-        match &plans.nodes.get(handle).kind {
-            CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
-                pending.push(*subject);
-                for arm in plans
-                    .dispatch_arms
-                    .span(*arms)
-                    .ok_or(LoweringError::Unsupported(
-                        "embedded scalar dispatch arms are stale",
-                    ))?
-                {
-                    if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) = arm.pattern
-                    {
-                        pending.push(pattern);
-                    }
-                    pending.push(arm.value);
-                }
-            }
-            CheckedScalarComputationKind::Value(_) => {}
-            CheckedScalarComputationKind::Select {
-                condition,
-                when_true,
-                when_false,
-                ..
-            } => pending.extend([*condition, *when_true, *when_false]),
-            CheckedScalarComputationKind::Call {
-                target_machine,
-                arguments,
-                ..
-            } => {
-                if !targets.contains(target_machine) {
-                    targets.push(*target_machine);
-                }
-                pending.extend(plans.operands.span(*arguments).ok_or(
-                    LoweringError::Unsupported("embedded scalar call arguments are stale"),
-                )?);
-            }
-            CheckedScalarComputationKind::Apply { operands, .. } => pending.extend(
-                plans
-                    .operands
-                    .span(*operands)
-                    .ok_or(LoweringError::Unsupported(
-                        "embedded scalar operands are stale",
-                    ))?,
-            ),
+    for handle in crate::scalar_computations::reachable_nodes(checked, roots)? {
+        if let CheckedScalarComputationKind::Call { target_machine, .. } = nodes.get(handle).kind
+            && !targets.contains(&target_machine)
+        {
+            targets.push(target_machine);
         }
     }
     Ok(targets)

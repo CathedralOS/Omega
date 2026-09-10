@@ -165,9 +165,10 @@ fn orphan_computations_do_not_create_local_places() {
         .span(*structural_arguments)
         .unwrap()[0]
         .clone();
-    argument.source = checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
-        symbol: unused.symbol,
-    };
+    argument.as_place_mut().unwrap().source =
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
+            symbol: unused.symbol,
+        };
     *structural_arguments = computations.structural_arguments.insert_many([argument]);
     computations.nodes.append(orphan);
     assert_eq!(
@@ -345,10 +346,14 @@ fn borrowed_local_demand_rejects_wrong_referent_or_type() {
     };
     for mutation in 0..4 {
         let mut computations = checked.facts.values.scalar_computations.clone();
-        let handles = computations.structural_arguments.iter().filter_map(|(handle, argument)| matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } if symbol == slot.symbol).then_some(handle)).collect::<Vec<_>>();
+        let handles = computations.structural_arguments.iter().filter_map(|(handle, argument)| matches!(argument.as_place().unwrap().source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } if symbol == slot.symbol).then_some(handle)).collect::<Vec<_>>();
         assert!(!handles.is_empty());
         for handle in handles {
-            let argument = computations.structural_arguments.get_mut(handle);
+            let argument = computations
+                .structural_arguments
+                .get_mut(handle)
+                .as_place_mut()
+                .unwrap();
             match mutation {
                 0 => {
                     argument.source =
@@ -402,7 +407,7 @@ fn borrowed_local_graphs_do_not_admit_multiple_source_states() {
             .structural_arguments
             .iter()
             .any(|(_, argument)| matches!(
-                argument.source,
+                argument.as_place().unwrap().source,
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
             ))
     );

@@ -439,7 +439,16 @@ struct LoweredCrashExit {
 struct LoweredScalarBranchState {
     parameter_types: Vec<ScalarType>,
     bindings: Vec<LoweredScalarBinding>,
+    /// Effects execute after the scalar prefix, without creating scalar slots.
+    structural_effects: Vec<LoweredScalarArrayConstruction>,
     terminator: LoweredScalarBranchTerminator,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LoweredScalarArrayConstruction {
+    place: PlaceId,
+    structural_type: StructuralTypeId,
+    elements: Vec<LoweredDirectExpression>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -526,6 +526,7 @@ fn collect(
             call_ordinal,
             target_state,
             arguments,
+            structural_arguments,
             ..
         } => {
             if !facts.flow.control.calls.is_valid(*source_call) || consumed.contains(source_call) {
@@ -552,6 +553,25 @@ fn collect(
                     active,
                     consumed,
                 )?;
+            }
+            for argument in plans.structural_arguments.span(*structural_arguments)? {
+                if let checked_trees::CheckedScalarComputationStructuralArgument::Array {
+                    elements,
+                    ..
+                } = argument
+                {
+                    for element in plans.operands.span(*elements)? {
+                        collect(
+                            facts,
+                            statement,
+                            *element,
+                            calls,
+                            minimum_call_ordinal,
+                            active,
+                            consumed,
+                        )?;
+                    }
+                }
             }
         }
         CheckedScalarComputationKind::Apply { operands, .. } => {

@@ -268,6 +268,7 @@ impl Prepared {
         computations: &mut computations::Expansion<'_>,
     ) -> Result<LoweredScalarBranchState, LoweringError> {
         let mut continuation = LoweredScalarBranchState {
+            structural_effects: Vec::new(),
             parameter_types: self.parameter_types,
             bindings: self.bindings,
             terminator,
@@ -280,6 +281,7 @@ impl Prepared {
                 let mut completed_types = prefix.value_types.clone();
                 completed_types.push(prefix.result_type);
                 target = computations.push(LoweredScalarBranchState {
+                    structural_effects: Vec::new(),
                     parameter_types: completed_types.clone(),
                     bindings: vec![LoweredScalarBinding::StoredValue {
                         value: LoweredDirectExpression::Parameter {
@@ -310,6 +312,7 @@ impl Prepared {
                     let mut completed_types = prefix.value_types.clone();
                     completed_types.push(prefix.result_type);
                     computations.push(LoweredScalarBranchState {
+                        structural_effects: Vec::new(),
                         parameter_types: prefix.value_types.clone(),
                         bindings: vec![LoweredScalarBinding::Expression(expression)],
                         terminator: LoweredScalarBranchTerminator::Jump {
@@ -321,6 +324,7 @@ impl Prepared {
                 }
             };
             continuation = LoweredScalarBranchState {
+                structural_effects: Vec::new(),
                 parameter_types: prefix.parameter_types,
                 bindings: prefix.bindings,
                 terminator: LoweredScalarBranchTerminator::Jump {

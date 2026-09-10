@@ -359,7 +359,9 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         .then_some(states.len());
     let lowered_state_count = states.len() + usize::from(return_sink.is_some());
     let mut lowered_states = Vec::with_capacity(lowered_state_count);
-    let mut computations = computations::Expansion::new(checked, machine, lowered_state_count);
+    let arrays = computations::arrays::prepare(checked, machine, structural_types, next_place)?;
+    let mut computations =
+        computations::Expansion::new(checked, machine, lowered_state_count).with_arrays(&arrays);
 
     for state in states {
         if terminal_scalar_type(state.result_type)? != result_type {
@@ -508,6 +510,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         // Existing conditional argument lowering evaluates them only in the
         // selected arm; no source state or executable value is manufactured.
         lowered_states.push(LoweredScalarBranchState {
+            structural_effects: Vec::new(),
             parameter_types: vec![result_type],
             bindings: Vec::new(),
             terminator: LoweredScalarBranchTerminator::Return {

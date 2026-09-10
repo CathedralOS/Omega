@@ -87,7 +87,8 @@ impl Evaluation {
                 });
             }
         }
-        let mut expansion = crate::scalar_computations::Expansion::new(checked, machine, 1);
+        let mut expansion = crate::scalar_computations::Expansion::new(checked, machine, 1)
+            .with_arrays(&self.arrays);
         let entry = match value {
             CheckedCallScalarArgument::Pure(_) => expansion.retained_pure_value(
                 state,

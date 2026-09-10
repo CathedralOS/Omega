@@ -108,11 +108,14 @@ fn owned_scalar_graphs_read_and_forward_customer_limits() {
         panic!("one owned argument")
     };
     assert_eq!(
-        argument.source,
+        argument.as_place().unwrap().source,
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 }
     );
-    assert_eq!(argument.access, CheckedStructuralAccess::Owned);
-    assert!(argument.path.is_empty());
+    assert_eq!(
+        argument.as_place().unwrap().access,
+        CheckedStructuralAccess::Owned
+    );
+    assert!(argument.as_place().unwrap().path.is_empty());
 }
 
 #[test]

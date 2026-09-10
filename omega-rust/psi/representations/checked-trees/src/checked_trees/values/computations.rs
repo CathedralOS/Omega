@@ -6,12 +6,48 @@ use typed_trees::types::PrimitiveType;
 
 pub type CheckedScalarComputationHandle = Handle<CheckedScalarComputation>;
 
+/// A structural actual belongs to its computation call and authored formal
+/// position. Array leaves evaluate there, including inside selective control;
+/// they are not hoisted into source locals or assigned scalar binding slots.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedScalarComputationStructuralArgument {
+    Place(CheckedUnitStructuralArgumentPlan),
+    Array {
+        expression: typed_trees::expression::ExpressionHandle,
+        /// Retains every dimension and the primitive carrier even with no leaves.
+        type_reference: typed_trees::types::TypeReferenceHandle,
+        elements: HandleSpan<CheckedScalarComputationHandle>,
+    },
+}
+
+impl Default for CheckedScalarComputationStructuralArgument {
+    fn default() -> Self {
+        Self::Place(CheckedUnitStructuralArgumentPlan::default())
+    }
+}
+
+impl CheckedScalarComputationStructuralArgument {
+    pub fn as_place(&self) -> Option<&CheckedUnitStructuralArgumentPlan> {
+        match self {
+            Self::Place(place) => Some(place),
+            Self::Array { .. } => None,
+        }
+    }
+
+    pub fn as_place_mut(&mut self) -> Option<&mut CheckedUnitStructuralArgumentPlan> {
+        match self {
+            Self::Place(place) => Some(place),
+            Self::Array { .. } => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedScalarComputationPlans {
     pub roots: Arena<CheckedScalarComputationRoot>,
     pub nodes: Arena<CheckedScalarComputation>,
     pub operands: Arena<CheckedScalarComputationHandle>,
-    pub structural_arguments: Arena<CheckedUnitStructuralArgumentPlan>,
+    pub structural_arguments: Arena<CheckedScalarComputationStructuralArgument>,
     pub dispatch_arms: Arena<CheckedScalarDispatchArm>,
 }
 
@@ -95,7 +131,7 @@ pub enum CheckedScalarComputationKind {
         /// Dense scalar operands. The exact callee signature interleaves these
         /// with structural arguments in authored formal-position order.
         arguments: HandleSpan<CheckedScalarComputationHandle>,
-        structural_arguments: HandleSpan<CheckedUnitStructuralArgumentPlan>,
+        structural_arguments: HandleSpan<CheckedScalarComputationStructuralArgument>,
     },
     Select {
         /// Exact conditional occurrence, retained when an enclosing constant

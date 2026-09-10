@@ -179,12 +179,12 @@ fn owned_parameter_argument(
         if parameter.is_self
             || parameter.is_const
             || parameter.is_mutable
-            || !matches!(
+            || !(matches!(
                 program
                     .type_reference_table
                     .type_reference(parameter.type_reference),
                 TypeReferenceNode::Named { .. }
-            )
+            ) || validation::is_closed_primitive_array_type(program, parameter.type_reference))
             || program
                 .primitive_type_reference(parameter.type_reference)
                 .is_some()
@@ -192,10 +192,11 @@ fn owned_parameter_argument(
                 crate::checks::type_multiplicity(program, parameter.type_reference),
                 Multiplicity::Unrestricted | Multiplicity::Affine
             )
-            || !validation::has_plain_owned_contents_with_numeric_constraints(
-                program,
-                parameter.type_reference,
-            )
+            || !(validation::is_closed_primitive_array_type(program, parameter.type_reference)
+                || validation::has_plain_owned_contents_with_numeric_constraints(
+                    program,
+                    parameter.type_reference,
+                ))
             || structural_access_for_type_reference(program, parameter.type_reference)?
                 != CheckedStructuralAccess::Owned
             || !parameter_qualifications(program, &mut shapes, parameter.type_reference, &[])?

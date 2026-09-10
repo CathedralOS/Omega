@@ -646,17 +646,58 @@ impl Builder<'_, '_> {
                         self.plans.nodes.get_mut(root).authored_root = *argument;
                         computed_arguments.push(root);
                     } else {
+                        if let Some(array) = validation::scalar_array_elements(
+                            self.program,
+                            self.machine,
+                            *argument,
+                            parameter.type_reference,
+                        ) {
+                            if parameter.is_mutable
+                                || target_machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+                                || array.projections.iter().any(|projection| {
+                                    self.operators.expression_use(*projection).is_some_and(|selected| {
+                                        selected.spelling != language_core::OperatorSpelling::Index
+                                            || selected.selected_operator_symbol.is_valid()
+                                            || selected.candidate_count != 0
+                                            || !matches!(selected.status,
+                                                CheckedOperatorResolutionStatus::Missing
+                                                    | CheckedOperatorResolutionStatus::BuiltinFallback)
+                                    })
+                                })
+                            {
+                                return None;
+                            }
+                            let mut elements = Vec::with_capacity(array.elements.len());
+                            for (expression, primitive_type) in array.elements {
+                                let element = self.expression(expression, primitive_type)?;
+                                self.plans.nodes.get_mut(element).authored_root = expression;
+                                elements.push(element);
+                            }
+                            let elements = self.plans.operands.insert_many(elements);
+                            structural_arguments.push(
+                                checked_trees::CheckedScalarComputationStructuralArgument::Array {
+                                    expression: *argument,
+                                    type_reference: parameter.type_reference,
+                                    elements,
+                                },
+                            );
+                            continue;
+                        }
                         let state =
                             crate::find_state_in_machine(self.program, self.machine, self.state)?;
-                        structural_arguments.push(crate::flow::structural_computation_argument(
-                            self.program,
-                            self.borrow,
-                            self.machine,
-                            state,
-                            self.flow.control.calls.get(source_call),
-                            *argument,
-                            parameter,
-                        )?);
+                        structural_arguments.push(
+                            checked_trees::CheckedScalarComputationStructuralArgument::Place(
+                                crate::flow::structural_computation_argument(
+                                    self.program,
+                                    self.borrow,
+                                    self.machine,
+                                    state,
+                                    self.flow.control.calls.get(source_call),
+                                    *argument,
+                                    parameter,
+                                )?,
+                            ),
+                        );
                     }
                 }
                 let arguments = self.plans.operands.insert_many(computed_arguments);

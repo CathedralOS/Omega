@@ -143,6 +143,12 @@ pub(in crate::attached_unit::composed_control) fn emit(
             .collect::<Vec<_>>();
         let mut operations = OperationBuffer::new(catalogs.next_operation - 1);
         let mut evaluation = crate::attached_unit::argument_evaluation::Evaluation {
+            arrays: crate::scalar_computations::arrays::prepare(
+                checked,
+                plan.machine,
+                &catalogs.structural_types,
+                &mut catalogs.next_place,
+            )?,
             primitive_storage: Vec::new(),
             scalar_bindings: None,
             structural_fields: Vec::new(),
@@ -558,6 +564,11 @@ pub(in crate::attached_unit::composed_control) fn emit(
         catalogs.next_operation = operations.next_identity;
     }
     blocks.sort_by_key(|block| block.id);
+    structural_places.extend(
+        blocks
+            .iter()
+            .flat_map(|block| crate::scalar_computations::arrays::declarations(&block.operations)),
+    );
     structural_places.append(&mut catalogs.literal_store_places);
     structural_places.extend(catalogs.result_places.drain(result_places_start..));
     structural_places.sort_by_key(|place| place.id);

@@ -94,6 +94,7 @@ fn source_owned_actuals_reject_same_typed_substitution_access_and_type_drift() {
         .structural_arguments
         .iter()
         .filter_map(|(handle, argument)| {
+            let argument = argument.as_place()?;
             (argument.access == CheckedStructuralAccess::Owned).then_some(handle)
         })
         .collect::<Vec<_>>();
@@ -115,7 +116,9 @@ fn source_owned_actuals_reject_same_typed_substitution_access_and_type_drift() {
                 .values
                 .scalar_computations
                 .structural_arguments
-                .get_mut(handle);
+                .get_mut(handle)
+                .as_place_mut()
+                .expect("retained owned argument place");
             match mutation {
                 "other owned parameter" => {
                     let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =

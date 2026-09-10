@@ -4,6 +4,8 @@
 mod call_arguments;
 #[path = "scalar_array_source/call_results.rs"]
 mod call_results;
+#[path = "scalar_array_source/computation_arguments.rs"]
+mod computation_arguments;
 #[path = "scalar_array_source/literal_arguments.rs"]
 mod literal_arguments;
 

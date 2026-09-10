@@ -87,7 +87,7 @@ fn scalar_local_borrow_actual_cannot_be_another_same_typed_local() {
         .scalar_computations
         .structural_arguments
         .iter()
-        .filter_map(|(handle, argument)| match argument.source {
+        .filter_map(|(handle, argument)| match argument.as_place()?.source {
             CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } => {
                 Some((handle, symbol))
             }
@@ -115,6 +115,8 @@ fn scalar_local_borrow_actual_cannot_be_another_same_typed_local() {
                 .scalar_computations
                 .structural_arguments
                 .get_mut(*handle)
+                .as_place_mut()
+                .expect("retained primitive local place")
                 .source = CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
                 symbol: replacement,
             };
@@ -180,7 +182,7 @@ fn scalar_local_computed_read_cannot_use_another_local_or_scalar_namespace() {
         .scalar_computations
         .structural_arguments
         .iter()
-        .filter_map(|(_, argument)| match argument.source {
+        .filter_map(|(_, argument)| match argument.as_place()?.source {
             CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } => Some(symbol),
             _ => None,
         })

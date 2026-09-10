@@ -30,6 +30,15 @@ Completed comparisons may reverse values for `>`/`>=`, never evaluation order.
 Cast-wrapped calls and indexed reads remain behind their original selection
 boundary; a later cast cannot hoist its call ahead of an earlier operand.
 
+Array actuals retain their exact enclosing call/formal and recursive type beside
+their scalar leaf computations. The private evaluation sequence interleaves those
+leaves and a real structural constructor with scalar actuals in authored order.
+The constructor retires only its leaf staging slots; earlier scalar arguments
+remain available. Empty arrays therefore need no dummy scalar or source local.
+Shared catalog preparation reserves structural identities, while emitted
+constructors alone establish values on the selected path. These operations reuse
+`EstablishScalarArray`; no portable expression-specific opcode is introduced.
+
 Assignments evaluate against the pre-write storage environment and commit only
 after RHS completion. Earlier immutable snapshots survive. Mutable scalar formals
 use state-local storage initialized from exact incoming operands, not immutable

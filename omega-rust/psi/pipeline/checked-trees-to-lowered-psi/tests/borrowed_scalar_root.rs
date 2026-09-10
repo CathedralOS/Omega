@@ -717,7 +717,9 @@ fn scalar_root_rejects_swapped_same_typed_borrowed_actuals() {
             .values
             .scalar_computations
             .structural_arguments
-            .get_mut(structural_arguments.start());
+            .get_mut(structural_arguments.start())
+            .as_place_mut()
+            .expect("retained primitive parameter place");
         let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
             &mut argument.source
         else {

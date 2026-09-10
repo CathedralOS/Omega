@@ -68,6 +68,28 @@ pub(crate) fn call_array_constructions(
         let Some(target) = crate::find_state(program, target_symbol) else {
             continue;
         };
+        // A scalar computation owns its nested structural operands. Giving
+        // those leaves independent statement roots would schedule them twice
+        // and could move construction out of a selective branch.
+        let direct_root = match program
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(statement_index)
+        {
+            Some(StatementNode::Call(_)) => matches!(site, crate::CallSite::Statement(_)),
+            Some(StatementNode::LocalData(local)) => {
+                call.authored_expression == local.initial_value
+            }
+            Some(StatementNode::Expression(expression)) => call.authored_expression == *expression,
+            _ => false,
+        };
+        if !direct_root
+            && program
+                .primitive_type_reference(target.return_type)
+                .is_some()
+        {
+            continue;
+        }
         let mut owners = program.machines().iter().filter(|owner| {
             program
                 .machine_states(owner)

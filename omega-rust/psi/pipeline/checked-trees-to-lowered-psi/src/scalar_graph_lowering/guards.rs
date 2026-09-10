@@ -61,6 +61,7 @@ pub(super) fn lower(
     let mut parameter_types = source_types.to_vec();
     parameter_types.push(ScalarType::Boolean);
     let target = computations.push(LoweredScalarBranchState {
+        structural_effects: Vec::new(),
         parameter_types,
         bindings: Vec::new(),
         terminator: branch,

@@ -192,6 +192,21 @@ pub(crate) fn validate_computation_calls(
                                 );
                             }
                         }
+                        RejoinedComputationArgument::Array {
+                            expression,
+                            elements,
+                        } => {
+                            if !scoped_expressions.contains(&expression) {
+                                return unsupported(
+                                    "computed array escaped its authored argument scope",
+                                );
+                            }
+                            pending.extend(
+                                elements.into_iter().rev().map(|(expression, computation)| {
+                                    (computation, false, expression)
+                                }),
+                            );
+                        }
                     }
                 }
             }

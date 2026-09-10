@@ -4,7 +4,7 @@ use arena::{Handle, HandleSpan};
 use checked_trees::expression::ExpressionNode;
 use checked_trees::{
     BorrowAccessKind, BorrowCallFact, CheckedScalarComputationHandle, CheckedScalarComputationKind,
-    CheckedStructuralAccess, CheckedTrees, CheckedUnitStructuralArgumentPlan,
+    CheckedScalarComputationStructuralArgument, CheckedStructuralAccess, CheckedTrees,
     CheckedUnitStructuralArgumentSourcePlan,
 };
 
@@ -261,7 +261,7 @@ fn shared_computation_occurrences_reject_swapped_plan_and_source_positions() {
 fn structural_span(
     checked: &CheckedTrees,
     call: CheckedScalarComputationHandle,
-) -> HandleSpan<CheckedUnitStructuralArgumentPlan> {
+) -> HandleSpan<CheckedScalarComputationStructuralArgument> {
     let CheckedScalarComputationKind::Call {
         structural_arguments,
         ..
@@ -389,7 +389,9 @@ fn same_typed_structural_arguments_cannot_move_between_call_occurrences() {
             .values
             .scalar_computations
             .structural_arguments
-            .get(span.start());
+            .get(span.start())
+            .as_place()
+            .expect("retained local place");
         let replacement = handles
             .iter()
             .map(|other| structural_span(&original, *other))
@@ -400,6 +402,8 @@ fn same_typed_structural_arguments_cannot_move_between_call_occurrences() {
                     .scalar_computations
                     .structural_arguments
                     .get(other.start())
+                    .as_place()
+                    .expect("retained other local place")
                     .source
                     != argument.source
             })
@@ -442,7 +446,9 @@ fn primitive_arguments_reject_type_access_path_and_source_drift() {
                 .values
                 .scalar_computations
                 .structural_arguments
-                .get_mut(span.start());
+                .get_mut(span.start())
+                .as_place_mut()
+                .expect("retained primitive place");
             match mutation {
                 "type" => argument.type_identity = "u8".to_owned(),
                 "shared" => argument.access = CheckedStructuralAccess::SharedBorrow,
@@ -625,7 +631,9 @@ fn synchronized_plan_or_source_and_borrow_rows_cannot_substitute_another_local()
                 .values
                 .scalar_computations
                 .structural_arguments
-                .get(span.start());
+                .get(span.start())
+                .as_place()
+                .expect("retained local place");
             let other = computations
                 .iter()
                 .copied()
@@ -636,6 +644,8 @@ fn synchronized_plan_or_source_and_borrow_rows_cannot_substitute_another_local()
                         .scalar_computations
                         .structural_arguments
                         .get(structural_span(&original, *other).start())
+                        .as_place()
+                        .expect("retained other local place")
                         .source
                         != argument.source
                 })
@@ -646,6 +656,8 @@ fn synchronized_plan_or_source_and_borrow_rows_cannot_substitute_another_local()
                 .scalar_computations
                 .structural_arguments
                 .get(structural_span(&original, other).start())
+                .as_place()
+                .expect("retained replacement local place")
                 .source
                 .clone();
             let CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } = replacement
@@ -681,6 +693,8 @@ fn synchronized_plan_or_source_and_borrow_rows_cannot_substitute_another_local()
                     .scalar_computations
                     .structural_arguments
                     .get_mut(span.start())
+                    .as_place_mut()
+                    .expect("retained primitive local place")
                     .source = replacement;
             }
         }
@@ -707,7 +721,9 @@ fn dense_structural_parameter_position_cannot_be_an_authored_or_other_position()
                 .values
                 .scalar_computations
                 .structural_arguments
-                .get_mut(span.start());
+                .get_mut(span.start())
+                .as_place_mut()
+                .expect("retained parameter place");
             assert_eq!(
                 argument.source,
                 CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 }
@@ -779,6 +795,8 @@ fn synchronized_authored_and_checked_access_cannot_change_the_formal_borrow() {
             .scalar_computations
             .structural_arguments
             .get_mut(span.start())
+            .as_place_mut()
+            .expect("retained borrowed place")
             .access = CheckedStructuralAccess::SharedBorrow;
     }
     reject(

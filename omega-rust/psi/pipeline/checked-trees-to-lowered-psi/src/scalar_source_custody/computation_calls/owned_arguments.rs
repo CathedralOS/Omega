@@ -66,10 +66,10 @@ pub(super) fn validate(
                 !checked
                     .type_reference_table
                     .contains_type_reference(*reference)
-                    || !matches!(
+                    || (!matches!(
                         checked.type_reference_table.type_reference(*reference),
                         TypeReferenceNode::Named { .. }
-                    )
+                    ) && !validation::is_closed_primitive_array_type(checked, *reference))
                     || checked.primitive_type_reference(*reference).is_some()
                     || !matches!(
                         checked.type_multiplicity(*reference),

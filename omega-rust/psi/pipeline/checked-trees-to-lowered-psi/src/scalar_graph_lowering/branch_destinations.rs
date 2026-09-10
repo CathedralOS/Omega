@@ -54,6 +54,7 @@ pub(super) fn lower_destination(
                 source_claims,
             )?;
             let target = computations.push(LoweredScalarBranchState {
+                structural_effects: Vec::new(),
                 parameter_types: source_value_types.to_vec(),
                 bindings: Vec::new(),
                 terminator: LoweredScalarBranchTerminator::Crash(crash),

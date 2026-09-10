@@ -6,6 +6,7 @@ use checked_trees::CheckedCallScalarArgument;
 mod source_values;
 
 pub(crate) struct Evaluation {
+    pub(crate) arrays: Vec<crate::scalar_computations::arrays::Slot>,
     pub primitive_storage: Vec<(symbols::SymbolHandle, PlaceId, ScalarType)>,
     /// State-local storage has its own namespace; it is not an immutable slot.
     /// Other callers retain the ordinary dense source-prefix mapping.
@@ -62,6 +63,7 @@ impl Evaluation {
     pub(crate) fn new(next_block: &mut u64) -> Result<Self, LoweringError> {
         let entry = block_id(allocate_dense(next_block)?);
         Ok(Self {
+            arrays: Vec::new(),
             primitive_storage: Vec::new(),
             scalar_bindings: None,
             structural_fields: Vec::new(),
@@ -258,7 +260,8 @@ impl Evaluation {
                 .map(Some);
         }
 
-        let mut expansion = crate::scalar_computations::Expansion::new(checked, machine, 1);
+        let mut expansion = crate::scalar_computations::Expansion::new(checked, machine, 1)
+            .with_arrays(&self.arrays);
         let entry_index = expansion.call_arguments(
             state,
             coordinate,
@@ -330,7 +333,8 @@ impl Evaluation {
                 scalar_type,
             });
         }
-        let mut expansion = crate::scalar_computations::Expansion::new(checked, machine, 1);
+        let mut expansion = crate::scalar_computations::Expansion::new(checked, machine, 1)
+            .with_arrays(&self.arrays);
         let entry = expansion.retained_value(
             state,
             store.statement_index,
@@ -536,6 +540,12 @@ fn emit_state(
             });
         }
     }
+    crate::scalar_computations::arrays::emit(
+        &state.structural_effects,
+        &values,
+        next_value,
+        operations,
+    )?;
     let mut arguments =
         |expressions: &[LoweredDirectExpression]| -> Result<Vec<ValueId>, LoweringError> {
             expressions
