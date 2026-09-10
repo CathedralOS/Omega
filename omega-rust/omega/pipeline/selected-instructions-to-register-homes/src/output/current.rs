@@ -73,9 +73,10 @@ impl CurrentAllocation {
         }
     }
 
-    /// Independent replay must reconstruct every retained current fact. Pointer
-    /// equality below checks the internal upstream-owner join only; it is not a
-    /// persisted identity or a substitute for replay of that upstream subject.
+    /// Rejoin every current fact to the independently replayed source. A retained
+    /// owner may reuse that source's admission only while it stays immutable.
+    /// Pointer equality checks the internal upstream-owner join, not a persisted
+    /// identity or a substitute for initial replay of that upstream subject.
     pub(super) fn validate_against(
         &self,
         replayed: &AllocationOutput<'_>,

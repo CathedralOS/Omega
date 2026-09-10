@@ -1,4 +1,4 @@
-use super::{AllocationOutput, AllocationReplayError, AllocationSource, sealed};
+use super::{AllocationOutput, AllocationReplayError, AllocationSource, ProjectAllocation, sealed};
 use crate::{
     StagedOptimizedActiveResidentRematerialization, StagedOptimizedRegisterHomes,
     StagedOptimizedRegisterHomesAfterFixedViewCopies,
@@ -6,8 +6,14 @@ use crate::{
     StagedOptimizedRegisterHomesAfterSelectedLowering,
 };
 
+#[cfg(test)]
+mod tests;
+
 /// Current allocated program and a separate replay-only evidence graph.
 /// Ordinary reads never traverse the evidence or select a program by history.
+/// Every constructor independently replays its source before taking ownership.
+/// The retained source has no mutable access or interior-mutable proof data;
+/// shared Arc inputs can only be changed by copying them into a different owner.
 #[derive(Debug)]
 pub struct RetainedAllocation {
     current: super::current::CurrentAllocation,
@@ -80,14 +86,18 @@ impl sealed::Sealed for RetainedAllocation {}
 
 impl AllocationSource for RetainedAllocation {
     fn replay_allocation(&self) -> Result<AllocationOutput<'_>, AllocationReplayError> {
+        // Reuse admission of this exact privately owned, immutable source, not
+        // a detached identity or a result from another allocation. Fresh source
+        // inputs still take the full replay path in every TryFrom below. Rejoin
+        // all current facts so even test-only current-program substitution rejects.
         let current = match &self.replay {
-            ReplayInputs::RuntimeSpill(source) => source.replay_allocation(),
-            ReplayInputs::Baseline(source) => source.replay_allocation(),
-            ReplayInputs::FixedView(source) => source.replay_allocation(),
-            ReplayInputs::LiteralFolds(source) => source.replay_allocation(),
-            ReplayInputs::SelectedLowering(source) => source.replay_allocation(),
-            ReplayInputs::Rematerialization(source) => source.replay_allocation(),
-        }?;
+            ReplayInputs::RuntimeSpill(source) => source.project_replayed_allocation()?,
+            ReplayInputs::Baseline(source) => source.project_allocation(),
+            ReplayInputs::FixedView(source) => source.project_allocation(),
+            ReplayInputs::LiteralFolds(source) => source.project_allocation(),
+            ReplayInputs::SelectedLowering(source) => source.project_allocation(),
+            ReplayInputs::Rematerialization(source) => source.project_allocation(),
+        };
         validate_recovery_selection(&current)?;
         self.current.validate_against(&current)?;
         Ok(self.current())

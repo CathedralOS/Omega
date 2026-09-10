@@ -79,9 +79,10 @@ reuse physical Unit instructions without changing their structural contracts.
 Indirect owned arguments and hidden-pointer results remain explicit transport
 limits. Zero physical size never erases the semantic array type. The native differential
 `scalar_array_results` target covers full publication and matching-host execution;
-its 17-byte SysV mixed-call case is explicitly selection-only until runtime spill
-supports the high-pressure multi-block graph. Inline stack admission is not a
-claim that downstream allocation can realize every graph.
+its 17-byte SysV mixed-call case exercises independently verified runtime spills
+through the high-pressure acyclic graph. That case publishes on any development
+host and explicitly skips execution unless the host is Linux x86-64. Inline
+stack admission is not a claim that allocation can realize every graph.
 Its packed cases cover 3/5/6/7-byte tails in one- and two-fragment calls and returns
 on the three direct-register targets. Its floating cases preserve binary32/binary64
 payloads, including signed zeros and NaN payloads. Array results keep their
