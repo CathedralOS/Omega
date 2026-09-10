@@ -11,6 +11,15 @@ use typed_trees::statement::{StatementNode, TransitionTargetNode};
 /// One place's transported field valuation (`None` value = known-unknown).
 pub(super) type PlaceValuation = (String, Vec<(String, Option<i128>)>);
 
+/// Give semantic maps one publication order without changing their facts.
+/// Missing fields and explicitly unknown values retain their existing meaning.
+pub(super) fn canonicalize_valuations(valuations: &mut [PlaceValuation]) {
+    valuations.sort_by(|left, right| left.0.cmp(&right.0));
+    for (_, fields) in valuations {
+        fields.sort_by(|left, right| left.0.cmp(&right.0));
+    }
+}
+
 /// MUST meet of two exit valuations: a place survives only when present in
 /// both; a field survives only when both sides agree on the SAME literal.
 pub(super) fn meet_valuations(

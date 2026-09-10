@@ -1091,6 +1091,16 @@ Owners include
   are implementation limits, not narrower language semantics. Do not flatten
   conditional transfers into a whole-statement move/discard roster.
 
+  Floating comparison resume (macOS, 658aad2664): `mbx run -p omega --
+  inspect-terminal --machine choose --target macos_arm64
+  tests/omega/pass/expressions/match_float_patterns/main.omg` rejects at the
+  checked scalar computation producer ("needs one checked expression and one
+  source binding"). Source checking accepts it. Implicit arm equality needs an
+  exact selected-operator occurrence carrying the saved subject and authored arm;
+  ordinary selected intrinsic float comparisons also lack a general Terminal
+  producer. Extend existing provider selection and independent source custody,
+  not an unselected raw equality operation or a fabricated source call.
+
   Resume with `mbx nextest run -p checked-trees-to-lowered-psi --test value_dispatch
   --no-fail-fast` and the checker/interpreter `value_dispatch` regressions. These
   cover scalar first-match selection, exact subject-once execution, branch-local

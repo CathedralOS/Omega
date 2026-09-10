@@ -1,0 +1,26 @@
+data Pair where left <= right, { left: u64; right: u64; }
+data Storage { pair: Pair; }
+
+machine Storage::walk(&mut self, choose_left: bool) {
+    transition choose_left {
+        true -> seed_left()
+        false -> seed_right()
+    }
+    state first(&mut self) {
+        transition true { true -> second() false -> done() }
+    }
+    state second(&mut self) {
+        transition true { true -> first() false -> done() }
+    }
+    state seed_left(&mut self) {
+        self.pair = Pair { left: 1, right: 2 };
+        transition true { true -> first() false -> first() }
+    }
+    state seed_right(&mut self) {
+        self.pair = Pair { right: 2, left: 1 };
+        transition true { true -> second() false -> second() }
+    }
+    state done(&mut self) {
+        self.pair.left = 2;
+    }
+}
