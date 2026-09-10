@@ -18,6 +18,7 @@ expression   := INTEGER
               | NAME
               | (if expression expression expression)
               | (let NAME Int expression expression)
+              | (let (binding*) expression)
               | (OP expression expression)
               | (NAME expression*)
               | (input)
@@ -27,6 +28,7 @@ expression   := INTEGER
               | (first expression)
               | (second expression)
 OP           := + | - | * | / | % | eq | lt
+binding      := (NAME Int expression)
 CHARACTER    := printable ASCII between single quotes
               | '\n' | '\s'
 ```
@@ -36,6 +38,21 @@ function named `main` is required. Parameters and active `let` binders are
 unique. A `let` binder is absent from its initializer and active only in its
 body. Every source value and expression has type `Int`; the written `Int`
 annotations are mandatory and checked structurally.
+
+A grouped `let` binds initializers sequentially from left to right. Each
+initializer sees earlier bindings but not its own name or later bindings. The
+final expression sees every binding; its result, including pair provenance, is
+the group's result. Bindings leave scope when the group completes. Active
+shadowing remains invalid, including duplicates within the group. An empty
+group evaluates its final expression without introducing a binding.
+
+For example, `(let ((first Int 7) (second Int (+ first 2))) second)` has the
+same value and effects as `(let first Int 7 (let second Int (+ first 2) second))`.
+Only the final expression inherits the group's tail position; initializers do
+not. All groups, including unused branches and unreachable functions, are
+validated before evaluation. This is binding syntax, not mutation, a new value
+type, or a source-to-source preprocessing stage. The evaluator's physical syntax
+depth is measured on authored lists, not on a conceptual nested-let expansion.
 
 ## Values and control
 

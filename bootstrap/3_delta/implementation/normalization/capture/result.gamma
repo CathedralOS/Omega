@@ -1,18 +1,17 @@
 ; Sort only direct references and owned binders, never completed helper batches.
 ; One sorted immutable result serves both parameters and call arguments.
 (def capture_finish ((state Int)) Int
-  (let references Int (first state)
-    (let retained Int (second state)
-      (let owned Int (first retained)
-        (let batches Int (second retained)
-          (let merged Int
-            (capture_merge_batches (first batches) (second batches)
-              (capture_sort (first references) (second references)))
-            (if (eq (first owned) 0)
-              merged
-              (let sorted_owned Int (capture_sort (first owned) (second owned))
-                (capture_difference (first merged) (second merged)
-                  (first sorted_owned) (second sorted_owned) 0 0)))))))))
+  (let ((references Int (first state))
+        (retained Int (second state))
+        (owned Int (first retained))
+        (batches Int (second retained))
+        (merged Int (capture_merge_batches (first batches) (second batches)
+            (capture_sort (first references) (second references)))))
+    (if (eq (first owned) 0)
+      merged
+      (let sorted_owned Int (capture_sort (first owned) (second owned))
+        (capture_difference (first merged) (second merged)
+          (first sorted_owned) (second sorted_owned) 0 0)))))
 
 (def capture_merge_batches ((remaining Int) (batches Int) (merged Int)) Int
   (if (eq remaining 0)

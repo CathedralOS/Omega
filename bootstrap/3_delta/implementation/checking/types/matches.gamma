@@ -22,16 +22,14 @@
     (if (eq covered (typing_match_constructor_count context))
       (typing_resume (typing_match_result_type context) depth frames globals)
       (typing_reject 18 (typing_match_node context)))
-    (let pattern Int (syntax_child (first arms) 0)
-      (let name Int
-        (if (eq (syntax_count pattern) -1) pattern (syntax_child pattern 0))
-        (let found Int
-          (name_trie_find_option (global_constructors globals)
-            (syntax_after name) (syntax_start name))
-          (if (first found)
-            (typing_match_constructor context arms cursor covered
-              pattern name (second found) depth frames globals)
-            (typing_reject 12 name)))))))
+    (let ((pattern Int (syntax_child (first arms) 0))
+          (name Int (if (eq (syntax_count pattern) -1) pattern (syntax_child pattern 0)))
+          (found Int (name_trie_find_option (global_constructors globals)
+              (syntax_after name) (syntax_start name))))
+      (if (first found)
+        (typing_match_constructor context arms cursor covered
+          pattern name (second found) depth frames globals)
+        (typing_reject 12 name)))))
 
 ; Owner and arity precede exact duplicate lookup, then binders and the body.
 ; A cursor seek inserts no row; only admitted binders advance coverage.
@@ -40,15 +38,14 @@
    (pattern Int) (name Int) (metadata Int)
    (depth Int) (frames Int) (globals Int)) Int
   (if (eq (constructor_metadata_owner metadata) (typing_match_owner context))
-    (let arity Int (constructor_metadata_arity metadata)
-      (let actual Int
-        (if (eq (syntax_count pattern) -1) 0 (- (syntax_count pattern) 1))
-        (if (eq actual arity)
-          (let sought Int
-            (identity_cursor_seek cursor (syntax_start name) (syntax_after name))
-            (if (identity_cursor_present sought (syntax_after name))
-              (typing_reject 17 name)
-              (typing_match_bindings context arms sought covered
-                pattern name metadata arity depth frames globals)))
-          (typing_reject 16 pattern))))
+    (let ((arity Int (constructor_metadata_arity metadata))
+          (actual Int (if (eq (syntax_count pattern) -1) 0 (- (syntax_count pattern) 1))))
+      (if (eq actual arity)
+        (let sought Int
+          (identity_cursor_seek cursor (syntax_start name) (syntax_after name))
+          (if (identity_cursor_present sought (syntax_after name))
+            (typing_reject 17 name)
+            (typing_match_bindings context arms sought covered
+              pattern name metadata arity depth frames globals)))
+        (typing_reject 16 pattern)))
     (typing_reject 15 name)))

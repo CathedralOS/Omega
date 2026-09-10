@@ -4,25 +4,24 @@
 
 (def normalization_extract
   ((node Int) (depth Int) (frames Int) (state Int)) Int
-  (let name Int (gamma_generated 104 (first state))
-    (let helpers Int (second state)
-      (normalization_visit node (normalization_height_limit) (+ depth 1)
-        (normalization_frame 4 name frames)
-        (normalization_state (+ (first state) 1)
-          (first helpers) (second helpers))))))
+  (let ((name Int (gamma_generated 104 (first state)))
+        (helpers Int (second state)))
+    (normalization_visit node (normalization_height_limit) (+ depth 1)
+      (normalization_frame 4 name frames)
+      (normalization_state (+ (first state) 1)
+        (first helpers) (second helpers)))))
 
 ; Split descendants before capture so each helper visits only its own body.
 ; Nested helpers are closed definitions; their call arguments still name the
 ; original surrounding bindings and are captured normally by this helper.
 (def normalization_helper_done
   ((body Int) (name Int) (depth Int) (frames Int) (state Int)) Int
-  (let captured Int (capture_expression body)
-    (let helpers Int (second state)
-      (let definition Int
-        (gamma_definition name (capture_count captured)
-          (capture_bindings captured) body)
-        (normalization_resume
-          (gamma_call name (capture_count captured) (capture_bindings captured))
-          depth frames
-          (normalization_state (first state) (+ (first helpers) 1)
-            (pair definition (second helpers))))))))
+  (let ((captured Int (capture_expression body))
+        (helpers Int (second state))
+        (definition Int (gamma_definition name (capture_count captured)
+            (capture_bindings captured) body)))
+    (normalization_resume
+      (gamma_call name (capture_count captured) (capture_bindings captured))
+      depth frames
+      (normalization_state (first state) (+ (first helpers) 1)
+        (pair definition (second helpers))))))

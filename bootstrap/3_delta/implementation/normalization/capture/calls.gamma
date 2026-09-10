@@ -2,18 +2,18 @@
 ; is captured, and their arguments are already sorted unique binding atoms.
 ; Reuse that counted list without visiting, copying, or sorting its elements.
 (def capture_call ((node Int) (state Int) (depth Int) (frames Int)) Int
-  (let payload Int (gamma_payload node)
-    (let head Int (first payload)
-      (let arguments Int (second payload)
-        (if (if (eq (gamma_kind head) 4)
-              (eq (first (gamma_payload head)) 104) 0)
-          (let retained Int (second state)
-            (capture_resume
-              (pair (first state)
-                (pair (first retained) (capture_prepend arguments (second retained))))
-              depth frames))
-          (capture_call_arguments (first arguments) (second arguments)
-            state depth frames))))))
+  (let ((payload Int (gamma_payload node))
+        (head Int (first payload))
+        (arguments Int (second payload)))
+    (if (if (eq (gamma_kind head) 4)
+          (eq (first (gamma_payload head)) 104) 0)
+      (let retained Int (second state)
+        (capture_resume
+          (pair (first state)
+            (pair (first retained) (capture_prepend arguments (second retained))))
+          depth frames))
+      (capture_call_arguments (first arguments) (second arguments)
+        state depth frames))))
 
 ; Other function and primitive heads are global, not lexical references.
 ; Visit their expressions in order; the last argument needs no continuation.

@@ -8,25 +8,23 @@
       (lowering_match_chain (- total 1) (second reversed)
         (first (second context)) (second (first reversed)))
       (lowering_resume (lowering_match_wrap context chain) depth frames globals))
-    (let arm Int (first arms)
-      (let pattern Int (syntax_child arm 0)
-        (let constructor Int (lowering_match_constructor pattern)
-          (let metadata Int
-            (require_constructor_metadata
-              (syntax_start constructor) (syntax_after constructor) globals)
-            (let arity Int (constructor_metadata_arity metadata)
-              (let bound Int
-                (lowering_match_bindings arity
-                  (if (eq arity 0) 0 (second (syntax_children pattern)))
-                  locals (first (second (second context))))
-                (lowering_visit (syntax_child arm 1) (first bound) (+ depth 1)
-                  (lowering_frame 6
-                    (pair
-                      (lowering_match_state context (- remaining 1)
-                        (second arms) locals total reversed)
-                      (pair (constructor_metadata_tag metadata)
-                        (pair arity (second bound)))) frames)
-                  globals)))))))))
+    (let ((arm Int (first arms))
+          (pattern Int (syntax_child arm 0))
+          (constructor Int (lowering_match_constructor pattern))
+          (metadata Int (require_constructor_metadata
+              (syntax_start constructor) (syntax_after constructor) globals))
+          (arity Int (constructor_metadata_arity metadata))
+          (bound Int (lowering_match_bindings arity
+              (if (eq arity 0) 0 (second (syntax_children pattern)))
+              locals (first (second (second context))))))
+      (lowering_visit (syntax_child arm 1) (first bound) (+ depth 1)
+        (lowering_frame 6
+          (pair
+            (lowering_match_state context (- remaining 1)
+              (second arms) locals total reversed)
+            (pair (constructor_metadata_tag metadata)
+              (pair arity (second bound)))) frames)
+        globals))))
 
 ; State is context, remaining arm count/spine, outer locals, total, reversed.
 ; Kind 6 payload is (pair state (pair tag (pair binder-count reversed-bindings))).
@@ -37,19 +35,18 @@
 
 (def lowering_match_arm_done
   ((value Int) (payload Int) (depth Int) (frames Int) (globals Int)) Int
-  (let state Int (first payload)
-    (let tag_and_bindings Int (second payload)
-      (let bindings Int (second tag_and_bindings)
-        (let body Int
-          (lowering_match_wrap_bindings (first bindings) (second bindings) value)
-          (let remaining Int (second state)
-            (let arms Int (second remaining)
-              (let locals Int (second arms)
-                (let accumulated Int (second locals)
-                  (lowering_match_arms (first state) (first remaining)
-                    (first arms) (first locals) (first accumulated)
-                    (pair (pair (first tag_and_bindings) body) (second accumulated))
-                    depth frames globals))))))))))
+  (let ((state Int (first payload))
+        (tag_and_bindings Int (second payload))
+        (bindings Int (second tag_and_bindings))
+        (body Int (lowering_match_wrap_bindings (first bindings) (second bindings) value))
+        (remaining Int (second state))
+        (arms Int (second remaining))
+        (locals Int (second arms))
+        (accumulated Int (second locals)))
+    (lowering_match_arms (first state) (first remaining)
+      (first arms) (first locals) (first accumulated)
+      (pair (pair (first tag_and_bindings) body) (second accumulated))
+      depth frames globals)))
 
 (def lowering_match_chain
   ((remaining Int) (reversed Int) (tag Int) (body Int)) Int

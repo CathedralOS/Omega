@@ -24,6 +24,8 @@ RECURSIVE="$OMEGA_REPO_ROOT/tests/delta/staged-compiler/scalar_recursive.delta"
 stamp_seed "$TAPE" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
     "$TMP/evaluator" >/dev/null
 
+python3 -B "$GATE_DIR/sequential_bindings.py" "$TMP/evaluator"
+
 PYTHONPATH="$GATE_DIR" BETA="$BETA" TAPE="$TAPE" EVALUATOR="$TMP/evaluator" \
     AUGMENTER="$AUGMENTER" AUGMENTED="$AUGMENTED" EXPANDED="$EXPANDED" \
     RECURSIVE="$RECURSIVE" python3 - <<'PY'
@@ -41,8 +43,8 @@ from function_lookup import (
 from environment_rows import fixtures as environment_fixtures
 
 artifacts = (
-    ("BETA", 46489, "6f441a73df46b42d0280a31e13a9ed4d55db6a4c39163fb39958f9c8906b11d7"),
-    ("TAPE", 8355, "324b7eeca5f877240175d42fe69d83083c9d768c60b49772a788823af08a7de4"),
+    ("BETA", 47748, "8b4d2b8d27fb6ab23bd732abf6615012b92c739fb6d7cdb220dbd557c1d8925f"),
+    ("TAPE", 8575, "ad55c3f18d3c7bd3e1189635bf34ff6595ca97c34afe85412a6127ed2d29e015"),
 )
 for name, size, digest in artifacts:
     data = Path(os.environ[name]).read_bytes()

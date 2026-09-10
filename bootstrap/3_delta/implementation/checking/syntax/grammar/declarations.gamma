@@ -4,29 +4,29 @@
     (if saw_function
       (compiler_complete program)
       (compiler_source_rejection 4 (source_length)))
-    (let node Int (first forms)
-      (let shape Int (grammar_minimum_count node 1)
-        (if (eq shape -1)
-          (let head Int (first (syntax_children node))
-            (if (eq (syntax_count head) -1)
-              (grammar_declaration program count forms saw_function node head used)
-              (grammar_reject head)))
-          (compiler_source_rejection 4 shape))))))
+    (let ((node Int (first forms))
+          (shape Int (grammar_minimum_count node 1)))
+      (if (eq shape -1)
+        (let head Int (first (syntax_children node))
+          (if (eq (syntax_count head) -1)
+            (grammar_declaration program count forms saw_function node head used)
+            (grammar_reject head)))
+        (compiler_source_rejection 4 shape)))))
 
 (def grammar_declaration
   ((program Int) (count Int) (forms Int) (saw_function Int)
    (node Int) (head Int) (used Int)) Int
-  (let start Int (syntax_start head)
-    (let after Int (syntax_after head)
-      (if (token_data start after)
-        (if saw_function
-          (grammar_reject node)
-          (grammar_finish_declaration program count forms 0
-            (grammar_data node used)))
-        (if (token_def start after)
-          (grammar_finish_declaration program count forms 1
-            (grammar_function node used))
-          (grammar_reject head))))))
+  (let ((start Int (syntax_start head))
+        (after Int (syntax_after head)))
+    (if (token_data start after)
+      (if saw_function
+        (grammar_reject node)
+        (grammar_finish_declaration program count forms 0
+          (grammar_data node used)))
+      (if (token_def start after)
+        (grammar_finish_declaration program count forms 1
+          (grammar_function node used))
+        (grammar_reject head)))))
 
 ; A single declaration-level continuation consumes the final grammar outcome.
 ; Nested roles never retain a Gamma return context per syntax node.

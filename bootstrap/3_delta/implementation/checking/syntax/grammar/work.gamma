@@ -9,11 +9,11 @@
 (def grammar_run ((count Int) (work Int) (used Int)) Int
   (if (eq count 0)
     (compiler_complete used)
-    (let context Int (second work)
-      (let batch Int (second context)
-        (let children Int (second batch)
-          (grammar_sequence (first work) (first batch) (first children)
-            (first context) (- count 1) (second children) used))))))
+    (let ((context Int (second work))
+          (batch Int (second context))
+          (children Int (second batch)))
+      (grammar_sequence (first work) (first batch) (first children)
+        (first context) (- count 1) (second children) used))))
 
 ; Only an actually pending sibling sequence gets a frame. The current child
 ; enters its role directly, and popping a batch allocates no replacement work.
@@ -59,15 +59,14 @@
 
 (def grammar_atom_role_error ((role Int) (node Int)) Int
   (if (eq (syntax_count node) -1)
-    (let start Int (syntax_start node)
-      (let after Int (syntax_after node)
-        (let valid Int
-          (if (eq role 2)
-            (value_name_valid start after)
-            (if (eq role 3)
-              (upper_name_valid start after)
-              (field_type_shape_valid start after)))
-          (if valid -1 start))))
+    (let ((start Int (syntax_start node))
+          (after Int (syntax_after node))
+          (valid Int (if (eq role 2)
+              (value_name_valid start after)
+              (if (eq role 3)
+                (upper_name_valid start after)
+                (field_type_shape_valid start after)))))
+      (if valid -1 start))
     (syntax_start node)))
 
 (def grammar_atom_role

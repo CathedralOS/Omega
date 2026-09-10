@@ -19,14 +19,22 @@ emits no Gamma or Alpha code.
 ## Measurements
 
 ```text
-1,632-line / 46,489-byte canonical addressed Beta with named control targets
-8,355-byte evaluator tape
+1,666-line / 47,748-byte canonical addressed Beta with named control targets
+8,575-byte evaluator tape
 ```
 
 The selected Beta compiler assembles that canonical Beta directly; this gate
 pins the Beta and tape hashes and executes the retained tape. No symbolic-label
 resolver participates in this route; the test-owned resolver was removed with
 its last experimental consumer.
+
+`sequential_bindings.py` adds 29 grouped-let controls with 45 exact observations,
+including equivalent nested-let forms. They cover sequential visibility, scope
+restoration, duplicate and missing names, strict effect order, pair provenance,
+application results, unused branches and unreachable invalid code, malformed
+groups, 100,000 tail calls, and exact/adjacent syntax depth and environment
+refusals. The evaluator loops over bindings using its existing environment and
+initializer logic; it adds no value type, source transformer, or memory region.
 
 For historical comparison, the retired concatenative route above the common
 Beta compiler contained:
@@ -107,7 +115,7 @@ The remaining admission work is outside evaluator semantics:
 - The Beta root and the eventual Gamma derivation checker retain their own
   independent admission obligations.
 
-The measured margin remains: the direct evaluator is 1,632 Beta lines versus
+The measured margin remains: the direct evaluator is 1,666 Beta lines versus
 2,337 lines across the former concatenative route. More importantly, its state
 is held in documented registers and explicit memory regions rather than hidden
 behind a generic stack-machine expansion.
@@ -116,7 +124,7 @@ behind a generic stack-machine expansion.
 
 The former concatenative Gamma is not retained as a permanent bootstrap rung.
 Direct Beta already executes the high-level Gamma-authored augmentation workflow
-with 1,632 authored Beta lines rather than 2,337 across the former route.
+with 1,666 authored Beta lines rather than 2,337 across the former route.
 Proper-tail execution, whole-program static
 validation, private pair provenance, and exact resource outcomes preserve that
 local auditability without another semantic layer.

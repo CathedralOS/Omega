@@ -7,8 +7,8 @@ it is not a checked refinement certificate or a cumulative pair-allocation bound
 
 The subject is the canonical [`delta_compiler.gamma`](../../delta_compiler.gamma)
 prefix plus the ordered [`implementation.gamma.sources`](../implementation.gamma.sources)
-closure: 158,947 bytes, SHA-256
-`4db798805a01abc5c48dabe6e283790de4c88d4f95a9fadb8654ac1a3964908e`.
+closure: 155,440 bytes, SHA-256
+`65e23e66c57885382a90c5b910a9064d8c829d62ffd1f028091d22e32a8eca84`.
 It executes under the exact source/tape and provisions in the
 [Gamma evaluator profile](../../../2_gamma/EVALUATOR_PROFILE.md).
 Changes to either executable subject require rechecking the corresponding
@@ -20,6 +20,14 @@ local bindings or linear syntax depth. The three bodies have one local each and
 heights 12, 13, and 9. Their shared eight-byte writer has no locals or user calls.
 The fixed-source maxima below need no larger provision.
 
+Sequential binding groups replace 94 nested-let chains containing 309 bindings.
+Expanding each group to nested lets recovers the preceding compiler's expression
+trees exactly: initializer order, binding scope, tail positions, and user-call
+edges are unchanged. The purpose is to expose the binding sequence and decision
+body without a wrapper per local. This does not remove pair-layout conventions
+or the explicit typing and lowering continuations. No preprocessor is retained;
+the selected Gamma evaluator validates and executes the grouped syntax directly.
+
 ## Fixed source and call inventory
 
 The compiler contains 366 Gamma definitions. Inspecting every body gives these
@@ -28,13 +36,13 @@ maxima, including bodies not reached from the canonical `main`:
 | Fixed-source quantity | Maximum | Owning body |
 | --- | ---: | --- |
 | Formal parameters | 11 | `typing_match_bindings` |
-| Nested expression lists | 18 | `resolve_collected_constructors` |
-| All authored `let` nodes in one body | 12 | `publish_compiler_failure` |
-| Formal parameters plus all body `let` nodes | 16 | `lowering_match_arms` |
+| Nested authored lists, including binding groups | 17 | `resolve_collected_constructors` |
+| All authored local bindings in one body | 12 | `publish_compiler_failure` |
+| Formal parameters plus all body bindings | 16 | `lowering_match_arms` |
 | Pending user calls within one body's expression syntax | 5 | `lowering_projection_definition`, `typing_match_body` |
 
 These are compiler-source counts, independent of Delta input depth, width,
-identifier length, or generated-helper count. The fixed 18-list maximum fits
+identifier length, or generated-helper count. The fixed 17-list maximum fits
 Gamma's 255-list validation provision. Its validator visits bodies separately,
 resets the lexical environment at each definition, and never executes callees.
 
@@ -88,7 +96,8 @@ In [`gamma_evaluator.beta`](../../../2_gamma/gamma_evaluator.beta),
 `bind_let_initializer` adds a binding only after its initializer returns.
 Ordinary scope/function completion restores the saved environment count, and
 `enter_tail_restart` resets it to the current activation's base. An activation
-therefore retains at most its parameters plus all its body's `let` nodes:
+therefore retains at most its parameters plus all its body's local bindings,
+including every binding in a grouped `let`:
 
 ```text
 live lexical rows <= 209 * 16 = 3,344 < 131,072
@@ -105,7 +114,7 @@ does not retain previous argument blocks. Allow one extra result entry per
 activation for `enter_function`'s return handling:
 
 ```text
-temporary entries <= 209 * (18 * 11 + 1) = 41,591 < 524,288
+temporary entries <= 209 * (17 * 11 + 1) = 39,292 < 524,288
 ```
 
 The validator executes no Gamma bodies, so its one-body requirements are smaller

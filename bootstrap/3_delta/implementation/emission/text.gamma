@@ -42,10 +42,10 @@
       (emit_ascii_bytes (/ packed 256) (- remaining 1)))))
 
 (def emit_application_marker ((publish Int) (written Int)) Int
-  (let first_chunk Int (emit_ascii 8097793326564336680 8 publish written)
-    (let second_chunk Int (emit_ascii 8028075772393122928 8 publish first_chunk)
-      (let third_chunk Int (emit_ascii 8389723558316089454 8 publish second_chunk)
-        (emit_ascii 170471712 4 publish third_chunk)))))
+  (let ((first_chunk Int (emit_ascii 8097793326564336680 8 publish written))
+        (second_chunk Int (emit_ascii 8028075772393122928 8 publish first_chunk))
+        (third_chunk Int (emit_ascii 8389723558316089454 8 publish second_chunk)))
+    (emit_ascii 170471712 4 publish third_chunk)))
 
 (def emit_prefixed_function_name
   ((start Int) (end Int) (publish Int) (written Int)) Int

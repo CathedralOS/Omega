@@ -27,20 +27,20 @@
       (write_unsigned_little_endian (/ value 256) (- remaining 1)))))
 
 (def publish_compiler_failure ((failure Int)) Int
-  (let tag Int (first failure)
-    (let fields Int (second failure)
-      (let location Int (second (second fields))
-        (let resource Int (second location)
-          (let magic Int (write_unsigned_little_endian 374200355472639 8)
-            (let outcome Int (write tag)
-              (let space Int (write (first fields))
-                (let reserved Int (write_unsigned_little_endian 0 2)
-                  (let code Int (write_unsigned_little_endian
-                    (first (second fields)) 4)
-                    (let coordinate Int (write_unsigned_little_endian
-                      (first location) 8)
-                      (let limit Int (write_unsigned_little_endian
-                        (first resource) 8)
-                        (let requested Int (write_unsigned_little_endian
-                          (second resource) 8)
-                          (pair tag 1))))))))))))))
+  (let ((tag Int (first failure))
+        (fields Int (second failure))
+        (location Int (second (second fields)))
+        (resource Int (second location))
+        (magic Int (write_unsigned_little_endian 374200355472639 8))
+        (outcome Int (write tag))
+        (space Int (write (first fields)))
+        (reserved Int (write_unsigned_little_endian 0 2))
+        (code Int (write_unsigned_little_endian
+          (first (second fields)) 4))
+        (coordinate Int (write_unsigned_little_endian
+          (first location) 8))
+        (limit Int (write_unsigned_little_endian
+          (first resource) 8))
+        (requested Int (write_unsigned_little_endian
+          (second resource) 8)))
+    (pair tag 1)))
