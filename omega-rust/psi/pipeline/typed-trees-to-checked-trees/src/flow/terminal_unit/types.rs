@@ -9,6 +9,10 @@ mod scalar_fields;
 #[path = "types/partial_affine_ownership_tests.rs"]
 mod partial_affine_ownership_tests;
 
+#[cfg(test)]
+#[path = "types/arithmetic_policy_array_tests.rs"]
+mod arithmetic_policy_array_tests;
+
 pub(super) use validation::has_plain_owned_contents;
 
 pub(super) fn return_unit_affine_discards(
@@ -1069,16 +1073,58 @@ impl<'program> ShapeCollector<'program> {
     }
 
     fn is_unrestricted_nonatomic_primitive(&self, type_reference: TypeReferenceHandle) -> bool {
-        matches!(
-            self.program
-                .type_reference_table
-                .type_reference(type_reference),
-            TypeReferenceNode::Named { name, .. }
-                if !name.as_str().starts_with("Atomic")
-                    && self.program.primitive_type_reference(type_reference).is_some()
-                    && crate::checks::type_multiplicity(self.program, type_reference)
-                        == Multiplicity::Unrestricted
-        )
+        let types = &self.program.type_reference_table;
+        if !types.contains_type_reference(type_reference) {
+            return false;
+        }
+        // Arithmetic policy changes operations, not stored bits. Only this
+        // exact shell may project to an array's primitive element shape; ranges
+        // and other qualifications still need their own retained obligations.
+        // The complete array identity and checked computations retain policy.
+        let reference = match types.type_reference(type_reference) {
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                if !types.contains_type_reference(*base_type)
+                    || !matches!(
+                        types.constraint_span(*constraints),
+                        Some([typed_trees::types::TypeConstraintNode::ArithmeticDomain(_)])
+                    )
+                {
+                    return false;
+                }
+                let TypeReferenceNode::Named { symbol, name } = types.type_reference(*base_type)
+                else {
+                    return false;
+                };
+                let Some(atom) = self.program.symbols.builtin_type_atom(*symbol) else {
+                    return false;
+                };
+                if name.as_str() != atom.symbol_name()
+                    || !matches!(
+                        atom,
+                        symbols::BuiltinTypeAtom::I8
+                            | symbols::BuiltinTypeAtom::I16
+                            | symbols::BuiltinTypeAtom::I32
+                            | symbols::BuiltinTypeAtom::I64
+                            | symbols::BuiltinTypeAtom::U8
+                            | symbols::BuiltinTypeAtom::U16
+                            | symbols::BuiltinTypeAtom::U32
+                            | symbols::BuiltinTypeAtom::U64
+                    )
+                {
+                    return false;
+                }
+                *base_type
+            }
+            _ => type_reference,
+        };
+        matches!(types.type_reference(reference), TypeReferenceNode::Named { name, .. }
+            if !name.as_str().starts_with("Atomic")
+                && self.program.primitive_type_reference(reference).is_some()
+                && crate::checks::type_multiplicity(self.program, type_reference)
+                    == Multiplicity::Unrestricted)
     }
 
     fn is_unrestricted_material_record(&self, type_reference: TypeReferenceHandle) -> bool {
@@ -1245,7 +1291,8 @@ impl<'program> ShapeCollector<'program> {
                                 .type_reference_table
                                 .type_reference(*element_type),
                             TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
-                        ) && !unrestricted_nested_primitive_array_element)
+                        ) && !unrestricted_primitive_element
+                            && !unrestricted_nested_primitive_array_element)
                         || (crate::checks::type_multiplicity(self.program, *element_type)
                             != Multiplicity::Linear
                             && !unrestricted_primitive_element

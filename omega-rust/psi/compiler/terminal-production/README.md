@@ -430,6 +430,18 @@ or constrained data need separate producer support. A stored pointer cannot be
 read merely to locate a write-only receiver.
 Dynamic write summaries remain conservatively collection-wide.
 
+Nonempty fixed-array storage shapes retain integer elements with an explicit
+arithmetic policy, including receiver fields such as `[u64 in Wrapping; 16]`.
+The complete array identity retains the policy while its element uses the
+integer payload layout. This is a storage projection: source assignments and
+selected arithmetic still owe their exact policy correspondence, and implicit
+policy erasure remains invalid. Range and nominal qualifications need their own
+retained evidence; the arithmetic-policy classifier does not admit them.
+Constant array construction keeps its separate complete-type eligibility checks.
+This shape admission composes with existing receiver-field operations and calls;
+indexed reads and writes of policy-qualified integer arrays still need their
+executable projection path.
+
 Run the source-to-canonical receiver controls, including nested alias erasure,
 exact source/loan tampering, and fuel-boundary interpretation, with:
 
