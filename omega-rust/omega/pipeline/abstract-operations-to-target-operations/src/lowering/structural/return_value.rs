@@ -51,7 +51,7 @@ pub(in crate::lowering) fn lower_structural_return_function(
         else {
             return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
         };
-        locals.push((*psi_operation, place.clone(), structural_type.clone()));
+        locals.push((*psi_operation, *place, structural_type.clone()));
     }
     let trivial_affine_locals = &locals;
     if !function.parameters.is_empty()
