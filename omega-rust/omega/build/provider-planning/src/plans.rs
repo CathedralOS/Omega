@@ -602,8 +602,7 @@ fn plan_selected_operator_provider_evidence(
         .map(|(handle, operator_use)| {
             (
                 handle,
-                operator_use.expression,
-                operator_use.origin,
+                operator_use.application_site(),
                 operator_use.selected_operator_symbol,
             )
         })
@@ -623,14 +622,9 @@ fn plan_selected_operator_provider_evidence(
         })
         .collect::<Vec<_>>();
     let mut spelled_updates = Vec::new();
-    for (handle, expression, origin, symbol) in spelled {
-        match selected_operator_provider_evidence(
-            checked,
-            candidates,
-            selected,
-            symbol,
-            Some((expression, origin)),
-        ) {
+    for (handle, site, symbol) in spelled {
+        match selected_operator_provider_evidence(checked, candidates, selected, symbol, Some(site))
+        {
             Ok(Some((report_fingerprint, commitment))) => {
                 spelled_updates.push((handle, report_fingerprint, commitment));
             }
@@ -645,7 +639,12 @@ fn plan_selected_operator_provider_evidence(
             candidates,
             selected,
             symbol,
-            Some((expression, origin)),
+            Some(
+                checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
+                    expression,
+                    origin,
+                },
+            ),
         ) {
             Ok(Some((report_fingerprint, commitment))) => {
                 named_updates.push((handle, report_fingerprint, commitment));
@@ -667,10 +666,7 @@ fn selected_operator_provider_evidence(
     candidates: &[ProviderPlan],
     selected: &effects::SelectedProviderPlanFacts,
     operator_symbol: symbols::SymbolHandle,
-    use_site: Option<(
-        typed_trees::expression::ExpressionHandle,
-        checked_trees::CheckedValueOrigin,
-    )>,
+    use_site: Option<checked_trees::CheckedBoundaryOperatorApplicationUseSite>,
 ) -> Result<Option<(u64, checked_trees::CheckedProviderPlanCommitment)>, diagnostics::Diagnostic> {
     let Some(operator) = checked
         .typed
@@ -716,7 +712,22 @@ fn selected_operator_provider_evidence(
         };
         let demanded_application = match use_site {
             None => None,
-            Some((expression, origin)) => {
+            Some(site) => {
+                let origin = match site {
+                    checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
+                        origin,
+                        ..
+                    }
+                    | checked_trees::CheckedBoundaryOperatorApplicationUseSite::MatchEquality {
+                        origin,
+                        ..
+                    } => origin,
+                    _ => {
+                        return Err(diagnostics::Diagnostic::error(
+                            "selected operator provider requires an exact value occurrence",
+                        ));
+                    }
+                };
                 if use_site_is_generic_template(checked, origin) {
                     // Generic templates are not executable provider evidence,
                     // even when one call happens not to mention a template
@@ -732,11 +743,7 @@ fn selected_operator_provider_evidence(
                     .iter()
                     .filter(|application| {
                         application.requirement_symbol == operator.symbol
-                            && application.site
-                                == checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
-                                    expression,
-                                    origin,
-                                }
+                            && application.site == site
                     })
                     .collect::<Vec<_>>();
                 let [application] = matching.as_slice() else {

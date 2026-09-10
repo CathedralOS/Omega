@@ -27,6 +27,40 @@ pub(crate) fn check_operator_resolution(
         program, facts,
     ));
     diagnostics.extend(destinations::check(program, facts));
+    for (_, operator_use) in facts.operators.uses.iter() {
+        if operator_use.occurrence == checked_trees::CheckedOperatorOccurrence::Expression {
+            continue;
+        }
+        let Some(selected) = facts.operators.selected_candidate(operator_use) else {
+            diagnostics.push(Diagnostic::error(
+                "floating Match equality requires one selected operator meaning",
+            ));
+            continue;
+        };
+        if program
+            .signature_contracts
+            .span_or_empty(selected.contracts)
+            .iter()
+            .any(|contract| {
+                matches!(
+                    contract.kind,
+                    typed_trees::signature::SignatureContractKind::Crashes { .. }
+                )
+            })
+        {
+            diagnostics.push(Diagnostic::error("selected Match equality with a crashes contract requires arm-local crash invocation support"));
+        }
+        if operator_use.status != checked_trees::CheckedOperatorResolutionStatus::Resolved
+            || operator_use.operands(program).is_none()
+            || selected.parameter_count != 2
+            || program.primitive_type_reference(selected.return_type)
+                != Some(typed_trees::types::PrimitiveType::Bool)
+        {
+            diagnostics.push(Diagnostic::error(
+                "selected Match equality must have exact operands and return Bool",
+            ));
+        }
+    }
 
     if diagnostics.is_empty() {
         Ok(())
@@ -141,6 +175,7 @@ mod tests {
         uses.append(CheckedOperatorUseFact {
             expression: ExpressionHandle::from_arena_index(1),
             origin: CheckedValueOrigin::default(),
+            occurrence: Default::default(),
             spelling: OperatorSpelling::Index,
             policy_adapter: Default::default(),
             provider_plan_report_fingerprint: 0,
@@ -181,6 +216,7 @@ mod tests {
         uses.append(CheckedOperatorUseFact {
             expression: ExpressionHandle::from_arena_index(1),
             origin: CheckedValueOrigin::default(),
+            occurrence: Default::default(),
             spelling: OperatorSpelling::Index,
             policy_adapter: Default::default(),
             provider_plan_report_fingerprint: 0,

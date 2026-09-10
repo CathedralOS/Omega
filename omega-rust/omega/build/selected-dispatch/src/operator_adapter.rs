@@ -374,6 +374,12 @@ pub(super) fn plan_selected_operator_adapter_rewrites(
     }
 
     for (_, operator_use) in checked.facts.operators.uses.iter() {
+        // A Match equality is an arm decision, not an expression replacement.
+        // Retain its selected demand; execution owners must supply arm-local
+        // saved-subject custody before they can execute it.
+        if operator_use.occurrence != checked_trees::CheckedOperatorOccurrence::Expression {
+            continue;
+        }
         if operator_use.provider_plan_report_fingerprint == 0
             && operator_use.provider_plan_commitment.is_empty()
         {

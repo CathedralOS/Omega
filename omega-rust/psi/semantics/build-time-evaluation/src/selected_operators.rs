@@ -29,6 +29,7 @@ pub fn validate_selected_operators(
             .iter()
             .filter(|(_, fact)| {
                 fact.expression == row.expression
+                    && fact.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
                     && fact.origin.machine_symbol() == row.origin.machine_symbol()
             })
             .count()
@@ -40,7 +41,11 @@ pub fn validate_selected_operators(
         }
         let matching: Vec<_> = facts
             .uses_with_status(checked_trees::CheckedOperatorResolutionStatus::Resolved)
-            .filter(|fact| fact.expression == row.expression && fact.origin == row.origin)
+            .filter(|fact| {
+                fact.expression == row.expression
+                    && fact.origin == row.origin
+                    && fact.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
+            })
             .collect();
         let [fact] = matching.as_slice() else {
             return Err("selected build-time operator has no unique current use".into());

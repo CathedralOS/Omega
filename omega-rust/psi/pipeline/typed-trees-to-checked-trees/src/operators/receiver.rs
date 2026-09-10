@@ -84,40 +84,49 @@ fn expression_type_reference_in_state(
         )
         .and_then(|collection| indexed_element_type_reference(program, collection)),
         ExpressionNode::Cast(cast) => Some(cast.target_type),
-        ExpressionNode::Call(call) => {
-            typed_trees::operator::resolve_named_expression_call(program, call)
-                .map(|operator| operator.return_type)
-                .or_else(|| {
-                    [
-                        BuiltinFunction::Min,
-                        BuiltinFunction::Max,
-                        BuiltinFunction::Sqrt,
-                    ]
-                    .into_iter()
-                    .any(|function| {
-                        program.symbols.builtin_function_symbol(function)
-                            == Some(call.target_symbol)
-                    })
-                    .then(|| {
-                        program
-                            .expression_table
-                            .expression_handles(call.arguments)
-                            .iter()
-                            .find_map(|argument| {
-                                expression_type_reference_in_state(
-                                    program,
-                                    state_symbol,
-                                    statement_index,
-                                    *argument,
-                                )
-                            })
-                    })
-                    .flatten()
-                    .or_else(|| {
-                        contextual_type_reference_in_state(program, state_symbol, statement_index)
-                    })
+        ExpressionNode::Call(call) => program
+            .machines()
+            .iter()
+            .find_map(|machine| {
+                let state = program
+                    .machine_states(machine)
+                    .iter()
+                    .find(|state| state.symbol == state_symbol)?;
+                validation::expression_result_type_reference(program, machine, state, expression)
+            })
+            .or_else(|| {
+                typed_trees::operator::resolve_named_expression_call(program, call)
+                    .map(|operator| operator.return_type)
+            })
+            .or_else(|| {
+                [
+                    BuiltinFunction::Min,
+                    BuiltinFunction::Max,
+                    BuiltinFunction::Sqrt,
+                ]
+                .into_iter()
+                .any(|function| {
+                    program.symbols.builtin_function_symbol(function) == Some(call.target_symbol)
                 })
-        }
+                .then(|| {
+                    program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                        .iter()
+                        .find_map(|argument| {
+                            expression_type_reference_in_state(
+                                program,
+                                state_symbol,
+                                statement_index,
+                                *argument,
+                            )
+                        })
+                })
+                .flatten()
+                .or_else(|| {
+                    contextual_type_reference_in_state(program, state_symbol, statement_index)
+                })
+            }),
         ExpressionNode::Binary(binary) => {
             let operands = [
                 expression_type_reference_in_state(

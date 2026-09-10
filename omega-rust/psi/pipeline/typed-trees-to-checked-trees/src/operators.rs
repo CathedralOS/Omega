@@ -381,8 +381,44 @@ fn collect_expression_operator_use(
                 named_uses,
                 candidates,
             );
-            for arm in program.expression_table.match_arms(dispatch.arms) {
+            let subject_type =
+                expression_type_reference_for_origin(program, dispatch.subject, origin);
+            let floating_subject = subject_type
+                .and_then(|reference| validation::unwrapped_type_reference(program, reference))
+                .and_then(|reference| program.primitive_type_reference(reference))
+                .or_else(|| validation::match_subject_primitive_type(program, dispatch))
+                .is_some_and(|primitive| {
+                    matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
+                });
+            for (ordinal, arm) in program
+                .expression_table
+                .match_arms(dispatch.arms)
+                .iter()
+                .enumerate()
+            {
                 if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    if floating_subject
+                        && let Ok(ordinal) = u32::try_from(ordinal)
+                        && let Some(position) =
+                            dispatch.arms.start().arena_index().checked_add(ordinal)
+                    {
+                        let source_arm =
+                            arena::Handle::from_parts(position, dispatch.arms.start().generation());
+                        let mut equality = operator_use_fact(
+                            program,
+                            expression,
+                            origin,
+                            OperatorSpelling::Equal,
+                            &[
+                                subject_type,
+                                expression_type_reference_for_origin(program, pattern, origin),
+                            ],
+                            candidates,
+                        );
+                        equality.occurrence =
+                            checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm };
+                        uses.append(equality);
+                    }
                     collect_expression_operator_use(
                         program, pattern, origin, seen, uses, named_uses, candidates,
                     );
@@ -862,6 +898,7 @@ fn binary_operator_use_fact(
     Some(CheckedOperatorUseFact {
         expression,
         origin,
+        occurrence: Default::default(),
         spelling,
         policy_adapter: arithmetic_policy_adapter(program, spelling, operand_types),
         provider_plan_report_fingerprint: 0,
@@ -983,6 +1020,7 @@ fn operator_use_fact(
     CheckedOperatorUseFact {
         expression,
         origin,
+        occurrence: Default::default(),
         spelling,
         policy_adapter: CheckedArithmeticPolicyAdapter::None,
         provider_plan_report_fingerprint: 0,
@@ -1063,6 +1101,7 @@ fn trait_operator_use_fact(
     CheckedOperatorUseFact {
         expression,
         origin,
+        occurrence: Default::default(),
         spelling,
         policy_adapter: CheckedArithmeticPolicyAdapter::None,
         provider_plan_report_fingerprint: 0,

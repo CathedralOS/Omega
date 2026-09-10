@@ -1,5 +1,5 @@
 //! Use-site discharge for `requires` contracts carried by the SELECTED meaning
-//! of a spelled BINARY operator use.
+//! of a spelled binary operator or implicit Match equality.
 //!
 //! Model: the bounds-from-`requires` seam for `[]`/`[..]`
 //! (checks/ranges/indexes/validation.rs) sources the access obligation from
@@ -8,8 +8,10 @@
 //! obligation is INSTANTIATED over the actual operands (parameter -> operand,
 //! the call-`requires` instantiation precedent in
 //! checks/contracts/labels/calls.rs) and proven against the semantic contexts
-//! entering the use's statement — the same invalidation-adjusted contexts the
-//! call-`requires` discharge reads. This proof-state query checks the already
+//! entering an ordinary use's statement — the same invalidation-adjusted
+//! contexts the call-`requires` discharge reads. Implicit Match comparisons use
+//! their exact invocation after subject and pattern effects instead: entry
+//! facts could describe overwritten operand sources. This query checks the already
 //! selected operator's precondition; it never participates in selecting the
 //! operator meaning itself.
 //!
@@ -35,9 +37,9 @@ use crate::labels::{
     semantic_boolean_fact_label, symbol_name,
 };
 
-/// Checks every `requires` contract of every selected spelled binary meaning
-/// against the facts entering the use's statement, reporting each unproven
-/// clause. Slice `[]`/`[..]` uses discharge through the ranges seam and are
+/// Checks selected binary and implicit comparison preconditions against their
+/// available statement or invocation facts, reporting each unproven clause.
+/// Slice `[]`/`[..]` uses discharge through the ranges seam and are
 /// deliberately excluded.
 pub(super) fn selected_binary_requires_diagnostics(
     program: &TypedTrees,
@@ -45,7 +47,26 @@ pub(super) fn selected_binary_requires_diagnostics(
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
 
-    for operator_use in facts.operators.resolved_uses() {
+    for (operator_use_handle, operator_use) in facts.operators.uses.iter() {
+        if operator_use.status != checked_trees::CheckedOperatorResolutionStatus::Resolved {
+            continue;
+        }
+        if let checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm } =
+            operator_use.occurrence
+            && let ExpressionNode::Match(dispatch) =
+                program.expression_table.expression(operator_use.expression)
+            && let Some(ordinal) = source_arm
+                .arena_index()
+                .checked_sub(dispatch.arms.start().arena_index())
+            && program
+                .expression_table
+                .match_arms(dispatch.arms)
+                .iter()
+                .take(ordinal as usize)
+                .any(|arm| matches!(arm.pattern, typed_trees::expression::MatchPattern::Wildcard))
+        {
+            continue;
+        }
         if matches!(
             operator_use.spelling,
             OperatorSpelling::Index | OperatorSpelling::Range
@@ -70,11 +91,34 @@ pub(super) fn selected_binary_requires_diagnostics(
         let parameters = operator
             .map(|operator| program.operator_parameters(operator))
             .unwrap_or(&[]);
-        let operands = binary_operands(program, operator_use.expression);
-        // Non-statement origins (contract expressions, decreases, data
-        // initializers) carry no flow context, so nothing can prove the
-        // contract there: every clause reports unproven.
-        let entry_contexts = statement_entry_contexts(facts, operator_use.origin);
+        let operands = operator_use.operands(program).unwrap_or_default();
+        // Match evaluates its subject and preceding patterns before this use.
+        // Statement-entry facts are not invocation facts after those effects.
+        let entry_contexts =
+            if operator_use.occurrence == checked_trees::CheckedOperatorOccurrence::Expression {
+                statement_entry_contexts(facts, operator_use.origin)
+            } else {
+                let mut invocations =
+                    facts
+                        .flow
+                        .control
+                        .operator_invocations
+                        .iter()
+                        .filter_map(|(_, invocation)| {
+                            (invocation.operator_use == operator_use_handle).then_some(invocation)
+                        });
+                match (invocations.next(), invocations.next()) {
+                    (Some(invocation), None) => Some(
+                        facts
+                            .flow
+                            .semantic_constraint_contexts(invocation.requires_constraints)
+                            .collect(),
+                    ),
+                    // Non-executable declaration origins have no invocation
+                    // contexts; only context-free truths can be discharged.
+                    _ => Some(Vec::new()),
+                }
+            };
 
         for fact in requires_facts {
             let proven = entry_contexts.as_deref().is_some_and(|contexts| {
@@ -152,15 +196,6 @@ fn operator_path_label(
         format!("{}::{path}", symbol_name(program, domain_symbol))
     } else {
         path
-    }
-}
-
-/// The use's binary operands in parameter order: a spelled binary operator's
-/// first parameter binds the left operand and the second the right.
-fn binary_operands(program: &TypedTrees, expression: ExpressionHandle) -> Vec<ExpressionHandle> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Binary(binary) => vec![binary.left, binary.right],
-        _ => Vec::new(),
     }
 }
 

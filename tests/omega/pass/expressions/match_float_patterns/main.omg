@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 machine identity(value: f32) -> f32 { value }
 
 machine choose(value: f32, first: f32, second: f32) -> u64 {

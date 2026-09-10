@@ -84,6 +84,8 @@ fn derive_checked_expression_operator_application_realization(
                 .iter()
                 .filter_map(|(_, operator_use)| {
                     (operator_use.expression == expression
+                        && operator_use.occurrence
+                            == checked_trees::CheckedOperatorOccurrence::Expression
                         && operator_use.origin == origin
                         && operator_use.selected_operator_symbol == application.requirement_symbol)
                         .then_some((

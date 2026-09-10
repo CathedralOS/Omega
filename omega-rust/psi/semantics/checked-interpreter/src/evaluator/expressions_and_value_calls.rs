@@ -17,6 +17,17 @@ impl<'program> Evaluator<'program> {
                 checked_trees::expression::MatchPattern::Value(pattern) => {
                     let pattern =
                         self.eval_expression_with_destination(pattern, destination, frame)?;
+                    // Projection metadata can be absent even when evaluation
+                    // produces a float. Neither path grants selected equality
+                    // execution; a wildcard above invokes no comparison.
+                    if matches!(destination, Some(PrimitiveType::F32 | PrimitiveType::F64))
+                        || matches!(subject, Value::Float(_))
+                        || matches!(pattern, Value::Float(_))
+                    {
+                        return unsupported(
+                            "selected floating Match equality has no interpreter execution custody",
+                        );
+                    }
                     self.eval_binary(
                         BinaryOperator::Equal,
                         subject.clone(),

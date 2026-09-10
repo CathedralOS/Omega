@@ -134,6 +134,72 @@ fn float_operator_spellings_record_named_core_identities() {
 }
 
 #[test]
+fn float_match_arms_retain_distinct_applications_of_the_selected_provider() {
+    let canary = pass_canary("expressions/match_float_patterns");
+    let checked = compile_to_checked(&canary.join("main.omg"), Some("macos_arm64"))
+        .expect("float patterns select their exact core equality provider");
+    let uses = checked
+        .facts
+        .operators
+        .uses
+        .iter()
+        .map(|(_, operator_use)| operator_use)
+        .filter(|operator_use| {
+            matches!(
+                operator_use.occurrence,
+                checked_trees::CheckedOperatorOccurrence::MatchEquality { .. }
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(uses.len(), 2);
+    assert_ne!(uses[0].application_site(), uses[1].application_site());
+    for operator_use in uses {
+        assert!(!operator_use.provider_plan_commitment.is_empty());
+        let plan = checked
+            .selected_provider_plans()
+            .plan_by_report_fingerprint(operator_use.provider_plan_report_fingerprint)
+            .expect("each arm retains an actually selected plan");
+        assert_eq!(
+            operator_use.provider_plan_commitment.as_bytes(),
+            plan.identity_digest().as_bytes()
+        );
+        let operator = checked
+            .typed
+            .operators()
+            .iter()
+            .find(|operator| operator.symbol == operator_use.selected_operator_symbol)
+            .unwrap();
+        assert_eq!(
+            plan.schema.trait_name,
+            typed_trees::operator::boundary_operator_requirement_identity(&checked.typed, operator)
+        );
+        assert_eq!(
+            checked
+                .facts
+                .operators
+                .boundary_applications
+                .iter()
+                .filter(
+                    |application| application.site == operator_use.application_site()
+                        && application.requirement_symbol == operator_use.selected_operator_symbol
+                )
+                .count(),
+            1
+        );
+        assert!(
+            matches!(
+                checked
+                    .typed
+                    .expression_table
+                    .expression(operator_use.expression),
+                typed_trees::expression::ExpressionNode::Match(_)
+            ),
+            "selection must not replace Match with equality"
+        );
+    }
+}
+
+#[test]
 fn float_provider_plan_identities_ignore_arena_and_display_perturbations() {
     fn float_plan_snapshot(checked: &compiler::CheckedCompilation) -> Vec<(String, u64)> {
         checked

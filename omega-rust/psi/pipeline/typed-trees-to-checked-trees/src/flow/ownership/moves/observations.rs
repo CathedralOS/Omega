@@ -106,6 +106,7 @@ pub(super) fn selected_operator(
 ) -> Option<SymbolHandle> {
     sink.operators.resolved_uses().find_map(|operator_use| {
         (operator_use.expression == expression
+            && operator_use.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
             && matches!(operator_use.origin, checked_trees::CheckedValueOrigin::StateStatement {
                 state_symbol, statement_index, ..
             } if state_symbol == state && statement_index == statement))

@@ -21,6 +21,9 @@ pub(super) fn selected_operators(
     let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(typed);
     let mut selected = Vec::new();
     for fact in facts.uses_with_status(CheckedOperatorResolutionStatus::Resolved) {
+        if fact.occurrence != checked_trees::CheckedOperatorOccurrence::Expression {
+            continue;
+        }
         let Some(operator) = typed
             .operators()
             .iter()
@@ -128,7 +131,9 @@ impl SelectedConstEvaluation {
                 .operators
                 .uses_with_status(CheckedOperatorResolutionStatus::Resolved)
                 .filter(|fact| {
-                    fact.expression == selected.expression && fact.origin == selected.origin
+                    fact.expression == selected.expression
+                        && fact.origin == selected.origin
+                        && fact.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
                 })
                 .collect();
             let [fact] = matching.as_slice() else {

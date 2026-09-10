@@ -45,3 +45,39 @@ fn value_dispatch_forwards_exact_integer_destination_to_selected_arm() {
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 7);
 }
+
+#[test]
+fn selected_float_equality_cannot_execute_as_unselected_builtin_comparison() {
+    let outcome = execute(
+        "boundary operator == Float::equal(left: f32, right: f32) -> bool;
+         machine choose(value: f32) -> i64 { match value { 1.0f32 -> 7, _ -> 11 } }
+         machine main() -> i64 { choose(1.0f32) }",
+    );
+    let error = outcome
+        .error
+        .expect("selected equality needs its execution custody");
+    assert!(error.contains("Match equality"), "{error}");
+}
+
+#[test]
+fn wildcard_only_float_dispatch_does_not_invoke_equality() {
+    let outcome = execute(
+        "machine choose(value: f32) -> i64 { match value { _ -> 7 } }
+         machine main() -> i64 { choose(1.0f32) }",
+    );
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 7);
+}
+
+#[test]
+fn indexed_float_subject_cannot_bypass_selected_equality_custody() {
+    let outcome = execute(
+        "boundary operator == Float::equal(left: f32, right: f32) -> bool;
+         machine choose(values: [f32; 1]) -> i64 { match values[0u64] { 1.0f32 -> 7, _ -> 11 } }
+         machine main() -> i64 { choose([1.0f32]) }",
+    );
+    let error = outcome
+        .error
+        .expect("projection metadata cannot choose builtin equality");
+    assert!(error.contains("Match equality"), "{error}");
+}
