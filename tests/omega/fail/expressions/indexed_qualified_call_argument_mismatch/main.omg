@@ -1,0 +1,14 @@
+domain<const Axis: u64> i64::Coordinate<Axis>;
+
+machine mark(value: i64) -> i64 in Coordinate<7> {
+    value as i64 in Coordinate<7>
+}
+
+machine relay(value: i64 in Coordinate<9>) -> i64 in Coordinate<9> { value }
+
+machine choose(select_left: bool, left: i64, right: i64) -> i64 in Coordinate<9> {
+    relay(match select_left {
+        true -> mark(left),
+        false -> mark(right)
+    })
+}

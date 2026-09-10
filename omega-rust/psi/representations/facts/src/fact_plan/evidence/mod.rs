@@ -226,6 +226,8 @@ pub enum FactPayload {
         value: ExpressionHandle,
         domain: HandleSpan<Identifier>,
         domain_symbol: SymbolHandle,
+        /// Exact normalized application; zero never identifies an indexed instance.
+        semantic_domain: language_semantics::SemanticDomainId,
     },
     PropositionApplication {
         fact: Handle<ProofFact>,
@@ -265,6 +267,7 @@ pub enum FactPayload {
         value: ExpressionHandle,
         domain: HandleSpan<Identifier>,
         domain_symbol: SymbolHandle,
+        semantic_domain: language_semantics::SemanticDomainId,
     },
     ContractPropositionApplication {
         kind: ContractFactKind,
@@ -341,6 +344,7 @@ pub enum QualificationPayloadIdentity {
     DomainMembership {
         domain: HandleSpan<Identifier>,
         domain_symbol: SymbolHandle,
+        semantic_domain: language_semantics::SemanticDomainId,
     },
     CarryPermission {
         permission: language_semantics::CarryPermission,
@@ -355,15 +359,18 @@ impl QualificationPayloadIdentity {
             FactPayload::DomainMembership {
                 domain,
                 domain_symbol,
+                semantic_domain,
                 ..
             }
             | FactPayload::ContractDomainMembership {
                 domain,
                 domain_symbol,
+                semantic_domain,
                 ..
             } => Some(Self::DomainMembership {
                 domain,
                 domain_symbol,
+                semantic_domain,
             }),
             FactPayload::CarryPermission { permission, .. }
             | FactPayload::ContractCarryPermission { permission, .. } => {

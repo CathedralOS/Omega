@@ -1,8 +1,8 @@
 //! Declaration-backed scalar tags whose membership has no predicate or route.
 //!
-//! Source flow and scalar graph custody share this boundary. Membership facts
-//! currently name declarations, not indexed instances; accepting a family here
-//! would silently equate distinct applications. The full qualified Terminal
+//! Source flow and scalar graph custody share this boundary. Retain both the
+//! declaration and its normalized application; a family symbol alone cannot
+//! equate different indices. The full qualified Terminal
 //! signature carries these tags, so their exact parameter requirements need no
 //! duplicate executable Boolean predicate. Other state contracts still need
 //! their own graph evidence and must not disappear during this classification.
@@ -17,10 +17,10 @@ use typed_trees::types::{
     TypeReferenceNode,
 };
 
-pub fn scalar_type_index_free_tags(
+pub fn scalar_type_tags(
     program: &TypedTrees,
     mut reference: TypeReferenceHandle,
-) -> Vec<SymbolHandle> {
+) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
     let Some(primitive) = program.primitive_type_reference(reference) else {
         return Vec::new();
     };
@@ -38,15 +38,19 @@ pub fn scalar_type_index_free_tags(
         for constraint in program.type_reference_table.constraints(*constraints) {
             if let TypeConstraintNode::Domain(domain) = constraint
                 && domain.subject == DomainConstraintSubject::Declared
-                && domain.arguments.is_empty()
                 && program.domain_definitions().iter().any(|declaration| {
                     declaration.symbol == domain.symbol
-                        && declaration.semantic_id == domain.semantic_id
-                        && index_free_tag(program, declaration, primitive, &mut Vec::new())
+                        && exact_instance(
+                            program,
+                            declaration,
+                            &domain.arguments,
+                            domain.semantic_id,
+                        )
+                        && vacuous_scalar_tag(program, declaration, primitive, &mut Vec::new())
                 })
-                && !domains.contains(&domain.symbol)
+                && !domains.contains(&(domain.symbol, domain.semantic_id))
             {
-                domains.push(domain.symbol);
+                domains.push((domain.symbol, domain.semantic_id));
             }
         }
         reference = *base_type;
@@ -73,6 +77,12 @@ pub fn scalar_state_contracts_are_qualifications(
                 let ProofFact::Membership(membership) = fact else {
                     return false;
                 };
+                let arguments = program
+                    .type_reference_table
+                    .type_reference_handles(membership.domain_arguments);
+                if arguments.len() != membership.domain_arguments.len() {
+                    return false;
+                }
                 if !program
                     .expression_table
                     .expression_is_valid(membership.value)
@@ -89,14 +99,27 @@ pub fn scalar_state_contracts_are_qualifications(
                         && parameter.symbol == path.symbol
                         && !parameter.is_self
                         && !parameter.is_mutable
-                        && scalar_type_index_free_tags(program, parameter.type_reference)
-                            .contains(&membership.domain_symbol)
+                        && scalar_type_tags(program, parameter.type_reference)
+                            .iter()
+                            .any(|(symbol, identity)| {
+                                *symbol == membership.domain_symbol
+                                    && program.domain_definitions().iter().any(|domain| {
+                                        domain.symbol == *symbol
+                                            && exact_instance(
+                                                program,
+                                                domain,
+                                                arguments,
+                                                membership.semantic_domain,
+                                            )
+                                    })
+                                    && *identity == membership.semantic_domain
+                            })
                 })
             })
     })
 }
 
-fn index_free_tag(
+fn vacuous_scalar_tag(
     program: &TypedTrees,
     declaration: &DomainDefinition,
     primitive: PrimitiveType,
@@ -105,7 +128,6 @@ fn index_free_tag(
     if !declaration.symbol.is_valid()
         || !declaration.semantic_id.is_valid()
         || active.contains(&declaration.symbol)
-        || !typed_trees::domain::index_parameters(program, declaration).is_empty()
         || declaration.predicate_body.is_present()
         || !declaration.facts.is_empty()
         || !declaration.establishment_routes.is_empty()
@@ -125,8 +147,31 @@ fn index_free_tag(
                 .domain_definitions()
                 .iter()
                 .find(|candidate| candidate.symbol == constituent.domain_symbol)
-                .is_some_and(|candidate| index_free_tag(program, candidate, primitive, active))
+                .is_some_and(|candidate| {
+                    typed_trees::domain::index_parameters(program, candidate).is_empty()
+                        && vacuous_scalar_tag(program, candidate, primitive, active)
+                })
         });
     active.pop();
     valid
+}
+
+fn exact_instance(
+    program: &TypedTrees,
+    domain: &DomainDefinition,
+    arguments: &[TypeReferenceHandle],
+    semantic_domain: language_semantics::SemanticDomainId,
+) -> bool {
+    let parameters = typed_trees::domain::index_parameters(program, domain);
+    semantic_domain.is_valid()
+        && parameters.len() == arguments.len()
+        && arguments.iter().all(|argument| {
+            program
+                .type_reference_table
+                .contains_type_reference(*argument)
+        })
+        && typed_trees::domain::indexed_domain_instance_name(program, domain, parameters, arguments)
+            .is_ok_and(|identity| {
+                program.semantic_domains.name(semantic_domain) == Some(identity.as_str())
+            })
 }

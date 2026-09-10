@@ -19,7 +19,7 @@ mod denotational_calls;
 mod destructure;
 mod domain_weakening;
 mod domains;
-pub use domains::{scalar_state_contracts_are_qualifications, scalar_type_index_free_tags};
+pub use domains::{scalar_state_contracts_are_qualifications, scalar_type_tags};
 mod effect_inference;
 mod effects;
 mod expression_types;

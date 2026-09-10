@@ -40,16 +40,19 @@ impl<'facts> FactContextView<'facts> {
                 value,
                 domain,
                 domain_symbol,
+                semantic_domain,
             }
             | FactPayload::ContractDomainMembership {
                 value,
                 domain,
                 domain_symbol,
+                semantic_domain,
                 ..
             } => Some(DomainMembershipFact {
                 value,
                 domain,
                 domain_symbol,
+                semantic_domain,
             }),
             _ => None,
         })
@@ -57,11 +60,17 @@ impl<'facts> FactContextView<'facts> {
 
     pub fn proves_domain_membership(
         self,
+        program: &TypedTrees,
         value: ExpressionHandle,
         domain_symbol: SymbolHandle,
     ) -> bool {
+        if !typed_trees::domain::supports_symbol_only_proof(program, domain_symbol) {
+            return false;
+        }
         self.domain_memberships().any(|fact| {
-            fact.value == value && self.plan.domain_implies(fact.domain_symbol, domain_symbol)
+            typed_trees::domain::supports_symbol_only_proof(program, fact.domain_symbol)
+                && fact.value == value
+                && self.plan.domain_implies(fact.domain_symbol, domain_symbol)
         })
     }
 
@@ -103,15 +112,20 @@ impl<'facts> FactContextView<'facts> {
 
     pub fn proves_place_domain_membership(
         self,
+        program: &TypedTrees,
         place: PlaceHandle,
         domain_symbol: SymbolHandle,
     ) -> bool {
+        if !typed_trees::domain::supports_symbol_only_proof(program, domain_symbol) {
+            return false;
+        }
         self.facts().any(|fact| {
             matches!(
                 fact.payload,
                 FactPayload::DomainMembership { domain_symbol: fact_domain, .. }
                     | FactPayload::ContractDomainMembership { domain_symbol: fact_domain, .. }
-                    if self.plan.fact_place_equals(fact.place, place)
+                    if typed_trees::domain::supports_symbol_only_proof(program, fact_domain)
+                        && self.plan.fact_place_equals(fact.place, place)
                 && self.plan.domain_implies(fact_domain, domain_symbol)
             )
         })
@@ -123,6 +137,11 @@ impl<'facts> FactContextView<'facts> {
         place: PlaceHandle,
         domain_symbol: SymbolHandle,
     ) -> bool {
+        // A declaration-only query cannot select an indexed application. Such
+        // obligations must compare the exact retained semantic instance.
+        if !typed_trees::domain::supports_symbol_only_proof(program, domain_symbol) {
+            return false;
+        }
         self.facts().any(|fact| {
             let (fact_domain, fact_place) = match fact.payload {
                 FactPayload::DomainMembership { domain_symbol, .. }
@@ -135,7 +154,8 @@ impl<'facts> FactContextView<'facts> {
                 _ => return false,
             };
 
-            self.plan.domain_implies(fact_domain, domain_symbol)
+            typed_trees::domain::supports_symbol_only_proof(program, fact_domain)
+                && self.plan.domain_implies(fact_domain, domain_symbol)
                 && self.plan.places_match(program, fact_place, place)
         })
     }

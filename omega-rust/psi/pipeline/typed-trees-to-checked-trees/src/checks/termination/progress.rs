@@ -229,8 +229,11 @@ fn exact_correspondence_payload(
         facts::QualificationPayloadIdentity::DomainMembership {
             domain,
             domain_symbol,
+            semantic_domain,
         } => {
-            domain_symbol.is_valid()
+            (!semantic_domain.is_valid()
+                || program.semantic_domains.name(semantic_domain).is_some())
+                && domain_symbol.is_valid()
                 && program.symbols.get(domain_symbol).kind == symbols::SymbolKind::Domain
                 && program.domain_path_members.span(domain).is_some()
         }
@@ -837,6 +840,7 @@ fn admitted_receipt_covers(
         .domain_definitions()
         .iter()
         .find(|domain| domain.semantic_id == premise.profile)
+        .filter(|domain| typed_trees::domain::index_parameters(program, domain).is_empty())
         .map(|domain| domain.symbol)
     else {
         return false;
@@ -855,18 +859,36 @@ fn admitted_receipt_covers(
             .any(|fact| {
                 fact.evidence.origin
                     == language_semantics::QualificationEvidenceOrigin::AdmittedReceipt
-                    && fact_domain(fact.payload) == Some(domain_symbol)
+                    && fact_domain(program, fact.payload) == Some(domain_symbol)
                     && fact_subject(semantic, fact.place).as_ref() == Some(&premise.subject)
             })
     })
 }
 
-fn fact_domain(payload: FactPayload) -> Option<SymbolHandle> {
-    match payload {
-        FactPayload::DomainMembership { domain_symbol, .. }
-        | FactPayload::ContractDomainMembership { domain_symbol, .. } => Some(domain_symbol),
-        _ => None,
-    }
+fn fact_domain(program: &typed_trees::TypedTrees, payload: FactPayload) -> Option<SymbolHandle> {
+    let (domain_symbol, semantic_domain) = match payload {
+        FactPayload::DomainMembership {
+            domain_symbol,
+            semantic_domain,
+            ..
+        }
+        | FactPayload::ContractDomainMembership {
+            domain_symbol,
+            semantic_domain,
+            ..
+        } => (domain_symbol, semantic_domain),
+        _ => return None,
+    };
+    // Progress premises carry declaration identities, not application indices.
+    program
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == domain_symbol)
+        .filter(|domain| {
+            typed_trees::domain::index_parameters(program, domain).is_empty()
+                && (!semantic_domain.is_valid() || semantic_domain == domain.semantic_id)
+        })
+        .map(|domain| domain.symbol)
 }
 
 fn fact_subject(semantic: &facts::FactPlan, place: FactPlace) -> Option<ProgressSubject> {
@@ -1126,6 +1148,7 @@ mod tests {
             value: typed_trees::expression::ExpressionHandle::invalid(),
             domain: HandleSpan::empty(),
             domain_symbol: domain,
+            semantic_domain: language_semantics::SemanticDomainId::NULL,
         };
         let evidence = QualificationEvidence::from_origin(
             language_semantics::QualificationEvidenceOrigin::CheckedTransformation,
@@ -1160,6 +1183,7 @@ mod tests {
             payload: QualificationPayloadIdentity::DomainMembership {
                 domain: HandleSpan::empty(),
                 domain_symbol: domain,
+                semantic_domain: language_semantics::SemanticDomainId::NULL,
             },
             evidence,
         });

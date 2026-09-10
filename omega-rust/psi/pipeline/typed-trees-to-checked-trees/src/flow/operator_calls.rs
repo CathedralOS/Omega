@@ -268,6 +268,7 @@ pub(super) fn append_operator_statement_ensures(
                         value: membership.value,
                         domain: membership.domain,
                         domain_symbol: membership.domain_symbol,
+                        semantic_domain: membership.semantic_domain,
                     };
                     let fact = semantic.append_fact(Fact {
                         place: FactPlace::Place(place),

@@ -213,6 +213,9 @@ fn requires_fact_proven(
 ) -> bool {
     match fact {
         ProofFact::Membership(membership) => {
+            if !membership.domain_arguments.is_empty() {
+                return false;
+            }
             let value_label = instantiate_operator_contract_expression_label(
                 program,
                 parameters,
@@ -425,6 +428,9 @@ fn context_proves_membership_label(
     value_label: &str,
     required_domain: SymbolHandle,
 ) -> bool {
+    if !typed_trees::domain::supports_symbol_only_proof(program, required_domain) {
+        return false;
+    }
     let context = semantic.contexts.get(context);
     semantic.context_view(context).facts().any(|fact| {
         let (fact_domain, fact_value) = match fact.payload {
@@ -440,6 +446,9 @@ fn context_proves_membership_label(
             } => (domain_symbol, value),
             _ => return false,
         };
+        if !typed_trees::domain::supports_symbol_only_proof(program, fact_domain) {
+            return false;
+        }
         if !semantic.domain_implies(fact_domain, required_domain)
             && !crate::field_domain::domain_membership_implies(
                 program,

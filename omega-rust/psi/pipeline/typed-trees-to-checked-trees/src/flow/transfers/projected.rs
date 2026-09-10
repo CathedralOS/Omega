@@ -48,17 +48,19 @@ pub(super) fn append_copied_field_predicates(
         .map(|reference| *semantic.facts.get(reference.fact))
         .collect();
     for fact in facts {
-        let (domain, domain_symbol) = match fact.payload {
+        let (domain, domain_symbol, semantic_domain) = match fact.payload {
             FactPayload::DomainMembership {
                 domain,
                 domain_symbol,
+                semantic_domain,
                 ..
             }
             | FactPayload::ContractDomainMembership {
                 domain,
                 domain_symbol,
+                semantic_domain,
                 ..
-            } => (domain, domain_symbol),
+            } => (domain, domain_symbol, semantic_domain),
             _ => continue,
         };
         // A field predicate follows the copied value. Routed qualifications
@@ -100,6 +102,7 @@ pub(super) fn append_copied_field_predicates(
                 value: ExpressionHandle::invalid(),
                 domain,
                 domain_symbol,
+                semantic_domain,
             },
         });
         semantic.append_ref(references, copied_fact);

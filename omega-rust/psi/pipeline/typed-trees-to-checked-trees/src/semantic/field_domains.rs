@@ -131,6 +131,7 @@ fn append_data_field_domain_facts(
                     value: typed_trees::expression::ExpressionHandle::invalid(),
                     domain: arena::HandleSpan::empty(),
                     domain_symbol,
+                    semantic_domain: language_semantics::SemanticDomainId::NULL,
                 },
             });
             facts.append_ref(refs, fact);
@@ -523,6 +524,7 @@ fn append_state_parameter_domain_fact(
             value: typed_trees::expression::ExpressionHandle::invalid(),
             domain: arena::HandleSpan::empty(),
             domain_symbol,
+            semantic_domain: language_semantics::SemanticDomainId::NULL,
         },
     });
     facts.append_ref(refs, fact);
@@ -624,6 +626,7 @@ pub(super) fn append_local_case_payload_domain_facts(program: &TypedTrees, facts
                                 value: typed_trees::expression::ExpressionHandle::invalid(),
                                 domain: arena::HandleSpan::empty(),
                                 domain_symbol,
+                                semantic_domain: language_semantics::SemanticDomainId::NULL,
                             },
                         });
                         facts.append_ref(&mut refs, fact);

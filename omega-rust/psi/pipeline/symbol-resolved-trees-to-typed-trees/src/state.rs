@@ -35,10 +35,12 @@ pub(crate) fn lower_state(
         typed::name::Identifier,
         symbols::SymbolHandle,
         String,
+        Vec<typed::types::TypeReferenceHandle>,
+        language_semantics::SemanticDomainId,
     )> = Vec::new();
     for parameter in lowerer.source_trees.state_parameters(state.parameters) {
         let parameter = lower_state_parameter(lowerer, parameter)?;
-        for (domain_symbol, domain_full_name) in
+        for (domain_symbol, domain_full_name, domain_arguments, semantic_domain) in
             domain_constraints(&lowerer.typed_trees, parameter.type_reference)
         {
             domain_constrained_parameters.push((
@@ -46,6 +48,8 @@ pub(crate) fn lower_state(
                 parameter.name.clone(),
                 domain_symbol,
                 domain_full_name,
+                domain_arguments,
+                semantic_domain,
             ));
         }
         lowerer
@@ -93,7 +97,14 @@ pub(crate) fn lower_state(
         );
     }
 
-    for (param_symbol, param_name, domain_symbol, domain_full_name) in domain_constrained_parameters
+    for (
+        param_symbol,
+        param_name,
+        domain_symbol,
+        domain_full_name,
+        domain_arguments,
+        semantic_domain,
+    ) in domain_constrained_parameters
     {
         let contract = build_domain_membership_contract(
             lowerer,
@@ -101,6 +112,8 @@ pub(crate) fn lower_state(
             param_name,
             domain_symbol,
             &domain_full_name,
+            domain_arguments,
+            semantic_domain,
         );
         lowerer
             .typed_trees
@@ -406,10 +419,12 @@ pub(crate) fn lower_state_signature(
         typed::name::Identifier,
         symbols::SymbolHandle,
         String,
+        Vec<typed::types::TypeReferenceHandle>,
+        language_semantics::SemanticDomainId,
     )> = Vec::new();
     for parameter in lowerer.source_trees.state_parameters(signature.parameters) {
         let parameter = lower_state_parameter(lowerer, parameter)?;
-        for (domain_symbol, domain_full_name) in
+        for (domain_symbol, domain_full_name, domain_arguments, semantic_domain) in
             domain_constraints(&lowerer.typed_trees, parameter.type_reference)
         {
             domain_constrained_parameters.push((
@@ -417,6 +432,8 @@ pub(crate) fn lower_state_signature(
                 parameter.name.clone(),
                 domain_symbol,
                 domain_full_name,
+                domain_arguments,
+                semantic_domain,
             ));
         }
         lowerer
@@ -482,7 +499,14 @@ pub(crate) fn lower_state_signature(
     // #66/DOM1/P1a: desugar each declared domain into an implicit `requires
     // <param> in <domain>` membership contract (here on a trait/platform
     // signature; the regular-machine path is `lower_machine`).
-    for (param_symbol, param_name, domain_symbol, domain_full_name) in domain_constrained_parameters
+    for (
+        param_symbol,
+        param_name,
+        domain_symbol,
+        domain_full_name,
+        domain_arguments,
+        semantic_domain,
+    ) in domain_constrained_parameters
     {
         let contract = build_domain_membership_contract(
             lowerer,
@@ -490,6 +514,8 @@ pub(crate) fn lower_state_signature(
             param_name,
             domain_symbol,
             &domain_full_name,
+            domain_arguments,
+            semantic_domain,
         );
         lowerer
             .typed_trees
@@ -547,7 +573,12 @@ pub(crate) fn lower_authored_invocations(
 pub(crate) fn domain_constraints(
     typed_trees: &typed::TypedTrees,
     type_reference: typed::types::TypeReferenceHandle,
-) -> Vec<(symbols::SymbolHandle, String)> {
+) -> Vec<(
+    symbols::SymbolHandle,
+    String,
+    Vec<typed::types::TypeReferenceHandle>,
+    language_semantics::SemanticDomainId,
+)> {
     match typed_trees
         .type_reference_table
         .type_reference(type_reference)
@@ -565,7 +596,14 @@ pub(crate) fn domain_constraints(
                         .domain_definitions()
                         .iter()
                         .find(|definition| definition.symbol == domain.symbol)
-                        .map(|definition| (domain.symbol, definition.name.as_str().to_owned()))
+                        .map(|definition| {
+                            (
+                                domain.symbol,
+                                definition.name.as_str().to_owned(),
+                                domain.arguments.clone(),
+                                domain.semantic_id,
+                            )
+                        })
                 }
                 typed::types::TypeConstraintNode::Domain(domain)
                     if language_semantics::CarryPermission::from_name(domain.name.as_str())
@@ -574,6 +612,8 @@ pub(crate) fn domain_constraints(
                     Some((
                         symbols::SymbolHandle::invalid(),
                         domain.name.as_str().to_owned(),
+                        Vec::new(),
+                        language_semantics::SemanticDomainId::NULL,
                     ))
                 }
                 _ => None,
@@ -592,7 +632,13 @@ pub(crate) fn build_domain_membership_contract(
     param_name: typed::name::Identifier,
     domain_symbol: symbols::SymbolHandle,
     domain_full_name: &str,
+    domain_arguments: Vec<typed::types::TypeReferenceHandle>,
+    semantic_domain: language_semantics::SemanticDomainId,
 ) -> typed::signature::SignatureContract {
+    let domain_arguments = lowerer
+        .typed_trees
+        .type_reference_table
+        .insert_type_reference_handles(domain_arguments);
     let mut members = arena::HandleSpan::empty();
     lowerer
         .typed_trees
@@ -631,6 +677,8 @@ pub(crate) fn build_domain_membership_contract(
             value,
             domain,
             domain_symbol,
+            domain_arguments,
+            semantic_domain,
             authored_domain_selection: None,
         }),
     );

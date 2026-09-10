@@ -52,6 +52,7 @@ fn append_domain_definition_facts(program: &TypedTrees, facts: &mut FactPlan) {
                     value: membership.value,
                     domain: membership.domain,
                     domain_symbol: membership.domain_symbol,
+                    semantic_domain: membership.semantic_domain,
                 },
                 ProofFact::Proposition(application) => FactPayload::PropositionApplication {
                     fact: fact_handle,
@@ -102,6 +103,7 @@ fn append_data_definition_facts(program: &TypedTrees, facts: &mut FactPlan) {
                     value: membership.value,
                     domain: membership.domain,
                     domain_symbol: membership.domain_symbol,
+                    semantic_domain: membership.semantic_domain,
                 },
                 ProofFact::Proposition(application) => FactPayload::PropositionApplication {
                     fact: fact_handle,

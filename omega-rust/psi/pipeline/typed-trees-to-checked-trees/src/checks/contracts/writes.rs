@@ -818,6 +818,9 @@ fn value_proves_domain(
     value: ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
+    if !typed_trees::domain::supports_symbol_only_proof(program, domain_symbol) {
+        return false;
+    }
     if crate::field_domain::string_literal_expression_grants_domain(program, value, domain_symbol) {
         return true;
     }
@@ -898,6 +901,9 @@ fn value_proves_domain(
                     | FactPayload::ContractDomainMembership { domain_symbol, .. } => domain_symbol,
                     _ => return false,
                 };
+                if !typed_trees::domain::supports_symbol_only_proof(program, fact_domain) {
+                    return false;
+                }
                 if !facts.semantic.domain_implies(fact_domain, domain_symbol)
                     && !crate::field_domain::domain_membership_implies(
                         program,

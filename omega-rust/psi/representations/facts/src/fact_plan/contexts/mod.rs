@@ -87,6 +87,7 @@ pub struct DomainMembershipFact {
     pub value: ExpressionHandle,
     pub domain: HandleSpan<Identifier>,
     pub domain_symbol: SymbolHandle,
+    pub semantic_domain: language_semantics::SemanticDomainId,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

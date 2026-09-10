@@ -112,30 +112,39 @@ pub(super) fn check_call_requires(
             // domain without a validating boundary call -- this is how a literal
             // flows into a `&[u8] in Utf8` target.
             let satisfied = satisfied
-                || transition_guard_proves_requires(program, facts, state_flow, call_flow, fact)
-                || string_literal_grants_domain(program, &facts.semantic, fact.payload, fact.place)
-                || value_call_return_domain_grants(
-                    program,
-                    &facts.semantic,
-                    fact.payload,
-                    fact.place,
-                )
-                || subslice_grants_domain(
-                    program,
-                    facts,
-                    &entry_contexts,
-                    fact.payload,
-                    fact.place,
-                )
-                || parameter_domain_grants(program, facts, state_flow, fact.payload, fact.place)
-                || super::reference_domains::proves(
-                    program,
-                    facts,
-                    state_flow,
-                    call_flow,
-                    &entry_contexts,
-                    fact,
-                );
+                || (!super::prover::indexed_membership(program, fact.payload)
+                    && (transition_guard_proves_requires(
+                        program, facts, state_flow, call_flow, fact,
+                    ) || string_literal_grants_domain(
+                        program,
+                        &facts.semantic,
+                        fact.payload,
+                        fact.place,
+                    ) || value_call_return_domain_grants(
+                        program,
+                        &facts.semantic,
+                        fact.payload,
+                        fact.place,
+                    ) || subslice_grants_domain(
+                        program,
+                        facts,
+                        &entry_contexts,
+                        fact.payload,
+                        fact.place,
+                    ) || parameter_domain_grants(
+                        program,
+                        facts,
+                        state_flow,
+                        fact.payload,
+                        fact.place,
+                    ) || super::reference_domains::proves(
+                        program,
+                        facts,
+                        state_flow,
+                        call_flow,
+                        &entry_contexts,
+                        fact,
+                    )));
 
             if !satisfied {
                 let detail = match fact.payload {

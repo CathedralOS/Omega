@@ -13,6 +13,7 @@ pub(in crate::flow) struct QualifiedInput {
     segments: Vec<facts::PlaceSegment>,
     domain: HandleSpan<Identifier>,
     domain_symbol: SymbolHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
     evidence: QualificationEvidence,
 }
 
@@ -21,6 +22,7 @@ impl QualifiedInput {
         self.parameter == other.parameter
             && self.segments == other.segments
             && self.domain_symbol == other.domain_symbol
+            && self.semantic_domain == other.semantic_domain
             && self.evidence == other.evidence
     }
 }
@@ -125,17 +127,19 @@ fn capture_parameter(
             if matches!(fact.origin, FactOrigin::CallRequires) {
                 continue;
             }
-            let (domain, domain_symbol) = match fact.payload {
+            let (domain, domain_symbol, semantic_domain) = match fact.payload {
                 FactPayload::DomainMembership {
                     domain,
                     domain_symbol,
+                    semantic_domain,
                     ..
                 }
                 | FactPayload::ContractDomainMembership {
                     domain,
                     domain_symbol,
+                    semantic_domain,
                     ..
-                } => (domain, domain_symbol),
+                } => (domain, domain_symbol, semantic_domain),
                 _ => continue,
             };
             let FactPlace::Place(place) = fact.place else {
@@ -155,6 +159,7 @@ fn capture_parameter(
                     segments: segments.to_vec(),
                     domain,
                     domain_symbol,
+                    semantic_domain,
                     evidence: fact.evidence,
                 },
                 context: context.context,
@@ -291,6 +296,7 @@ pub(super) fn append(semantic: &mut FactPlan, inputs: &[QualifiedInput], point: 
                 value: ExpressionHandle::invalid(),
                 domain: input.domain,
                 domain_symbol: input.domain_symbol,
+                semantic_domain: input.semantic_domain,
             },
         });
         let mut references = HandleSpan::empty();

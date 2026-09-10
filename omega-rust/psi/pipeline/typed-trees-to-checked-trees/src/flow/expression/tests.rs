@@ -17,6 +17,7 @@ fn check(source: &str, accepted: bool) {
                     .iter()
                     .any(|diagnostic| diagnostic.message.contains("requires")
                         || diagnostic.message.contains("ensures")
+                        || diagnostic.message.contains("distinct normalized instances")
                         || diagnostic.message.contains("violates required fact")),
                 "{diagnostics:#?}\n{source}"
             );
@@ -74,23 +75,42 @@ fn result_membership_does_not_come_from_the_recipient_type() {
 }
 
 #[test]
-fn result_membership_does_not_project_indexed_instances_to_symbols() {
-    // Even the matching instance needs richer proof vocabulary. In particular,
-    // publishing a declaration-only fact for Coordinate<7> could also discharge
-    // Coordinate<9>, since today's implicit membership requirement loses indices.
+fn result_membership_keeps_indexed_instances_distinct() {
+    for required_index in [7, 9] {
+        for argument in [
+            "mark(value)",
+            "value as i64 in Coordinate<7>",
+            "match flag { true -> mark(value), false -> mark(value) }",
+        ] {
+            check(
+                &format!(
+                    r#"
+            domain<const Axis: u64> i64::Coordinate<Axis>;
+            machine mark(value: i64) -> i64 in Coordinate<7> {{ value as i64 in Coordinate<7> }}
+            machine relay(value: i64 in Coordinate<{required_index}>) -> i64 in Coordinate<{required_index}> {{ value }}
+            machine run(flag: bool, value: i64) -> i64 in Coordinate<{required_index}> {{
+                relay({argument})
+            }}
+        "#
+                ),
+                required_index == 7,
+            );
+        }
+    }
+}
+
+#[test]
+fn indexed_parameter_membership_cannot_use_a_family_only_fallback() {
     for required_index in [7, 9] {
         check(
             &format!(
                 r#"
-            domain<const Axis: u64> i64::Coordinate;
-            machine mark(value: i64) -> i64 in Coordinate<7> {{ value as i64 in Coordinate<7> }}
+            domain<const Axis: u64> i64::Coordinate<Axis>;
             machine relay(value: i64 in Coordinate<{required_index}>) -> i64 in Coordinate<{required_index}> {{ value }}
-            machine run(flag: bool, value: i64) -> i64 in Coordinate<{required_index}> {{
-                relay(match flag {{ true -> mark(value), false -> mark(value) }})
-            }}
+            machine run(value: i64 in Coordinate<7>) -> i64 in Coordinate<{required_index}> {{ relay(value) }}
         "#
             ),
-            false,
+            required_index == 7,
         );
     }
 }

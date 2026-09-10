@@ -96,7 +96,10 @@ fn qualification_match_replays_checked_custody_and_publishes_exact_terminal_memb
 fn qualification_replay_preserves_alias_and_closed_instance_identity() {
     for (declarations, domain) in [
         ("domain i64::Km; domain i64::Length = Km;", "Length"),
-        ("domain<const Axis: u64> i64::Coordinate;", "Coordinate<7>"),
+        (
+            "domain<const Axis: u64> i64::Coordinate<Axis>;",
+            "Coordinate<7>",
+        ),
     ] {
         let source = format!("{declarations}
             machine choose(select_left: bool, left: i64, right: i64) -> i64 in {domain} {{
@@ -220,7 +223,7 @@ fn qualification_replay_rejects_erasing_node_even_with_cast_source_on_pure_value
 
 #[test]
 fn qualification_replay_rejects_changed_instance() {
-    let source = "domain<const Axis: u64> i64::Coordinate;
+    let source = "domain<const Axis: u64> i64::Coordinate<Axis>;
         machine choose(value: i64) -> i64 in Coordinate<7> { value as i64 in Coordinate<7> }
         machine other(value: i64) -> i64 in Coordinate<8> { value as i64 in Coordinate<8> }";
     let mut checked = checked(source);
@@ -242,7 +245,7 @@ fn qualification_replay_rejects_changed_instance() {
 
 #[test]
 fn qualification_replay_reconstructs_indices_when_retained_records_agree_on_a_substitution() {
-    let source = "domain<const Axis: u64> i64::Coordinate;
+    let source = "domain<const Axis: u64> i64::Coordinate<Axis>;
         machine choose(value: i64) -> i64 in Coordinate<7> { value as i64 in Coordinate<7> }
         machine other(value: i64) -> i64 in Coordinate<8> { value as i64 in Coordinate<8> }";
     for change_result in [false, true] {
@@ -329,4 +332,38 @@ fn qualification_replay_rechecks_declaration_instead_of_trusting_vacuous_use() {
         replay(&checked).is_err(),
         "an unchanged vacuous-use row cannot hide a predicate"
     );
+}
+
+#[test]
+fn indexed_call_replay_rechecks_parameter_contract_instance() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../tests/omega/pass/expressions/indexed_qualified_call_argument/main.omg"
+    ));
+    for erase_arguments in [false, true] {
+        let mut checked = checked(source);
+        crate::lower_machine(&checked, "choose").expect("original exact call contract");
+        let membership = checked
+            .typed
+            .proof_facts
+            .iter()
+            .find_map(|(handle, fact)| {
+                matches!(fact, typed_trees::domain::ProofFact::Membership(_)).then_some(handle)
+            })
+            .expect("qualified parameter requirement");
+        let typed_trees::domain::ProofFact::Membership(membership) =
+            checked.typed.proof_facts.get_mut(membership)
+        else {
+            panic!("membership");
+        };
+        if erase_arguments {
+            membership.domain_arguments = arena::HandleSpan::empty();
+        } else {
+            membership.semantic_domain = SemanticDomainId::NULL;
+        }
+        assert!(
+            crate::lower_machine(&checked, "choose").is_err(),
+            "erase_arguments={erase_arguments}"
+        );
+    }
 }

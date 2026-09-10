@@ -283,6 +283,8 @@ pub(crate) fn lower_proof_facts(
                             value,
                             domain,
                             domain_symbol: atom.symbol,
+                            domain_arguments: HandleSpan::empty(),
+                            semantic_domain: language_semantics::SemanticDomainId::NULL,
                             authored_domain_selection: membership.authored_domain_selection,
                         }),
                     );

@@ -145,6 +145,11 @@ fn proves_domain_membership_for_structurally_equal_places() {
     let domain_symbol = SymbolHandle::from_arena_index(40);
     let value_symbol = SymbolHandle::from_arena_index(41);
     let field_symbol = SymbolHandle::from_arena_index(42);
+    let mut program = TypedTrees::default();
+    program.push_domain_definition(typed_trees::domain::DomainDefinition {
+        symbol: domain_symbol,
+        ..Default::default()
+    });
 
     let mut facts = FactPlan::default();
     let left = facts.append_symbol_place(value_symbol);
@@ -172,6 +177,7 @@ fn proves_domain_membership_for_structurally_equal_places() {
             value: typed_trees::expression::ExpressionHandle::invalid(),
             domain: HandleSpan::empty(),
             domain_symbol,
+            semantic_domain: Default::default(),
         },
     });
     let mut refs = HandleSpan::empty();
@@ -182,7 +188,7 @@ fn proves_domain_membership_for_structurally_equal_places() {
     assert!(
         facts
             .context_view(facts.contexts.get(context))
-            .proves_place_domain_membership(right, domain_symbol)
+            .proves_place_domain_membership(&program, right, domain_symbol)
     );
 }
 

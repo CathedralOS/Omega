@@ -6,6 +6,34 @@ use checked_trees::{
 
 mod parameter_predicates;
 
+#[test]
+fn canonical_membership_contract_bytes_retain_normalized_indices() {
+    let encode = |index: &str| {
+        let program = typed(&format!(
+            "domain<const I: u64> i64::Coordinate<I>; machine run(value: i64 in Coordinate<{index}>) {{ }}"
+        ));
+        let fact = program
+            .proof_facts
+            .iter()
+            .find_map(|(_, fact)| {
+                matches!(fact, typed_trees::domain::ProofFact::Membership(_)).then_some(fact)
+            })
+            .expect("membership");
+        let mut bytes = Vec::new();
+        encode_contract_fact_canonical(
+            &program,
+            fact,
+            &["value".to_owned()],
+            &[],
+            true,
+            &mut bytes,
+        );
+        bytes
+    };
+    assert_ne!(encode("7"), encode("9"));
+    assert_eq!(encode("7"), encode("(7 + 0)"));
+}
+
 fn typed(source: &str) -> TypedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()

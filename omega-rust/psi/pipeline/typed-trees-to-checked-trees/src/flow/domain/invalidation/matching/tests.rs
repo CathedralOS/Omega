@@ -46,6 +46,7 @@ fn domain_membership_fact(domain_symbol: SymbolHandle) -> Fact {
         origin: FactOrigin::ProofObligation,
         evidence: Default::default(),
         payload: FactPayload::DomainMembership {
+            semantic_domain: Default::default(),
             value: ExpressionHandle::invalid(),
             domain: arena::HandleSpan::empty(),
             domain_symbol,

@@ -190,14 +190,30 @@ fn normalized_facts(
                     program.expression_table.display_name(*expression)
                 }
                 ProofFact::Membership(membership) => format!(
-                    "{} in {}",
+                    "{} in {}{}",
                     program.expression_table.display_name(membership.value),
                     program
                         .domain_path_members(membership.domain)
                         .iter()
                         .map(|member| member.as_str())
                         .collect::<Vec<_>>()
-                        .join("::")
+                        .join("::"),
+                    if membership.domain_arguments.is_empty() {
+                        String::new()
+                    } else {
+                        format!(
+                            "<{}>",
+                            program
+                                .type_reference_table
+                                .type_reference_handles(membership.domain_arguments)
+                                .iter()
+                                .map(|argument| program
+                                    .normalized_type_identity(*argument)
+                                    .to_string())
+                                .collect::<Vec<_>>()
+                                .join(",")
+                        )
+                    }
                 ),
                 ProofFact::Proposition(application) => {
                     let binders = application
@@ -289,5 +305,37 @@ fn contract_kind_name(kind: &SignatureContractKind) -> &'static str {
         SignatureContractKind::Ensures => "ensures",
         SignatureContractKind::EnsuresForResultCase { .. } => "outcome-specific ensures",
         SignatureContractKind::Crashes { .. } => "crashes",
+    }
+}
+
+#[cfg(test)]
+mod membership_tests {
+    use super::*;
+
+    #[test]
+    fn callable_membership_refinement_retains_normalized_indices() {
+        let facts = |index: &str| {
+            let source = format!(
+                "domain<const I: u64> i64::Coordinate<I>; machine run(value: i64 in Coordinate<{index}>) {{ }}"
+            );
+            let tokens = source_files_to_tokens::Lexer::new(&source)
+                .tokenize()
+                .expect("tokens");
+            let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
+            let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+                .expect("resolution");
+            let program =
+                symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                    .expect("typing");
+            let state = &program.machine_states(&program.machines()[0])[0];
+            normalized_facts(
+                &program,
+                program.signature_contracts.span_or_empty(state.contracts),
+                &SignatureContractKind::Requires,
+                program.state_parameters(state),
+            )
+        };
+        assert_ne!(facts("7"), facts("9"));
+        assert_eq!(facts("7"), facts("(7 + 0)"));
     }
 }
