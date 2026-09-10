@@ -43,6 +43,11 @@ early-definition checks, error order, and exact output rows remain individual.
 These invocation-local tables are not retained analysis admission or a cache
 across changing selected programs.
 
+Live-range analysis replays its liveness prerequisite before computation and
+borrows that exact input pair through independent range verification. This
+avoids a duplicate prerequisite replay within one invocation; the public
+raw-plan range validator still performs fresh liveness replay on every call.
+
 ## Home assignment and recovery
 
 [Home assignment](src/assignment/home_assignment/mod.rs) independently validates
