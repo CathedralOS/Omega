@@ -1035,7 +1035,8 @@ Owners include
 - **MATCH-SELECTIVE-LOWERING.** Complete the general
   [value-dispatch contract](wiki/spec/language/patterns.md) on the retained
   source and scalar computation route. Remaining work: ownership-bearing result
-  and conditional-transfer joins, nonnumeric Terminal results, structural/case/
+  and conditional-transfer joins, nonnumeric Terminal results, selected floating-point
+  pattern comparisons, structural/case/
   domain patterns and their coverage,
   semantic-domain and selected-operator result-type retention (shared with
   `STATE-LOCAL-VALUE-FRONTIER` numeric landing), and canonical

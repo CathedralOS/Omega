@@ -1,0 +1,10 @@
+machine identity(value: f32) -> f32 {
+    value
+}
+
+machine choose(select_left: bool, left: f32, right: f32) -> f32 {
+    identity(match select_left {
+        true -> identity(left),
+        false -> identity(right)
+    })
+}

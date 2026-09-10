@@ -1,7 +1,7 @@
 //! Selective value dispatch survives checked custody and canonical execution.
 
 use proof_admission::AdmissionProfile;
-use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+use semantic_vocabulary::{IeeeFloatValue, IntegerSign, IntegerType, IntegerValue};
 use terminal_fuel::FuelChargeSite;
 use terminal_interpreter::{
     MeasuredTerminalExecution, TerminalExecutionResult, TerminalScalarValue,
@@ -68,6 +68,207 @@ fn anonymous_numeric_match_source_fixture_replays_its_selected_call() {
         execution.value(),
         TerminalExecutionResult::Scalar(unsigned(7))
     );
+}
+
+#[test]
+fn float_match_results_source_fixture_replays_nested_calls() {
+    let left = TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary32(0x8000_0000));
+    let right = TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary32(0x7fc0_0042));
+    for (select_left, expected) in [(true, left), (false, right)] {
+        let (_, execution) = execute(
+            include_str!(
+                "../../../../../tests/omega/pass/expressions/match_float_results/main.omg"
+            ),
+            &[TerminalScalarValue::Boolean(select_left), left, right],
+        );
+        assert_eq!(execution.value(), TerminalExecutionResult::Scalar(expected));
+    }
+}
+
+#[test]
+fn float_match_results_preserve_parameter_bits_for_boolean_and_integer_subjects() {
+    for (format, values) in [
+        (
+            "f32",
+            [
+                IeeeFloatValue::Binary32(0),
+                IeeeFloatValue::Binary32(0x8000_0000),
+                IeeeFloatValue::Binary32(1),
+                IeeeFloatValue::Binary32(0x7f80_0000),
+                IeeeFloatValue::Binary32(0x7fc0_0042),
+            ],
+        ),
+        (
+            "f64",
+            [
+                IeeeFloatValue::Binary64(0),
+                IeeeFloatValue::Binary64(0x8000_0000_0000_0000),
+                IeeeFloatValue::Binary64(1),
+                IeeeFloatValue::Binary64(0x7ff0_0000_0000_0000),
+                IeeeFloatValue::Binary64(0x7ff8_0000_0000_0042),
+            ],
+        ),
+    ] {
+        for integer_subject in [false, true] {
+            let (subject_type, arms) = if integer_subject {
+                ("u64", "0 -> left, _ -> right")
+            } else {
+                ("bool", "true -> left, false -> right")
+            };
+            let source = format!(
+                "machine choose(subject: {subject_type}, left: {format}, right: {format}) -> {format} {{ match subject {{ {arms} }} }}"
+            );
+            for (ordinal, left) in values.iter().enumerate() {
+                let right = values[(ordinal + 1) % values.len()];
+                for select_left in [true, false] {
+                    let subject = if integer_subject {
+                        unsigned(if select_left { 0 } else { 1 })
+                    } else {
+                        TerminalScalarValue::Boolean(select_left)
+                    };
+                    let expected = if select_left { *left } else { right };
+                    let (_, execution) = execute(
+                        &source,
+                        &[
+                            subject,
+                            TerminalScalarValue::IeeeFloat(*left),
+                            TerminalScalarValue::IeeeFloat(right),
+                        ],
+                    );
+                    assert_eq!(
+                        execution.value(),
+                        TerminalExecutionResult::Scalar(TerminalScalarValue::IeeeFloat(expected)),
+                        "{format}; integer_subject={integer_subject}; select_left={select_left}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn float_match_results_materialize_matching_format_literals() {
+    for (format, first, second) in [
+        (
+            "f32",
+            IeeeFloatValue::Binary32(0x3fc0_0000),
+            IeeeFloatValue::Binary32(0x4020_0000),
+        ),
+        (
+            "f64",
+            IeeeFloatValue::Binary64(0x3ff8_0000_0000_0000),
+            IeeeFloatValue::Binary64(0x4004_0000_0000_0000),
+        ),
+    ] {
+        let source = format!(
+            "machine choose(flag: bool) -> {format} {{ match flag {{ true -> 1.5{format}, false -> 2.5{format} }} }}"
+        );
+        for (flag, expected) in [(true, first), (false, second)] {
+            let (_, execution) = execute(&source, &[TerminalScalarValue::Boolean(flag)]);
+            assert_eq!(
+                execution.value(),
+                TerminalExecutionResult::Scalar(TerminalScalarValue::IeeeFloat(expected))
+            );
+        }
+    }
+}
+
+#[test]
+fn float_match_results_compose_with_selected_calls_and_anonymous_subjects() {
+    for (format, left, right) in [
+        (
+            "f32",
+            IeeeFloatValue::Binary32(0x8000_0000),
+            IeeeFloatValue::Binary32(0x7fc0_0042),
+        ),
+        (
+            "f64",
+            IeeeFloatValue::Binary64(0x8000_0000_0000_0000),
+            IeeeFloatValue::Binary64(0x7ff8_0000_0000_0042),
+        ),
+    ] {
+        for (expression, constant_left, calls) in [
+            (
+                "match flag { true -> identity(left), false -> identity(right) }",
+                false,
+                1,
+            ),
+            (
+                "identity(match flag { true -> left, false -> right })",
+                false,
+                1,
+            ),
+            (
+                "match 7 / 2 { 3 -> identity(right), 7 / 2 -> identity(left), _ -> identity(right) }",
+                true,
+                1,
+            ),
+        ] {
+            let source = format!(
+                "machine identity(value: {format}) -> {format} {{ value }} machine choose(flag: bool, left: {format}, right: {format}) -> {format} {{ {expression} }}"
+            );
+            for flag in [true, false] {
+                let (module, execution) = execute(
+                    &source,
+                    &[
+                        TerminalScalarValue::Boolean(flag),
+                        TerminalScalarValue::IeeeFloat(left),
+                        TerminalScalarValue::IeeeFloat(right),
+                    ],
+                );
+                assert_eq!(
+                    execution.value(),
+                    TerminalExecutionResult::Scalar(TerminalScalarValue::IeeeFloat(
+                        if constant_left || flag { left } else { right }
+                    )),
+                    "{source}"
+                );
+                let entry = module
+                    .machines
+                    .iter()
+                    .find(|machine| machine.id == module.entry)
+                    .expect("entry");
+                let actual_calls: u64 = entry
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.operations)
+                    .filter(|operation| matches!(operation.kind, OperationKind::Call { .. }))
+                    .map(|operation| {
+                        execution
+                            .usage()
+                            .at(FuelChargeSite::Operation(operation.id))
+                            .map_or(0, |usage| usage.executions())
+                    })
+                    .sum();
+                assert_eq!(actual_calls, calls, "{source}");
+            }
+        }
+    }
+}
+
+#[test]
+fn float_match_results_reject_mixed_formats_before_lowering() {
+    for result in ["f32", "f64"] {
+        let source = format!(
+            "machine choose(flag: bool, left: f32, right: f64) -> {result} {{ match flag {{ true -> left, false -> right }} }}"
+        );
+        let tokens = source_files_to_tokens::Lexer::new(&source)
+            .tokenize()
+            .expect("tokens");
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
+        let resolved =
+            syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolution");
+        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("typing");
+        let errors = typed_trees_to_checked_trees::lower_typed_trees(typed)
+            .expect_err("mixed result formats must reject");
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains("match arms produce incompatible")),
+            "wrong rejection for {source}: {errors:?}"
+        );
+    }
 }
 
 #[test]

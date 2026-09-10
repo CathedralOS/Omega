@@ -344,6 +344,7 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
 const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "expressions/declared_operator_match_result",
     "expressions/anonymous_numeric_match_subject",
+    "expressions/match_float_results",
     "expressions/numeric_operand_destinations",
     "expressions/match_anonymous_result_landing",
     "expressions/match_ordered_duplicate_patterns",
