@@ -318,6 +318,33 @@ impl TypeReferenceTable {
         self.constraints.len()
     }
 
+    /// Find a retained policy shell over this exact target, preserving all of
+    /// its predicates. Unlike an arithmetic-result projection, this lookup
+    /// cannot substitute a same-carrier type with different range obligations.
+    /// The producer owns eligibility and insertion; this query proves no facts.
+    pub fn find_policy_qualified_type_reference(
+        &self,
+        target: TypeReferenceHandle,
+        domain: numerics::arithmetic::ArithmeticDomain,
+    ) -> Option<TypeReferenceHandle> {
+        if !self.contains_type_reference(target) {
+            return None;
+        }
+        self.type_references.iter().find_map(|(handle, node)| {
+            let TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } = node
+            else {
+                return None;
+            };
+            (*base_type == target
+                && matches!(self.constraint_span(*constraints)?,
+                    [TypeConstraintNode::ArithmeticDomain(retained)] if *retained == domain))
+            .then_some(handle)
+        })
+    }
+
     pub fn display_name(&self, handle: TypeReferenceHandle) -> String {
         self.type_reference(handle).display_name(self)
     }

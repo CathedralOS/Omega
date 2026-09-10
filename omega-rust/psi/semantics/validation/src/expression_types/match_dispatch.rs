@@ -376,7 +376,15 @@ fn check_compatible_values(
     let value_type = declared_value_type(program, machine, state, value)
         .map(|reference| crate::places::assignment_value_type(program, reference));
     let mismatch = if let (Some(peer_type), Some(value_type)) = (peer_type, value_type) {
+        // Numeric range predicates may weaken at a join, but semantic policy
+        // may not. The result query retains only predicates shared by every
+        // arm; accepting these operands does not export either arm's range.
         program.normalized_type_identity(peer_type) != program.normalized_type_identity(value_type)
+            && !matches!(
+                (super::result_type::arithmetic_carrier(program, peer_type),
+                 super::result_type::arithmetic_carrier(program, value_type)),
+                (Some(peer), Some(value)) if peer == value
+            )
     } else if let Some(reference) = peer_type.or(value_type) {
         let anonymous = if peer_type.is_some() { value } else { peer };
         crate::literals::validate_suffix_landing(program, anonymous, reference, diagnostics);

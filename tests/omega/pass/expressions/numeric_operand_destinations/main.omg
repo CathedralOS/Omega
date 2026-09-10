@@ -30,3 +30,10 @@ machine main() -> u64 { combine(true) | composed(false) }
 machine bounded(value: u64 [0..=10]) -> u64 {
     (value as u64 [0..=10] in Wrapping) as u64
 }
+
+machine refined(flag: bool) -> u64 {
+    (match flag {
+        true -> 1 as u64 [0..=10] in Wrapping,
+        false -> 18446744073709551616 / 18446744073709551616
+    }) as u64
+}

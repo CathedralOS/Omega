@@ -19,6 +19,9 @@ use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
+#[cfg(test)]
+mod tests;
+
 /// Return an existing result reference, never an expected-type guess. An
 /// unresolved result does not establish anonymous numeric meaning. Builtin
 /// computed results retain their carrier and policy, not input predicates.
@@ -45,11 +48,43 @@ fn result_type(
     }
     active.push(expression);
     let result = match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => program
-            .expression_table
-            .match_arms(dispatch.arms)
-            .iter()
-            .find_map(|arm| result_type(program, machine, state, arm.value, active)),
+        ExpressionNode::Match(dispatch) => {
+            let arms = program.expression_table.match_arms(dispatch.arms);
+            let references = arms
+                .iter()
+                .map(|arm| result_type(program, machine, state, arm.value, active))
+                .collect::<Vec<_>>();
+            references
+                .iter()
+                .copied()
+                .flatten()
+                .next()
+                .and_then(|first| {
+                    // Exact shared identity retains common predicates. Otherwise
+                    // a numeric join weakens predicate facts, never policy. A range
+                    // on one arm cannot become a promise about an anonymous peer.
+                    // Do not compare rendered bounds: equal spellings need not
+                    // name the same dependent predicate subject.
+                    if references.iter().all(|reference| *reference == Some(first)) {
+                        return Some(first);
+                    }
+                    let carrier = arithmetic_carrier(program, first)?;
+                    arms.iter()
+                        .zip(&references)
+                        .all(|(arm, reference)| {
+                            reference.map_or_else(
+                                || {
+                                    crate::literals::has_anonymous_numeric_results(
+                                        program, arm.value,
+                                    )
+                                },
+                                |reference| arithmetic_carrier(program, reference) == Some(carrier),
+                            )
+                        })
+                        .then(|| arithmetic_result(program, first))
+                        .flatten()
+                })
+        }
         ExpressionNode::Call(call) => crate::calls::resolved_call_result_type(program, call)
             .or_else(|| {
                 typed_trees::operator::resolve_named_expression_call(program, call)
@@ -76,7 +111,9 @@ fn result_type(
                         .find_arithmetic_result_type_reference(*symbol, cast.domain)
                 })
             } else {
-                None
+                program
+                    .type_reference_table
+                    .find_policy_qualified_type_reference(cast.target_type, cast.domain)
             }
         }
         ExpressionNode::ZeroValue(reference) => Some(*reference),
@@ -256,7 +293,7 @@ fn integer(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
 // produce 11. Arithmetic policy is different: it governs this result's next
 // operation and must survive. Unknown domain and reference shells are not
 // predicate-only qualifications and cannot use this projection.
-fn arithmetic_carrier(
+pub(super) fn arithmetic_carrier(
     program: &TypedTrees,
     mut reference: TypeReferenceHandle,
 ) -> Option<(symbols::SymbolHandle, ArithmeticDomain)> {
