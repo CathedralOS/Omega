@@ -22,7 +22,7 @@ use syntax_trees::types::{
 
 mod arguments;
 mod const_evaluation;
-mod constant_selection;
+pub(crate) mod constant_selection;
 mod discovery;
 mod eligibility;
 mod module_constants;
@@ -206,6 +206,14 @@ pub(crate) fn canonicalize_declared_const_definition(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
 ) -> Result<CanonicalConstValue, String> {
+    canonicalize_selected_declared_const_definition(syntax, definition, None)
+}
+
+pub(crate) fn canonicalize_selected_declared_const_definition(
+    syntax: &SyntaxTrees,
+    definition: &ConstDefinition,
+    selection: Option<&constant_selection::ConstantSelection>,
+) -> Result<CanonicalConstValue, String> {
     if matches!(
         syntax
             .tables
@@ -218,7 +226,7 @@ pub(crate) fn canonicalize_declared_const_definition(
                 .to_owned(),
         );
     }
-    canonicalize_const_definition(syntax, definition, definition.type_reference)
+    canonicalize_selected_const_definition(syntax, definition, definition.type_reference, selection)
 }
 
 /// Find `Base<Args..>` spellings in FIELD type position where `Base` is a
@@ -246,8 +254,8 @@ pub fn normalize_generic_data_with_sources_and_top_level_bindings(
     sources: std::sync::Arc<source::SourceMap>,
     bindings: Vec<symbols::SourceScopedTopLevelBinding>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
-    crate::module_normalization::validate_module_normalization(&syntax)?;
     let selection = constant_selection::ConstantSelection::new(&syntax, Some(sources), bindings)?;
+    crate::module_normalization::validate_with_selection(&syntax, &selection)?;
     let mut warnings = Vec::new();
     synthesis::desugar_generic_data_instances_with_selection(
         &mut syntax,

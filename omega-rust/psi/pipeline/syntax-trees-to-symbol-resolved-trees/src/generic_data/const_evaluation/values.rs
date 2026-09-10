@@ -1,4 +1,10 @@
-//! Constant evaluation: values.
+//! Structural const values under exact declaration-site carrier selection.
+//!
+//! The header resolver selects each nominal type and constructor in its own
+//! authored source, including nested field carriers. Compare those declarations
+//! before erasing names into the existing canonical atom. Field order and leaf
+//! landing still determine the encoded value; final resolution independently
+//! checks the receiving parameter's nominal carrier.
 //!
 //! Structural encoding recursively lands anonymous scalar leaves at the declared
 //! component type. A suffixed leaf has already landed: erasing that carrier or
@@ -6,6 +12,7 @@
 //! even when its numeric payload fits. Check the landing before encoding it.
 
 use super::*;
+use crate::generic_data::constant_selection::ConstantSelection;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::generic_data) enum CanonicalConstNode {
@@ -124,16 +131,31 @@ pub(in crate::generic_data) fn canonicalize_const_definition(
     definition: &ConstDefinition,
     parameter_type: TypeReferenceHandle,
 ) -> Result<CanonicalConstValue, String> {
+    canonicalize_selected_const_definition(syntax, definition, parameter_type, None)
+}
+
+pub(in crate::generic_data) fn canonicalize_selected_const_definition(
+    syntax: &SyntaxTrees,
+    definition: &ConstDefinition,
+    parameter_type: TypeReferenceHandle,
+    selection: Option<&ConstantSelection>,
+) -> Result<CanonicalConstValue, String> {
     let declared = syntax_type_identity(syntax, definition.type_reference)?;
     let required = syntax_type_identity(syntax, parameter_type)?;
-    if declared != required {
+    if !same_carrier(syntax, definition.type_reference, parameter_type, selection)? {
         return Err(format!(
             "const `{}` declares type `{declared}`, but the parameter requires `{required}`",
             qualified_const_name(definition)
         ));
     }
-    validate_const_index_type(syntax, parameter_type, &mut HashSet::new())?;
-    let node = canonicalize_const_expression(syntax, parameter_type, definition.value)?;
+    validate_selected_const_index_type(syntax, parameter_type, &mut Vec::new(), selection)?;
+    let node = canonicalize_const_expression(
+        syntax,
+        definition.type_reference,
+        definition.value,
+        selection,
+    )?;
+    let required = selected_type_label(syntax, parameter_type, selection)?;
     if required == "Rat" {
         validate_canonical_rat(&node)?;
     }
@@ -172,10 +194,147 @@ pub(in crate::generic_data) fn syntax_type_identity(
     )
 }
 
+// Encoded labels are consistency claims. Nominal equality is established from
+// the selected declarations before values lose their authored spelling; the
+// receiving generic slot independently rejoins that declared carrier later.
+fn selected_data<'syntax>(
+    syntax: &'syntax SyntaxTrees,
+    name: &Identifier,
+    selection: Option<&ConstantSelection>,
+) -> Result<&'syntax DataDefinition, String> {
+    if let Some(selection) = selection {
+        return selection.data(syntax, name);
+    }
+    let mut definitions = syntax.root_items().filter_map(|item| match item {
+        Item::Data(definition) if definition.name.as_str() == name.as_str() => Some(definition),
+        _ => None,
+    });
+    let definition = definitions
+        .next()
+        .ok_or_else(|| format!("`{name}` is not a declared canonical data type"))?;
+    if definitions.next().is_some() {
+        return Err(format!("`{name}` has ambiguous nominal declarations"));
+    }
+    Ok(definition)
+}
+
+fn selected_type_label(
+    syntax: &SyntaxTrees,
+    reference: TypeReferenceHandle,
+    selection: Option<&ConstantSelection>,
+) -> Result<String, String> {
+    match syntax.type_references.type_reference(reference) {
+        TypeReferenceNode::Named(name)
+            if !matches!(
+                name.as_str(),
+                "bool"
+                    | "i8"
+                    | "i16"
+                    | "i32"
+                    | "i64"
+                    | "u8"
+                    | "u16"
+                    | "u32"
+                    | "u64"
+                    | "addr"
+                    | "f32"
+                    | "f64"
+                    | "string"
+            ) =>
+        {
+            Ok(selected_data(syntax, name, selection)?
+                .name
+                .as_str()
+                .to_owned())
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(length),
+        } => Ok(format!(
+            "[{}; {length}]",
+            selected_type_label(syntax, *element_type, selection)?
+        )),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            selected_type_label(syntax, *base_type, selection)
+        }
+        _ => syntax_type_identity(syntax, reference),
+    }
+}
+
+fn same_carrier(
+    syntax: &SyntaxTrees,
+    declared: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+    selection: Option<&ConstantSelection>,
+) -> Result<bool, String> {
+    match (
+        syntax.type_references.type_reference(declared),
+        syntax.type_references.type_reference(required),
+    ) {
+        (TypeReferenceNode::Named(left), TypeReferenceNode::Named(right)) => {
+            let primitive = |name: &str| {
+                matches!(
+                    name,
+                    "bool"
+                        | "i8"
+                        | "i16"
+                        | "i32"
+                        | "i64"
+                        | "u8"
+                        | "u16"
+                        | "u32"
+                        | "u64"
+                        | "addr"
+                        | "f32"
+                        | "f64"
+                        | "string"
+                )
+            };
+            if primitive(left.as_str()) || primitive(right.as_str()) {
+                return Ok(left.as_str() == right.as_str());
+            }
+            // These references borrow the same immutable syntax owner. Its
+            // exact declaration entries distinguish derived declarations too;
+            // a shared template source span does not establish their identity.
+            Ok(std::ptr::eq(
+                selected_data(syntax, left, selection)?,
+                selected_data(syntax, right, selection)?,
+            ))
+        }
+        (
+            TypeReferenceNode::FixedArray {
+                element_type: left,
+                length: left_length,
+            },
+            TypeReferenceNode::FixedArray {
+                element_type: right,
+                length: right_length,
+            },
+        ) => Ok(left_length == right_length && same_carrier(syntax, *left, *right, selection)?),
+        (TypeReferenceNode::Constrained { base_type, .. }, _) => {
+            same_carrier(syntax, *base_type, required, selection)
+        }
+        (_, TypeReferenceNode::Constrained { base_type, .. }) => {
+            same_carrier(syntax, declared, *base_type, selection)
+        }
+        (TypeReferenceNode::Unit, TypeReferenceNode::Unit) => Ok(true),
+        _ => Ok(false),
+    }
+}
+
 pub(in crate::generic_data) fn validate_const_index_type(
     syntax: &SyntaxTrees,
     type_reference: TypeReferenceHandle,
-    visiting: &mut HashSet<String>,
+    _visiting: &mut HashSet<String>,
+) -> Result<(), String> {
+    validate_selected_const_index_type(syntax, type_reference, &mut Vec::new(), None)
+}
+
+fn validate_selected_const_index_type(
+    syntax: &SyntaxTrees,
+    type_reference: TypeReferenceHandle,
+    visiting: &mut Vec<source::SourceSpan>,
+    selection: Option<&ConstantSelection>,
 ) -> Result<(), String> {
     match syntax.tables.type_references.type_reference(type_reference) {
         TypeReferenceNode::Named(name) => {
@@ -191,18 +350,15 @@ pub(in crate::generic_data) fn validate_const_index_type(
                     "`{name}` is not eligible as a const index: runtime floating/text identity is not canonical structural data"
                 ));
             }
-            if !visiting.insert(name.as_str().to_owned()) {
+            let definition = selected_data(syntax, name, selection)?;
+            let declaration = definition.name.source_span();
+            if visiting.contains(&declaration) {
                 return Ok(());
             }
-            let definition = syntax
-                .root_items()
-                .find_map(|item| match item {
-                    Item::Data(definition) if definition.name.as_str() == name.as_str() => {
-                        Some(definition)
-                    }
-                    _ => None,
-                })
-                .ok_or_else(|| format!("`{name}` is not a declared canonical data type"))?;
+            if !definition.type_parameters.is_empty() || !definition.lifetime_parameters.is_empty() {
+                return Err("generic data const carriers require closed template normalization".to_owned());
+            }
+            visiting.push(declaration);
             if definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque {
                 return Err(format!(
                     "boundary-opaque data `{name}` is not eligible as a const index"
@@ -220,28 +376,29 @@ pub(in crate::generic_data) fn validate_const_index_type(
             }
             for member in syntax.tables.items.data_members(definition.members) {
                 match member {
-                    DataMember::Field(field) => validate_const_index_type(
+                    DataMember::Field(field) => validate_selected_const_index_type(
                         syntax,
                         field.type_reference,
                         visiting,
+                        selection,
                     )?,
                     DataMember::Variant(variant) => {
                         for field in syntax.tables.items.data_payload_fields(variant.payload) {
-                            validate_const_index_type(syntax, field.type_reference, visiting)?;
+                            validate_selected_const_index_type(syntax, field.type_reference, visiting, selection)?;
                         }
                     }
                     DataMember::Retired(_) => {}
                 }
             }
-            visiting.remove(name.as_str());
+            visiting.pop();
             Ok(())
         }
         TypeReferenceNode::FixedArray {
             element_type,
             length: FixedArrayLength::Literal(_),
-        } => validate_const_index_type(syntax, *element_type, visiting),
+        } => validate_selected_const_index_type(syntax, *element_type, visiting, selection),
         TypeReferenceNode::Constrained { base_type, .. } => {
-            validate_const_index_type(syntax, *base_type, visiting)
+            validate_selected_const_index_type(syntax, *base_type, visiting, selection)
         }
         TypeReferenceNode::Unit => Ok(()),
         TypeReferenceNode::Reference { .. }
@@ -261,10 +418,11 @@ pub(in crate::generic_data) fn canonicalize_const_expression(
     syntax: &SyntaxTrees,
     expected_type: TypeReferenceHandle,
     expression: ExpressionHandle,
+    selection: Option<&ConstantSelection>,
 ) -> Result<CanonicalConstNode, String> {
     match syntax.tables.type_references.type_reference(expected_type) {
         TypeReferenceNode::Constrained { base_type, .. } => {
-            canonicalize_const_expression(syntax, *base_type, expression)
+            canonicalize_const_expression(syntax, *base_type, expression, selection)
         }
         TypeReferenceNode::Named(type_name)
             if matches!(
@@ -298,7 +456,7 @@ pub(in crate::generic_data) fn canonicalize_const_expression(
             Ok(CanonicalConstNode::Boolean(*value))
         }
         TypeReferenceNode::Named(type_name) => {
-            canonicalize_data_const_expression(syntax, type_name.as_str(), expression)
+            canonicalize_data_const_expression(syntax, type_name, expression, selection)
         }
         TypeReferenceNode::FixedArray {
             element_type,
@@ -317,10 +475,12 @@ pub(in crate::generic_data) fn canonicalize_const_expression(
             }
             let values = values
                 .iter()
-                .map(|value| canonicalize_const_expression(syntax, *element_type, *value))
+                .map(|value| {
+                    canonicalize_const_expression(syntax, *element_type, *value, selection)
+                })
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(CanonicalConstNode::Array {
-                type_name: syntax_type_identity(syntax, expected_type)?,
+                type_name: selected_type_label(syntax, expected_type, selection)?,
                 values,
             })
         }
@@ -334,18 +494,23 @@ pub(in crate::generic_data) fn canonicalize_const_expression(
 
 pub(in crate::generic_data) fn canonicalize_data_const_expression(
     syntax: &SyntaxTrees,
-    type_name: &str,
+    type_name: &Identifier,
     expression: ExpressionHandle,
+    selection: Option<&ConstantSelection>,
 ) -> Result<CanonicalConstNode, String> {
-    let definition = syntax
-        .root_items()
-        .find_map(|item| match item {
-            Item::Data(definition) if definition.name.as_str() == type_name => Some(definition),
-            _ => None,
-        })
-        .ok_or_else(|| format!("`{type_name}` is not a declared data type"))?;
+    let definition = selected_data(syntax, type_name, selection)?;
+    let type_name = definition.name.as_str();
     match syntax.expressions.expression(expression) {
-        ExpressionNode::StructLiteral(literal) if literal.type_name.as_str() == type_name => {
+        ExpressionNode::StructLiteral(literal) => {
+            if !std::ptr::eq(
+                selected_data(syntax, &literal.type_name, selection)?,
+                definition,
+            ) {
+                return Err(format!(
+                    "const constructor `{}` selects a different nominal carrier than `{type_name}`",
+                    literal.type_name
+                ));
+            }
             if let Some(case_name) = &literal.case_name {
                 let variant = syntax
                     .tables
@@ -367,7 +532,8 @@ pub(in crate::generic_data) fn canonicalize_data_const_expression(
                     .data_payload_fields(variant.payload)
                     .iter()
                     .collect::<Vec<_>>();
-                let fields = canonicalize_named_fields(syntax, &declared_fields, literal.fields)?;
+                let fields =
+                    canonicalize_named_fields(syntax, &declared_fields, literal.fields, selection)?;
                 Ok(CanonicalConstNode::Variant {
                     type_name: type_name.to_owned(),
                     case_name: case_name.as_str().to_owned(),
@@ -395,7 +561,8 @@ pub(in crate::generic_data) fn canonicalize_data_const_expression(
                         _ => None,
                     })
                     .collect::<Vec<_>>();
-                let fields = canonicalize_named_fields(syntax, &declared_fields, literal.fields)?;
+                let fields =
+                    canonicalize_named_fields(syntax, &declared_fields, literal.fields, selection)?;
                 Ok(CanonicalConstNode::Record {
                     type_name: type_name.to_owned(),
                     fields,
@@ -404,10 +571,21 @@ pub(in crate::generic_data) fn canonicalize_data_const_expression(
         }
         ExpressionNode::Name(path) => {
             let path = syntax.expressions.identifier_path_members(*path);
-            let [head, case_name] = path else {
+            let Some((case_name, owner)) = path.split_last() else {
                 return Err(format!("expected a `{type_name}` structural literal"));
             };
-            if head.as_str() != type_name {
+            let Some(first) = owner.first() else {
+                return Err(format!("expected a `{type_name}` case owner"));
+            };
+            let head = Identifier::new(
+                owner
+                    .iter()
+                    .map(Identifier::as_str)
+                    .collect::<Vec<_>>()
+                    .join("::"),
+                first.source_span(),
+            );
+            if !std::ptr::eq(selected_data(syntax, &head, selection)?, definition) {
                 return Err(format!(
                     "expected a `{type_name}` value, got `{}`",
                     head.as_str()
@@ -444,6 +622,7 @@ pub(in crate::generic_data) fn canonicalize_named_fields(
     syntax: &SyntaxTrees,
     declared_fields: &[&syntax_trees::item::DataField],
     literal_fields: HandleSpan<syntax_trees::expression::TableStructLiteralField>,
+    selection: Option<&ConstantSelection>,
 ) -> Result<Vec<(String, CanonicalConstNode)>, String> {
     let authored = syntax.expressions.struct_fields(literal_fields);
     let mut canonical = Vec::with_capacity(declared_fields.len());
@@ -461,7 +640,7 @@ pub(in crate::generic_data) fn canonicalize_named_fields(
         };
         canonical.push((
             declared.name.as_str().to_owned(),
-            canonicalize_const_expression(syntax, declared.type_reference, field.value)?,
+            canonicalize_const_expression(syntax, declared.type_reference, field.value, selection)?,
         ));
     }
     for field in authored {

@@ -1,4 +1,4 @@
-//! Exact constant-header selection before closed argument names are erased.
+//! Exact constant and nominal-carrier selection before closed argument names are erased.
 
 use std::sync::Arc;
 
@@ -10,15 +10,15 @@ use symbols::{
 };
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{ConstDefinition, Item};
+use syntax_trees::item::{ConstDefinition, DataDefinition, Item};
 
 /// Private selection state; transient symbols never escape into normalized syntax.
-pub(super) struct ConstantSelection {
+pub(crate) struct ConstantSelection {
     symbols: SymbolTable,
 }
 
 impl ConstantSelection {
-    pub(super) fn new(
+    pub(crate) fn new(
         syntax: &SyntaxTrees,
         sources: Option<Arc<SourceMap>>,
         bindings: Vec<SourceScopedTopLevelBinding>,
@@ -28,7 +28,13 @@ impl ConstantSelection {
         for item in syntax.root_items() {
             match item {
                 Item::Const(definition) => declarations.push((
+                    SymbolKind::Const,
                     crate::constant::semantic_const_name(definition),
+                    definition.name.source_span(),
+                )),
+                Item::Data(definition) => declarations.push((
+                    SymbolKind::Data,
+                    definition.name.as_str().to_owned(),
                     definition.name.source_span(),
                 )),
                 Item::Module(module) => namespaces
@@ -48,9 +54,9 @@ impl ConstantSelection {
             builtin_type_symbols()
                 .into_iter()
                 .chain(builtin_function_symbols())
-                .chain(declarations.iter().map(|(name, source_span)| {
+                .chain(declarations.iter().map(|(kind, name, source_span)| {
                     (
-                        SymbolKind::Const,
+                        *kind,
                         SymbolNameRef::OwnedSource {
                             value: name,
                             source_span: *source_span,
@@ -59,10 +65,48 @@ impl ConstantSelection {
                 })),
         );
         let mut symbols = builder.finish();
-        // Nonconstant import targets are absent from this header table. The
-        // complete resolver validates those imports after ordinary lowering.
+        // Machine, trait and other nondata import targets are absent from this
+        // partial header table. Complete resolution validates those imports.
         namespaces.register(&mut symbols)?;
         Ok(Self { symbols })
+    }
+
+    /// Select the nominal carrier in the authored type/constructor's source.
+    /// Header handles remain transient; declaration custody is rejoined after
+    /// ordinary resolution allocates the receiving generic slot.
+    pub(super) fn data<'syntax>(
+        &self,
+        syntax: &'syntax SyntaxTrees,
+        name: &Identifier,
+    ) -> Result<&'syntax DataDefinition, String> {
+        let selected = self
+            .symbols
+            .find_top_level_by_name_and_kinds_from_source(
+                name.as_str(),
+                &[SymbolKind::Data],
+                name.source_span(),
+            )
+            .ok_or_else(|| format!("`{name}` does not select one declared canonical data type"))?;
+        let span = self
+            .symbols
+            .symbol_source_span(selected)
+            .ok_or_else(|| "selected nominal carrier has no declaration source".to_owned())?;
+        let mut declarations = syntax.root_items().filter_map(|item| match item {
+            Item::Data(definition) if definition.name.source_span() == span => Some(definition),
+            _ => None,
+        });
+        let definition = declarations
+            .next()
+            .ok_or_else(|| "selected nominal carrier lost its declaration".to_owned())?;
+        if declarations.next().is_some() {
+            return Err("selected nominal carrier has ambiguous declaration custody".to_owned());
+        }
+        if !definition.is_public && !self.symbols.same_source_package(name.source_span(), span) {
+            return Err(format!(
+                "nominal carrier `{name}` selects a private declaration in another package"
+            ));
+        }
+        Ok(definition)
     }
 
     /// Return exact declaration custody, not a handle from the header table.

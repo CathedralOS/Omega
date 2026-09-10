@@ -1105,8 +1105,8 @@ Owners include
 
 - **MODULE-NAMESPACE-RESOLUTION.** Finish the
   [module/name contract](wiki/spec/language/modules.md) for pre-resolution
-  computed Boolean and aggregate machine indices, aggregate/type-scoped constants,
-  templates, trait defaults,
+  computed aggregate indices, open-template index expressions, module-owned
+  templates, foreign/generic constant attachments, trait defaults,
   operator homes, qualified constructors, and remaining declaration forms.
   Later syntax extensions also need retained base constant initializers; they
   currently retain only declaration identity. The explicit temporary fences live in
@@ -1130,21 +1130,18 @@ Owners include
   of one identity is valid, competing carrier-qualified names reject with both
   owners/imports, and carried qualifications do not grant source selection.
 
-  Resume evidence: the working checkpoint based on `408bff9fa4`, macOS arm64
-  with Cargo and `RUST_MIN_STACK=33554432`, checks
-  `cargo run -p omega -- --check tests/omega/pass/modules/module_array_constant_indices/main.omg`:
-  root/module arrays and scalar `settings::Sizes::MAX` retain distinct canonical
-  values and exact declaration/carrier custody. Array body references also copy
-  values under exact selection, retaining declared dimensions and element carriers
-  at destinations, including empty arrays. Scoped constants require a
-  nongeneric carrier in their declaring module; missing carriers and public exposure of a
-  private carrier reject even on unused declarations. Continue from this customer
-  with nominal record/sum initializers, public floating constant identities,
-  foreign/generic attachments or nominal aggregate body substitution in `syntax-trees-to-symbol-resolved-trees`.
-  Those next probes remain unrun at this checkpoint. Preserve the exact carrier
-  selection in `constant.rs` and local/narrow-import lookup in `symbols/src/table/modules.rs`.
-  Literal integer/Boolean arrays already use the canonical structural index path;
-  module admission validates unused array and scoped scalar declarations too.
+  Continue with public floating constant identities, foreign/generic attachments
+  or nominal aggregate body substitution in
+  `syntax-trees-to-symbol-resolved-trees`; those probes remain unrun.
+  Preserve exact carrier selection in `constant.rs` and local/narrow-import
+  lookup in `symbols/src/table/modules.rs`. Closed record/case and fixed-array
+  constants, including module-local nongeneric attachments, already retain
+  exact declaration and receiving-carrier custody in machine indices. Their
+  focused acceptance is `cargo nextest run -p compiler --test module_machine_indices
+  nominal:: --no-fail-fast --no-tests fail` on macOS arm64 with Cargo and
+  `RUST_MIN_STACK=33554432`. This is checked-source acceptance; aggregate body
+  substitution and execution remain separate. Unused private initializers must
+  still validate; public exposure of private carriers must reject.
   Root/module machine scopes
   retain original lexical selection through `build-time-evaluation/src/const_generic_expressions.rs`.
   General array-value projection remains unfinished. Static integer/Boolean

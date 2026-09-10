@@ -330,7 +330,7 @@ pub(crate) fn validate_exact_typed_structured_const_argument(
             type_reference_label(program, expected_type)
         ));
     }
-    let expected_name = type_reference_label(program, expected_type);
+    let expected_name = canonical_carrier_label(program, expected_type);
     if value.type_name != expected_name {
         return Err(format!(
             "expected carrier `{expected_name}`, but the canonical atom names `{}`",
@@ -358,7 +358,7 @@ pub(crate) fn validate_exact_const_identity(
         expected_type,
         &mut Vec::new(),
     ) {
-        type_reference_label(program, expected_type)
+        canonical_carrier_label(program, expected_type)
     } else {
         let value = CanonicalConstValue::new(
             identity.type_name.clone(),
@@ -405,6 +405,30 @@ pub fn validate_exact_const_value_encoding(
             encoding: encoding.to_owned(),
         },
     )
+}
+
+/// Canonical labels follow the independently resolved carrier declaration.
+/// A caller's qualification or import alias cannot change a value encoding;
+/// the label still supplies no nominal authority without the exact typed slot.
+fn canonical_carrier_label(program: &TypedTrees, reference: TypeReferenceHandle) -> String {
+    match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Named { symbol, .. } => program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.symbol == *symbol)
+            .map_or_else(
+                || type_reference_label(program, reference),
+                |definition| definition.name.as_str().to_owned(),
+            ),
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(length),
+        } => format!(
+            "[{}; {length}]",
+            canonical_carrier_label(program, *element_type)
+        ),
+        _ => type_reference_label(program, reference),
+    }
 }
 
 fn exact_structured_const_data_carrier_is_eligible(
@@ -540,7 +564,7 @@ fn validate_decoded_structured_const(
             },
             DecodedCanonicalConstValue::Array { type_name, values },
         ) => {
-            let expected_name = type_reference_label(program, expected_type);
+            let expected_name = canonical_carrier_label(program, expected_type);
             if type_name != &expected_name {
                 return Err(format!(
                     "array node names `{type_name}`, expected `{expected_name}`"

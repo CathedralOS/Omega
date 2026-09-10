@@ -282,10 +282,13 @@ fn generic_data_normalization_is_private_work_inside_name_resolution() {
         );
     }
     let declarations = std::fs::read_to_string(owner.join("item.rs")).unwrap();
-    assert!(declarations.contains("crate::generic_data::canonicalize_declared_const_definition"));
+    assert!(
+        declarations
+            .contains("crate::generic_data::canonicalize_selected_declared_const_definition")
+    );
     let selection =
         std::fs::read_to_string(owner.join("generic_data/constant_selection.rs")).unwrap();
-    assert!(selection.contains("pub(super) struct ConstantSelection"));
+    assert!(selection.contains("pub(crate) struct ConstantSelection"));
     assert!(selection.contains("find_top_level_by_name_and_kinds_from_source"));
     assert!(!entrance.contains("ConstantSelection"));
 }

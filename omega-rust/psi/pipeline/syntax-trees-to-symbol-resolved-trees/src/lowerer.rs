@@ -45,6 +45,16 @@ pub(crate) struct PendingConstArgumentSelection {
     pub(crate) exposure: AuthoredDeclarationSelectionExposure,
 }
 
+/// A use-site constant occurrence and its actual retained generic argument slot.
+/// This private link survives symbol allocation; encoded value labels never
+/// reconstruct which nominal binder received the selected declaration.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PendingConstArgumentSlot {
+    pub(crate) selection: usize,
+    pub(crate) arguments: arena::HandleSpan<symbol_resolved_trees::types::TypeReference>,
+    pub(crate) ordinal: usize,
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct PendingOutcomeSpecificContract {
     pub(crate) contract: arena::Handle<symbol_resolved_trees::signature::SignatureContract>,
@@ -116,7 +126,12 @@ pub fn lower_syntax_extension_with_authored_selection_frontier(
     sources: Arc<SourceMap>,
     additional_source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
 ) -> Result<SeededSymbolResolvedTrees, Vec<Diagnostic>> {
-    crate::module_normalization::validate_module_normalization(extension_syntax)?;
+    let constant_selection = crate::generic_data::constant_selection::ConstantSelection::new(
+        extension_syntax,
+        Some(sources.clone()),
+        additional_source_scoped_top_level_bindings.clone(),
+    )?;
+    crate::module_normalization::validate_with_selection(extension_syntax, &constant_selection)?;
     let retained_sources = base.symbols.source_files().collect::<Vec<_>>();
     if retained_sources.len() > sources.len()
         || !retained_sources
@@ -136,6 +151,7 @@ pub fn lower_syntax_extension_with_authored_selection_frontier(
     let mut syntax_trees = extension_syntax.clone();
     crate::trait_defaults::synthesize_trait_defaults(&mut syntax_trees)?;
     let mut lowerer = Lowerer::new(Some(sources), additional_source_scoped_top_level_bindings);
+    lowerer.constant_selection = Some(constant_selection);
     lowerer.defer_const_substitution = crate::constant::has_module_owned_constants(&syntax_trees)
         || base
             .const_declarations
@@ -253,10 +269,16 @@ fn lower_syntax_trees_with_const_selection(
     source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     retain_aggregate_selection: bool,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    crate::module_normalization::validate_module_normalization(syntax_trees)?;
+    let constant_selection = crate::generic_data::constant_selection::ConstantSelection::new(
+        syntax_trees,
+        sources.clone(),
+        source_scoped_top_level_bindings.clone(),
+    )?;
+    crate::module_normalization::validate_with_selection(syntax_trees, &constant_selection)?;
     let mut syntax_trees = syntax_trees.clone();
     crate::trait_defaults::synthesize_trait_defaults(&mut syntax_trees)?;
     let mut lowerer = Lowerer::new(sources, source_scoped_top_level_bindings);
+    lowerer.constant_selection = Some(constant_selection);
     lowerer.retain_const_argument_selection = retain_aggregate_selection;
     lowerer.defer_const_substitution =
         retain_aggregate_selection || crate::constant::has_module_owned_constants(&syntax_trees);
@@ -269,6 +291,8 @@ fn lower_syntax_trees_with_const_selection(
 }
 
 pub(crate) struct Lowerer {
+    pub(crate) constant_selection:
+        Option<crate::generic_data::constant_selection::ConstantSelection>,
     pub(crate) namespace_declarations: crate::symbols::NamespaceDeclarations,
     pub(crate) pending_static_module_calls: Vec<(
         symbol_resolved_trees::expression::ExpressionHandle,
@@ -294,6 +318,7 @@ pub(crate) struct Lowerer {
     /// must remain available to package-selection admission.
     pub(crate) pending_const_declarations: Vec<PendingConstDeclaration>,
     pub(crate) pending_const_argument_selections: Vec<PendingConstArgumentSelection>,
+    pub(crate) pending_const_argument_slots: Vec<PendingConstArgumentSlot>,
     pub(crate) derived_const_argument_origins: Vec<syntax_trees::types::ConstArgumentOrigin>,
     pub(crate) derived_const_argument_builtin_operators: Vec<source::SourceSpan>,
     pub(crate) pending_const_selections: Vec<PendingConstSelection>,
@@ -449,6 +474,7 @@ impl Lowerer {
         source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     ) -> Self {
         Self {
+            constant_selection: None,
             namespace_declarations: crate::symbols::NamespaceDeclarations::default(),
             pending_static_module_calls: Vec::new(),
             pending_static_module_statement_calls: Vec::new(),
@@ -465,6 +491,7 @@ impl Lowerer {
             pending_outcome_specific_contracts: Vec::new(),
             current_authored_expression_exposure: None,
             pending_const_argument_selections: Vec::new(),
+            pending_const_argument_slots: Vec::new(),
             derived_const_argument_origins: Vec::new(),
             derived_const_argument_builtin_operators: Vec::new(),
             current_compiler_selection_partition: None,
@@ -655,6 +682,7 @@ impl Lowerer {
         crate::constant::finalize_const_argument_selections(
             &mut self.symbol_resolved_trees,
             &self.pending_const_argument_selections,
+            &self.pending_const_argument_slots,
         )
         .map_err(|diagnostic| vec![diagnostic])?;
         {

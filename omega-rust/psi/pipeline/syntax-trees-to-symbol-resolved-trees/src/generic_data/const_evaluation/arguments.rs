@@ -106,7 +106,7 @@ pub(in crate::generic_data) fn consider_generic_spelling(
                     let Some(definition) = selection.select(syntax, &name)? else {
                         continue;
                     };
-                    let value = canonicalize_const_definition(syntax, &definition, parameter_type)
+                    let value = canonicalize_selected_const_definition(syntax, &definition, parameter_type, Some(selection))
                         .map_err(|reason| {
                             Diagnostic::error(format!(
                                 "const argument for `{base}::{parameter_name}` is invalid at this index site: {reason}"

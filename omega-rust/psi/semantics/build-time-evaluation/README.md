@@ -61,10 +61,14 @@ index canonicalizer after original lexical selection; they do not need a scalar
 probe. Namespace admission validates even unused array declarations before their
 initializers disappear. Type-scoped module arrays retain an exact nongeneric
 carrier in the declaring module through ordinary authored-selection evidence;
-public constants cannot hide a private carrier. Scoped scalars, foreign/generic
-attachments, nominal aggregate normalization, open templates, authored operator
-execution, constrained destinations and address-dependent arithmetic need
-their own complete contexts;
+public constants cannot hide a private carrier. Closed nominal record/case and
+fixed-array constants use the separate structural canonicalizer, preserving exact
+carrier and constructor selection before erasure and rejoining the receiving
+parameter afterward. Module-local nongeneric attachments share the ordinary
+scope checks; scalar literals also enter the scalar probe. Foreign/generic
+attachments, machine-computed nominal aggregate indices, open templates, authored
+operator execution, constrained destinations and address-dependent arithmetic
+need their own complete contexts;
 the standalone probe does not claim those forms.
 
 ## Semantic admission boundary
