@@ -8,11 +8,17 @@ it is not the hermetic evaluator used for constants and proofs.
 
 The order is:
 
-1. Project the root role and dependencies from retained authored source.
-2. Resolve and retrieve the immutable dependency closure under resolver custody.
-3. Resolve and check the selected build entry and its transitive calls.
-4. Admit its complete build contract, then execute its prepared projection.
-5. Incorporate generated source and continue checking before artifact production.
+1. Project the root role, both dependency scopes, and output mode from retained source.
+2. Resolve the purpose-specific immutable closures and capture inputs under resolver/sponsor custody.
+3. Check the host build entry and helpers; freeze the authored product-selection frontier.
+4. Admit the complete build contract, then execute its prepared projection.
+5. Incorporate generated source and finish all requested product checks.
+6. Check required-output completion and commit one immutable result set.
+
+[Scoped execution](scoped_execution.md) defines the execution-profile/product-target
+distinction, deterministic snapshot and staging protocol, and linear output
+lifecycle. No current activation can inspect its own final component or select
+its generated entries; those customers require separately staged compilation.
 
 Before step 4, pre-resolution evaluation, target filtering, symbol/type
 resolution, semantic prechecks, and exact dynamic-call binding are complete.
@@ -78,14 +84,14 @@ Review compiles dependency-first. A consumer requires one compiler-issued
 generated-source bundle for every transitive package, including an explicit
 empty bundle when the producer included no source. A bundle binds:
 
-- Producer package and selected target.
+- Producer package, dependency purpose, execution profile, and selected product target.
 - Producer dependency closure and source-consumption commitment.
 - Canonical generated paths, retained bytes, and their digests.
 
 The consumer loads these bytes in its initial frontend under the producer's
 identity and logical paths, without rerunning the producer build or reading its
 output tree. Its own source-consumption commitment includes the injected bytes.
-Missing, duplicate, foreign, root-self, target/closure, or same-review custody
+Missing, duplicate, foreign, root-self, purpose/profile/target/closure, or same-review custody
 mismatches reject. The handoff is opaque compiler-issued state, not a package
 instance or canonical admission evidence; it has no public constructor or decoder.
 

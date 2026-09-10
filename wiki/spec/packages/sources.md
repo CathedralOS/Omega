@@ -6,25 +6,31 @@ resolution. A resolver supplies immutable source custody, not approval of the
 package or certification of anything compiled from it.
 
 Dependency projection is hermetic even when later build staging is not. It
-extracts one flat unconditional request set from each fetched package without
-executing imported code or depending on build-host observations, generated files,
-or dependency build output. Close the graph before downloaded build code receives
+extracts explicit flat unconditional build and product request sets from each
+package without executing imported code or depending on build-host observations,
+generated files, or dependency build output. Close the graph before downloaded build code receives
 authority. Each dependency's requests remain unknown until its source is resolved.
-The immutable graph is the same for every target; target identity scopes review
-and realization, not dependency selection.
+Both declared edge sets are the same for every target; target identity cannot
+discover additional dependencies. Checked scheduling, review, generated outputs
+and realization retain purpose, execution profile and requested product target
+under [scoped build execution](../build/scoped_execution.md#two-checked-contexts).
 
 ## Requester-local graph
 
 A dependency declares its own canonical package name. Default aliases convert
-kebab-case to snake_case; `depend_as` supplies a validated exceptional alias for
-a real collision. Distinct requesters may use different aliases for the same
-key; an ancestor cannot rename dependencies inside another package.
+kebab-case to snake_case; `depend_as` and `build_depend_as` supply validated aliases
+in their respective product and build scopes. Aliases are unique within a scope,
+not across both; there is no cross-scope fallback. Distinct requesters may use
+different aliases for the same key; an ancestor cannot rename dependencies
+inside another package.
 
-Package-aware compilation consumes a closed validated graph of requester-local
-aliases to opaque package keys and canonical source roots. Import discovery does
-not combine package-authored dependency rows. Paths route source loading; they
+Package-aware compilation consumes a closed validated graph of requester-local,
+purpose-qualified aliases to opaque package keys and canonical source roots.
+Import discovery does not combine package-authored dependency rows. Paths route source loading; they
 are not nominal identity. Orchestration re-roots each package at exactly its
-transitive subgraph and compiles dependency-first.
+transitive subgraph in the applicable context and compiles prerequisite-first.
+Acquisition may share exact source custody; that does not merge checked host and
+product instances or make a helper's own build dependencies its library imports.
 
 The Rust focused-file compatibility entrance resolves root-relative and
 toolchain imports only; package aliases require the validated package-aware

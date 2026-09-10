@@ -161,6 +161,90 @@ not hidden stack growth. Retained adapters preserve loans, resources, and exact
 Placed access; decoding and editing still require owner construction/update
 contracts. Run corruption/replay controls independently of the producer.
 
+## Scoped build execution
+
+Implement [scoped build execution](wiki/spec/build/scoped_execution.md) for
+ordinary code generators and the topology composition customer. These are
+accepted contracts, not claims of implementation. Existing
+`BUILD-ADMISSION-CHECKPOINT` owns retained frontend/generated-source replay;
+extend that route, not a second build language or plugin executor. Any semantic
+or trust amendment found here or later goes through [owner questions](OWNER_QUESTIONS.md).
+
+- **BUILD-DEPENDENCY-PURPOSES.** Extend `omega-rust/omega/packages/` acquisition,
+  review and locks, `omega-rust/omega/build/` declaration projection, and Psi
+  package-aware resolution to retain explicit build/product edges and checked
+  occurrences. Preserve one root Build and direct discovery. Host libraries use
+  their own ordinary dependencies; schedule the combined purpose/profile/target
+  prerequisite graph and reject cycles before affected execution. Version the
+  lock/review migration without broadening legacy product edges or inferring
+  permissions from imports. Acceptance: real acquisition and multi-file builds
+  exercise dual-purpose std, conflicting cross-scope aliases, host/product targets,
+  missing edges, dependency cycles and cache separation. Removing a build or
+  product edge rejects only its authorized selections; source sharing never
+  substitutes host output or admission for target evidence.
+
+- **BUILD-PRODUCT-REFERENCES.** In Psi source selection and the existing Build
+  root/provider owners, implement designated product operands and qualified
+  non-callable entry/provider/schema descriptions. Depends on purpose-aware
+  resolution above and the retained authored checkpoint. Define exact source
+  signatures under the accepted roles without inventing a general compiler-query
+  world. Acceptance: a multi-file helper receives an owner's restricted private
+  entry reference and binds it without executing target code. Wrong scope/target,
+  lookalike operations, helper enumeration of caller-private declarations,
+  description-to-callable forgery and same-build generated/layout cycles reject.
+  Final admission must rejoin the exact selected identity after generation.
+
+- **BUILD-SNAPSHOT-OUTPUTS.** In build evaluation, its host custody adapters and
+  compiler publication, implement coherent captured inventories, narrowed inputs,
+  deterministic snapshot reads, fresh append-and-seal staging, linear required
+  outputs, and direct artifact-only discovery. Define exact facet signatures and
+  protocol tags; no live-host grant extension or persistent writable cache.
+  Acceptance: an ordinary generator reads a template and completes a required
+  file; artifact-only and executable-with-companion routes both work. Exercise
+  negative lookups, ordering/metadata, symlink and substitution escapes, sealed
+  mutation, cross-occurrence receipts, failed completion/retry, omitted required
+  members, interruption, and final-check failure without a partial committed set.
+  Test isolation and failure on Windows/macOS, explicitly recording unavailable
+  hosts. Measure retained input/output state and compare the separate-tool route;
+  do not infer confinement or usability from parser tests.
+
+## Checked boundary topology
+
+Implement the [reference-package contract](wiki/spec/packages/topology.md), not
+a compiler graph stage. `COMPONENT-SUBSTRATE` owns the complete verified component
+consumer below; `WIRE-RUNTIME-AND-INSTALLATION` owns generic executable custody.
+Package policy and orchestration stay in ordinary Omega libraries, with native
+details in providers. A topology-specific IR or new trusted graph axiom is not
+an implementation shortcut.
+
+- **TOPOLOGY-PLAN-VERIFICATION.** Deliver an ordinary build-only package and
+  composition project over prebuilt component artifacts. Depends on the scoped
+  build output route and independently verified complete descriptions; missing
+  evidence must not be replaced with hand-authored inventories. Implement fixed
+  `no_route`/`only_via`, bounded deterministic graph normalization and diagnostics,
+  correctness evidence, exact owner-supplied `TopologyRequest`, and versioned
+  codec tables/fixtures. Acceptance: the payment graph succeeds and direct/indirect
+  bypasses reject with checked witnesses; cover cycles, disconnected sources,
+  duplicates, stale subjects, forged completeness, missing owner policies and
+  unselected policy executables without loading them. An independent source-free
+  consumer reconstructs the same graph, rejects corrupt plans, and replays the
+  selected predicates. Typechecking a graph algorithm alone is not correctness
+  evidence, and successful publication is not an installation claim.
+
+- **TOPOLOGY-PRIVATE-PIPE-INSTALLATION.** Build the package-owned installer and
+  Windows/macOS pipe adapters for three checked local payment processes. Depends
+  on plan verification, complete component admission, and generic executable
+  installation. Use one bounded request/response pair per binding, one outstanding
+  request, no general inheritance, dynamic delegation, discovery, or retries to
+  another peer. Acceptance: independent current request authorization, exact
+  all-import binding coverage and confined endpoints precede application entry;
+  an actual ungranted invocation and substituted mapping are refused. Preparation
+  failure returns/cleans custody; partial activation retains supervision and
+  quiesces or reports cleanup failure without a success receipt. Replacement
+  quiesces the old generation before starting the new one. Test both supported
+  hosts when available and disclose loader/OS assumptions; graph-only tests,
+  signatures, and ordinary process spawn do not prove physical confinement.
+
 ## Process-exit contract
 
 Implement the [canonical process-exit contract](wiki/spec/language/process_exit.md)
@@ -1737,6 +1821,11 @@ Owners include
   requested target, and source/build/generated/native inputs; validate final
   realization before publishing. Acceptance: serialized replay reproduces the
   product, and source, role, target, or artifact drift prevents publication.
+  Join the [scoped build work](#scoped-build-execution): checkpoints and generated
+  handoffs also bind dependency purpose and execution profile, and publication
+  waits for every required output plus final product checking. Preserve the
+  authored/generated boundary; no own-build final-component query or hidden
+  post-compilation callback.
 
 - **OPTIONAL-STDLIB-SEMANTIC-BINDINGS.** Finish the compiler/library migration
   to explicit ordinary std dependency edges. Std may be replaced, split, or
@@ -1756,12 +1845,23 @@ Owners include
   semantic bindings reject without relying on accepted-lock replay.
 
 - **COMPONENT-SUBSTRATE.** Implement independently selected component closure
-  while keeping deployment/update policy in Cathedral. Componentization must
+  while keeping deployment/update policy in runtime packages or Cathedral. Componentization must
   bind exact imports, exports, services, mappings, stack demand, leases, and
   installed provider closure under the
   [component publication contract](wiki/spec/build/component_publication.md).
   Until that carrier is complete, every
   `Independent` selection fails at one explicit fence.
+
+  Expose the [verified-description consumer](wiki/spec/build/component_publication.md#verified-component-descriptions)
+  from the existing verifier for independent admission/replacement and topology.
+  First inventory actual producer/replay coverage; implement missing complete
+  facts in their Psi, component, or provider owners, not a second topology census.
+  Acceptance: an independent source-free consumer checks subject/profile/schema,
+  all entries and outgoing authority, custody and inseparable assumptions; corrupt,
+  omitted, early-frontier and forged-complete descriptions reject. Include startup,
+  callbacks, timers, cleanup and retained providers. Reading descriptions grants no
+  callable authority; installation-dependent facts remain obligations and require
+  fresh per-occurrence resource/profile admission.
 
 - **FFIVAL.** After the generic callback/runtime path closes, run the Windows
   `user32` boundary-coherence canary with no raw function pointer or Win32-only

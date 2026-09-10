@@ -28,11 +28,27 @@ statements on the canonical build parameter. Helpers, control flow, expression
 use, generated declarations, authored substitutes for toolchain vocabulary, and
 dependency-dependent declarations cannot supply project identity.
 
-`package`, `application`, `member`, `depend`, and `depend_as` are statically
-projected. Alias uniqueness covers one unconditional dependency set. No target
+`package`, `application`, `member`, `depend`, `depend_as`, `build_depend`,
+`build_depend_as`, and `artifact_only` are statically projected. Product and
+build dependency sets are separate and unconditional; aliases are unique within
+each scope, with no cross-scope fallback. No target
 control-flow interpretation, conditional dependency helper, or per-profile map
 discovers additional edges. A role-less file cannot yield dependencies or receive
 an automatic dependency edit.
+
+`depend`/`depend_as` authorize product imports; `build_depend`/`build_depend_as`
+authorize imports in the build entry and its local helpers. An imported host
+library uses its own ordinary dependencies in that host context. Using a package
+in both contexts requires both edges, including std. Legacy locks cannot imply
+a missing edge. [Scoped execution](scoped_execution.md#two-checked-contexts)
+defines purpose-specific scheduling, acquisition reuse, provenance, and migration.
+
+Applications default to executable output. The optional direct unconditional
+`builder.artifact_only()` declaration is valid once in an application root, never
+in a package/workspace or helper. It requires at least one completed required
+artifact and rejects executable root/provider selections. It is not a new role
+or target profile. [Staged products](scoped_execution.md#staged-products-and-failure)
+defines completion and whole-result publication.
 
 ## Names, lineage, and resolution
 

@@ -8,10 +8,11 @@ and assumptions with project acceptance. Native emission is a separate operation
 
 ## Requests and project decisions
 
-`build.omg` records requested sources, aliases, and build selections. `omega.lock`
-records exact resolutions, the dependency graph, accepted normalized policy for
-reviewed targets, and explicit project decisions. Dependency rows do not contain
-package-asserted trusted capability manifests.
+`build.omg` records requested sources, purpose-scoped aliases, and build selections.
+`omega.lock` records exact resolutions, build/product edges, accepted normalized
+policy for reviewed purposes, execution profiles and product targets, and explicit
+project decisions. Dependency rows do not contain package-asserted trusted
+capability manifests.
 
 The project trusts whoever edits and lands its lock. Parsing, content checks,
 graph validation, and transaction consistency detect malformed state, wrong
@@ -55,8 +56,9 @@ remain untrusted input even when their structure is escaped. No model service or
 audit attestation is required for the package workflow.
 
 Review input joins complete candidate resolver custody and compiler rows
-bijectively by exact package key and immutable resolution. Duplicate rows,
-package/projection mismatch, and mixed deployment targets reject before policy
+bijectively by exact package key, immutable resolution, dependency purpose and
+applicable execution-profile/product-target occurrence. Duplicate rows,
+package/projection mismatch, and mixed occurrence contexts reject before policy
 comparison or source rendering. Recovered old-source custody must match its
 baseline row; unavailable source is recorded as absence, not guessed content.
 
@@ -70,7 +72,10 @@ audit. Exceeding a packet limit rejects rather than silently truncating evidence
 ## Authority boundaries
 
 Build execution may perform its admitted scoped effects even if later checking
-fails. Package runtime acceptance grants neither build-host nor resolver authority.
+fails, but [staged output rules](../build/scoped_execution.md#staged-products-and-failure)
+forbid a new successful result set after failure. Separately admitted live-host
+effects have no implicit rollback. Package runtime acceptance grants neither
+build-host nor resolver authority.
 Dependencies cannot override consuming-root provider authority. The compiler still
 rejects false reach ceilings, invalid proofs, spoofed nominal owners, and missing
 analysis; unsupported information is never an empty permission set.
@@ -103,7 +108,7 @@ explicit acceptance.
 ## Review transaction
 
 Compare both complete source graphs and targets, including removed packages,
-directional root-role changes, and replacements at exact requester/alias edges.
+directional root-role changes, and replacements at exact requester/purpose/alias edges.
 Each required change needs one decision; advisory-only rows have none. Preserve
 exact displayed old/new policy, resolutions, dependency paths, and the complete
 comparison identity. A decision for another comparison cannot authorize this one.

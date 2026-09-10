@@ -1,14 +1,16 @@
-# 0005: Build dependency scopes and isolated inputs
+# Build dependency scopes and isolated inputs
 
-Status: proposed, not ratified or implemented. This augments ordinary Omega build
-evaluation; it does not introduce a second build language. This revision selects
-proposed semantics for the stage boundary, snapshot protocol, and output lifecycle;
-API spellings remain proposed vocabulary. Existing scoped filesystem enforcement
-is not evidence that these dependency scopes or default input isolation exist.
+This contract defines ordinary Omega build evaluation's dependency scopes,
+product-selection boundary, immutable inputs, and output lifecycle. It does not
+introduce a second build language. These rules are normative; implementation
+coverage is tracked in [the execution board](../../../TASKS.md).
+Existing scoped filesystem enforcement is not evidence that the full contract
+is implemented. API role names and schematic examples below do not establish
+shipped signatures or wire compatibility.
 
-## Proposed decisions at a glance
+## Contract summary
 
-| Question | Selected first-slice answer |
+| Question | Required behavior |
 | --- | --- |
 | One builder or two? | One `Build`; scope and authority are enforced at individual operations. |
 | Build-only code? | Direct `build_depend`/`build_depend_as` declarations; separate host/product nameability and checked instances. |
@@ -16,10 +18,10 @@ is not evidence that these dependency scopes or default input isolation exist.
 | Filesystem default? | Exact read-only input tree, append-and-seal staging, deterministic logical metadata, no implicit symlink traversal or ambient services. |
 | Extra host files? | Independently supplied captured inputs; live-host protocols are not added by this slice. |
 | Build failure? | Checked local errors, linear required outputs, sticky explicit failure, and no final result set after interruption or failed checks. |
-| Artifact-only application? | One direct root declaration, at least one completed artifact, and no executable roots or provider selections. |
+| Artifact-only application? | One direct root declaration, at least one completed artifact, and no executable root/provider selections. |
 | Generated entry or inspection of this build's final executable? | Separate staged compilation; no cycle through this invocation's generated source. |
 
-Detailed rules below define these proposed decisions. The comparison section
+Detailed rules below define these requirements. The comparison section
 explains why the compiler owns the boundaries but not application-specific work.
 
 ## Problem and scope
@@ -30,13 +32,12 @@ on the application's target, or giving it ambient access to the developer's
 machine. The helper should read explicit inputs, compute using ordinary Omega,
 and return data or write private staged artifacts.
 
-The current package model has one unconditional dependency set. A library used
-only by the build is still an ordinary package dependency. This does not imply
-that its code is emitted in the runtime binary, but runtime reachability is not
-a substitute for a checked dependency boundary. Existing build filesystem access
-is scoped real access; it is not an isolated virtual input snapshot by default.
+Runtime reachability is not a substitute for a checked dependency boundary.
+A build-only library must not become product-nameable merely because acquisition
+loaded its source. A scoped real-host filesystem is not an isolated virtual input
+snapshot; transitional implementations must distinguish those modes.
 
-Retain one `machine build(builder: &mut Build)` entry. Add:
+Use one `machine build(builder: &mut Build)` entry with:
 
 1. Explicit build-only dependency declarations and separate selection contexts.
 2. Read-only captured inputs and private staged outputs as the default filesystem
@@ -46,29 +47,29 @@ Retain one `machine build(builder: &mut Build)` entry. Add:
    compiler knowledge of a package's artifact format or policy algorithms.
 
 The customers are code generation and
-[0004's topology package](0004_checked_boundary_topology.md). Neither needs
+[the topology package](../packages/topology.md). Neither needs
 topology syntax, a plugin registry, native execution of arbitrary downloaded
 code, or compiler-specific graph policies. Reflection is optional for authoring
-helpers, not a dependency of this proposal.
+helpers, not a dependency of this contract.
 
 ## Existing owners
 
 Extend these contracts rather than introduce parallel acquisition, evaluation,
 or evidence systems:
 
-- [Build declarations](../spec/build/declarations.md): root discovery, package
+- [Build declarations](declarations.md): root discovery, package
   identity, and direct dependency projection.
-- [Build execution](../spec/build/execution.md): admission before effects,
+- [Build execution](execution.md): admission before effects,
   generated-source strata, dependency build outputs, and observation custody.
-- [Modules](../spec/language/modules.md) and
-  [package boundaries](../spec/packages/boundaries.md): authored name selection,
+- [Modules](../language/modules.md) and
+  [package boundaries](../packages/boundaries.md): authored name selection,
   public visibility, and carrying foreign types.
-- [Configuration](../spec/build/configuration.md): exact-target evaluation and
+- [Configuration](configuration.md): exact-target evaluation and
   result identity.
-- [Package acceptance](../spec/packages/acceptance.md): independently accepted
+- [Package acceptance](../packages/acceptance.md): independently accepted
   policy, immutable dependencies, and separation from resolver authority.
-- [Component publication](../spec/build/component_publication.md): complete
-  component interfaces and installation requirements. This proposal supplies
+- [Component publication](component_publication.md): complete
+  component interfaces and installation requirements. This contract supplies
   no replacement topology or deployment semantics.
 
 ## Dependency declarations and discovery
@@ -141,7 +142,7 @@ dependencies, inputs, and policy. Never reuse host-generated configuration or
 provider plans as target evidence. A helper may receive the intended product
 target as explicit data without being executed as target-native code.
 
-In this proposal, host means the admitted build execution profile, not a value
+Here host means the admitted build execution profile, not a value
 inferred from the compiler process's OS. `Build.target` continues to describe the
 product child as in the existing configuration contract. Build helper code and
 its own ordinary dependencies are checked for the execution profile. If a build
@@ -174,7 +175,7 @@ ordinary product dependency. If generated bytes depend on a build library,
 their origin remains recorded even when the resulting program has no runtime
 dependency on that library.
 
-This revises the existing one-set nameability rule; it is not a claim that current
+This replaces the legacy one-set nameability rule; it is not a claim that current
 dead-code elimination already enforces separate contexts. Migration must classify
 existing edges as product, build, or both, with diagnostics for missing edges.
 Do not silently infer broader permission from an old lock entry. A versioned
@@ -213,7 +214,7 @@ rule, not general syntax quotation or an exception to ordinary call checking.
 
 For reusable build helpers, expose owned typed descriptions through the existing
 Build facet: `ProductEntryRef`, `ProductProviderRef`, and `ProductTypeSchema` are
-candidate names for distinct roles, not a single untyped compiler handle. A
+API vocabulary for distinct roles, not a single untyped compiler handle. A
 fallible query such as `builder.product.entry(path, slot)` resolves a logical
 product declaration path under the query author's visibility and product
 dependency scope. It binds one exact declaration/application and target or
@@ -353,7 +354,7 @@ operations rather than supply fake timestamps or successful no-op I/O.
 
 Core errors are explicit `InvalidPath`, `NotFound`, `WrongKind`, `AlreadyExists`,
 `Denied`, `SymlinkTraversal`, `InvalidRange`, `InvalidState`, and `Unsupported` outcomes with the
-operation and logical path. These are proposed semantic cases, not assigned wire
+operation and logical path. These are required semantic cases, not assigned wire
 numbers. Resource exhaustion interrupts the activation unsuccessfully; code
 cannot catch it and manufacture a different successful artifact based on host
 storage pressure. Unexpected backing-store failure is an executor failure, not
@@ -374,7 +375,10 @@ concurrent filesystem is required for this first protocol.
 Source capture happens before authored build execution. The resolver's immutable
 package inventory supplies dependency inputs. A local root's capture uses an
 explicit invocation inventory of files/subtrees; it does not implicitly expose
-the entire working directory. A user-selected subtree includes its contents,
+the entire working directory. Source inventory retains the
+[project-control exclusions](../packages/locks.md#source-and-control-state);
+acceptance state is loaded independently, not obtained by a build's source read.
+A user-selected subtree includes its admitted contents,
 including any secrets there: ignore conventions are not a security boundary.
 Already-required source files must be included. Other assets are listed by exact
 path or explicit subtree, not by running a dependency's scanner with host authority.
@@ -399,7 +403,7 @@ consumer's running build cannot grant new inputs retroactively to a dependency
 whose build has already completed. To use newly computed inputs, invoke an
 ordinary generator helper in the current build with those values, or arrange
 a separate later build using an explicitly completed artifact. There is no
-implicit graph mutation or recursive build API in this proposal.
+implicit graph mutation or recursive build API in this contract.
 
 For first implementation, cache keys conservatively include the entire admitted
 input inventory and metadata profile, both dependency-purpose closures, executor
@@ -434,7 +438,7 @@ Calling a library within the root build does not create a new sandbox. It can
 use capabilities passed by its caller. Passing the root builder may permit all
 of that builder's operations; use narrower values when that is not intended.
 Reading permitted secrets and writing them to permitted logs/artifacts is still
-possible. This proposal provides confinement and explicit delegation, not
+possible. This contract provides confinement and explicit delegation, not
 information-flow security or protection after an intentionally broad grant.
 
 ## Staged products and failure
@@ -570,7 +574,7 @@ therefore uses a separate composition build after those services, not a hidden
 post-compilation callback in their build entry. A build cannot rewrite its own
 dependency or input frontier by serializing a new manifest as output.
 
-## Acceptance
+## Implementation acceptance
 
 | Case | Required result |
 | --- | --- |
@@ -606,22 +610,23 @@ paths on Windows and macOS; source inspection is not a host execution pass.
 Compare two packages using the same input and output names to detect cross-build
 leakage, and test same-package dual-purpose cache entries with different targets.
 
-The proposed first slice uses the declaration names above, explicit purpose
+The first slice uses the declaration names above, explicit purpose
 migration, product-reference roles, snapshot/staging operations, completion state
-table, and statically discovered artifact-only mode. Ratification must accept or
-revise those choices rather than delegate their observable failure behavior to
-implementation. Numeric wire tables and exact source signatures for the chosen
-operations belong in the existing build/protocol owners before implementation
+table, and statically discovered artifact-only mode. Their observable behavior
+is not delegated to implementation. Numeric wire tables and exact source
+signatures belong in the existing build/protocol owners before implementation
 can claim compatibility; the semantic outcomes and authority rules are fixed by
-this proposed contract.
+this contract.
 
 Demonstrate a generator reading a template through a narrowed snapshot and
 completing a required file, a multi-file helper taking a restricted product entry
 reference, and the topology composition build receiving prebuilt components.
 Measure retained input/output state and compare the added compiler mechanisms
 with a separate build-tool-package route. These prototypes validate usability and
-enforcement, not an implementation status inferred from the proposal's length.
-They may expose a new design choice; document it explicitly before promotion.
+enforcement, not implementation status inferred from the contract's detail.
+They may expose a new design choice; raise any semantic or trust amendment in
+[owner questions](../../../OWNER_QUESTIONS.md) before relying on it. These are
+implementation acceptance gates, not prerequisites to the design's ratification.
 
 Live-host grant extension, persistent writable caches, symbolic generated-root
 binding, concurrent filesystem operations, dynamic dependency discovery, and
@@ -660,5 +665,7 @@ Pure byte-input/byte-output generators are a narrower viable first customer;
 they need not wait for every virtual filesystem operation. No-op I/O and relying
 on linker stripping to enforce build-only access are rejected alternatives.
 
-Acceptance updates the owning specs and implementation tasks. Neither this
-proposal nor 0004 is an execution-board prerequisite before that decision.
+Implementation work follows [the execution board](../../../TASKS.md). Future
+amendments, whether found during implementation or later review, use
+[owner questions](../../../OWNER_QUESTIONS.md); unsupported behavior must not
+silently weaken this contract.

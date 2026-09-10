@@ -81,6 +81,54 @@ declaration, selected conformance/implementation, and the edge enlarging the cut
 Package-shaped closures are a permissible initial restriction only when removing
 that fence preserves all previously accepted meanings and identities.
 
+## Verified component descriptions
+
+The component-verification owner exposes a narrow consumer operation such as
+`verify_component(bytes, expected_subject, profile)`, returning an immutable
+`VerifiedComponent` with accepted assumptions or structured failure. These names
+describe API roles, not shipped signatures. The expected subject and profile
+come from independent caller policy; deserialization yields only a candidate.
+A producer-written completeness flag cannot establish the qualification.
+
+The description exposes exact public slots and directions, complete closed
+requirement/calling contracts, all possible entries, outgoing authority demands,
+and checked custody/lifetime constraints. It retains verification-schema and
+semantic-subject identity, selected realization evidence where available, and
+per-fact assumptions. Private bodies do not become author-selectable; their
+authority consequences remain covered. Build-time
+[product references](scoped_execution.md#selecting-product-declarations-without-executing-them)
+are not complete component descriptions: closure follows generated source and
+provider selection, not the early authored declaration frontier.
+
+For a complete communication-authority profile, every possible outgoing
+invocation/message path must be a declared endpoint demand, a declared external
+participant/mediator, or an accounted physical mechanism whose contract permits
+no additional communication. Startup, constructors, callbacks, timers, cleanup,
+stored authority, and retained provider dependencies all participate. Hidden
+sockets or inherited handles cannot be dismissed as endpoint implementation
+details. Unknown coverage returns `IncompleteAuthority`, never an empty outgoing
+set. Build-generated annotations cannot narrow the verified inventory.
+
+The verifier owns the code-to-inventory claim. Packages may compute instance
+graphs from those facts; installers/providers establish actual bindings.
+Installation-dependent facts remain requirements until matched to exact receipts.
+Verification grants neither callable authority nor permission to install.
+Wrong subject, incompatible schema, invalid evidence, unaccepted assumptions,
+incomplete authority, and exhausted verification are distinct failure categories.
+
+`VerifiedComponent` is ordinary descriptive data with verifier-established
+qualification under [authority rules](../resources/authority.md), not a new
+language type category. Its assumptions are inseparable from claim consumption;
+copying public fields or a semantic key cannot forge completeness. Resource and
+profile admission are checked again per installation occurrence. Cryptographic
+identity detects substitution but discharges no semantic premise.
+
+This API exposes existing closed component evidence, not a topology analyzer or
+mutable compiler-query service. Reflection alone cannot certify absence of hidden
+executable authority. The [topology package](../packages/topology.md) is one
+consumer alongside independent component admission and replacement. Producer and
+consumer coverage must be demonstrated before claiming this interface implemented.
+
 ## Candidate acceptance and resources
 
 A deployment-agnostic checked capsule for one exact slot retains canonical

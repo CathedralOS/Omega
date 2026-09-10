@@ -20,7 +20,10 @@ machine build(builder: &mut Build) {
 }
 ```
 
-Use `builder.application("name")` for an executable. A workspace instead lists
+Use `builder.application("name")` for an application, executable by default.
+Add direct `builder.artifact_only()` for an artifact-only application; it must
+complete at least one required output and cannot select executable roots/providers.
+A workspace instead lists
 `builder.member("path")` calls; each member is an independently selectable
 root, not part of one combined dependency graph. An application can depend on
 packages, but cannot itself be imported as a library.
@@ -48,8 +51,46 @@ permission again. Source changes remain visible even when permissions do not
 change. Acceptance neither proves the dependency safe nor bypasses compiler
 proof, reach, or artifact checks.
 
+### Build and product dependencies
+
+Use `depend`/`depend_as` for product code and `build_depend`/`build_depend_as`
+for build-only libraries. Both are direct unconditional root declarations:
+
+```omega
+machine build(builder: &mut Build) {
+    builder.application("generated-tables");
+    builder.build_depend_as("generator", Source::Path {
+        location: "../table-generator"
+    });
+    builder.depend_as("tables", Source::Path {
+        location: "../table-protocol"
+    });
+    configure_products(builder);
+}
+```
+
+This illustrates the specified dependency surface, not a claim of current
+compiler support or a complete runnable build. The local `configure_products`
+helper can import `generator`; product source cannot. Generated code using
+`tables` needs the ordinary product edge. Using std or another library in both
+contexts requires both declarations. A build library uses its own ordinary
+dependencies for its host implementation, not the consumer's product aliases.
+
+Imports remain file-local. Build helpers can live in ordinary local files;
+importing a file in both contexts checks it twice under the corresponding scope.
+Two scopes may use the same alias differently without lookup fallback. A legacy
+`depend` remains product-only; missing build edges need explicit declarations,
+not permission inferred from an old lock or dead-code elimination.
+
+The build evaluator's execution profile and the product target are distinct.
+A macOS helper generating Windows code is checked for the build execution profile;
+`Build.target` still describes Windows. Build-only source acquisition is reusable,
+but host-generated configuration is not target evidence. The
+[scoped execution contract](../spec/build/scoped_execution.md) fixes these rules;
+[implementation tasks](../../TASKS.md#scoped-build-execution) track availability.
+
 Targets are explicit invocation inputs. They do not change the dependency graph.
-Applications bind target entries with unconditional
+Executable applications bind target entries with
 `roots.bind(target::ProgramEntry, entry)` rows. The
 [multi-target contract](../spec/build/configuration.md) requires an explicit,
 nonempty target set and independent outcomes; it does not infer an `all` set
@@ -76,6 +117,23 @@ A host observation becomes a semantic input only through recorded build-input
 custody. A constant or proof cannot directly read the build host's filesystem
 or environment. Selecting a runtime service provider does not grant build-host
 authority.
+
+Product entry/provider operands in designated Build operations resolve against
+the product scope without importing or executing target code on the host.
+Ordinary host calls and same-named authored methods do not get that exception.
+Reusable helpers can receive restricted, non-callable product descriptions.
+Passing the entire Build does not grant access to the caller's private names.
+Own generated entries and this invocation's final component are unavailable
+during its build; inspect them in a separate, later build instead.
+
+Default build I/O is a read-only captured input tree and fresh append-and-seal
+staging, with deterministic logical paths and metadata. No home directory,
+network, subprocess, environment, or implicit symlink traversal is granted.
+Pass a template view and narrow output writer to a generator rather than the
+whole builder. A required-output token is linear: complete it with a sealed file
+or explicitly fail it. Publication waits for all required outputs and final
+product checks; logging an error is not the same as recording failure.
+Artifact-only mode changes entry requiredness, not target identity or authority.
 
 Build observations distinguish `Hermetic`, `Receipted`, and `Volatile`
 operations. An exact build may be replayable from retained inputs without being

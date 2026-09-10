@@ -27,7 +27,9 @@ Every required build-bound slot must have exactly one selection. Only rows owned
 by the selected profile enter the durable child projection. A row misattributing
 its slot to another profile, duplicate active bindings, or a missing required
 slot rejects with the exact slot identity. Package/library products bind no
-roots. Runtime-installed slots may remain open until installation validates the
+roots. An explicitly artifact-only application also binds no executable roots;
+it must instead satisfy [required artifact completion](scoped_execution.md#staged-products-and-failure).
+Runtime-installed slots may remain open until installation validates the
 same shape, portable demands, target supply, authority, and lifecycle.
 
 ## Source selection is not invocation
@@ -45,6 +47,13 @@ allows it, a machine with one `&mut self` receiver. Build supplies neither that
 receiver nor invocation arguments. The provider selection names a nominal type;
 its ordinary satisfiers determine the derived plan. A leaf needs `via` only for
 payload not derivable from its exact declaration and target.
+
+Only these designated toolchain operands resolve in the product context. They
+do not require a host import of the selected implementation, and host `use`
+exposure cannot redirect them. Ordinary same-named operations receive no exception.
+[Product-reference selection](scoped_execution.md#selecting-product-declarations-without-executing-them)
+defines lexical visibility, restricted helper delegation, exact source/target
+identity, and rejection of generated-source or unfinished-layout cycles.
 
 There is no special `main`, `Main::run`, uniquely visible export, entry field,
 or ambient static discovery. Templates may write ordinary bindings. A test
