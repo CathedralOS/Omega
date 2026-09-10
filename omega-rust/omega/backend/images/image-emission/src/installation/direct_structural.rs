@@ -118,10 +118,12 @@ pub(super) fn function_is_exact(
             ) || placement.shape.class != ValueClass::Integer
                 || (placement.locations.is_empty()
                     && placement.shape != calling_conventions::ValueShape::integer(0, 1))
-                || !placement
-                    .locations
-                    .iter()
-                    .all(|location| matches!(location, ValueLocation::Register { .. }))
+                || !placement.locations.iter().all(|location| {
+                    matches!(
+                        location,
+                        ValueLocation::Register { .. } | ValueLocation::Stack { .. }
+                    )
+                })
             {
                 return false;
             }

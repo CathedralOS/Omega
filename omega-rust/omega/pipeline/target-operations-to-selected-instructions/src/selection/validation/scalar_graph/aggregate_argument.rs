@@ -5,6 +5,7 @@ use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, SelectedMemo
 pub(super) fn argument(
     source: &LegalizedScalarFunction,
     operation: &legalized_operations::LegalizedScalarInstruction,
+    argument_index: usize,
     semantic: &terminal_psi::StructuralArgument,
     target: &target_operations::TargetStructuralArgument,
     replay: &mut Replay<'_>,
@@ -27,6 +28,11 @@ pub(super) fn argument(
         && target.shape == target.destination.shape
     {
         return Ok(Vec::new());
+    }
+    if target.shape != target.destination.shape
+        || !crate::selection::aggregate_result_input::inline_argument_fragments(&target.destination)
+    {
+        return Err(invalid());
     }
     let block = source
         .blocks
@@ -76,15 +82,79 @@ pub(super) fn argument(
     } else {
         None
     };
+    let outgoing = if let Some(ValueLocation::Stack {
+        stack_byte_offset, ..
+    }) = target.destination.locations.first()
+    {
+        let slot = selected_instructions::OutgoingArgumentSlotId {
+            operation: operation.operation,
+            argument_index: argument_index.try_into().map_err(|_| invalid())?,
+        };
+        if replay
+            .transport
+            .slots
+            .iter()
+            .any(|existing| existing.id == slot)
+        {
+            return Err(invalid());
+        }
+        let alignment = target
+            .destination
+            .locations
+            .iter()
+            .filter_map(|location| {
+                if let ValueLocation::Stack { alignment, .. } = location {
+                    Some(*alignment)
+                } else {
+                    None
+                }
+            })
+            .fold(target.shape.alignment, u16::max);
+        replay
+            .transport
+            .slots
+            .push(selected_instructions::SelectedOutgoingArgumentSlot {
+                id: slot,
+                byte_size: u32::from(target.shape.byte_size),
+                alignment,
+                abi_stack_byte_offset: *stack_byte_offset,
+            });
+        let address = super::structural_case::temporary(replay, place, 0, false)?;
+        outgoing_memory(
+            replay,
+            operation.operation,
+            place,
+            0,
+            u32::from(target.shape.byte_size),
+            SelectedMemoryAccessRole::AddressOutgoing { slot },
+        )?;
+        replay.check_instruction(
+            SelectedInstructionKind::FrameAddress {
+                slot: FrameStorageSlotId::Outgoing(slot),
+                byte_offset: 0,
+            },
+            replay.constraints.keys.frame_address.ok_or_else(invalid)?,
+            &[address],
+            &Default::default(),
+        )?;
+        Some((slot, address))
+    } else {
+        None
+    };
     let mut registers = Vec::new();
     for location in &target.destination.locations {
-        let ValueLocation::Register {
-            value_byte_offset,
-            byte_size,
-            ..
-        } = location
-        else {
-            return Err(invalid());
+        let (value_byte_offset, byte_size) = match location {
+            ValueLocation::Register {
+                value_byte_offset,
+                byte_size,
+                ..
+            }
+            | ValueLocation::Stack {
+                value_byte_offset,
+                byte_size,
+                ..
+            } => (value_byte_offset, byte_size),
+            _ => return Err(invalid()),
         };
         let offset = u32::from(*value_byte_offset);
         let output = super::structural_case::temporary(replay, place, offset, false)?;
@@ -113,7 +183,47 @@ pub(super) fn argument(
                 &Default::default(),
             )?;
         }
-        registers.push(output);
+        if let Some((slot, address)) = outgoing {
+            outgoing_memory(
+                replay,
+                operation.operation,
+                place,
+                offset,
+                u32::from(*byte_size),
+                SelectedMemoryAccessRole::WriteOutgoing { slot },
+            )?;
+            super::aggregate_memory::store(replay, address, output, offset, *byte_size)?;
+        } else {
+            registers.push(output);
+        }
     }
     Ok(registers)
+}
+
+/// Outgoing ABI storage belongs to this call occurrence, not to a new source place.
+fn outgoing_memory(
+    replay: &mut Replay<'_>,
+    operation: semantic_vocabulary::OperationId,
+    place: semantic_vocabulary::PlaceId,
+    byte_offset: u32,
+    byte_count: u32,
+    role: SelectedMemoryAccessRole,
+) -> Result<(), SelectedInstructionError> {
+    replay
+        .transport
+        .memory
+        .push(selected_instructions::SelectedMemoryAccess {
+            instruction: SelectedInstructionId(
+                replay
+                    .instruction_cursor
+                    .try_into()
+                    .map_err(|_| SelectedInstructionError::SourceCustodyMismatch)?,
+            ),
+            origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(operation),
+            place,
+            byte_offset,
+            byte_count,
+            role,
+        });
+    Ok(())
 }

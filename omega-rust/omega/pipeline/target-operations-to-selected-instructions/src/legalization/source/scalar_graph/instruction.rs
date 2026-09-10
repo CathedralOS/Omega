@@ -224,7 +224,13 @@ pub(super) fn project(
             ..
         } => {
             let call_plan = scalar_graph_input::callee_plan(*callee, native, plan, unit)?;
-            if structural_arguments.len() > 1
+            let called = unit
+                .functions
+                .iter()
+                .find(|function| function.machine == *callee)
+                .ok_or(Error::SourceCustodyMismatch)?;
+            if called.parameters.len() != scalar_arguments.len()
+                || called.structural_parameters.len() != structural_arguments.len()
                 || call_plan.parameters.len() != scalar_arguments.len() + structural_arguments.len()
             {
                 return Err(Error::SourceCustodyMismatch);
@@ -237,12 +243,9 @@ pub(super) fn project(
                     placement: placement.clone(),
                 })
                 .collect::<Vec<_>>();
-            for semantic in structural_arguments {
-                let target = scalar_graph_input::structural_call::argument(
-                    semantic, operation, optimized, *callee, native, plan, unit,
-                )?;
-                scalar_graph_input::structural_call::validate_argument(
-                    semantic, &target, operation, optimized, *callee, native, plan, unit,
+            for (position, semantic) in structural_arguments.iter().enumerate() {
+                let target = scalar_graph_input::structural_call::argument_at(
+                    semantic, position, operation, optimized, called, &call_plan, native, plan,
                 )?;
                 arguments.push(LegalizedScalarArgument::Structural {
                     semantic: semantic.clone(),

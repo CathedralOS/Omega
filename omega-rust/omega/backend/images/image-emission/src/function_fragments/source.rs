@@ -187,7 +187,10 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         if let Some(abi) = &targeted.mixed_structural_scalar_abi {
             super::mixed_scalar_abi::admit(abstracted, targeted, selected, abi)?;
         }
-        if (unit && !abstracted.parameters.is_empty() || graph_result) && ranked.is_none() {
+        if (unit && (!abstracted.parameters.is_empty() || parameter_abi(targeted).is_some())
+            || graph_result)
+            && ranked.is_none()
+        {
             let (call_plan, scalar_parameters, structural_parameters) = parameter_abi(targeted)
                 .ok_or(Error::Mismatch(
                     "shared function has no retained parameter/result ABI",
@@ -499,7 +502,11 @@ pub(super) fn parameter_abi(
             Some((&body.call_plan, &body.scalar_parameters, &body.parameters))
         }
         target_operations::TargetOperation::ControlGraph(graph)
-            if graph.call_plan.result.is_none() && !graph.scalar_parameters.is_empty()
+            // Inline owned values have no legacy pointer-home ABI. Retain the
+            // actual call plan even for Unit functions with no scalar parameters.
+            if graph.call_plan.result.is_none() && (!graph.scalar_parameters.is_empty()
+                || graph.parameters.iter().any(|parameter|
+                    super::structural::inline_owned_placement(parameter.access, &parameter.placement)))
                 || graph.call_plan.result.is_some()
                     && function.scalar_abi.is_none()
                     && function.mixed_structural_scalar_abi.is_none() =>

@@ -65,7 +65,10 @@ pub(super) fn lower_terminator(
                     return Err(invalid());
                 }
                 if super::scalar_arrays::is_owned_parameter(parameter, structural_types) {
-                    for placement in [&actual.placement, placement] {
+                    // Incoming value fragments may reside on the caller's stack;
+                    // the return still needs a direct-register result ABI. These
+                    // are distinct placements even when the semantic shape agrees.
+                    for (placement, incoming) in [(&actual.placement, true), (placement, false)] {
                         if placement.shape.byte_size > 16
                             || placement.locations.iter().any(|location| {
                                 !matches!(
@@ -74,7 +77,14 @@ pub(super) fn lower_terminator(
                                         byte_size: 1..=8,
                                         ..
                                     }
-                                )
+                                ) && !(incoming
+                                    && matches!(
+                                        location,
+                                        calling_conventions::ValueLocation::Stack {
+                                            byte_size: 1..=8,
+                                            ..
+                                        }
+                                    ))
                             })
                         {
                             return Err(LoweringError::UnsupportedStructuralReturnPlacement(

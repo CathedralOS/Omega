@@ -39,7 +39,6 @@ pub(in crate::legalization) fn argument(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<TargetStructuralArgument, LegalizationError> {
-    use target_operations::TargetStructuralArgumentSource;
     let invalid = LegalizationError::SourceCustodyMismatch;
     let call = super::callee_plan(callee, native, plan, unit)?;
     let called = unit
@@ -47,17 +46,51 @@ pub(in crate::legalization) fn argument(
         .iter()
         .find(|function| function.machine == callee)
         .ok_or(invalid.clone())?;
-    let [destination_parameter] = called.structural_parameters.as_slice() else {
+    if called.structural_parameters.len() != 1 {
         return Err(invalid);
-    };
+    }
+    argument_at(
+        semantic,
+        0,
+        call_operation,
+        caller,
+        called,
+        &call,
+        native,
+        plan,
+    )
+}
+
+/// Rejoin one authored argument using its declaration ordinal and the shared call plan.
+pub(in crate::legalization) fn argument_at(
+    semantic: &StructuralArgument,
+    position: usize,
+    call_operation: semantic_vocabulary::OperationId,
+    caller: &PsiOptimizationFunction,
+    called: &PsiOptimizationFunction,
+    call: &CallPlan,
+    native: &TargetOperationPlan,
+    plan: &AbstractOperationPlan,
+) -> Result<TargetStructuralArgument, LegalizationError> {
+    use target_operations::TargetStructuralArgumentSource;
+    let invalid = LegalizationError::SourceCustodyMismatch;
+    let destination_parameter = called
+        .structural_parameters
+        .get(position)
+        .ok_or(invalid.clone())?;
+    let parameter_ordinal = called
+        .parameters
+        .len()
+        .checked_add(position)
+        .ok_or(invalid.clone())?;
     if semantic.access == StructuralAccess::Owned {
         return super::aggregate_results::call_argument(
             semantic,
-            0,
+            position,
             call_operation,
             caller,
             called,
-            &call,
+            call,
             native,
             plan,
         );
@@ -78,8 +111,8 @@ pub(in crate::legalization) fn argument(
             semantic,
             caller,
             destination_parameter,
-            &call,
-            called.parameters.len(),
+            call,
+            parameter_ordinal,
             native,
             plan,
         );
@@ -167,7 +200,7 @@ pub(in crate::legalization) fn argument(
         source,
         destination: call
             .parameters
-            .get(called.parameters.len())
+            .get(parameter_ordinal)
             .ok_or(invalid)?
             .clone(),
     })

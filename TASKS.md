@@ -82,6 +82,22 @@ do not claim a faster compiler from a smaller helper alone.
   rewind framework solely to close this item. No thread-pool or unrelated IR
   redesign is part of this task.
 
+- **NATIVE-REPLAY-REUSE.** Measure and remove repeated verification work over
+  unchanged retained allocation inputs during native publication. The stack-array
+  regression in `tests/native-differential/tests/scalar_array_results/stack_arguments.rs`
+  is a concrete customer: its initial deep-chain width matrix took 310 seconds
+  on macOS AArch64. A one-second process sample showed image publication entering
+  frame validation, retained allocation replay, runtime-spill recovery, and
+  allocation-legality analysis; this locates work, not its total cost or a proven
+  speedup. Start with `cargo nextest run -p omega-native-differential-test --test
+  scalar_array_results -E 'test(stack_array_arguments)' --no-fail-fast` and the
+  retained owners in `selected-instructions-to-register-homes/src/output/` and
+  `machine-emission/src/fragment_emission/`. Compare stage counts and end-to-end
+  time on identical inputs. Acceptance: reusable immutable prerequisite evidence
+  avoids repeated reconstruction while changed source, environment, placement,
+  and encoded-byte evidence still reject independently. Do not replace replay
+  with a detached hash, skip publication checks, or add a global cache.
+
 - **PACKAGE-PREPARATION-REUSE.** In
   `omega-rust/omega/packages/manager/src/review/candidate/compilation.rs` and its compiler
   source-preparation owners, identify and retain binding-independent source
@@ -1202,11 +1218,27 @@ Owners include
   The complete transitive customer now transports actual payloads through
   `keep_row` and `answer_row`, publishes on all four targets, and executes on
   macOS. Preserve it while extending the remaining value/storage paths below.
-  Stack/indirect owned arguments and hidden-pointer
+  Indirect owned arguments and hidden-pointer
   results remain explicit limits; the selected owner is
   `target-operations-to-selected-instructions/src/selection/aggregate_result_input.rs`.
+  Native high-pressure CFGs also need runtime spill beyond one returning block.
+  The complete 17-byte source is retained by `mixed_call_source(17)` in
+  `tests/native-differential/tests/scalar_array_results/stack_arguments.rs`;
+  `large_sysv_inline_arguments_retain_selected_call_and_stack_evidence` proves
+  selection only. Promoting that same source to `publish` on Linux x64 currently
+  fails `NoCompatibleHome { function: 2, register: 521 }`: its parallel edge
+  snapshots exceed available registers, and spill admission rejects all relevant
+  candidates as `UnsupportedControlFlow`. Extend the existing
+  `selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/`
+  admission/rewrite/replay with independently checked storage and unchanged edges,
+  then require full publication and matching-host execution of that source.
+  Do not increase a retry limit or weaken register interference.
   No new language decision is required for these implementation gaps.
   Empty values must preserve carrier/dimensions independently of zero physical bytes.
+  Scalar-result source graphs also need ordinary local array bindings:
+  `typed-trees-to-checked-trees/src/flow/terminal_scalar.rs` currently requires a
+  primitive local type. A direct array call argument does not close that gap;
+  preserve the same call when adding a named local before it.
   Continue with complete value/storage paths and
   independent custody checks; do not
   substitute opaque structural identities for executable values.

@@ -37,7 +37,12 @@ pub(super) fn emit(
             LegalizedScalarArgument::Structural { semantic, target } => {
                 if semantic.access == StructuralAccess::Owned {
                     for register in super::aggregate_argument::argument(
-                        source, operation, semantic, target, builder,
+                        source,
+                        operation,
+                        argument_index,
+                        semantic,
+                        target,
+                        builder,
                     )? {
                         operands.push((argument_index, register));
                     }

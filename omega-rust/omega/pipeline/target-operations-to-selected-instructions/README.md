@@ -50,8 +50,19 @@ checks every store, result fragment, and the single constructor fuel charge.
 Owned arguments load those same homes or copy captured incoming fragments;
 returning an incoming array retains its parameter identity. Each argument joins
 its exact producer, place, type, and destination ABI, including mixed borrowed
-arguments. Direct values retain complete graph replay at publication, not
+arguments. Inline stack arguments use one contiguous outgoing slot per call and
+argument ordinal. Entry captures their exact fragments before later calls can
+reuse the caller's storage; the frame encoder alone applies the incoming frame
+and return-address bias. Register operands include only register-resident
+fragments. Input residence does not change the independent result ABI checks.
+Inline values retain complete graph replay at publication, not
 pointer-only legacy records.
+Unit and scalar-result calls use the same complete structural-argument roster:
+each declaration ordinal maps to its absolute ABI parameter ordinal after the
+scalar parameters. Arity alone is not an admission rule. Projection and replay
+reconstruct the complete callee plan and check each argument's type, access,
+producer, and placement; an owned value beside a borrowed output is an ordinary
+composition, not a separate call family.
 Direct fragments cover exact widths 1 through 8 bytes, up to two registers;
 Microsoft x64 supports its single-register direct results. Odd widths use
 `LoadPacked`/`StorePacked` with an explicit instruction-local scratch register.
@@ -65,10 +76,13 @@ no payload slot, address, register, or memory access. Constructor operation/fuel
 provenance prefixes the next instruction in the same block, including a terminator;
 independent replay reconstructs that ordered prefix. Empty-result calls and returns
 reuse physical Unit instructions without changing their structural contracts.
-Stack/indirect owned arguments and hidden-pointer results remain explicit transport
+Indirect owned arguments and hidden-pointer results remain explicit transport
 limits. Zero physical size never erases the semantic array type. The native differential
 `scalar_array_results` target covers full publication and matching-host execution;
-its packed cases cover 3/5/6/7-byte tails in one- and two-fragment calls and returns
+its 17-byte SysV mixed-call case is explicitly selection-only until runtime spill
+supports the high-pressure multi-block graph. Inline stack admission is not a
+claim that downstream allocation can realize every graph.
+Its packed cases cover 3/5/6/7-byte tails in one- and two-fragment calls and returns
 on the three direct-register targets. Its floating cases preserve binary32/binary64
 payloads, including signed zeros and NaN payloads. Array results keep their
 integer-fragment aggregate ABI; they are

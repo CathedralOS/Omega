@@ -13,8 +13,7 @@ use crate::structural_reference_input::stack_pointer_offset;
 #[cfg(test)]
 mod fixed_array_tests;
 
-/// Incoming scalar slots compose with the admitted primitive-write result ABI.
-/// Other result-bearing structural signatures retain their current admission.
+/// Incoming scalar slots follow the complete graph ABI; result admission is independent.
 pub(super) fn accepts_stack_parameter_entry(source: &LegalizedScalarFunction) -> bool {
     source.call_plan.result.is_none()
         || crate::unobserved_owned_input::accepts(source)
@@ -27,7 +26,7 @@ pub(super) fn accepts_stack_parameter_entry(source: &LegalizedScalarFunction) ->
                     target: &parameter.target,
                 })
                 .collect::<Vec<_>>();
-            crate::structural_unit_input::accepts_write_borrow(
+            crate::structural_unit_input::accepts_graph(
                 &source.call_plan,
                 &parameters,
                 &signature.structural_types,
@@ -67,11 +66,7 @@ pub(super) fn scalar_stack_placement(
 pub(super) fn register_argument_count(call: &LegalizedScalarCall) -> usize {
     call.arguments
         .iter()
-        .filter(|argument| {
-            stack_pointer_offset(argument.placement()).is_none()
-                && scalar_stack_placement(argument.placement()).is_none()
-        })
-        .map(|argument| argument.placement().locations.len())
+        .map(|argument| placement_register_count(argument.placement()))
         .sum()
 }
 
@@ -81,10 +76,7 @@ pub(super) fn register_argument_order(call: &LegalizedScalarCall) -> Vec<usize> 
         .arguments
         .iter()
         .enumerate()
-        .filter(|(_, argument)| {
-            stack_pointer_offset(argument.placement()).is_none()
-                && scalar_stack_placement(argument.placement()).is_none()
-        })
+        .filter(|(_, argument)| placement_register_count(argument.placement()) != 0)
         .map(|(index, _)| index)
         .collect::<Vec<_>>();
     // Unit and aggregate calls share the mixed input-bank rows. Aggregate
@@ -96,6 +88,24 @@ pub(super) fn register_argument_order(call: &LegalizedScalarCall) -> Vec<usize> 
         });
     }
     order
+}
+
+fn placement_register_count(placement: &calling_conventions::ValuePlacement) -> usize {
+    placement
+        .locations
+        .iter()
+        .filter(|location| {
+            matches!(
+                location,
+                ValueLocation::Register { .. }
+                    | ValueLocation::Indirect {
+                        pointer: IndirectPointerLocation::Register(_),
+                        copy_stack_byte_offset: None,
+                        ..
+                    }
+            )
+        })
+        .count()
 }
 
 fn placement_register(
@@ -131,6 +141,9 @@ pub(super) fn unit_key(
         if matches!(&call.arguments[*index], LegalizedScalarArgument::Structural { semantic, .. } if semantic.access == StructuralAccess::Owned)
         {
             for location in &placement.locations {
+                if matches!(location, ValueLocation::Stack { .. }) {
+                    continue;
+                }
                 let ValueLocation::Register { register, .. } = location else {
                     return None;
                 };
@@ -264,12 +277,17 @@ pub(super) fn validate(
             let start = order
                 .iter()
                 .take_while(|argument| **argument != index)
-                .map(|argument| call.arguments[*argument].placement().locations.len())
+                .map(|argument| placement_register_count(call.arguments[*argument].placement()))
                 .sum::<usize>();
             if call.arguments[index].placement() != placement {
                 return Err(invalid());
             }
-            for (fragment, location) in placement.locations.iter().enumerate() {
+            for (fragment, location) in placement
+                .locations
+                .iter()
+                .filter(|location| !matches!(location, ValueLocation::Stack { .. }))
+                .enumerate()
+            {
                 let ValueLocation::Register { register, .. } = location else {
                     return Err(invalid());
                 };
@@ -325,7 +343,7 @@ pub(super) fn validate(
             order
                 .iter()
                 .take_while(|argument| **argument != index)
-                .map(|argument| call.arguments[*argument].placement().locations.len())
+                .map(|argument| placement_register_count(call.arguments[*argument].placement()))
                 .sum()
         };
         let operand = row.operands.get(operand_index).ok_or_else(invalid)?;

@@ -62,17 +62,79 @@ pub(in crate::selection) fn entry(
         let place = parameter.semantic.place;
         if parameter.semantic.access == StructuralAccess::Owned
             && !legacy_indirect
-            && !crate::selection::aggregate_result_input::direct_fragments(
+            && !crate::selection::aggregate_result_input::inline_argument_fragments(
                 &parameter.target.placement,
             )
         {
             return Err(invalid());
         }
         if parameter.semantic.access == StructuralAccess::Owned
-            && crate::selection::aggregate_result_input::direct_fragments(
+            && crate::selection::aggregate_result_input::inline_argument_fragments(
                 &parameter.target.placement,
             )
         {
+            // Inline stack bytes are the owned payload, not a pointer to a
+            // caller-owned referent. Capture every exact fragment at entry so
+            // later calls use ordinary value preservation, just as register
+            // parameters do. The frame encoder alone adds prologue/return bias.
+            if let Some(ValueLocation::Stack {
+                stack_byte_offset: base,
+                ..
+            }) = parameter.target.placement.locations.first()
+            {
+                let native_parameter = source
+                    .parameters
+                    .len()
+                    .checked_add(parameter_index)
+                    .ok_or_else(invalid)?;
+                if source.call_plan.parameters.get(native_parameter)
+                    != Some(&parameter.target.placement)
+                {
+                    return Err(invalid());
+                }
+                let address = transport_register(builder, place, 0)?;
+                builder.emit(
+                    SelectedInstructionKind::FrameAddress {
+                        slot: selected_instructions::FrameStorageSlotId::Incoming {
+                            parameter_index: native_parameter.try_into().map_err(|_| invalid())?,
+                            abi_stack_byte_offset: *base,
+                        },
+                        byte_offset: 0,
+                    },
+                    builder.constraints.keys.frame_address.ok_or_else(invalid)?,
+                    &[address],
+                    Default::default(),
+                )?;
+                for location in &parameter.target.placement.locations {
+                    let ValueLocation::Stack {
+                        stack_byte_offset,
+                        value_byte_offset,
+                        byte_size,
+                        ..
+                    } = location
+                    else {
+                        return Err(invalid());
+                    };
+                    let offset = u32::from(*value_byte_offset);
+                    if stack_byte_offset.checked_sub(*base) != Some(offset) {
+                        return Err(invalid());
+                    }
+                    let output = transport_register(builder, place, offset)?;
+                    super::super::structural_case::memory(
+                        builder,
+                        source.entry_block,
+                        place,
+                        offset,
+                        u32::from(*byte_size),
+                        selected_instructions::SelectedMemoryAccessRole::ReadPlace,
+                    )?;
+                    super::super::aggregate_memory::load(
+                        builder, address, output, offset, *byte_size,
+                    )?;
+                    builder.transport.fragments.push((place, offset, output));
+                }
+                continue;
+            }
             for location in &parameter.target.placement.locations {
                 let ValueLocation::Register {
                     register,

@@ -36,6 +36,9 @@ mod packed;
 #[path = "scalar_array_results/empty.rs"]
 mod empty;
 
+#[path = "scalar_array_results/stack_arguments.rs"]
+mod stack_arguments;
+
 fn produce(
     source: &str,
     entry: &str,

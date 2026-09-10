@@ -119,11 +119,62 @@ pub(super) fn returned_parameter<'a>(
     if parameter.target.shape != shape
         || placement.shape != shape
         || !direct_fragments(placement)
-        || !direct_fragments(&parameter.target.placement)
+        || !inline_argument_fragments(&parameter.target.placement)
     {
         return None;
     }
     Some((parameter, placement))
+}
+
+/// Inline arguments may occupy registers or a contiguous incoming stack extent.
+/// Result admission remains separate: a stack argument does not admit a hidden result pointer.
+pub(super) fn inline_argument_fragments(placement: &calling_conventions::ValuePlacement) -> bool {
+    if !placement.shape.alignment.is_power_of_two() {
+        return false;
+    }
+    if direct_fragments(placement) {
+        return true;
+    }
+    if placement.shape.class != calling_conventions::ValueClass::Integer
+        || placement.shape.byte_size == 0
+    {
+        return false;
+    }
+    let Some(calling_conventions::ValueLocation::Stack {
+        stack_byte_offset: base,
+        ..
+    }) = placement.locations.first()
+    else {
+        return false;
+    };
+    if !base.is_multiple_of(u32::from(placement.shape.alignment)) {
+        return false;
+    }
+    let mut offset = 0u16;
+    for location in &placement.locations {
+        let calling_conventions::ValueLocation::Stack {
+            stack_byte_offset,
+            value_byte_offset,
+            byte_size,
+            alignment,
+        } = location
+        else {
+            return false;
+        };
+        if *value_byte_offset != offset
+            || !(1..=8).contains(byte_size)
+            || !alignment.is_power_of_two()
+            || !stack_byte_offset.is_multiple_of(u32::from(*alignment))
+            || base.checked_add(u32::from(offset)) != Some(*stack_byte_offset)
+        {
+            return false;
+        }
+        let Some(next) = offset.checked_add(*byte_size) else {
+            return false;
+        };
+        offset = next;
+    }
+    offset == placement.shape.byte_size
 }
 
 pub(super) fn direct_fragments(placement: &calling_conventions::ValuePlacement) -> bool {
