@@ -19,6 +19,28 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
     typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check")
 }
 
+// Catalog order includes scalar callees. Resolve the authored fixture owner once,
+// then join its exact symbol to the retained body being corrupted.
+fn ordinary_body_index(checked: &checked_trees::CheckedTrees, name: &str) -> usize {
+    let mut machines = checked
+        .machines()
+        .iter()
+        .filter(|machine| machine.name.as_str() == name);
+    let symbol = machines.next().expect("authored fixture machine").symbol;
+    assert!(machines.next().is_none());
+    let mut plans = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter()
+        .enumerate()
+        .filter(|(_, plan)| plan.machine == symbol);
+    let index = plans.next().expect("exact ordinary body").0;
+    assert!(plans.next().is_none());
+    index
+}
+
 const SOURCE: &str = r#"
     machine reset(value: &mut u64) -> u64 { value = 0; 7 }
     machine enter(value: &mut u64) {
@@ -178,7 +200,9 @@ fn unused_primitive_local_still_establishes_once_and_cannot_be_removed_or_duplic
     );
     for duplicate in [false, true] {
         let mut changed = original.clone();
-        let operations = &mut changed.facts.flow.terminal_unit_effects.machines[0].operations;
+        let caller_index = ordinary_body_index(&changed, "enter");
+        let operations =
+            &mut changed.facts.flow.terminal_unit_effects.machines[caller_index].operations;
         assert!(matches!(
             operations[0],
             checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
@@ -223,7 +247,9 @@ fn primitive_local_initializer_cannot_move_after_its_borrow_or_use_another_symbo
     );
     for mutation in 0..4 {
         let mut changed = original.clone();
-        let operations = &mut changed.facts.flow.terminal_unit_effects.machines[0].operations;
+        let caller_index = ordinary_body_index(&changed, "enter");
+        let operations =
+            &mut changed.facts.flow.terminal_unit_effects.machines[caller_index].operations;
         let checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
             symbol: second,
             ..
@@ -283,12 +309,15 @@ fn primitive_storage_read_cannot_substitute_another_symbol_initializer_or_scalar
     let original = checked(TWO_LOCAL_SOURCE);
     let _ = terminal_production::produce_terminal_artifact(&original, "enter")
         .expect("original storage read");
-    let caller_state = original.facts.flow.terminal_unit_effects.machines[0].state;
+    let caller_index = ordinary_body_index(&original, "enter");
+    let caller_state = original.facts.flow.terminal_unit_effects.machines[caller_index].state;
     for (mutation, synchronize_expression) in
         (0..5).flat_map(|mutation| [false, true].map(|synchronize| (mutation, synchronize)))
     {
         let mut changed = original.clone();
-        let operations = &mut changed.facts.flow.terminal_unit_effects.machines[0].operations;
+        let caller_index = ordinary_body_index(&changed, "enter");
+        let operations =
+            &mut changed.facts.flow.terminal_unit_effects.machines[caller_index].operations;
         let checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
             symbol: second,
             ..
@@ -376,7 +405,8 @@ fn primitive_local_plan_cannot_grant_mutability_to_an_immutable_authored_binding
     let mut changed = checked(TWO_LOCAL_SOURCE);
     let _ = terminal_production::produce_terminal_artifact(&changed, "enter")
         .expect("original mutable local");
-    let state_symbol = changed.facts.flow.terminal_unit_effects.machines[0].state;
+    let caller_index = ordinary_body_index(&changed, "enter");
+    let state_symbol = changed.facts.flow.terminal_unit_effects.machines[caller_index].state;
     let statements = changed
         .machines()
         .iter()
@@ -438,7 +468,8 @@ fn pure_call_argument_replays_its_authored_local_even_when_cached_and_plan_reads
 
     for synchronize_expression in [false, true] {
         let mut changed = original.clone();
-        let plan = &mut changed.facts.flow.terminal_unit_effects.machines[0];
+        let caller_index = ordinary_body_index(&changed, "enter");
+        let plan = &mut changed.facts.flow.terminal_unit_effects.machines[caller_index];
         let caller_state = plan.state;
         let locals = plan
             .operations
@@ -744,7 +775,9 @@ fn attached_callee_uses_the_shared_catalogs_nested_type_and_field_identities() {
 #[test]
 fn borrowed_scalar_call_rejects_missing_duplicated_or_substituted_callee_custody() {
     let original = checked(SOURCE);
-    for mutation in 0..5 {
+    // Absence selects the independently complete ordinary body; a present
+    // malformed legacy row must never redirect to that fallback.
+    for mutation in 1..5 {
         let mut changed = original.clone();
         let plans = &mut changed
             .facts
@@ -753,7 +786,6 @@ fn borrowed_scalar_call_rejects_missing_duplicated_or_substituted_callee_custody
             .machines;
         assert_eq!(plans.len(), 1);
         match mutation {
-            0 => plans.clear(),
             1 => plans.push(plans[0].clone()),
             2 => plans[0].effects.clear(),
             3 => plans[0].return_statement_ordinal = 0,
@@ -819,7 +851,8 @@ fn caller_store_cannot_substitute_a_literal_for_the_returned_value() {
         panic!("callee store");
     };
     let zero = zero.clone();
-    let caller = &mut checked.facts.flow.terminal_unit_effects.machines[0];
+    let caller_index = ordinary_body_index(&checked, "enter");
+    let caller = &mut checked.facts.flow.terminal_unit_effects.machines[caller_index];
     let checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { value, .. } =
         &mut caller.operations[1]
     else {
@@ -834,7 +867,9 @@ fn caller_store_roster_rejects_deleted_duplicate_or_stale_assignment_sites() {
     let original = checked(SOURCE);
     for mutation in 0..4 {
         let mut changed = original.clone();
-        let operations = &mut changed.facts.flow.terminal_unit_effects.machines[0].operations;
+        let caller_index = ordinary_body_index(&changed, "enter");
+        let operations =
+            &mut changed.facts.flow.terminal_unit_effects.machines[caller_index].operations;
         match mutation {
             0 => {
                 operations.remove(1);
@@ -866,8 +901,72 @@ fn an_unused_scalar_result_cannot_erase_its_callees_borrowed_write() {
     );
     let _ = terminal_production::produce_terminal_artifact(&checked, "enter")
         .expect("unused result still calls");
-    checked.facts.flow.terminal_unit_effects.machines[0]
+    let caller_index = ordinary_body_index(&checked, "enter");
+    checked.facts.flow.terminal_unit_effects.machines[caller_index]
         .operations
         .remove(0);
     assert!(terminal_production::produce_terminal_artifact(&checked, "enter").is_err());
+}
+
+#[test]
+fn ordinary_borrowed_scalar_body_replays_store_result_and_completion_custody() {
+    let mut original = checked(SOURCE);
+    let callee_index = ordinary_body_index(&original, "reset");
+    let callee = original.facts.flow.terminal_unit_effects.machines[callee_index].machine;
+    let legacy = &mut original
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .machines;
+    assert_eq!(legacy.len(), 1);
+    assert_eq!(legacy[0].machine, callee);
+    legacy.remove(0);
+    // This actually executes the fallback, including the borrowed zero store
+    // followed by the scalar seven returned into the caller's second store.
+    let artifact = terminal_production::produce_terminal_artifact(&original, "enter")
+        .expect("complete ordinary borrowed scalar body");
+    execute(&artifact, &[], 7);
+    let plan = &original.facts.flow.terminal_unit_effects.machines[callee_index];
+    assert!(matches!(
+        plan.operations.as_slice(),
+        [
+            checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. },
+            checked_trees::CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. },
+            checked_trees::CheckedUnitEffectOperationPlan::Complete { .. }
+        ]
+    ));
+    for mutation in 0..9 {
+        let mut changed = original.clone();
+        let plans = &mut changed.facts.flow.terminal_unit_effects.machines;
+        match mutation {
+            0 => {
+                plans.remove(callee_index);
+            }
+            1 => plans.push(plans[callee_index].clone()),
+            2 => {
+                plans[callee_index].operations.remove(0);
+            }
+            3 => {
+                let store = plans[callee_index].operations[0].clone();
+                plans[callee_index].operations.insert(0, store);
+            }
+            4 => plans[callee_index].operations.swap(0, 1),
+            5 => {
+                plans[callee_index].structural_parameters[0].access =
+                    checked_trees::CheckedStructuralAccess::SharedBorrow
+            }
+            6 => plans[callee_index].scalar_result = None,
+            7 => {
+                plans[callee_index].operations.remove(1);
+            }
+            8 => {
+                plans[callee_index].operations.pop();
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            terminal_production::produce_terminal_artifact(&changed, "enter").is_err(),
+            "consumed ordinary callee custody mutation {mutation}"
+        );
+    }
 }
