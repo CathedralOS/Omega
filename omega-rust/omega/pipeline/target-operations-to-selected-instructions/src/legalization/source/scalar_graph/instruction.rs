@@ -86,8 +86,10 @@ pub(super) fn project(
             boundary,
             result: abstract_operations::AbstractBoundaryResult::Structural(result),
             ..
-        } if scalar_graph_input::hosted_execution(native, optimized.machine, operation)?
-            == target_operations::CompilerBuiltinExecution::HostedReadByte =>
+        } if matches!(
+            scalar_graph_input::hosted_realization(native, optimized.machine, operation)?,
+            target_operations::BoundaryRealization::HostedReadByte(_)
+        ) =>
         {
             LegalizedScalarInstructionKind::HostedReadByte {
                 boundary: *boundary,
@@ -103,14 +105,14 @@ pub(super) fn project(
             let [source] = arguments.as_slice() else {
                 return Err(Error::SourceCustodyMismatch);
             };
-            match scalar_graph_input::hosted_execution(native, optimized.machine, operation)? {
-                target_operations::CompilerBuiltinExecution::HostedWriteByteI32 => {
+            match scalar_graph_input::hosted_realization(native, optimized.machine, operation)? {
+                target_operations::BoundaryRealization::HostedWriteByteI32(_) => {
                     LegalizedScalarInstructionKind::HostedWriteByteI32 {
                         boundary: *boundary,
                         source: *source,
                     }
                 }
-                target_operations::CompilerBuiltinExecution::HostedExitProcessI32 => {
+                target_operations::BoundaryRealization::HostedExitProcessI32(_) => {
                     LegalizedScalarInstructionKind::HostedExitProcessI32 {
                         boundary: *boundary,
                         source: *source,

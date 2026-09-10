@@ -72,13 +72,12 @@ pub(super) fn settlement(
     let scalar_type = ScalarType::Integer(
         IntegerType::new(IntegerSign::Signed, 32).map_err(|_| Error::Mismatch("i32"))?,
     );
+    let (execution, realization) = target_settlement(container, machine, operation, boundary)?;
     let settlement = BoundarySettlementRecord {
         psi_operation: operation,
         boundary,
-        execution: BoundaryExecutionRecord::CompilerBuiltin(
-            target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
-        ),
-        realization: target_operations::BoundaryRealization::HostedWriteByteI32(Default::default()),
+        execution: execution.into(),
+        realization,
         scalar_arguments: Vec::new(),
         runtime_scalar_arguments: vec![ForeignCallScalarArgumentRecord {
             parameter_index: 0,
@@ -193,7 +192,10 @@ pub(super) fn validate(
     };
     let offset = host(span.offset)?;
     let (abstracted, _) = source::function(container, machine)?;
-    if proposed.machine != machine
+    let (execution, realization) = target_settlement(container, machine, operation, boundary)?;
+    if settlement.execution != BoundaryExecutionRecord::from(execution)
+        || settlement.realization != realization
+        || proposed.machine != machine
         || proposed.text_offset
             != host(placed.section_offset)?
                 .checked_add(offset)
@@ -220,4 +222,74 @@ pub(super) fn validate(
         return Err(invalid());
     }
     Ok(())
+}
+
+// The selected instruction describes the physical mechanism, not the provider
+// admitting it. Rejoin the exact retained target occurrence on construction and
+// replay so an ordinary provider can never acquire compiler-builtin custody.
+fn target_settlement(
+    container: &StagedOptimizedRelocationFreeObjectContainer,
+    machine: MachineId,
+    operation: semantic_vocabulary::OperationId,
+    boundary: semantic_vocabulary::BoundaryMachineId,
+) -> Result<
+    (
+        target_operations::BoundaryExecutionBinding,
+        target_operations::BoundaryRealization,
+    ),
+    Error,
+> {
+    use target_operations::{
+        BoundaryExecutionBinding, BoundaryRealization, CompilerBuiltinExecution, TargetOperation,
+        TargetUnitOperation,
+    };
+    let (_, target) = source::function(container, machine)?;
+    let mut found = None;
+    let mut inspect = |row: &TargetUnitOperation| -> Result<(), Error> {
+        if let TargetUnitOperation::BoundarySettlement {
+            psi_operation,
+            boundary: source_boundary,
+            execution,
+            realization,
+            ..
+        } = row
+            && *psi_operation == operation
+        {
+            if *source_boundary != boundary
+                || found.is_some()
+                || !matches!(
+                    (execution, realization),
+                    (
+                        BoundaryExecutionBinding::AdmittedProvider(_),
+                        BoundaryRealization::HostedWriteByteI32(_)
+                    ) | (
+                        BoundaryExecutionBinding::CompilerBuiltin(
+                            CompilerBuiltinExecution::HostedWriteByteI32
+                        ),
+                        BoundaryRealization::HostedWriteByteI32(_)
+                    )
+                )
+            {
+                return Err(Error::Mismatch("byte output target settlement custody"));
+            }
+            found = Some((*execution, *realization));
+        }
+        Ok(())
+    };
+    match &target.operation {
+        TargetOperation::UnitBody(body) => {
+            for row in &body.operations {
+                inspect(row)?;
+            }
+        }
+        TargetOperation::ControlGraph(graph) => {
+            for block in &graph.blocks {
+                for row in &block.operations {
+                    inspect(row)?;
+                }
+            }
+        }
+        _ => return Err(Error::Mismatch("byte output target function role")),
+    }
+    found.ok_or(Error::Mismatch("missing byte output target settlement"))
 }

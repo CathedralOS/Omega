@@ -45,7 +45,14 @@ pub(super) fn validate_completion_custody(
     ) {
         return Err(CompletionCustodyError::ReceiptCustody);
     }
-    let compiler_builtin_pair_is_exact = match (settlement.execution, settlement.realization) {
+    let execution_realization_pair_is_exact = match (settlement.execution, settlement.realization) {
+        // The same returning byte-output mechanism may retain admitted provider
+        // custody. Completion receipts are still reconstructed below; matching
+        // this pair neither creates a receipt nor changes provider identity.
+        (
+            machine_code::BoundaryExecutionRecord::AdmittedProvider(_),
+            target_operations::BoundaryRealization::HostedWriteByteI32(_),
+        ) => true,
         (
             machine_code::BoundaryExecutionRecord::CompilerBuiltin(
                 target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
@@ -68,12 +75,11 @@ pub(super) fn validate_completion_custody(
         | (
             _,
             target_operations::BoundaryRealization::HostedExitProcessI32(_)
-            | target_operations::BoundaryRealization::HostedWriteByteI32(_)
             | target_operations::BoundaryRealization::HostedReadByte(_),
         ) => false,
         _ => true,
     };
-    if !compiler_builtin_pair_is_exact {
+    if !execution_realization_pair_is_exact {
         return Err(CompletionCustodyError::ProviderCustody);
     }
     if derive_completion_provider_custody(
@@ -398,9 +404,14 @@ mod tests {
             Err(CompletionCustodyError::ProviderCustody)
         );
 
-        let mut reverse_role_substitution = settlement(Vec::new(), Vec::new(), Vec::new());
-        reverse_role_substitution.realization =
+        let mut provider_output = settlement(Vec::new(), Vec::new(), Vec::new());
+        provider_output.realization =
             target_operations::BoundaryRealization::HostedWriteByteI32(Default::default());
+        assert_eq!(validate_completion_custody(&provider_output), Ok(()));
+
+        let mut reverse_role_substitution = provider_output;
+        reverse_role_substitution.realization =
+            target_operations::BoundaryRealization::HostedExitProcessI32(Default::default());
         assert_eq!(
             validate_completion_custody(&reverse_role_substitution),
             Err(CompletionCustodyError::ProviderCustody)
