@@ -91,3 +91,61 @@ pub(super) fn append_transfer(
         obligation_live: false,
     });
 }
+
+/// Case membership identifies the active payload, but grants no ownership of
+/// a borrowed referent. A saved pattern subject must obey the same rule as an
+/// explicitly authored member expression; no marker spelling participates.
+pub(super) fn is_borrowed_case_transfer(
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
+    event: &crate::flow::DiscoveredMoveEvent,
+    path: &[facts::PlaceSegment],
+) -> bool {
+    if !path
+        .iter()
+        .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
+    {
+        return false;
+    }
+    let statement_index = event_statement_index(event.source).unwrap_or(0);
+    let place = crate::flow::CanonicalPlace {
+        root: event.root,
+        segments: path.to_vec(),
+    };
+    let Some(payload) =
+        crate::flow::canonical_place_type_reference(program, state.symbol, statement_index, &place)
+    else {
+        return false;
+    };
+    if type_multiplicity(program, payload) == Multiplicity::Unrestricted
+        || type_reference_is_reference(program, payload)
+    {
+        return false;
+    }
+    // Self event roots are normalized to the machine; recover its actual
+    // receiver declaration rather than interpreting the machine as a value.
+    if let facts::PlaceRoot::Symbol(root) = event.root
+        && program.machines().iter().any(|machine| {
+            machine.symbol == root
+                && program
+                    .machine_states(machine)
+                    .iter()
+                    .any(|candidate| candidate.symbol == state.symbol)
+        })
+        && program.state_parameters(state).iter().any(|parameter| {
+            parameter.is_self && type_reference_is_reference(program, parameter.type_reference)
+        })
+    {
+        return true;
+    }
+    // A reference may occur at the root or inside an owned wrapper. Copying
+    // or moving that reference does not permit taking its referent's payload.
+    (0..path.len()).any(|length| {
+        let prefix = crate::flow::CanonicalPlace {
+            root: event.root,
+            segments: path[..length].to_vec(),
+        };
+        crate::flow::canonical_place_type_reference(program, state.symbol, statement_index, &prefix)
+            .is_some_and(|reference| type_reference_is_reference(program, reference))
+    })
+}

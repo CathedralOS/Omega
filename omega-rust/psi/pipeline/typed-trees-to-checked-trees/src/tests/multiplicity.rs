@@ -1,5 +1,7 @@
 use super::*;
 
+mod borrowed_case_payloads;
+
 fn checked(source: &str) -> checked_trees::CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
