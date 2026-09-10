@@ -1078,7 +1078,7 @@ Owners include
   The concrete operator-result customer is
   `tests/omega/pass/expressions/declared_operator_match_result/main.omg`.
   Direct nonboundary operator execution is **OWNER-BLOCKED** on
-  [Q6: executable supply](OWNER_QUESTIONS.md#direct-operator-executable-supply).
+  [Operator executable supply](OWNER_QUESTIONS.md#direct-operator-executable-supply).
   Its checked `u8::sum` satisfier returns `u64`, but satisfaction does not select
   that body for the operator use. The missing source binding rule must be settled
   before connecting nested execution to the ordinary scalar computation call path in
