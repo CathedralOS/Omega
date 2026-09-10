@@ -603,7 +603,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   endpoint formation needs its own arithmetic proof, not an unchecked
   polynomial. Non-polynomial endpoint substitutions beyond exact input
   forwarding need their own equality evidence.
-  Scalar views beyond `u64` identity forwarding, and slice lengths
+  Scalar views beyond bare unsigned identity forwarding, and slice lengths
   over projected storage need their produced-rank facts.
   These are implementation gaps, not grounds to weaken the range obligation.
 

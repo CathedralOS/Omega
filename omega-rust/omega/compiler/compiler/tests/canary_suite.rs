@@ -737,6 +737,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "termination/rank_range_named_state",
     "termination/computed_rank_copies",
     "termination/identity_measure_rank_range",
+    "termination/unsigned_identity_measure_rank_range",
     "termination/measure_field_projection",
     "termination/measure_field_rank_range",
     "termination/measure_field_rank_endpoint",

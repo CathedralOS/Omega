@@ -1,3 +1,8 @@
+//! A declared identity view shares natural-number proofs only after its exact
+//! input, result, and subject carriers agree. Classification supplies neither
+//! range membership nor descent, and never rewrites custom witness identity to
+//! a builtin view. Diagnostic type spellings are not identity-view application evidence.
+
 use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::measure::MeasureDefinition;
@@ -8,8 +13,7 @@ use measure_body::{MeasureBodyShape, measure_body_shape};
 /// The well-founded ordering selected for a `terminates by value -> Order` clause.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum RankingOrder {
-    /// Built-in descending naturals (also used for a simple `usize`-valued measure
-    /// whose body forwards the parameter directly).
+    /// Built-in descending naturals.
     NatDescending,
     /// Built-in `Nat::BoundedDistance`: the named bounded-distance ranking over
     /// a two-subject tuple. `terminates by (index, limit) -> Nat::BoundedDistance`
@@ -32,7 +36,7 @@ pub(super) enum RankingOrder {
     /// A declared `measure` whose body forwards the (already numeric) parameter.
     CustomNatDescending,
     /// A declared `measure` whose body projects a field of a struct parameter,
-    /// e.g. `measure Card::PowerOrder(card: Card) -> usize { card.power }`. The
+    /// e.g. `measure Card::PowerOrder(card: Card) -> u64 { card.power }`. The
     /// stored field type retains its exact declaration's range constraints.
     CustomStructView {
         field: typed_trees::name::Identifier,
@@ -188,19 +192,9 @@ impl RankingOrder {
             return Some(Self::Lexicographic(components));
         }
 
-        // Simple measure: validate parameter / return shape, then classify the body.
-        if !measure_return_is_natural(program, measure) {
-            return None;
-        }
-
         match measure_body_shape(program, measure)? {
-            MeasureBodyShape::ParameterForward => {
-                // The decreasing value is already the numeric quantity.
-                if measure_parameter_is_natural(program, measure)
-                    && expression_type_name(program, state, decreases)
-                        .as_deref()
-                        .is_some_and(|name| natural_measure_names_match(name, "u64"))
-                {
+            MeasureBodyShape::ParameterForward { carrier } => {
+                if identity_subject_matches(program, state, decreases, carrier) {
                     Some(Self::CustomNatDescending)
                 } else {
                     None
@@ -485,33 +479,48 @@ fn find_declared_measure<'program>(
     matching.next().is_none().then_some(measure)
 }
 
-/// `usize` is retired (parse-rejected); `u64` is the natural-measure name,
-/// synthesized for `.len` projections and subtraction measures alike, so the
-/// comparison is direct.
-fn natural_measure_names_match(left: &str, right: &str) -> bool {
-    left == right
-}
-
-fn measure_return_is_natural(
+fn identity_subject_matches(
     program: &typed_trees::TypedTrees,
-    measure: &MeasureDefinition,
+    state: &typed_trees::state::State,
+    subject: ExpressionHandle,
+    carrier: symbols::BuiltinTypeAtom,
 ) -> bool {
-    program
-        .type_reference_table
-        .display_name(measure.return_type)
-        == "u64"
-}
-
-fn measure_parameter_is_natural(
-    program: &typed_trees::TypedTrees,
-    measure: &MeasureDefinition,
-) -> bool {
-    measure.parameter.as_ref().is_some_and(|parameter| {
+    let reference = if let ExpressionNode::Name(path) = program.expression_table.expression(subject)
+    {
         program
-            .type_reference_table
-            .display_name(parameter.type_reference)
-            == "u64"
-    })
+            .state_parameters(state)
+            .iter()
+            .find(|parameter| {
+                path.symbol.is_valid()
+                    && path.head_symbol == path.symbol
+                    && program
+                        .expression_table
+                        .name_path_members(path.members)
+                        .len()
+                        == 1
+                    && !parameter.is_self
+                    && parameter.symbol == path.symbol
+            })
+            .map(|parameter| parameter.type_reference)
+    } else {
+        let Some(machine) = program.machines().iter().find(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .any(|candidate| candidate.symbol == state.symbol)
+        }) else {
+            return false;
+        };
+        // Computed subjects need their selected result type; `.len` spelling
+        // or a subtraction node cannot manufacture a u64 result carrier.
+        validation::expression_result_type_reference(program, machine, state, subject)
+    };
+    let Some(reference) = reference else {
+        return false;
+    };
+    matches!(program.type_reference_table.type_reference(unwrap_constraint_shells(program, reference)),
+        typed_trees::types::TypeReferenceNode::Named { symbol, .. }
+            if program.symbols.builtin_type_atom(*symbol) == Some(carrier))
 }
 
 fn expression_type_name(
