@@ -199,9 +199,55 @@ pub(crate) fn validate_anonymous_integer_range(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<(Interval, Option<PrimitiveType>)> {
     let primitive = program.primitive_type_reference(destination)?;
+    validate_anonymous_integer_primitive_range(program, primitive, expression, owner, diagnostics)
+}
+
+fn validate_anonymous_integer_primitive_range(
+    program: &TypedTrees,
+    primitive: PrimitiveType,
+    expression: ExpressionHandle,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<(Interval, Option<PrimitiveType>)> {
     // A destination policy governs operations after landing. It cannot give a
     // fraction an integer value or make an out-of-range anonymous value fit.
     if primitive == PrimitiveType::Addr || !primitive.accepts_integer_literal() {
+        return None;
+    }
+    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
+        // Every arm must form a compatible result, even after a wildcard. The
+        // destination checks the complete anonymous arm; a successful arm is
+        // not an unconditional interval fact about the whole dispatch.
+        let mut pending = program
+            .expression_table
+            .match_arms(dispatch.arms)
+            .iter()
+            .map(|arm| arm.value)
+            .collect::<Vec<_>>();
+        let mut visited = vec![expression];
+        while let Some(value) = pending.pop() {
+            if !program.expression_table.expression_is_valid(value) || visited.contains(&value) {
+                continue;
+            }
+            visited.push(value);
+            if let ExpressionNode::Match(nested) = program.expression_table.expression(value) {
+                pending.extend(
+                    program
+                        .expression_table
+                        .match_arms(nested.arms)
+                        .iter()
+                        .map(|arm| arm.value),
+                );
+            } else {
+                validate_anonymous_integer_primitive_range(
+                    program,
+                    primitive,
+                    value,
+                    owner,
+                    diagnostics,
+                );
+            }
+        }
         return None;
     }
     let evaluated =
@@ -580,6 +626,20 @@ pub(crate) fn check_value_narrowing(
 ) {
     if let ExpressionNode::Match(dispatch) = program.expression_table.expression(value) {
         for arm in program.expression_table.match_arms(dispatch.arms) {
+            // Narrowing discards arithmetic diagnostics normally produced by
+            // statement validation; dispatch children need their own landing.
+            if !matches!(
+                program.expression_table.expression(arm.value),
+                ExpressionNode::Match(_)
+            ) {
+                validate_anonymous_integer_primitive_range(
+                    program,
+                    target,
+                    arm.value,
+                    owner,
+                    diagnostics,
+                );
+            }
             check_value_narrowing(
                 program,
                 machine,

@@ -6,8 +6,8 @@ use diagnostics::Diagnostic;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use typed_trees::types::TypeReferenceHandle;
 
-mod array_elements;
-use array_elements::{admit_array_elements, admit_assignment_value};
+mod result_values;
+use result_values::{admit_assignment_value, admit_result_values};
 
 /// Query only after successful validation: warnings do not participate in the
 /// admission diagnostic count. The fractional source occurrence survives even
@@ -162,6 +162,21 @@ pub(in crate::literals) fn append_destination_literals(
         }
     }
     for (parent, node) in program.expression_table.expression_entries() {
+        // Owning a dispatch result never owns the comparison inputs. Inspect
+        // those edges even when its result-forwarding node is in `owned`.
+        if let ExpressionNode::Match(dispatch) = node {
+            let mut exclude_input = |input| {
+                if owned.contains(&input) {
+                    append_tree(program, input, &mut excluded);
+                }
+            };
+            exclude_input(dispatch.subject);
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    exclude_input(pattern);
+                }
+            }
+        }
         if owned.contains(&parent) {
             continue;
         }
@@ -225,7 +240,7 @@ fn collect_destination_trees(
     let mut trees = DestinationTrees::default();
     let mut other_elements = Vec::new();
     let mut admitted = |destination, expression| {
-        admit_array_elements(
+        admit_result_values(
             program,
             destination,
             expression,
@@ -497,6 +512,10 @@ fn has_large_leaf(program: &TypedTrees, root: ExpressionHandle) -> bool {
     false
 }
 
+/// Follow inherited destination custody, not arbitrary expression containment.
+/// Match comparisons do not inherit the result destination. Calls, casts and
+/// constructors select independent destinations, so neither owning nor excluding
+/// an enclosing result may change their separately checked argument/field grants.
 fn append_tree(
     program: &TypedTrees,
     root: ExpressionHandle,
@@ -509,12 +528,29 @@ fn append_tree(
         {
             continue;
         }
+        let node = program.expression_table.expression(expression);
+        if matches!(
+            node,
+            ExpressionNode::Call(_) | ExpressionNode::Cast(_) | ExpressionNode::StructLiteral(_)
+        ) {
+            // Leave the boundary itself outside inherited custody as well:
+            // the parent-edge scan must still check its receiver and every
+            // non-admitted argument/field occurrence.
+            continue;
+        }
         collected.push(expression);
-        children(
-            program,
-            program.expression_table.expression(expression),
-            |child| pending.push(child),
-        );
+        match node {
+            ExpressionNode::Match(dispatch) => {
+                pending.extend(
+                    program
+                        .expression_table
+                        .match_arms(dispatch.arms)
+                        .iter()
+                        .map(|arm| arm.value),
+                );
+            }
+            node => children(program, node, |child| pending.push(child)),
+        }
     }
 }
 
@@ -523,6 +559,7 @@ mod tests {
     use super::*;
 
     mod arrays;
+    mod match_results;
     mod windows;
 
     fn typed(source_text: &str) -> TypedTrees {

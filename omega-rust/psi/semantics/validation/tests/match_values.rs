@@ -114,3 +114,54 @@ fn selected_scalar_calls_may_reborrow_and_mutate() {
     let errors = diagnostics(source);
     assert!(errors.is_empty(), "{errors:?}");
 }
+
+#[test]
+fn match_result_destinations_admit_exact_large_intermediates() {
+    let result =
+        "match flag { true -> 18446744073709551616 / 18446744073709551616, false -> 7 / 2 * 2 }";
+    for body in [
+        result.to_owned(),
+        format!("let saved: u64 = {result}; saved"),
+        format!("let mut saved: u64 = 0; saved = {result}; saved"),
+        format!("take({result})"),
+        format!(
+            "transition {{ _ -> finish({result}) }} state finish(value: u64) -> u64 {{ value }}"
+        ),
+    ] {
+        let source = format!(
+            "machine take(value: u64) -> u64 {{ value }} machine run(flag: bool) -> u64 {{ {body} }}"
+        );
+        let errors = diagnostics(&source);
+        assert!(errors.is_empty(), "{source}: {errors:?}");
+    }
+}
+
+#[test]
+fn match_result_destinations_do_not_repair_invalid_numeric_arms() {
+    for policy in ["", " in Wrapping", " in Saturating", " in Trapping"] {
+        let source = format!(
+            "machine run(flag: bool) -> u8{policy} {{ match flag {{ _ -> 1, false -> 256 }} }}"
+        );
+        let errors = diagnostics(&source);
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("does not fit destination `u8`")),
+            "{source}: {errors:?}"
+        );
+    }
+    for value in [
+        "7 / 2",
+        "18446744073709551616",
+        "18446744073709551616 / 0",
+        "18446744073709551616 % 2",
+        "1i32",
+    ] {
+        for pattern in ["true", "_"] {
+            let source = format!(
+                "machine run(flag: bool) -> u64 {{ match flag {{ {pattern} -> 1, _ -> {value} }} }}"
+            );
+            assert!(!diagnostics(&source).is_empty(), "{source}");
+        }
+    }
+}

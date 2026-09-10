@@ -183,3 +183,30 @@ fn value_dispatch_default_call_keeps_its_nonzero_premise_through_terminal() {
         );
     }
 }
+
+#[test]
+fn value_dispatch_arms_land_exact_arithmetic_at_the_result_destination() {
+    for source in [
+        "machine choose(flag: bool) -> u64 {
+        match flag {
+            true -> 18446744073709551616 / 18446744073709551616
+            false -> 7 / 2 * 2
+        }
+    }",
+        "machine take(value: u64) -> u64 { value }
+     machine choose(flag: bool) -> u64 {
+        take(match flag {
+            true -> match flag { _ -> 18446744073709551616 / 18446744073709551616 }
+            false -> take(7 / 2 * 2)
+        })
+    }",
+    ] {
+        for (flag, expected) in [(true, 1), (false, 7)] {
+            let (_, execution) = execute(source, &[TerminalScalarValue::Boolean(flag)]);
+            assert_eq!(
+                execution.value(),
+                TerminalExecutionResult::Scalar(unsigned(expected))
+            );
+        }
+    }
+}
