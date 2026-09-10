@@ -83,6 +83,15 @@ no fixed-width subject or runtime rational carrier is invented. Even a leading
 wildcard must not erase a call, typed value, or undefined subject. All-arm typing,
 coverage and result-destination checks remain separate from selective execution.
 
+`cargo run -p omega -- inspect-terminal --machine choose --target macos_arm64 tests/omega/pass/expressions/match_float_results/main.omg`
+exercises f32 result selection inside ordinary calls. Match carries f32/f64
+results through the same typed continuation as other scalar values, preserving
+format and payload without arithmetic, conversion, or comparison of the result.
+Boolean/integer subjects and exact anonymous selection are supported here;
+floating-point subjects still need their independently retained comparison
+meaning and lowering. A floating result does not authorize integer equality on
+a floating subject.
+
 [Lexing](source-files-to-tokens/src/lexer.rs) consumes loaded source records,
 preserving source identity and byte spans. Numeric metadata and decoded literal
 bytes are spelling-level payload, not typed values or proof facts. The closed

@@ -11,9 +11,10 @@ impl Builder<'_, '_> {
         dispatch: &TableMatchExpression,
         result_type: PrimitiveType,
     ) -> Option<CheckedScalarComputationHandle> {
-        if result_type != PrimitiveType::Bool && !is_integer(result_type) {
-            return None;
-        }
+        // Result transport is independent of pattern comparison. Each arm must
+        // produce the exact requested scalar carrier through ordinary expression
+        // lowering; selecting f32/f64 values neither compares nor converts them.
+        // Subject admission below still requires its supported comparison meaning.
         // Anonymous comparisons have exact compile-time meaning without a
         // machine-width subject. Retain the selected arm's ordinary computation;
         // source custody rederives this selection from the unchanged Match root.
