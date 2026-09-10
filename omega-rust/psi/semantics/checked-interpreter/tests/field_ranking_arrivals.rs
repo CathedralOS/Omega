@@ -11,9 +11,22 @@ fn record_field_countdown_executes_through_renamed_state_arrivals() {
         env!("CARGO_MANIFEST_DIR"),
         "/../../../../tests/omega/pass/termination/measure_field_named_arrival/main.omg"
     ));
+    check_countdown(countdown, "Countdown { remaining: 5 }, 5");
+}
+
+#[test]
+fn record_field_countdown_executes_a_computed_initial_arrival() {
+    let countdown = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../tests/omega/pass/termination/measure_field_computed_arrival/main.omg"
+    ));
+    check_countdown(countdown, "Countdown { remaining: 5, limit: 5 }");
+}
+
+fn check_countdown(countdown: &str, arguments: &str) {
     let source = format!(
         "{countdown} machine main() -> i32 {{
-            let result: u64 = walk(Countdown {{ remaining: 5 }}, 5);
+            let result: u64 = walk({arguments});
             transition result == 0 {{ true -> 7 false -> 0 }}
         }}"
     );

@@ -5,9 +5,114 @@ const COUNTDOWN: &str = include_str!(concat!(
     "/../../../../tests/omega/pass/termination/measure_field_named_arrival/main.omg"
 ));
 
+const COMPUTED: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../tests/omega/pass/termination/measure_field_computed_arrival/main.omg"
+));
+
 fn prove(source: &str) {
     lower_typed_trees(typed(source))
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
+}
+
+#[test]
+fn computed_record_arrival_needs_no_identity_forwarding_state() {
+    prove(COMPUTED);
+    prove(&COMPUTED.replace(
+        "remaining: countdown.remaining - 1,\n            limit: countdown.limit",
+        "limit: countdown.limit, remaining: countdown.remaining - 1",
+    ));
+    prove(
+        &COMPUTED
+            .replace("limit: u64 [0..=5];", "limit: u64 [0..=5]; enabled: bool;")
+            .replace(
+                "limit: countdown.limit",
+                "limit: countdown.limit, enabled: true",
+            )
+            .replace(
+                "limit: pending.limit",
+                "limit: pending.limit, enabled: false",
+            ),
+    );
+}
+
+#[test]
+fn computed_record_role_is_independent_of_auxiliary_step_inputs() {
+    let source = COMPUTED
+        .replace(
+            "walk(countdown: Countdown)",
+            "walk(countdown: Countdown, step: u64 [1..=1])",
+        )
+        .replace("countdown.remaining > 0", "countdown.remaining >= step")
+        .replace("countdown.remaining - 1", "countdown.remaining - step");
+    prove(&source);
+    reject(&source.replace("countdown.remaining - step", "countdown.remaining + step"));
+}
+
+#[test]
+fn computed_record_arrivals_still_prove_every_field_and_endpoint() {
+    for source in [
+        COMPUTED.replace("countdown.remaining - 1", "countdown.remaining + 1"),
+        COMPUTED.replace("countdown.remaining - 1", "countdown.remaining - 2"),
+        COMPUTED.replace("limit: countdown.limit", "limit: 5"),
+        COMPUTED.replace("limit: countdown.limit", "limit: countdown.remaining"),
+        COMPUTED.replace("pending.remaining - 1", "pending.remaining"),
+        COMPUTED.replace("pending.remaining - 1", "pending.remaining + 1"),
+        COMPUTED.replace("limit: pending.limit", "limit: 5"),
+        COMPUTED.replace("requires countdown.remaining <= countdown.limit;", ""),
+    ] {
+        reject(&source);
+    }
+}
+
+#[test]
+fn computed_record_arrivals_reject_conflicting_roles_in_either_order() {
+    let (declarations, _) = COMPUTED.split_once("machine walk").expect("declarations");
+    for (first, second) in [("left", "right"), ("right", "left")] {
+        let source = format!("{declarations}
+            machine walk(left: Countdown, right: Countdown, choose: bool)
+            requires left.remaining <= left.limit && right.remaining <= right.limit && left.limit == right.limit;
+            terminates by left -> Countdown::Remaining in 0..=left.limit;
+            -> u64 {{
+                transition choose {{
+                    true -> iterate(Countdown {{ remaining: {first}.remaining, limit: {first}.limit }})
+                    false -> iterate(Countdown {{ remaining: {second}.remaining, limit: {second}.limit }})
+                }}
+                state iterate(pending: Countdown) {{
+                    transition pending.remaining > 0 {{
+                        true -> iterate(Countdown {{ remaining: pending.remaining - 1, limit: pending.limit }})
+                        false -> pending.remaining
+                    }}
+                }}
+            }}");
+        reject(&source);
+        prove(
+            &source
+                .replace("remaining: right.remaining", "remaining: left.remaining")
+                .replace("limit: right.limit", "limit: left.limit"),
+        );
+    }
+}
+
+#[test]
+fn computed_record_dependencies_do_not_authorize_effects_or_operator_meanings() {
+    for declaration in [
+        "operator - u64::custom(left: u64, right: u64) -> u64;",
+        "operator > u64::custom(left: u64, right: u64) -> bool;",
+    ] {
+        reject(&format!("{declaration} {COMPUTED}"));
+    }
+    reject(&COMPUTED.replace(
+        "transition countdown.remaining",
+        "countdown.remaining = 5; transition countdown.remaining",
+    ));
+    let effectful = COMPUTED.replace(
+        "limit: countdown.limit",
+        "limit: reset(&mut countdown.limit)",
+    );
+    reject(&format!(
+        "machine reset(value: &mut u64) -> u64 {{ value = 5; 5 }} {effectful}"
+    ));
 }
 
 fn reject(source: &str) {
