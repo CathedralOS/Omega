@@ -34,6 +34,7 @@ pub(crate) fn check_indexed_accesses(
     program: &typed_trees::TypedTrees,
     operators: &checked_trees::CheckedOperatorFacts,
     borrows: &checked_trees::BorrowFacts,
+    flow: &checked_trees::FlowFacts,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     incoming_guards: &IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -44,22 +45,27 @@ pub(crate) fn check_indexed_accesses(
     let mutation_summaries = crate::flow::StateMutationSummaryCache::default();
 
     for machine in program.machines() {
+        let calls: Vec<_> = program
+            .machine_states(machine)
+            .iter()
+            .map(|state| facts::RangeCallContext::new(machine, state, borrows, flow, call_frames))
+            .collect();
         let state_argument_facts = collect_state_argument_facts(
             program,
             &field_lengths,
             machine,
             call_frames,
-            borrows,
+            &calls,
             operators,
             &mutation_summaries,
         );
         let incoming_guard_facts = incoming_guards.for_machine(machine.symbol);
         let loop_invariant_facts = collect_loop_invariant_facts(program, machine, call_frames);
-        for state in program.machine_states(machine) {
+        for (state, calls) in program.machine_states(machine).iter().zip(&calls) {
             let mut facts = RangeFacts::new(&field_lengths);
             facts.mutation_summaries = std::borrow::Cow::Borrowed(&mutation_summaries);
             facts.checked_operators = Some(operators);
-            facts.checked_borrows = Some(borrows);
+            facts.checked_calls = Some(calls);
             // State parameters are stable named places for the duration of
             // the state, just like locals introduced by `let`. Retain a
             // literal fixed-array referee's length even through a reference

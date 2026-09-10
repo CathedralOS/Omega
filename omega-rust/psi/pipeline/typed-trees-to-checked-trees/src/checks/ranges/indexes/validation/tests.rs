@@ -130,6 +130,7 @@ fn nested_index_traversal_checks_each_collection_extent() {
             &program,
             &checked_trees::CheckedOperatorFacts::default(),
             &checked_trees::BorrowFacts::default(),
+            &checked_trees::FlowFacts::default(),
             frames.as_ref(),
             &incoming,
         );

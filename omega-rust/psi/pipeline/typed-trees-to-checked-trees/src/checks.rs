@@ -118,6 +118,7 @@ fn check_checked_facts_recording_with_crash_admission(
         program,
         &facts.operators,
         &facts.borrow,
+        &facts.flow,
         call_frames.as_ref(),
         &incoming_guards,
     ) {
