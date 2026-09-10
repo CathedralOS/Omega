@@ -53,8 +53,8 @@ machine Main::main(&mut self) {
         transition self.unit_result { UnitResult::Ok -> taken_ready() _ -> bad(76) }
     }
     state taken_ready(&mut self) {
-        self.unit_result = self.fs.hard_link("omega_wlink_b.txt", "omega_wlink_taken.txt");
-        transition self.unit_result { UnitResult::Error { kind } -> taken_kind(kind) _ -> bad(76) }
+        let result: UnitResult = self.fs.hard_link("omega_wlink_b.txt", "omega_wlink_taken.txt");
+        transition result { UnitResult::Error { kind } -> taken_kind(kind) _ -> bad(76) }
     }
     state taken_kind(&mut self, kind: ErrorKind) {
         transition kind { ErrorKind::AlreadyExists -> cleanup() _ -> bad(76) }
