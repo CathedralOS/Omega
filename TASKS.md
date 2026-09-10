@@ -993,9 +993,8 @@ Owners include
   `build-time-evaluation/src/const_initializers.rs`, and the shared generic
   evaluator. Remaining forms include computed aggregate/open-template indices,
   module sums/templates and their attachments, foreign/generic constant
-  attachments, trait defaults, operator homes, package-prefixed bare cases and
-  qualified case membership. Preserve exact lexical/package selection before
-  evaluation, per-use exposure under specialization and owner-local imports.
+  attachments, trait defaults, operator homes, and qualified case membership.
+  Preserve exact lexical/package selection before evaluation, per-use exposure under specialization and owner-local imports.
   The [source pipeline map](omega-rust/psi/pipeline/README.md#resolution-and-closed-instance-normalization)
   owns the current probes.
 
@@ -1312,6 +1311,14 @@ Owners include
   borrowed loop formals and mutable scalar carriers use ordinary joins.
   Stale writes, mismatched result origins and wrong normal-exit guarantees
   reject; callee-local IDs and rereads cannot replace captured values.
+
+  Generated structural-equality tag comparisons in
+  `symbol-resolved-trees-to-typed-trees/src/expression/table/structural_equality.rs::tag_compare`
+  still need exact case-membership meaning for payload cases. A generated case
+  reference must not become a payload construction or gain a blanket validation
+  exemption. Acceptance: the nested record/sum payload-equality probes in
+  `typed-trees-to-checked-trees::tests::termination::crash_routes` retain checked
+  case and payload paths while invalid bare payload values still reject.
 
 - **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Finish ordinary generic
   `drop<T>` and runtime cleanup invocation after exact owner-attached hook

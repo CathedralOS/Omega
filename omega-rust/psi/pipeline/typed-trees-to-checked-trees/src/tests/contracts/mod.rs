@@ -1003,3 +1003,121 @@ fn outcome_specific_selector_rejects_wrong_case_and_noncall_origin() {
 }
 mod boundary_exit_facts;
 mod copied_fields;
+
+#[test]
+fn outcome_evidence_retains_constructor_payload_values_and_field_associations() {
+    for (incoming, result, accepted) in [
+        (
+            "Outcome::Success { left: 1u32, right: 2u32 }",
+            "Outcome::Success { right: 2u32, left: 1u32 }",
+            true,
+        ),
+        (
+            "Outcome::Success { left: 1u32, right: 2u32 }",
+            "Outcome::Success { left: 2u32, right: 1u32 }",
+            false,
+        ),
+        (
+            "Outcome::Success { left: 1u32, right: 2u32 }",
+            "Outcome::Success { left: 1u32, right: 3u32 }",
+            false,
+        ),
+    ] {
+        let typed = parse_typed_trees(&format!(
+            r#"
+            trait Evidence {{}}
+            data Outcome {{ case Success(left: u32, right: u32); case Failure; }}
+            proposition accepted(value: Outcome) evidence Evidence;
+            machine choose() -> Outcome
+            requires incoming: accepted({incoming})
+            ensures Outcome::Success -> {{ selected: accepted(result); }}
+            {{ selected = incoming; {result} }}
+        "#
+        ));
+        let result = lower_typed_trees(typed);
+        if accepted {
+            result.expect("same constructor field values in a different authored order");
+        } else {
+            let diagnostics = result
+                .expect_err("different constructor field values cannot supply result evidence");
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains(
+                        "does not inhabit its guarantee after substituting the concrete result"
+                    )),
+                "{diagnostics:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn constructor_proof_labels_rejoin_selected_owners_and_retained_case_names() {
+    let mut program = parse_typed_trees(
+        "data First { case Same; } data Second { case Same; }
+         machine first() -> First { First::Same }
+         machine second() -> Second { Second::Same }",
+    );
+    let returned = |name: &str| {
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap();
+        let state = &program.machine_states(machine)[0];
+        let [typed_trees::statement::StatementNode::Expression(expression)] =
+            program.statement_table.statements(state.statement_nodes)
+        else {
+            panic!("one constructor result");
+        };
+        *expression
+    };
+    let first = returned("first");
+    let second = returned("second");
+    let original = program.render_proof_expression_with_symbols(first, &[]);
+    let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
+        program.expression_table.expression(first).clone()
+    else {
+        panic!("normalized constructor");
+    };
+    let typed_trees::expression::ExpressionNode::StructLiteral(other) =
+        program.expression_table.expression_mut(second)
+    else {
+        panic!("normalized constructor");
+    };
+    other.type_name = literal.type_name.clone();
+    assert_ne!(
+        original,
+        program.render_proof_expression_with_symbols(second, &[]),
+        "diagnostic spelling cannot equate different selected owners"
+    );
+
+    let mut members = arena::HandleSpan::empty();
+    program
+        .expression_table
+        .push_name_path_member(&mut members, literal.type_name);
+    program
+        .expression_table
+        .push_name_path_member(&mut members, literal.case_name.unwrap());
+    let mut member_symbols = arena::HandleSpan::empty();
+    program
+        .expression_table
+        .push_name_path_member_symbol(&mut member_symbols, literal.type_symbol);
+    let case = literal.case_symbol.unwrap();
+    program
+        .expression_table
+        .push_name_path_member_symbol(&mut member_symbols, case);
+    *program.expression_table.expression_mut(first) =
+        typed_trees::expression::ExpressionNode::Name(typed_trees::expression::TableNamePath {
+            members,
+            member_symbols,
+            head_symbol: literal.type_symbol,
+            symbol: case,
+        });
+    assert_eq!(
+        original,
+        program.render_proof_expression_with_symbols(first, &[]),
+        "an exact retained case Name agrees with its normalized empty literal"
+    );
+}

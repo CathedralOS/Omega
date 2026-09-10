@@ -42,7 +42,7 @@ fn call_result_label(program: &typed_trees::TypedTrees, call_site: &crate::CallS
             .expression_table
             .expression_handles(arguments)
             .iter()
-            .map(|argument| program.expression_table.display_name(*argument))
+            .map(|argument| program.render_proof_expression_with_symbols(*argument, &[]))
             .collect::<Vec<_>>()
             .join(", ")
     };
@@ -65,7 +65,7 @@ fn call_result_label(program: &typed_trees::TypedTrees, call_site: &crate::CallS
             if call.receiver.is_valid() {
                 format!(
                     "{}.{}({arguments})",
-                    program.expression_table.display_name(call.receiver),
+                    program.render_proof_expression_with_symbols(call.receiver, &[]),
                     call.target
                 )
             } else {
@@ -360,7 +360,7 @@ pub(crate) fn instantiate_call_contract_expression_label(
                             crate::CallSite::Expression { call, .. }
                                 if call.receiver.is_valid() =>
                             {
-                                program.expression_table.display_name(call.receiver)
+                                program.render_proof_expression_with_symbols(call.receiver, &[])
                             }
                             crate::CallSite::Statement(call) if !call.receiver.is_empty() => {
                                 typed_trees::expression::display_name_path(
@@ -378,16 +378,24 @@ pub(crate) fn instantiate_call_contract_expression_label(
                 argument_index = argument_index.saturating_add(1);
                 if parameter_matches {
                     return argument
-                        .map(|argument| program.expression_table.display_name(argument))
+                        .map(|argument| program.render_proof_expression_with_symbols(argument, &[]))
                         .unwrap_or_else(|| parameter.name.to_string());
                 }
             }
 
-            typed_trees::expression::display_name_path(members, "::")
+            program.render_proof_expression_with_symbols(expression, &[])
         }
-        typed_trees::expression::ExpressionNode::StructLiteral(struct_literal) => {
-            struct_literal.type_name.to_string()
-        }
+        typed_trees::expression::ExpressionNode::StructLiteral(literal) => program
+            .render_proof_constructor_value(literal, |value| {
+                instantiate_call_contract_expression_label(
+                    program,
+                    caller_state_symbol,
+                    statement_index,
+                    call_site,
+                    target_state,
+                    value,
+                )
+            }),
         typed_trees::expression::ExpressionNode::String(value) => format!("{value:?}"),
         typed_trees::expression::ExpressionNode::ZeroValue(type_reference) => format!(
             "zero_value<{}>()",

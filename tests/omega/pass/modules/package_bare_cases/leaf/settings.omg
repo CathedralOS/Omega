@@ -1,0 +1,2 @@
+module settings;
+pub data Value { case Empty; case Present(value: u32); }

@@ -1239,6 +1239,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
 
     fn lower_structural_boolean_expression(
         program: &TypedTrees,
+        machine: &typed_trees::machine::Machine,
         operators: &CheckedOperatorFacts,
         parameters: &[StateParameter],
         expression: ExpressionHandle,
@@ -2088,7 +2089,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
 
         fn lower_structural_case_membership(
             program: &TypedTrees,
-            _operators: &CheckedOperatorFacts,
+            machine: &typed_trees::machine::Machine,
             parameters: &[StateParameter],
             expression: ExpressionHandle,
         ) -> Option<CheckedBooleanExpression> {
@@ -2099,17 +2100,52 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
             if binary.operator != BinaryOperator::Equal {
                 return None;
             }
+            let state = program.machine_states(machine).first()?;
+            if !validation::has_builtin_binary_expression_meaning(
+                program,
+                machine,
+                Some(state),
+                expression,
+            ) {
+                return None;
+            }
+            let membership = validation::has_exact_case_membership_meaning(
+                program,
+                machine,
+                Some(state),
+                expression,
+                binary,
+            );
             let classifier = |candidate: ExpressionHandle| {
-                let ExpressionNode::Name(name) = program.expression_table.expression(candidate)
-                else {
-                    return None;
-                };
+                let (case_symbol, literal_owner) =
+                    match program.expression_table.expression(candidate) {
+                        ExpressionNode::Name(name) => (name.symbol, None),
+                        ExpressionNode::StructLiteral(literal)
+                            if program
+                                .expression_table
+                                .struct_fields(literal.fields)
+                                .is_empty() =>
+                        {
+                            (literal.case_symbol?, Some(literal.type_symbol))
+                        }
+                        _ => return None,
+                    };
                 program.data_definitions().iter().find_map(|data| {
+                    if literal_owner.is_some_and(|owner| owner != data.symbol)
+                        || (!membership
+                            && program.data_members(data).iter().any(|member| {
+                                matches!(member, typed_trees::data::DataMember::Field(_))
+                            }))
+                    {
+                        return None;
+                    }
                     program.data_members(data).iter().find_map(|member| {
                         let typed_trees::data::DataMember::Variant(variant) = member else {
                             return None;
                         };
-                        (variant.symbol == name.symbol).then(|| {
+                        (variant.symbol == case_symbol
+                            && (membership || program.data_payload_fields(variant).is_empty()))
+                        .then(|| {
                             (
                                 data.symbol,
                                 variant
@@ -2149,7 +2185,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
         }
 
         if let Some(membership) =
-            lower_structural_case_membership(program, operators, parameters, expression)
+            lower_structural_case_membership(program, machine, parameters, expression)
         {
             return Some(membership);
         }
@@ -2231,6 +2267,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                 Some(CheckedBooleanExpression::Not(Box::new(
                     lower_structural_boolean_expression(
                         program,
+                        machine,
                         operators,
                         parameters,
                         unary.operand,
@@ -2368,12 +2405,14 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                 let equality = CheckedBooleanExpression::Equal {
                     left: Box::new(lower_structural_boolean_expression(
                         program,
+                        machine,
                         operators,
                         parameters,
                         binary.left,
                     )?),
                     right: Box::new(lower_structural_boolean_expression(
                         program,
+                        machine,
                         operators,
                         parameters,
                         binary.right,
@@ -2391,12 +2430,14 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
             {
                 let left = Box::new(lower_structural_boolean_expression(
                     program,
+                    machine,
                     operators,
                     parameters,
                     binary.left,
                 )?);
                 let right = Box::new(lower_structural_boolean_expression(
                     program,
+                    machine,
                     operators,
                     parameters,
                     binary.right,
@@ -2412,7 +2453,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
     }
 
     if let Some(structural) =
-        lower_structural_boolean_expression(program, operators, parameters, expression)
+        lower_structural_boolean_expression(program, machine, operators, parameters, expression)
     {
         return Some(structural);
     }

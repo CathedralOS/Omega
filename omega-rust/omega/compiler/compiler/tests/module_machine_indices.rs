@@ -43,6 +43,8 @@ mod noninteger;
 #[path = "module_machine_indices/nominal.rs"]
 mod nominal;
 
+#[path = "module_machine_indices/bare_cases.rs"]
+mod bare_cases;
 #[path = "module_machine_indices/direct_structural_atoms.rs"]
 mod direct_structural_atoms;
 

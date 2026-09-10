@@ -251,6 +251,14 @@ values retain each authored occurrence without bypassing package visibility or
 direct-dependency authority. This follows the
 [construction contract](../../../wiki/spec/language/data_and_literals.md#construction-and-case-identity)
 and uses ordinary namespace resolution rather than a separate constructor scope.
+Payload-free bare case values, including package-qualified paths, normalize to
+the same resolved constructor after lexical value bindings have been selected.
+They retain the original occurrence and exact case owner and undergo ordinary
+common-field, default, payload and opaque-construction checks. Case membership
+keeps its separate declaration role. Check the package customer with
+`omega --check tests/omega/pass/modules/package_bare_cases/main.omg`.
+The `module_machine_indices::bare_cases` probes cover lexical precedence,
+ambiguity, authority and construction obligations.
 
 Nominal data references, scalar free-machine calls, and literal constants used
 in bodies have namespace coverage. Scalar constants include qualified Terminal
@@ -261,7 +269,7 @@ the selected declaration at the original use. This is not completion of the
 [module/name contract](../../../wiki/spec/language/modules.md):
 foreign/generic constant attachments, sum and specialized template normalization,
 template attachments, trait defaults,
-operator homes, package-prefixed bare case values, qualified case membership,
+operator homes, qualified case membership,
 and the remaining declaration forms still need exact
 namespace-aware resolution.
 Later source extensions reuse the selected declaration's detached resolved

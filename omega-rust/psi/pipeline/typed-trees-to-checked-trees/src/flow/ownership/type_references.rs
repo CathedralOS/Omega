@@ -126,7 +126,6 @@ fn expression_is_place_like(
 pub(super) fn intrinsic_enum_equality(
     program: &typed_trees::TypedTrees,
     state: SymbolHandle,
-    statement: usize,
     expression: ExpressionHandle,
 ) -> bool {
     use typed_trees::types::TypeReferenceNode;
@@ -142,8 +141,31 @@ pub(super) fn intrinsic_enum_equality(
         }
         _ => return false,
     };
-    let operands = [binary.left, binary.right]
-        .map(|operand| expression_type_reference_in_state(program, state, statement, operand));
+    let machine_symbol = program.symbols.get(state).parent;
+    let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+    else {
+        return false;
+    };
+    let Some(state) = program
+        .machine_states(machine)
+        .iter()
+        .find(|candidate| candidate.symbol == state)
+    else {
+        return false;
+    };
+    if program.symbols.get(state.symbol).kind != symbols::SymbolKind::State
+        || program.symbols.get(machine.symbol).kind != symbols::SymbolKind::Machine
+    {
+        return false;
+    }
+    // Equality observes values, including constructed cases; a place-only query
+    // cannot establish the type of a fresh constructor operand.
+    let operands = [binary.left, binary.right].map(|operand| {
+        validation::expression_result_type_reference(program, machine, state, operand)
+    });
     let nominal = |reference: Option<typed_trees::types::TypeReferenceHandle>| {
         let mut reference = reference?;
         let mut seen = Vec::new();
@@ -173,13 +195,11 @@ pub(super) fn intrinsic_enum_equality(
     };
     let members = program.data_members(data);
     if members.is_empty() || !members.iter().all(|member| matches!(member, typed_trees::data::DataMember::Variant(variant) if program.data_payload_fields(variant).is_empty())) { return false; }
-    let machine = program.symbols.get(state).parent;
-    if program.symbols.get(state).kind != symbols::SymbolKind::State
-        || program.symbols.get(machine).kind != symbols::SymbolKind::Machine
-    {
-        return false;
-    }
     typed_trees::operator::has_builtin_spelled_expression_meaning(
-        program, machine, expression, spelling, &operands,
+        program,
+        machine.symbol,
+        expression,
+        spelling,
+        &operands,
     )
 }

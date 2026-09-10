@@ -6,6 +6,7 @@ mod byte_subslice_arguments;
 mod byte_write_bounds;
 mod call_computations;
 mod call_result_relations;
+mod case_predicate_meaning;
 mod exact_cancellation;
 mod guard_boolean_custody;
 mod guard_operator_custody;

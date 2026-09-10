@@ -351,3 +351,53 @@ fn field_reconstruction_does_not_import_mutable_or_reference_guard_facts() {
         );
     }
 }
+
+#[test]
+fn retained_case_names_in_value_positions_keep_construction_obligations() {
+    for (case, expected) in [("Empty", "omits gated field"), ("Payload", "has a payload")] {
+        let mut program = typed(&format!(
+            "data Choice [copy] {{ value: u32 [1..=9]; case Empty; case Payload(item: u32); }}
+             machine reference(value: &Choice) -> bool {{ value in Choice::{case} }}
+             machine make() -> Choice {{ Choice::Empty {{ value: 1 }} }}"
+        ));
+        let mut diagnostics = Vec::new();
+        validate_struct_literal_fields(&program, &mut diagnostics);
+        assert!(
+            diagnostics.is_empty(),
+            "membership is a declaration role: {diagnostics:?}"
+        );
+        let return_expression = |name: &str| {
+            let machine = program
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == name)
+                .unwrap();
+            let state = &program.machine_states(machine)[0];
+            let [StatementNode::Expression(expression)] =
+                program.statement_table.statements(state.statement_nodes)
+            else {
+                panic!("one result expression");
+            };
+            *expression
+        };
+        let reference = return_expression("reference");
+        let destination = return_expression("make");
+        let ExpressionNode::Binary(membership) = program.expression_table.expression(reference)
+        else {
+            panic!("case membership");
+        };
+        let case_name = program
+            .expression_table
+            .expression(membership.right)
+            .clone();
+        assert!(matches!(case_name, ExpressionNode::Name(_)));
+        *program.expression_table.expression_mut(destination) = case_name;
+        validate_struct_literal_fields(&program, &mut diagnostics);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "{diagnostics:?}"
+        );
+    }
+}

@@ -84,21 +84,7 @@ pub(crate) fn constructor_type<'name>(
             case_name.expect("eligible case owner retains its requested case"),
         )
     };
-    let ambiguity = |first, second| {
-        let imports = symbols
-            .source_module_import_paths(reference.source_id)
-            .collect::<Vec<_>>();
-        format!(
-            "ambiguous constructor `{name}`: competing declarations `{}` and `{}`; source imports: {}",
-            symbols.display_path(first, "::"),
-            symbols.display_path(second, "::"),
-            if imports.is_empty() {
-                "(none)".to_owned()
-            } else {
-                imports.join(", ")
-            }
-        )
-    };
+    let ambiguity = |first, second| constructor_ambiguity(symbols, name, reference, first, second);
     match (record, case) {
         (SymbolLookup::Ambiguous { first, second }, _) => Err(ambiguity(first, second)),
         (_, SymbolLookup::Ambiguous { first, second }) => {
@@ -111,6 +97,69 @@ pub(crate) fn constructor_type<'name>(
         (SymbolLookup::NotFound, SymbolLookup::Unique(symbol)) => Ok(Some((symbol, case_name))),
         (SymbolLookup::NotFound, SymbolLookup::NotFound) => Ok(None),
     }
+}
+
+fn constructor_ambiguity(
+    symbols: &SymbolTable,
+    name: &str,
+    reference: source::SourceSpan,
+    first: SymbolHandle,
+    second: SymbolHandle,
+) -> String {
+    let imports = symbols
+        .source_module_import_paths(reference.source_id)
+        .collect::<Vec<_>>();
+    format!(
+        "ambiguous constructor `{name}`: competing declarations `{}` and `{}`; source imports: {}",
+        symbols.display_path(first, "::"),
+        symbols.display_path(second, "::"),
+        if imports.is_empty() {
+            "(none)".to_owned()
+        } else {
+            imports.join(", ")
+        },
+    )
+}
+
+/// A bare value may construct only a payload-free case. The caller resolves
+/// lexical binders first; named constant prefixes remain values, including an
+/// ambiguous prefix that must never be reinterpreted as a namespace.
+pub(crate) fn bare_case_type<'name>(
+    symbols: &SymbolTable,
+    name: &'name str,
+    reference: source::SourceSpan,
+) -> Result<Option<(SymbolHandle, SymbolHandle, &'name str)>, String> {
+    let Some((prefix, _)) = name.split_once("::") else {
+        return Ok(None);
+    };
+    match symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
+        prefix,
+        &[SymbolKind::Const],
+        reference,
+        |_| true,
+    ) {
+        SymbolLookup::Unique(_) => return Ok(None),
+        SymbolLookup::Ambiguous { first, second } => {
+            return Err(constructor_ambiguity(
+                symbols, name, reference, first, second,
+            ));
+        }
+        SymbolLookup::NotFound => {}
+    }
+    let Some((owner, Some(case))) = constructor_type(symbols, name, reference)? else {
+        return Ok(None);
+    };
+    let case_symbol = child_symbol_by_kinds(symbols, owner, &[SymbolKind::Variant], case);
+    if !case_symbol.is_valid()
+        || symbols
+            .child_handles(case_symbol)
+            .is_none_or(|mut children| {
+                children.any(|child| symbols.get(child).kind == SymbolKind::Field)
+            })
+    {
+        return Ok(None);
+    }
+    Ok(Some((owner, case_symbol, case)))
 }
 
 pub(super) fn top_level_symbol_by_kinds(

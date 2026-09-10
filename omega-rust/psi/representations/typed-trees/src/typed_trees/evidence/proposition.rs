@@ -5,6 +5,8 @@ use crate::types::TypeReferenceHandle;
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 
+mod constructor_values;
+
 /// A typed proof-formula declaration. It remains outside the executable
 /// machine graph and owns no runtime result or body.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -534,7 +536,7 @@ impl crate::TypedTrees {
             .expression_table
             .expression_handles(application.arguments)
             .iter()
-            .map(|argument| self.expression_table.display_name(*argument))
+            .map(|argument| self.render_proof_expression_with_symbols(*argument, &[]))
             .collect::<Vec<_>>();
         self.normalize_nominal_proposition_application_with_labels(
             application,
@@ -678,6 +680,24 @@ impl crate::TypedTrees {
         }
     }
 
+    /// Render a constructed proof value while the caller owns parameter substitution.
+    /// Constructor identity and field association use the same rule as ordinary
+    /// proposition arguments and concrete-result substitution.
+    pub fn render_proof_constructor_value(
+        &self,
+        literal: &crate::expression::TableStructLiteral,
+        render_value: impl Fn(ExpressionHandle) -> String,
+    ) -> String {
+        constructor_values::render(
+            self,
+            literal.type_symbol,
+            literal.case_symbol,
+            self.expression_table.struct_fields(literal.fields),
+            render_value,
+        )
+        .unwrap_or_else(|| format!("invalid-constructor:{}", literal.type_name))
+    }
+
     pub fn render_proof_expression_with_symbols(
         &self,
         expression: ExpressionHandle,
@@ -715,7 +735,7 @@ impl crate::TypedTrees {
             .expression_table
             .expression_handles(application.arguments)
             .iter()
-            .map(|argument| self.expression_table.display_name(*argument))
+            .map(|argument| self.render_proof_expression_with_symbols(*argument, &[]))
             .collect::<Vec<_>>();
         self.normalize_proposition_application_with_labels(
             application,
@@ -1010,6 +1030,33 @@ fn render_expression(
             {
                 return replacement.clone();
             }
+            // A retained case Name and its normalized empty literal denote
+            // the same value only under the actual Data/Variant relationship.
+            let selected = program
+                .expression_table
+                .name_path_member_symbols(path.member_symbols);
+            if selected.len() == members.len()
+                && selected.len() >= 2
+                && selected.first() == Some(&path.head_symbol)
+                && selected.last() == Some(&path.symbol)
+                && selected.iter().all(|symbol| symbol.is_valid())
+                && selected.windows(2).all(|pair| {
+                    program
+                        .symbols
+                        .child_handles(pair[0])
+                        .is_some_and(|mut children| children.any(|child| child == pair[1]))
+                })
+                && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Variant
+                && let Some(label) = constructor_values::render(
+                    program,
+                    program.symbols.get(path.symbol).parent,
+                    Some(path.symbol),
+                    &[],
+                    render,
+                )
+            {
+                return label;
+            }
             crate::expression::display_name_path(members, "::")
         }
         ExpressionNode::Range(range) => match (range.start.is_valid(), range.end.is_valid()) {
@@ -1019,9 +1066,10 @@ fn render_expression(
             (false, false) => "..".to_owned(),
         },
         ExpressionNode::String(value) => format!("{value:?}"),
-        ExpressionNode::StructLiteral(_) | ExpressionNode::ZeroValue(_) => {
-            program.expression_table.display_name(expression)
+        ExpressionNode::StructLiteral(literal) => {
+            program.render_proof_constructor_value(literal, render)
         }
+        ExpressionNode::ZeroValue(_) => program.expression_table.display_name(expression),
         ExpressionNode::Unary(unary) => {
             format!("{}{}", unary.operator.display_name(), render(unary.operand))
         }

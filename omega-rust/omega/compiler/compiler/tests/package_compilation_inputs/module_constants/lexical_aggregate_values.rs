@@ -20,7 +20,7 @@ fn root_aggregate_values_substitute_only_after_lexical_selection() {
             "data Choice [copy] { case Empty; case Some(value: u64); }",
             "Choice",
             "Choice::Empty",
-            "Choice::Empty",
+            "Choice::Empty{}",
         ),
         (
             "data Choice [copy] { case Empty; case Some(value: u64); }",

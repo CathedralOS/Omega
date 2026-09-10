@@ -14,7 +14,7 @@ pub(crate) fn instantiate_operator_contract_expression_label(
 ) -> String {
     let operand_labels = operands
         .iter()
-        .map(|operand| program.expression_table.display_name(*operand))
+        .map(|operand| program.render_proof_expression_with_symbols(*operand, &[]))
         .collect::<Vec<_>>();
     instantiate_operator_contract_expression_label_with_labels(
         program,
@@ -165,9 +165,11 @@ pub(crate) fn instantiate_operator_contract_expression_label_with_labels(
                 }
             }
 
-            typed_trees::expression::display_name_path(members, "::")
+            program.render_proof_expression_with_symbols(expression, &[])
         }
-        ExpressionNode::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
+        ExpressionNode::StructLiteral(literal) => {
+            program.render_proof_constructor_value(literal, instantiate)
+        }
         ExpressionNode::String(value) => format!("{value:?}"),
         ExpressionNode::ZeroValue(type_reference) => format!(
             "zero_value<{}>()",

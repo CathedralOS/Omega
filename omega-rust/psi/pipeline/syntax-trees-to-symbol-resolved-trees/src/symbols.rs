@@ -391,4 +391,4 @@ pub(crate) fn assign_constant_expression_symbols(
     }
 }
 
-pub(crate) use lookup::constructor_type;
+pub(crate) use lookup::{bare_case_type, constructor_type};
