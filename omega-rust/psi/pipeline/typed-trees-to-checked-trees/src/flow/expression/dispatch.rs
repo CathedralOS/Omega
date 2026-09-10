@@ -15,6 +15,12 @@ impl Execution<'_, '_, '_> {
     ) {
         let subject_capture_writes = self.operand_writes.len();
         self.expression(dispatch.subject, contexts, constraints);
+        let subject_operand = self.capture_operator_operand(
+            dispatch.subject,
+            subject_capture_writes,
+            *contexts,
+            *constraints,
+        );
         let subject_writes = self.operand_writes.len();
         let mut joined = None;
         let mut completed_writes = Vec::new();
@@ -30,43 +36,24 @@ impl Execution<'_, '_, '_> {
             if let MatchPattern::Value(pattern) = arm.pattern {
                 let pattern_capture_writes = self.operand_writes.len();
                 self.expression(pattern, contexts, constraints);
+                let pattern_operand = self.capture_operator_operand(
+                    pattern,
+                    pattern_capture_writes,
+                    *contexts,
+                    *constraints,
+                );
                 if let Ok(ordinal) = u32::try_from(ordinal)
                     && let Some(arm_index) =
                         dispatch.arms.start().arena_index().checked_add(ordinal)
                 {
                     let source_arm =
                         arena::Handle::from_parts(arm_index, dispatch.arms.start().generation());
-                    // The subject is saved once. Its source place is not its
-                    // value if this or an earlier pattern changed that place.
-                    let changed = self.changed_operand_sources(&[
-                        (dispatch.subject, subject_capture_writes),
-                        (pattern, pattern_capture_writes),
-                    ]);
-                    let mut invocation_contexts = *contexts;
-                    let mut invocation_constraints = *constraints;
-                    self.filter_captured_sources(
-                        &changed,
-                        &mut invocation_contexts,
-                        &mut invocation_constraints,
+                    self.record_operator_invocation(
+                        expression,
+                        checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm },
+                        &[subject_operand, pattern_operand],
+                        *constraints,
                     );
-                    for (operator_use, use_fact) in self.context.operators.uses.iter() {
-                        if use_fact.expression == expression
-                            && use_fact.occurrence
-                                == (checked_trees::CheckedOperatorOccurrence::MatchEquality {
-                                    source_arm,
-                                })
-                            && matches!(use_fact.origin, checked_trees::CheckedValueOrigin::StateStatement {
-                                machine_symbol, state_symbol, statement_index, ..
-                            } if machine_symbol == self.machine.symbol && state_symbol == self.state.symbol && statement_index == self.statement_index)
-                        {
-                            self.context.control.operator_invocations.append(
-                                checked_trees::FlowOperatorInvocationFact {
-                                    operator_use,
-                                    requires_constraints: invocation_constraints,
-                                },
-                            );
-                        }
-                    }
                 }
                 if let ExpressionNode::Boolean(value) =
                     self.program.expression_table.expression(pattern)

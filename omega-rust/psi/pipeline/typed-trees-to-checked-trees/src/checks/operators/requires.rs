@@ -8,10 +8,13 @@
 //! obligation is INSTANTIATED over the actual operands (parameter -> operand,
 //! the call-`requires` instantiation precedent in
 //! checks/contracts/labels/calls.rs) and proven against the semantic contexts
-//! entering an ordinary use's statement — the same invalidation-adjusted
-//! contexts the call-`requires` discharge reads. Implicit Match comparisons use
-//! their exact invocation after subject and pattern effects instead: entry
-//! facts could describe overwritten operand sources. This query checks the already
+//! at the exact invocation after operand effects, for both spelled operators
+//! and implicit Match comparisons. Statement-entry facts can describe overwritten
+//! storage or omit guarantees established by earlier operands. Copied scalars
+//! retain operand-time facts; other carriers additionally require those same
+//! facts to remain live at invocation. This conservative intersection prevents
+//! a later guarantee or reference rebind from impersonating a captured value.
+//! This query checks the already
 //! selected operator's precondition; it never participates in selecting the
 //! operator meaning itself.
 //!
@@ -20,7 +23,7 @@
 //! declares it, and the spelling that resolved to it, so the user can browse
 //! to the operator declaration and read the governing contract.
 
-use checked_trees::{CheckFacts, CheckedValueOrigin, FlowStateFact};
+use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use facts::{FactContextHandle, FactPayload, FactPlace, FactPlan};
 use language_core::operator_spelling::OperatorSpelling;
@@ -37,8 +40,11 @@ use crate::labels::{
     semantic_boolean_fact_label, symbol_name,
 };
 
+mod invocation;
+use invocation::InvocationContexts;
+
 /// Checks selected binary and implicit comparison preconditions against their
-/// available statement or invocation facts, reporting each unproven clause.
+/// available invocation facts, reporting each unproven clause.
 /// Slice `[]`/`[..]` uses discharge through the ranges seam and are
 /// deliberately excluded.
 pub(super) fn selected_binary_requires_diagnostics(
@@ -92,45 +98,17 @@ pub(super) fn selected_binary_requires_diagnostics(
             .map(|operator| program.operator_parameters(operator))
             .unwrap_or(&[]);
         let operands = operator_use.operands(program).unwrap_or_default();
-        // Match evaluates its subject and preceding patterns before this use.
-        // Statement-entry facts are not invocation facts after those effects.
-        let entry_contexts =
-            if operator_use.occurrence == checked_trees::CheckedOperatorOccurrence::Expression {
-                statement_entry_contexts(facts, operator_use.origin)
-            } else {
-                let mut invocations =
-                    facts
-                        .flow
-                        .control
-                        .operator_invocations
-                        .iter()
-                        .filter_map(|(_, invocation)| {
-                            (invocation.operator_use == operator_use_handle).then_some(invocation)
-                        });
-                match (invocations.next(), invocations.next()) {
-                    (Some(invocation), None) => Some(
-                        facts
-                            .flow
-                            .semantic_constraint_contexts(invocation.requires_constraints)
-                            .collect(),
-                    ),
-                    // Non-executable declaration origins have no invocation
-                    // contexts; only context-free truths can be discharged.
-                    _ => Some(Vec::new()),
-                }
-            };
+        let invocation_contexts = InvocationContexts::new(facts, operator_use_handle, &operands);
 
         for fact in requires_facts {
-            let proven = entry_contexts.as_deref().is_some_and(|contexts| {
-                requires_fact_proven(
-                    program,
-                    &facts.semantic,
-                    contexts,
-                    parameters,
-                    &operands,
-                    fact,
-                )
-            });
+            let proven = requires_fact_proven(
+                program,
+                &facts.semantic,
+                &invocation_contexts,
+                parameters,
+                &operands,
+                fact,
+            );
             if !proven {
                 diagnostics.push(Diagnostic::error(format!(
                     "cannot prove `{}` — the `requires` of `{}` (spelled `{}`)",
@@ -199,49 +177,12 @@ fn operator_path_label(
     }
 }
 
-/// The invalidation-adjusted semantic contexts entering the use's statement.
-/// These discharge the selected meaning's ordinary proof contract only.
-fn statement_entry_contexts(
-    facts: &CheckFacts,
-    origin: CheckedValueOrigin,
-) -> Option<Vec<FactContextHandle>> {
-    let CheckedValueOrigin::StateStatement {
-        machine_symbol,
-        state_symbol,
-        statement_index,
-        ..
-    } = origin
-    else {
-        return None;
-    };
-    let state_flow: &FlowStateFact = facts
-        .flow
-        .control
-        .states
-        .iter()
-        .map(|(_, state)| state)
-        .find(|state| {
-            state.machine_symbol == machine_symbol && state.state_symbol == state_symbol
-        })?;
-    let entry_constraints = facts
-        .flow
-        .state_statement(state_flow, statement_index)
-        .map(|statement| statement.entry_constraints)
-        .unwrap_or(state_flow.entry_constraints);
-    Some(
-        facts
-            .flow
-            .semantic_constraint_contexts(entry_constraints)
-            .collect(),
-    )
-}
-
 /// Whether one instantiated `requires` fact is proven by any context entering
-/// the statement.
+/// the invocation.
 fn requires_fact_proven(
     program: &TypedTrees,
     semantic: &FactPlan,
-    contexts: &[FactContextHandle],
+    contexts: &InvocationContexts<'_>,
     parameters: &[StateParameter],
     operands: &[ExpressionHandle],
     fact: &ProofFact,
@@ -257,6 +198,7 @@ fn requires_fact_proven(
                 operands,
                 membership.value,
             );
+            let contexts = contexts.for_expressions(program, parameters, [membership.value]);
             contexts.iter().any(|context| {
                 context_proves_membership_label(
                     program,
@@ -276,6 +218,15 @@ fn requires_fact_proven(
             *expression,
         ),
         ProofFact::Proposition(application) => {
+            let contexts = contexts.for_expressions(
+                program,
+                parameters,
+                program
+                    .expression_table
+                    .expression_handles(application.arguments)
+                    .iter()
+                    .copied(),
+            );
             let binder_labels = application
                 .binder_arguments
                 .iter()
@@ -327,7 +278,7 @@ fn requires_fact_proven(
 fn contexts_prove_boolean_expression(
     program: &TypedTrees,
     semantic: &FactPlan,
-    contexts: &[FactContextHandle],
+    contexts: &InvocationContexts<'_>,
     parameters: &[StateParameter],
     operands: &[ExpressionHandle],
     expression: ExpressionHandle,
@@ -390,13 +341,14 @@ fn contexts_prove_boolean_expression(
 fn contexts_prove_boolean_leaf(
     program: &TypedTrees,
     semantic: &FactPlan,
-    contexts: &[FactContextHandle],
+    contexts: &InvocationContexts<'_>,
     parameters: &[StateParameter],
     operands: &[ExpressionHandle],
     expression: ExpressionHandle,
 ) -> bool {
     let required_label =
         instantiate_operator_contract_expression_label(program, parameters, operands, expression);
+    let contexts = contexts.for_expressions(program, parameters, [expression]);
     contexts
         .iter()
         .any(|context| context_proves_boolean_label(program, semantic, *context, &required_label))
@@ -417,9 +369,27 @@ fn context_proves_boolean_label(
         .context_view(context)
         .facts()
         .any(|fact| match fact.payload {
-            FactPayload::BooleanExpression(_) | FactPayload::ContractBooleanExpression { .. } => {
-                semantic_boolean_fact_label(program, semantic, fact)
-                    .is_some_and(|candidate| candidate == required_label)
+            // A reached true branch establishes this evaluated predicate, not
+            // a mathematical interpretation of its selected operator spelling.
+            FactPayload::BooleanValue {
+                expression,
+                value: true,
+            }
+            | FactPayload::BooleanExpression(expression) => {
+                true_expression_proves_label(program, expression, required_label)
+            }
+            FactPayload::ContractBooleanExpression {
+                expression,
+                instantiated,
+                ..
+            } => {
+                // Declaration-shaped facts retain their actual expression.
+                // An instantiated fact instead names caller operands: never
+                // reuse its unsubstituted formal expression as caller evidence.
+                (!instantiated.is_valid()
+                    && true_expression_proves_label(program, expression, required_label))
+                    || semantic_boolean_fact_label(program, semantic, fact)
+                        .is_some_and(|candidate| candidate == required_label)
             }
             FactPayload::DomainMembership {
                 domain_symbol,
@@ -451,6 +421,23 @@ fn context_proves_boolean_label(
             }
             _ => false,
         })
+}
+
+fn true_expression_proves_label(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    required_label: &str,
+) -> bool {
+    if program.expression_table.display_name(expression) == required_label {
+        return true;
+    }
+    // A retained true conjunction supplies each conjunct. Do not derive an
+    // opposite comparison from a false observation: selected comparisons need
+    // not share builtin arithmetic or equality laws.
+    matches!(program.expression_table.expression(expression),
+        ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::And
+            && (true_expression_proves_label(program, binary.left, required_label)
+                || true_expression_proves_label(program, binary.right, required_label)))
 }
 
 /// An instantiated membership obligation (`<operand> in Domain`) is proven by

@@ -9,11 +9,12 @@ use super::{
     FlowInvalidationFact, FlowSemanticContextRef,
 };
 
-/// Preconditions at an implicit operator invocation, after operand evaluation
+/// Preconditions at a spelled or implicit operator invocation, after operand evaluation
 /// and before either comparison branch acquires its own observations.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowOperatorInvocationFact {
     pub operator_use: arena::Handle<crate::CheckedOperatorUseFact>,
+    pub operands: HandleSpan<super::FlowOperatorOperandFact>,
     pub requires_constraints: HandleSpan<FlowConstraintRef>,
 }
 

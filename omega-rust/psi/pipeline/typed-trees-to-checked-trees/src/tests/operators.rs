@@ -12,6 +12,7 @@ use typed_trees::types::TypeReferenceHandle;
 mod applications;
 mod crashes;
 mod destinations;
+mod invocations;
 
 fn indexed_selection_fixture(
     source: &str,

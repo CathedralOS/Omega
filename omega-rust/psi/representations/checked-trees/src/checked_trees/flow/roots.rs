@@ -96,6 +96,7 @@ impl FlowBoundaryFacts {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowControlFacts {
     pub operator_invocations: Arena<super::FlowOperatorInvocationFact>,
+    pub operator_operands: Arena<super::FlowOperatorOperandFact>,
     pub statements: Arena<FlowStatementFact>,
     pub calls: Arena<FlowCallFact>,
     pub exits: Arena<FlowExitFact>,
@@ -113,6 +114,7 @@ impl FlowControlFacts {
         Self {
             statements,
             operator_invocations: Arena::default(),
+            operator_operands: Arena::default(),
             calls,
             exits,
             exit_parameter_origins: Arena::default(),

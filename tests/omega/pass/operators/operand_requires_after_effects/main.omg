@@ -1,0 +1,12 @@
+boundary operator == Integer::equal(left: i32, right: i32) -> bool
+requires right >= 0;
+
+machine prepare(value: &mut i32) -> i32
+ensures value >= 0 {
+    value = 1;
+    0
+}
+
+machine compare(mut value: i32) -> bool {
+    prepare(&mut value) == value
+}
