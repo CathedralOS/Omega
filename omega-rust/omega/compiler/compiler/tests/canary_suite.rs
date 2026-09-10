@@ -614,6 +614,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "dependent/value_rebinding_cycle_call_frame_preserves_disjoint_fact_compile",
     "generics/const_data_param",
     "generics/const_machine_value_params",
+    "generics/declared_range_endpoint_inference",
     "generics/generic_data_instantiation",
     "generics/generic_data_type_param",
     "generics/generic_machine_call_monomorphization",

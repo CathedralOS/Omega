@@ -17,6 +17,162 @@ fn accepts(source: &str) -> CheckedTrees {
 }
 
 #[test]
+fn declared_range_endpoints_select_const_arguments_before_compatibility() {
+    let checked = accepts(
+        "machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+        machine inferred(value: u64[5..=256]) -> u64 { upper_bound(value) }
+        machine exclusive(value: u64[0..257]) -> u64 { upper_bound(value) }
+        machine hexadecimal(value: u64[0..=0x100]) -> u64 { upper_bound(value) }
+        machine explicit(value: u64[0..=256]) -> u64 { upper_bound<512>(value) }",
+    );
+    assert_eq!(checked.machine_specializations.len(), 2);
+    let mut arguments: Vec<_> = checked
+        .machine_specializations
+        .iter()
+        .map(|specialization| specialization.const_arguments.clone())
+        .collect();
+    arguments.sort();
+    assert_eq!(arguments, [vec!["256"], vec!["512"]]);
+}
+
+#[test]
+fn declared_range_inference_uses_lower_and_upper_endpoint_positions() {
+    let checked = accepts(
+        "const Values::LOW: i32 = -5;
+        machine bound<const Low: i32, const High: i32>(value: i32[Low..=High]) -> i32 { Low }
+        machine inferred(value: i32[-5..=25]) -> i32 { bound(value) }
+        machine explicit(value: i32[-5..=25]) -> i32 { bound<Values::LOW, 25>(value) }",
+    );
+    assert_eq!(checked.machine_specializations.len(), 1);
+    assert_eq!(
+        checked.machine_specializations[0].const_arguments,
+        ["-5", "25"]
+    );
+}
+
+#[test]
+fn declared_range_inference_keeps_partial_and_forwarded_slots_in_order() {
+    let checked = accepts(
+        "machine bounds<const Low: u64, const High: u64>(value: u64[Low..=High]) -> u64 { High }
+        machine forward<const K: u64>(value: u64[5..=256]) -> u64 { bounds<K, 512>(value) }
+        machine partial(value: u64[5..=256]) -> u64 { bounds<0>(value) }
+        machine main(value: u64[5..=256]) -> u64 { forward<0>(value) }",
+    );
+    let mut arguments: Vec<_> = checked
+        .machine_specializations
+        .iter()
+        .map(|specialization| specialization.const_arguments.clone())
+        .collect();
+    arguments.sort();
+    assert_eq!(arguments, [vec!["0"], vec!["0", "256"], vec!["0", "512"]]);
+}
+
+#[test]
+fn declared_range_inference_composes_with_borrowed_parameters_and_expected_results() {
+    let checked = accepts(
+        "machine bound<const N: u64>(value: &u64[0..=N]) -> u64 { N }
+        machine produce<const N: u64>() -> u64[0..=N] { 0 }
+        machine main(value: u64[5..=256]) -> u64 {
+            let produced: u64[0..=128] = produce();
+            bound(&value)
+        }",
+    );
+    assert_eq!(checked.machine_specializations.len(), 2);
+}
+
+#[test]
+fn declared_range_inference_waits_for_explicit_forwarded_const_arguments() {
+    let checked = accepts(
+        "machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+        machine forward<const K: u64>(value: u64[0..=256]) -> u64 { upper_bound<K>(value) }
+        machine main(value: u64[0..=256]) -> u64 { forward<512>(value) }",
+    );
+    assert_eq!(checked.machine_specializations.len(), 2);
+    for specialization in &checked.machine_specializations {
+        assert_eq!(specialization.const_arguments, ["512"]);
+    }
+}
+
+#[test]
+fn declared_range_inference_preserves_repeated_endpoint_agreement() {
+    let checked = accepts(
+        "machine bound<const N: u64>(first: u64[0..=N], second: u64[0..=N]) -> u64 { N }
+        machine inferred(first: u64[0..=256], second: u64[5..=256]) -> u64 { bound(first, second) }",
+    );
+    assert_eq!(checked.machine_specializations.len(), 1);
+    assert!(check(
+        "machine bound<const N: u64>(first: u64[0..=N], second: u64[0..=N]) -> u64 { N }
+        machine inferred(first: u64[0..=256], second: u64[0..=128]) -> u64 { bound(first, second) }",
+    ).is_err());
+}
+
+#[test]
+fn declared_range_inference_retains_open_and_unusable_repeated_occurrences() {
+    for (selected, accepted) in [(128, false), (256, true)] {
+        let source = format!(
+            "machine bound<const N: u64>(first: u64[0..=N], second: u64[0..=N]) -> u64 {{ N }}
+            machine forward<const K: u64>(first: u64[0..=K], second: u64[0..=256]) -> u64 {{ bound(first, second) }}
+            machine main(first: u64[0..={selected}], second: u64[0..=256]) -> u64 {{ forward<{selected}>(first, second) }}"
+        );
+        assert_eq!(check(&source).is_ok(), accepted, "{source}");
+    }
+    assert!(check(
+        "machine bound<const N: u64>(first: u64[0..=N], second: u64[0..=N]) -> u64 { N }
+        machine main(first: u64[0..=64 + 64], second: u64[0..=256]) -> u64 { bound(first, second) }",
+    ).is_err());
+}
+
+#[test]
+fn explicit_forwarded_const_arguments_cannot_be_overwritten_by_array_inference() {
+    assert!(
+        check(
+            "machine bound<const N: u64>(value: &[u8; N]) -> u64 { N }
+        machine forward<const K: u64>(value: &[u8; 4]) -> u64 { bound<K>(value) }
+        machine main(value: &[u8; 4]) -> u64 { forward<8>(value) }",
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn declared_range_inference_does_not_replace_compatibility_or_const_validation() {
+    for source in [
+        "machine bound<const N: u64>(value: u64[10..=N]) -> u64 { N }
+        machine invalid(value: u64[5..=256]) -> u64 { bound(value) }",
+        "machine bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+        machine invalid(value: u64[0..=256]) -> u64 { bound<128>(value) }",
+        "machine bound<const N: u8>(value: u64[0..=N]) -> u8 { N }
+        machine invalid(value: u64[0..=256]) -> u8 { bound(value) }",
+        "machine bound<const N: u64>(value: i32[N..=25]) -> u64 { N }
+        machine invalid(value: i32[-5..=25]) -> u64 { bound(value) }",
+        "machine bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+        machine invalid(value: u32[0..=256]) -> u64 { bound(value) }",
+        "machine bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+        machine invalid(value: u64[0..=256] in Wrapping) -> u64 { bound(value) }",
+    ] {
+        assert!(check(source).is_err(), "unexpected acceptance: {source}");
+    }
+}
+
+#[test]
+fn declared_range_inference_does_not_invent_missing_or_computed_endpoints() {
+    for source in [
+        "machine bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+        machine invalid(value: u64) -> u64 { bound(value) }",
+        "machine bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+        machine invalid() -> u64 { let value: u64 = 5; bound(value) }",
+        "machine bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+        machine invalid(value: u64[0..=128 + 128]) -> u64 { bound(value) }",
+        "machine bound<const N: u64>(value: u64[0..=N * 2]) -> u64 { N }
+        machine invalid(value: u64[0..=256]) -> u64 { bound(value) }",
+        "machine bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+        machine invalid(value: u64[256..=128]) -> u64 { bound(value) }",
+    ] {
+        assert!(check(source).is_err(), "unexpected acceptance: {source}");
+    }
+}
+
+#[test]
 fn explicit_boolean_and_named_const_arguments_select_closed_values() {
     accepts(
         "machine value<const N: bool>() -> bool { N }

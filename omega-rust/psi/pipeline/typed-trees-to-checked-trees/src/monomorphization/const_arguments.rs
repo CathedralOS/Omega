@@ -8,6 +8,7 @@ use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{ExpressionNode, StaticMachineArgument};
 use typed_trees::statement::StatementNode;
+use typed_trees::types::TypeReferenceHandle;
 
 pub(super) fn spelling(program: &TypedTrees, argument: &StaticMachineArgument) -> Option<String> {
     if argument.application.is_some() || argument.evidence_projection.is_some() {
@@ -94,6 +95,26 @@ pub(super) fn validate_authored(
     }
 }
 
+pub(super) fn forwarded_type(
+    program: &TypedTrees,
+    argument: &StaticMachineArgument,
+) -> TypeReferenceHandle {
+    if !argument.symbol.is_valid() {
+        return TypeReferenceHandle::invalid();
+    }
+    program
+        .machines()
+        .iter()
+        .flat_map(|machine| program.machine_type_parameters(machine))
+        .find_map(|parameter| match parameter.kind {
+            TypeParameterKind::Const { type_reference } if parameter.symbol == argument.symbol => {
+                Some(type_reference)
+            }
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
 fn validate_arguments(
     program: &TypedTrees,
     candidate: &Candidate,
@@ -104,18 +125,8 @@ fn validate_arguments(
         let declaration = program.const_declarations().iter().find(|declaration| {
             argument.symbol.is_valid() && declaration.symbol == argument.symbol
         });
-        let forwarded_type = program
-            .machines()
-            .iter()
-            .flat_map(|machine| program.machine_type_parameters(machine))
-            .find_map(|parameter| match parameter.kind {
-                TypeParameterKind::Const { type_reference }
-                    if argument.symbol.is_valid() && parameter.symbol == argument.symbol =>
-                {
-                    Some(type_reference)
-                }
-                _ => None,
-            });
+        let forwarded = forwarded_type(program, argument);
+        let forwarded_type = forwarded.is_valid().then_some(forwarded);
         if declaration.is_none()
             && forwarded_type.is_none()
             && spelling(program, argument).is_none()

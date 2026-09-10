@@ -180,10 +180,20 @@ and result identity must survive through Terminal and artifact replay.
 
 The [type-equation and range-matching rules](../../../wiki/spec/language/generics.md#structural-type-equations-and-inference)
 add source type equality, endpoint extraction, and canonical interval matching.
-Existing const substitution into `u64[0..=N]` does not establish reverse inference
-from a supplied range. `generic_data/arguments.rs` still excludes range-qualified
-arguments from its slug path, and constrained-shell substitution is not general
-decomposition. `STRUCTURAL-GENERIC-MATCHING` tracks migration through source,
+Machine-call inference extracts literal declared endpoints through
+`typed-trees-to-checked-trees/src/monomorphization/range_arguments.rs`. It uses
+resolved integer carriers and canonical const leaves, not flow intervals or
+rendered type identity. Explicit arguments stay fixed; result context fills only
+slots not supplied by inputs. Open forwarded occurrences defer selection until
+the caller specializes. Ordinary compatibility and const validation still run.
+The checked customer is `cargo run -p omega -- --check
+tests/omega/pass/generics/declared_range_endpoint_inference/main.omg` (use `mbx`
+instead of Cargo when available). This does not establish native execution.
+
+Computed/symbolic endpoint normalization and exact type equations remain open.
+`generic_data/arguments.rs` still excludes range-qualified arguments from its
+slug path, and constrained-shell substitution is not general decomposition.
+`STRUCTURAL-GENERIC-MATCHING` tracks migration through source,
 type identity, checking, evaluation, and artifact consumers; preserve unsupported
 rejections until the corresponding representation and evidence are complete.
 
