@@ -108,6 +108,10 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::BitsToFloat64 => 29,
         SelectedInstructionKind::ZeroExtendU8 => 15,
         SelectedInstructionKind::ZeroExtendU32 => 20,
+        SelectedInstructionKind::ZeroExtendU16 => 37,
+        SelectedInstructionKind::SignExtendI8 => 38,
+        SelectedInstructionKind::SignExtendI16 => 39,
+        SelectedInstructionKind::SignExtendI32 => 40,
         SelectedInstructionKind::ExactAddI64 { .. } => 5,
         SelectedInstructionKind::ExactAddI64Immediate { .. } => 6,
         SelectedInstructionKind::ExactSubtractI64 { .. } => 7,
@@ -203,6 +207,10 @@ fn zero_extension_has_a_distinct_round_trip_tag() {
     for (kind, tag) in [
         (SelectedInstructionKind::ZeroExtendU8, 15),
         (SelectedInstructionKind::ZeroExtendU32, 20),
+        (SelectedInstructionKind::ZeroExtendU16, 37),
+        (SelectedInstructionKind::SignExtendI8, 38),
+        (SelectedInstructionKind::SignExtendI16, 39),
+        (SelectedInstructionKind::SignExtendI32, 40),
         (SelectedInstructionKind::Load8Indexed, 21),
         (SelectedInstructionKind::ByteViewAddress, 22),
     ] {
@@ -284,6 +292,10 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
         29 => SelectedInstructionKind::BitsToFloat64,
         15 => SelectedInstructionKind::ZeroExtendU8,
         20 => SelectedInstructionKind::ZeroExtendU32,
+        37 => SelectedInstructionKind::ZeroExtendU16,
+        38 => SelectedInstructionKind::SignExtendI8,
+        39 => SelectedInstructionKind::SignExtendI16,
+        40 => SelectedInstructionKind::SignExtendI32,
         32 => SelectedInstructionKind::HostedReadByte {
             slot: super::structural::decode_local_slot(cursor)?,
         },

@@ -6,6 +6,9 @@ use terminal_psi::{StructuralMultiplicity, StructuralOperationResult, Structural
 mod owned_arguments;
 
 pub(super) fn uses(function: &PsiOptimizationFunction) -> bool {
+    // Forwarding an incoming owned argument observes its payload even without
+    // a local constructor or aggregate result. It needs aggregate ABI replay,
+    // not the unused-owned-input path that deliberately emits no transport.
     function.result.structural().is_some()
         || function
             .blocks
@@ -17,7 +20,11 @@ pub(super) fn uses(function: &PsiOptimizationFunction) -> bool {
                     AbstractOperation::EstablishScalarArray { .. }
                         | AbstractOperation::EstablishScalarCase { .. }
                         | AbstractOperation::CallStructural { .. }
-                )
+                ) || matches!(&node.operation,
+                    AbstractOperation::CallStructuralScalar { structural_arguments, .. }
+                        | AbstractOperation::CallUnit { structural_arguments, .. }
+                        if structural_arguments.iter().any(|argument|
+                            argument.access == terminal_psi::StructuralAccess::Owned))
             })
 }
 
@@ -229,7 +236,7 @@ pub(super) fn header(
                     && abi.call_plan == expected
                     && abi.parameters == graph.scalar_parameters =>
             {
-                &abi.result
+                Some(&abi.result)
             }
             (None, Some(abi))
                 if !graph.parameters.is_empty()
@@ -237,14 +244,18 @@ pub(super) fn header(
                     && abi.scalar_parameters == graph.scalar_parameters
                     && abi.structural_parameters == graph.parameters =>
             {
-                &abi.result
+                Some(&abi.result)
             }
+            // The graph retains the complete call plan and ordered parameters;
+            // target replay independently checks each exact scalar return.
+            (None, None) => None,
             _ => return Err(invalid),
         };
-        if retained.value != result.value
-            || retained.scalar_type != result.scalar_type
-            || Some(&retained.placement) != expected.result.as_ref()
-        {
+        if retained.is_some_and(|retained| {
+            retained.value != result.value
+                || retained.scalar_type != result.scalar_type
+                || Some(&retained.placement) != expected.result.as_ref()
+        }) {
             return Err(invalid);
         }
     }

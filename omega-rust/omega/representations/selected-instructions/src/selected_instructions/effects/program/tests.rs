@@ -467,7 +467,7 @@ fn jump_effects_require_the_current_wire_vocabulary() {
         MachineEncodedControlEffect::UnconditionalRelativeBranchV1;
     source.identity = pre_allocation_machine_effect_identity(&source);
     let mut bytes = source.encode();
-    assert_eq!(&bytes[8..12], &21_u32.to_le_bytes());
+    assert_eq!(&bytes[8..12], &22_u32.to_le_bytes());
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&bytes).unwrap(),
         source
@@ -505,7 +505,7 @@ fn codec_zero_extension_round_trips_and_rejects_all_prior_versions() {
         PreAllocationMachineEffectPlan::decode(&encoded).unwrap(),
         source
     );
-    for version in 0_u32..20 {
+    for version in 0_u32..22 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(
@@ -514,6 +514,63 @@ fn codec_zero_extension_round_trips_and_rejects_all_prior_versions() {
                 version
             ))
         );
+    }
+}
+
+#[test]
+fn integer_normalization_codec_retains_exact_width_and_sign() {
+    let forms = [
+        (
+            SelectedInstructionKind::ZeroExtendU8,
+            MachineAlternativeFamily::ZeroExtendU8,
+        ),
+        (
+            SelectedInstructionKind::ZeroExtendU16,
+            MachineAlternativeFamily::ZeroExtendU16,
+        ),
+        (
+            SelectedInstructionKind::ZeroExtendU32,
+            MachineAlternativeFamily::ZeroExtendU32,
+        ),
+        (
+            SelectedInstructionKind::SignExtendI8,
+            MachineAlternativeFamily::SignExtendI8,
+        ),
+        (
+            SelectedInstructionKind::SignExtendI16,
+            MachineAlternativeFamily::SignExtendI16,
+        ),
+        (
+            SelectedInstructionKind::SignExtendI32,
+            MachineAlternativeFamily::SignExtendI32,
+        ),
+    ];
+    let mut identities = Vec::new();
+    for (kind, family) in forms {
+        let mut source = plan();
+        let instruction = &mut source.functions[0].blocks[0].instructions[0];
+        instruction.kind = kind;
+        instruction.alternatives[0].key.family = family;
+        source.identity = pre_allocation_machine_effect_identity(&source);
+        assert!(!identities.contains(&source.identity));
+        identities.push(source.identity);
+        assert_eq!(
+            PreAllocationMachineEffectPlan::decode(&source.encode()).unwrap(),
+            source
+        );
+        for (substituted_kind, substituted_family) in forms {
+            if substituted_kind == kind {
+                continue;
+            }
+            let mut changed = source.clone();
+            changed.functions[0].blocks[0].instructions[0].kind = substituted_kind;
+            assert!(PreAllocationMachineEffectPlan::decode(&changed.encode()).is_err());
+            let mut changed = source.clone();
+            changed.functions[0].blocks[0].instructions[0].alternatives[0]
+                .key
+                .family = substituted_family;
+            assert!(PreAllocationMachineEffectPlan::decode(&changed.encode()).is_err());
+        }
     }
 }
 

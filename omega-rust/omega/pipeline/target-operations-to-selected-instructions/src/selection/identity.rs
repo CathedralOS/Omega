@@ -249,6 +249,10 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::BitsToFloat64 => 29,
         SelectedInstructionKind::ZeroExtendU8 => 15,
         SelectedInstructionKind::ZeroExtendU32 => 20,
+        SelectedInstructionKind::ZeroExtendU16 => 37,
+        SelectedInstructionKind::SignExtendI8 => 38,
+        SelectedInstructionKind::SignExtendI16 => 39,
+        SelectedInstructionKind::SignExtendI32 => 40,
         SelectedInstructionKind::ExactAddI64 { .. } => 5,
         SelectedInstructionKind::ExactAddI64Immediate { .. } => 6,
         SelectedInstructionKind::ExactSubtractI64 { .. } => 7,
@@ -348,6 +352,10 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         | SelectedInstructionKind::BitsToFloat64
         | SelectedInstructionKind::ZeroExtendU8
         | SelectedInstructionKind::ZeroExtendU32
+        | SelectedInstructionKind::ZeroExtendU16
+        | SelectedInstructionKind::SignExtendI8
+        | SelectedInstructionKind::SignExtendI16
+        | SelectedInstructionKind::SignExtendI32
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::ByteViewAddress
         | SelectedInstructionKind::ConditionalBranchNonZero

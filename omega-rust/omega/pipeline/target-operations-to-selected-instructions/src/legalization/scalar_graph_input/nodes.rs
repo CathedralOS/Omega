@@ -402,9 +402,9 @@ pub(super) fn validate(
             AbstractOperation::IntegerEqual { left, right, .. }
             | AbstractOperation::IntegerLessThan { left, right, .. }
             | AbstractOperation::IntegerLessOrEqual { left, right, .. } => {
-                if value_type(optimized, *left)
-                    .and_then(integer_type)
-                    .is_none()
+                let left_type = value_type(optimized, *left);
+                if (left_type.and_then(integer_type).is_none()
+                    && (ranked || left_type.and_then(integer_call_shape).is_none()))
                     || value_type(optimized, *left) != value_type(optimized, *right)
                 {
                     return Err(invalid);

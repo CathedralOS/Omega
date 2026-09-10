@@ -101,18 +101,12 @@ pub(super) fn validate(
                 },
             )?;
             output
-        } else if scalar_type == ScalarType::Boolean
-            || matches!(scalar_type, ScalarType::Integer(integer) if matches!(integer.bits(), 8 | 32))
+        } else if crate::selection::scalar_call_abi::integer_abi_normalization(scalar_type)
+            != SelectedInstructionKind::CopyI64
         {
             let output = replay.result_register(value, site, scalar_type)?;
             replay.check_instruction(
-                if scalar_type == ScalarType::Boolean
-                    || matches!(scalar_type, ScalarType::Integer(integer) if integer.bits() == 8)
-                {
-                    SelectedInstructionKind::ZeroExtendU8
-                } else {
-                    SelectedInstructionKind::ZeroExtendU32
-                },
+                crate::selection::scalar_call_abi::integer_abi_normalization(scalar_type),
                 constraints.keys.copy_i64,
                 &[input, output],
                 &SelectedInstructionProvenance {

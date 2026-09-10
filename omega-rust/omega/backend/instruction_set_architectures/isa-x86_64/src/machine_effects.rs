@@ -345,6 +345,10 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::BitsToFloat64
         | MachineSemanticKind::CopyI64
         | MachineSemanticKind::ZeroExtendU8
+        | MachineSemanticKind::ZeroExtendU16
+        | MachineSemanticKind::SignExtendI8
+        | MachineSemanticKind::SignExtendI16
+        | MachineSemanticKind::SignExtendI32
         | MachineSemanticKind::ZeroExtendU32 => (vec![0], vec![1]),
         MachineSemanticKind::ByteViewAddress | MachineSemanticKind::ExactAddI64 => {
             (vec![0, 1], vec![2])
@@ -486,8 +490,13 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         MachineSemanticKind::Float64ToBits | MachineSemanticKind::BitsToFloat64 => {
             MachineSizeKnowledge::ExactBytes(5)
         }
-        MachineSemanticKind::ZeroExtendU8 => MachineSizeKnowledge::ExactBytes(4),
-        MachineSemanticKind::ZeroExtendU32 => MachineSizeKnowledge::ExactBytes(3),
+        MachineSemanticKind::ZeroExtendU8
+        | MachineSemanticKind::ZeroExtendU16
+        | MachineSemanticKind::SignExtendI8
+        | MachineSemanticKind::SignExtendI16 => MachineSizeKnowledge::ExactBytes(4),
+        MachineSemanticKind::ZeroExtendU32 | MachineSemanticKind::SignExtendI32 => {
+            MachineSizeKnowledge::ExactBytes(3)
+        }
         MachineSemanticKind::MaterializeI64 => MachineSizeKnowledge::ExactBytes(10),
         MachineSemanticKind::ByteViewAddress | MachineSemanticKind::ExactAddI64 => {
             MachineSizeKnowledge::EncoderResolved {
@@ -555,6 +564,62 @@ mod tests {
             &physical,
         )
         .unwrap_or_else(|error: X86_64RegisterConstraintCatalogValidationError| panic!("{error}"))
+    }
+
+    #[test]
+    fn integer_normalization_catalog_binds_identity_size_and_effects() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::windows_x64()] {
+            let constraints = constraints();
+            let catalog = x86_64_machine_effect_catalog(target, &constraints).unwrap();
+            validate_x86_64_machine_effect_catalog(target, &constraints, catalog.clone()).unwrap();
+            for semantic in [
+                MachineSemanticKind::ZeroExtendU16,
+                MachineSemanticKind::SignExtendI8,
+                MachineSemanticKind::SignExtendI16,
+                MachineSemanticKind::SignExtendI32,
+            ] {
+                let declaration = catalog
+                    .declarations
+                    .iter()
+                    .find(|row| row.semantic == semantic)
+                    .unwrap();
+                assert_eq!(declaration.constraint, X86_64_COPY_I64);
+                assert_eq!(declaration.alternatives.len(), 1);
+                let alternative = &declaration.alternatives[0];
+                assert_eq!(alternative.key.family, semantic.into());
+                assert_eq!(
+                    alternative.size,
+                    MachineSizeKnowledge::ExactBytes(
+                        if semantic == MachineSemanticKind::SignExtendI32 {
+                            3
+                        } else {
+                            4
+                        }
+                    )
+                );
+                assert_eq!(
+                    alternative.encoded,
+                    MachineEncodedEffects::fallthrough_v1(vec![0], vec![1])
+                );
+                for corruption in 0..3 {
+                    let mut changed = catalog.clone();
+                    let row = changed
+                        .declarations
+                        .iter_mut()
+                        .find(|row| row.semantic == semantic)
+                        .unwrap();
+                    match corruption {
+                        0 => row.alternatives[0].key.family = MachineSemanticKind::CopyI64.into(),
+                        1 => row.alternatives[0].size = MachineSizeKnowledge::ExactBytes(1),
+                        _ => row.alternatives[0].encoded.external_operand_reads.clear(),
+                    }
+                    assert!(
+                        validate_x86_64_machine_effect_catalog(target, &constraints, changed)
+                            .is_err()
+                    );
+                }
+            }
+        }
     }
 
     #[test]

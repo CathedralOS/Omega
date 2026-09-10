@@ -7,6 +7,7 @@ mod byte_views;
 mod control;
 mod derived_calls;
 mod ieee_borrows;
+mod integer_calls;
 mod parameters;
 mod primitive_locals;
 mod process_exit;

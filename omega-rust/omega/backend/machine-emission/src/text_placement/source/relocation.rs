@@ -122,6 +122,10 @@ pub(in crate::text_placement) fn prove_none(
                 | MachineAlternativeFamily::BitsToFloat64
                 | MachineAlternativeFamily::ZeroExtendU8
                 | MachineAlternativeFamily::ZeroExtendU32
+                | MachineAlternativeFamily::ZeroExtendU16
+                | MachineAlternativeFamily::SignExtendI8
+                | MachineAlternativeFamily::SignExtendI16
+                | MachineAlternativeFamily::SignExtendI32
                 | MachineAlternativeFamily::ByteViewAddress
                 | MachineAlternativeFamily::ExactAddI64
                 | MachineAlternativeFamily::ExactAddI64Immediate
