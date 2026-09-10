@@ -1082,10 +1082,26 @@ Owners include
   Operand/cast probe: `mbx run -p omega -- --check --target macos_arm64
   tests/omega/pass/expressions/numeric_operand_destinations/main.omg`.
   The shared query in `validation/src/expression_types/result_type.rs` still
-  needs semantic-domain results and instantiated selected-operator results.
+  needs semantic-domain results and instantiated predicate-bearing, non-builtin
+  and selected-trait operator results.
   Builtin arithmetic results use
   producer-retained carrier/policy references; input range predicates are not
   result facts. Unknown lookup must not stand in for anonymous numeric meaning.
+  The concrete operator-result customer is
+  `tests/omega/pass/expressions/declared_operator_match_result/main.omg`.
+  Its checked `u8::sum` realization returns `u64`, but nested selected operator
+  execution still needs the ordinary scalar computation call path in
+  `typed-trees-to-checked-trees/src/values/scalar/computations.rs` and its
+  `computations/integers.rs` operand owner, with source-custody replay in
+  `checked-trees-to-lowered-psi/src/scalar_source_custody`.
+  On macOS AArch64, `ab0b7c8ad1` plus the selected-result repair passes CLI
+  checking; `cargo run -p omega -- inspect-terminal --machine choose --target
+  macos_arm64 tests/omega/pass/expressions/declared_operator_match_result/main.omg`
+  rejects with `scalar computation needs one checked expression and one source binding`.
+  Keep the declared result, complete operand order, exact selected application,
+  and branch-local call obligations; do not replace the operator with builtin
+  addition or a synthesized source state. Next acceptance is independent
+  Terminal replay of `choose(true, 250u8, 10u8) = 260u64` and the false arm = 1.
 
 - **MODULE-NAMESPACE-RESOLUTION.** Finish the
   [module/name contract](wiki/spec/language/modules.md) for pre-resolution

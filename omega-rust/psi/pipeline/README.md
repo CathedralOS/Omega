@@ -49,8 +49,18 @@ Policy casts retain a shell over their exact target predicates in the existing
 type table. Numeric Match joins preserve a shared exact reference, or weaken
 ranges to a common carrier and policy; they cannot export the first arm's
 predicate as a promise about another arm. An unknown result joins this numeric
-path only when its expression is genuinely anonymous numeric. Semantic-domain
-results and selected operators without instantiated results remain unresolved.
+path only when its expression is genuinely anonymous numeric. Unique direct
+operators supply their exact declared builtin carrier/policy result, including
+a concrete result independent of generic operand binders. Range analysis treats
+the operation as a call with that result carrier, not builtin token arithmetic;
+children still owe their own arithmetic obligations. Semantic-domain,
+predicate-bearing and selected trait results requiring an instantiated reference
+remain unresolved; declaration-local result subjects cannot become caller facts.
+
+`cargo run -p omega -- --check tests/omega/pass/expressions/declared_operator_match_result/main.omg`
+checks a wider declared operator result joined with an anonymous numeric arm.
+Its supplied checked realization does not yet make the nested operator a scalar
+computation call: Terminal production remains a separate unfinished dependency.
 Before such predicates may become result facts, each executing cast must prove
 its asserted ranges from the live source environment. The arithmetic validator
 owns that obligation; the expression scanner supplies selected reachability for

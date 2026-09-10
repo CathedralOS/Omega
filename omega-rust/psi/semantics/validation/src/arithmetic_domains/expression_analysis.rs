@@ -256,6 +256,30 @@ pub(super) fn analyze(
                 owner,
                 diagnostics,
             );
+            if !crate::bound_expression_meaning::has_builtin_binary_expression_meaning(
+                program, machine, state, expression,
+            ) {
+                // A declared operation is not the token's primitive arithmetic.
+                // Its operands still owe their own obligations above; only its
+                // caller-independent result signature bounds the returned value.
+                // In particular, u8 operands do not impose a u8 overflow proof
+                // on an operator declaring u64, and subtraction need not yield
+                // zero for equal operands. Uninstantiated results remain unknown.
+                let result = state.and_then(|state| {
+                    crate::expression_types::expression_result_type_reference(
+                        program, machine, state, expression,
+                    )
+                });
+                let primitive = result.and_then(|result| program.primitive_type_reference(result));
+                return Analysis {
+                    domain: result
+                        .map(|result| program.arithmetic_domain_for_type_reference(result)),
+                    interval: primitive
+                        .and_then(primitive_range)
+                        .unwrap_or(Interval::UNBOUNDED),
+                    primitive,
+                };
+            }
             if !matches!(
                 operator,
                 BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight

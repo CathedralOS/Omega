@@ -1,7 +1,8 @@
 //! Consumer-facing result types, independent of an enclosing destination.
 //!
 //! Declaration-backed leaves retain their complete type. Computed builtin
-//! results require the node's actual selected meaning and signature; copying a
+//! results require the node's actual selected meaning and signature. Direct
+//! operators may expose caller-independent declared results; copying a
 //! sibling's type could turn a comparison into an integer or export unproved
 //! input refinements. Guard candidate lookup remains separate: its conservative
 //! operand shells are selection inputs, not computed-result evidence.
@@ -25,8 +26,9 @@ mod tests;
 /// Return an existing result reference, never an expected-type guess. An
 /// unresolved result does not establish anonymous numeric meaning. Builtin
 /// computed results retain their carrier and policy, not input predicates.
-/// Semantic-domain results and selected declarations lacking an instantiated
-/// result remain unresolved rather than losing their selected meaning.
+/// Direct operators retain closed builtin carrier/policy result references.
+/// Semantic-domain, predicate-bearing, and selected trait results needing an
+/// instantiated reference remain unresolved rather than losing their meaning.
 pub(crate) fn expression_result_type_reference(
     program: &TypedTrees,
     machine: &Machine,
@@ -137,7 +139,7 @@ fn result_type(
         ExpressionNode::Binary(binary) => {
             let operands = [binary.left, binary.right]
                 .map(|operand| result_type(program, machine, state, operand, active));
-            builtin_binary_result(program, machine, expression, binary, operands)
+            binary_result(program, machine, expression, binary, operands)
         }
         ExpressionNode::Unary(unary) => {
             let operand = result_type(program, machine, state, unary.operand, active);
@@ -160,7 +162,7 @@ fn result_type(
     })
 }
 
-fn builtin_binary_result(
+fn binary_result(
     program: &TypedTrees,
     machine: &Machine,
     expression: ExpressionHandle,
@@ -184,16 +186,37 @@ fn builtin_binary_result(
     };
     // Unknown operands stay unknown during selection. Substituting the known
     // peer first could hide a heterogeneous or reference-typed declaration.
-    if spelling.is_some_and(|spelling| {
-        !typed_trees::operator::has_builtin_spelled_expression_meaning(
+    if let Some(spelling) = spelling
+        && !typed_trees::operator::has_builtin_spelled_expression_meaning(
             program,
             machine.symbol,
             expression,
             spelling,
             &operands,
         )
-    }) {
-        return None;
+    {
+        let candidates =
+            typed_trees::operator::resolve_spelling_for_operands(program, spelling, &operands);
+        let [selected] = candidates.as_slice() else {
+            return None;
+        };
+        if !typed_trees::operator::selected_trait_operator_meanings(
+            program,
+            machine.symbol,
+            spelling,
+            &operands,
+        )
+        .is_empty()
+        {
+            return None;
+        }
+        // This is the selected declaration's result, never an operand guess.
+        // A concrete result needs no substitution even if operands are generic.
+        // Dependent predicates and result binders need an instantiated reference;
+        // exporting their declaration-local subjects would invent caller facts.
+        let result = selected.operator.return_type;
+        qualified_builtin_carrier(program, result, false)?;
+        return Some(result);
     }
     match binary.operator {
         And | Or => operands
@@ -295,7 +318,15 @@ fn integer(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
 // predicate-only qualifications and cannot use this projection.
 pub(super) fn arithmetic_carrier(
     program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<(symbols::SymbolHandle, ArithmeticDomain)> {
+    qualified_builtin_carrier(program, reference, true)
+}
+
+fn qualified_builtin_carrier(
+    program: &TypedTrees,
     mut reference: TypeReferenceHandle,
+    allow_range_predicates: bool,
 ) -> Option<(symbols::SymbolHandle, ArithmeticDomain)> {
     let mut policy = None;
     let mut visited = Vec::new();
@@ -316,14 +347,16 @@ pub(super) fn arithmetic_carrier(
             } => {
                 for constraint in program.type_reference_table.constraint_span(*constraints)? {
                     match constraint {
-                        TypeConstraintNode::Range { .. } => {}
+                        TypeConstraintNode::Range { .. } if allow_range_predicates => {}
                         TypeConstraintNode::ArithmeticDomain(domain) => {
                             if policy.is_some() {
                                 return None;
                             }
                             policy = Some(*domain);
                         }
-                        TypeConstraintNode::Named(_) | TypeConstraintNode::Domain(_) => {
+                        TypeConstraintNode::Range { .. }
+                        | TypeConstraintNode::Named(_)
+                        | TypeConstraintNode::Domain(_) => {
                             return None;
                         }
                     }
