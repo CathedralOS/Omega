@@ -76,6 +76,31 @@ prerequisite to every lower-rung milestone.
 
 ## Next decision - measured complexity follow-through
 
+- **BOOTSTRAP-AUTHORING-READABILITY.** Improve the implementation-to-expressiveness
+  tradeoff within the selected rungs. Customers are the Gamma-written Delta
+  checker and its generated runtime, not language-feature completeness. Next
+  comparisons are checked named products after the
+  [product-guarantee decision](OWNER_QUESTIONS.md#gamma-product-checking), and
+  ordinary runtime source after the
+  [artifact-composition decision](OWNER_QUESTIONS.md#bootstrap-runtime-source-composition).
+  The linked questions carry exact probe results and unresolved contracts.
+  Do not repeat independent per-field accessor wrappers as the product solution.
+  A source-only direct-recursion rewrite of
+  [conditional checking](bootstrap/3_delta/implementation/checking/types/branches.gamma)
+  was also rejected against
+  `355ea00d55` on macOS: ordinary results and three rejection cases matched, as
+  did depths 32, 64, and 128, but depth 256 returned raw Gamma status 250 where
+  the selected compiler produced its successful 5,036-byte receipt. This rules
+  out that rewrite under the current profile, not an evaluator-owned explicit
+  stack. The latter remains an engineering comparison requiring its full
+  containment and failure argument; a constant increase is not evidence.
+  Acceptance: a real checker/runtime implementation exposes its algorithm with
+  fewer manual layout/control obligations, and the added lower-rung semantics,
+  state, source, tests, and proof obligations are explicitly accounted for.
+  Preserve exact frontend diagnostics, complete Epsilon closure reconstruction,
+  and required malformed/resource controls. Byte counts alone and an isolated
+  source sketch do not establish human auditability. No rung removal is presumed.
+
 - **BOOTSTRAP-COMPLEXITY-REVIEW.** Finish the decisions identified by the
   [measured cost review](wiki/drafts/bootstrap_cost_review.md) before
   expanding infrastructure. Owners remain Delta normalization,
