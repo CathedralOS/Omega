@@ -22,7 +22,7 @@ pub(in crate::lowering) fn lower_structural_return_function(
     let [block_entry] = function.block_entries.as_slice() else {
         return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
     };
-    let [
+    let Some((
         AbstractOperation::ReturnStructural {
             psi_edge,
             source: returned_source,
@@ -30,10 +30,30 @@ pub(in crate::lowering) fn lower_structural_return_function(
             trivial_affine_locals,
             trivial_affine_discards,
         },
-    ] = function.operations.as_slice()
+        local_operations,
+    )) = function.operations.split_last()
     else {
         return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
     };
+    // Terminal lowering retains establishments as operations, regardless of
+    // result category. Only this no-code physical return folds their provenance
+    // into its return record; arbitrary executable prefixes stay unsupported.
+    let mut locals = trivial_affine_locals.clone();
+    if !local_operations.is_empty() && !locals.is_empty() {
+        return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
+    }
+    for operation in local_operations {
+        let AbstractOperation::EstablishTrivialAffineLocal {
+            psi_operation,
+            place,
+            structural_type,
+        } = operation
+        else {
+            return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
+        };
+        locals.push((*psi_operation, place.clone(), structural_type.clone()));
+    }
+    let trivial_affine_locals = &locals;
     if !function.parameters.is_empty()
         || !function.published_service_ceiling.is_empty()
         || block_entry.block != function.entry
@@ -263,7 +283,7 @@ fn lower_claim_free_affine_return(
         || !function.published_service_ceiling.is_empty()
         || block_entry.block != function.entry
         || block_entry.operation_offset != 0
-        || block_entry.parameters != function.parameters
+        || (!block_entry.parameters.is_empty() && block_entry.parameters != function.parameters)
         || structural_parameter.position != 0
         || structural_parameter.is_self
         || structural_parameter.multiplicity != StructuralMultiplicity::Affine

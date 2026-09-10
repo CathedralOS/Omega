@@ -6,13 +6,11 @@ pub(crate) use abstract_operations::{
     CompletionClaimSource, ValueBinding,
 };
 pub(crate) use semantic_vocabulary::{
-    BlockId, ContentTerm, MachineId, ObligationId, OperationId, PlaceId, Proposition, ScalarTerm,
-    ScalarType, StructuralPlaceKind,
+    BlockId, MachineId, ObligationId, OperationId, ScalarType, StructuralPlaceKind,
 };
 pub(crate) use terminal_codec::{CodecError, terminal_psi_identity};
 pub(crate) use terminal_psi::{
-    CompletionReceipt, OperationKind, OperationResult, ProviderCandidateConformance,
-    StructuralArgument, StructuralMultiplicity, StructuralResultDeclaration,
-    TerminalAffineCleanupAction, TerminalMachine, Terminator,
+    CompletionReceipt, OperationKind, ProviderCandidateConformance, StructuralArgument,
+    StructuralMultiplicity, TerminalAffineCleanupAction, TerminalMachine, Terminator,
 };
 pub(crate) use terminal_verifier::{VerifiedOptimizableTerminalModule, VerifiedTerminalModule};

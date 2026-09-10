@@ -11,7 +11,6 @@ pub(super) fn admit_provider_installation_with_projection(
     proof_bytes: &[u8],
     profile: &proof_admission::AdmissionProfile,
     selected: &[SelectedProviderAdapter],
-    retain_payloadless_for_optimization: bool,
 ) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
     let module = terminal_codec::decode_module(semantic_bytes)
         .map_err(ArtifactLoweringError::SemanticDecode)
@@ -22,7 +21,7 @@ pub(super) fn admit_provider_installation_with_projection(
     let verified = terminal_verifier::verify_module(&module, &proof, profile)
         .map_err(ArtifactLoweringError::Verification)
         .map_err(ProviderInstallationError::ArtifactReplay)?;
-    let replayed = lower_decoded_verified_module(&verified, retain_payloadless_for_optimization)
+    let replayed = lower_decoded_verified_module(&verified)
         .map_err(ArtifactLoweringError::Lowering)
         .map_err(ProviderInstallationError::ArtifactReplay)?;
     if &replayed != plan {

@@ -61,5 +61,5 @@ pub(super) fn lower_decoded_ordinary_module(
 ) -> Result<AbstractOperationPlan, ArtifactLoweringError> {
     let verified = terminal_verifier::verify_module(module, proof, profile)
         .map_err(ArtifactLoweringError::Verification)?;
-    lower_decoded_verified_module(&verified, false).map_err(ArtifactLoweringError::Lowering)
+    lower_decoded_verified_module(&verified).map_err(ArtifactLoweringError::Lowering)
 }

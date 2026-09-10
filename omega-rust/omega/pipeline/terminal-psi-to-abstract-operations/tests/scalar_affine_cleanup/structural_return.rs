@@ -11,9 +11,7 @@ use terminal_psi::{
     StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
     TerminalModule, Terminator, VocabularyMarker,
 };
-use terminal_psi_to_abstract_operations::{
-    ArtifactLoweringError, LoweringError, lower_artifact_sections,
-};
+use terminal_psi_to_abstract_operations::lower_artifact_sections;
 use terminal_verifier::ProofBundle;
 
 use super::support::{
@@ -190,12 +188,145 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
         frontier_lower_bound: vec![claim],
     };
     let semantics = encode_module(&crash_only).expect("structural crash-only machine encodes");
-    assert!(matches!(
-        lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default()),
-        Err(ArtifactLoweringError::Lowering(
-            LoweringError::UnsupportedStructuralResult(machine)
-        )) if machine == machine_id(1)
-    ));
+    let lowered = lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("a structural result does not change the crash operation's semantics");
+    assert!(matches!(lowered.functions[0].operations.as_slice(),
+        [AbstractOperation::Crash { frontier_lower_bound, .. }] if frontier_lower_bound == &[claim]));
+
+    // Preserve unrelated operations and both control edges, not just the
+    // identity-return template. Claim replay still rejects a missing transfer.
+    let mut branching = module.clone();
+    let original_return = branching.machines[0].blocks[0].terminator.clone();
+    let condition = semantic_vocabulary::ValueId::new(1).unwrap();
+    branching.machines[0].blocks[0]
+        .operations
+        .push(terminal_psi::Operation {
+            id: semantic_vocabulary::OperationId::new(1).unwrap(),
+            result: terminal_psi::OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                id: condition,
+                scalar_type: semantic_vocabulary::ScalarType::Boolean,
+            }),
+            kind: terminal_psi::OperationKind::BooleanConstant { value: true },
+        });
+    branching.machines[0].blocks[0].terminator = Terminator::Conditional {
+        condition,
+        when_true: terminal_psi::SuccessorEdge {
+            edge: edge_id(2),
+            target: block_id(2),
+            arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+        },
+        when_false: terminal_psi::SuccessorEdge {
+            edge: edge_id(3),
+            target: block_id(2),
+            arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+        },
+    };
+    branching.machines[0].blocks.push(Block {
+        id: block_id(2),
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        operations: Vec::new(),
+        terminator: original_return,
+    });
+    let semantics = encode_module(&branching).unwrap();
+    let lowered = lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("verified operations compose before a structural return");
+    assert_eq!(lowered.functions[0].block_entries.len(), 2);
+    assert!(matches!(lowered.functions[0].operations.as_slice(),
+        [AbstractOperation::BooleanConstant { .. }, AbstractOperation::Conditional { .. },
+         AbstractOperation::ReturnStructural { returned_claims, .. }] if returned_claims == &[claim]));
+    if let Terminator::ReturnStructural {
+        returned_claims, ..
+    } = &mut branching.machines[0].blocks[1].terminator
+    {
+        returned_claims.clear();
+    }
+    assert!(encode_module(&branching).is_err());
+    assert!(
+        terminal_verifier::verify_module(
+            &branching,
+            &ProofBundle::default(),
+            &AdmissionProfile::default()
+        )
+        .is_err()
+    );
+
+    // Establishments remain explicit in the abstract graph. The existing
+    // no-code physical return gathers their exact provenance at its own stage.
+    let mut with_local = module.clone();
+    with_local.structural_types[0].shape = StructuralTypeShape::Record {
+        fields: vec![terminal_psi::StructuralFieldDeclaration {
+            id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+            identity: "value".into(),
+            relevance: terminal_psi::BindingRelevance::Relevant,
+            field_type: terminal_psi::StructuralFieldType::Scalar(
+                semantic_vocabulary::ScalarType::Integer(
+                    semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Unsigned,
+                        64,
+                    )
+                    .unwrap(),
+                ),
+            ),
+        }],
+    };
+    let local = StructuralPlaceDeclaration {
+        id: place_id(3),
+        kind: StructuralPlaceKind::TrivialAffineLocal {
+            declaration_ordinal: 0,
+            structural_type: structural_type_id(2),
+            construction: None,
+        },
+    };
+    with_local.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type_id(2),
+        identity: "test::Empty".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    });
+    with_local.machines[0].structural_places.push(local.clone());
+    with_local.machines[0].blocks[0]
+        .operations
+        .push(terminal_psi::Operation {
+            id: semantic_vocabulary::OperationId::new(2).unwrap(),
+            result: terminal_psi::OperationResult::Unit,
+            kind: terminal_psi::OperationKind::EstablishTrivialAffineLocal {
+                destination: local.id,
+            },
+        });
+    if let Terminator::ReturnStructural {
+        trivial_affine_discards,
+        ..
+    } = &mut with_local.machines[0].blocks[0].terminator
+    {
+        trivial_affine_discards.push(local.id);
+    }
+    let lowered = lower_artifact_sections(
+        &encode_module(&with_local).unwrap(),
+        &proof,
+        &AdmissionProfile::default(),
+    )
+    .unwrap();
+    assert!(matches!(lowered.functions[0].operations.as_slice(),
+        [AbstractOperation::EstablishTrivialAffineLocal { place, .. },
+         AbstractOperation::ReturnStructural { trivial_affine_locals, .. }]
+         if place == &local && trivial_affine_locals.is_empty()));
+    for target in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+    ] {
+        let physical =
+            abstract_operations_to_target_operations::lower_to_target_operations(&lowered, target)
+                .expect("explicit no-code local preserves native return support");
+        assert_eq!(
+            physical.functions[0].provenance.operations,
+            [semantic_vocabulary::OperationId::new(2).unwrap()]
+        );
+        assert_eq!(physical.functions[0].provenance.edges, [edge]);
+    }
 
     let extra = place_id(3);
     let mut wider_cleanup = module;

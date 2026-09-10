@@ -204,29 +204,27 @@ fn empty_block_bindings_preserve_the_existing_gate() {
 #[test]
 fn common_native_and_optimizer_lowering_cannot_drop_descriptor_only_transfer() {
     let module = fixture();
-    for retain_payloadless in [false, true] {
-        let plan = crate::lowering::lower_decoded_module(&module, retain_payloadless).unwrap();
-        let function = &plan.functions[0];
-        assert_eq!(
-            function.block_entries[1].structural_parameters,
-            module.machines[0].blocks[1].structural_parameters
-        );
-        let abstract_operations::AbstractOperation::Jump {
-            structural_bindings,
-            ..
-        } = &function.operations[0]
-        else {
-            panic!("expected exact jump");
-        };
-        assert_eq!(structural_bindings.len(), 1);
-        assert_eq!(structural_bindings[0].parameter, PlaceId::new(2).unwrap());
-        assert_eq!(
-            structural_bindings[0].argument,
-            StructuralArgument {
-                place: PlaceId::new(1).unwrap(),
-                path: Vec::new(),
-                access: StructuralAccess::SharedBorrow
-            }
-        );
-    }
+    let plan = crate::lowering::lower_decoded_module(&module).unwrap();
+    let function = &plan.functions[0];
+    assert_eq!(
+        function.block_entries[1].structural_parameters,
+        module.machines[0].blocks[1].structural_parameters
+    );
+    let abstract_operations::AbstractOperation::Jump {
+        structural_bindings,
+        ..
+    } = &function.operations[0]
+    else {
+        panic!("expected exact jump");
+    };
+    assert_eq!(structural_bindings.len(), 1);
+    assert_eq!(structural_bindings[0].parameter, PlaceId::new(2).unwrap());
+    assert_eq!(
+        structural_bindings[0].argument,
+        StructuralArgument {
+            place: PlaceId::new(1).unwrap(),
+            path: Vec::new(),
+            access: StructuralAccess::SharedBorrow
+        }
+    );
 }
