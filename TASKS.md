@@ -1159,17 +1159,16 @@ Owners include
   `values/scalar/constant_array_projection.rs` only selects closed literal leaves.
   General value projection needs its complete executable representation, not
   a source rewrite that makes a constant addressable storage.
-  Array transport resume evidence (macOS AArch64, base `5d5333554e` plus the
-  computation-argument change, Cargo with `RUST_MIN_STACK=33554432`):
-  `cargo run -p omega -- inspect-terminal --machine computation_row tests/omega/pass/modules/module_array_constant_indices/main.omg`
-  publishes verified Terminal Psi for the unchanged nested array customer.
+  Array transport resume evidence (macOS AArch64, base `4388ef5d7c` plus the
+  ordered-body callee change, Cargo with `RUST_MIN_STACK=33554432`):
+  `cargo run -p omega -- inspect-terminal --machine transitive_computation_row tests/omega/pass/modules/module_array_constant_indices/main.omg`
+  publishes verified Terminal Psi for transitive array-building scalar helpers.
   The [array production map](omega-rust/psi/compiler/terminal-production/README.md)
   retains the executable probes and source owners. Continue from its shared
   evaluation sequence, preserving authored order, selective construction, exact
   source custody, and actual payloads. Array-producing cycles and structural
   block-parameter payload transport remain explicit fences.
-  Transitive scalar callees with ordered structural operation bodies also need
-  the scalar-callee catalog join. Ordered scalar completion contracts and result
+  Ordered scalar completion contracts and result
   refinements need their complete predicate/evidence path; preserve existing
   scalar-only contract lowering while extending that route.
   Borrowed/projected payloads, state transfers, and boundary-provider array

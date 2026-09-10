@@ -6,6 +6,8 @@ use super::*;
 /// Embedded roots retain their caller attachment; every
 /// transitive attached callee needs an exact source-validated static computation
 /// edge. Other transitive scalar callees pass the generic signature fence.
+/// Operation-body calls use the shared assembler's exact authored call custody;
+/// discovery only retains their targets and cannot authorize their execution.
 pub(crate) fn checked_scalar_call_closure(
     checked: &CheckedTrees,
     roots: &[symbols::SymbolHandle],
@@ -76,10 +78,31 @@ pub(crate) fn checked_scalar_call_closure_with_structural_roots(
                 .collect::<Vec<_>>(),
             crate::scalar_call_closure::callee::CheckedScalarCallee::Boundary(_) => Vec::new(),
             crate::scalar_call_closure::callee::CheckedScalarCallee::Structural(_) => Vec::new(),
+            crate::scalar_call_closure::callee::CheckedScalarCallee::Operations(_) => Vec::new(),
         };
-        let computed = source_checked_computation_targets(checked, machine)?;
-        let computed_structural =
+        let mut computed = source_checked_computation_targets(checked, machine)?;
+        let mut computed_structural =
             crate::scalar_computations::structural_call_targets(checked, machine)?;
+        if let crate::scalar_call_closure::callee::CheckedScalarCallee::Operations(plan) = callee {
+            for operation in &plan.operations {
+                if let CheckedUnitEffectOperationPlan::ScalarCall {
+                    target_machine,
+                    structural_arguments,
+                    claim_transfers,
+                    ..
+                } = operation
+                {
+                    if !computed.contains(target_machine) {
+                        computed.push(*target_machine);
+                    }
+                    if (!structural_arguments.is_empty() || !claim_transfers.is_empty())
+                        && !computed_structural.contains(target_machine)
+                    {
+                        computed_structural.push(*target_machine);
+                    }
+                }
+            }
+        }
         for target in &computed {
             if !computation_targets.contains(target) {
                 computation_targets.push(*target);

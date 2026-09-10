@@ -28,4 +28,10 @@ machine keep_row(row: [u8; 2]) -> [u8; 2] { row }
 machine literal_row(value: u8) -> [u8; 2] { keep_row([value, 7u8 + 2u8]) }
 machine answer_row(row: [u8; 2], value: u8) -> u8 { value }
 machine computation_row(value: u8) -> [u8; 2] { keep_row([answer_row([7u8, 9u8], value), 9u8]) }
+machine ordered_answer_row(value: u8) -> u8 {
+    let row: [u8; 2] = [7u8, 9u8];
+    answer_row(row, value)
+}
+machine forward_answer_row(value: u8) -> u8 { ordered_answer_row(value) }
+machine transitive_computation_row(value: u8) -> [u8; 2] { keep_row([forward_answer_row(value), 9u8]) }
 machine passed_row(value: u8) -> [u8; 2] { let row: [u8; 2] = computed_row(value); keep_row(row) }

@@ -24,6 +24,15 @@ pub(super) fn requires_place_namespace(
             .terminal_scalar_graphs
             .for_machine(machine)
         else {
+            // A graph-less scalar helper may own an ordered operation body.
+            // Route the complete closure to the shared assembler before the
+            // graph-only catalog can discard that body's structural effects.
+            if matches!(
+                callee::CheckedScalarCallee::find_for_unit_call(checked, machine),
+                Ok(callee::CheckedScalarCallee::Operations(_))
+            ) {
+                return Ok(true);
+            }
             continue;
         };
         if graph.states.iter().any(|state| {

@@ -17,8 +17,10 @@ one availability roster, and we prune both catalogs until no more callers lose
 their dependencies. If A calls B and B calls an unavailable C, B disappears on
 one pass and A can disappear on the next. Checking only A's own statements, or
 pruning each catalog independently, would leave a seemingly complete root with
-an unlowerable transitive call. Boundary, scalar, and structural-result calls
-still use the particular availability check for their plan family. Only after
+an unlowerable transitive call. Scalar calls can borrow an ordinary scalar-result
+body from this same roster; their argument, claim and contract checks still use
+the exact scalar signature. Boundary and structural-result calls retain their
+own availability checks. Only after
 pruning do we retain the referenced structural types and their transitive shapes.
 
 When a downstream error says a checked transitive machine plan is missing,
@@ -402,9 +404,18 @@ pub(crate) fn build_checked_unit_effect_plans(
             .copied()
             .collect::<Vec<_>>();
         let old_lengths = (candidates.len(), composed_machines.len());
-        candidates.retain(|plan| {
-            unique_entries.contains(&(plan.machine, plan.state))
-                && plan.operations.iter().all(|operation| match operation {
+        // Every scalar call observes the same candidate roster for this pass.
+        // Mutating it during availability checks would make transitive pruning
+        // depend on declaration order; no body copies are needed to retain it.
+        let retained_candidates =
+            candidates
+                .iter()
+                .map(|plan| {
+                    if !unique_entries.contains(&(plan.machine, plan.state)) {
+                        return false;
+                    }
+                    plan.operations.iter().all(|operation| {
+                        match operation {
                     CheckedUnitEffectOperationPlan::CallUnit {
                         target_machine,
                         target_state,
@@ -421,7 +432,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                         ..
                     } => boundary_symbols.contains(target_machine),
                     CheckedUnitEffectOperationPlan::ScalarCall { .. } => {
-                        scalar_targets::is_available(program, facts, plan, operation)
+                        scalar_targets::is_available(program, facts, &candidates, plan, operation)
                     }
                     CheckedUnitEffectOperationPlan::StructuralCall {
                         target_machine,
@@ -458,8 +469,12 @@ pub(crate) fn build_checked_unit_effect_plans(
                     | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                     | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
                     | CheckedUnitEffectOperationPlan::Complete { .. } => true,
+                }
+                    })
                 })
-        });
+                .collect::<Vec<_>>();
+        let mut retained_candidates = retained_candidates.into_iter();
+        candidates.retain(|_| retained_candidates.next().unwrap_or(false));
         composed_machines.retain(|plan| {
             unique_entries
                 .iter()

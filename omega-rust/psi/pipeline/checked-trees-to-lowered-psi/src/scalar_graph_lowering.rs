@@ -818,17 +818,9 @@ pub(super) fn lower_scalar_call(
         result_type,
         arguments,
         structural_arguments,
-        uses_structural_frame: checked
-            .facts
-            .flow
-            .terminal_scalar_graphs
-            .for_machine(target_machine)
-            .is_some_and(|graph| {
-                graph
-                    .states
-                    .iter()
-                    .any(|state| !state.primitive_locals.is_empty())
-            }),
+        // The selected body owns storage even when its public signature has
+        // only scalars. Graph and ordered-body callers use the same decision.
+        uses_structural_frame: target.requires_structural_frame(),
         crash_continuations: crash_continuations.to_vec(),
         parameter_relative_crash_routes: target_contract.crash.published().to_vec(),
     })

@@ -120,6 +120,7 @@ pub(super) fn registered_primitive_store_target<'facts>(
 pub(super) fn is_available(
     program: &TypedTrees,
     facts: &CheckFacts,
+    candidates: &[CheckedUnitEffectMachinePlan],
     caller: &CheckedUnitEffectMachinePlan,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> bool {
@@ -205,7 +206,13 @@ pub(super) fn is_available(
             &[][..],
             plan.result_type,
         )
-    } else {
+    } else if facts
+        .flow
+        .terminal_boundary_scalar_returns
+        .machines
+        .iter()
+        .any(|plan| plan.machine == *target_machine)
+    {
         let mut targets = facts
             .flow
             .terminal_boundary_scalar_returns
@@ -240,6 +247,71 @@ pub(super) fn is_available(
             &plan.scalar_parameters,
             plan.entry_claims.as_slice(),
             plan.result_type,
+        )
+    } else {
+        // Availability borrows the complete ordinary bodies from this pruning
+        // pass. A scalar completion does not turn its ordered operations into
+        // a graph, nor allow a caller to forget their transitive dependencies.
+        let mut targets = candidates
+            .iter()
+            .filter(|plan| plan.machine == *target_machine);
+        let Some(plan) = targets.next() else {
+            return false;
+        };
+        let Some(completion) = &plan.scalar_result else {
+            return false;
+        };
+        if targets.next().is_some()
+            || plan.state != *target_state
+            || plan.structural_result.is_some()
+            || plan.contract_report_fingerprint != contract.report_fingerprint
+            || plan.contract_commitment != contract.commitment
+            || !program.machine_contracts(machine).is_empty()
+            || !program.state_contracts(state).is_empty()
+            || matches!(
+                program
+                    .type_reference_table
+                    .type_reference(state.return_type),
+                TypeReferenceNode::Constrained { .. }
+            )
+        {
+            return false;
+        }
+        let mut shapes = ShapeCollector::new(program);
+        let binders = machine_binders(program, machine);
+        let signature = if machine.attached_data.is_none() {
+            free_structural_scalar_signature(program, &mut shapes, state, &binders)
+                .map(|(structural, scalar)| (None, structural, scalar))
+        } else {
+            structural_scalar_signature(
+                program,
+                &mut shapes,
+                machine,
+                state,
+                &binders,
+                plan.structural_parameters
+                    .iter()
+                    .any(|parameter| parameter.is_self),
+            )
+            .map(|(attachment, structural, scalar)| (Some(attachment), structural, scalar))
+        };
+        let Some((attachment, structural, scalar)) = signature else {
+            return false;
+        };
+        if attachment != plan.attachment_type_identity
+            || structural != plan.structural_parameters
+            || scalar != plan.scalar_parameters
+            || plan.operations.iter().filter(|operation| matches!(operation,
+                CheckedUnitEffectOperationPlan::ScalarCall { result, .. } if result == completion
+            )).count() != 1
+        {
+            return false;
+        }
+        (
+            &plan.structural_parameters,
+            &plan.scalar_parameters,
+            plan.entry_claims.as_slice(),
+            completion.primitive_type,
         )
     };
     if structural_arguments.len() != structural.len()
