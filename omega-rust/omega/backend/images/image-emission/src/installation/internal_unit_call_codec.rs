@@ -318,12 +318,14 @@ fn encode_structural_result(
             else {
                 return Err(InstallationError::InvalidInternalUnitCall(machine));
             };
-            if home.requirement.result != result.operation_result
-                || home.byte_count != home.bytes.len()
-            {
+            let (defining_operation, operation_result) = home
+                .requirement
+                .operation_result()
+                .ok_or(InstallationError::InvalidInternalUnitCall(machine))?;
+            if operation_result != &result.operation_result || home.byte_count != home.bytes.len() {
                 return Err(InstallationError::InvalidInternalUnitCall(machine));
             }
-            push_u64(bytes, home.requirement.defining_operation.get());
+            push_u64(bytes, defining_operation.get());
             encode_shape(bytes, shape)?;
             push_u32(bytes, home.home_byte_offset);
             push_u64(
@@ -655,8 +657,10 @@ fn decode_structural_result(
                 let bytes = reader.take(encoded_count)?.to_vec();
                 Some(machine_code::InternalStructuralResultHomeRecord {
                     requirement: target_operations::TargetStructuralHomeRequirement {
-                        defining_operation,
-                        result: operation_result.clone(),
+                        origin: target_operations::TargetStructuralHomeOrigin::OperationResult {
+                            operation: defining_operation,
+                            result: operation_result.clone(),
+                        },
                         layout: target_operations::TargetStructuralHomeLayout::Aggregate(shape),
                     },
                     home_byte_offset,
@@ -890,8 +894,10 @@ mod tests {
         );
         result.result_home = Some(machine_code::InternalStructuralResultHomeRecord {
             requirement: target_operations::TargetStructuralHomeRequirement {
-                defining_operation: OperationId::new(5).unwrap(),
-                result: result.operation_result.clone(),
+                origin: target_operations::TargetStructuralHomeOrigin::OperationResult {
+                    operation: OperationId::new(5).unwrap(),
+                    result: result.operation_result.clone(),
+                },
                 layout: target_operations::TargetStructuralHomeLayout::Aggregate(
                     result.caller_result_placement.shape,
                 ),
@@ -915,13 +921,36 @@ mod tests {
             decode_structural_result(&mut Reader::new(&encoded[..encoded.len() - 1]), machine)
                 .is_err()
         );
-        result
+        let mut wrong_origin = result.clone();
+        wrong_origin
             .result_home
             .as_mut()
             .unwrap()
             .requirement
-            .result
-            .place = PlaceId::new(9).unwrap();
+            .origin = target_operations::TargetStructuralHomeOrigin::BlockParameter {
+            block: BlockId::new(7).unwrap(),
+            declaration: terminal_psi::StructuralParameterDeclaration {
+                place: result.operation_result.place,
+                position: 0,
+                is_self: false,
+                structural_type: result.operation_result.structural_type,
+                multiplicity: result.operation_result.multiplicity,
+                access: terminal_psi::StructuralAccess::Owned,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            },
+        };
+        assert!(
+            matches!(encode_structural_result(&mut Vec::new(), machine, Some(&wrong_origin)),
+            Err(InstallationError::InvalidInternalUnitCall(actual)) if actual == machine)
+        );
+        let target_operations::TargetStructuralHomeOrigin::OperationResult {
+            result: retained, ..
+        } = &mut result.result_home.as_mut().unwrap().requirement.origin
+        else {
+            panic!("operation result home");
+        };
+        retained.place = PlaceId::new(9).unwrap();
         assert!(encode_structural_result(&mut Vec::new(), machine, Some(&result)).is_err());
     }
 }

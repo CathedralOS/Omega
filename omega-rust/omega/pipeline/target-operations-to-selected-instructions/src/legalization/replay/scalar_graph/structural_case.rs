@@ -10,8 +10,7 @@ pub(super) fn validate(
     let invalid = Error::NonCanonicalLegalizedPlan;
     let (
         LegalizedScalarTerminator::StructuralCase {
-            defining_operation,
-            result,
+            source: actual_source,
             layout,
             cases,
             effect,
@@ -25,11 +24,13 @@ pub(super) fn validate(
     else {
         return Err(invalid);
     };
-    let (producer, produced) =
-        scalar_graph_input::structural_case::source_result(function, *source)?;
-    if *defining_operation != producer
-        || result != produced
-        || *layout != scalar_graph_input::aggregate_results::sum_layout(produced, plan)?
+    let produced = scalar_graph_input::structural_case::source_owner(function, *source)?;
+    if *actual_source != produced
+        || *layout
+            != scalar_graph_input::aggregate_results::sum_type_layout(
+                produced.structural_type(),
+                plan,
+            )?
         || *effect != node.effect
         || *ownership != node.ownership
         || cases.len() != expected.len()
@@ -40,7 +41,7 @@ pub(super) fn validate(
     let declaration = plan
         .structural_types
         .iter()
-        .find(|declaration| declaration.id == produced.structural_type)
+        .find(|declaration| declaration.id == produced.structural_type())
         .ok_or(invalid.clone())?;
     let terminal_psi::StructuralTypeShape::Sum { cases: declared } = &declaration.shape else {
         return Err(invalid);

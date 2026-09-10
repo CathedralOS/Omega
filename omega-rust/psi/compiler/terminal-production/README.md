@@ -157,9 +157,11 @@ through simultaneous state bindings and fuel suspension. Borrowed receiver
 payload extraction, nested structural payload construction/transport,
 loop-carried owned results, and whole nominal receiver replacement remain
 separate dependencies. The `owned_case_state_transport` compiler test exercises
-the filesystem's actual `ErrorKind` through calls and owned state dispatch; it
-does not establish the complete filesystem entry or native realization of that
-state transport.
+the filesystem's actual `ErrorKind` through calls and owned state dispatch.
+The native [owned-state tests](../../../../tests/native-differential/tests/scalar_case_results/owned_state.rs)
+exercise scalar-sum result transport through destination-owned homes, joins,
+and dispatch using the ordinary publication pipeline. The complete filesystem
+entry still requires the remaining source dependencies above.
 
 Keep the complete filesystem fixture as the outer acceptance check. On macOS:
 

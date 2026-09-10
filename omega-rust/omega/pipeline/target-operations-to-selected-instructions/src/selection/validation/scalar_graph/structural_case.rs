@@ -14,8 +14,7 @@ pub(super) fn validate(
 ) -> Result<(), SelectedInstructionError> {
     let invalid = || SelectedInstructionError::SourceCustodyMismatch;
     let LegalizedScalarTerminator::StructuralCase {
-        defining_operation,
-        result,
+        source: subject,
         layout,
         cases,
         ..
@@ -33,9 +32,21 @@ pub(super) fn validate(
     {
         return Err(invalid());
     }
-    let slot = LocalStorageSlotId::Structural {
-        operation: *defining_operation,
-        place: result.place,
+    let slot = match subject {
+        legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+            operation,
+            result,
+        } => LocalStorageSlotId::Structural {
+            operation: *operation,
+            place: result.place,
+        },
+        legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+            block,
+            declaration,
+        } => LocalStorageSlotId::StructuralBlockParameter {
+            block: *block,
+            place: declaration.place,
+        },
     };
     if replay
         .transport
@@ -51,11 +62,11 @@ pub(super) fn validate(
     {
         return Err(invalid());
     }
-    let address = temporary(replay, result.place, 0, false)?;
+    let address = temporary(replay, subject.place(), 0, false)?;
     memory(
         replay,
         block.id,
-        result.place,
+        subject.place(),
         0,
         u32::from(layout.shape.byte_size),
         SelectedMemoryAccessRole::AddressLocal { slot },
@@ -69,11 +80,11 @@ pub(super) fn validate(
         &[address],
         &Default::default(),
     )?;
-    let tag = temporary(replay, result.place, 0, true)?;
+    let tag = temporary(replay, subject.place(), 0, true)?;
     memory(
         replay,
         block.id,
-        result.place,
+        subject.place(),
         0,
         4,
         SelectedMemoryAccessRole::ReadPlace,
@@ -95,7 +106,7 @@ pub(super) fn validate(
                 &Default::default(),
             )?;
         } else {
-            let expected = temporary(replay, result.place, 0, false)?;
+            let expected = temporary(replay, subject.place(), 0, false)?;
             replay.check_instruction(
                 SelectedInstructionKind::MaterializeI64 {
                     value: semantic_vocabulary::IntegerValue::Unsigned(ordinal as u128),

@@ -158,6 +158,7 @@ pub(crate) fn completed_roots(
                 return None;
             };
             let home = result.result_home.as_ref()?;
+            let (defining_operation, retained_result) = home.requirement.operation_result()?;
             if !source.moved.is_empty()
                 || !input.path.is_empty()
                 || input.access != StructuralAccess::Owned
@@ -172,11 +173,8 @@ pub(crate) fn completed_roots(
                 || !result.returned_claim_transfers.is_empty()
                 || !result.returned_claims.is_empty()
                 || identities.contains(&result.operation_result.place)
-                || home.requirement.result != result.operation_result
-                || call.owner
-                    != target_operations::CallSiteOwner::Operation(
-                        home.requirement.defining_operation,
-                    )
+                || retained_result != &result.operation_result
+                || call.owner != target_operations::CallSiteOwner::Operation(defining_operation)
                 || home.requirement.layout.shape() != parameter.shape
                 || !matches!(
                     home.requirement.layout,

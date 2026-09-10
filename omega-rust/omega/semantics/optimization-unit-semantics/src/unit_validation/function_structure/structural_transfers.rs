@@ -154,6 +154,24 @@ fn source_contract(
                 )),
                 _ => None,
             },
+            O::CallStructural { result, .. } | O::EstablishScalarCase { result, .. }
+                if result.place == place
+                    && matches!(
+                        result.multiplicity,
+                        StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+                    )
+                    && result.qualifications.is_empty()
+                    && result.projected_qualifications.is_empty()
+                    && result.claims.is_empty() =>
+            {
+                // Producer identity, dominance and successful-completion ownership
+                // are independently replayed by operation and frontier validation.
+                Some((
+                    result.structural_type,
+                    StructuralAccess::Owned,
+                    result.multiplicity,
+                ))
+            }
             O::ByteSequenceSubslice { result, .. }
                 if result.place == place
                     && result.multiplicity == StructuralMultiplicity::Unrestricted

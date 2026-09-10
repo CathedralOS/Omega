@@ -86,6 +86,8 @@ pub(super) fn establish(
             vec![field.value],
         )?;
     }
+    // Publish to ordinary edge transport only after the carrier is initialized.
+    builder.transport.pointers.push((result.place, pointer));
     Ok(())
 }
 

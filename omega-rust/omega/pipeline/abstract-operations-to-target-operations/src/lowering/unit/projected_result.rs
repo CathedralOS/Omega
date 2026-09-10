@@ -53,8 +53,7 @@ pub(super) fn source(
         };
         let placement = call_plan.result.as_ref()?;
         (result.place == place
-            && home.result == *result
-            && home.defining_operation == *psi_operation
+            && home.operation_result() == Some((*psi_operation, result))
             && shape == placement.shape
             && has_store_fragments(placement)
             && result.multiplicity == StructuralMultiplicity::Affine

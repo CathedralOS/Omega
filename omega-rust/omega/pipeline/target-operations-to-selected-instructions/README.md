@@ -137,11 +137,21 @@ The [owned control-cycle regressions](../../../../tests/native-differential/test
 exercise this full continuation; local projection tests also reject invented
 descriptor homes and changed binding transports.
 
+Observed plain-owned scalar sums use `SelectedStructuralTransport::WholeValue`
+with the exact source pointer, destination block-parameter slot, byte extent,
+and alignment. The ordinary edge bridge snapshots scalar arguments, borrowed
+descriptors, and complete owned values before any destination replacement.
+Whole-value copies use existing loads and stores, including narrow final chunks;
+they introduce no case-specific instruction. Independent replay checks every
+snapshot, address, store, and memory record against the semantic binding and
+destination layout. The chosen edge retains its single fuel and ownership
+transition; its implementation continuation adds neither.
+
 Target-input correspondence also checks `StructuralCase` terminators in
 `TargetControlGraph` against the validated abstract graph: the exact dominating
-result home, declared case order/tag, relevant field offset, destination
-block/value/type, and edge cleanup must agree. Hosted byte results and ordinary
-scalar sums lower through frame-address, tag-load, compare and branch
+operation-result or block-parameter home, declared case order/tag, relevant field
+offset, destination block/value/type, and edge cleanup must agree. Hosted byte
+results and ordinary scalar sums lower through frame-address, tag-load, compare and branch
 instructions. Used integer payloads load only in the chosen edge's implementation
 block, before destination binding; unused payloads retain semantic metadata
 without a load or bridge. Structural observations have no fabricated source

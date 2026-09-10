@@ -39,8 +39,7 @@ fn structural_case_legalization_rejects_changed_payload_home_edge_and_custody() 
         ] {
             let mut changed = legal.plan().clone();
             let LegalizedScalarTerminator::StructuralCase {
-                defining_operation,
-                result,
+                source: subject,
                 layout,
                 cases,
                 effect,
@@ -48,6 +47,13 @@ fn structural_case_legalization_rejects_changed_payload_home_edge_and_custody() 
             } = &mut changed.scalar_functions[0].blocks[0].terminator
             else {
                 panic!("case")
+            };
+            let legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+                operation: defining_operation,
+                result,
+            } = subject
+            else {
+                panic!("operation source");
             };
             match mutation {
                 "producer" => *defining_operation = OperationId::new(99).unwrap(),

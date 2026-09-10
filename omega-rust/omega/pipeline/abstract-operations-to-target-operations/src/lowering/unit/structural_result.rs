@@ -223,8 +223,10 @@ pub(super) fn lower_structural_result_call(
         ));
     }
     let result_home = needs_home.then(|| target_operations::TargetStructuralHomeRequirement {
-        defining_operation: *psi_operation,
-        result: result.clone(),
+        origin: target_operations::TargetStructuralHomeOrigin::OperationResult {
+            operation: *psi_operation,
+            result: result.clone(),
+        },
         layout: target_operations::TargetStructuralHomeLayout::Aggregate(aggregate_shape),
     });
     operations.push(TargetUnitOperation::StructuralResultCall {

@@ -300,6 +300,7 @@ pub enum FixedViewCopyDecodeError {
     InvalidProviderExecution,
     InvalidRankedCustody,
     InvalidCrashContinuations,
+    InvalidStructuralTransport,
     LengthOverflow,
     TransformedIdentityMismatch,
     TransformedPayloadMismatch,

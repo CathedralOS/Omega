@@ -169,17 +169,18 @@ pub(super) fn argument(
         return Err(invalid());
     }
     let (identity, source) = if let Some(home) = live.structural_homes.get(&argument.place) {
+        let (defining_operation, home_result) = home.operation_result().ok_or_else(invalid)?;
         if !function.operations.iter().any(|operation| {
             matches!(operation,
             AbstractOperation::EstablishPrimitiveLocal { psi_operation, result, .. }
-            if *psi_operation == home.defining_operation && *result == home.result)
+            if *psi_operation == defining_operation && result == home_result)
         }) {
             return Err(invalid());
         }
         (
-            home.result.structural_type,
+            home.structural_type(),
             TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
-                psi_operation: home.defining_operation,
+                psi_operation: defining_operation,
             },
         )
     } else {

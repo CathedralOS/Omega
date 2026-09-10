@@ -19,7 +19,7 @@ pub(super) fn lower(
     };
     let home = live.structural_homes.get(source).ok_or_else(invalid)?;
     let declaration = structural_types
-        .get(&home.result.structural_type)
+        .get(&home.structural_type())
         .ok_or_else(invalid)?;
     let StructuralTypeShape::Sum {
         cases: declared_cases,
@@ -50,10 +50,10 @@ pub(super) fn lower(
         for place in &case.trivial_affine_discards {
             let discarded = live.structural_homes.get(place).ok_or_else(invalid)?;
             if !discards.insert(*place)
-                || discarded.result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
-                || !discarded.result.claims.is_empty()
-                || !discarded.result.qualifications.is_empty()
-                || !discarded.result.projected_qualifications.is_empty()
+                || discarded.multiplicity() != terminal_psi::StructuralMultiplicity::Affine
+                || discarded.has_claims()
+                || !discarded.qualifications().is_empty()
+                || !discarded.projected_qualifications().is_empty()
             {
                 return Err(invalid());
             }

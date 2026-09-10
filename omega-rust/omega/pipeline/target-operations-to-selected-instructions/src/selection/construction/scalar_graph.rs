@@ -211,7 +211,7 @@ pub(super) fn build(
             builder.instructions.len()
         };
         if !crate::unobserved_owned_input::accepts(source) {
-            structural::block_entry(block, &mut builder)?;
+            structural::block_entry(source, block, &mut builder)?;
         }
         for (operation_index, operation) in block.instructions.iter().enumerate() {
             if matches!(

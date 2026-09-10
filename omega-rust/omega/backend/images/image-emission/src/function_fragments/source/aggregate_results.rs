@@ -62,13 +62,13 @@ pub(super) fn operation(
         AbstractOperation::EstablishScalarArray { psi_operation, result, elements } => {
             graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
                 TargetUnitOperation::EstablishScalarArray { psi_operation: retained, result_home, elements: retained_elements }
-                    if retained == psi_operation && &result_home.result == result && retained_elements == elements
+                    if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result)) && retained_elements == elements
             )).count() == 1
         }
         AbstractOperation::EstablishScalarCase { psi_operation, result, result_case, fields } => {
             graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
                 TargetUnitOperation::EstablishScalarCase { psi_operation: retained, result_home, result_case: retained_case, fields: retained_fields }
-                    if retained == psi_operation && &result_home.result == result && retained_case == result_case && retained_fields == fields
+                    if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result)) && retained_case == result_case && retained_fields == fields
             )).count() == 1
         }
         AbstractOperation::CallStructural { psi_operation, callee, result, .. } => {
@@ -81,7 +81,7 @@ pub(super) fn operation(
                 && graph.blocks.iter().filter(|block| matches!(&block.terminator,
                     TargetControlTerminator::ReturnStructural { psi_edge: retained, source: home, cleanup_actions }
                         if retained == psi_edge && match home {
-                            target_operations::TargetStructuralReturnSource::Home(home) => home.result.place == *source,
+                            target_operations::TargetStructuralReturnSource::Home(home) => home.place() == *source,
                             target_operations::TargetStructuralReturnSource::Parameter(parameter) => parameter.place == *source,
                         } && cleanup_actions.is_empty())).count() == 1
                 && selected.blocks.iter().filter(|block| matches!(&block.terminator,

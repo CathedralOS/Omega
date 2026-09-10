@@ -50,10 +50,18 @@ pub(in crate::legalization) fn sum_layout(
     {
         return Err(invalid);
     }
+    sum_type_layout(result.structural_type, plan)
+}
+
+pub(in crate::legalization) fn sum_type_layout(
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    plan: &AbstractOperationPlan,
+) -> Result<calling_conventions::ConventionalSumLayout, LegalizationError> {
+    let invalid = LegalizationError::SourceCustodyMismatch;
     let mut declarations = plan
         .structural_types
         .iter()
-        .filter(|declaration| declaration.id == result.structural_type);
+        .filter(|declaration| declaration.id == structural_type);
     let declaration = declarations.next().ok_or(invalid.clone())?;
     let StructuralTypeShape::Sum { cases } = &declaration.shape else {
         return Err(invalid);
@@ -311,11 +319,23 @@ pub(super) fn header(
         .blocks
         .iter()
         .flat_map(|block| &block.structural_parameters)
-        .any(|parameter| !byte_parameter(parameter, plan))
+        .any(|parameter| !byte_parameter(parameter, plan) && !owned_case_parameter(parameter, plan))
     {
         return Err(invalid);
     }
     Ok(expected)
+}
+
+pub(in crate::legalization) fn owned_case_parameter(
+    parameter: &terminal_psi::StructuralParameterDeclaration,
+    plan: &AbstractOperationPlan,
+) -> bool {
+    !parameter.is_self
+        && parameter.access == terminal_psi::StructuralAccess::Owned
+        && parameter.multiplicity != StructuralMultiplicity::Linear
+        && parameter.qualifications.is_empty()
+        && parameter.projected_qualifications.is_empty()
+        && sum_type_layout(parameter.structural_type, plan).is_ok()
 }
 
 fn byte_parameter(
@@ -465,8 +485,10 @@ pub(super) fn result_home(
 ) -> Result<target_operations::TargetStructuralHomeRequirement, LegalizationError> {
     let (operation, result) = super::structural_case::source_result(function, place)?;
     Ok(target_operations::TargetStructuralHomeRequirement {
-        defining_operation: operation,
-        result: result.clone(),
+        origin: target_operations::TargetStructuralHomeOrigin::OperationResult {
+            operation,
+            result: result.clone(),
+        },
         layout: home_layout(result, plan)?,
     })
 }

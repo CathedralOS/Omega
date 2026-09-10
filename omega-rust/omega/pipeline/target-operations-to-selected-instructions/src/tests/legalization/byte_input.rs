@@ -281,10 +281,17 @@ fn read_byte_target_replay_rejects_home_and_builtin_substitution() {
                 let target_operations::TargetBoundaryResult::Structural(home) = result else {
                     unreachable!()
                 };
+                let target_operations::TargetStructuralHomeOrigin::OperationResult {
+                    operation,
+                    result,
+                } = &mut home.origin
+                else {
+                    panic!("operation");
+                };
                 if mutation == 3 {
-                    home.defining_operation = OperationId::new(2).unwrap();
+                    *operation = OperationId::new(2).unwrap();
                 } else {
-                    home.result.place = PlaceId::new(2).unwrap();
+                    result.place = PlaceId::new(2).unwrap();
                 }
             }
             5 => changed.target = NativeTarget::macos_arm64(),

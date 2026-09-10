@@ -42,6 +42,44 @@ pub(in crate::legalization) fn source_result(
     Ok(result)
 }
 
+pub(in crate::legalization) fn source_owner(
+    function: &PsiOptimizationFunction,
+    place: PlaceId,
+) -> Result<legalized_operations::LegalizedStructuralCaseSource, LegalizationError> {
+    if let Ok((operation, result)) = source_result(function, place) {
+        return Ok(
+            legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+                operation,
+                result: result.clone(),
+            },
+        );
+    }
+    let mut parameters = function.blocks.iter().flat_map(|block| {
+        block
+            .structural_parameters
+            .iter()
+            .filter(move |parameter| parameter.place == place)
+            .map(move |parameter| (block.id, parameter))
+    });
+    let (block, declaration) = parameters
+        .next()
+        .ok_or(LegalizationError::SourceCustodyMismatch)?;
+    if parameters.next().is_some()
+        || declaration.access != terminal_psi::StructuralAccess::Owned
+        || declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+        || !declaration.qualifications.is_empty()
+        || !declaration.projected_qualifications.is_empty()
+    {
+        return Err(LegalizationError::SourceCustodyMismatch);
+    }
+    Ok(
+        legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+            block,
+            declaration: declaration.clone(),
+        },
+    )
+}
+
 pub(super) fn validate(
     node: &OptimizationNode,
     function: &PsiOptimizationFunction,
@@ -50,7 +88,7 @@ pub(super) fn validate(
     let AbstractOperation::StructuralCase { source, cases } = &node.operation else {
         return Err(invalid);
     };
-    source_result(function, *source)?;
+    source_owner(function, *source)?;
     if !node.provenance.is_empty()
         || !node.fuel.is_empty()
         || !node.definitions.is_empty()
@@ -75,12 +113,22 @@ pub(super) fn validate(
             return Err(invalid);
         }
         for place in &case.trivial_affine_discards {
-            let (_, result) = source_result(function, *place)?;
-            if result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
-                || !result.qualifications.is_empty()
-                || !result.projected_qualifications.is_empty()
-                || !result.claims.is_empty()
-            {
+            let plain_affine = match source_owner(function, *place)? {
+                legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+                    result,
+                    ..
+                } => {
+                    result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                        && result.qualifications.is_empty()
+                        && result.projected_qualifications.is_empty()
+                        && result.claims.is_empty()
+                }
+                legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+                    declaration,
+                    ..
+                } => declaration.multiplicity == terminal_psi::StructuralMultiplicity::Affine,
+            };
+            if !plain_affine {
                 return Err(invalid);
             }
         }

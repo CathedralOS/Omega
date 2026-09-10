@@ -22,155 +22,11 @@ fn scalar_and_descriptor_swaps_snapshot_all_inputs_before_reentry_replacement() 
             projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
-        let class =
-            super::super::constraints::row(environment.constraints(), constraints.keys.copy_i64)
-                .unwrap()
-                .operands[0]
-                .class;
         let block = BlockId::new(1).unwrap();
-        let edge = EdgeId::new(1).unwrap();
         let places = [PlaceId::new(10).unwrap(), PlaceId::new(11).unwrap()];
         let slots =
             places.map(|place| LocalStorageSlotId::StructuralBlockParameter { block, place });
-        let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
-        let mut registers = (0..2)
-            .map(|position| VirtualRegister {
-                id: VirtualRegisterId(position),
-                scalar_type,
-                class,
-                origin: VirtualRegisterOrigin::BlockParameter {
-                    source_value: ValueId::new(u64::from(position) + 1).unwrap(),
-                    block: SelectedBlockId(0),
-                    parameter_index: position as usize,
-                },
-                definition_site: Some(ValueDefinitionSite::BlockParameter { block, position }),
-                entry_fixed_view: None,
-            })
-            .collect::<Vec<_>>();
-        let mut instructions = Vec::new();
-        let mut memory = Vec::new();
-        for position in 0..2 {
-            let instruction = SelectedInstructionId(position as u32);
-            let pointer = VirtualRegisterId(position as u32 + 2);
-            registers.push(VirtualRegister {
-                id: pointer,
-                scalar_type,
-                class,
-                origin: VirtualRegisterOrigin::AbiTransport {
-                    instruction,
-                    place: places[position],
-                    byte_offset: 0,
-                },
-                definition_site: None,
-                entry_fixed_view: None,
-            });
-            instructions.push(
-                super::super::constraints::instruction(
-                    instruction,
-                    SelectedInstructionKind::FrameAddress {
-                        slot: FrameStorageSlotId::Local(slots[position]),
-                        byte_offset: 0,
-                    },
-                    constraints.keys.frame_address.unwrap(),
-                    &[pointer],
-                    SelectedInstructionProvenance::default(),
-                    environment.constraints(),
-                )
-                .unwrap(),
-            );
-            memory.push(SelectedMemoryAccess {
-                instruction,
-                origin: SelectedMemoryAccessOrigin::Block(block),
-                place: places[position],
-                byte_offset: 0,
-                byte_count: 16,
-                role: SelectedMemoryAccessRole::AddressLocal {
-                    slot: slots[position],
-                },
-            });
-        }
-        let bindings = (0..2)
-            .map(|position| SelectedValueBinding {
-                semantic: abstract_operations::ValueBinding {
-                    parameter: ValueId::new(u64::from(position) + 1).unwrap(),
-                    argument: ValueId::new(u64::from(1 - position) + 1).unwrap(),
-                    scalar_type,
-                },
-                transport: SelectedValueTransport::Registers {
-                    argument: VirtualRegisterId(1 - position),
-                    parameter: VirtualRegisterId(position),
-                },
-            })
-            .collect();
-        let structural_bindings = (0..2)
-            .map(|position| SelectedStructuralBinding {
-                semantic: abstract_operations::AbstractStructuralBinding {
-                    parameter: places[position],
-                    argument: terminal_psi::StructuralArgument {
-                        place: places[1 - position],
-                        path: Vec::new(),
-                        access: terminal_psi::StructuralAccess::SharedBorrow,
-                    },
-                },
-                transport: SelectedStructuralTransport::Descriptor {
-                    argument: VirtualRegisterId((3 - position) as u32),
-                    destination: slots[position],
-                },
-            })
-            .collect();
-        let jump = super::super::constraints::instruction(
-            SelectedInstructionId(2),
-            SelectedInstructionKind::Jump,
-            constraints.keys.jump,
-            &[],
-            SelectedInstructionProvenance::default(),
-            environment.constraints(),
-        )
-        .unwrap();
-        let original = SelectedFunction {
-            machine: MachineId::new(1).unwrap(),
-            attachment: None,
-            provenance: target_operations::TerminalPsiProvenance {
-                operations: Vec::new(),
-                edges: vec![edge],
-            },
-            ranked: None,
-            structural: None,
-            local_storage_slots: slots
-                .map(|id| SelectedLocalStorageSlot {
-                    id,
-                    byte_size: 16,
-                    alignment: 8,
-                })
-                .to_vec(),
-            outgoing_arguments: Vec::new(),
-            calls: Vec::new(),
-            memory_accesses: memory,
-            boundary_settlements: Vec::new(),
-            entry_block: SelectedBlockId(0),
-            virtual_registers: registers,
-            blocks: vec![SelectedBlock {
-                id: SelectedBlockId(0),
-                origin: SelectedBlockOrigin::Source(block),
-                instructions,
-                terminator: SelectedTerminator::Jump {
-                    instruction: jump,
-                    successor: SelectedSuccessor {
-                        structural_case: None,
-                        role: SelectedSuccessorRole::Semantic,
-                        psi_edge: edge,
-                        block: SelectedBlockId(0),
-                        source_target: block,
-                        bindings,
-                        structural_bindings,
-                        fuel: vec![FuelSettlement {
-                            site: PsiProvenance::Edge(edge),
-                            units: 1,
-                        }],
-                    },
-                },
-            }],
-        };
+        let original = swapped_function(&constraints, environment.constraints());
         let mut prepared = original.clone();
         prepare(0, &mut prepared, &constraints, environment.constraints()).unwrap();
         assert_eq!(project(0, &prepared, &constraints).unwrap(), original);
@@ -278,5 +134,158 @@ fn scalar_and_descriptor_swaps_snapshot_all_inputs_before_reentry_replacement() 
                 "mutation {mutation}: {native:?}"
             );
         }
+    }
+}
+
+pub(super) fn swapped_function(
+    constraints: &SelectedSelectionConstraints,
+    catalog: &ValidatedRegisterConstraintCatalog,
+) -> SelectedFunction {
+    let class = super::super::constraints::row(catalog, constraints.keys.copy_i64)
+        .unwrap()
+        .operands[0]
+        .class;
+    let block = BlockId::new(1).unwrap();
+    let edge = EdgeId::new(1).unwrap();
+    let places = [PlaceId::new(10).unwrap(), PlaceId::new(11).unwrap()];
+    let slots = places.map(|place| LocalStorageSlotId::StructuralBlockParameter { block, place });
+    let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let mut registers = (0..2)
+        .map(|position| VirtualRegister {
+            id: VirtualRegisterId(position),
+            scalar_type,
+            class,
+            origin: VirtualRegisterOrigin::BlockParameter {
+                source_value: ValueId::new(u64::from(position) + 1).unwrap(),
+                block: SelectedBlockId(0),
+                parameter_index: position as usize,
+            },
+            definition_site: Some(ValueDefinitionSite::BlockParameter { block, position }),
+            entry_fixed_view: None,
+        })
+        .collect::<Vec<_>>();
+    let mut instructions = Vec::new();
+    let mut memory = Vec::new();
+    for position in 0..2 {
+        let instruction = SelectedInstructionId(position as u32);
+        let pointer = VirtualRegisterId(position as u32 + 2);
+        registers.push(VirtualRegister {
+            id: pointer,
+            scalar_type,
+            class,
+            origin: VirtualRegisterOrigin::AbiTransport {
+                instruction,
+                place: places[position],
+                byte_offset: 0,
+            },
+            definition_site: None,
+            entry_fixed_view: None,
+        });
+        instructions.push(
+            super::super::constraints::instruction(
+                instruction,
+                SelectedInstructionKind::FrameAddress {
+                    slot: FrameStorageSlotId::Local(slots[position]),
+                    byte_offset: 0,
+                },
+                constraints.keys.frame_address.unwrap(),
+                &[pointer],
+                SelectedInstructionProvenance::default(),
+                catalog,
+            )
+            .unwrap(),
+        );
+        memory.push(SelectedMemoryAccess {
+            instruction,
+            origin: SelectedMemoryAccessOrigin::Block(block),
+            place: places[position],
+            byte_offset: 0,
+            byte_count: 16,
+            role: SelectedMemoryAccessRole::AddressLocal {
+                slot: slots[position],
+            },
+        });
+    }
+    let bindings = (0..2)
+        .map(|position| SelectedValueBinding {
+            semantic: abstract_operations::ValueBinding {
+                parameter: ValueId::new(u64::from(position) + 1).unwrap(),
+                argument: ValueId::new(u64::from(1 - position) + 1).unwrap(),
+                scalar_type,
+            },
+            transport: SelectedValueTransport::Registers {
+                argument: VirtualRegisterId(1 - position),
+                parameter: VirtualRegisterId(position),
+            },
+        })
+        .collect();
+    let structural_bindings = (0..2)
+        .map(|position| SelectedStructuralBinding {
+            semantic: abstract_operations::AbstractStructuralBinding {
+                parameter: places[position],
+                argument: terminal_psi::StructuralArgument {
+                    place: places[1 - position],
+                    path: Vec::new(),
+                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                },
+            },
+            transport: SelectedStructuralTransport::Descriptor {
+                argument: VirtualRegisterId((3 - position) as u32),
+                destination: slots[position],
+            },
+        })
+        .collect();
+    let jump = super::super::constraints::instruction(
+        SelectedInstructionId(2),
+        SelectedInstructionKind::Jump,
+        constraints.keys.jump,
+        &[],
+        SelectedInstructionProvenance::default(),
+        catalog,
+    )
+    .unwrap();
+    SelectedFunction {
+        machine: MachineId::new(1).unwrap(),
+        attachment: None,
+        provenance: target_operations::TerminalPsiProvenance {
+            operations: Vec::new(),
+            edges: vec![edge],
+        },
+        ranked: None,
+        structural: None,
+        local_storage_slots: slots
+            .map(|id| SelectedLocalStorageSlot {
+                id,
+                byte_size: 16,
+                alignment: 8,
+            })
+            .to_vec(),
+        outgoing_arguments: Vec::new(),
+        calls: Vec::new(),
+        memory_accesses: memory,
+        boundary_settlements: Vec::new(),
+        entry_block: SelectedBlockId(0),
+        virtual_registers: registers,
+        blocks: vec![SelectedBlock {
+            id: SelectedBlockId(0),
+            origin: SelectedBlockOrigin::Source(block),
+            instructions,
+            terminator: SelectedTerminator::Jump {
+                instruction: jump,
+                successor: SelectedSuccessor {
+                    structural_case: None,
+                    role: SelectedSuccessorRole::Semantic,
+                    psi_edge: edge,
+                    block: SelectedBlockId(0),
+                    source_target: block,
+                    bindings,
+                    structural_bindings,
+                    fuel: vec![FuelSettlement {
+                        site: PsiProvenance::Edge(edge),
+                        units: 1,
+                    }],
+                },
+            },
+        }],
     }
 }

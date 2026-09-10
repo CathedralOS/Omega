@@ -302,6 +302,19 @@ fn successor(
                     .find(|(place, _)| *place == semantic.argument.place)
                     .map(|(_, pointer)| *pointer)
                     .ok_or(SelectedInstructionError::SourceCustodyMismatch)?;
+                if semantic.argument.access == terminal_psi::StructuralAccess::Owned {
+                    let parameter = source.blocks.iter().find(|block| block.id == next.target).and_then(|block| block.structural_parameters.iter().find(|parameter| parameter.place == semantic.parameter)).ok_or(SelectedInstructionError::SourceCustodyMismatch)?;
+                    let shape = crate::selection::aggregate_result_input::block_parameter_shape(source, parameter).ok_or(SelectedInstructionError::SourceCustodyMismatch)?;
+                    return Ok(selected_instructions::SelectedStructuralBinding {
+                        semantic: semantic.clone(),
+                        transport: selected_instructions::SelectedStructuralTransport::WholeValue {
+                            argument,
+                            destination: selected_instructions::LocalStorageSlotId::StructuralBlockParameter { block: next.target, place: semantic.parameter },
+                            byte_size: shape.byte_size,
+                            alignment: shape.alignment,
+                        },
+                    });
+                }
                 Ok(selected_instructions::SelectedStructuralBinding {
                     semantic: semantic.clone(),
                     transport: selected_instructions::SelectedStructuralTransport::Descriptor {

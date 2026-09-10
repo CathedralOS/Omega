@@ -32,6 +32,8 @@ pub(in crate::selection) fn project(
                                     SelectedInstructionKind::CopyI64
                                         | SelectedInstructionKind::Load64 { .. }
                                         | SelectedInstructionKind::Load32 { .. }
+                                        | SelectedInstructionKind::Load16 { .. }
+                                        | SelectedInstructionKind::Load8 { .. }
                                         | SelectedInstructionKind::FrameAddress { .. }
                                 )
                             })
@@ -184,19 +186,24 @@ pub(in crate::selection) fn project(
             let descriptor_words = continuation
                 .structural_bindings
                 .iter()
+                .filter_map(|binding| stored_transport(binding.transport))
+                .map(|(_, _, bytes, _)| chunks(bytes).len())
+                .sum::<usize>();
+            let addresses = continuation
+                .structural_bindings
+                .iter()
                 .filter(|binding| {
                     matches!(
                         binding.transport,
-                        selected_instructions::SelectedStructuralTransport::Descriptor { .. }
+                        selected_instructions::SelectedStructuralTransport::WholeValue { .. }
                     )
                 })
-                .count()
-                .checked_mul(2)
-                .ok_or_else(error)?;
+                .count();
             let register_delta = active
                 .len()
                 .checked_mul(2)
                 .and_then(|count| count.checked_add(descriptor_words))
+                .and_then(|count| count.checked_add(addresses))
                 .ok_or_else(error)?;
             if (active.is_empty() && descriptor_words == 0)
                 || register_delta.checked_add(descriptor_words) != Some(bridge.instructions.len())

@@ -323,3 +323,50 @@ pub(super) fn fields<'a>(
     }
     Some((ordinal, &case.fields))
 }
+
+/// Stored block arrivals use the declared sum layout, independently of a call ABI.
+pub(super) fn block_parameter_shape(
+    source: &LegalizedScalarFunction,
+    parameter: &terminal_psi::StructuralParameterDeclaration,
+) -> Option<calling_conventions::ValueShape> {
+    if parameter.access != terminal_psi::StructuralAccess::Owned
+        || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+        || !parameter.qualifications.is_empty()
+        || !parameter.projected_qualifications.is_empty()
+    {
+        return None;
+    }
+    let declaration = source
+        .structural
+        .as_ref()?
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == parameter.structural_type)?;
+    let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
+        return None;
+    };
+    let payloads = cases
+        .iter()
+        .map(|case| {
+            case.fields
+                .iter()
+                .map(|field| {
+                    if field.relevance.is_erased() {
+                        return None;
+                    }
+                    let scalar @ semantic_vocabulary::ScalarType::Integer(_) =
+                        field.field_type.scalar_type()?
+                    else {
+                        return None;
+                    };
+                    super::scalar_call_abi::scalar_shape(scalar)
+                })
+                .collect::<Option<Vec<_>>>()
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(
+        calling_conventions::evaluate_conventional_sum_layout(&[], &payloads)
+            .ok()?
+            .shape,
+    )
+}

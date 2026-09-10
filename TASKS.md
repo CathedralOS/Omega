@@ -1367,8 +1367,12 @@ Owners include
   Native acceptance also needs the checked transitive machine plan missing
   from `filesystem/windows_canonicalize_exit`: Terminal production currently
   refuses its attached Unit closure in
-  `checked-trees-to-lowered-psi/src/attached_unit/call_closure.rs`. Resolve the
-  general call-plan dependency before expecting this fixture to emit.
+  `checked-trees-to-lowered-psi/src/attached_unit/call_closure.rs`. Its source
+  dependencies include nested structural sum construction/transport
+  (`UnitResult::Error` carries `ErrorKind`) and whole nominal receiver
+  replacement (`self.unit_result = ...`). Resolve these through shared
+  state/value planning before expecting this fixture to emit; a primitive
+  field store or a fresh call-result home cannot substitute receiver replacement.
 
 - **R5.** Finish exact inferred may-write summaries and relational candidates
   for unresolved receivers, boundary-result origins, conditional helper-body

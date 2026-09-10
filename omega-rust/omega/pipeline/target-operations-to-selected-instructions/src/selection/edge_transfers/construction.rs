@@ -121,6 +121,7 @@ pub(in crate::selection) fn prepare(
             }
             super::descriptors::store(
                 function_index,
+                &mut function.virtual_registers,
                 &mut function.memory_accesses,
                 &mut instructions,
                 &mut next_instruction,

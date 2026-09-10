@@ -15,43 +15,123 @@ pub(super) fn matches(
     expected_source: PlaceId,
     expected_cases: &[abstract_operations::AbstractStructuralCaseSuccessor],
 ) -> bool {
-    if source.result.place != expected_source {
+    if source.place() != expected_source {
         return false;
     }
     // All producer rows are independently replayed by the caller. Presence in
     // the graph alone is insufficient: the result must precede this dispatch.
-    let mut producers = graph.blocks.iter().flat_map(|candidate| {
-        candidate
-            .operations
-            .iter()
-            .filter_map(move |operation| match operation {
-                TargetUnitOperation::BoundarySettlement {
-                    result: TargetBoundaryResult::Structural(home),
-                    ..
-                }
-                | TargetUnitOperation::EstablishScalarCase {
-                    result_home: home, ..
-                }
-                | TargetUnitOperation::StructuralResultCall {
-                    result_home: Some(home),
-                    ..
-                } if home.result.place == expected_source => Some((candidate.block, home)),
-                _ => None,
-            })
-    });
-    let Some((producer_block, home)) = producers.next() else {
-        return false;
-    };
-    if producers.next().is_some()
-        || source != home
-        || (producer_block != block && !sources::dominates(optimized, producer_block, block))
-    {
-        return false;
+    match &source.origin {
+        target_operations::TargetStructuralHomeOrigin::OperationResult { .. } => {
+            let mut producers = graph.blocks.iter().flat_map(|candidate| {
+                candidate
+                    .operations
+                    .iter()
+                    .filter_map(move |operation| match operation {
+                        TargetUnitOperation::BoundarySettlement {
+                            result: TargetBoundaryResult::Structural(home),
+                            ..
+                        }
+                        | TargetUnitOperation::EstablishScalarCase {
+                            result_home: home, ..
+                        }
+                        | TargetUnitOperation::StructuralResultCall {
+                            result_home: Some(home),
+                            ..
+                        } if home.place() == expected_source => Some((candidate.block, home)),
+                        _ => None,
+                    })
+            });
+            let Some((producer_block, home)) = producers.next() else {
+                return false;
+            };
+            if producers.next().is_some()
+                || source != home
+                || (producer_block != block
+                    && !sources::dominates(optimized, producer_block, block))
+            {
+                return false;
+            }
+        }
+        target_operations::TargetStructuralHomeOrigin::BlockParameter {
+            block: owner,
+            declaration,
+        } => {
+            let Some(original) = optimized
+                .blocks
+                .iter()
+                .find(|candidate| candidate.id == *owner)
+                .and_then(|candidate| {
+                    candidate
+                        .structural_parameters
+                        .iter()
+                        .find(|parameter| parameter.place == expected_source)
+                })
+            else {
+                return false;
+            };
+            let Some(target_parameter) = graph
+                .blocks
+                .iter()
+                .find(|candidate| candidate.block == *owner)
+                .and_then(|candidate| {
+                    candidate
+                        .structural_parameters
+                        .iter()
+                        .find(|parameter| parameter.place == expected_source)
+                })
+            else {
+                return false;
+            };
+            if declaration != original
+                || target_parameter != original
+                || declaration.access != terminal_psi::StructuralAccess::Owned
+                || declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+                || !declaration.qualifications.is_empty()
+                || !declaration.projected_qualifications.is_empty()
+                || (*owner != block && !sources::dominates(optimized, *owner, block))
+            {
+                return false;
+            }
+            let Some(terminal_psi::StructuralTypeDeclaration {
+                shape: terminal_psi::StructuralTypeShape::Sum { cases },
+                ..
+            }) = graph
+                .structural_types
+                .iter()
+                .find(|row| row.id == declaration.structural_type)
+            else {
+                return false;
+            };
+            let Some(payloads) = cases
+                .iter()
+                .map(|case| {
+                    case.fields
+                        .iter()
+                        .map(|field| {
+                            if field.relevance.is_erased() {
+                                return None;
+                            }
+                            super::super::super::scalar_shape(field.field_type.scalar_type()?)
+                        })
+                        .collect::<Option<Vec<_>>>()
+                })
+                .collect::<Option<Vec<_>>>()
+            else {
+                return false;
+            };
+            if calling_conventions::evaluate_conventional_sum_layout(&[], &payloads)
+                .ok()
+                .as_ref()
+                != source.layout.sum()
+            {
+                return false;
+            }
+        }
     }
     let Some(declaration) = graph
         .structural_types
         .iter()
-        .find(|declaration| declaration.id == source.result.structural_type)
+        .find(|declaration| declaration.id == source.structural_type())
     else {
         return false;
     };

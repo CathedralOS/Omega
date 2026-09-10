@@ -276,6 +276,7 @@ pub(super) fn validate(
                 *byte_size,
             )?;
         }
+        replay.transport.pointers.push((result.place, pointer));
     }
     Ok(())
 }

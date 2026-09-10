@@ -360,7 +360,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                         && when_false.trivial_affine_discards.is_empty()
                 }
                 AbstractOperation::StructuralCase { source, cases } => {
-                    structural_case::retained(selected, *source, cases)
+                    structural_case::retained(selected, &abstracted.block_entries, *source, cases)
                 }
                 _ => false,
             };
