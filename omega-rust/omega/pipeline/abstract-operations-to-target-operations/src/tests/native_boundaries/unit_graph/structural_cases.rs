@@ -208,7 +208,10 @@ fn structural_case_graph_preserves_reordered_blocks_and_ordinary_continuation() 
     else {
         panic!("structural case")
     };
-    assert_eq!(source.defining_operation, operation(2));
+    assert_eq!(
+        source.operation_result().map(|(operation, _)| operation),
+        Some(operation(2))
+    );
     assert_eq!((cases[0].target, cases[1].target), (block(20), block(30)));
     assert_eq!(
         cases[0].payloads[0].parameter,
@@ -218,7 +221,7 @@ fn structural_case_graph_preserves_reordered_blocks_and_ordinary_continuation() 
             scalar_type: plan.functions[0].block_entries[2].parameters[0].scalar_type
         }
     );
-    assert_eq!(cases[0].trivial_affine_discards, vec![source.result.place]);
+    assert_eq!(cases[0].trivial_affine_discards, vec![source.place()]);
     assert!(matches!(
         graph.blocks[0].operations[0],
         TargetUnitOperation::IntegerConstant { psi_operation, result, value: IntegerValue::Signed(33), .. } if psi_operation == operation(1) && result == value(1)
@@ -366,5 +369,276 @@ fn structural_case_graph_rejects_changed_payload_telescope_source_and_cleanup() 
             _ => cases[0].target = block(30),
         }
         assert!(lower(&plan).is_err(), "corruption {mutation}");
+    }
+}
+
+fn lower_owned(
+    plan: &AbstractOperationPlan,
+) -> Result<target_operations::TargetOperationPlan, crate::LoweringError> {
+    crate::lower_to_target_operations_with_provider_executions(
+        plan,
+        NativeTarget::linux_x64(),
+        &[crate::AdmittedBoundarySettlement {
+            boundary: plan.boundary_machines[0].id,
+            execution: crate::AdmittedBoundaryExecution::CompilerBuiltin(
+                target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+            ),
+            realization: target_operations::HostedWriteByteI32Realization.into(),
+        }],
+    )
+}
+
+fn owned_arrival_fixture() -> AbstractOperationPlan {
+    let mut plan = fixture();
+    plan.boundary_machines.truncate(1);
+    let function = &mut plan.functions[0];
+    // The arrival contract is independent of external byte-read realization.
+    // Establish an ordinary nominal value before transferring its owned place.
+    let AbstractOperation::BoundaryCall {
+        psi_operation,
+        result: AbstractBoundaryResult::Structural(result),
+        ..
+    } = function.operations[1].clone()
+    else {
+        panic!("structural result");
+    };
+    function.operations[1] = AbstractOperation::EstablishScalarCase {
+        psi_operation,
+        result,
+        result_case: StructuralCaseId::new(2).unwrap(),
+        fields: Vec::new(),
+    };
+    let parameter = terminal_psi::StructuralParameterDeclaration {
+        place: PlaceId::new(21).unwrap(),
+        position: 0,
+        is_self: false,
+        structural_type: StructuralTypeId::new(20).unwrap(),
+        access: terminal_psi::StructuralAccess::Owned,
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    let AbstractOperation::StructuralCase { source, cases } = &mut function.operations[2] else {
+        panic!("original case dispatch");
+    };
+    *source = parameter.place;
+    for case in cases {
+        case.trivial_affine_discards = vec![parameter.place];
+    }
+    function.operations.insert(
+        2,
+        AbstractOperation::Jump {
+            psi_edge: edge(20),
+            target: block(15),
+            bindings: Vec::new(),
+            structural_bindings: vec![abstract_operations::AbstractStructuralBinding {
+                parameter: parameter.place,
+                argument: terminal_psi::StructuralArgument {
+                    place: PlaceId::new(20).unwrap(),
+                    path: Vec::new(),
+                    access: terminal_psi::StructuralAccess::Owned,
+                },
+            }],
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
+        },
+    );
+    for entry in &mut function.block_entries[1..] {
+        entry.operation_offset += 1;
+    }
+    function.block_entries.insert(
+        1,
+        AbstractBlockEntry {
+            block: block(15),
+            operation_offset: 3,
+            parameters: Vec::new(),
+            structural_parameters: vec![parameter],
+        },
+    );
+    plan
+}
+
+#[test]
+fn owned_sum_arrival_uses_its_actual_block_declaration_and_complete_layout() {
+    let source = owned_arrival_fixture();
+    let lowered =
+        lower_owned(&source).expect("owned result transfers into an observed sum parameter");
+    let TargetOperation::ControlGraph(graph) = &lowered.functions[0].operation else {
+        panic!("graph");
+    };
+    let target_operations::TargetControlTerminator::StructuralCase { source: home, .. } =
+        &graph.blocks[1].terminator
+    else {
+        panic!("case");
+    };
+    assert_eq!(
+        home.origin,
+        target_operations::TargetStructuralHomeOrigin::BlockParameter {
+            block: block(15),
+            declaration: source.functions[0].block_entries[1].structural_parameters[0].clone(),
+        }
+    );
+    assert!(home.operation_result().is_none());
+    assert_eq!(home.place(), PlaceId::new(21).unwrap());
+    assert_eq!(home.layout.sum().unwrap().cases.len(), 2);
+    let target_operations::TargetControlTerminator::Jump { successor } =
+        &graph.blocks[0].terminator
+    else {
+        panic!("jump");
+    };
+    let AbstractOperation::Jump {
+        structural_bindings,
+        ..
+    } = &source.functions[0].operations[2]
+    else {
+        panic!("source jump");
+    };
+    assert_eq!(&successor.structural_bindings, structural_bindings);
+}
+
+#[test]
+fn owned_sum_arrival_rejects_substituted_destination_and_unavailable_source() {
+    for mutation in 0..7 {
+        let mut source = owned_arrival_fixture();
+        let function = &mut source.functions[0];
+        match mutation {
+            0 => {
+                function.block_entries[1].structural_parameters[0].multiplicity =
+                    StructuralMultiplicity::Unrestricted
+            }
+            1 => {
+                function.block_entries[1].structural_parameters[0].access =
+                    terminal_psi::StructuralAccess::SharedBorrow
+            }
+            2 => {
+                function.block_entries[1].structural_parameters[0].structural_type =
+                    StructuralTypeId::new(99).unwrap()
+            }
+            3 => function.block_entries[1].structural_parameters[0].position = 1,
+            4 => function.block_entries[1].structural_parameters[0].is_self = true,
+            5 => {
+                let AbstractOperation::Jump {
+                    structural_bindings,
+                    ..
+                } = &mut function.operations[2]
+                else {
+                    panic!("jump");
+                };
+                structural_bindings[0].argument.place = PlaceId::new(99).unwrap();
+            }
+            _ => {
+                let AbstractOperation::Jump {
+                    structural_bindings,
+                    ..
+                } = &mut function.operations[2]
+                else {
+                    panic!("jump");
+                };
+                structural_bindings.push(structural_bindings[0].clone());
+            }
+        }
+        assert!(
+            lower_owned(&source).is_err(),
+            "arrival corruption {mutation}"
+        );
+    }
+}
+
+#[test]
+fn owned_sum_diamond_retains_destination_identity_and_rejects_sibling_sources() {
+    let mut source = owned_arrival_fixture();
+    let function = &mut source.functions[0];
+    function.parameters.push(AbstractParameter {
+        value: value(90),
+        scalar_type: ScalarType::Boolean,
+    });
+    let first_constructor = function.operations[1].clone();
+    let first_jump = function.operations[2].clone();
+    let mut second_constructor = first_constructor.clone();
+    let AbstractOperation::EstablishScalarCase {
+        psi_operation,
+        result,
+        ..
+    } = &mut second_constructor
+    else {
+        panic!("constructor");
+    };
+    *psi_operation = operation(90);
+    result.place = PlaceId::new(22).unwrap();
+    let mut second_jump = first_jump.clone();
+    let AbstractOperation::Jump {
+        psi_edge,
+        structural_bindings,
+        ..
+    } = &mut second_jump
+    else {
+        panic!("jump");
+    };
+    *psi_edge = edge(90);
+    structural_bindings[0].argument.place = PlaceId::new(22).unwrap();
+    let successor = |identity| abstract_operations::AbstractSuccessor {
+        psi_edge: edge(identity),
+        target: block(identity),
+        bindings: Vec::new(),
+        structural_bindings: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    function.operations.splice(
+        1..3,
+        [
+            AbstractOperation::Conditional {
+                condition: value(90),
+                when_true: successor(11),
+                when_false: successor(12),
+            },
+            first_constructor,
+            first_jump,
+            second_constructor,
+            second_jump,
+        ],
+    );
+    for entry in &mut function.block_entries[1..] {
+        entry.operation_offset += 3;
+    }
+    function.block_entries.splice(
+        1..1,
+        [(11, 2), (12, 4)].map(|(identity, operation_offset)| AbstractBlockEntry {
+            block: block(identity),
+            operation_offset,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+        }),
+    );
+    let lowered =
+        lower_owned(&source).expect("two independently established values join one owned home");
+    let TargetOperation::ControlGraph(graph) = &lowered.functions[0].operation else {
+        panic!("graph");
+    };
+    let target_operations::TargetControlTerminator::StructuralCase { source: home, .. } =
+        &graph.blocks[3].terminator
+    else {
+        panic!("case");
+    };
+    assert_eq!(
+        home.origin,
+        target_operations::TargetStructuralHomeOrigin::BlockParameter {
+            block: block(15),
+            declaration: source.functions[0].block_entries[3].structural_parameters[0].clone(),
+        }
+    );
+    for (operation_index, sibling) in [(3, 22), (5, 20)] {
+        let mut forged = source.clone();
+        let AbstractOperation::Jump {
+            structural_bindings,
+            ..
+        } = &mut forged.functions[0].operations[operation_index]
+        else {
+            panic!("jump");
+        };
+        structural_bindings[0].argument.place = PlaceId::new(sibling).unwrap();
+        assert!(
+            lower_owned(&forged).is_err(),
+            "sibling source {sibling} cannot dominate this edge"
+        );
     }
 }

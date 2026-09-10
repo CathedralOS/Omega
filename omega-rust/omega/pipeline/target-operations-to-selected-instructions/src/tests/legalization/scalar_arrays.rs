@@ -227,7 +227,15 @@ fn array_target_replay_rejects_leaf_storage_and_producer_substitution() {
                 result_home.layout =
                     TargetStructuralHomeLayout::Aggregate(ValueShape::integer(4, 1))
             }
-            3 => result_home.result.place = PlaceId::new(99).unwrap(),
+            3 => {
+                let target_operations::TargetStructuralHomeOrigin::OperationResult {
+                    result, ..
+                } = &mut result_home.origin
+                else {
+                    panic!("operation");
+                };
+                result.place = PlaceId::new(99).unwrap();
+            }
             4 => *psi_operation = OperationId::new(99).unwrap(),
             _ => unreachable!(),
         }

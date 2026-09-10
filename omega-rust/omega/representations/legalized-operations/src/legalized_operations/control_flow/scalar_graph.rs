@@ -245,11 +245,38 @@ pub struct LegalizedScalarSuccessor {
     pub fuel: Vec<FuelSettlement>,
 }
 
+/// Exact semantic owner of the stored sum observed by a case terminator.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LegalizedStructuralCaseSource {
+    OperationResult {
+        operation: OperationId,
+        result: terminal_psi::StructuralOperationResult,
+    },
+    BlockParameter {
+        block: BlockId,
+        declaration: terminal_psi::StructuralParameterDeclaration,
+    },
+}
+
+impl LegalizedStructuralCaseSource {
+    pub fn place(&self) -> semantic_vocabulary::PlaceId {
+        match self {
+            Self::OperationResult { result, .. } => result.place,
+            Self::BlockParameter { declaration, .. } => declaration.place,
+        }
+    }
+    pub fn structural_type(&self) -> StructuralTypeId {
+        match self {
+            Self::OperationResult { result, .. } => result.structural_type,
+            Self::BlockParameter { declaration, .. } => declaration.structural_type,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarTerminator {
     StructuralCase {
-        defining_operation: OperationId,
-        result: terminal_psi::StructuralOperationResult,
+        source: LegalizedStructuralCaseSource,
         layout: calling_conventions::ConventionalSumLayout,
         cases: Vec<super::LegalizedStructuralCaseSuccessor>,
         effect: EffectLink,

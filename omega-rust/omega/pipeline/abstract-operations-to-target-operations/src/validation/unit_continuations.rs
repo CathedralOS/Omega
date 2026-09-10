@@ -153,7 +153,7 @@ pub(super) fn validate(
                         || input.access != actual.access
                         || input.path != actual.path
                         || result_home.as_ref().is_none_or(|home| {
-                            home.defining_operation != *psi_operation || home.result != *result
+                            home.operation_result() != Some((*psi_operation, result))
                         })
                         || live.iter().any(|(place, _)| *place == result.place)
                     {

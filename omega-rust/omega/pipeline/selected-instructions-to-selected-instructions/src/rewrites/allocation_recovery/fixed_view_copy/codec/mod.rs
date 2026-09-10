@@ -1,7 +1,7 @@
 //! Optimizer module role: executable entrance. Versioned fixed-view-copy artifact envelope.
 //!
-//! Owns admission and authentication order. V28 binds aggregate result contracts,
-//! call/return fragments, and multi-case dispatch origins alongside existing transport.
+//! Owns admission and authentication order. V31 binds whole-value edge transport
+//! extents alongside existing descriptor, aggregate result, and dispatch custody.
 //! Every older envelope is rejected before its payload is interpreted.
 
 mod content;
@@ -13,11 +13,11 @@ mod primitives;
 mod selected;
 mod values;
 
-use self::envelope::v30_identity;
+use self::envelope::v31_identity;
 use crate::{FixedViewCopyDecodeError, FixedViewCopyPlan};
 
 const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
-const VERSION: u32 = 30;
+const VERSION: u32 = 31;
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;
     /// independent fixed-view-copy validation is still required for custody.
@@ -27,7 +27,7 @@ impl FixedViewCopyPlan {
         let mut encoded = Vec::new();
         encoded.extend_from_slice(MAGIC);
         encoded.extend_from_slice(&VERSION.to_le_bytes());
-        encoded.extend_from_slice(&v30_identity(self, &content));
+        encoded.extend_from_slice(&v31_identity(self, &content));
         encoded.extend_from_slice(&content);
         encoded
     }

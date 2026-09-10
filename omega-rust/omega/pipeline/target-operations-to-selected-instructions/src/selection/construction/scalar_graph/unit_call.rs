@@ -260,6 +260,9 @@ pub(super) fn emit(
                 *byte_size,
             )?;
         }
+        // Later state edges use this initialized result home through the ordinary
+        // place roster; they must not allocate another home or retain ABI registers.
+        builder.transport.pointers.push((result.place, pointer));
     }
     Ok(())
 }

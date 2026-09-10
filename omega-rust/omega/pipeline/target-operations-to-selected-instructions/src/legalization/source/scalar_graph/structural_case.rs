@@ -10,13 +10,13 @@ pub(super) fn project(
     let AbstractOperation::StructuralCase { source, cases } = &node.operation else {
         return Err(invalid);
     };
-    let (defining_operation, result) =
-        scalar_graph_input::structural_case::source_result(function, *source)?;
-    let layout = scalar_graph_input::aggregate_results::sum_layout(result, plan)?;
+    let source = scalar_graph_input::structural_case::source_owner(function, *source)?;
+    let layout =
+        scalar_graph_input::aggregate_results::sum_type_layout(source.structural_type(), plan)?;
     let declaration = plan
         .structural_types
         .iter()
-        .find(|declaration| declaration.id == result.structural_type)
+        .find(|declaration| declaration.id == source.structural_type())
         .ok_or(invalid.clone())?;
     let terminal_psi::StructuralTypeShape::Sum { cases: declared } = &declaration.shape else {
         return Err(invalid);
@@ -75,8 +75,7 @@ pub(super) fn project(
         });
     }
     Ok(LegalizedScalarTerminator::StructuralCase {
-        defining_operation,
-        result: result.clone(),
+        source,
         layout,
         cases: successors,
         effect: node.effect,

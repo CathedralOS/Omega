@@ -112,8 +112,8 @@ pub(super) fn lower_terminator(
                 });
             }
             let home = live.structural_homes.get(source).ok_or_else(invalid)?;
-            if result.structural_type != home.result.structural_type
-                || result.multiplicity != home.result.multiplicity
+            if result.structural_type != home.structural_type()
+                || result.multiplicity != home.multiplicity()
                 || !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
                 || !returned_claims.is_empty()
@@ -185,10 +185,10 @@ pub(super) fn lower_terminator(
                 }
                 let home = live.structural_homes.get(place).ok_or_else(invalid)?;
                 if !discarded.insert(*place)
-                    || home.result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
-                    || !home.result.claims.is_empty()
-                    || !home.result.qualifications.is_empty()
-                    || !home.result.projected_qualifications.is_empty()
+                    || home.multiplicity() != terminal_psi::StructuralMultiplicity::Affine
+                    || home.has_claims()
+                    || !home.qualifications().is_empty()
+                    || !home.projected_qualifications().is_empty()
                 {
                     return Err(invalid());
                 }

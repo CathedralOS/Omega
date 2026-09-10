@@ -119,8 +119,7 @@ pub(in crate::legalization) fn validate(
         || unit.structural_types != plan.structural_types
         || psi_operation != expected_operation
         || boundary != expected_boundary
-        || home.defining_operation != *expected_operation
-        || home.result != *result
+        || home.operation_result() != Some((*expected_operation, result))
         || home.layout.sum() != Some(&layout(result, plan)?)
         || signature.structural_type != result.structural_type
         || signature.multiplicity != result.multiplicity

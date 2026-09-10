@@ -263,7 +263,7 @@ pub(in crate::lowering) fn lower_structural_unit_call(
                 } else if let Some(source) = local_sources_by_place.get(&argument.place) {
                     (source.structural_type, source.shape, &source.placement)
                 } else if let Some((home, placement)) = result_source {
-                    (home.result.structural_type, home.layout.shape(), placement)
+                    (home.structural_type(), home.layout.shape(), placement)
                 } else {
                     return Err(LoweringError::UnknownStructuralArgumentPlace {
                         machine: function.machine,

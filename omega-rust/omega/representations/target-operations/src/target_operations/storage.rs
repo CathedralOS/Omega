@@ -3,9 +3,13 @@
 use calling_conventions::MachineRegister;
 use calling_conventions::{ConventionalSumLayout, ValueShape};
 use semantic_vocabulary::{
-    IeeeFloatValue, IntegerType, IntegerValue, OperationId, ScalarType, ValueId,
+    BlockId, IeeeFloatValue, IntegerType, IntegerValue, OperationId, PlaceId, ScalarType,
+    StructuralDomainId, StructuralTypeId, ValueId,
 };
-use terminal_psi::StructuralOperationResult;
+use terminal_psi::{
+    StructuralAccess, StructuralMultiplicity, StructuralOperationResult,
+    StructuralParameterDeclaration, StructuralPathQualification,
+};
 
 /// A scalar value produced by an ordered Unit definition or call that must
 /// remain available to its later uses.
@@ -46,16 +50,97 @@ impl TargetStructuralHomeLayout {
     }
 }
 
-/// One structural result that requires durable caller-frame storage.
-///
-/// The semantic result remains target-neutral; its layout is the receiving
-/// target lowerer's exact, replayable storage decision. A sum retains its full
-/// tag/payload layout, while a plain aggregate has no synthetic case or tag.
+/// The semantic establishment of a structural home. Block arrivals own their
+/// destination declaration; they never inherit an incoming operation's identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TargetStructuralHomeOrigin {
+    OperationResult {
+        operation: OperationId,
+        result: StructuralOperationResult,
+    },
+    BlockParameter {
+        block: BlockId,
+        declaration: StructuralParameterDeclaration,
+    },
+}
+
+/// Required activation-local storage, independently of the chosen physical home.
+/// Exact source origin and layout remain available to receiving replay. A sum
+/// retains its full tag/payload layout; an aggregate has no synthetic case tag.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetStructuralHomeRequirement {
-    pub defining_operation: OperationId,
-    pub result: StructuralOperationResult,
+    pub origin: TargetStructuralHomeOrigin,
     pub layout: TargetStructuralHomeLayout,
+}
+
+impl TargetStructuralHomeRequirement {
+    pub const fn operation_result(&self) -> Option<(OperationId, &StructuralOperationResult)> {
+        match &self.origin {
+            TargetStructuralHomeOrigin::OperationResult { operation, result } => {
+                Some((*operation, result))
+            }
+            TargetStructuralHomeOrigin::BlockParameter { .. } => None,
+        }
+    }
+
+    pub const fn place(&self) -> PlaceId {
+        match &self.origin {
+            TargetStructuralHomeOrigin::OperationResult { result, .. } => result.place,
+            TargetStructuralHomeOrigin::BlockParameter { declaration, .. } => declaration.place,
+        }
+    }
+
+    pub const fn structural_type(&self) -> StructuralTypeId {
+        match &self.origin {
+            TargetStructuralHomeOrigin::OperationResult { result, .. } => result.structural_type,
+            TargetStructuralHomeOrigin::BlockParameter { declaration, .. } => {
+                declaration.structural_type
+            }
+        }
+    }
+
+    pub const fn multiplicity(&self) -> StructuralMultiplicity {
+        match &self.origin {
+            TargetStructuralHomeOrigin::OperationResult { result, .. } => result.multiplicity,
+            TargetStructuralHomeOrigin::BlockParameter { declaration, .. } => {
+                declaration.multiplicity
+            }
+        }
+    }
+
+    pub const fn access(&self) -> StructuralAccess {
+        match &self.origin {
+            TargetStructuralHomeOrigin::OperationResult { .. } => StructuralAccess::Owned,
+            TargetStructuralHomeOrigin::BlockParameter { declaration, .. } => declaration.access,
+        }
+    }
+
+    pub fn qualifications(&self) -> &[StructuralDomainId] {
+        match &self.origin {
+            TargetStructuralHomeOrigin::OperationResult { result, .. } => &result.qualifications,
+            TargetStructuralHomeOrigin::BlockParameter { declaration, .. } => {
+                &declaration.qualifications
+            }
+        }
+    }
+
+    pub fn projected_qualifications(&self) -> &[StructuralPathQualification] {
+        match &self.origin {
+            TargetStructuralHomeOrigin::OperationResult { result, .. } => {
+                &result.projected_qualifications
+            }
+            TargetStructuralHomeOrigin::BlockParameter { declaration, .. } => {
+                &declaration.projected_qualifications
+            }
+        }
+    }
+
+    /// Result-local claim bindings only. Block declarations have no claim field;
+    /// their claim-free eligibility must be rejoined to current ownership input.
+    pub fn has_claims(&self) -> bool {
+        self.operation_result()
+            .is_some_and(|(_, result)| !result.claims.is_empty())
+    }
 }
 
 /// Exact source of one whole-root primitive replacement. This is distinct

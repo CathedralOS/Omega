@@ -38,12 +38,14 @@ fn structural_case_graph_replays_exact_payloads_and_cleanup() {
                 .collect::<Vec<_>>()
         );
         let legalized_operations::LegalizedScalarTerminator::StructuralCase {
-            cases, result, ..
+            cases,
+            source: subject,
+            ..
         } = &function.blocks[0].terminator
         else {
             panic!("case")
         };
-        assert_eq!(result.place, PlaceId::new(1).unwrap());
+        assert_eq!(subject.place(), PlaceId::new(1).unwrap());
         assert_eq!(cases[0].target, BlockId::new(20).unwrap());
         assert_eq!(cases[1].target, BlockId::new(30).unwrap());
         assert_eq!(
@@ -107,8 +109,25 @@ fn structural_case_graph_rejects_substituted_target_custody() {
             }
             "field" => cases[1].payloads[0].field = StructuralFieldId::new(99).unwrap(),
             "offset" => cases[1].payloads[0].field_byte_offset = 0,
-            "producer" => source.defining_operation = OperationId::new(99).unwrap(),
-            "place" => source.result.place = PlaceId::new(99).unwrap(),
+            "producer" => {
+                let target_operations::TargetStructuralHomeOrigin::OperationResult {
+                    operation,
+                    ..
+                } = &mut source.origin
+                else {
+                    panic!("operation");
+                };
+                *operation = OperationId::new(99).unwrap();
+            }
+            "place" => {
+                let target_operations::TargetStructuralHomeOrigin::OperationResult {
+                    result, ..
+                } = &mut source.origin
+                else {
+                    panic!("operation");
+                };
+                result.place = PlaceId::new(99).unwrap();
+            }
             "layout" => {
                 let target_operations::TargetStructuralHomeLayout::Sum(layout) = &mut source.layout
                 else {

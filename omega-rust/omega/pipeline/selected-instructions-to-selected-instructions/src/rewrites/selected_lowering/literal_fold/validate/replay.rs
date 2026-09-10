@@ -399,6 +399,10 @@ fn redensify(
                 if let selected_instructions::SelectedStructuralTransport::Descriptor {
                     argument,
                     ..
+                }
+                | selected_instructions::SelectedStructuralTransport::WholeValue {
+                    argument,
+                    ..
                 } = &mut binding.transport
                 {
                     *argument = lower_register(function_index, *argument, removed_register)?;

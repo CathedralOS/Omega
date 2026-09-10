@@ -363,12 +363,10 @@ fn check_successor(
         .iter()
         .zip(&source.structural_bindings)
     {
-        if semantic.argument.access == terminal_psi::StructuralAccess::Owned {
-            // The receiving input validator admits only unobserved owned graphs.
-            // Exact selected metadata and the complete register/storage roster
-            // are replayed by the enclosing function checker.
-            if !crate::unobserved_owned_input::accepts(function)
-                || actual.semantic != *semantic
+        if semantic.argument.access == terminal_psi::StructuralAccess::Owned
+            && crate::unobserved_owned_input::accepts(function)
+        {
+            if actual.semantic != *semantic
                 || actual.transport != selected_instructions::SelectedStructuralTransport::Unused
             {
                 return Err(SelectedInstructionError::SourceCustodyMismatch);
@@ -382,17 +380,37 @@ fn check_successor(
             .find(|(place, _)| *place == semantic.argument.place)
             .map(|(_, pointer)| *pointer)
             .ok_or(SelectedInstructionError::SourceCustodyMismatch)?;
-        if actual.semantic != *semantic
-            || actual.transport
-                != (selected_instructions::SelectedStructuralTransport::Descriptor {
-                    argument: pointer,
-                    destination:
-                        selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
-                            block: source.target,
-                            place: semantic.parameter,
-                        },
-                })
-        {
+        let destination = selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
+            block: source.target,
+            place: semantic.parameter,
+        };
+        let expected = if semantic.argument.access == terminal_psi::StructuralAccess::Owned {
+            let parameter = function
+                .blocks
+                .iter()
+                .find(|block| block.id == source.target)
+                .ok_or(SelectedInstructionError::SourceCustodyMismatch)?
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == semantic.parameter)
+                .ok_or(SelectedInstructionError::SourceCustodyMismatch)?;
+            let shape = crate::selection::aggregate_result_input::block_parameter_shape(
+                function, parameter,
+            )
+            .ok_or(SelectedInstructionError::SourceCustodyMismatch)?;
+            selected_instructions::SelectedStructuralTransport::WholeValue {
+                argument: pointer,
+                destination,
+                byte_size: shape.byte_size,
+                alignment: shape.alignment,
+            }
+        } else {
+            selected_instructions::SelectedStructuralTransport::Descriptor {
+                argument: pointer,
+                destination,
+            }
+        };
+        if actual.semantic != *semantic || actual.transport != expected {
             return Err(SelectedInstructionError::SourceCustodyMismatch);
         }
     }

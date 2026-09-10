@@ -1,0 +1,37 @@
+machine collect_owned(out: &mut [u8], selector: u64, expected: u64) {
+    transition selector == 0 {
+        true -> first_result(out, selector, expected)
+        false -> second_result(out, selector, expected)
+    }
+    state first_result(out: &mut [u8], selector: u64, expected: u64) {
+        let observed: Outcome = choose(selector, expected);
+        transition { _ -> inspect(out, expected, observed) }
+    }
+    state second_result(out: &mut [u8], selector: u64, expected: u64) {
+        let observed: Outcome = choose(selector, expected);
+        transition { _ -> relay(out, expected, observed) }
+    }
+
+    state relay(out: &mut [u8], expected: u64, observed: Outcome) {
+        transition { _ -> inspect(out, expected, observed) }
+    }
+    state inspect(out: &mut [u8], expected: u64, observed: Outcome) {
+        transition observed {
+            Outcome::Third { count } -> check(out, expected, count, 33)
+            Outcome::Empty -> writable(out, 0)
+            Outcome::Second { count } -> check(out, expected, count, 22)
+            Outcome::First { count } -> check(out, expected, count, 11)
+        }
+    }
+    state check(out: &mut [u8], expected: u64, actual: u64, marker: u8) {
+        transition expected == actual {
+            true -> writable(out, marker)
+            false -> writable(out, 255)
+        }
+    }
+    state writable(out: &mut [u8], marker: u8) {
+        transition out.len > 0 { true -> store(out, marker) false -> done() }
+    }
+    state store(out: &mut [u8], marker: u8) { out[0] = marker; }
+    state done() {}
+}

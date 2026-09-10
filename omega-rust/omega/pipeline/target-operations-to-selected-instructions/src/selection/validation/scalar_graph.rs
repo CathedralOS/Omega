@@ -122,7 +122,7 @@ pub(in crate::selection) fn validate(
             replay.block_cursor = 0;
         }
         if !crate::unobserved_owned_input::accepts(source) {
-            structural::block_entry(source_block, &mut replay)?;
+            structural::block_entry(source, source_block, &mut replay)?;
         }
         for (operation_index, operation) in source_block.instructions.iter().enumerate() {
             if matches!(

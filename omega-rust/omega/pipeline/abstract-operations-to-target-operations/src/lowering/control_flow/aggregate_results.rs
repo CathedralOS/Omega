@@ -3,31 +3,48 @@ use super::LiveDefinitions;
 use crate::lowering::shared::*;
 use target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
 
-fn sum_result_layout(
-    result: &terminal_psi::StructuralResultDeclaration,
+fn sum_layout(
+    structural_type: StructuralTypeId,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<calling_conventions::ConventionalSumLayout, LoweringError> {
-    let invalid = || LoweringError::UnsupportedStructuralSum(result.structural_type);
-    let declaration = types.get(&result.structural_type).ok_or_else(invalid)?;
+    let invalid = || LoweringError::UnsupportedStructuralSum(structural_type);
+    let declaration = types.get(&structural_type).ok_or_else(invalid)?;
     let StructuralTypeShape::Sum { cases } = &declaration.shape else {
         return Err(invalid());
     };
-    if result.multiplicity == StructuralMultiplicity::Linear
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
-        || cases.iter().flat_map(|case| &case.fields).any(|field| {
-            !matches!(field.field_type.scalar_type(), Some(ScalarType::Integer(integer))
-                if crate::lowering::scalar_abi::fixed_native_integer_shape(integer).is_some())
-        })
-    {
+    if cases.iter().flat_map(|case| &case.fields).any(|field| {
+        !matches!(field.field_type.scalar_type(), Some(ScalarType::Integer(integer))
+            if crate::lowering::scalar_abi::fixed_native_integer_shape(integer).is_some())
+    }) {
         return Err(invalid());
     }
     crate::lowering::structural_layout::structural_sum_layout(
-        result.structural_type,
+        structural_type,
         types,
         &mut BTreeMap::new(),
         &mut BTreeSet::new(),
     )
+}
+
+/// A block arrival establishes its own home under its exact declaration. It is
+/// neither a call result nor an alias of whichever predecessor happens to run.
+pub(super) fn block_home(
+    block: semantic_vocabulary::BlockId,
+    declaration: &terminal_psi::StructuralParameterDeclaration,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Result<TargetStructuralHomeRequirement, LoweringError> {
+    if !super::super::unobserved_owned::parameter(declaration) {
+        return Err(LoweringError::UnsupportedStructuralSum(
+            declaration.structural_type,
+        ));
+    }
+    Ok(TargetStructuralHomeRequirement {
+        origin: target_operations::TargetStructuralHomeOrigin::BlockParameter {
+            block,
+            declaration: declaration.clone(),
+        },
+        layout: TargetStructuralHomeLayout::Sum(sum_layout(declaration.structural_type, types)?),
+    })
 }
 
 /// Structural result category selects its layout, not a different call graph.
@@ -53,8 +70,17 @@ pub(in crate::lowering) fn result_home_layout(
             super::scalar_arrays::shape(result.structural_type, types)?.2,
         ));
     }
-    Ok(TargetStructuralHomeLayout::Sum(sum_result_layout(
-        result, types,
+    if result.multiplicity == StructuralMultiplicity::Linear
+        || !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+    {
+        return Err(LoweringError::UnsupportedStructuralSum(
+            result.structural_type,
+        ));
+    }
+    Ok(TargetStructuralHomeLayout::Sum(sum_layout(
+        result.structural_type,
+        types,
     )?))
 }
 
@@ -76,8 +102,10 @@ pub(super) fn home(
         projected_qualifications: result.projected_qualifications.clone(),
     };
     Ok(TargetStructuralHomeRequirement {
-        defining_operation: operation,
-        result: result.clone(),
+        origin: target_operations::TargetStructuralHomeOrigin::OperationResult {
+            operation,
+            result: result.clone(),
+        },
         layout: result_home_layout(&declaration, types)?,
     })
 }

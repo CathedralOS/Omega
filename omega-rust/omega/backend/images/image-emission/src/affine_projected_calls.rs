@@ -217,14 +217,15 @@ pub(crate) fn exact_projected_affine_result<'a>(
     let (producer, consumers) = calls.split_first()?;
     let result = producer.structural_result.as_ref()?;
     let home = result.result_home.as_ref()?;
+    let (defining_operation, retained_result) = home.requirement.operation_result()?;
     let [input] = producer.arguments.as_slice() else {
         return None;
     };
     if consumers.is_empty()
         || !cleanup.locals.is_empty()
         || producer.operation_ordinal != 0
-        || producer.owner != CallSiteOwner::Operation(home.requirement.defining_operation)
-        || home.requirement.result != result.operation_result
+        || producer.owner != CallSiteOwner::Operation(defining_operation)
+        || retained_result != &result.operation_result
         || !matches!(
             home.requirement.layout,
             target_operations::TargetStructuralHomeLayout::Aggregate(_)

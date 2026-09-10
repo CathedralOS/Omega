@@ -99,8 +99,10 @@ pub(super) fn lower(
                 .insert(
                     result.place,
                     TargetStructuralHomeRequirement {
-                        defining_operation: *psi_operation,
-                        result: result.clone(),
+                        origin: target_operations::TargetStructuralHomeOrigin::OperationResult {
+                            operation: *psi_operation,
+                            result: result.clone(),
+                        },
                         layout: TargetStructuralHomeLayout::Aggregate(shape),
                     },
                 )
@@ -124,7 +126,7 @@ pub(super) fn lower(
             value,
         } => {
             let home = live.structural_homes.get(destination).ok_or_else(invalid)?;
-            if !scalar_matches(home.result.structural_type, value.scalar_type)
+            if !scalar_matches(home.structural_type(), value.scalar_type)
                 || super::scalar_sources::source(value.value, function, live)?.scalar_type()
                     != value.scalar_type
             {
@@ -145,7 +147,7 @@ pub(super) fn lower(
             source,
         } => {
             let identity = if let Some(home) = live.structural_homes.get(source) {
-                home.result.structural_type
+                home.structural_type()
             } else {
                 prepared
                     .parameters

@@ -342,16 +342,25 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &LegalizedScalarSuccessor) {
 fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator) {
     match terminator {
         LegalizedScalarTerminator::StructuralCase {
-            defining_operation,
-            result,
+            source,
             layout,
             cases,
             effect,
             ownership,
         } => {
             bytes.push(3);
-            bytes.extend_from_slice(&defining_operation.get().to_le_bytes());
-            super::projected_structural_call_return::encode_operation_result(bytes, result);
+            match source {
+                crate::LegalizedStructuralCaseSource::OperationResult { operation, result } => {
+                    bytes.push(0);
+                    bytes.extend_from_slice(&operation.get().to_le_bytes());
+                    super::projected_structural_call_return::encode_operation_result(bytes, result);
+                }
+                crate::LegalizedStructuralCaseSource::BlockParameter { block, declaration } => {
+                    bytes.push(1);
+                    bytes.extend_from_slice(&block.get().to_le_bytes());
+                    super::structural_types::encode_structural_parameter(bytes, declaration);
+                }
+            }
             super::read_byte::encode_layout(bytes, layout);
             encode_len(bytes, cases.len());
             for case in cases {

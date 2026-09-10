@@ -21,8 +21,7 @@ pub(super) fn build(
     builder: &mut Builder<'_>,
 ) -> Result<SelectedTerminator, SelectedInstructionError> {
     let LegalizedScalarTerminator::StructuralCase {
-        defining_operation,
-        result,
+        source: subject,
         layout,
         cases,
         ..
@@ -40,9 +39,21 @@ pub(super) fn build(
     {
         return Err(invalid());
     }
-    let slot = LocalStorageSlotId::Structural {
-        operation: *defining_operation,
-        place: result.place,
+    let slot = match subject {
+        legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+            operation,
+            result,
+        } => LocalStorageSlotId::Structural {
+            operation: *operation,
+            place: result.place,
+        },
+        legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+            block,
+            declaration,
+        } => LocalStorageSlotId::StructuralBlockParameter {
+            block: *block,
+            place: declaration.place,
+        },
     };
     if builder
         .transport
@@ -58,11 +69,11 @@ pub(super) fn build(
     {
         return Err(invalid());
     }
-    let pointer = register(builder, result.place, 0, 64, false)?;
+    let pointer = register(builder, subject.place(), 0, 64, false)?;
     memory(
         builder,
         block.id,
-        result.place,
+        subject.place(),
         0,
         u32::from(layout.shape.byte_size),
         SelectedMemoryAccessRole::AddressLocal { slot },
@@ -76,11 +87,11 @@ pub(super) fn build(
         &[pointer],
         Default::default(),
     )?;
-    let tag = register(builder, result.place, 0, 32, true)?;
+    let tag = register(builder, subject.place(), 0, 32, true)?;
     memory(
         builder,
         block.id,
-        result.place,
+        subject.place(),
         0,
         4,
         SelectedMemoryAccessRole::ReadPlace,
@@ -103,7 +114,7 @@ pub(super) fn build(
                 Default::default(),
             )?;
         } else {
-            let expected = register(builder, result.place, 0, 64, false)?;
+            let expected = register(builder, subject.place(), 0, 64, false)?;
             builder.emit(
                 SelectedInstructionKind::MaterializeI64 {
                     value: semantic_vocabulary::IntegerValue::Unsigned(ordinal as u128),

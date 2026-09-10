@@ -24,6 +24,14 @@ fn inspection_unit() -> PsiOptimizationUnit {
             state eof() { Console::exit_process(70); }
         }
     "#;
+    source_unit(source)
+}
+
+fn source_unit(source: &str) -> PsiOptimizationUnit {
+    source_machine_unit(source, "Main::main", false)
+}
+
+fn source_machine_unit(source: &str, machine: &str, retain_contracts: bool) -> PsiOptimizationUnit {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .expect("tokenize");
@@ -34,7 +42,7 @@ fn inspection_unit() -> PsiOptimizationUnit {
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check");
     let terminal =
-        checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main").expect("Terminal");
+        checked_trees_to_lowered_psi::lower_machine(&checked, machine).expect("Terminal");
     let semantic =
         terminal_codec::encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = terminal_codec::encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
@@ -49,6 +57,19 @@ fn inspection_unit() -> PsiOptimizationUnit {
         terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
     )
     .expect("reconstruct abstract unit");
+    // Ordinary calls need their actual callee contracts. Existing boundary-only
+    // fixtures retain a seed so each test can supply its own partial evidence.
+    if retain_contracts {
+        for function in &mut unit.functions {
+            let source = terminal
+                .semantic_module
+                .machines
+                .iter()
+                .find(|source| source.id == function.machine)
+                .unwrap();
+            function.verified_contract = Some(source.contract.clone());
+        }
+    }
     unit.services = terminal.semantic_module.services.clone().into();
     unit.root_service_reach = terminal.semantic_module.root_service_reach.clone();
     refresh_identity(&mut unit);
@@ -463,3 +484,6 @@ fn case_dispatch_cannot_observe_a_result_discarded_on_an_earlier_edge() {
         matches!(validate_psi_optimization_unit(&unit), Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive { place, .. }) if place == discarded)
     );
 }
+
+#[path = "structural_cases/owned_results.rs"]
+mod owned_results;

@@ -11,11 +11,12 @@ pub(crate) fn expected_store_bytes(
 ) -> Option<Vec<u8>> {
     let result = call.structural_result.as_ref()?;
     let home = result.result_home.as_ref()?;
+    let (defining_operation, retained_result) = home.requirement.operation_result()?;
     let TargetStructuralHomeLayout::Aggregate(shape) = home.requirement.layout else {
         return None;
     };
-    if call.owner != CallSiteOwner::Operation(home.requirement.defining_operation)
-        || home.requirement.result != result.operation_result
+    if call.owner != CallSiteOwner::Operation(defining_operation)
+        || retained_result != &result.operation_result
         || result.operation_result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
         || !result.operation_result.qualifications.is_empty()
         || !result.operation_result.projected_qualifications.is_empty()

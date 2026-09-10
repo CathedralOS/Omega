@@ -133,8 +133,10 @@ mod tests {
         let empty = arm(2, 12);
         let present = arm(3, 13);
         source.blocks[0].terminator = LegalizedScalarTerminator::StructuralCase {
-            defining_operation: operation,
-            result,
+            source: legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+                operation,
+                result,
+            },
             layout,
             cases: [empty.id, present.id]
                 .into_iter()

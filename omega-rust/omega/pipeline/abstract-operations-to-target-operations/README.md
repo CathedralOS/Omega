@@ -109,13 +109,27 @@ no-code affine return discards remain in the graph. Scalar-only calls remain
 ordinary executable operations. Current ownership validates the exact live
 frontier and disposal order; target availability supplies no ownership authority.
 The input-only selected reader independently checks this bounded route and its
-ABI. Observed owned values, projected or structural call actuals of those owned
-values, and executable cleanup require separate native realization.
+ABI. Runtime observation of owned machine inputs, projected or structural call
+actuals of those inputs, and executable cleanup require separate native realization.
 Independently established primitive locals can be read, written, and borrowed
 while those owned inputs remain unobserved.
 The [owned control-cycle regressions](../../../../tests/native-differential/tests/owned_control_cycles.rs)
 exercise ranking-only field erasure, selected scalar calls, and simultaneous
 owned swaps through four-target publication and matching-host execution.
+
+Plain owned scalar-sum results also cross ordinary state arguments before case
+dispatch. Each destination retains its exact block parameter declaration and
+sum layout in a block-owned home. Different predecessors can supply distinct
+results, and an intermediate state can forward its own parameter. A destination
+cannot alias one predecessor's result home: joins must work whichever edge runs.
+Availability follows dominance and exact ordered bindings; current ownership
+still decides whether an affine source may move or be discarded. Operation-only
+call and image records continue to require an actual operation-result origin.
+The [owned-state regressions](../../../../tests/native-differential/tests/scalar_case_results/owned_state.rs)
+retain full-width payloads and borrowed output storage through publication on
+the three direct aggregate targets and execution on a matching supported host.
+Tag-only sums also publish on Windows x86-64; this cross-target check does not
+claim Windows execution from a macOS host.
 
 Scalar-returning primitive-store callees retain the same exclusive reference
 parameter, ordered store, and mixed scalar/structural ABI as their source.

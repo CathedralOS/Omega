@@ -47,7 +47,7 @@ pub(super) fn receipt(
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v35\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v36\0".as_slice();
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -393,6 +393,18 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
         });
         match binding.transport {
             selected_instructions::SelectedStructuralTransport::Unused => bytes.push(0),
+            selected_instructions::SelectedStructuralTransport::WholeValue {
+                argument,
+                destination,
+                byte_size,
+                alignment,
+            } => {
+                bytes.push(2);
+                bytes.extend_from_slice(&argument.0.to_le_bytes());
+                destination.encode_identity(bytes);
+                bytes.extend_from_slice(&byte_size.to_le_bytes());
+                bytes.extend_from_slice(&alignment.to_le_bytes());
+            }
             selected_instructions::SelectedStructuralTransport::Descriptor {
                 argument,
                 destination,

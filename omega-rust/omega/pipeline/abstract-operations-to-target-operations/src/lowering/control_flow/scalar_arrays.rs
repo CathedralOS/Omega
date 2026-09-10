@@ -33,18 +33,18 @@ pub(super) fn argument(
         return Err(invalid());
     }
     let source = if let Some(home) = live.structural_homes.get(&argument.place) {
-        if home.result.structural_type != declaration.structural_type
-            || home.result.multiplicity != declaration.multiplicity
-            || !home.result.claims.is_empty()
-            || !home.result.qualifications.is_empty()
-            || !home.result.projected_qualifications.is_empty()
+        if home.structural_type() != declaration.structural_type
+            || home.multiplicity() != declaration.multiplicity
+            || home.has_claims()
+            || !home.qualifications().is_empty()
+            || !home.projected_qualifications().is_empty()
             || home.layout
                 != target_operations::TargetStructuralHomeLayout::Aggregate(expected_shape)
         {
             return Err(invalid());
         }
         target_operations::TargetStructuralArgumentSource::StructuralHome {
-            psi_operation: home.defining_operation,
+            psi_operation: home.operation_result().ok_or_else(invalid)?.0,
         }
     } else {
         let parameter = prepared

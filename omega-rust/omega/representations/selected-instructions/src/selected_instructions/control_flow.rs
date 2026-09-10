@@ -130,6 +130,13 @@ pub struct SelectedStructuralBinding {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedStructuralTransport {
     Unused,
+    /// Snapshot the complete stored value before replacing its exact destination.
+    WholeValue {
+        argument: VirtualRegisterId,
+        destination: super::LocalStorageSlotId,
+        byte_size: u16,
+        alignment: u16,
+    },
     Descriptor {
         argument: VirtualRegisterId,
         destination: super::LocalStorageSlotId,

@@ -87,6 +87,11 @@ pub(super) fn validate_successors(
                     .find(|source| source.place == place)
                     .map(|source| source.structural_type)
                     .or_else(|| {
+                        live.structural_homes
+                            .get(&place)
+                            .map(|home| home.structural_type())
+                    })
+                    .or_else(|| {
                         live.views
                             .get(&place)
                             .map(|(_, structural_type)| *structural_type)
@@ -103,7 +108,27 @@ pub(super) fn validate_successors(
                             })
                             .flatten()
                     });
+                let source_owned_contract = live
+                    .structural_homes
+                    .get(&place)
+                    .map(|home| (home.access(), home.multiplicity()))
+                    .or_else(|| {
+                        function
+                            .structural_parameters
+                            .iter()
+                            .chain(
+                                function
+                                    .block_entries
+                                    .iter()
+                                    .flat_map(|entry| &entry.structural_parameters),
+                            )
+                            .find(|source| source.place == place)
+                            .map(|source| (source.access, source.multiplicity))
+                    });
                 if binding.parameter != parameter.place
+                    || (parameter.access == terminal_psi::StructuralAccess::Owned
+                        && source_owned_contract
+                            != Some((parameter.access, parameter.multiplicity)))
                     || source_type != Some(parameter.structural_type)
                     || !binding.argument.path.is_empty()
                     || binding.argument.access != parameter.access

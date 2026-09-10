@@ -244,3 +244,72 @@ fn case_payload_codec_retains_every_semantic_and_transport_field() {
         );
     }
 }
+
+#[test]
+fn whole_value_transport_round_trips_exact_storage_and_rejects_invalid_extents() {
+    use selected_instructions::{
+        LocalStorageSlotId, SelectedStructuralBinding, SelectedStructuralTransport,
+    };
+    let mut original = successor();
+    original
+        .structural_bindings
+        .push(SelectedStructuralBinding {
+            semantic: abstract_operations::AbstractStructuralBinding {
+                parameter: semantic_vocabulary::PlaceId::new(12).unwrap(),
+                argument: terminal_psi::StructuralArgument {
+                    place: semantic_vocabulary::PlaceId::new(11).unwrap(),
+                    access: terminal_psi::StructuralAccess::Owned,
+                    path: Vec::new(),
+                },
+            },
+            transport: SelectedStructuralTransport::WholeValue {
+                argument: VirtualRegisterId(30),
+                destination: LocalStorageSlotId::StructuralBlockParameter {
+                    block: original.source_target,
+                    place: semantic_vocabulary::PlaceId::new(12).unwrap(),
+                },
+                byte_size: 12,
+                alignment: 4,
+            },
+        });
+    let mut encoded = Vec::new();
+    encode_successor(&mut encoded, &original);
+    let mut cursor = Cursor::new(&encoded);
+    assert_eq!(decode_successor(&mut cursor).unwrap(), original);
+    assert_eq!(cursor.remaining(), 0);
+    for (byte_size, alignment) in [(0, 4), (12, 0), (12, 3), (12, 8)] {
+        let mut forged = original.clone();
+        let SelectedStructuralTransport::WholeValue {
+            byte_size: bytes,
+            alignment: align,
+            ..
+        } = &mut forged.structural_bindings[0].transport
+        else {
+            unreachable!()
+        };
+        *bytes = byte_size;
+        *align = alignment;
+        let mut encoded = Vec::new();
+        encode_successor(&mut encoded, &forged);
+        assert_eq!(
+            decode_successor(&mut Cursor::new(&encoded)),
+            Err(FixedViewCopyDecodeError::InvalidStructuralTransport)
+        );
+    }
+    let mut forged = original.clone();
+    let SelectedStructuralTransport::WholeValue { destination, .. } =
+        &mut forged.structural_bindings[0].transport
+    else {
+        unreachable!()
+    };
+    *destination = LocalStorageSlotId::Structural {
+        operation: semantic_vocabulary::OperationId::new(7).unwrap(),
+        place: semantic_vocabulary::PlaceId::new(12).unwrap(),
+    };
+    let mut encoded = Vec::new();
+    encode_successor(&mut encoded, &forged);
+    assert_eq!(
+        decode_successor(&mut Cursor::new(&encoded)),
+        Err(FixedViewCopyDecodeError::InvalidStructuralTransport)
+    );
+}

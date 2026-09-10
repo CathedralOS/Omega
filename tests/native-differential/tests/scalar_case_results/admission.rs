@@ -65,16 +65,25 @@ pub(super) fn installation_cannot_change_call_or_result(
                     .shape
                     .byte_size = 8
             }
-            3 => function
-                .parameter_abi
-                .as_mut()
-                .unwrap()
-                .call_plan
-                .result
-                .as_mut()
-                .unwrap()
-                .locations
-                .swap(0, 1),
+            3 => {
+                let locations = &mut function
+                    .parameter_abi
+                    .as_mut()
+                    .unwrap()
+                    .call_plan
+                    .result
+                    .as_mut()
+                    .unwrap()
+                    .locations;
+                if locations.len() > 1 {
+                    locations.swap(0, 1);
+                } else {
+                    // A tag-only sum has one fragment; removing it still tests
+                    // the exact result-location roster without inventing a second.
+                    assert_eq!(locations.len(), 1);
+                    locations.clear();
+                }
+            }
             4 => function.parameter_abi.as_mut().unwrap().parameters.clear(),
             _ => unreachable!(),
         }

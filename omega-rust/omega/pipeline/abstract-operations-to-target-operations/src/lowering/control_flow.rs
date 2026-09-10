@@ -124,7 +124,8 @@ pub(super) fn lower(
             if entry.block == function.entry
                 || parameter.position as usize != position
                 || (!unobserved_owned
-                    && !super::scalar::byte_views::is_byte_parameter(parameter, structural_types))
+                    && !super::scalar::byte_views::is_byte_parameter(parameter, structural_types)
+                    && !super::unobserved_owned::parameter(parameter))
                 || !places.insert(parameter.place)
             {
                 return Err(invalid());
@@ -275,6 +276,26 @@ pub(super) fn lower(
                     })
                     .map(|parameter| parameter.place),
             );
+            if !unobserved_owned {
+                for parameter in entries[position]
+                    .structural_parameters
+                    .iter()
+                    .filter(|parameter| parameter.access == StructuralAccess::Owned)
+                {
+                    let home = aggregate_results::block_home(
+                        entries[position].block,
+                        parameter,
+                        structural_types,
+                    )?;
+                    if live
+                        .structural_homes
+                        .insert(parameter.place, home)
+                        .is_some()
+                    {
+                        return Err(invalid());
+                    }
+                }
+            }
             live.owned_arrivals.extend(
                 entries[position]
                     .structural_parameters

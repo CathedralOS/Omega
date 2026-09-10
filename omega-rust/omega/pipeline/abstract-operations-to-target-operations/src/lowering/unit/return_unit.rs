@@ -97,7 +97,7 @@ pub(super) fn lower_unit_return(
                     TargetUnitOperation::BoundarySettlement {
                         result: target_operations::TargetBoundaryResult::Structural(result),
                         ..
-                    } => Some(result.result.place),
+                    } => result.operation_result().map(|(_, result)| result.place),
                     _ => None,
                 })
                 .collect::<Vec<_>>();

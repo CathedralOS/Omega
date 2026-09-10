@@ -9,6 +9,8 @@ mod descriptors;
 #[cfg(test)]
 mod tests;
 mod validation;
+#[cfg(test)]
+mod whole_value_tests;
 pub(super) use construction::prepare;
 pub(super) use validation::project;
 
@@ -46,4 +48,41 @@ fn instruction_count(function: &SelectedFunction) -> usize {
         .iter()
         .map(|block| block.instructions.len() + 1)
         .sum()
+}
+
+fn stored_transport(
+    transport: selected_instructions::SelectedStructuralTransport,
+) -> Option<(
+    VirtualRegisterId,
+    selected_instructions::LocalStorageSlotId,
+    u32,
+    bool,
+)> {
+    match transport {
+        selected_instructions::SelectedStructuralTransport::Unused => None,
+        selected_instructions::SelectedStructuralTransport::Descriptor {
+            argument,
+            destination,
+        } => Some((argument, destination, 16, false)),
+        selected_instructions::SelectedStructuralTransport::WholeValue {
+            argument,
+            destination,
+            byte_size,
+            ..
+        } => Some((argument, destination, u32::from(byte_size), true)),
+    }
+}
+
+fn chunks(byte_size: u32) -> Vec<(u32, u8)> {
+    let mut offset = 0;
+    let mut chunks = Vec::new();
+    while offset < byte_size {
+        let width = [8, 4, 2, 1]
+            .into_iter()
+            .find(|width| *width <= byte_size - offset)
+            .expect("positive remainder");
+        chunks.push((offset, width as u8));
+        offset += width;
+    }
+    chunks
 }

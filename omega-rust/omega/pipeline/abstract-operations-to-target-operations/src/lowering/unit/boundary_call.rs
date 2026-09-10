@@ -173,8 +173,11 @@ pub(in crate::lowering) fn lower_boundary_call(
                     )?;
                     target_operations::TargetBoundaryResult::Structural(
                         target_operations::TargetStructuralHomeRequirement {
-                            defining_operation: *psi_operation,
-                            result: result.clone(),
+                            origin:
+                                target_operations::TargetStructuralHomeOrigin::OperationResult {
+                                    operation: *psi_operation,
+                                    result: result.clone(),
+                                },
                             layout: target_operations::TargetStructuralHomeLayout::Sum(layout),
                         },
                     )
@@ -299,8 +302,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                     else {
                         return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                     };
-                    let Some(result_declaration) =
-                        structural_types.get(&home.result.structural_type)
+                    let Some(result_declaration) = structural_types.get(&home.structural_type())
                     else {
                         return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                     };

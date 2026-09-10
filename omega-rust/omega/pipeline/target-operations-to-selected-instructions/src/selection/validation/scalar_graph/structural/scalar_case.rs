@@ -84,6 +84,7 @@ pub(super) fn establish(
             vec![field.value],
         )?;
     }
+    replay.transport.pointers.push((established.place, pointer));
     Ok(())
 }
 

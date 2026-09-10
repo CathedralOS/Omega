@@ -180,7 +180,7 @@ pub(super) fn lower_operation(
             }) = operations.last()
                 && live
                     .structural_homes
-                    .insert(home.result.place, home.clone())
+                    .insert(home.place(), home.clone())
                     .is_some()
             {
                 return Err(LoweringError::UnsupportedControlFlow(function.machine));
