@@ -44,8 +44,8 @@ machine Main::main(&mut self) {
         transition self.unit_result { UnitResult::Ok -> exists_again() _ -> bad(72) }
     }
     state exists_again(&mut self) {
-        self.unit_result = self.fs.create_dir("omega_wrapper_probe_dir");
-        transition self.unit_result {
+        let result: UnitResult = self.fs.create_dir("omega_wrapper_probe_dir");
+        transition result {
             UnitResult::Error { kind } -> exists_kind(kind)
             _ -> bad(81)
         }
@@ -85,8 +85,8 @@ machine Main::main(&mut self) {
         transition self.unit_result { UnitResult::Ok -> remove_missing() _ -> bad(78) }
     }
     state remove_missing(&mut self) {
-        self.unit_result = self.fs.remove("omega_wrapper_probe.txt");
-        transition self.unit_result {
+        let result: UnitResult = self.fs.remove("omega_wrapper_probe.txt");
+        transition result {
             UnitResult::Error { kind } -> missing_kind(kind)
             _ -> bad(79)
         }

@@ -30,8 +30,8 @@ data FailedOpen {
 }
 
 machine FailedOpen::main(&mut self) -> i32 {
-    self.result = self.filesystem.canonicalize("omega_wcanon_missing.txt", &mut self.buffer);
-    transition self.result {
+    let outcome: UnitResult = self.filesystem.canonicalize("omega_wcanon_missing.txt", &mut self.buffer);
+    transition outcome {
         UnitResult::Error { kind } -> failed(kind)
         _ -> unexpected()
     }
@@ -79,8 +79,8 @@ machine Main::main(&mut self) {
         transition self.canon[0] == 111 { true -> missing() _ -> bad(78) }
     }
     state missing(&mut self) {
-        self.unit_result = self.fs.canonicalize("omega_wcanon_missing.txt", &mut self.canon);
-        transition self.unit_result { UnitResult::Error { kind } -> kindcheck(kind) _ -> bad(74) }
+        let outcome: UnitResult = self.fs.canonicalize("omega_wcanon_missing.txt", &mut self.canon);
+        transition outcome { UnitResult::Error { kind } -> kindcheck(kind) _ -> bad(74) }
     }
     state kindcheck(&mut self, kind: ErrorKind) {
         // The open leg's captured GetLastError supplies this classification.
