@@ -1,4 +1,4 @@
-# 0008: Build dependency scopes and isolated inputs
+# 0005: Build dependency scopes and isolated inputs
 
 Status: proposed, not ratified or implemented. This augments ordinary Omega build
 evaluation; it does not introduce a second build language. This revision selects
@@ -46,7 +46,7 @@ Retain one `machine build(builder: &mut Build)` entry. Add:
    compiler knowledge of a package's artifact format or policy algorithms.
 
 The customers are code generation and
-[0007's topology package](0007_checked_boundary_topology.md). Neither needs
+[0004's topology package](0004_checked_boundary_topology.md). Neither needs
 topology syntax, a plugin registry, native execution of arbitrary downloaded
 code, or compiler-specific graph policies. Reflection is optional for authoring
 helpers, not a dependency of this proposal.
@@ -661,4 +661,4 @@ they need not wait for every virtual filesystem operation. No-op I/O and relying
 on linker stripping to enforce build-only access are rejected alternatives.
 
 Acceptance updates the owning specs and implementation tasks. Neither this
-proposal nor 0007 is an execution-board prerequisite before that decision.
+proposal nor 0004 is an execution-board prerequisite before that decision.

@@ -9,7 +9,7 @@ Acceptance updates the specification; this directory does not define current rul
 Use `NNNN_short_descriptive_name.md`, beginning with `0000`. The number is a stable
 proposal ID, not priority or acceptance order. Do not routinely renumber or reuse
 IDs; an explicit owner-directed reassignment updates every reference in the same sweep.
-The next available ID is **0009**; advance this counter when adding a proposal,
+The next available ID is **0006**; advance this counter when adding a proposal,
 including after accepted or withdrawn files have been removed.
 
 Each proposal names its status, affected spec owners, concrete problem, proposed
@@ -39,12 +39,12 @@ separate review system or historical decision ledger.
   require no runtime checking independently of this design.
 - [0003: Proof-search caching](0003_proof_search_cache.md): untrusted derivation reuse;
   persistence, keys, and granularity remain unselected.
-- [0007: Checked boundary topology](0007_checked_boundary_topology.md): explicit
+- [0004: Checked boundary topology](0004_checked_boundary_topology.md): explicit
   service-instance wiring, routing policies, codec, and installer in an ordinary
-  package; depends on 0008 for build-only imports and generic staged publication.
+  package; depends on 0005 for build-only imports and generic staged publication.
   Defines verified component consumption, independently authorized owner intent,
   and binding/activation checks; no topology-specific compiler graph engine.
-- [0008: Build dependency scopes and isolated inputs](0008_build_dependency_scopes.md):
+- [0005: Build dependency scopes and isolated inputs](0005_build_dependency_scopes.md):
   build-only imports, non-executing product references, deterministic captured
   inputs, sealed staging, linear output completion, and explicit artifact-only
   mode; compares Cargo, Bazel, and Nix without adopting ambient host access.
