@@ -46,8 +46,12 @@ their saved caller's fresh result place. Earlier caller arrays survive alongside
 that result. Return preflight precedes fuel charging and frame restoration, so
 exhaustion cannot publish a partial result or repeat a completed invocation.
 Nested and empty dimensions, Boolean values, and IEEE payload bits are retained.
-Array argument and state-transfer transport remain unsupported; this result path
-does not imply source-call lowering or native array realization.
+Ordinary Unit, scalar, and structural calls copy whole owned unrestricted arrays
+into the exact callee parameter places. Repeated arguments preserve the caller's
+payload, and parameter returns select the actual input contents. Opaque host
+identities cannot fabricate array payloads. Borrowed/projected array payloads,
+boundary-provider transport, state transfers, and native realization remain
+unsupported; existing borrowed byte-array backing is a separate route.
 
 ## Primitive local storage
 

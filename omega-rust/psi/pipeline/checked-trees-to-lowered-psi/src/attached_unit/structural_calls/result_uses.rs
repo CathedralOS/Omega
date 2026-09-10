@@ -21,6 +21,19 @@ fn producer(
             .iter()
             .enumerate()
             .filter_map(|(operation_index, operation)| match operation {
+                CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
+                    if result.binding_ordinal == binding_ordinal =>
+                {
+                    Some(Producer {
+                        operation_index,
+                        coordinate: checked_trees::CheckedUnitCallCoordinate {
+                            statement_index: result.statement_index,
+                            call_ordinal: 0,
+                        },
+                        result,
+                        discard: false,
+                    })
+                }
                 CheckedUnitEffectOperationPlan::StructuralCall {
                     coordinate,
                     result,
@@ -178,6 +191,22 @@ pub(crate) fn validate_usage(
                 return unsupported(
                     "Unit structural result is consumed before production or twice",
                 );
+            }
+            if result.multiplicity == Multiplicity::Unrestricted {
+                if !matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::CallUnit { .. }
+                        | CheckedUnitEffectOperationPlan::ScalarCall { .. }
+                        | CheckedUnitEffectOperationPlan::StructuralCall { .. }
+                ) || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                    || !argument.path.is_empty()
+                    || argument.type_identity != result.type_identity
+                {
+                    return unsupported(
+                        "unrestricted array result requires a whole owned ordinary argument",
+                    );
+                }
+                continue;
             }
             if !argument.path.is_empty() {
                 if !matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
@@ -337,6 +366,46 @@ pub(crate) fn validate_consumer(
                 (*position == parameter.position).then_some(*expression)
             });
         let binding_ordinal = argument.source_structural_result_binding_ordinal();
+        if let Some(source_index) = argument.source_parameter_index() {
+            let source = caller
+                .structural_parameters
+                .get(source_index as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "structural argument source parameter is absent",
+                ))?;
+            let source_parameter = checked
+                .state_parameters(state)
+                .get(source.position as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "structural argument source position is absent",
+                ))?;
+            if validation::is_closed_primitive_array_type(&checked.typed, source_parameter.type_reference)
+                && (authored.boundary
+                    || !argument.path.is_empty()
+                    || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                    || source.access != argument.access
+                    || parameter.access != argument.access
+                    || source.multiplicity != Multiplicity::Unrestricted
+                    || parameter.multiplicity != Multiplicity::Unrestricted
+                    || source.type_identity != argument.type_identity
+                    || parameter.type_identity != argument.type_identity
+                    || !source.qualifications.is_empty()
+                    || !parameter.qualifications.is_empty()
+                    || source.fused_service_erasure.is_some()
+                    || parameter.fused_service_erasure.is_some()
+                    || source_parameter.is_self
+                    || parameter.is_self
+                    || !expression.is_some_and(|expression| matches!(
+                        checked.expression_table.expression(expression), ExpressionNode::Name(name)
+                            if name.symbol == source_parameter.symbol
+                                && name.head_symbol == source_parameter.symbol
+                                && checked.expression_table.name_path_members(name.members).len() == 1))
+                    || target_entry_claims.iter().any(|claim| claim.parameter_index as usize == index)
+                    || claim_transfers.iter().any(|transfer| transfer.argument_index as usize == index))
+            {
+                return unsupported("primitive array parameter requires exact whole owned ordinary transport");
+            }
+        }
         if binding_ordinal.is_none()
             && expression
                 .is_some_and(|expression| expression_producer(checked, expression).is_some())
@@ -348,21 +417,42 @@ pub(crate) fn validate_consumer(
         // Check both directions: an authored result cannot be replaced with a
         // same-typed parameter or construction-local plan.
         for candidate in &caller.operations {
-            let (CheckedUnitEffectOperationPlan::StructuralCall {
-                coordinate: producer_coordinate,
-                source_site,
-                result,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                coordinate: producer_coordinate,
-                source_site,
-                result,
-                ..
-            }) = candidate
-            else {
-                continue;
+            let (producer_coordinate, source_site, result) = match candidate {
+                CheckedUnitEffectOperationPlan::StructuralCall {
+                    coordinate: producer_coordinate,
+                    source_site,
+                    result,
+                    ..
+                }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    coordinate: producer_coordinate,
+                    source_site,
+                    result,
+                    ..
+                } => (*producer_coordinate, *source_site, result),
+                CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => (
+                    checked_trees::CheckedUnitCallCoordinate {
+                        statement_index: result.statement_index,
+                        call_ordinal: 0,
+                    },
+                    None,
+                    result,
+                ),
+                _ => continue,
             };
+            if producer_coordinate.call_ordinal == 0
+                && matches!(
+                    statements.get(result.statement_index as usize),
+                    Some(StatementNode::Expression(_))
+                )
+            {
+                if binding_ordinal == Some(result.binding_ordinal) {
+                    return unsupported(
+                        "terminal structural result cannot supply an earlier call operand",
+                    );
+                }
+                continue;
+            }
             if producer_coordinate.call_ordinal == 0
                 && matches!(
                     statements.get(result.statement_index as usize),
@@ -373,7 +463,7 @@ pub(crate) fn validate_consumer(
                     checked,
                     caller.machine,
                     caller.state,
-                    *producer_coordinate,
+                    producer_coordinate,
                     result,
                 )?;
                 if binding_ordinal == Some(result.binding_ordinal) {
@@ -389,6 +479,11 @@ pub(crate) fn validate_consumer(
                 };
                 if local.is_mutable
                     || !local.symbol.is_valid()
+                    || (result.multiplicity == Multiplicity::Unrestricted
+                        && !validation::is_closed_primitive_array_type(
+                            &checked.typed,
+                            local.type_reference,
+                        ))
                     || checked
                         .typed
                         .normalized_type_identity(local.type_reference)
@@ -424,9 +519,9 @@ pub(crate) fn validate_consumer(
                 let source = crate::call_source_custody::authored::locate_source(
                     checked,
                     caller.state,
-                    *producer_coordinate,
+                    producer_coordinate,
                 )?;
-                if source.source_site != *source_site {
+                if source.source_site != source_site {
                     return unsupported(
                         "nested structural producer has a different authored source",
                     );
@@ -445,6 +540,16 @@ pub(crate) fn validate_consumer(
                         source_machine.symbol,
                         source.source_target,
                     )?;
+                    if result.multiplicity == Multiplicity::Unrestricted
+                        && !validation::is_closed_primitive_array_type(
+                            &checked.typed,
+                            signature.return_type,
+                        )
+                    {
+                        return unsupported(
+                            "unrestricted structural operand has no primitive array producer",
+                        );
+                    }
                     let (root, path, access) = super::super::parameters::source_place_path(
                         checked,
                         source_machine,
@@ -464,7 +569,7 @@ pub(crate) fn validate_consumer(
                         super::shared_temporary::validate(
                             checked,
                             caller,
-                            *producer_coordinate,
+                            producer_coordinate,
                             *coordinate,
                             source_expression,
                         )?;
@@ -507,7 +612,18 @@ pub(crate) fn validate_consumer(
             || matches!(operation, CheckedUnitEffectOperationPlan::StructuralCall { result: consumer, .. }
                 | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result: consumer, .. }
                 if result.binding_ordinal >= consumer.binding_ordinal)
-            || result.multiplicity != Multiplicity::Affine
+            || !matches!(
+                result.multiplicity,
+                Multiplicity::Affine | Multiplicity::Unrestricted
+            )
+            || (result.multiplicity == Multiplicity::Unrestricted
+                && (!matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::CallUnit { .. }
+                        | CheckedUnitEffectOperationPlan::ScalarCall { .. }
+                        | CheckedUnitEffectOperationPlan::StructuralCall { .. }
+                ) || !argument.path.is_empty()
+                    || argument.access != checked_trees::CheckedStructuralAccess::Owned))
             || (argument.path.is_empty() && argument.type_identity != result.type_identity)
             || parameter.type_identity != argument.type_identity
             || (!argument.path.is_empty()
@@ -523,7 +639,7 @@ pub(crate) fn validate_consumer(
                 != if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
                     Multiplicity::Unrestricted
                 } else {
-                    Multiplicity::Affine
+                    result.multiplicity
                 }
             || parameter.is_self
             || !parameter.qualifications.is_empty()

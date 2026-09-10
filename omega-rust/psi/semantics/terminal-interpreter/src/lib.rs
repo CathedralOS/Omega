@@ -1257,8 +1257,7 @@ impl TerminalExecution {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
-        let structural_values =
-            bind_structural_arguments(&callee.structural_parameters, &prepared_arguments.values)?;
+        let structural_values = prepared_arguments.values;
         let byte_sequence_values = prepared_arguments.byte_sequences;
         let callee_affine_frontier =
             bind_affine_frontier(&callee.structural_parameters, &structural_values)?;
@@ -1324,6 +1323,7 @@ impl TerminalExecution {
         self.values = values;
         self.structural_values = structural_values;
         self.byte_sequence_values = byte_sequence_values;
+        self.scalar_array_values = prepared_arguments.scalar_arrays;
         self.live_affine_frontier = callee_affine_frontier;
         self.live_claims = live_claims;
         self.dynamic_parameters = dynamic_parameters;
@@ -1351,18 +1351,10 @@ impl TerminalExecution {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
-        let arguments = resolve_structural_arguments(
-            &self.structural_types,
-            &self.structural_values,
-            structural_arguments,
-        )?;
-        let structural_values =
-            bind_structural_arguments(&callee.structural_parameters, &arguments)?;
-        let byte_sequence_values = self.bind_byte_sequence_arguments(
-            &callee.structural_parameters,
-            structural_arguments,
-            &arguments,
-        )?;
+        let prepared_arguments =
+            self.prepare_structural_call_arguments(callee_id, structural_arguments)?;
+        let structural_values = prepared_arguments.values;
+        let byte_sequence_values = prepared_arguments.byte_sequences;
         let callee_affine_frontier =
             bind_affine_frontier(&callee.structural_parameters, &structural_values)?;
         let (remaining_claims, live_claims) = transfer_claims(
@@ -1427,6 +1419,7 @@ impl TerminalExecution {
         self.values = values;
         self.structural_values = structural_values;
         self.byte_sequence_values = byte_sequence_values;
+        self.scalar_array_values = prepared_arguments.scalar_arrays;
         self.live_affine_frontier = callee_affine_frontier;
         self.live_claims = live_claims;
         self.dynamic_parameters = dynamic_parameters;
@@ -1505,8 +1498,7 @@ impl TerminalExecution {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
-        let structural_values =
-            bind_structural_arguments(&callee.structural_parameters, &prepared_arguments.values)?;
+        let structural_values = prepared_arguments.values;
         let byte_sequence_values = prepared_arguments.byte_sequences;
         let callee_affine_frontier =
             bind_affine_frontier(&callee.structural_parameters, &structural_values)?;
@@ -1576,6 +1568,7 @@ impl TerminalExecution {
         self.values = values;
         self.structural_values = structural_values;
         self.byte_sequence_values = byte_sequence_values;
+        self.scalar_array_values = prepared_arguments.scalar_arrays;
         self.live_affine_frontier = callee_affine_frontier;
         self.live_claims = live_claims;
         self.dynamic_parameters = BTreeMap::new();
@@ -3869,7 +3862,12 @@ impl TerminalExecution {
                     let Some(signature) = machine.result.structural() else {
                         return Err(TerminalInterpretError::VerifiedOperationMalformed);
                     };
-                    if self.scalar_array_values.contains_key(source) {
+                    if terminal_semantics::scalar_array_leaf_shape(
+                        self.structural_types.values(),
+                        signature.structural_type,
+                    )
+                    .is_some()
+                    {
                         if let Some(status) = self.return_scalar_array(&terminator, meter)? {
                             return Ok(status);
                         }

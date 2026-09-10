@@ -1,5 +1,7 @@
 //! Array results rejoin exact authored bindings and initializer contents.
 
+#[path = "scalar_array_source/call_arguments.rs"]
+mod call_arguments;
 #[path = "scalar_array_source/call_results.rs"]
 mod call_results;
 
@@ -189,9 +191,12 @@ fn changed_array_result_and_constructor_facts_reject() {
         let other_operand = other_elements[0].clone();
         match mutation {
             "deleted result" => plan.structural_result = None,
-            "another returned binding" => plan.structural_result = Some(other_result),
+            "another returned binding" => plan.structural_result = Some(other_result.into()),
             "unknown returned ordinal" => {
-                plan.structural_result.as_mut().unwrap().binding_ordinal = u32::MAX
+                plan.structural_result.as_mut().unwrap().source =
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal: u32::MAX,
+                    }
             }
             "constructor ordinal" => {
                 let CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } =
@@ -200,8 +205,10 @@ fn changed_array_result_and_constructor_facts_reject() {
                     panic!("first array");
                 };
                 result.binding_ordinal = other_result.binding_ordinal;
-                plan.structural_result.as_mut().unwrap().binding_ordinal =
-                    other_result.binding_ordinal;
+                plan.structural_result.as_mut().unwrap().source =
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal: other_result.binding_ordinal,
+                    };
             }
             "dropped returned constructor" => {
                 plan.operations.remove(*first);

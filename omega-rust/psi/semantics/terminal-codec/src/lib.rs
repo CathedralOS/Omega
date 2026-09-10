@@ -528,6 +528,17 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
                 return malformed("entry block cannot declare structural parameters");
             }
             for (position, parameter) in block.structural_parameters.iter().enumerate() {
+                if parameter.access == terminal_psi::StructuralAccess::Owned
+                    && terminal_semantics::scalar_array_leaf_shape(
+                        module.structural_types.iter(),
+                        parameter.structural_type,
+                    )
+                    .is_some()
+                {
+                    return malformed(
+                        "owned primitive-array payloads have no block-parameter transport",
+                    );
+                }
                 if parameter.position as usize != position || parameter.is_self {
                     return malformed(
                         "structural block parameters require dense positions and no self",
@@ -2170,6 +2181,59 @@ fn validate_structural_arguments(
         let Some(actual_type) = structural_place_type(machine, argument.place) else {
             return malformed("structural argument references an unknown structural place");
         };
+        let parameter = machine
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == argument.place);
+        let result = machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter_map(|operation| operation.result.structural())
+            .find(|result| result.place == argument.place);
+        let owned_array_payload = terminal_semantics::scalar_array_leaf_shape(
+            module.structural_types.iter(),
+            actual_type,
+        )
+        .is_some()
+            && (parameter.is_some_and(|parameter| {
+                parameter.access == terminal_psi::StructuralAccess::Owned
+                    && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+            }) || result.is_some());
+        if owned_array_payload {
+            let plain_source = parameter.is_some_and(|parameter| {
+                parameter.access == terminal_psi::StructuralAccess::Owned
+                    && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                    && parameter.qualifications.is_empty()
+                    && parameter.projected_qualifications.is_empty()
+            }) || result.is_some_and(|result| {
+                result.multiplicity == StructuralMultiplicity::Unrestricted
+                    && result.qualifications.is_empty()
+                    && result.projected_qualifications.is_empty()
+                    && result.claims.is_empty()
+            });
+            if matches!(presentation, StructuralArgumentPresentation::Boundary)
+                || !plain_source
+                || argument.access != terminal_psi::StructuralAccess::Owned
+                || !argument.path.is_empty()
+                || expected.access != terminal_psi::StructuralAccess::Owned
+                || expected.multiplicity != StructuralMultiplicity::Unrestricted
+                || !expected.qualifications.is_empty()
+                || !expected.projected_qualifications.is_empty()
+                || machine
+                    .entry_claims
+                    .iter()
+                    .any(|claim| claim.input == argument.place)
+                || machine
+                    .content_entry_claims
+                    .iter()
+                    .any(|claim| claim.input.root == argument.place)
+            {
+                return malformed(
+                    "primitive-array argument requires whole plain owned internal-call custody",
+                );
+            }
+        }
         // The canonical form retains the real array type at both ordinary and
         // boundary calls; the shared extent check recognizes the exact loan.
         if machine.structural_parameters.iter().any(|actual| {

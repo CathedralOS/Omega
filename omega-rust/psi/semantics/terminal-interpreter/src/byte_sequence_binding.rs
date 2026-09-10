@@ -96,8 +96,9 @@ impl ByteSequenceBinding {
 }
 
 pub(super) struct StructuralCallArguments {
-    pub(super) values: Vec<TerminalStructuralValue>,
+    pub(super) values: BTreeMap<PlaceId, TerminalStructuralValue>,
     pub(super) byte_sequences: BTreeMap<PlaceId, ByteSequenceBinding>,
+    pub(super) scalar_arrays: BTreeMap<PlaceId, TerminalScalarArrayValue>,
 }
 
 impl TerminalExecution {
@@ -110,6 +111,36 @@ impl TerminalExecution {
             .machines
             .get(&callee)
             .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee))?;
+        if machine.structural_parameters.len() != arguments.len() {
+            return Err(TerminalInterpretError::StructuralArgumentCount {
+                expected: machine.structural_parameters.len(),
+                actual: arguments.len(),
+            });
+        }
+        // Bind payload-bearing arrays directly to callee places. The remaining
+        // arguments use the existing opaque/borrowed-backing preparation; their
+        // filtered positions must never be rebound against the full signature.
+        let mut scalar_arrays = BTreeMap::new();
+        let mut opaque_parameters = Vec::new();
+        let mut opaque_arguments = Vec::new();
+        for (parameter, argument) in machine.structural_parameters.iter().zip(arguments) {
+            if terminal_semantics::scalar_array_leaf_shape(
+                self.structural_types.values(),
+                parameter.structural_type,
+            )
+            .is_some()
+                && (parameter.access == StructuralAccess::Owned
+                    || self.scalar_array_values.contains_key(&argument.place))
+            {
+                let value = self.prepare_scalar_array_argument(machine, parameter, argument)?;
+                if scalar_arrays.insert(parameter.place, value).is_some() {
+                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                }
+            } else {
+                opaque_parameters.push(parameter.clone());
+                opaque_arguments.push(argument.clone());
+            }
+        }
         let scalar_case_result = machine.result.structural().is_some_and(|result| {
             matches!(
                 result.multiplicity,
@@ -127,10 +158,9 @@ impl TerminalExecution {
                     })
         });
         if (machine.result == TerminalMachineResult::Unit || scalar_case_result)
-            && machine
-                .structural_parameters
+            && opaque_parameters
                 .iter()
-                .zip(arguments)
+                .zip(&opaque_arguments)
                 .any(|(parameter, _argument)| {
                     parameter.access == StructuralAccess::MutableBorrow
                         && self
@@ -147,20 +177,23 @@ impl TerminalExecution {
             // Share only exact referent preparation. External buffer staging and
             // replacement are not part of an ordinary call. Its result form
             // does not change the borrowed input's referent or backing.
-            return self
-                .prepare_boundary_arguments(&machine.structural_parameters, arguments)?
-                .into_call_arguments(&machine.structural_parameters);
+            let mut prepared = self
+                .prepare_boundary_arguments(&opaque_parameters, &opaque_arguments)?
+                .into_call_arguments(&opaque_parameters)?;
+            prepared.scalar_arrays = scalar_arrays;
+            return Ok(prepared);
         }
         let values = resolve_structural_arguments(
             &self.structural_types,
             &self.structural_values,
-            arguments,
+            &opaque_arguments,
         )?;
         let byte_sequences =
-            self.bind_byte_sequence_arguments(&machine.structural_parameters, arguments, &values)?;
+            self.bind_byte_sequence_arguments(&opaque_parameters, &opaque_arguments, &values)?;
         Ok(StructuralCallArguments {
-            values,
+            values: bind_structural_arguments(&opaque_parameters, &values)?,
             byte_sequences,
+            scalar_arrays,
         })
     }
 }

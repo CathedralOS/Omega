@@ -4,10 +4,10 @@
 //! surrounding supported effects do not select a different producer family.
 
 use super::*;
+use checked_trees::CheckedUnitStructuralReturnPlan;
 
 pub(in crate::flow::terminal_unit) struct StatementSequence {
-    pub(in crate::flow::terminal_unit) structural_result:
-        Option<CheckedUnitStructuralResultBindingPlan>,
+    pub(in crate::flow::terminal_unit) structural_result: Option<CheckedUnitStructuralReturnPlan>,
     pub(in crate::flow::terminal_unit) operations: Vec<CheckedUnitEffectOperationPlan>,
     pub(in crate::flow::terminal_unit) local_count: usize,
     pub(in crate::flow::terminal_unit) structural_local_symbols: Vec<SymbolHandle>,
@@ -205,6 +205,7 @@ pub(in crate::flow::terminal_unit) fn build(
                     )?;
                     structural_count = structural_count.checked_add(1)?;
                     array_bindings.push((local.symbol, result.clone()));
+                    structural_results.push((result.clone(), facts::PlaceRoot::Symbol(local.symbol)));
                     structural_local_symbols.push(local.symbol);
                     operations.push(CheckedUnitEffectOperationPlan::EstablishScalarArray {
                         result,
@@ -358,7 +359,7 @@ pub(in crate::flow::terminal_unit) fn build(
                 statement_index,
                 binding_ordinal: u32::try_from(structural_count).ok()?,
                 type_identity: target.type_identity,
-                multiplicity: Multiplicity::Affine,
+                multiplicity: target.multiplicity,
             };
             let operation = build_call_operation(
                 program,
@@ -490,7 +491,8 @@ pub(in crate::flow::terminal_unit) fn build(
                     operation,
                     CheckedUnitEffectOperationPlan::StructuralCall { .. }
                         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
-                ) && result.multiplicity == Multiplicity::Affine
+                ) && (result.multiplicity == Multiplicity::Affine
+                    || array_bindings.iter().any(|(binding, _)| *binding == symbol))
                 {
                     structural_results.push((result, facts::PlaceRoot::Symbol(symbol)));
                 }
@@ -542,20 +544,47 @@ pub(in crate::flow::terminal_unit) fn build(
             };
             let statement_index = u32::try_from(statements.len().checked_sub(1)?).ok()?;
             if let ExpressionNode::Name(path) = program.expression_table.expression(*expression) {
-                let (_, binding) = array_bindings
+                if let Some((_, binding)) = array_bindings
                     .iter()
-                    .find(|(symbol, _)| *symbol == path.symbol)?;
-                if binding.type_identity
-                    != program.normalized_type_identity(state.return_type).as_str()
+                    .find(|(symbol, _)| *symbol == path.symbol)
                 {
-                    return None;
+                    if binding.type_identity
+                        != program.normalized_type_identity(state.return_type).as_str()
+                    {
+                        return None;
+                    }
+                    Some(binding.clone().into())
+                } else {
+                    let source_parameters = program.state_parameters(state);
+                    let (parameter_index, parameter) = structural_parameters
+                        .iter()
+                        .enumerate()
+                        .find(|(_, parameter)| {
+                            source_parameters
+                                .get(parameter.position as usize)
+                                .is_some_and(|source| source.symbol == path.symbol)
+                        })?;
+                    if parameter.access != CheckedStructuralAccess::Owned
+                        || parameter.multiplicity != Multiplicity::Unrestricted
+                        || !parameter.qualifications.is_empty()
+                        || parameter.type_identity
+                            != program.normalized_type_identity(state.return_type).as_str()
+                    {
+                        return None;
+                    }
+                    Some(CheckedUnitStructuralReturnPlan {
+                        source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                            parameter_index: u32::try_from(parameter_index).ok()?,
+                        },
+                        type_identity: parameter.type_identity.clone(),
+                        multiplicity: parameter.multiplicity,
+                    })
                 }
-                Some(binding.clone())
             } else if matches!(
                 program.expression_table.expression(*expression),
                 ExpressionNode::Call(_)
             ) {
-                returned_call
+                returned_call.map(Into::into)
             } else {
                 let elements = super::scalar_arrays::elements(
                     program,
@@ -576,7 +605,7 @@ pub(in crate::flow::terminal_unit) fn build(
                     result: result.clone(),
                     elements,
                 });
-                Some(result)
+                Some(result.into())
             }
         } else {
             None
@@ -701,11 +730,24 @@ fn consume_results(
                 matches!(operation,
                 CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
                 | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
+                | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
                     if result.binding_ordinal == binding_ordinal)
             });
             let producer = producers.next()?;
             if producers.next().is_some() {
                 return None;
+            }
+            // Unrestricted whole-value arguments copy their payload. They retain
+            // a live producer without acquiring an affine disposal obligation.
+            if matches!(producer,
+                CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
+                | CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
+                    if result.multiplicity == Multiplicity::Unrestricted)
+            {
+                if access != CheckedStructuralAccess::Owned || projected {
+                    return None;
+                }
+                continue;
             }
             let (CheckedUnitEffectOperationPlan::StructuralCall {
                 discard_result_on_return,
@@ -718,7 +760,7 @@ fn consume_results(
                 ..
             }) = producer
             else {
-                unreachable!()
+                return None;
             };
             if result.multiplicity != Multiplicity::Affine || !*discard_result_on_return {
                 return None;

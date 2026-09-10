@@ -10,6 +10,9 @@ use crate::{
     CheckedScalarExpression, CheckedStructuralScalarFieldStorePlan, NominalMachineUseSite,
 };
 
+mod structural_return;
+pub use structural_return::CheckedUnitStructuralReturnPlan;
+
 /// Stable machine identities and names used to select the bootstrap terminal
 /// producer without reopening the typed machine table.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -1862,7 +1865,7 @@ pub enum CheckedUnitEffectOperationPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitEffectMachinePlan {
     /// Optional unrestricted structural value returned after ordinary sequencing.
-    pub structural_result: Option<CheckedUnitStructuralResultBindingPlan>,
+    pub structural_result: Option<CheckedUnitStructuralReturnPlan>,
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
     /// Exact attached data carrier, or `None` for an ordinary free machine.

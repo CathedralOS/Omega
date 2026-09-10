@@ -543,6 +543,13 @@ pub(crate) fn validate_transfer_shape(
             else {
                 return unsupported("Unit structural result source has no producer operation");
             };
+            let unrestricted_array = target.multiplicity == Multiplicity::Unrestricted
+                && argument.access == checked_trees::CheckedStructuralAccess::Owned
+                && argument.path.is_empty()
+                && structural_types.iter().any(|declaration| {
+                    declaration.id == structural_type
+                        && matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
+                });
             if (!argument.path.is_empty()
                 && argument.access != checked_trees::CheckedStructuralAccess::Owned)
                 || argument.type_identity != target.type_identity
@@ -555,7 +562,9 @@ pub(crate) fn validate_transfer_shape(
                 )
                 || argument.access != target.access
                 || target.multiplicity
-                    != if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
+                    != if unrestricted_array
+                        || argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+                    {
                         Multiplicity::Unrestricted
                     } else {
                         Multiplicity::Affine

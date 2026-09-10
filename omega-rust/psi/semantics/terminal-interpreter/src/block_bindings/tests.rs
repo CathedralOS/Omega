@@ -403,7 +403,7 @@ fn mutable_field_loan_cannot_be_rebound_as_a_shared_or_owned_block_value() {
         .unwrap()
         .into_call_arguments(std::slice::from_ref(&formal))
         .unwrap();
-    let referent = prepared.values.remove(0);
+    let referent = prepared.values.remove(&loan_place).unwrap();
     let loan = prepared.byte_sequences.remove(&loan_place).unwrap();
     assert!(matches!(loan, ByteSequenceBinding::MutableField { .. }));
     loan.validate_mutable_referent(&execution.structural_types, &referent)
