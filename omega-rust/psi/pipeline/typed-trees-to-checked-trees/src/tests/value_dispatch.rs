@@ -1,5 +1,7 @@
 use super::*;
 
+mod semantic_results;
+
 fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let tokens = Lexer::new(source)
         .tokenize()

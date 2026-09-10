@@ -481,6 +481,7 @@ fn vacuous_qualification_fixture() -> (
             .insert(ExpressionNode::Cast(TableCastExpression {
                 value: cast_value,
                 target_type: Default::default(),
+                result_type: Default::default(),
                 target_label: Default::default(),
                 domain: numerics::arithmetic::ArithmeticDomain::Exact,
                 semantic_domain: Default::default(),

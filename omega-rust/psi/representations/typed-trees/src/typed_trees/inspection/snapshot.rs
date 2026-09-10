@@ -954,6 +954,7 @@ pub enum ExpressionSnapshot {
     Cast {
         value: Box<ExpressionSnapshot>,
         target_type: Box<TypeReferenceSnapshot>,
+        result_type: Box<TypeReferenceSnapshot>,
         semantic_domain: Vec<String>,
         #[serde(skip_serializing_if = "Vec::is_empty")]
         semantic_domain_arguments: Vec<TypeReferenceSnapshot>,
@@ -1948,6 +1949,7 @@ fn expression_snapshot(program: &TypedTrees, expression: ExpressionHandle) -> Ex
         ExpressionNode::Cast(cast) => ExpressionSnapshot::Cast {
             value: Box::new(expression_snapshot(program, cast.value)),
             target_type: Box::new(type_reference_snapshot(program, cast.target_type)),
+            result_type: Box::new(type_reference_snapshot(program, cast.result_type)),
             semantic_domain: path_snapshot(
                 program
                     .expression_table

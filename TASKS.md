@@ -1061,8 +1061,17 @@ Owners include
   Operand/cast probe: `mbx run -p omega -- --check --target macos_arm64
   tests/omega/pass/expressions/numeric_operand_destinations/main.omg`.
   The shared query in `validation/src/expression_types/result_type.rs` still
-  needs semantic-domain results and instantiated predicate-bearing, non-builtin
+  needs operator semantic-domain results and instantiated predicate-bearing, non-builtin
   and selected-trait operator results.
+  Semantic qualification casts retain normalized result types; extend this to
+  execution with exact membership custody, starting from `cargo run -p omega --
+  inspect-terminal --machine choose --target macos_arm64
+  tests/omega/pass/expressions/match_domain_results/main.omg`. On macOS arm64 at
+  `2ca035765c`, source checking passes but Terminal production rejects with
+  `scalar computation needs one checked expression and one source binding`.
+  Do not erase qualification to enable the computation route or relax routed
+  provenance/ownership joins. Keep incompatible-domain rejection before any
+  outer bare-carrier cast.
   Builtin arithmetic results use
   producer-retained carrier/policy references; input range predicates are not
   result facts. Unknown lookup must not stand in for anonymous numeric meaning.

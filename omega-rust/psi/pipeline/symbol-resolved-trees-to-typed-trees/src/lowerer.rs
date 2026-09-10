@@ -247,7 +247,7 @@ pub fn lower_seeded_extension(
         return Err((retained, SeededContinuationError::Lowering(error)));
     }
     if let Err(error) =
-        normalize_qualification_casts_from(&mut lowerer.typed_trees, expression_frontier)
+        normalize_qualification_casts_from(&source, &mut lowerer.typed_trees, expression_frontier)
     {
         return Err((retained, SeededContinuationError::Lowering(error)));
     }
@@ -1480,7 +1480,7 @@ impl Lowerer<'_> {
         trees.proof_output_calls = proof_output_calls;
         trees.ranking_expression_custody = ranking_expression_custody;
         normalize_domain_constraints(self.source_trees, &mut trees)?;
-        normalize_qualification_casts(&mut trees)?;
+        normalize_qualification_casts(self.source_trees, &mut trees)?;
         crate::fixed_byte_array_literals::land_exact_fixed_byte_array_literals(&mut trees)?;
         Ok(trees)
     }

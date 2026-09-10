@@ -20,7 +20,7 @@ cover overlaps, call-argument composition, subject-once execution and skipped ca
 The [dispatch contract](../../../wiki/spec/language/patterns.md) is broader than
 the current implementation. Wildcards and complete Boolean value alternatives
 close coverage. Runtime scalar lowering currently supports Boolean/integer
-carriers; an anonymous-only numeric subject has no invented default width.
+subjects and Boolean/integer/float results; an anonymous-only numeric subject has no invented default width.
 Structural/domain/payload patterns and ownership-bearing result/conditional
 transfer joins remain explicit limitations. Checking still validates every arm's
 type, including unreachable arms. Stable comparison facts belong to the exact
@@ -56,6 +56,22 @@ the operation as a call with that result carrier, not builtin token arithmetic;
 children still owe their own arithmetic obligations. Semantic-domain,
 predicate-bearing and selected trait results requiring an instantiated reference
 remain unresolved; declaration-local result subjects cannot become caller facts.
+
+Semantic qualification casts retain a result-type handle over the exact authored
+target. Ordinary domain normalization supplies aliases, indexed identities,
+predicates and routes; the cast still owes membership independently. Match joins
+compatible normalized domain results without treating different meanings as one
+bare carrier. An outer erasing cast cannot repair incompatible arms: erasure
+must be explicit in each arm. Static, unrouted scalar domains add no ownership
+join; routed provenance and borrowed/owned results retain their separate fences.
+Raw dependent range predicates are not merged by rendered spelling.
+
+`cargo run -p omega -- --check --target macos_arm64 tests/omega/pass/expressions/match_domain_results/main.omg`
+checks same-domain result selection. The corresponding negative
+`tests/omega/fail/expressions/match_mixed_result_domains/main.omg` must reject
+kilometres joined with miles before an outer bare-carrier cast. This is source
+checking coverage; semantic qualification execution still needs its retained
+membership and scalar computation lowering.
 
 `cargo run -p omega -- --check tests/omega/pass/expressions/declared_operator_match_result/main.omg`
 checks a wider declared operator result joined with an anonymous numeric arm.

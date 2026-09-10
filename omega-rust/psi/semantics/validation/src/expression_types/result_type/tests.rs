@@ -21,6 +21,91 @@ fn typed_source(source: &str) -> TypedTrees {
     lower_symbol_resolved_trees(&resolved).expect("typing")
 }
 
+#[test]
+fn semantic_cast_results_retain_declared_qualification_identity() {
+    for (declarations, cast_domain, expected_domain) in [
+        ("domain i64::Km;", "Km", "Km"),
+        (
+            "domain<T, const U: u64> T::Quantity<U>;",
+            "Quantity<1>",
+            "Quantity<1>",
+        ),
+        (
+            "domain i64::Km; domain i64::Distance = i64::Km;",
+            "Distance",
+            "Km",
+        ),
+    ] {
+        let source = format!(
+            "{declarations} machine run(flag: bool, left: i64, right: i64, expected: i64 in {expected_domain}) -> i64 {{
+                (match flag {{ true -> left as i64 in {cast_domain}, false -> right as i64 in {expected_domain} }}) as i64
+            }}"
+        );
+        let program = typed_source(&source);
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let expected = program.state_parameters(state)[3].type_reference;
+        let bare = program.state_parameters(state)[1].type_reference;
+        let root = dispatch_handle(&program);
+        let ExpressionNode::Match(dispatch) = program.expression_table.expression(root) else {
+            panic!("Match");
+        };
+        for expression in program
+            .expression_table
+            .match_arms(dispatch.arms)
+            .iter()
+            .map(|arm| arm.value)
+            .chain(std::iter::once(root))
+        {
+            let result = query(&program, expression);
+            assert_eq!(
+                program.normalized_type_identity(result),
+                program.normalized_type_identity(expected),
+                "{source}"
+            );
+            assert_ne!(
+                program.normalized_type_identity(result),
+                program.normalized_type_identity(bare),
+                "semantic meaning must not disappear"
+            );
+        }
+    }
+}
+
+#[test]
+fn incompatible_semantic_cast_results_have_no_common_match_type() {
+    for (declarations, first, second) in [
+        ("domain i64::Km; domain i64::Miles;", "Km", "Miles"),
+        (
+            "domain<T, const U: u64> T::Quantity<U>;",
+            "Quantity<1>",
+            "Quantity<2>",
+        ),
+    ] {
+        let source = format!(
+            "{declarations} machine run(flag: bool, left: i64, right: i64) -> i64 {{ (match flag {{ true -> left as i64 in {first}, false -> right as i64 in {second} }}) as i64 }}"
+        );
+        let program = typed_source(&source);
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let root = dispatch_handle(&program);
+        let ExpressionNode::Match(dispatch) = program.expression_table.expression(root) else {
+            panic!("Match");
+        };
+        let arms = program.expression_table.match_arms(dispatch.arms);
+        assert_ne!(
+            program.normalized_type_identity(query(&program, arms[0].value)),
+            program.normalized_type_identity(query(&program, arms[1].value)),
+            "{source}"
+        );
+        assert_eq!(
+            expression_result_type_reference(&program, machine, state, root),
+            None,
+            "{source}"
+        );
+    }
+}
+
 fn declared_binary_arm(program: &TypedTrees) -> ExpressionHandle {
     let ExpressionNode::Match(dispatch) = program
         .expression_table

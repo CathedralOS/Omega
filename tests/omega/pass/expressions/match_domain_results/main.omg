@@ -1,0 +1,8 @@
+domain i64::Km;
+
+machine choose(select_left: bool, left: i64, right: i64) -> i64 in Km {
+    match select_left {
+        true -> left as i64 in Km,
+        false -> right as i64 in Km
+    }
+}
