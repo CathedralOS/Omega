@@ -9,6 +9,8 @@ pub(super) use dependencies::ReceiverLength;
 
 #[derive(Clone)]
 pub(super) struct RangeFacts<'field> {
+    #[cfg(test)]
+    pub(super) clone_work: CloneWork<'field>,
     pub(super) checked_operators: Option<&'field checked_trees::CheckedOperatorFacts>,
     pub(super) checked_borrows: Option<&'field checked_trees::BorrowFacts>,
     pub(super) mutation_summaries: std::borrow::Cow<'field, crate::flow::StateMutationSummaryCache>,
@@ -51,6 +53,8 @@ pub(super) struct RangeFacts<'field> {
 impl<'field> RangeFacts<'field> {
     pub(super) fn new(fields: &'field [(SymbolHandle, String, usize)]) -> Self {
         Self {
+            #[cfg(test)]
+            clone_work: CloneWork::default(),
             checked_operators: None,
             checked_borrows: None,
             mutation_summaries: std::borrow::Cow::Owned(
@@ -72,5 +76,21 @@ impl<'field> RangeFacts<'field> {
             window_parents: Vec::new(),
             boolean_locals: Vec::new(),
         }
+    }
+}
+
+// Count derived snapshots without changing production fact storage or counting
+// unrelated allocations performed by guard and expression checking.
+#[cfg(test)]
+#[derive(Default)]
+pub(super) struct CloneWork<'count>(pub(super) Option<&'count std::cell::Cell<usize>>);
+
+#[cfg(test)]
+impl Clone for CloneWork<'_> {
+    fn clone(&self) -> Self {
+        if let Some(count) = self.0 {
+            count.set(count.get() + 1);
+        }
+        Self(self.0)
     }
 }
