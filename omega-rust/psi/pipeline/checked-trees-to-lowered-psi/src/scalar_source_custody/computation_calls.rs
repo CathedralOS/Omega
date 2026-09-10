@@ -63,6 +63,39 @@ pub(crate) fn validate_computation_calls(
         let node = plans.nodes.get(handle);
         let authored_scope = operand_scopes::folded_match_scope(checked, authored_scope)?;
         match &node.kind {
+            CheckedScalarComputationKind::SelectedComparison {
+                operator_use,
+                left,
+                right,
+            } => {
+                crate::scalar_computations::comparisons::occurrence(
+                    checked,
+                    *operator_use,
+                    machine,
+                    state,
+                    statement,
+                )?;
+                let selected = checked.facts.operators.uses.get(*operator_use);
+                if selected.occurrence != checked_trees::CheckedOperatorOccurrence::Expression {
+                    return unsupported("ordinary comparison substituted an implicit occurrence");
+                }
+                dispatch::source_scope(
+                    checked,
+                    machine,
+                    state,
+                    authored_scope,
+                    selected.expression,
+                    node.primitive_type,
+                )?;
+                let operands =
+                    selected
+                        .operands(&checked.typed)
+                        .ok_or(LoweringError::Unsupported(
+                            "comparison lost source operands",
+                        ))?;
+                pending.push((*right, false, operands[1]));
+                pending.push((*left, false, operands[0]));
+            }
             CheckedScalarComputationKind::Qualification {
                 source_expression,
                 operand,
@@ -103,6 +136,9 @@ pub(crate) fn validate_computation_calls(
                 )?;
                 let operands = dispatch::operands(
                     checked,
+                    machine,
+                    state,
+                    statement,
                     *source_expression,
                     *subject,
                     *arms,
@@ -333,7 +369,7 @@ fn validate_local_availability(
 
 // This is expression-tree membership only. Call ordinals remain the retained
 // semantic traversal's identity, and unselected syntax need not have a flow row.
-fn authored_expressions(
+pub(crate) fn authored_expressions(
     checked: &CheckedTrees,
     root: ExpressionHandle,
 ) -> Result<Vec<ExpressionHandle>, LoweringError> {

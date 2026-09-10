@@ -2,6 +2,8 @@ use crate::shared::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    /// General control-flow IEEE comparison has no native realization yet.
+    UnsupportedIeeeFloatComparison(semantic_vocabulary::OperationId),
     InvalidPrimitiveLocalEstablishment(semantic_vocabulary::OperationId),
     InvalidPrimitiveScalarRead(semantic_vocabulary::OperationId),
     SemanticIdentity(CodecError),

@@ -1088,6 +1088,12 @@ pub enum ModuleError {
         actual: ScalarType,
     },
     IeeeFloatFusedMultiplyAddRequiresFloatResult(OperationId),
+    IeeeFloatComparisonRequiresBooleanResult(OperationId),
+    IeeeFloatComparisonOperandTypeMismatch {
+        operation: OperationId,
+        left: ScalarType,
+        right: ScalarType,
+    },
     IeeeFloatFusedMultiplyAddOperandTypeMismatch {
         operation: OperationId,
         operand: ValueId,

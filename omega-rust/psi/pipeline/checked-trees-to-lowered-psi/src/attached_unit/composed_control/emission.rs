@@ -741,6 +741,7 @@ pub(super) fn finish_module(
         debug_map: None,
         source_call_occurrences,
         selected_ieee_float_fma_occurrences: Vec::new(),
+        selected_ieee_float_comparison_occurrences: Vec::new(),
     };
     catalogs.scalar_calls.append_to(&mut lowered)?;
     finalize_operation_proofs(&mut lowered)?;

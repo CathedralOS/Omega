@@ -15,6 +15,7 @@ pub use compiler::{
     realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy,
     realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy_for_image,
     report_checked_compilation_observations, retained_terminal_report_from_checked_package,
+    validate_lowered_ieee_float_comparison_custody,
 };
 pub use pipeline::checked_entry::{
     CheckedCompilation, compile_to_checked, compile_to_checked_with_packages,

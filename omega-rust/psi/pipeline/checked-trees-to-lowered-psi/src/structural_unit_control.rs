@@ -639,6 +639,7 @@ pub(super) fn lower_structural_unit_control_machine(
         debug_map: None,
         source_call_occurrences: Vec::new(),
         selected_ieee_float_fma_occurrences: Vec::new(),
+        selected_ieee_float_comparison_occurrences: Vec::new(),
     })
 }
 
@@ -1002,6 +1003,7 @@ fn lower_ranked_structural_unit_countdown(
         debug_map: None,
         source_call_occurrences: Vec::new(),
         selected_ieee_float_fma_occurrences: Vec::new(),
+        selected_ieee_float_comparison_occurrences: Vec::new(),
     };
     finalize_operation_proofs(&mut lowered)?;
     Ok(lowered)

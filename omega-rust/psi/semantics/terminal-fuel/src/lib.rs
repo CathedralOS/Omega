@@ -67,6 +67,7 @@ impl TerminalFuelSchedule {
             | OperationKind::IntegerConstant { .. }
             | OperationKind::IeeeFloatConstant { .. }
             | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
+            | OperationKind::IeeeFloatCompare { .. }
             | OperationKind::BooleanConstant { .. }
             | OperationKind::BooleanStructuralField { .. }
             | OperationKind::IntegerStructuralField { .. }

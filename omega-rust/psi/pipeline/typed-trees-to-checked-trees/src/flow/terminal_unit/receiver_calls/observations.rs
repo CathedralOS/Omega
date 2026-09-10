@@ -44,6 +44,9 @@ pub(in crate::flow::terminal_unit) fn reads_receiver(
         }
         let node = computations.nodes.get(handle);
         match &node.kind {
+            CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
+                pending.extend([*left, *right])
+            }
             CheckedScalarComputationKind::Value(expression) => {
                 if scalar_reads(expression, position) {
                     return true;

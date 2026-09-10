@@ -179,6 +179,9 @@ pub(super) fn lower(
             closed_conformance_applications,
         ),
         OperationKind::IntegerConstant { .. } => integer_constants_and_relations::lower(operation),
+        OperationKind::IeeeFloatCompare { .. } => {
+            Err(LoweringError::UnsupportedIeeeFloatComparison(operation.id))
+        }
         OperationKind::IeeeFloatConstant { .. }
         | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. } => ieee_float::lower(operation),
         OperationKind::BooleanConstant { .. }

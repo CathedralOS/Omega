@@ -88,8 +88,19 @@ impl Expansion<'_> {
                     },
                 }),
                 CheckedScalarDispatchPattern::Value(pattern) => {
+                    let mut comparison_bindings = Vec::new();
                     let terminator = if let Some(when_false_target) = continuation {
-                        let condition = if subject_type == ScalarType::Boolean.into() {
+                        let condition = if arm.equality_use.is_valid() {
+                            comparison_bindings.push(self.comparison_binding(
+                                arm.equality_use,
+                                parameter(input_types.len(), subject_type),
+                                parameter(saved_types.len(), subject_type),
+                                site,
+                            )?);
+                            LoweredBooleanReturnExpression::Parameter {
+                                position: tested_types.len(),
+                            }
+                        } else if subject_type == ScalarType::Boolean.into() {
                             LoweredBooleanReturnExpression::Equal {
                                 left: Box::new(LoweredBooleanReturnExpression::Parameter {
                                     position: input_types.len(),
@@ -124,7 +135,7 @@ impl Expansion<'_> {
                     let tested = self.push(LoweredScalarBranchState {
                         structural_effects: Vec::new(),
                         parameter_types: tested_types.clone(),
-                        bindings: Vec::new(),
+                        bindings: comparison_bindings,
                         terminator,
                     });
                     self.argument(

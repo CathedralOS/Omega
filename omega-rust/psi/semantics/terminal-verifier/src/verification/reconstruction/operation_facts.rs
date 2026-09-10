@@ -243,6 +243,7 @@ pub(super) fn append_operation(
         }
         OperationKind::IeeeFloatConstant { .. }
         | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
+        | OperationKind::IeeeFloatCompare { .. }
         | OperationKind::StoreDynamicDescriptor { .. } => Ok(()),
         OperationKind::WriteOnlyPrimitiveStore { .. }
         | OperationKind::EstablishPrimitiveLocal { .. }

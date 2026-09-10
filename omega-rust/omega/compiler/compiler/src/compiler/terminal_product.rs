@@ -1,6 +1,24 @@
 //! Canonical Terminal-Psi product construction and verification.
 
 use diagnostics::Diagnostic;
+mod float_comparisons;
+
+/// Rejoin a checked-source inspection product to its exact selected IEEE
+/// comparison meanings. Portable verification alone cannot establish this
+/// source/provider association, and this check grants no native execution.
+pub fn validate_lowered_ieee_float_comparison_custody(
+    checked: &crate::pipeline::CheckedCompilation,
+    lowered: &lowered_psi::LoweredPsi,
+) -> Result<(), Vec<Diagnostic>> {
+    float_comparisons::associate(
+        checked,
+        &lowered.semantic_module,
+        checked.selected_provider_plans(),
+        checked.selected_provider_provenance(),
+        &lowered.selected_ieee_float_comparison_occurrences,
+    )
+    .map(|_| ())
+}
 
 /// Produce one verified retained Terminal product from the complete checked
 /// frontend result.
@@ -52,6 +70,7 @@ pub(super) fn produce_retained_terminal_artifact(
         callback_placements,
         source_call_occurrences,
         selected_ieee_float_fma_occurrences,
+        selected_ieee_float_comparison_occurrences,
     ) = produced.into_parts_with_source_calls();
     verify_terminal_artifact(&artifact, profile)?;
     let native_realization_proposal = project_terminal_native_realization_proposal(
@@ -62,6 +81,7 @@ pub(super) fn produce_retained_terminal_artifact(
         &callback_placements,
         &source_call_occurrences,
         &selected_ieee_float_fma_occurrences,
+        &selected_ieee_float_comparison_occurrences,
         selections,
     )?;
     compilation_report::RetainedTerminalArtifact::new_with_native_realization_proposal(
@@ -80,6 +100,7 @@ fn project_terminal_native_realization_proposal(
     callback_placements: &[backend_plan::BoundNominalCallbackPlacement],
     source_call_occurrences: &[lowered_psi::LoweredSourceCallOccurrence],
     selected_ieee_float_fma_occurrences: &[lowered_psi::LoweredSelectedIeeeFloatFmaOccurrence],
+    selected_ieee_float_comparison_occurrences: &[lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence],
     selections: &optimization_core::OptimizationSelections,
 ) -> Result<compilation_report::TerminalNativeRealizationProposal, Vec<Diagnostic>> {
     let target_profile = checked.selected_target_profile().ok_or_else(|| {
@@ -228,6 +249,13 @@ fn project_terminal_native_realization_proposal(
             )
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    let ieee_float_comparison_occurrences = float_comparisons::associate(
+        checked,
+        &terminal_module,
+        checked.selected_provider_plans(),
+        checked.selected_provider_provenance(),
+        selected_ieee_float_comparison_occurrences,
+    )?;
     let boundary_application_coverage = project_terminal_boundary_application_coverage(
         checked,
         artifact,
@@ -259,6 +287,7 @@ fn project_terminal_native_realization_proposal(
         builtin_proposals,
         callback_occurrences,
         ieee_float_fma_occurrences,
+        ieee_float_comparison_occurrences,
         boundary_application_demands,
         boundary_application_realizations,
         checked_boundary_operator_scope,
@@ -623,12 +652,21 @@ fn project_compiler_intrinsic_application_realization(
     ),
     Vec<Diagnostic>,
 > {
-    let checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression { expression, origin } =
-        application.site
-    else {
-        return Err(vec![Diagnostic::error(
-            "Terminal boundary application without an expression has no supported realization role",
-        )]);
+    let (expression, origin) = match application.site {
+        checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
+            expression,
+            origin,
+        }
+        | checked_trees::CheckedBoundaryOperatorApplicationUseSite::MatchEquality {
+            expression,
+            origin,
+            ..
+        } => (expression, origin),
+        _ => {
+            return Err(vec![Diagnostic::error(
+                "Terminal boundary application without a value occurrence has no supported realization role",
+            )]);
+        }
     };
     let uses = checked
         .facts
@@ -636,7 +674,10 @@ fn project_compiler_intrinsic_application_realization(
         .named_uses
         .iter()
         .filter_map(|(_, operator_use)| {
-            (operator_use.expression == expression
+            (matches!(
+                application.site,
+                checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression { .. }
+            ) && operator_use.expression == expression
                 && operator_use.origin == origin
                 && operator_use.selected_operator_symbol == application.requirement_symbol)
                 .then_some((
@@ -651,10 +692,7 @@ fn project_compiler_intrinsic_application_realization(
                 .uses
                 .iter()
                 .filter_map(|(_, operator_use)| {
-                    (operator_use.expression == expression
-                        && operator_use.occurrence
-                            == checked_trees::CheckedOperatorOccurrence::Expression
-                        && operator_use.origin == origin
+                    (operator_use.application_site() == application.site
                         && operator_use.selected_operator_symbol == application.requirement_symbol
                         && operator_use.status
                             == checked_trees::CheckedOperatorResolutionStatus::Resolved)

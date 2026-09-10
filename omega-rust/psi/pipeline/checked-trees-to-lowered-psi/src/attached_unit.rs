@@ -1246,6 +1246,7 @@ fn assemble_unit_closure(
     );
     let mut source_call_occurrences = Vec::new();
     let mut selected_ieee_float_fma_occurrences = Vec::new();
+    let mut selected_ieee_float_comparison_occurrences = Vec::new();
 
     for machine_symbol in &closure {
         let body = UnitBody::find(plans, *machine_symbol)?;
@@ -3746,10 +3747,12 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
         let OperationBuffer {
             source_calls,
             selected_ieee_float_fmas,
+            selected_ieee_float_comparisons,
             ..
         } = operations;
         source_call_occurrences.extend(source_calls);
         selected_ieee_float_fma_occurrences.extend(selected_ieee_float_fmas);
+        selected_ieee_float_comparison_occurrences.extend(selected_ieee_float_comparisons);
         let mut structural_places = parameters
             .iter()
             .map(|parameter| StructuralPlaceDeclaration {
@@ -3857,6 +3860,8 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
             source_call_occurrences.append(&mut lowered.source_call_occurrences);
             selected_ieee_float_fma_occurrences
                 .append(&mut lowered.selected_ieee_float_fma_occurrences);
+            selected_ieee_float_comparison_occurrences
+                .append(&mut lowered.selected_ieee_float_comparison_occurrences);
             continue;
         }
         let PreparedScalarCallee::Graph(machine) = machine else {
@@ -3909,6 +3914,8 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
             source_call_occurrences.append(&mut emitted.source_call_occurrences);
             selected_ieee_float_fma_occurrences
                 .append(&mut emitted.selected_ieee_float_fma_occurrences);
+            selected_ieee_float_comparison_occurrences
+                .append(&mut emitted.selected_ieee_float_comparison_occurrences);
             continue;
         };
         let graph_parameters = scalar_graph_parameters
@@ -3945,6 +3952,8 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
         source_call_occurrences.append(&mut lowered.source_call_occurrences);
         selected_ieee_float_fma_occurrences
             .append(&mut lowered.selected_ieee_float_fma_occurrences);
+        selected_ieee_float_comparison_occurrences
+            .append(&mut lowered.selected_ieee_float_comparison_occurrences);
     }
 
     let mut lowered_structural_realizations = lower_selected_structural_scalar_realizations(
@@ -4097,6 +4106,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
         debug_map: None,
         source_call_occurrences,
         selected_ieee_float_fma_occurrences,
+        selected_ieee_float_comparison_occurrences,
     };
     Ok(shared_closure::SharedUnitClosure {
         lowered,

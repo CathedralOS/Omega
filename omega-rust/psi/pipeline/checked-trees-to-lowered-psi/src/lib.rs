@@ -514,6 +514,12 @@ struct LoweredScalarArrayConstruction {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum LoweredScalarBinding {
+    SelectedComparison {
+        occurrence: scalar_computations::comparisons::SelectedComparison,
+        source_machine: symbols::SymbolHandle,
+        left: LoweredDirectExpression,
+        right: LoweredDirectExpression,
+    },
     Expression(LoweredDirectExpression),
     DirectCall(LoweredDirectCallBinding),
     /// Retain the evaluated RHS while committing its separate Unit store effect.
@@ -529,6 +535,7 @@ impl LoweredScalarBinding {
         parameters: &[QualifiedScalarType],
     ) -> Result<QualifiedScalarType, LoweringError> {
         match self {
+            Self::SelectedComparison { .. } => Ok(ScalarType::Boolean.into()),
             Self::Expression(expression)
             | Self::StoredValue {
                 value: expression, ..
@@ -538,6 +545,7 @@ impl LoweredScalarBinding {
     }
     const fn scalar_type(&self) -> ScalarType {
         match self {
+            Self::SelectedComparison { .. } => ScalarType::Boolean,
             Self::Expression(expression) => expression.scalar_type(),
             Self::DirectCall(call) => call.result_type.scalar_type,
             Self::StoredValue { value, .. } => value.scalar_type(),
@@ -627,6 +635,7 @@ const TERMINAL_UNIT_CALL_OBLIGATION_BASE: u64 = 1_u64 << 63;
 /// uses the historical one-based range; additional machines receive disjoint
 /// ranges when source call-closure production composes them.
 struct OperationBuffer {
+    selected_ieee_float_comparisons: Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
     next_identity: u64,
     operations: Vec<Operation>,
     /// Temporary observations available on the current emission path only.
@@ -645,6 +654,7 @@ impl OperationBuffer {
             byte_lengths: Vec::new(),
             source_calls: Vec::new(),
             selected_ieee_float_fmas: Vec::new(),
+            selected_ieee_float_comparisons: Vec::new(),
         }
     }
 

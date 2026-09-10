@@ -521,6 +521,26 @@ fn collect(
     }
     active.push(handle);
     match &plans.nodes.get(handle).kind {
+        CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
+            collect(
+                facts,
+                statement,
+                *left,
+                calls,
+                minimum_call_ordinal,
+                active,
+                consumed,
+            )?;
+            collect(
+                facts,
+                statement,
+                *right,
+                calls,
+                minimum_call_ordinal,
+                active,
+                consumed,
+            )?;
+        }
         CheckedScalarComputationKind::Qualification { operand, .. } => {
             collect(
                 facts,

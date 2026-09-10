@@ -4,6 +4,7 @@
 //! terminal control-flow envelope. Shared structural paths, call arguments,
 //! contracts, and declaration primitives remain sibling- or parent-owned.
 
+use semantic_vocabulary::IeeeFloatComparisonOperation;
 use terminal_psi::{
     Block, ClaimTransfer, CompletionReceipt, CrashCause, NominalAffineCleanup, Operation,
     OperationKind, OperationResult, OutcomeSpecificCallEvidence,
@@ -479,6 +480,23 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
             OperationKind::IeeeFloatConstant { value } => {
                 writer.u8(44);
                 encode_ieee_float_value(writer, value);
+            }
+            OperationKind::IeeeFloatCompare {
+                comparison,
+                left,
+                right,
+            } => {
+                writer.u8(65);
+                writer.u8(match comparison {
+                    IeeeFloatComparisonOperation::Equal => 0,
+                    IeeeFloatComparisonOperation::NotEqual => 1,
+                    IeeeFloatComparisonOperation::Less => 2,
+                    IeeeFloatComparisonOperation::LessOrEqual => 3,
+                    IeeeFloatComparisonOperation::Greater => 4,
+                    IeeeFloatComparisonOperation::GreaterOrEqual => 5,
+                });
+                writer.id(left);
+                writer.id(right);
             }
             OperationKind::NearestIeeeFloatFusedMultiplyAdd {
                 left,
@@ -993,6 +1011,19 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
             },
             44 => OperationKind::IeeeFloatConstant {
                 value: decode_ieee_float_value(reader)?,
+            },
+            65 => OperationKind::IeeeFloatCompare {
+                comparison: match reader.u8()? {
+                    0 => IeeeFloatComparisonOperation::Equal,
+                    1 => IeeeFloatComparisonOperation::NotEqual,
+                    2 => IeeeFloatComparisonOperation::Less,
+                    3 => IeeeFloatComparisonOperation::LessOrEqual,
+                    4 => IeeeFloatComparisonOperation::Greater,
+                    5 => IeeeFloatComparisonOperation::GreaterOrEqual,
+                    tag => return Err(CodecError::InvalidTag("IeeeFloatComparisonOperation", tag)),
+                },
+                left: reader.id("ValueId")?,
+                right: reader.id("ValueId")?,
             },
             45 => OperationKind::NearestIeeeFloatFusedMultiplyAdd {
                 left: reader.id("ValueId")?,

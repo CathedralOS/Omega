@@ -54,13 +54,14 @@ fn return_programs_publish_replayable_native_evidence_on_every_target() {
                 Vec::new(),
             )
             .unwrap();
-        let (artifact, _, scope, _) = terminal_production::produce_program_entry_terminal_artifact(
-            &checked,
-            "Main::launch",
-            signature.identity().bytes(),
-        )
-        .unwrap()
-        .into_parts();
+        let (artifact, _, scope, _, _) =
+            terminal_production::produce_program_entry_terminal_artifact(
+                &checked,
+                "Main::launch",
+                signature.identity().bytes(),
+            )
+            .unwrap()
+            .into_parts();
         let native = crate::realize_native_artifact_with_checked_boundary_operator_scope(
             artifact,
             &scope,

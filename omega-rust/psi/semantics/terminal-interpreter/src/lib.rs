@@ -2497,6 +2497,30 @@ impl TerminalExecution {
                             TerminalScalarValue::IeeeFloat(value),
                         );
                     }
+                    OperationKind::IeeeFloatCompare {
+                        comparison,
+                        left,
+                        right,
+                    } => {
+                        let read_float = |operand| match self.values.get(&operand).copied() {
+                            Some(TerminalScalarValue::IeeeFloat(value)) => Ok(value),
+                            Some(_) => Err(TerminalInterpretError::VerifiedOperationMalformed),
+                            None => Err(TerminalInterpretError::VerifiedValueMissing(operand)),
+                        };
+                        let left = read_float(left)?;
+                        let right = read_float(right)?;
+                        if left.format() != right.format()
+                            || operation.result.expect_scalar().scalar_type != ScalarType::Boolean
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        self.values.insert(
+                            operation.result.expect_scalar().id,
+                            TerminalScalarValue::Boolean(ieee_float_compare(
+                                comparison, left, right,
+                            )),
+                        );
+                    }
                     OperationKind::NearestIeeeFloatFusedMultiplyAdd {
                         left,
                         right,
@@ -4392,6 +4416,32 @@ fn terminal_scalar_belongs_to_type(value: TerminalScalarValue) -> bool {
         TerminalScalarValue::Boolean(_) => true,
         TerminalScalarValue::Integer { scalar_type, value } => scalar_type.admits(value),
         TerminalScalarValue::IeeeFloat(_) => true,
+    }
+}
+
+/// Interpret representation bits through the common format semantics. Host
+/// comparisons would be a second definition, particularly around NaNs.
+fn ieee_float_compare(
+    comparison: semantic_vocabulary::IeeeFloatComparisonOperation,
+    left: IeeeFloatValue,
+    right: IeeeFloatValue,
+) -> bool {
+    use semantic_vocabulary::IeeeFloatComparisonOperation;
+    let meaning = |value| match value {
+        IeeeFloatValue::Binary32(bits) => FloatMeaning::from_f32(f32::from_bits(bits)),
+        IeeeFloatValue::Binary64(bits) => FloatMeaning::from_f64(f64::from_bits(bits)),
+    };
+    let left = meaning(left);
+    let right = meaning(right);
+    match comparison {
+        IeeeFloatComparisonOperation::Equal => FloatSemantics::equal(&left, &right),
+        IeeeFloatComparisonOperation::NotEqual => !FloatSemantics::equal(&left, &right),
+        IeeeFloatComparisonOperation::Less => FloatSemantics::less(&left, &right),
+        IeeeFloatComparisonOperation::LessOrEqual => FloatSemantics::less_or_equal(&left, &right),
+        IeeeFloatComparisonOperation::Greater => FloatSemantics::greater(&left, &right),
+        IeeeFloatComparisonOperation::GreaterOrEqual => {
+            FloatSemantics::greater_or_equal(&left, &right)
+        }
     }
 }
 

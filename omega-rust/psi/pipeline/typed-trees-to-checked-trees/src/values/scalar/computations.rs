@@ -624,6 +624,31 @@ impl Builder<'_, '_> {
         {
             return self.dispatch(expression, &dispatch, expected_type);
         }
+        if expected_type == PrimitiveType::Bool
+            && let Some(operator_use) = self.comparison_use(
+                expression,
+                checked_trees::CheckedOperatorOccurrence::Expression,
+            )
+        {
+            let (_, primitive) = self
+                .operators
+                .selected_float_comparison(self.program, operator_use)?;
+            let operands = self
+                .operators
+                .uses
+                .get(operator_use)
+                .operands(self.program)?;
+            let left = self.expression(operands[0], primitive)?;
+            let right = self.expression(operands[1], primitive)?;
+            return Some(self.insert(
+                PrimitiveType::Bool,
+                CheckedScalarComputationKind::SelectedComparison {
+                    operator_use,
+                    left,
+                    right,
+                },
+            ));
+        }
         if !semantic_casts::requires_custody(self.program, self.state, expression)
             && let Some(value) = lower_return_expression(
                 self.program,

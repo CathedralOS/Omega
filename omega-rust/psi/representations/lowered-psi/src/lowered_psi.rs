@@ -8,6 +8,8 @@ use terminal_psi::{ProofBundle, TerminalDebugMap, TerminalModule};
 /// Psi frontend producer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoweredPsi {
+    pub selected_ieee_float_comparison_occurrences:
+        Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
     pub semantic_module: TerminalModule,
     pub proof_bundle: ProofBundle,
     /// Replaceable presentation metadata. The public producer always fills

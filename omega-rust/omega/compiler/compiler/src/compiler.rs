@@ -18,6 +18,7 @@ mod request;
 mod terminal_authority_permissions;
 mod terminal_native_realization;
 mod terminal_product;
+pub use terminal_product::validate_lowered_ieee_float_comparison_custody;
 
 pub use optimization::{OptimizationRollback, OptimizationRollbackInputError};
 pub use options::{ArtifactEmissionPolicy, CompileOptions};

@@ -568,7 +568,7 @@ mod tests {
                 .iter()
                 .filter(|node| node.kind() == TrustDependencyKind::DenotationSchema)
                 .count(),
-            35
+            36
         );
         assert_eq!(
             graph
@@ -594,7 +594,7 @@ mod tests {
                 .count(),
             10
         );
-        assert_eq!(OperationSemanticRow::ALL.len(), 64);
+        assert_eq!(OperationSemanticRow::ALL.len(), 65);
         for (tag, identity) in [
             (
                 OperationSemanticTag::EstablishPrimitiveLocal,
@@ -648,7 +648,7 @@ mod tests {
                 .iter()
                 .filter(|row| row.custody() == OperationSemanticCustody::LeafDenotation)
                 .count(),
-            54
+            55
         );
         assert_eq!(
             OperationSemanticRow::ALL

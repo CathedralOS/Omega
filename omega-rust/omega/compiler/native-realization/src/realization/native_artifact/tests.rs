@@ -95,7 +95,7 @@ fn unprovisioned_receiver_entry_rejects_fresh_and_prepared_executable_realizatio
             },
             target_profile,
         );
-        let (artifact, receipt, scope, _) = produced.into_parts();
+        let (artifact, receipt, scope, _, _) = produced.into_parts();
         crate::validate_native_program_entry_settlement(
             &artifact,
             &receipt,

@@ -534,6 +534,13 @@ pub(super) fn validate_machine(
                         ));
                     }
                 }
+                OperationKind::IeeeFloatCompare { .. } => {
+                    if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
+                        return Err(ModuleError::IeeeFloatComparisonRequiresBooleanResult(
+                            operation.id,
+                        ));
+                    }
+                }
                 OperationKind::BooleanStructuralField { source, field } => {
                     if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
                         return Err(ModuleError::BooleanStructuralFieldRequiresBooleanResult(
