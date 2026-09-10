@@ -2876,7 +2876,7 @@ fn const_visibility_gates_public_and_cross_package_selection() {
 
     TempTree::write(
         root.join("main.omg"),
-        "data LocalToken { value: u64; }\npub const TOKEN: LocalToken = LocalToken { value: 4 };\n",
+        "data LocalToken [copy] { value: u64; }\npub const TOKEN: LocalToken = LocalToken { value: 4 };\n",
     );
     let root_only = PackageCompilationInputs::new_package(
         identity(1),
@@ -2896,7 +2896,7 @@ fn const_visibility_gates_public_and_cross_package_selection() {
 
     TempTree::write(
         root.join("main.omg"),
-        "pub data LocalToken { value: u64; }\npub const TOKEN: LocalToken = LocalToken { value: 4 };\n",
+        "pub data LocalToken [copy] { value: u64; }\npub const TOKEN: LocalToken = LocalToken { value: 4 };\n",
     );
     let root_only = PackageCompilationInputs::new_package(
         identity(1),

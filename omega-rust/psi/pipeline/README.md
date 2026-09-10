@@ -207,14 +207,15 @@ dependency; each import still validates its own exact source. Package aliases do
 not rename nominal identities or grant transitive selection authority. Static namespace calls retain
 the authored `::` distinction from value-member `.` calls through parsing.
 
-Nominal data references, scalar free-machine calls, and primitive literal
-constants used in bodies have namespace coverage, including qualified Terminal
-selection and independently executable constant artifacts. Constant substitution
+Nominal data references, scalar free-machine calls, and literal constants used
+in bodies have namespace coverage. Scalar constants include qualified Terminal
+selection and independently executable artifacts; nominal aggregate body uses
+have checked-source coverage. Constant substitution
 uses exact module/package selection after lexical name assignment and retains
 the selected declaration at the original use. This is not completion of the
 [module/name contract](../../../wiki/spec/language/modules.md):
-nominal aggregate body substitution, foreign/generic constant attachments and
-template normalization, trait defaults, operator homes, qualified constructors,
+foreign/generic constant attachments and template normalization, trait defaults,
+operator homes, remaining qualified constructor forms,
 and the remaining declaration forms still need exact namespace-aware resolution.
 Unsupported scoped constants, module-owned generic templates,
 traits, conformances, domains, and operators
@@ -226,6 +227,11 @@ probes too. The normalizer checks the declared carrier, retains exact declaratio
 and initializer custody at each argument, and rejoins its canonical value to the
 final symbol. Shared instance derivations do not inherit a caller's occurrence
 exposure; equal values may deduplicate without losing distinct selections.
+Parenthesized structural literal arguments use the same canonical encoder.
+Their normalization retains the authored expression so constructor, case and
+field selections survive atom replacement and syntax copying. A direct value
+has no named-constant declaration; its index eligibility is checked separately
+from named-constant copy and cleanup permission.
 Concrete data fields and payloads also evaluate closed integer expressions in
 data applications and root-owned domain families through a private typed probe.
 Exact primitive carriers, builtin operator meaning and
@@ -282,7 +288,23 @@ the exact nominal carrier before accepting the canonical value; equal layouts
 and encoded labels cannot grant identity. Fields encode in declaration order.
 The `module_machine_indices::nominal` integration probes cover these checked-source
 uses and hostile carrier, import and visibility controls. Module-owned templates,
-foreign/generic attachments and nominal aggregate body substitution remain separate.
+foreign/generic attachments remain separate.
+Closed nominal literal constants also substitute into ordinary bodies after
+resolving each initializer in its declaring source. Constructor, case and field
+selections survive each independent deep copy; a caller's same-spelled data
+cannot replace their owners. Receiving locals, calls and results compare exact
+nominal declarations, and selected field owners determine field obligations and
+numeric landing. Root and module constants share this resolved substitution
+path. Every retained named declaration, even unused and private, independently
+requires a recursively copyable type with no cleanup; this includes inactive
+case payloads and empty-array element types. Generic structural atom eligibility
+remains a separate judgment and does not grant named-constant permission.
+`cargo run -p omega -- --check tests/omega/pass/modules/nominal_constant_bodies/main.omg`
+is the checked-source customer. The `package_compilation_inputs` nominal constant
+body probes cover nested records, cases, independent uses, receiving identity,
+privacy and direct-package exposure. The same customer with `inspect-terminal
+--machine keep` still reports that the machine has no source-independent checked
+scalar control plan; nominal aggregate execution needs that producer dependency.
 Integer/Boolean array body
 references use the same exact selector and deep-copy their literal trees per use.
 Destination checks rejoin their declared dimensions and element identity, including

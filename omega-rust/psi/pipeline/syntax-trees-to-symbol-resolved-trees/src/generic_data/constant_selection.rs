@@ -92,7 +92,12 @@ impl ConstantSelection {
             .symbol_source_span(selected)
             .ok_or_else(|| "selected nominal carrier has no declaration source".to_owned())?;
         let mut declarations = syntax.root_items().filter_map(|item| match item {
-            Item::Data(definition) if definition.name.source_span() == span => Some(definition),
+            Item::Data(definition)
+                if definition.name.source_span() == span
+                    && definition.name.as_str() == self.symbols.name(selected) =>
+            {
+                Some(definition)
+            }
             _ => None,
         });
         let definition = declarations

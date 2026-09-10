@@ -374,10 +374,14 @@ fn const_expression_requires_semantic_admission(
     expression: syntax_trees::expression::ExpressionHandle,
 ) -> bool {
     // Decimal literals and division need exact anonymous evaluation before a
-    // declaration requests integer landing. The parser must not render them.
+    // declaration requests integer landing. Structural literals likewise require
+    // their selected nominal carriers; the parser must not render their atoms.
     if matches!(
         syntax_trees.expressions.expression(expression),
-        ExpressionNode::Float(_) | ExpressionNode::Boolean(_)
+        ExpressionNode::Float(_)
+            | ExpressionNode::Boolean(_)
+            | ExpressionNode::StructLiteral(_)
+            | ExpressionNode::ArrayLiteral(_)
     ) {
         return true;
     }

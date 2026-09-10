@@ -40,6 +40,9 @@ mod noninteger;
 #[path = "module_machine_indices/nominal.rs"]
 mod nominal;
 
+#[path = "module_machine_indices/direct_structural_atoms.rs"]
+mod direct_structural_atoms;
+
 #[path = "module_machine_indices/rational.rs"]
 mod rational;
 
@@ -365,7 +368,7 @@ fn machine_index_selection_coexists_with_root_aggregate_constant_materialization
     let tree = Sources::new();
     let root = tree.package("root");
     let declarations = format!(
-        "{BUFFER} data Pair {{ value: u64; }} const PAIR: Pair = Pair {{ value: 11 }}; const SIZE: u64 = 2;"
+        "{BUFFER} data Pair [copy] {{ value: u64; }} const PAIR: Pair = Pair {{ value: 11 }}; const SIZE: u64 = 2;"
     );
     let machine = |name: &str, index: &str| {
         format!(

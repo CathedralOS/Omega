@@ -8,6 +8,7 @@ pub use calls::{
     unit_return_call_is_supported, unit_statement_call_is_supported,
 };
 mod cleanup;
+mod constants;
 mod content_conservation;
 mod content_projections;
 mod contract_entailment;
@@ -521,6 +522,7 @@ fn validate_program_internal(
         allow_pending_opaque_copy,
         &mut diagnostics,
     );
+    constants::validate_constants(program, &mut diagnostics);
     // Bare-payload-case `==` (decision 11) is checked on the RESOLVED trees,
     // before membership lowering synthesizes its internal tag compares; see
     // symbol-resolved-trees-to-typed-trees/src/equality.rs.

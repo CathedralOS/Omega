@@ -6,7 +6,7 @@
 // Expected exit: 70.
 use omega_language_std::console;
 
-data Limits {
+data Limits [copy] {
     ceiling: i32 [0..=100];
 }
 

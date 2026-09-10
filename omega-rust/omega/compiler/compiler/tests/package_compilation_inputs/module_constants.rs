@@ -433,3 +433,252 @@ fn public_float_identity_requires_finite_literals_with_matching_landings() {
         );
     }
 }
+
+#[test]
+fn nominal_constant_bodies_preserve_qualified_and_imported_carriers() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    TempTree::write(root.join("settings.omg"),
+        "module settings;
+         pub data Leaf [copy] { count: u64; }
+         pub data Value [copy] { leaf: Leaf; enabled: bool; }
+         pub data Choice [copy] { case Empty; case Some(value: Value); }
+         pub const VALUE: Value = Value { enabled: true, leaf: Leaf { count: 1 } };
+         pub const EMPTY: Choice = Choice::Empty;
+         pub const SOME: Choice = Choice::Some { value: Value { leaf: Leaf { count: 2 }, enabled: false } };"
+    );
+    for (carrier, value) in [
+        ("settings::Value", "settings::VALUE"),
+        ("settings::Value", "VALUE"),
+        ("settings::Choice", "settings::EMPTY"),
+        ("settings::Choice", "settings::SOME"),
+    ] {
+        TempTree::write(root.join("main.omg"), &format!(
+            "use settings; use settings::VALUE;
+             data Leaf [copy] {{ count: u64; }} data Value [copy] {{ leaf: Leaf; enabled: bool; }}
+             data Choice [copy] {{ case Empty; case Some(value: Value); }}
+             machine keep() -> {carrier} {{ let first: {carrier} = {value}; let second: {carrier} = {value}; second }}"
+        ));
+        let checked =
+            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
+                .expect("nominal constant keeps declaration-site constructors through checking");
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "keep")
+            .unwrap();
+        let [state] = checked.machine_states(machine) else {
+            panic!("one fixture state");
+        };
+        let locals = checked
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .filter_map(|statement| {
+                let checked_trees::statement::StatementNode::LocalData(local) = statement else {
+                    return None;
+                };
+                Some(local.initial_value)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(locals.len(), 2);
+        for expression in locals {
+            let selected = checked.expression_table.authored_selection_occurrences(expression)
+                .filter_map(|occurrence| checked.authored_declaration_selections().get(occurrence))
+                .filter_map(|selection| {
+                    let language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target() else { return None; };
+                    (checked.symbols.get(target.selected_symbol()).kind == symbols::SymbolKind::Const)
+                        .then_some(target.selected_symbol())
+                }).collect::<Vec<_>>();
+            assert_eq!(
+                selected.len(),
+                1,
+                "each live body copy carries its exact constant selection"
+            );
+            assert_eq!(
+                checked.symbols.display_path(selected[0], "::"),
+                format!("settings::{}", value.rsplit("::").next().unwrap())
+            );
+        }
+    }
+}
+
+#[test]
+fn nominal_constant_bodies_reject_wrong_carriers_and_private_selection() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let library = tree.package("library");
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "library", library.clone()),
+        ],
+        vec![PackageDependencyBinding::new(
+            identity(1),
+            "library",
+            identity(2),
+        )],
+    )
+    .unwrap();
+    let mut incorrectly_accepted = Vec::new();
+    for (declaration, use_site) in [
+        (
+            "pub data Value [copy] { value:u64; } pub const VALUE:Value = Value { value:1 };",
+            "data Value [copy] { value:u64; } machine keep()->Value { let value:settings::Value = settings::VALUE; value }",
+        ),
+        (
+            "pub data Value [copy] { value:u64; } pub const VALUE:Value = Value { value:1 };",
+            "data Value [copy] { value:u64; } machine take(value:Value)->u64 { 1 } machine keep()->u64 { let value:settings::Value = settings::VALUE; take(value) }",
+        ),
+        (
+            "pub data Value [copy] { value:u64; } pub const VALUE:Value = Value { value:1 };",
+            "data Value [copy] { value:u64; } machine source()->settings::Value { settings::VALUE } machine keep()->Value { source() }",
+        ),
+        (
+            "pub data Value [copy] { value:u64; } pub const VALUE:Value = Value { value:1 };",
+            "data Value [copy] { value:u64; } machine keep()->u64 { let value:Value = settings::VALUE; 1 }",
+        ),
+        (
+            "pub data Value [copy] { value:u64; } pub const VALUE:Value = Value { value:1 };",
+            "machine keep()->u64 { settings::VALUE }",
+        ),
+        (
+            "pub data Value [copy] { value:u64; } pub const VALUE:Value = Value { value:1 };",
+            "machine keep()->u64 { let value:u64 = settings::VALUE; value }",
+        ),
+        (
+            "pub data Value [copy] { value:u64; } pub const VALUE:Value = Value { value:1 };",
+            "machine take(value:u64)->u64 { value } machine keep()->u64 { take(settings::VALUE) }",
+        ),
+        (
+            "pub data Choice [copy] { case Ready; } pub const READY:Choice = Choice::Ready;",
+            "data Choice [copy] { case Ready; } machine keep()->Choice { settings::READY }",
+        ),
+        (
+            "pub data Choice [copy] { case Ready; } pub const READY:Choice = Choice::Ready;",
+            "data Choice [copy] { case Ready; } machine keep()->u64 { let value:Choice = settings::READY; 1 }",
+        ),
+        (
+            "data Value [copy] { value:u64; } machine Value::drop(&mut self) {} const VALUE:Value = Value { value:1 };",
+            "machine keep()->u64 { 1 }",
+        ),
+        (
+            "data Value { value:u64; } const VALUE:Value = Value { value:1 };",
+            "machine keep()->u64 { 1 }",
+        ),
+        (
+            "data Value [copy] { value:u64; } data Other [copy] { value:u64; } const VALUE:Value = Other { value:1 };",
+            "machine keep()->u64 { 1 }",
+        ),
+        (
+            "pub data Value { value:u64; } pub const VALUE:Value = Value { value:1 };",
+            "machine keep()->settings::Value { settings::VALUE }",
+        ),
+        (
+            "pub data Value [copy] { value:u64; } pub const VALUE:Value = Value { value:1 };",
+            "data Value [copy] { value:u64; } machine keep()->Value { settings::VALUE }",
+        ),
+        (
+            "pub data Value [copy] { value:u64; } const VALUE:Value = Value { value:1 };",
+            "machine keep()->settings::Value { settings::VALUE }",
+        ),
+        (
+            "data Value [copy] { value:u64; } pub const VALUE:Value = Value { value:1 };",
+            "machine keep()->settings::Value { settings::VALUE }",
+        ),
+        (
+            "pub data Value [copy] { value:u64; } pub data Other [copy] { value:u64; } pub const VALUE:Value = Other { value:1 };",
+            "machine keep()->settings::Value { settings::VALUE }",
+        ),
+        (
+            "pub data Value [linear] { value:u64; } pub const VALUE:Value = Value { value:1 };",
+            "machine keep()->settings::Value { settings::VALUE }",
+        ),
+        (
+            "pub data Owned [linear] { value:u64; } pub data Value [copy] { case Empty; case Full(owned:Owned); } pub const VALUE:Value = Value::Empty;",
+            "machine keep()->settings::Value { settings::VALUE }",
+        ),
+    ] {
+        TempTree::write(
+            library.join("settings.omg"),
+            &format!("module settings; {declaration}"),
+        );
+        TempTree::write(
+            root.join("main.omg"),
+            &format!(
+                "use library::settings; {}",
+                use_site.replace("settings::", "library::settings::")
+            ),
+        );
+        if compile_to_checked_with_packages(&root.join("main.omg"), None, inputs.clone()).is_ok() {
+            incorrectly_accepted.push((declaration, use_site));
+        }
+    }
+    assert!(
+        incorrectly_accepted.is_empty(),
+        "constant carrier/privacy violations accepted: {incorrectly_accepted:?}"
+    );
+}
+
+#[test]
+fn nominal_constant_bodies_do_not_gain_transitive_package_selection() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+    let leaf = tree.package("leaf");
+    TempTree::write(
+        middle.join("bridge.omg"),
+        "use leaf::settings; pub machine bridge()->u64 { 1 }",
+    );
+    TempTree::write(
+        leaf.join("settings.omg"),
+        "module settings; pub data Value [copy] { value:u64; } pub const VALUE:Value = Value { value:1 };",
+    );
+    let sources = vec![
+        PackageSourceBinding::new(identity(1), "root", root.clone()),
+        PackageSourceBinding::new(identity(2), "middle", middle),
+        PackageSourceBinding::new(identity(3), "leaf", leaf),
+    ];
+    let mut dependencies = vec![
+        PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+        PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+    ];
+    TempTree::write(
+        root.join("main.omg"),
+        "use middle::bridge; machine keep()->settings::Value { settings::VALUE }",
+    );
+    let indirect =
+        PackageCompilationInputs::new_package(identity(1), sources.clone(), dependencies.clone())
+            .unwrap();
+    compile_to_checked_with_packages(&root.join("main.omg"), None, indirect)
+        .expect_err("loaded initializer and carrier grant no transitive selection");
+    dependencies.push(PackageDependencyBinding::new(
+        identity(1),
+        "leaf",
+        identity(3),
+    ));
+    let direct = PackageCompilationInputs::new_package(identity(1), sources, dependencies).unwrap();
+    TempTree::write(
+        root.join("main.omg"),
+        "use middle::bridge; use leaf::settings; machine keep()->leaf::settings::Value { leaf::settings::VALUE }",
+    );
+    compile_to_checked_with_packages(&root.join("main.omg"), None, direct)
+        .expect("direct dependency and public declarations grant exact body selection");
+}
+
+#[test]
+fn nominal_constant_bodies_preserve_empty_array_fields() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    TempTree::write(
+        root.join("settings.omg"),
+        "module settings; pub data Value [copy] { bytes:[u8;0]; } pub const VALUE:Value = Value { bytes:[] };",
+    );
+    TempTree::write(
+        root.join("main.omg"),
+        "use settings; machine keep()->settings::Value { settings::VALUE }",
+    );
+    compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
+        .expect("constant eligibility preserves empty arrays within exact copy carriers");
+}

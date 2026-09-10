@@ -246,6 +246,74 @@ pub fn normalize_generic_data(syntax: SyntaxTrees) -> Result<SyntaxTrees, Vec<Di
     Ok(syntax)
 }
 
+/// Replay direct structural arguments at their actual generic owner. The
+/// encoded label is consistency data; the selected template's parameter owns
+/// the carrier used by the existing canonical encoder.
+pub(crate) fn validate_direct_const_arguments(
+    syntax: &SyntaxTrees,
+    base_name: &Identifier,
+    arguments: HandleSpan<TypeReferenceHandle>,
+    selection: Option<&constant_selection::ConstantSelection>,
+) -> Result<(), Diagnostic> {
+    let arguments = syntax.type_references.type_reference_handles(arguments);
+    let has_direct = arguments.iter().any(|argument| {
+        syntax
+            .type_references
+            .const_argument_normalization(*argument)
+            .is_some_and(crate::constant::normalization_requires_expression)
+    });
+    if !has_direct {
+        return Ok(());
+    }
+    let selection = selection.ok_or_else(|| {
+        Diagnostic::error("direct constant argument has no declaration selection context")
+            .with_source_span(base_name.source_span())
+    })?;
+    let definition = selection
+        .data(syntax, base_name)
+        .map_err(|message| Diagnostic::error(message).with_source_span(base_name.source_span()))?;
+    let parameters = syntax.items.type_parameters(definition.type_parameters);
+    if parameters.len() != arguments.len() {
+        return Err(
+            Diagnostic::error("direct constant argument lost its exact template slot")
+                .with_source_span(base_name.source_span()),
+        );
+    }
+    for (argument, parameter) in arguments.iter().zip(parameters) {
+        let Some(normalization) = syntax
+            .type_references
+            .const_argument_normalization(*argument)
+        else {
+            continue;
+        };
+        if !crate::constant::normalization_requires_expression(normalization) {
+            continue;
+        }
+        crate::constant::validate_normalized_expression(syntax, normalization)?;
+        let TypeParameterKind::Const { type_reference } = parameter.kind else {
+            return Err(Diagnostic::error(
+                "direct constant argument no longer selects a const parameter",
+            )
+            .with_source_span(normalization.reference));
+        };
+        let value = canonicalize_selected_index_expression(
+            syntax,
+            type_reference,
+            type_reference,
+            normalization.authored_expression,
+            Some(selection),
+        )
+        .map_err(|message| Diagnostic::error(message).with_source_span(normalization.reference))?;
+        if value.encoding != normalization.canonical_result_encoding {
+            return Err(Diagnostic::error(
+                "direct constant expression differs from its normalized value",
+            )
+            .with_source_span(normalization.reference));
+        }
+    }
+    Ok(())
+}
+
 /// Normalize with the loader's exact source/import custody. Temporary header
 /// symbols stay private; each erased constant argument retains its selected
 /// declaration coordinates for the complete resolver's checked join.

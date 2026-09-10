@@ -219,19 +219,11 @@ pub(crate) fn validate_suffix_landings(program: &TypedTrees, diagnostics: &mut V
         let ExpressionNode::StructLiteral(literal) = node else {
             continue;
         };
-        let Some(data_definition) = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.name.as_str() == literal.type_name.as_str())
-        else {
-            continue;
-        };
         for field in program.expression_table.struct_fields(literal.fields) {
-            let Some(field_type) = crate::struct_literals::construction_field_type(
+            let Some(field_type) = crate::struct_literals::selected_construction_field_type(
                 program,
-                data_definition,
-                literal.case_name.as_ref().map(|name| name.as_str()),
-                field.name.as_str(),
+                literal,
+                field.field_symbol,
             ) else {
                 continue;
             };

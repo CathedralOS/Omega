@@ -30,7 +30,7 @@ pub(crate) use window_elements::validate_array_window_elements;
 use construction_bounds::validate_literal_default_domain;
 use field_obligations::enforce_construction_field_obligations;
 pub(crate) use field_obligations::{
-    construction_field_type, validate_array_literal_elements,
+    construction_field_type, selected_construction_field_type, validate_array_literal_elements,
     validate_array_literal_elements_for_shape,
 };
 
@@ -365,7 +365,7 @@ fn validate_literal_field_names(
     let Some(data_definition) = program
         .data_definitions()
         .iter()
-        .find(|definition| definition.name.as_str() == type_name)
+        .find(|definition| definition.symbol == literal.type_symbol)
     else {
         // The literal names a type that is not a data definition -- a primitive
         // (`i32 { a: 1 }`) or an undefined name (`Nonexistent { a: 1 }`). Neither is
@@ -391,6 +391,14 @@ fn validate_literal_field_names(
     }
     if data_definition.type_parameters.count() > 0 {
         return;
+    }
+    for field in program.expression_table.struct_fields(literal.fields) {
+        if selected_construction_field_type(program, literal, field.field_symbol).is_none() {
+            diagnostics.push(Diagnostic::error(format!(
+                "construction of `{type_name}` field `{}` lost its exact declared owner",
+                field.name,
+            )));
+        }
     }
     if data_definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque {
         diagnostics.push(Diagnostic::error(format!(
@@ -444,7 +452,7 @@ fn validate_literal_field_names(
                 .data_members(data_definition)
                 .iter()
                 .find_map(|member| match member {
-                    DataMember::Variant(variant) if variant.name.as_str() == case_name.as_str() => {
+                    DataMember::Variant(variant) if Some(variant.symbol) == literal.case_symbol => {
                         Some(variant)
                     }
                     _ => None,
@@ -494,12 +502,12 @@ fn validate_omitted_gated_fields(
             DataMember::Variant(_) => None,
         })
         .collect();
-    if let Some(case_name) = literal.case_name.as_ref()
+    if literal.case_name.is_some()
         && let Some(variant) = program
             .data_members(data_definition)
             .iter()
             .find_map(|member| match member {
-                DataMember::Variant(variant) if variant.name.as_str() == case_name.as_str() => {
+                DataMember::Variant(variant) if Some(variant.symbol) == literal.case_symbol => {
                     Some(variant)
                 }
                 _ => None,

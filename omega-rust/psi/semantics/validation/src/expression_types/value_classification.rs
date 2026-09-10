@@ -231,89 +231,111 @@ pub(crate) fn report_cross_class_store(
     true
 }
 
-/// The name of the CONCRETE DATA type a `handle` denotes, looking through
+/// The exact declaration of the concrete data type a `handle` denotes, looking through
 /// `Reference`/`Constrained` shells -- or `None` for anything that is not a plain
 /// data type (a primitive, a trait / boundary / platform, a generic type
 /// parameter, or an array). The `None` cases are exactly the
 /// ones a nominal argument check must NOT flag, so a data value passed to a trait
 /// or generic parameter is never a "wrong type".
-pub(super) fn concrete_data_type_name(
+fn concrete_data_type_symbol(
     program: &TypedTrees,
     handle: TypeReferenceHandle,
-) -> Option<&str> {
+) -> Option<symbols::SymbolHandle> {
     if !handle.is_valid() {
         return None;
     }
     match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Reference { referee, .. } => concrete_data_type_name(program, *referee),
+        TypeReferenceNode::Reference { referee, .. } => {
+            concrete_data_type_symbol(program, *referee)
+        }
         TypeReferenceNode::Constrained { base_type, .. } => {
-            concrete_data_type_name(program, *base_type)
+            concrete_data_type_symbol(program, *base_type)
         }
-        TypeReferenceNode::Named { name, .. } => {
-            let name = name.as_str();
-            program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.name.as_str() == name)
-                .map(|_| name)
-        }
+        TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => program
+            .data_definitions()
+            .iter()
+            .any(|definition| definition.symbol == *symbol)
+            .then_some(*symbol),
         _ => None,
     }
 }
 
-/// The concrete data type NAME a struct-literal value constructs (`B { .. }` ->
-/// `"B"`; a case literal `Event::Score { .. }` -> `"Event"`), or `None` when the
-/// value is not a struct literal or names a type that is not a data definition
-/// (the unknown-type case, rejected separately). Looks through a `Mutable`
-/// wrapper. This lets the nominal check resolve a LITERAL's type directly, where
-/// `declared_place_type` (place-only) resolves nothing.
-fn struct_literal_type_name(program: &TypedTrees, value: ExpressionHandle) -> Option<&str> {
-    match program.expression_table.expression(value) {
-        ExpressionNode::StructLiteral(literal) => {
-            let name = literal.type_name.as_str();
-            program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.name.as_str() == name)
-                // Skip GENERIC data types: the literal names the bare base (`Box`)
-                // while the target is instantiated (`Box<i32>`), so a raw-name
-                // compare would false-positive. Matching instantiated type args is a
-                // deeper check; mirror `validate_literal_field_names`, which also
-                // bails on generic definitions.
-                .filter(|definition| definition.type_parameters.count() == 0)
-                .map(|definition| definition.name.as_str())
-        }
-        ExpressionNode::Borrow(inner) => struct_literal_type_name(program, inner.target),
-        _ => None,
-    }
+pub(super) fn concrete_data_type_name(
+    program: &TypedTrees,
+    handle: TypeReferenceHandle,
+) -> Option<&str> {
+    let symbol = concrete_data_type_symbol(program, handle)?;
+    program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == symbol)
+        .map(|definition| definition.name.as_str())
 }
 
-/// The concrete data type NAME a `value` expression denotes: a struct LITERAL's own
-/// type name (`B { .. }` -> `"B"`), or failing that a PLACE's declared concrete data
-/// type (`self.bar` -> `"Bar"`). `None` for a primitive, array, generic,
-/// or unresolvable computed value. The shared resolver behind the nominal checks
-/// (`report_data_type_conflict` value-vs-target, `report_cross_type_equality`
-/// operand-vs-operand) and the cast-source non-scalar detection.
+/// A constructor's resolved declaration is value identity, independent of the
+/// use site's spelling. Payloadless cases retain their exact variant parent.
+/// Open generic constructions remain with their existing application checker.
+fn constructed_data_symbol(
+    program: &TypedTrees,
+    value: ExpressionHandle,
+) -> Option<symbols::SymbolHandle> {
+    let symbol = match program.expression_table.expression(value) {
+        ExpressionNode::StructLiteral(literal) => literal.type_symbol,
+        ExpressionNode::Name(path)
+            if program.symbols.get(path.symbol).kind == symbols::SymbolKind::Variant =>
+        {
+            program.symbols.get(path.symbol).parent
+        }
+        ExpressionNode::Borrow(inner) => return constructed_data_symbol(program, inner.target),
+        _ => return None,
+    };
+    program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == symbol && definition.type_parameters.is_empty())
+        .map(|definition| definition.symbol)
+}
+
+fn value_concrete_data_symbol(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: Option<&typed_trees::state::State>,
+    value: ExpressionHandle,
+) -> Option<symbols::SymbolHandle> {
+    constructed_data_symbol(program, value)
+        .or_else(|| {
+            crate::places::declared_place_type(program, machine, state, value)
+                .and_then(|reference| concrete_data_type_symbol(program, reference))
+        })
+        .or_else(|| {
+            let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
+                return None;
+            };
+            crate::calls::resolved_call_result_type(program, call)
+                .and_then(|reference| concrete_data_type_symbol(program, reference))
+        })
+}
+
+/// Names remain diagnostic output; nominal comparisons retain selected symbols
+/// across literal materialization, local storage and resolved call results.
 pub(super) fn value_concrete_data_name<'program>(
     program: &'program TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     value: ExpressionHandle,
 ) -> Option<&'program str> {
-    struct_literal_type_name(program, value).or_else(|| {
-        crate::places::declared_place_type(program, machine, state, value)
-            .and_then(|value_type| concrete_data_type_name(program, value_type))
-    })
+    let symbol = value_concrete_data_symbol(program, machine, state, value)?;
+    program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == symbol)
+        .map(|definition| definition.name.as_str())
 }
 
-/// If `value`'s CONCRETE DATA type differs from the `expected_type`'s concrete
-/// data type, push a diagnostic and return `true`. BOTH sides must resolve to a
-/// concrete data type name; every other form (a primitive, a trait / boundary /
-/// generic parameter, an array, or a COMPUTED value whose type
-/// is unresolved) yields `None` on one side and is skipped -- so this only ever
-/// rejects the unambiguous type confusion. The value's type resolves from a
-/// struct LITERAL's own type name (`B { .. }`) or, failing that, a PLACE's
-/// declared type (`self.bar`). The nominal complement of `report_cross_class_store`.
+/// Compare selected nominal declarations at a receiving position. Names and
+/// layouts cannot establish equality across source modules. Concrete literals,
+/// stored places, and resolved call results retain their actual owner; open
+/// generic and unresolved result paths remain with their existing checkers.
 pub(crate) fn report_data_type_conflict(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -340,15 +362,17 @@ pub(crate) fn report_data_type_conflict(
         }
         return rejected;
     }
-    let Some(expected) = concrete_data_type_name(program, expected_type) else {
+    let Some(expected) = concrete_data_type_symbol(program, expected_type) else {
         return false;
     };
-    let Some(got) = value_concrete_data_name(program, machine, state, value) else {
+    let Some(got) = value_concrete_data_symbol(program, machine, state, value) else {
         return false;
     };
     if expected == got {
         return false;
     }
+    let expected = program.symbols.display_path(expected, "::");
+    let got = program.symbols.display_path(got, "::");
     diagnostics.push(Diagnostic::error(format!(
         "{slot_context} expects the `{expected}` data type but got `{got}` in the `{slot_noun}` \
          position; these are incompatible data types (a place is accepted structurally, but its \

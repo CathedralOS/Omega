@@ -148,13 +148,27 @@ pub(in crate::generic_data) fn canonicalize_selected_const_definition(
             qualified_const_name(definition)
         ));
     }
-    validate_selected_const_index_type(syntax, parameter_type, &mut Vec::new(), selection)?;
-    let node = canonicalize_const_expression(
+    canonicalize_selected_index_expression(
         syntax,
         definition.type_reference,
+        parameter_type,
         definition.value,
         selection,
-    )?;
+    )
+}
+
+/// Direct structural atoms and named constants share index admissibility and
+/// canonical representation. Only the named route additionally owns a const
+/// declaration's copy/cleanup eligibility and declared-carrier equality.
+pub(in crate::generic_data) fn canonicalize_selected_index_expression(
+    syntax: &SyntaxTrees,
+    value_type: TypeReferenceHandle,
+    parameter_type: TypeReferenceHandle,
+    expression: ExpressionHandle,
+    selection: Option<&ConstantSelection>,
+) -> Result<CanonicalConstValue, String> {
+    validate_selected_const_index_type(syntax, parameter_type, &mut Vec::new(), selection)?;
+    let node = canonicalize_const_expression(syntax, value_type, expression, selection)?;
     let required = selected_type_label(syntax, parameter_type, selection)?;
     if required == "Rat" {
         validate_canonical_rat(&node)?;

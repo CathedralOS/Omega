@@ -275,6 +275,24 @@ pub fn argument_matches_type_reference_handle(
                     );
             }
 
+            // Constructed nominal values keep their selected declaration even
+            // when substitution copied a constant from another source module.
+            // Equal spelling or layout cannot authorize a different destination.
+            if symbol.is_valid() && program.symbols.get(*symbol).kind == symbols::SymbolKind::Data {
+                match argument_node {
+                    ExpressionNode::StructLiteral(literal) => {
+                        return literal.type_symbol.is_valid() && literal.type_symbol == *symbol;
+                    }
+                    ExpressionNode::Name(path)
+                        if program.symbols.get(path.symbol).kind
+                            == symbols::SymbolKind::Variant =>
+                    {
+                        return program.symbols.get(path.symbol).parent == *symbol;
+                    }
+                    _ => {}
+                }
+            }
+
             // A named type parameter is an open slot, not a nominal data
             // declaration. Exact generic-call/operator application checking
             // separately closes that slot from the operand tuple and rejects

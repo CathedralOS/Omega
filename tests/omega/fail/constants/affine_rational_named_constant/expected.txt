@@ -1,0 +1,1 @@
+constant type must permit copying and contain no cleanup, shared ownership, or interior mutability

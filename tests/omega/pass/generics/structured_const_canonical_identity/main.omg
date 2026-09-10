@@ -2,7 +2,7 @@
 // source constants below are structurally equal despite opposite authored
 // field order, so both applications share one canonical generic identity.
 
-data UnitIndex {
+data UnitIndex [copy] {
     scale: u64;
     exponent: i32;
 }

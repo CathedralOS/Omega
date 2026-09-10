@@ -10,9 +10,13 @@
 //! one). The symbol table retains only declaration provenance so authored-
 //! selection and package-authority checks cannot be erased by substitution.
 //!
-//! Scalar values and closed primitive arrays substitute only after the shared
-//! resolver has selected their namespace and lexical binding. Other legacy aggregate materialization retains its
-//! conservative free-constant shadowing walk. Module-owned scoped declarations
+//! Scalar and closed aggregate literals substitute
+//! only after the shared resolver has selected their namespace and lexical
+//! binding. Detached initializer roots resolve constructors and fields in their
+//! declaring source. Each use deep-copies aggregate children and carries both
+//! that declaration-side selection custody and its own constant-use occurrence.
+//! Root and module declarations use this same path; no pre-resolution spelling
+//! substitution or whole-forest local-shadowing restriction is needed. Module-owned scoped declarations
 //! additionally select an exact nongeneric carrier in their declaring module.
 //! The authored scope token survives until complete symbol assignment, then joins
 //! the ordinary visibility/selection ledger; the structural value encoder alone
@@ -26,7 +30,8 @@
 //! argument span while lowering. Finalization rejoins the resolved parameter
 //! and selected declaration before publishing occurrence custody. The ordinary
 //! generic application and indexed-domain owners provide that relationship;
-//! this does not add nominal aggregate body substitution.
+//! Body materialization retains those same nominal declaration identities without
+//! turning canonical index encodings into constructor authority.
 //!
 //! Remaining boundaries, enforced loudly:
 //! - LITERAL-ONLY initializers (scalars, negated scalars -- already folded by
@@ -47,7 +52,6 @@ use source::{SourceSpan, Span};
 use symbol_resolved_trees::{SymbolResolvedTrees, expression::ExpressionHandle};
 use symbols::SymbolKind;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{ConstDefinition, DataMember, Item};
 
 mod carrier;
@@ -168,318 +172,21 @@ pub(crate) fn validate_scalar_initializer(
     }
 }
 
-/// Declaration-site checks, run when item lowering reaches the const.
+/// Declaration validity precedes all use-site substitution, including unused
+/// private declarations. Namespace and case collisions are checked later against
+/// exact symbols; lexical locals do not make a constant declaration ambiguous.
 pub(crate) fn validate_const_definition(
-    lowerer: &crate::lowerer::Lowerer,
-    syntax_trees: &SyntaxTrees,
+    syntax: &SyntaxTrees,
     definition: &ConstDefinition,
 ) -> Result<(), Diagnostic> {
-    validate_scalar_initializer(syntax_trees, definition).map_err(|reason| {
+    validate_scalar_initializer(syntax, definition).map_err(|reason| {
         Diagnostic::error(format!(
             "scalar constant `{}` is invalid: {reason}",
             definition.name.as_str()
         ))
         .with_source_span(definition.name.source_span())
     })?;
-    if lowerer.defer_const_substitution {
-        // Namespace and lexical identities are available in the shared symbol
-        // table after lowering, not in a whole-forest spelling collision walk.
-        return validate_literal_initializer(syntax_trees, definition, definition.value);
-    }
-    if definition.scope.as_str().is_empty() && !has_scalar_initializer(syntax_trees, definition) {
-        free_const_shadowing_walk(lowerer, syntax_trees, definition)?;
-    }
-
-    validate_literal_initializer(syntax_trees, definition, definition.value)?;
-
-    for item in syntax_trees.root_items() {
-        match item {
-            // Duplicate `Type::NAME` declarations are ambiguous.
-            Item::Const(other) => {
-                if !std::ptr::eq(other, definition)
-                    && other.scope.as_str() == definition.scope.as_str()
-                    && other.name.as_str() == definition.name.as_str()
-                    && declarations_share_resolution_scope(
-                        lowerer,
-                        definition.name.source_span(),
-                        other.name.source_span(),
-                    )
-                {
-                    return Err(Diagnostic::error(format!(
-                        "duplicate const `{}::{}`",
-                        definition.scope.as_str(),
-                        definition.name.as_str(),
-                    )));
-                }
-            }
-            // `Type::NAME` must not shadow a case constructor of the scope type.
-            Item::Data(data)
-                if data.name.as_str() == definition.scope.as_str()
-                    && declarations_share_resolution_scope(
-                        lowerer,
-                        definition.name.source_span(),
-                        data.name.source_span(),
-                    ) =>
-            {
-                for member in syntax_trees.items.data_members(data.members) {
-                    if let DataMember::Variant(variant) = member
-                        && variant.name.as_str() == definition.name.as_str()
-                    {
-                        return Err(Diagnostic::error(format!(
-                            "const `{}::{}` collides with the case `{}` of data `{}`; \
-                             pick a different const name",
-                            definition.scope.as_str(),
-                            definition.name.as_str(),
-                            variant.name.as_str(),
-                            data.name.as_str(),
-                        )));
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-
-    Ok(())
-}
-
-/// The free-const SHADOWING WALK: a bare-name const substitutes BEFORE
-/// scoped-name resolution, so its name must not be spellable as anything a
-/// bare reference resolves to. Whole-program, refused at the const with
-/// both sites named. Conservative by design: a collision anywhere refuses,
-/// even if no bare use exists (fewer names, no silent-shadow class).
-fn free_const_shadowing_walk(
-    lowerer: &crate::lowerer::Lowerer,
-    syntax_trees: &SyntaxTrees,
-    definition: &ConstDefinition,
-) -> Result<(), Diagnostic> {
-    let const_name = definition.name.as_str();
-    let collision = |site: String| {
-        Err(Diagnostic::error(format!(
-            "free-floating `const {const_name}` collides with {site}: a bare `{const_name}` \
-             would be ambiguous (the const substitutes before name resolution). Rename one, \
-             or scope the const (`const Type::{const_name}: ... = ...;`)",
-        )))
-    };
-    for item in syntax_trees.root_items() {
-        match item {
-            Item::Data(data) => {
-                if data.name.as_str() == const_name
-                    && declarations_share_resolution_scope(
-                        lowerer,
-                        definition.name.source_span(),
-                        data.name.source_span(),
-                    )
-                {
-                    return collision(format!("data `{}`", data.name.as_str()));
-                }
-                for member in syntax_trees.items.data_members(data.members) {
-                    match member {
-                        DataMember::Field(field)
-                            if field.name.as_str() == const_name
-                                && declarations_share_resolution_scope(
-                                    lowerer,
-                                    definition.name.source_span(),
-                                    field.name.source_span(),
-                                ) =>
-                        {
-                            return collision(format!(
-                                "field `{}` of data `{}` (bare field reads spell the field name)",
-                                field.name.as_str(),
-                                data.name.as_str(),
-                            ));
-                        }
-                        DataMember::Variant(variant)
-                            if variant.name.as_str() == const_name
-                                && declarations_share_resolution_scope(
-                                    lowerer,
-                                    definition.name.source_span(),
-                                    variant.name.source_span(),
-                                ) =>
-                        {
-                            return collision(format!(
-                                "case `{}` of data `{}` (case constants are spelled bare)",
-                                variant.name.as_str(),
-                                data.name.as_str(),
-                            ));
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            Item::Measure(measure) => {
-                if measure.parameter.is_valid() {
-                    let parameter = syntax_trees.items.state_parameter(measure.parameter);
-                    if parameter.name.as_str() == const_name
-                        && declarations_share_resolution_scope(
-                            lowerer,
-                            definition.name.source_span(),
-                            parameter.name.source_span(),
-                        )
-                    {
-                        return collision(format!("measure parameter `{const_name}`"));
-                    }
-                }
-            }
-            Item::Machine(machine) => {
-                if machine.name.as_str() == const_name
-                    && declarations_share_resolution_scope(
-                        lowerer,
-                        definition.name.source_span(),
-                        machine.name.source_span(),
-                    )
-                {
-                    return collision(format!("machine `{}`", machine.name.as_str()));
-                }
-                for state_handle in syntax_trees.items.state_handles(machine.states) {
-                    let state = syntax_trees.items.state(*state_handle);
-                    if state.name.as_str() == const_name
-                        && declarations_share_resolution_scope(
-                            lowerer,
-                            definition.name.source_span(),
-                            state.name.source_span(),
-                        )
-                    {
-                        return collision(format!(
-                            "state `{}` of machine `{}`",
-                            state.name.as_str(),
-                            machine.name.as_str(),
-                        ));
-                    }
-                    for parameter_handle in syntax_trees.items.state_parameters(state.parameters) {
-                        let parameter = syntax_trees.items.state_parameter(*parameter_handle);
-                        if parameter.name.as_str() == const_name
-                            && declarations_share_resolution_scope(
-                                lowerer,
-                                definition.name.source_span(),
-                                parameter.name.source_span(),
-                            )
-                        {
-                            return collision(format!(
-                                "parameter `{}` of state `{}` in machine `{}`",
-                                parameter.name.as_str(),
-                                state.name.as_str(),
-                                machine.name.as_str(),
-                            ));
-                        }
-                    }
-                    for statement_handle in syntax_trees.items.statements(state.statements) {
-                        if let syntax_trees::statement::StatementNode::LocalData(local) =
-                            syntax_trees.statements.statement(*statement_handle)
-                            && local.name.as_str() == const_name
-                            && declarations_share_resolution_scope(
-                                lowerer,
-                                definition.name.source_span(),
-                                local.name.source_span(),
-                            )
-                        {
-                            return collision(format!(
-                                "local `{}` in state `{}` of machine `{}`",
-                                local.name.as_str(),
-                                state.name.as_str(),
-                                machine.name.as_str(),
-                            ));
-                        }
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    Ok(())
-}
-
-fn declarations_share_resolution_scope(
-    lowerer: &crate::lowerer::Lowerer,
-    left: SourceSpan,
-    right: SourceSpan,
-) -> bool {
-    lowerer.source_reference_can_see_declaration(left, right)
-        == lowerer.source_reference_can_see_declaration(right, left)
-}
-
-/// Preserve legacy eager aggregate materialization. Scalar references return
-/// `None` so ordinary lexical resolution selects them before substitution.
-/// Free aggregate names remain protected by the conservative shadowing walk.
-pub(crate) fn try_lower_const_reference(
-    lowerer: &mut crate::lowerer::Lowerer,
-    syntax_trees: &SyntaxTrees,
-    members: &[Identifier],
-) -> Option<Result<ExpressionHandle, Diagnostic>> {
-    if lowerer.defer_const_substitution {
-        return None;
-    }
-    let (scope_str, name) = match members {
-        [scope, name] => (scope.as_str(), name),
-        [name] => ("", name),
-        _ => return None,
-    };
-    let reference_span = const_reference_span(members);
-    let definition = syntax_trees.root_items().find_map(|item| match item {
-        Item::Const(definition)
-            if definition.scope.as_str() == scope_str
-                && definition.name.as_str() == name.as_str()
-                && lowerer.source_reference_can_see_declaration(
-                    reference_span,
-                    definition.name.source_span(),
-                ) =>
-        {
-            Some(definition)
-        }
-        _ => None,
-    })?;
-    if has_scalar_initializer(syntax_trees, definition) {
-        return None;
-    }
-    // Item order is source order, so a use can lower before its declaration
-    // validates -- re-check the initializer shape here (cheap) so an invalid
-    // const can never substitute garbage.
-    if let Err(diagnostic) =
-        validate_literal_initializer(syntax_trees, definition, definition.value)
-    {
-        return Some(Err(diagnostic));
-    }
-    let declaration_ordinal = syntax_trees
-        .root_items()
-        .filter_map(|item| match item {
-            Item::Const(other) => Some(other),
-            _ => None,
-        })
-        .position(|other| std::ptr::eq(other, definition))?;
-    let lowered =
-        crate::expression::lower_expression_into_table(lowerer, syntax_trees, definition.value);
-    Some(lowered.inspect(|&expression| {
-        if let Some(exposure) = lowerer.current_authored_expression_exposure {
-            lowerer
-                .pending_const_selections
-                .push(crate::lowerer::PendingConstSelection {
-                    expression,
-                    source_span: reference_span,
-                    declaration_ordinal,
-                    exposure,
-                });
-        }
-    }))
-}
-
-pub(crate) fn has_module_owned_constants(syntax: &SyntaxTrees) -> bool {
-    syntax.root_items().any(|item| {
-        let Item::Const(constant) = item else {
-            return false;
-        };
-        syntax.root_items().any(|item| {
-            let Item::Module(module) = item else {
-                return false;
-            };
-            syntax
-                .items
-                .identifier_path_members(module.path)
-                .first()
-                .is_some_and(|member| {
-                    member.source_span().source_id == constant.name.source_span().source_id
-                })
-        })
-    })
+    validate_literal_initializer(syntax, definition, definition.value)
 }
 
 pub(crate) fn retain_const_initializer(
@@ -488,23 +195,18 @@ pub(crate) fn retain_const_initializer(
     definition: &ConstDefinition,
 ) -> Result<(), Diagnostic> {
     if !has_scalar_initializer(syntax, definition) {
-        if !crate::module_normalization::module_literal_constant(syntax, definition) {
-            return Ok(());
-        }
-        // Declaration conformance does not depend on deferred substitution.
-        // Root-only private arrays can have no uses and no published identity,
-        // so neither destination checking nor public encoding validates them.
-        crate::generic_data::canonicalize_declared_const_definition(syntax, definition).map_err(
-            |reason| {
-                Diagnostic::error(format!(
-                    "array constant `{}` is invalid: {reason}",
-                    semantic_const_name(definition)
-                ))
-                .with_source_span(definition.name.source_span())
-            },
-        )?;
-        if !lowerer.defer_const_substitution {
-            return Ok(());
+        if crate::module_normalization::module_literal_constant(syntax, definition) {
+            // Unused private arrays still owe declaration shape and landing.
+            crate::generic_data::canonicalize_declared_const_definition(syntax, definition)
+                .map_err(|reason| {
+                    Diagnostic::error(format!(
+                        "array constant `{}` is invalid: {reason}",
+                        semantic_const_name(definition)
+                    ))
+                    .with_source_span(definition.name.source_span())
+                })?;
+        } else {
+            validate_literal_initializer(syntax, definition, definition.value)?;
         }
     }
     let initializer =
@@ -724,21 +426,28 @@ pub(crate) fn substitute_resolved_constants(
             let message = if declaration_ordinal < retained_const_count {
                 "seeded constant references require retained initializer substitution"
             } else {
-                "aggregate constant references in a module source closure require namespace-aware aggregate substitution"
+                "constant substitution lost its retained declaration initializer"
             };
             return Err(Diagnostic::error(message).with_source_span(reference));
         };
-        // Array children must belong to this occurrence. Later numeric landing
-        // may mutate them, so a shallow root clone would couple distinct uses.
+        // Every aggregate child belongs to this use. Constructor and field
+        // symbols were selected in the declaring source before this deep copy;
+        // consumer spelling and later numeric landing cannot reinterpret them.
+        if matches!(
+            program.tables.bodies.expressions.expression(*initializer),
+            ExpressionNode::ArrayLiteral(_)
+        ) && unsupported_array_projection_sources.contains(&occurrence.expression)
+        {
+            return Err(Diagnostic::error(
+                "array constant projection currently requires unborrowed literal integer selectors; dynamic indexing, borrowing and slicing require value-based array projection"
+            ).with_source_span(reference));
+        }
         let initializer = if matches!(
             program.tables.bodies.expressions.expression(*initializer),
             ExpressionNode::ArrayLiteral(_)
+                | ExpressionNode::StructLiteral(_)
+                | ExpressionNode::Name(_)
         ) {
-            if unsupported_array_projection_sources.contains(&occurrence.expression) {
-                return Err(Diagnostic::error(
-                    "array constant projection currently requires unborrowed literal integer selectors; dynamic indexing, borrowing and slicing require value-based array projection"
-                ).with_source_span(reference));
-            }
             program
                 .tables
                 .bodies
@@ -747,6 +456,17 @@ pub(crate) fn substitute_resolved_constants(
         } else {
             *initializer
         };
+        let initializer_selections = program
+            .tables
+            .bodies
+            .expressions
+            .authored_selection_occurrences(initializer)
+            .collect::<Vec<_>>();
+        program
+            .tables
+            .bodies
+            .expressions
+            .attach_authored_selection_occurrences(occurrence.expression, initializer_selections);
         let value = program
             .tables
             .bodies
@@ -777,23 +497,6 @@ pub(crate) fn semantic_const_name(definition: &ConstDefinition) -> String {
             definition.scope.as_str(),
             definition.name.as_str()
         )
-    }
-}
-
-fn const_reference_span(members: &[Identifier]) -> SourceSpan {
-    let Some(first) = members.first() else {
-        return SourceSpan::default();
-    };
-    let Some(last) = members.last() else {
-        return first.source_span();
-    };
-    if first.source_span().source_id == last.source_span().source_id {
-        SourceSpan::new(
-            first.source_span().source_id,
-            Span::new(first.source_span().span.start, last.source_span().span.end),
-        )
-    } else {
-        first.source_span()
     }
 }
 
@@ -928,6 +631,47 @@ fn const_selection_record_diagnostic(error: AuthoredDeclarationSelectionRecordEr
     Diagnostic::error(format!(
         "failed to retain const declaration selection: {error:?}"
     ))
+}
+
+/// Named origins already retain their selected declaration's value. Direct
+/// structured atoms instead require the original constructor expression, even
+/// when a malformed input clears its handle.
+pub(crate) fn normalization_requires_expression(
+    normalization: &syntax_trees::types::ConstArgumentNormalization,
+) -> bool {
+    use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+    normalization.authored_expression.is_valid()
+        || (normalization.selections.is_empty()
+            && matches!(
+                CanonicalConstValue::new("", &normalization.canonical_result_encoding, "")
+                    .decode_encoding(),
+                Some(
+                    DecodedCanonicalConstValue::Array { .. }
+                        | DecodedCanonicalConstValue::Record { .. }
+                        | DecodedCanonicalConstValue::Variant { .. }
+                )
+            ))
+}
+
+pub(crate) fn validate_normalized_expression(
+    syntax: &syntax_trees::SyntaxTrees,
+    normalization: &syntax_trees::types::ConstArgumentNormalization,
+) -> Result<(), Diagnostic> {
+    if normalization_requires_expression(normalization)
+        && (!syntax
+            .expressions
+            .contains_expression(normalization.authored_expression)
+            || syntax
+                .expressions
+                .source_span(normalization.authored_expression)
+                != normalization.reference)
+    {
+        return Err(Diagnostic::error(
+            "direct constant argument lost its exact authored expression",
+        )
+        .with_source_span(normalization.reference));
+    }
+    Ok(())
 }
 
 /// Check the rewritten payload against its captured canonical value before
@@ -1432,6 +1176,177 @@ mod module_tests {
                 .iter()
                 .any(|error| error.message.contains("duplicate const"))
         );
+    }
+
+    #[test]
+    fn qualified_nominal_constants_keep_declaring_constructors_and_fresh_children() {
+        let mut program = resolve(&[
+            "module settings; pub data Leaf [copy] { count: u64; } pub data Value [copy] { leaf: Leaf; enabled: bool; }
+             pub const VALUE: Value = Value { enabled: true, leaf: Leaf { count: 1 } };",
+            "use settings; data Leaf [copy] { count: u64; } data Value [copy] { leaf: Leaf; enabled: bool; }
+             machine keep() -> settings::Value {
+                let first: settings::Value = settings::VALUE;
+                let second: settings::Value = settings::VALUE;
+                second
+             }",
+        ]).expect("qualified nominal body copies");
+        let first = local_value(&program, "keep", "first");
+        let second = local_value(&program, "keep", "second");
+        let ExpressionNode::StructLiteral(first_literal) =
+            program.tables.bodies.expressions.expression(first).clone()
+        else {
+            panic!("first nominal value");
+        };
+        let ExpressionNode::StructLiteral(second_literal) =
+            program.tables.bodies.expressions.expression(second).clone()
+        else {
+            panic!("second nominal value");
+        };
+        assert_eq!(
+            program
+                .symbols
+                .display_path(first_literal.type_symbol, "::"),
+            "settings::Value"
+        );
+        assert_eq!(first_literal.type_symbol, second_literal.type_symbol);
+        assert_ne!(first_literal.fields, second_literal.fields);
+        let first_fields = program
+            .tables
+            .bodies
+            .expressions
+            .struct_fields(first_literal.fields)
+            .to_vec();
+        let second_fields = program
+            .tables
+            .bodies
+            .expressions
+            .struct_fields(second_literal.fields)
+            .to_vec();
+        for (first_field, second_field) in first_fields.iter().zip(&second_fields) {
+            assert_eq!(first_field.field_symbol, second_field.field_symbol);
+            assert!(first_field.field_symbol.is_valid());
+            assert_ne!(first_field.value, second_field.value);
+        }
+        let ExpressionNode::StructLiteral(leaf) = program
+            .tables
+            .bodies
+            .expressions
+            .expression(first_fields[1].value)
+        else {
+            panic!("nested leaf");
+        };
+        assert_eq!(
+            program.symbols.display_path(leaf.type_symbol, "::"),
+            "settings::Leaf"
+        );
+        let unchanged = program
+            .tables
+            .bodies
+            .expressions
+            .expression(second_fields[0].value)
+            .clone();
+        *program
+            .tables
+            .bodies
+            .expressions
+            .expression_mut(first_fields[0].value) = ExpressionNode::Boolean(false);
+        assert_eq!(
+            program
+                .tables
+                .bodies
+                .expressions
+                .expression(second_fields[0].value),
+            &unchanged
+        );
+        for root in [first, second] {
+            let kinds = program
+                .tables
+                .bodies
+                .expressions
+                .authored_selection_occurrences(root)
+                .map(|occurrence| {
+                    program
+                        .authored_declaration_selections()
+                        .iter()
+                        .find(|selection| selection.occurrence_id() == occurrence)
+                        .expect("retained selection")
+                        .kind()
+                })
+                .collect::<Vec<_>>();
+            assert!(kinds.contains(&AuthoredDeclarationSelectionKind::StructLiteralType));
+            assert!(kinds.contains(&AuthoredDeclarationSelectionKind::StructLiteralField));
+            let occurrences = program
+                .tables
+                .bodies
+                .expressions
+                .authored_selection_occurrences(root)
+                .map(|occurrence| {
+                    program
+                        .authored_declaration_selections()
+                        .get(occurrence)
+                        .unwrap()
+                })
+                .collect::<Vec<_>>();
+            let constant_uses = occurrences.iter().filter(|selection| {
+                let language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target() else { return false; };
+                program.symbols.display_path(target.selected_symbol(), "::") == "settings::VALUE"
+            }).collect::<Vec<_>>();
+            assert_eq!(constant_uses.len(), 1);
+            assert_eq!(
+                constant_uses[0].kind(),
+                AuthoredDeclarationSelectionKind::StaticPathSegment
+            );
+            assert_eq!(constant_uses[0].source_span().source_id, SourceId(1));
+            for selection in occurrences.iter().filter(|selection| {
+                matches!(
+                    selection.kind(),
+                    AuthoredDeclarationSelectionKind::StructLiteralType
+                        | AuthoredDeclarationSelectionKind::StructLiteralField
+                )
+            }) {
+                assert_eq!(selection.source_span().source_id, SourceId(0));
+                let language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target() else { panic!("declaring constructor selection resolved"); };
+                assert!(
+                    program
+                        .symbols
+                        .display_path(target.selected_symbol(), "::")
+                        .starts_with("settings::Value")
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn root_nominal_constants_share_lexical_selection_and_fresh_materialization() {
+        let program = resolve(&["data Value [copy] { value:u64; }
+            const VALUE:Value = Value { value:7 };
+            machine keep()->Value {
+                let before:Value = VALUE;
+                let VALUE:Value = VALUE;
+                let after:Value = VALUE;
+                after
+            }"])
+        .expect("root nominal values use ordinary lexical selection");
+        let before = local_value(&program, "keep", "before");
+        let initializer = local_value(&program, "keep", "VALUE");
+        let after = local_value(&program, "keep", "after");
+        let ExpressionNode::StructLiteral(first) =
+            program.tables.bodies.expressions.expression(before)
+        else {
+            panic!("earlier constant use");
+        };
+        let ExpressionNode::StructLiteral(second) =
+            program.tables.bodies.expressions.expression(initializer)
+        else {
+            panic!("self initializer selects prior constant");
+        };
+        assert_eq!(first.type_symbol, second.type_symbol);
+        assert_ne!(first.fields, second.fields);
+        let ExpressionNode::Name(local) = program.tables.bodies.expressions.expression(after)
+        else {
+            panic!("later use selects local");
+        };
+        assert_eq!(program.symbols.get(local.symbol).kind, SymbolKind::Local);
     }
 
     #[test]
