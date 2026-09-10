@@ -1185,9 +1185,9 @@ Owners include
   independent anonymous dispatch operands. Extend the rational bounds/lattice
   owner and retained result-edge diagnostics; integer endpoints alone cannot
   prove integrality, and interval-valued warnings cannot replace exact finals.
-  Nonzero proofs still need same-sign disjointness and correlated result facts
-  when sign-partitioned rational bounds include zero despite every executable
-  divisor being nonzero.
+  Nonzero proofs still need gaps not captured by the rational lattice and
+  correlated result facts when the combined lattice/sign bounds include zero
+  despite every executable divisor being nonzero.
   The explicit obligation boundaries are in
   `build-time-evaluation/src/const_generic_expressions/value/match_dispatch.rs`.
   Extend those proofs without enumerating independent arm combinations or

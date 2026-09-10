@@ -5,15 +5,21 @@
 //! joins, preserving their exclusion of zero through surrounding arithmetic.
 //! At most one hull is retained in each of three categories: wholly negative,
 //! wholly positive, or containing zero. A zero-containing range is never split
-//! or discarded. Each binary has at most nine interval pairs, independent of
-//! the number of branch combinations. No branch-selection state is retained.
+//! or discarded without an independent lattice exclusion. Each binary has at
+//! most nine interval pairs, independent of the number of branch combinations.
+//! No branch-selection state is retained.
 //!
-//! Joins still lose correlations and same-sign gaps. A possible zero leaves an
-//! obligation open; it is not evidence that execution actually divides by zero.
+//! Joins still lose correlations and gaps not captured by the lattice. A possible
+//! zero leaves an obligation open; it is not evidence of an executed zero divisor.
 //! A rational lattice additionally contains every result as offset + stride*k
 //! for some integer k. Joins retain a common divisor of strides and offsets;
 //! arithmetic transports it without rounding intermediate fractions. Integral
 //! offset and stride prove integrality, while the intervals prove carrier fit.
+//! The same lattice can exclude zero inside an interval hull: split that hull
+//! at the nearest lattice points on either side of zero. This intersection of
+//! two overapproximations retains every result without storing individual arms.
+//! It also gives division zero-free intervals on which corner bounds are valid;
+//! a nonzero Boolean alone would not justify dividing across a continuous pole.
 //! An integral pair of interval endpoints alone proves neither: joining 1, 1.5,
 //! and 2 must not erase the fractional interior. Nonconstant division generally
 //! loses lattice evidence, even when its rational bounds remain useful.
@@ -140,6 +146,7 @@ fn analyze(
                 for _ in 1..count {
                     joined.include(values.pop().ok_or("missing anonymous Match arm bounds")?);
                 }
+                joined.refine_zero_gap();
                 values.push(joined);
             }
         }
@@ -216,6 +223,36 @@ impl RationalBounds {
         }
     }
 
+    fn refine_zero_gap(&mut self) {
+        if self.containing_zero.is_none() {
+            return;
+        }
+        let Some([negative, positive]) = self
+            .lattice
+            .as_ref()
+            .and_then(RationalLattice::zero_neighbors)
+        else {
+            return;
+        };
+        let Some(interval) = self.containing_zero.take() else {
+            return;
+        };
+        // Only the open lattice gap is removed. Clip to the original bounds:
+        // extending an endpoint would discard the independent carrier evidence.
+        if !interval.low.cmp_value(&negative).is_gt() {
+            self.include_interval(RationalInterval {
+                low: interval.low,
+                high: negative,
+            });
+        }
+        if !interval.high.cmp_value(&positive).is_lt() {
+            self.include_interval(RationalInterval {
+                low: positive,
+                high: interval.high,
+            });
+        }
+    }
+
     fn apply(&self, operator: BinaryOperator, right: &Self) -> Result<Self, String> {
         let mut result = Self {
             lattice: self
@@ -236,6 +273,7 @@ impl RationalBounds {
                 result.include_interval(left_interval.apply(operator, right_interval)?);
             }
         }
+        result.refine_zero_gap();
         if result.intervals().next().is_none() {
             return Err("anonymous rational arithmetic requires nonempty bounds".into());
         }
@@ -251,6 +289,31 @@ struct RationalLattice {
 impl RationalLattice {
     fn is_integral(&self) -> bool {
         self.offset.to_integer_exact().is_some() && self.stride.to_integer_exact().is_some()
+    }
+
+    /// Nearest negative/positive points, only when zero is absent. The residue
+    /// of offset/|stride| identifies the same lattice for either stride sign or
+    /// any choice of offset representative. Truncated negative remainders need
+    /// Euclidean correction; no fixed-width conversion or rounding is involved.
+    fn zero_neighbors(&self) -> Option<[BigRational; 2]> {
+        let stride = if self.stride.is_negative() {
+            self.stride.negate()
+        } else {
+            self.stride.clone()
+        };
+        let coordinate = self.offset.div(&stride)?;
+        let (numerator, denominator) = coordinate.as_integer_ratio();
+        let (_, mut remainder) = numerator.div_rem(denominator)?;
+        if remainder.is_zero() {
+            return None;
+        }
+        if remainder.is_negative() {
+            remainder = remainder.add(denominator);
+        }
+        let residue = BigRational::from_integer(remainder)
+            .div(&BigRational::from_integer(denominator.clone()))?;
+        let positive = stride.mul(&residue);
+        Some([positive.sub(&stride), positive])
     }
 
     fn join(&self, other: &Self) -> Option<Self> {
@@ -398,6 +461,114 @@ mod tests {
             difference
                 .div(&lattice.stride)
                 .is_some_and(|multiple| multiple.to_integer_exact().is_some())
+        }
+    }
+
+    #[test]
+    fn lattice_zero_neighbors_preserve_exact_rational_spacing() {
+        for offset_numerator in -7..=7 {
+            for stride_numerator in -5..=5 {
+                let lattice = RationalLattice {
+                    offset: fraction(offset_numerator, 3),
+                    stride: fraction(stride_numerator, 2),
+                };
+                let Some([negative, positive]) = lattice.zero_neighbors() else {
+                    assert!(
+                        lattice.stride.is_zero()
+                            || lattice_contains(&lattice, &BigRational::zero())
+                    );
+                    continue;
+                };
+                assert!(!lattice_contains(&lattice, &BigRational::zero()));
+                assert!(negative.cmp_value(&BigRational::zero()).is_lt());
+                assert!(positive.cmp_value(&BigRational::zero()).is_gt());
+                assert!(lattice_contains(&lattice, &negative));
+                assert!(lattice_contains(&lattice, &positive));
+                let spacing = if lattice.stride.is_negative() {
+                    lattice.stride.negate()
+                } else {
+                    lattice.stride.clone()
+                };
+                assert_eq!(positive.sub(&negative), spacing);
+            }
+        }
+    }
+
+    #[test]
+    fn lattice_gap_refinement_retains_every_sampled_point_in_original_bounds() {
+        for offset_numerator in -4..=4 {
+            for stride_numerator in -3..=3 {
+                for low_numerator in -3..=0 {
+                    for high_numerator in 0..=3 {
+                        let lattice = RationalLattice {
+                            offset: fraction(offset_numerator, 3),
+                            stride: fraction(stride_numerator, 2),
+                        };
+                        let low = fraction(low_numerator, 2);
+                        let high = fraction(high_numerator, 2);
+                        let mut points = Vec::new();
+                        for multiple in -12..=12 {
+                            let point = lattice
+                                .offset
+                                .add(&lattice.stride.mul(&fraction(multiple, 1)));
+                            if !point.cmp_value(&low).is_lt() && !point.cmp_value(&high).is_gt() {
+                                points.push(point);
+                            }
+                        }
+                        let mut bounds = RationalBounds {
+                            containing_zero: Some(RationalInterval {
+                                low: low.clone(),
+                                high: high.clone(),
+                            }),
+                            lattice: Some(lattice),
+                            fractional_history: true,
+                            ..RationalBounds::default()
+                        };
+                        bounds.refine_zero_gap();
+                        assert!(bounds.intervals().count() <= 3);
+                        assert!(bounds.fractional_history);
+                        for interval in bounds.intervals() {
+                            assert!(!interval.low.cmp_value(&low).is_lt());
+                            assert!(!interval.high.cmp_value(&high).is_gt());
+                            assert!(!interval.low.cmp_value(&interval.high).is_gt());
+                        }
+                        for point in points {
+                            assert!(
+                                bounds
+                                    .intervals()
+                                    .any(|interval| !point.cmp_value(&interval.low).is_lt()
+                                        && !point.cmp_value(&interval.high).is_gt())
+                            );
+                            if point.is_zero() {
+                                assert!(!bounds.excludes_zero());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn joining_a_zero_arm_restores_the_nonzero_obligation() {
+        for values in [[1, 3], [3, 1]] {
+            let mut bounds = RationalBounds::constant(fraction(values[0], 1));
+            bounds.include(RationalBounds::constant(fraction(values[1], 1)));
+            let mut difference = bounds
+                .apply(
+                    BinaryOperator::Subtract,
+                    &RationalBounds::constant(fraction(2, 1)),
+                )
+                .expect("defined difference");
+            assert!(difference.excludes_zero(), "arithmetic split the zero gap");
+            difference.include(RationalBounds::constant(fraction(0, 1)));
+            difference.refine_zero_gap();
+            assert!(!difference.excludes_zero());
+            assert!(
+                RationalBounds::constant(fraction(1, 1))
+                    .apply(BinaryOperator::Divide, &difference)
+                    .is_err()
+            );
         }
     }
 

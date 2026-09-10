@@ -84,15 +84,19 @@ private `value/match_dispatch/rational_bounds.rs` owner retains at most three
 closed intervals: negative, positive, and possibly zero. Opposite-sign
 alternatives remain separate through arithmetic, so direct dispatch and
 surrounding operations use the same proof. The traversal neither executes
-subjects nor enumerates independent arm combinations. A range containing zero
-leaves the obligation open; it does not prove a zero divisor actually executes.
+subjects nor enumerates independent arm combinations. The rational lattice also
+excludes zero when its offset is not an integer multiple of its spacing. In that
+case, intersecting a zero-crossing hull with the nearest lattice points restores
+zero-free sign intervals, including for subsequent division. A range that still
+contains zero leaves the obligation open; it does not prove a zero divisor
+actually executes.
 Integer destinations additionally require all-arm carrier bounds and an exact
 rational lattice (offset plus integer multiples of a stride). Arithmetic and
 joins transport that lattice, so fractional intermediates may cancel before
 landing; integral interval endpoints alone do not prove integral interior values.
 Final declaration destinations and typed peers use the same check. Division by
 nonconstant result sets still needs stronger divisibility evidence, and nonzero
-proofs still lose same-sign gaps and correlations.
+proofs still lose gaps not captured by the lattice and correlated result facts.
 
 Fractional warnings retain an exact origin and complete final value even inside
 skipped operations. With one dispatch-bearing operand per anonymous arithmetic
