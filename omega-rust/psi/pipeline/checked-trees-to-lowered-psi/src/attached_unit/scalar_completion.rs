@@ -1,10 +1,5 @@
-//! Scalar completion consumes an already evaluated ordinary call result. The
-//! statement schedule owns argument effects and custody; completion only rejoins
-//! the exact final source occurrence and its live scalar binding.
-//! Resolution's `hoist_terminal_value_machine_call` in
-//! syntax-trees-to-symbol-resolved-trees/src/statement.rs retains a final call as
-//! an immutable declaration followed by its exact name. That real source binding
-//! remains the completion owner; this consumer does not manufacture another one.
+//! Scalar completion rejoins the exact final source occurrence and its live
+//! scalar binding. The statement schedule owns evaluation, effects, and custody.
 
 use super::*;
 use checked_trees::expression::ExpressionNode;
@@ -52,6 +47,31 @@ pub(super) fn validate(
     // requirements or guarantees when selecting an operation-body result.
     if !checked.machine_contracts(source).is_empty() || !checked.state_contracts(state).is_empty() {
         return unsupported("scalar operation completion cannot erase authored scalar contracts");
+    }
+    if result.statement_index as usize + 1 == statements.len()
+        && !matches!(
+            checked.expression_table.expression(*expression),
+            ExpressionNode::Call(_)
+        )
+    {
+        let mut producers = machine.operations.iter().filter(|operation| {
+            matches!(operation, CheckedUnitEffectOperationPlan::EstablishScalarLocal {
+                result: candidate, ..
+            } if candidate == result)
+        });
+        if producers.next().is_none() || producers.next().is_some() {
+            return unsupported("scalar completion has no unique final expression producer");
+        }
+        // The establishment consumer independently replays the Return-role
+        // source binding, including its exact expression and scalar type.
+        for statement_index in 0..statements.len() {
+            if !machine.operations.iter().any(|operation| {
+                super::scalar_arrays::source_statement(operation) == Some(statement_index as u32)
+            }) {
+                return unsupported("scalar result body omits an authored statement");
+            }
+        }
+        return Ok(());
     }
     let (source_expression, named_return) = match checked.expression_table.expression(*expression) {
         ExpressionNode::Name(name) => {

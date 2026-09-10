@@ -654,48 +654,59 @@ pub(in crate::flow::terminal_unit) fn build(
     if returned_scalar_call.is_none()
         && let Some(primitive_type) = program.primitive_type_reference(state.return_type)
     {
-        // Ordinary scalar tail calls may already be normalized into an
-        // immutable initializer and a final name. Return its retained call
-        // result without replaying the initializer or manufacturing a call.
         let statements = program.statement_table.statements(state.statement_nodes);
         let StatementNode::Expression(expression) = statements.last()? else {
             return None;
         };
-        let ExpressionNode::Name(name) = program.expression_table.expression(*expression) else {
-            return None;
-        };
-        let mut matching = statements
+        let statement_index = u32::try_from(statements.len().checked_sub(1)?).ok()?;
+        let role = CheckedScalarExpressionRole::Return;
+        let computations = &facts.values.scalar_computations;
+        let mut roots = computations
+            .roots
             .iter()
-            .enumerate()
-            .filter_map(|(index, statement)| {
-                let StatementNode::LocalData(local) = statement else {
-                    return None;
-                };
-                (local.symbol == name.symbol).then_some((index, local))
+            .map(|(_, root)| root)
+            .filter(|root| {
+                root.state == state.symbol
+                    && root.statement_ordinal == statement_index
+                    && root.role == role
             });
-        let (index, local) = matching.next()?;
-        if matching.next().is_some()
-            || local.is_mutable
-            || program.primitive_type_reference(local.type_reference) != Some(primitive_type)
-            || !matches!(
-                program.expression_table.expression(local.initial_value),
-                ExpressionNode::Call(_)
-            )
-        {
-            return None;
-        }
-        let mut results = operations.iter().filter_map(|operation| {
-            let CheckedUnitEffectOperationPlan::ScalarCall { result, .. } = operation else {
+        let value = if let Some(root) = roots.next() {
+            if roots.next().is_some()
+                || root.machine != machine.symbol
+                || !computations.nodes.is_valid(root.root)
+                || computations.nodes.get(root.root).authored_root != *expression
+                || computations.nodes.get(root.root).primitive_type != primitive_type
+                || facts
+                    .values
+                    .scalar_expressions
+                    .expression_at(state.symbol, statement_index, role)
+                    .is_some()
+            {
                 return None;
-            };
-            (usize::try_from(result.statement_index).ok() == Some(index)
-                && result.primitive_type == primitive_type)
-                .then_some(result)
-        });
-        returned_scalar_call = Some(*results.next()?);
-        if results.next().is_some() {
-            return None;
-        }
+            }
+            checked_trees::CheckedCallScalarArgument::Computation(root.root)
+        } else {
+            let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
+                state.symbol,
+                statement_index,
+                role,
+            )?;
+            if binding.expression != *expression
+                || crate::values::scalar_expression_type(value) != Some(primitive_type)
+            {
+                return None;
+            }
+            checked_trees::CheckedCallScalarArgument::Pure(value.clone())
+        };
+        let result = CheckedUnitScalarResultBindingPlan {
+            statement_index,
+            binding_ordinal: u32::try_from(scalar_count).ok()?,
+            primitive_type,
+        };
+        // Completion evaluates its actual expression after the preceding
+        // operations. A final name reuses its value without replaying its call.
+        operations.push(CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value });
+        returned_scalar_call = Some(result);
     }
     (call_count == calls.len()).then_some(StatementSequence {
         scalar_result: returned_scalar_call,

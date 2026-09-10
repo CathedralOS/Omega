@@ -236,6 +236,9 @@ pub(super) fn is_available(
         let Some((attachment, structural, scalar)) = signature else {
             return false;
         };
+        // Dependency pruning must recognize the scheduled final expression as
+        // well as a direct call result. Both retain one exact completion owner;
+        // otherwise an ordered helper disappears only when another helper calls it.
         if attachment != plan.attachment_type_identity
             || structural != plan.structural_parameters
             || scalar != plan.scalar_parameters
@@ -301,9 +304,18 @@ pub(super) fn is_available(
         if attachment != plan.attachment_type_identity
             || structural != plan.structural_parameters
             || scalar != plan.scalar_parameters
-            || plan.operations.iter().filter(|operation| matches!(operation,
-                CheckedUnitEffectOperationPlan::ScalarCall { result, .. } if result == completion
-            )).count() != 1
+            || plan
+                .operations
+                .iter()
+                .filter(|operation| {
+                    matches!(operation,
+                        CheckedUnitEffectOperationPlan::ScalarCall { result, .. }
+                        | CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. }
+                            if result == completion
+                    )
+                })
+                .count()
+                != 1
         {
             return false;
         }

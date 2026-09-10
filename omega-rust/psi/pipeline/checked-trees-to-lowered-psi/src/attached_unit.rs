@@ -2393,14 +2393,19 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                             "Unit scalar expression local binding drifted from source order",
                         );
                     }
+                    let role = if plan.scalar_result.as_ref() == Some(result) {
+                        CheckedScalarExpressionRole::Return
+                    } else {
+                        CheckedScalarExpressionRole::LocalInitializer {
+                            binding_ordinal: result.binding_ordinal,
+                        }
+                    };
                     let lowered = evaluation.source_value(
                         checked,
                         plan.machine,
                         plan.state,
                         result.statement_index,
-                        CheckedScalarExpressionRole::LocalInitializer {
-                            binding_ordinal: result.binding_ordinal,
-                        },
+                        role,
                         value,
                         source_value_count,
                         &mut scalar_result_values,
