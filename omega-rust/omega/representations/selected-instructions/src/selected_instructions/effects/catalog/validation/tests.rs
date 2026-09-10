@@ -31,12 +31,27 @@ fn pointer_load_catalog_requires_the_semantic_exact_width() {
         clobbers: Vec::new(),
     };
     for (semantic, byte_count) in [
+        (MachineSemanticKind::LoadPacked3, 3),
+        (MachineSemanticKind::LoadPacked5, 5),
+        (MachineSemanticKind::LoadPacked6, 6),
+        (MachineSemanticKind::LoadPacked7, 7),
         (MachineSemanticKind::Load8, 1),
         (MachineSemanticKind::Load16, 2),
         (MachineSemanticKind::Load32, 4),
         (MachineSemanticKind::Load64, 8),
     ] {
-        let mut encoded = MachineEncodedEffects::fallthrough_v1(vec![0], vec![1]);
+        let mut constraint = constraint.clone();
+        let packed = matches!(byte_count, 3 | 5 | 6 | 7);
+        if packed {
+            constraint.operands[1].early_clobber = true;
+            let mut scratch = constraint.operands[1];
+            scratch.operand = 2;
+            constraint.operands.push(scratch);
+        }
+        let mut encoded = MachineEncodedEffects::fallthrough_v1(
+            vec![0],
+            if packed { vec![1, 2] } else { vec![1] },
+        );
         encoded.memory = MachineEncodedMemoryEffect::ReadPointerV1 {
             pointer_operand: 0,
             byte_count,
@@ -62,6 +77,19 @@ fn pointer_load_catalog_requires_the_semantic_exact_width() {
             }],
         };
         validate_declaration(&constraint, &declaration).unwrap();
+        if packed {
+            for operand in [1, 2] {
+                let mut weakened = constraint.clone();
+                weakened.operands[operand].early_clobber = false;
+                assert!(validate_declaration(&weakened, &declaration).is_err());
+            }
+            let mut stripped = declaration.clone();
+            stripped.alternatives[0]
+                .encoded
+                .external_operand_writes
+                .pop();
+            assert!(validate_declaration(&constraint, &stripped).is_err());
+        }
         declaration.alternatives[0].encoded.memory = MachineEncodedMemoryEffect::ReadPointerV1 {
             pointer_operand: 0,
             byte_count: if byte_count == 4 { 8 } else { 4 },

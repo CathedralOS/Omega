@@ -350,6 +350,28 @@ pub(crate) fn supported_multiple_early_clobber_function() -> SelectedFunction {
     function
 }
 
+pub(crate) fn supported_parallel_early_definitions_function() -> SelectedFunction {
+    let mut function = supported_early_clobber_function();
+    let instruction = &mut function.blocks[0].instructions[0];
+    let mut scratch = instruction.operands[1];
+    scratch.operand = 2;
+    scratch.virtual_register = VirtualRegisterId(2);
+    instruction.operands.push(scratch);
+    let SelectedTerminator::Return { instruction, .. } = &mut function.blocks[0].terminator else {
+        unreachable!();
+    };
+    instruction.operands.push(SelectedOperand {
+        operand: 0,
+        virtual_register: VirtualRegisterId(1),
+        access: RegisterOperandAccess::Use,
+        class: RegisterClassId(0),
+        fixed_view: None,
+        tied_to: None,
+        early_clobber: false,
+    });
+    function
+}
+
 pub(crate) fn supported_isolated_tied_early_clobber_function() -> SelectedFunction {
     let mut function = function_with_operand(RegisterOperandAccess::Use);
     function.blocks[0].instructions[0].operands.extend([

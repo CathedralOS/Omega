@@ -80,6 +80,14 @@ pub(super) fn decode_scalar_type(
 
 pub(super) fn encode_origin(bytes: &mut Vec<u8>, origin: VirtualRegisterOrigin) {
     match origin {
+        VirtualRegisterOrigin::InstructionScratch {
+            instruction,
+            operand,
+        } => {
+            bytes.push(9);
+            bytes.extend_from_slice(&instruction.0.to_le_bytes());
+            bytes.extend_from_slice(&operand.to_le_bytes());
+        }
         VirtualRegisterOrigin::StructuralObservation {
             instruction,
             place,
@@ -161,6 +169,10 @@ pub(super) fn decode_origin(
     let value =
         |raw| ValueId::new(raw).ok_or(LogicalSpillOperationDecodeError::InvalidValueId(raw));
     match cursor.byte()? {
+        9 => Ok(VirtualRegisterOrigin::InstructionScratch {
+            instruction: SelectedInstructionId(u32::from_le_bytes(cursor.array()?)),
+            operand: u16::from_le_bytes(cursor.array()?),
+        }),
         0 => {
             let raw = u64::from_le_bytes(cursor.array()?);
             Ok(VirtualRegisterOrigin::EntryParameter {
@@ -268,5 +280,25 @@ pub(super) fn decode_definition_site(
             })
         }
         tag => Err(LogicalSpillOperationDecodeError::UnknownDefinitionSite(tag)),
+    }
+}
+
+#[cfg(test)]
+mod scratch_tests {
+    use super::*;
+    #[test]
+    fn instruction_scratch_origin_roundtrips_exact_coordinates() {
+        let origin = VirtualRegisterOrigin::InstructionScratch {
+            instruction: SelectedInstructionId(37),
+            operand: 2,
+        };
+        let mut bytes = Vec::new();
+        encode_origin(&mut bytes, origin);
+        assert_eq!(decode_origin(&mut Cursor::new(&bytes)).unwrap(), origin);
+        for length in 0..bytes.len() {
+            assert!(decode_origin(&mut Cursor::new(&bytes[..length])).is_err());
+        }
+        bytes[0] = u8::MAX;
+        assert!(decode_origin(&mut Cursor::new(&bytes)).is_err());
     }
 }

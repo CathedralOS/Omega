@@ -74,26 +74,11 @@ pub(super) fn call_result<'a>(
     let placement = call.result_placement.as_ref()?;
     if call.call_plan.result.as_ref() != Some(placement)
         || placement.shape != shape
-        || !(1..=2).contains(&placement.locations.len())
+        || !direct_fragments(placement)
     {
         return None;
     }
-    let mut offset = 0;
-    for location in &placement.locations {
-        let calling_conventions::ValueLocation::Register {
-            value_byte_offset,
-            byte_size,
-            ..
-        } = location
-        else {
-            return None;
-        };
-        if *value_byte_offset != offset || !matches!(byte_size, 1 | 2 | 4 | 8) {
-            return None;
-        }
-        offset = offset.checked_add(*byte_size)?;
-    }
-    (offset == shape.byte_size).then_some((result, placement))
+    Some((result, placement))
 }
 
 pub(super) fn returned_parameter<'a>(
@@ -157,7 +142,7 @@ pub(super) fn direct_fragments(placement: &calling_conventions::ValuePlacement) 
         else {
             return false;
         };
-        if *value_byte_offset != offset || !matches!(byte_size, 1 | 2 | 4 | 8) {
+        if *value_byte_offset != offset || !(1..=8).contains(byte_size) {
             return false;
         }
         let Some(next) = offset.checked_add(*byte_size) else {
@@ -215,25 +200,7 @@ pub(super) fn returned<'a>(
         return None;
     }
     let placement = source.call_plan.result.as_ref()?;
-    if placement.shape != shape || !(1..=2).contains(&placement.locations.len()) {
-        return None;
-    }
-    let mut offset = 0;
-    for location in &placement.locations {
-        let calling_conventions::ValueLocation::Register {
-            value_byte_offset,
-            byte_size,
-            ..
-        } = location
-        else {
-            return None;
-        };
-        if *value_byte_offset != offset || !matches!(byte_size, 1 | 2 | 4 | 8) {
-            return None;
-        }
-        offset = offset.checked_add(*byte_size)?;
-    }
-    if offset != shape.byte_size {
+    if placement.shape != shape || !direct_fragments(placement) {
         return None;
     }
     Some((

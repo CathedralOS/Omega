@@ -209,6 +209,36 @@ pub(in crate::exit_contract) fn validate_non_return(
     }
     let memory_matches = match (kind, effects.memory, encoding.address) {
         (
+            SelectedInstructionKind::LoadPacked { byte_offset, width },
+            MachineEncodedMemoryEffect::ReadPointerV1 {
+                pointer_operand: 0,
+                byte_count,
+            },
+            Some(address),
+        ) => {
+            byte_count == u16::from(width.byte_size())
+                && address.displacement == byte_offset
+                && address.symbolic
+                    == physical_instructions::PhysicalAddressOperation::LoadPacked {
+                        base_operand: 0,
+                        byte_offset,
+                        width,
+                    }
+        }
+        (
+            SelectedInstructionKind::StorePacked { byte_offset, width },
+            MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 },
+            Some(address),
+        ) => {
+            address.displacement == byte_offset
+                && address.symbolic
+                    == physical_instructions::PhysicalAddressOperation::StorePacked {
+                        base_operand: 0,
+                        byte_offset,
+                        width,
+                    }
+        }
+        (
             SelectedInstructionKind::HostedReadByte { slot },
             MachineEncodedMemoryEffect::HostedReadByteV1 { .. },
             Some(address),

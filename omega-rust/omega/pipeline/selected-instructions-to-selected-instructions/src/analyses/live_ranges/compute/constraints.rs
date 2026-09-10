@@ -48,6 +48,12 @@ pub(crate) fn derive_early_clobbers(
             ),
         };
         let mut participants = BTreeSet::new();
+        let mut operand_ordinals = BTreeSet::new();
+        let multiple_definitions = operands
+            .iter()
+            .filter(|operand| operand.access == RegisterOperandAccess::Def)
+            .count()
+            > 1;
         let source_is_valid = tied_source.is_none_or(|source| {
             source.access == RegisterOperandAccess::Use
                 && source.operand < definition.operand
@@ -83,18 +89,28 @@ pub(crate) fn derive_early_clobbers(
                 *left != definition.virtual_register && *right != definition.virtual_register
             });
         if definition.access != RegisterOperandAccess::Def
-            || operands
-                .iter()
-                .filter(|operand| operand.early_clobber)
-                .count()
-                != 1
+            || !multiple_definitions
+                && operands
+                    .iter()
+                    .filter(|operand| operand.early_clobber)
+                    .count()
+                    != 1
             || operands.len() < 2
+            || !operands
+                .iter()
+                .any(|operand| operand.access == RegisterOperandAccess::Use)
+            || multiple_definitions && operands.iter().any(|operand| operand.tied_to.is_some())
             || !source_is_valid
             || tied_source.is_some() && unrelated.is_empty()
             || operands.iter().any(|operand| {
                 (operand.operand != definition.operand
-                    && (operand.access != RegisterOperandAccess::Use || operand.tied_to.is_some()))
+                    && ((operand.access != RegisterOperandAccess::Use
+                        && !(multiple_definitions
+                            && operand.access == RegisterOperandAccess::Def
+                            && operand.early_clobber))
+                        || operand.tied_to.is_some()))
                     || !participants.insert(operand.virtual_register)
+                    || !operand_ordinals.insert(operand.operand)
             })
             || !tie_component_has_one_early_definition
             || !untied_definition_is_free
@@ -126,6 +142,9 @@ pub(crate) fn derive_early_clobbers(
             })?;
         let uses = unrelated
             .into_iter()
+            // Other definitions interfere at the ordinary after point, even
+            // when dead. Only incoming Uses belong to early-clobber hazards.
+            .filter(|operand| operand.access == RegisterOperandAccess::Use)
             .map(|operand| EarlyClobberUse {
                 operand: operand.operand,
                 virtual_register: operand.virtual_register,

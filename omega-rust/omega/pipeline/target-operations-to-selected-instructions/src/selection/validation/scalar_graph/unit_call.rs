@@ -253,18 +253,12 @@ pub(super) fn validate(
                 u32::from(*byte_size),
                 SelectedMemoryAccessRole::WritePlace,
             )?;
-            replay.check_instruction(
-                SelectedInstructionKind::Store {
-                    byte_offset: u32::from(*value_byte_offset),
-                    byte_size: *byte_size as u8,
-                },
-                replay
-                    .constraints
-                    .keys
-                    .store
-                    .ok_or_else(|| replay.invalid())?,
-                &[pointer, value],
-                &Default::default(),
+            super::aggregate_memory::store(
+                replay,
+                pointer,
+                value,
+                u32::from(*value_byte_offset),
+                *byte_size,
             )?;
         }
     }

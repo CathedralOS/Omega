@@ -18,7 +18,7 @@ use crate::{
 use selected_instructions::selected_instructions::effects::program::encoding as effect_codec;
 
 const MAGIC: &[u8; 8] = b"OMGPMX\0\0";
-const VERSION: u32 = 15;
+const VERSION: u32 = 16;
 
 pub(crate) fn encode_terminal_post_allocation_machine_plan(
     plan: &PostAllocationMachinePlan,

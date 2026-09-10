@@ -25,6 +25,42 @@ pub(super) fn declaration(
         .expect("canonical stack pointer")
         .id;
     let (memory, trap, reads, writes, encoded_memory, size) = match semantic {
+        MachineSemanticKind::LoadPacked3
+        | MachineSemanticKind::LoadPacked5
+        | MachineSemanticKind::LoadPacked6
+        | MachineSemanticKind::LoadPacked7 => {
+            let byte_count = match semantic {
+                MachineSemanticKind::LoadPacked3 => 3,
+                MachineSemanticKind::LoadPacked5 => 5,
+                MachineSemanticKind::LoadPacked6 => 6,
+                _ => 7,
+            };
+            (
+                MachineMemoryEffect::ReadPointerV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0],
+                vec![1, 2],
+                MachineEncodedMemoryEffect::ReadPointerV1 {
+                    pointer_operand: 0,
+                    byte_count,
+                },
+                MachineSizeKnowledge::EncoderResolved {
+                    minimum_bytes: byte_count * 8 + (byte_count - 1) * 7,
+                    maximum_bytes: Some(byte_count * 9 + (byte_count - 1) * 7),
+                },
+            )
+        }
+        MachineSemanticKind::StorePacked => (
+            MachineMemoryEffect::WritePointerV1,
+            MachineTrapBehavior::MayArchitecturalFaultV1,
+            vec![0, 1],
+            vec![2],
+            MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 },
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 32,
+                maximum_bytes: Some(83),
+            },
+        ),
         MachineSemanticKind::Store => (
             MachineMemoryEffect::WritePointerV1,
             MachineTrapBehavior::MayArchitecturalFaultV1,

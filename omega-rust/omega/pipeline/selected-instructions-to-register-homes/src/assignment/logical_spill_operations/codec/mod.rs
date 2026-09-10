@@ -8,7 +8,7 @@ mod values;
 use super::{LogicalSpillOperationDecodeError, LogicalSpillOperationPlan};
 
 const MAGIC: &[u8; 8] = b"OMGSLP\0\0";
-const VERSION: u32 = 4;
+const VERSION: u32 = 5;
 
 pub(super) use encoding::encode_content;
 

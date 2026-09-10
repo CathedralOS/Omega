@@ -2,7 +2,7 @@
 use super::*;
 
 #[test]
-fn zero_odd_and_indirect_result_fragments_remain_explicit_limits() {
+fn zero_and_indirect_result_fragments_remain_explicit_limits() {
     for (shape, value) in [
         ("[u8; 0]", "[]"),
         ("[u8; 3]", "[1u8, 2u8, 3u8]"),
@@ -15,6 +15,9 @@ fn zero_odd_and_indirect_result_fragments_remain_explicit_limits() {
             NativeTarget::macos_arm64(),
             NativeTarget::windows_x64(),
         ] {
+            if shape == "[u8; 3]" && target != NativeTarget::windows_x64() {
+                continue;
+            }
             let compiled = target_plan(&source, "selected", target).unwrap();
             let environment =
                 register_environment::baseline_target_register_environment(target).unwrap();

@@ -29,6 +29,16 @@ pub struct PostAllocationMachineInstruction {
 /// Address semantics remain symbolic until a validated frame is supplied.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicalAddressOperation {
+    LoadPacked {
+        base_operand: u16,
+        byte_offset: u32,
+        width: selected_instructions::PackedByteWidth,
+    },
+    StorePacked {
+        base_operand: u16,
+        byte_offset: u32,
+        width: selected_instructions::PackedByteWidth,
+    },
     HostedReadByte {
         slot: selected_instructions::LocalStorageSlotId,
     },

@@ -27,7 +27,7 @@ pub fn post_allocation_machine_identity(
 ) -> PostAllocationMachineIdentity {
     post_allocation_machine_identity_with_domain(
         plan,
-        b"omega.terminal-postallocation-machine.v16\0",
+        b"omega.terminal-postallocation-machine.v17\0",
     )
 }
 
@@ -159,6 +159,26 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
             slot.encode_identity(bytes);
         }
         None => bytes.push(0),
+        Some(crate::PhysicalAddressOperation::LoadPacked {
+            base_operand,
+            byte_offset,
+            width,
+        }) => {
+            bytes.push(12);
+            bytes.extend_from_slice(&base_operand.to_le_bytes());
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            bytes.push(width.byte_size());
+        }
+        Some(crate::PhysicalAddressOperation::StorePacked {
+            base_operand,
+            byte_offset,
+            width,
+        }) => {
+            bytes.push(13);
+            bytes.extend_from_slice(&base_operand.to_le_bytes());
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            bytes.push(width.byte_size());
+        }
         Some(crate::PhysicalAddressOperation::Load8 {
             base_operand,
             byte_offset,
@@ -268,6 +288,11 @@ fn encode_alternative(bytes: &mut Vec<u8>, alternative: &MachineAlternative) {
         MachineAlternativeFamily::CallI64 => 13,
         MachineAlternativeFamily::Jump => 14,
         MachineAlternativeFamily::Load64 => 16,
+        MachineAlternativeFamily::LoadPacked3 => 46,
+        MachineAlternativeFamily::LoadPacked5 => 47,
+        MachineAlternativeFamily::LoadPacked6 => 48,
+        MachineAlternativeFamily::LoadPacked7 => 49,
+        MachineAlternativeFamily::StorePacked => 50,
         MachineAlternativeFamily::Load8 => 33,
         MachineAlternativeFamily::Load16 => 34,
         MachineAlternativeFamily::Load32 => 30,

@@ -18,7 +18,7 @@ use sha2::{Digest, Sha256};
 use target::{Architecture, NativeTarget, ObjectFormat};
 use target_operations::TerminalPsiProvenance;
 
-const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v12";
+const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v13";
 
 pub fn function_fragment_emission_identity(
     plan: &FunctionFragmentEmissionPlan,
@@ -293,6 +293,11 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::Store => 24,
         MachineAlternativeFamily::AddressOffset => 25,
         MachineAlternativeFamily::Load64 => 16,
+        MachineAlternativeFamily::LoadPacked3 => 46,
+        MachineAlternativeFamily::LoadPacked5 => 47,
+        MachineAlternativeFamily::LoadPacked6 => 48,
+        MachineAlternativeFamily::LoadPacked7 => 49,
+        MachineAlternativeFamily::StorePacked => 50,
         MachineAlternativeFamily::Load8 => 33,
         MachineAlternativeFamily::Load16 => 34,
         MachineAlternativeFamily::Load32 => 30,

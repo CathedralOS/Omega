@@ -17,6 +17,11 @@ pub struct VirtualRegister {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VirtualRegisterOrigin {
+    /// Instruction-local temporary, never a source value or structural place.
+    InstructionScratch {
+        instruction: SelectedInstructionId,
+        operand: u16,
+    },
     /// A compiler-owned structural address or loaded observation, not a new
     /// Terminal scalar definition. The instruction distinguishes the operation.
     StructuralObservation {

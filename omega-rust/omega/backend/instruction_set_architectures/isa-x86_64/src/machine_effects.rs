@@ -78,6 +78,11 @@ pub fn x86_64_machine_effect_catalog(
                     if matches!(
                         semantic,
                         MachineSemanticKind::Load8
+                            | MachineSemanticKind::LoadPacked3
+                            | MachineSemanticKind::LoadPacked5
+                            | MachineSemanticKind::LoadPacked6
+                            | MachineSemanticKind::LoadPacked7
+                            | MachineSemanticKind::StorePacked
                             | MachineSemanticKind::Load16
                             | MachineSemanticKind::Load32
                             | MachineSemanticKind::Load64
@@ -147,6 +152,8 @@ fn selected_keys(
         }
     };
     Ok(SelectedConstraintKeys {
+        load_packed: Some(crate::X86_64_LOAD_PACKED),
+        store_packed: Some(crate::X86_64_STORE_PACKED),
         call_aggregate: if target.object_format == ObjectFormat::Elf {
             crate::register_model::x86_64_system_v_aggregate_call_keys()
                 .into_iter()
@@ -380,6 +387,11 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::CallAggregate
         | MachineSemanticKind::Load8
         | MachineSemanticKind::Load16
+        | MachineSemanticKind::LoadPacked3
+        | MachineSemanticKind::LoadPacked5
+        | MachineSemanticKind::LoadPacked6
+        | MachineSemanticKind::LoadPacked7
+        | MachineSemanticKind::StorePacked
         | MachineSemanticKind::Load32
         | MachineSemanticKind::Load64
         | MachineSemanticKind::Store
@@ -562,6 +574,11 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         | MachineSemanticKind::CallAggregate
         | MachineSemanticKind::Load8
         | MachineSemanticKind::Load16
+        | MachineSemanticKind::LoadPacked3
+        | MachineSemanticKind::LoadPacked5
+        | MachineSemanticKind::LoadPacked6
+        | MachineSemanticKind::LoadPacked7
+        | MachineSemanticKind::StorePacked
         | MachineSemanticKind::Load32
         | MachineSemanticKind::Load64
         | MachineSemanticKind::Store

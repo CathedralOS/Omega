@@ -622,6 +622,8 @@ fn family_and_operand_count(
         | SelectedInstructionKind::Load16 { .. }
         | SelectedInstructionKind::Load32 { .. }
         | SelectedInstructionKind::Load64 { .. }
+        | SelectedInstructionKind::LoadPacked { .. }
+        | SelectedInstructionKind::StorePacked { .. }
         | SelectedInstructionKind::Store { .. }
         | SelectedInstructionKind::AddressOffset { .. }
         | SelectedInstructionKind::Store64 { .. }
@@ -804,6 +806,8 @@ fn encode_unchecked(
         | SelectedInstructionKind::Load16 { .. }
         | SelectedInstructionKind::Load32 { .. }
         | SelectedInstructionKind::Load64 { .. }
+        | SelectedInstructionKind::LoadPacked { .. }
+        | SelectedInstructionKind::StorePacked { .. }
         | SelectedInstructionKind::Store { .. }
         | SelectedInstructionKind::AddressOffset { .. }
         | SelectedInstructionKind::Store64 { .. }
@@ -1244,6 +1248,8 @@ fn validate_decoded(
         | SelectedInstructionKind::Load16 { .. }
         | SelectedInstructionKind::Load32 { .. }
         | SelectedInstructionKind::Load64 { .. }
+        | SelectedInstructionKind::LoadPacked { .. }
+        | SelectedInstructionKind::StorePacked { .. }
         | SelectedInstructionKind::Store { .. }
         | SelectedInstructionKind::AddressOffset { .. }
         | SelectedInstructionKind::Store64 { .. }
@@ -1398,6 +1404,8 @@ fn footprint(
         | SelectedInstructionKind::Load16 { .. }
         | SelectedInstructionKind::Load32 { .. }
         | SelectedInstructionKind::Load64 { .. }
+        | SelectedInstructionKind::LoadPacked { .. }
+        | SelectedInstructionKind::StorePacked { .. }
         | SelectedInstructionKind::Store { .. }
         | SelectedInstructionKind::AddressOffset { .. }
         | SelectedInstructionKind::Store64 { .. }

@@ -4,6 +4,7 @@ use optimization_core::AcceptedObligationFactIdentity;
 use register_model::{RegisterConstraintKey, RegisterUnitId};
 use semantic_vocabulary::{IntegerValue, MachineId, ObligationId};
 
+use super::PackedByteWidth;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedInstruction {
     pub id: SelectedInstructionId,
@@ -18,6 +19,14 @@ pub struct SelectedInstruction {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedInstructionKind {
+    LoadPacked {
+        byte_offset: u32,
+        width: PackedByteWidth,
+    },
+    StorePacked {
+        byte_offset: u32,
+        width: PackedByteWidth,
+    },
     /// Consume the low signed-i32 carrier and terminate through the selected host.
     HostedExitProcessI32,
     /// Closed hosted write(1, &low_byte(input), 1), continuing only after success.

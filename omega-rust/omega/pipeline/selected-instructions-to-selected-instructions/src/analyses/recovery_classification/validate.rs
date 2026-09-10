@@ -242,6 +242,7 @@ fn replay_classification(
         | VirtualRegisterOrigin::SpillAddress { .. }
         | VirtualRegisterOrigin::StructuralObservation { .. }
         | VirtualRegisterOrigin::ScalarAbiAddress { .. }
+        | VirtualRegisterOrigin::InstructionScratch { .. }
         | VirtualRegisterOrigin::AbiTransport { .. } => {
             return replay_no(NoAdmittedRecoveryReason::UnsupportedRangeShape);
         }

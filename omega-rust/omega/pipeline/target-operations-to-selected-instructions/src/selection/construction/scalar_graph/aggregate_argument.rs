@@ -90,39 +90,7 @@ pub(super) fn argument(
                 u32::from(*byte_size),
                 SelectedMemoryAccessRole::ReadPlace,
             )?;
-            let (kind, key) = match byte_size {
-                1 => (
-                    SelectedInstructionKind::Load8 {
-                        byte_offset: offset,
-                    },
-                    builder.constraints.keys.load8,
-                ),
-                2 => (
-                    SelectedInstructionKind::Load16 {
-                        byte_offset: offset,
-                    },
-                    builder.constraints.keys.load16,
-                ),
-                4 => (
-                    SelectedInstructionKind::Load32 {
-                        byte_offset: offset,
-                    },
-                    builder.constraints.keys.load32,
-                ),
-                8 => (
-                    SelectedInstructionKind::Load64 {
-                        byte_offset: offset,
-                    },
-                    builder.constraints.keys.load64,
-                ),
-                _ => return Err(invalid()),
-            };
-            builder.emit(
-                kind,
-                key.ok_or_else(invalid)?,
-                &[pointer, output],
-                Default::default(),
-            )?;
+            super::aggregate_memory::load(builder, pointer, output, offset, *byte_size)?;
         } else {
             let input = builder
                 .transport

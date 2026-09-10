@@ -30,6 +30,9 @@ mod tag_erasure;
 #[path = "scalar_array_results/floating.rs"]
 mod floating;
 
+#[path = "scalar_array_results/packed.rs"]
+mod packed;
+
 fn produce(
     source: &str,
     entry: &str,

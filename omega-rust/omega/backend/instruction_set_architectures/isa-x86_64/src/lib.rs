@@ -83,8 +83,9 @@ pub use register_model::{
     x86_64_preservation_convention_for_target, x86_64_register_constraint_catalog,
 };
 pub use register_model::{
-    x86_64_microsoft_aggregate_call_keys, x86_64_microsoft_aggregate_return_keys,
-    x86_64_microsoft_mixed_aggregate_call_keys, x86_64_system_v_mixed_aggregate_call_keys,
+    X86_64_LOAD_PACKED, X86_64_STORE_PACKED, x86_64_microsoft_aggregate_call_keys,
+    x86_64_microsoft_aggregate_return_keys, x86_64_microsoft_mixed_aggregate_call_keys,
+    x86_64_system_v_mixed_aggregate_call_keys,
 };
 pub use register_model::{
     x86_64_microsoft_register_unit_call_keys, x86_64_system_v_register_unit_call_keys,

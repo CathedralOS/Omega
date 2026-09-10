@@ -354,6 +354,7 @@ fn redensify(
             | VirtualRegisterOrigin::SpillAddress { instruction, .. }
             | VirtualRegisterOrigin::StructuralObservation { instruction, .. }
             | VirtualRegisterOrigin::ScalarAbiAddress { instruction, .. }
+            | VirtualRegisterOrigin::InstructionScratch { instruction, .. }
             | VirtualRegisterOrigin::AbiTransport { instruction, .. } => {
                 *instruction =
                     lower_instruction(function_index, *instruction, removed_instruction)?;

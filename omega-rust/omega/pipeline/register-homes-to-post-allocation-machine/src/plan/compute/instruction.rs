@@ -100,6 +100,24 @@ pub(super) fn build(
                     byte_offset,
                 })
             }
+            selected_instructions::SelectedInstructionKind::LoadPacked { byte_offset, width } => {
+                Some(
+                    physical_instructions::PhysicalAddressOperation::LoadPacked {
+                        base_operand: 0,
+                        byte_offset,
+                        width,
+                    },
+                )
+            }
+            selected_instructions::SelectedInstructionKind::StorePacked { byte_offset, width } => {
+                Some(
+                    physical_instructions::PhysicalAddressOperation::StorePacked {
+                        base_operand: 0,
+                        byte_offset,
+                        width,
+                    },
+                )
+            }
             selected_instructions::SelectedInstructionKind::Load8 { byte_offset } => {
                 Some(physical_instructions::PhysicalAddressOperation::Load8 {
                     base_operand: 0,

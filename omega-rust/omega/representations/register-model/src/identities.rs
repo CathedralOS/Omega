@@ -58,7 +58,7 @@ identity!(
 );
 identity!(
     TargetRegisterEnvironmentIdentity,
-    b"omega.target-register-environment-identity.v17\0"
+    b"omega.target-register-environment-identity.v18\0"
 );
 
 pub(super) fn physical_register_model_identity(
@@ -156,6 +156,8 @@ pub fn target_register_environment_identity(
     bytes.extend_from_slice(&reservations.identity().bytes());
     for key in [
         selected_keys.load64,
+        selected_keys.load_packed,
+        selected_keys.store_packed,
         selected_keys.load8,
         selected_keys.load16,
         selected_keys.load32,

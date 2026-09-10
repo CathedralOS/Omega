@@ -5,6 +5,7 @@ mod indexed;
 mod load32_tests;
 #[cfg(test)]
 mod narrow_load_tests;
+mod packed;
 #[cfg(test)]
 mod pointer_tests;
 
@@ -15,6 +16,12 @@ pub fn encode_x86_64_selected_memory_form(
     operands: &[RegisterViewId],
     displacement: u32,
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
+    if matches!(
+        kind,
+        SelectedInstructionKind::LoadPacked { .. } | SelectedInstructionKind::StorePacked { .. }
+    ) {
+        return packed::encode(physical, kind, alternative, operands, displacement);
+    }
     if kind == SelectedInstructionKind::Load8Indexed {
         return indexed::encode(physical, alternative, operands, displacement);
     }
@@ -63,6 +70,12 @@ pub fn validate_x86_64_selected_memory_form(
     displacement: u32,
     bytes: &[u8],
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
+    if matches!(
+        kind,
+        SelectedInstructionKind::LoadPacked { .. } | SelectedInstructionKind::StorePacked { .. }
+    ) {
+        return packed::validate(physical, kind, alternative, operands, displacement, bytes);
+    }
     if kind == SelectedInstructionKind::Load8Indexed {
         return indexed::validate(physical, alternative, operands, displacement, bytes);
     }

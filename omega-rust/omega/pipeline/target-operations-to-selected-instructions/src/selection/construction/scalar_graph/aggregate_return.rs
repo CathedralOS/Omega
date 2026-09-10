@@ -100,41 +100,7 @@ pub(super) fn build(
                 u32::from(*byte_size),
                 SelectedMemoryAccessRole::ReadPlace,
             )?;
-            let (load, constraint) = if *byte_size == 1 {
-                (
-                    SelectedInstructionKind::Load8 {
-                        byte_offset: offset,
-                    },
-                    builder.constraints.keys.load8,
-                )
-            } else if *byte_size == 2 {
-                (
-                    SelectedInstructionKind::Load16 {
-                        byte_offset: offset,
-                    },
-                    builder.constraints.keys.load16,
-                )
-            } else if *byte_size == 8 {
-                (
-                    SelectedInstructionKind::Load64 {
-                        byte_offset: offset,
-                    },
-                    builder.constraints.keys.load64,
-                )
-            } else {
-                (
-                    SelectedInstructionKind::Load32 {
-                        byte_offset: offset,
-                    },
-                    builder.constraints.keys.load32,
-                )
-            };
-            builder.emit(
-                load,
-                constraint.ok_or_else(invalid)?,
-                &[pointer, register],
-                Default::default(),
-            )?;
+            super::aggregate_memory::load(builder, pointer, register, offset, *byte_size)?;
             registers.push(register);
         }
     } else {

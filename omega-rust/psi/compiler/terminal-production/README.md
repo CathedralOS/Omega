@@ -311,10 +311,10 @@ The native array ABI transports integer aggregate fragments, not foreign C
 homogeneous-floating aggregates; scalar floating parameters retain their float-bank
 placement. The `scalar_array_results` regressions observe raw bits, including
 signed zero, subnormals, infinities, and NaN payloads, through owned-array calls.
-Calls combining scalar floating arguments with an array result still need native
-mixed-bank aggregate-call constraints. Direct float-input construction entries and
-owned-array-only forwarding already use the existing transport; their combined
-`selected` caller remains an explicit regression in `scalar_array_results/floating.rs`.
+Calls combining scalar floating arguments with an array result retain exact
+mixed-bank constraints and integer result fragments. The complete `selected`
+caller in `scalar_array_results/floating.rs` covers publication and native bits,
+not just its separate construction and owned-array forwarding entries.
 General slice-backed `.len` operands require retained view formation and bounds
 evidence; endpoint subtraction alone cannot justify eliminating the view operation.
 

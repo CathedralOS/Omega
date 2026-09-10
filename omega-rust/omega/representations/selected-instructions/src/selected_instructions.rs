@@ -18,6 +18,8 @@ pub mod control_flow;
 pub mod effects;
 pub mod identity;
 pub mod instructions;
+mod packed_byte_width;
+pub use packed_byte_width::PackedByteWidth;
 pub mod live_ranges;
 pub mod liveness;
 pub mod provenance;

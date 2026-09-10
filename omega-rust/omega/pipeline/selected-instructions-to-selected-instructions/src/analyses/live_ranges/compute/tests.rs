@@ -171,6 +171,70 @@ fn distinct_use_def_tie_has_exact_before_and_after_points() {
 }
 
 #[test]
+fn parallel_early_definitions_keep_use_hazards_and_dead_definition_interference() {
+    let mut selected =
+        crate::analyses::liveness::tests::supported_parallel_early_definitions_function();
+    selected.virtual_registers = (0..3)
+        .map(|ordinal| selected_instructions::VirtualRegister {
+            id: VirtualRegisterId(ordinal),
+            scalar_type: semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .unwrap(),
+            ),
+            class: RegisterClassId(0),
+            origin: if ordinal == 0 {
+                selected_instructions::VirtualRegisterOrigin::EntryParameter {
+                    source_value: semantic_vocabulary::ValueId::new(1).unwrap(),
+                    parameter_index: 0,
+                }
+            } else {
+                selected_instructions::VirtualRegisterOrigin::InstructionScratch {
+                    instruction: SelectedInstructionId(0),
+                    operand: ordinal as u16,
+                }
+            },
+            definition_site: None,
+            entry_fixed_view: None,
+        })
+        .collect();
+    let live = crate::analyses::liveness::compute::compute_function(0, &selected).unwrap();
+    let ranges = compute_function(0, &selected, &live).unwrap();
+    assert_eq!(ranges.early_clobbers.len(), 2);
+    for (ordinal, row) in ranges.early_clobbers.iter().enumerate() {
+        assert_eq!(
+            row.def_virtual_register,
+            VirtualRegisterId(ordinal as u32 + 1)
+        );
+        assert_eq!(row.early_point, LiveRangePoint(0));
+        assert_eq!(row.def_point, LiveRangePoint(1));
+        assert_eq!(row.uses.len(), 1);
+        assert_eq!(row.uses[0].virtual_register, VirtualRegisterId(0));
+        assert_eq!(row.uses[0].operand, 0);
+    }
+    assert!(
+        !live.blocks[0].instructions[0]
+            .virtual_live_out
+            .contains(&VirtualRegisterId(2))
+    );
+    assert_eq!(
+        ranges.virtual_registers[2].fragments,
+        vec![LiveRangeFragment {
+            block: SelectedBlockId(0),
+            start: LiveRangePoint(1),
+            end: LiveRangePoint(2),
+        }]
+    );
+    assert!(ranges.interference.contains(&crate::VirtualInterference {
+        lower: VirtualRegisterId(1),
+        higher: VirtualRegisterId(2)
+    }));
+    assert!(ranges.tied_pairs.is_empty());
+}
+
+#[test]
 fn early_clobber_retains_before_phase_without_extending_definition_liveness() {
     let live = FunctionLiveness {
         machine: MachineId::new(1).unwrap(),

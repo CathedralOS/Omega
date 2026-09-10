@@ -123,6 +123,8 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CallI64 { .. } => 13,
         SelectedInstructionKind::Jump => 14,
         SelectedInstructionKind::Load64 { .. } => 16,
+        SelectedInstructionKind::LoadPacked { .. } => 46,
+        SelectedInstructionKind::StorePacked { .. } => 47,
         SelectedInstructionKind::Load8 { .. } => 33,
         SelectedInstructionKind::Load16 { .. } => 34,
         SelectedInstructionKind::Load32 { .. } => 30,
@@ -136,6 +138,11 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CallUnit { .. } => 19,
     });
     match kind {
+        SelectedInstructionKind::LoadPacked { byte_offset, width }
+        | SelectedInstructionKind::StorePacked { byte_offset, width } => {
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            bytes.push(width.byte_size());
+        }
         SelectedInstructionKind::Store {
             byte_offset,
             byte_size,

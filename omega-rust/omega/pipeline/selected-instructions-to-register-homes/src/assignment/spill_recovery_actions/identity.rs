@@ -12,7 +12,7 @@ pub fn spill_recovery_action_identity(
     plan: &SpillRecoveryActionPlan,
 ) -> SpillRecoveryActionIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.spill-recovery-actions.v3\0");
+    bytes.extend_from_slice(b"omega.spill-recovery-actions.v4\0");
     bytes.extend_from_slice(&plan.selected.bytes());
     bytes.extend_from_slice(&plan.ranges.bytes());
     bytes.extend_from_slice(&plan.legality.bytes());
@@ -101,6 +101,14 @@ fn scalar(bytes: &mut Vec<u8>, value: ScalarType) {
 
 fn origin(bytes: &mut Vec<u8>, value: VirtualRegisterOrigin) {
     match value {
+        VirtualRegisterOrigin::InstructionScratch {
+            instruction,
+            operand,
+        } => {
+            bytes.push(9);
+            bytes.extend_from_slice(&instruction.0.to_le_bytes());
+            bytes.extend_from_slice(&operand.to_le_bytes());
+        }
         VirtualRegisterOrigin::StructuralObservation {
             instruction,
             place,

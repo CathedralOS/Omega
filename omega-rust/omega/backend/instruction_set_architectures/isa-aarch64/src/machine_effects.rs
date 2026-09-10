@@ -136,6 +136,8 @@ fn selected_keys(
         }
     };
     Ok(SelectedConstraintKeys {
+        load_packed: Some(crate::AARCH64_LOAD_PACKED),
+        store_packed: Some(crate::AARCH64_STORE_PACKED),
         hosted_read_byte: if target == NativeTarget::linux_arm64() {
             Some(crate::AARCH64_HOSTED_READ_BYTE)
         } else if target == NativeTarget::macos_arm64() {
@@ -228,11 +230,15 @@ fn declaration(
                 | MachineSemanticKind::Load32
                 | MachineSemanticKind::Load64
                 | MachineSemanticKind::Load8Indexed
-        ) {
+        ) || packed_load_width(semantic).is_some()
+        {
             MachineMemoryEffect::ReadPointerV1
         } else if semantic == MachineSemanticKind::Store64 {
             MachineMemoryEffect::WriteFrameStorageV1
-        } else if semantic == MachineSemanticKind::Store {
+        } else if matches!(
+            semantic,
+            MachineSemanticKind::Store | MachineSemanticKind::StorePacked
+        ) {
             MachineMemoryEffect::WritePointerV1
         } else {
             MachineMemoryEffect::NoneV1
@@ -246,6 +252,11 @@ fn declaration(
                 | MachineSemanticKind::Load8Indexed
                 | MachineSemanticKind::Store64
                 | MachineSemanticKind::Store
+                | MachineSemanticKind::LoadPacked3
+                | MachineSemanticKind::LoadPacked5
+                | MachineSemanticKind::LoadPacked6
+                | MachineSemanticKind::LoadPacked7
+                | MachineSemanticKind::StorePacked
         ) {
             MachineTrapBehavior::MayArchitecturalFaultV1
         } else {
@@ -295,6 +306,11 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
             .id
     };
     let (reads, writes) = match semantic {
+        MachineSemanticKind::LoadPacked3
+        | MachineSemanticKind::LoadPacked5
+        | MachineSemanticKind::LoadPacked6
+        | MachineSemanticKind::LoadPacked7 => (vec![0], vec![1, 2]),
+        MachineSemanticKind::StorePacked => (vec![0, 1], vec![2]),
         MachineSemanticKind::Load8Indexed => (vec![0, 1], vec![2]),
         MachineSemanticKind::CompareI64Zero => (vec![0], vec![]),
         MachineSemanticKind::CompareI64 => (vec![0, 1], vec![]),
@@ -395,6 +411,11 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::Load32
         | MachineSemanticKind::Load64
         | MachineSemanticKind::Load8Indexed
+        | MachineSemanticKind::LoadPacked3
+        | MachineSemanticKind::LoadPacked5
+        | MachineSemanticKind::LoadPacked6
+        | MachineSemanticKind::LoadPacked7
+        | MachineSemanticKind::StorePacked
         | MachineSemanticKind::Store => (
             vec![],
             vec![],
@@ -430,13 +451,18 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
                 | MachineSemanticKind::Load16
                 | MachineSemanticKind::Load32
                 | MachineSemanticKind::Load64
-        ) {
+        ) || packed_load_width(semantic).is_some()
+        {
             MachineEncodedMemoryEffect::ReadPointerV1 {
                 pointer_operand: 0,
                 byte_count: match semantic {
                     MachineSemanticKind::Load8 => 1,
                     MachineSemanticKind::Load16 => 2,
                     MachineSemanticKind::Load32 => 4,
+                    MachineSemanticKind::LoadPacked3 => 3,
+                    MachineSemanticKind::LoadPacked5 => 5,
+                    MachineSemanticKind::LoadPacked6 => 6,
+                    MachineSemanticKind::LoadPacked7 => 7,
                     _ => 8,
                 },
             }
@@ -451,7 +477,10 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
                 stack_pointer: view("sp"),
                 byte_count: 8,
             }
-        } else if semantic == MachineSemanticKind::Store {
+        } else if matches!(
+            semantic,
+            MachineSemanticKind::Store | MachineSemanticKind::StorePacked
+        ) {
             MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 }
         } else {
             MachineEncodedMemoryEffect::NoneV1
@@ -463,7 +492,14 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
 }
 
 const fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
+    if let Some(width) = packed_load_width(semantic) {
+        return MachineSizeKnowledge::ExactBytes((2 * width - 1) * 4);
+    }
     match semantic {
+        MachineSemanticKind::StorePacked => MachineSizeKnowledge::EncoderResolved {
+            minimum_bytes: 24,
+            maximum_bytes: Some(56),
+        },
         MachineSemanticKind::MaterializeI64 => MachineSizeKnowledge::EncoderResolved {
             minimum_bytes: 4,
             maximum_bytes: Some(16),
@@ -478,6 +514,16 @@ const fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
             panic!("scalar calls use their dedicated declaration")
         }
         _ => MachineSizeKnowledge::ExactBytes(4),
+    }
+}
+
+const fn packed_load_width(semantic: MachineSemanticKind) -> Option<u16> {
+    match semantic {
+        MachineSemanticKind::LoadPacked3 => Some(3),
+        MachineSemanticKind::LoadPacked5 => Some(5),
+        MachineSemanticKind::LoadPacked6 => Some(6),
+        MachineSemanticKind::LoadPacked7 => Some(7),
+        _ => None,
     }
 }
 

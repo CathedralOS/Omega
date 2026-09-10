@@ -109,6 +109,11 @@ pub(in crate::text_placement) fn prove_none(
                 | MachineAlternativeFamily::Load8
                 | MachineAlternativeFamily::Load16
                 | MachineAlternativeFamily::Load32
+                | MachineAlternativeFamily::LoadPacked3
+                | MachineAlternativeFamily::LoadPacked5
+                | MachineAlternativeFamily::LoadPacked6
+                | MachineAlternativeFamily::LoadPacked7
+                | MachineAlternativeFamily::StorePacked
                 | MachineAlternativeFamily::Store
                 | MachineAlternativeFamily::AddressOffset
                 | MachineAlternativeFamily::Store64

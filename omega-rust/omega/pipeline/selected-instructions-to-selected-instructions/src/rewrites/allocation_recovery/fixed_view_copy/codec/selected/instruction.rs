@@ -85,6 +85,8 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::Store { .. } => 24,
         SelectedInstructionKind::AddressOffset { .. } => 25,
         SelectedInstructionKind::Load64 { .. } => 16,
+        SelectedInstructionKind::LoadPacked { .. } => 46,
+        SelectedInstructionKind::StorePacked { .. } => 47,
         SelectedInstructionKind::Load8 { .. } => 33,
         SelectedInstructionKind::Load16 { .. } => 34,
         SelectedInstructionKind::Load32 { .. } => 30,
@@ -129,6 +131,11 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
     };
     bytes.push(tag);
     match kind {
+        SelectedInstructionKind::LoadPacked { byte_offset, width }
+        | SelectedInstructionKind::StorePacked { byte_offset, width } => {
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            bytes.push(width.byte_size());
+        }
         SelectedInstructionKind::Store {
             byte_offset,
             byte_size,
@@ -258,6 +265,17 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
             byte_offset: cursor.u32()?,
         },
         31 => SelectedInstructionKind::HostedExitProcessI32,
+        tag @ (46 | 47) => {
+            let byte_offset = cursor.u32()?;
+            let raw_width = cursor.byte()?;
+            let width = selected_instructions::PackedByteWidth::from_byte_size(raw_width)
+                .ok_or(FixedViewCopyDecodeError::InvalidPackedByteWidth(raw_width))?;
+            if tag == 46 {
+                SelectedInstructionKind::LoadPacked { byte_offset, width }
+            } else {
+                SelectedInstructionKind::StorePacked { byte_offset, width }
+            }
+        }
         33 => SelectedInstructionKind::Load8 {
             byte_offset: cursor.u32()?,
         },
