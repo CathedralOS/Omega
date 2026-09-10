@@ -265,9 +265,13 @@ or safe by default. Validation establishes facts about its exact observed
 subjects, not a universal provider promise. A post-call check cannot undo
 external effects or contain arbitrary provider corruption.
 
-The separate [assertion proposal](../../proposals/0002_assertions_and_build_diagnostics.md)
-compares optional author-invoked diagnostics. It approves no assertion API,
-source syntax, crash cause, build switch, or contract-widening mechanism.
+[Build-level behavior exclusions](../build/behavior_exclusions.md) let a selected
+composition establish absence of named crashes, services or physical authority
+classes despite conservative public allowances. Assertions remain ordinary
+checked code with eager arguments; no new assertion primitive or crash cause is
+introduced. A checking/no-op requirement cannot promise that normal return proves
+the condition. Exclusion evidence neither validates admitted assumptions nor
+introduces mandatory runtime checks, and does not narrow ordinary API contracts.
 
 Published proof evidence retains theorem identity, cited lemmas and premises,
 normalization licenses, derivation/checker version, and trust/deferral closure.

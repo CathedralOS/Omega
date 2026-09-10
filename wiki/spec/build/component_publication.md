@@ -145,6 +145,16 @@ reconstructible Omega semantic subject; it is not merely more capability reach.
 Source correspondence, semantic safety, and executable realization are separate
 edges. Producer identity or reproducibility substitutes for none of them.
 
+[Build-level behavior exclusions](behavior_exclusions.md) are additional exact
+composition properties, not narrowed public callable contracts. Their evidence
+binds complete entries and selected dependencies/realizations under the receiving
+policy. A broad contract alone cannot certify absence; stronger independently
+verified evidence may. Required exclusions enter the installation/replacement
+envelope and must hold for all admitted bindings and later entries. A replacement
+or rebinding that introduces excluded behavior rejects unless a new
+owner-authorized composition changes that requirement. Candidate code cannot
+remove restrictions or reuse a receipt from a weaker policy.
+
 Semantic compatibility and resource admission are separate. Candidates publish
 realized stack, work, and machine-state demand with evidence; runtime provision
 must cover the admitted candidate before publication. A fixed ceiling enters

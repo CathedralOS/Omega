@@ -122,6 +122,22 @@ the dependency rule below. Service union and suspension/blocking booleans remain
 separate; their operational acknowledgements still use the requirement envelope.
 Every known checked helper on the path propagates the corresponding obligations.
 
+### Selected-product exclusions
+
+[Build-level behavior exclusions](../build/behavior_exclusions.md) add an
+independent admission requirement over the complete selected product. Verified
+implementation evidence may establish that a composition cannot exhibit behavior
+permitted by its published callable ceilings. This does not shrink those ceilings,
+alter generic body checking, or make a broad callable satisfy a narrower requirement.
+Ordinary calls continue to use the contract and dependency rules above.
+
+A product-level absence claim must retain exact selections, complete entry/call
+coverage and independently checked evidence. Opaque or open calls retain their
+contract conservatively unless stronger applicable evidence exists. No optional
+optimization, provider choice alone, or caller permission can rewrite a public
+summary. An actual boundary invocation retains its abstract service identity even
+when a silent realization performs no physical I/O.
+
 ## Static callback reach dependencies
 
 A call through a nominal static machine binder contributes that binder's reach
@@ -171,8 +187,9 @@ envelope and, if it permits suspension, the restricted syntactic positions for
 all selections. Preconditions, postconditions, crashes, termination, and resource
 composition remain independently checked; no whole-contract forwarding exists.
 
-The language has no service subtraction, negation, masking, scoped allowance, or
-algebraic-effect handlers. A checked in-memory provider for `Readable` may remove
+Callable effect rows have no service subtraction, negation, masking, scoped
+allowance, or algebraic-effect handlers. Independent product exclusions do not
+add those operations. A checked in-memory provider for `Readable` may remove
 opaque trust expenditure but cannot erase the abstract service from callers.
 Ordinary traits and wrappers cannot hide reach, blocking, or suspension.
 Possessing authority cannot bypass a published ceiling, and listing a service
