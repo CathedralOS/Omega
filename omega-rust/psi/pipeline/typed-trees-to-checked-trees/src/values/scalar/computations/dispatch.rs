@@ -14,6 +14,16 @@ impl Builder<'_, '_> {
         if result_type != PrimitiveType::Bool && !is_integer(result_type) {
             return None;
         }
+        // Anonymous comparisons have exact compile-time meaning without a
+        // machine-width subject. Retain the selected arm's ordinary computation;
+        // source custody rederives this selection from the unchanged Match root.
+        if let Some(selected) =
+            validation::select_anonymous_numeric_match_arm(self.program, dispatch, |expression| {
+                operator_is_builtin(self.operators, expression)
+            })
+        {
+            return self.expression(selected, result_type);
+        }
         let subject = if let Some(subject_type) =
             validation::match_subject_primitive_type(self.program, dispatch)
         {

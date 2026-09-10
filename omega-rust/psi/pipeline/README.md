@@ -60,8 +60,12 @@ remain unresolved; declaration-local result subjects cannot become caller facts.
 `cargo run -p omega -- --check tests/omega/pass/expressions/declared_operator_match_result/main.omg`
 checks a wider declared operator result joined with an anonymous numeric arm.
 Its supplied checked realization does not yet make the nested operator a scalar
-computation call: Terminal production remains a separate unfinished dependency.
-Before such predicates may become result facts, each executing cast must prove
+computation call: nonboundary declaration-to-body supply is undetermined under
+[the direct-operator supply question](../../../OWNER_QUESTIONS.md#direct-operator-executable-supply).
+Satisfaction alone cannot choose a body; later scalar computation and source
+replay must retain the settled association.
+
+Before asserted predicates may become result facts, each executing cast must prove
 its asserted ranges from the live source environment. The arithmetic validator
 owns that obligation; the expression scanner supplies selected reachability for
 nested casts. Policy qualification cannot repair initial membership, and bounds
@@ -70,6 +74,14 @@ unbounded mathematical intermediate. Float membership uses same-format finite,
 non-NaN source and bound facts; unsupported membership remains a proof failure.
 Matching full-width suffixed integer leaves retain their own
 carrier through the same consumer-edge custody, including bitwise complement.
+
+`cargo run -p omega -- inspect-terminal --machine choose --target macos_arm64 tests/omega/pass/expressions/anonymous_numeric_match_subject/main.omg`
+exercises a Match whose subject and tested patterns are exact anonymous numbers.
+Checking and independent source replay rederive first-match selection with the
+existing exact-number evaluator. Only the chosen result becomes a computation;
+no fixed-width subject or runtime rational carrier is invented. Even a leading
+wildcard must not erase a call, typed value, or undefined subject. All-arm typing,
+coverage and result-destination checks remain separate from selective execution.
 
 [Lexing](source-files-to-tokens/src/lexer.rs) consumes loaded source records,
 preserving source identity and byte spans. Numeric metadata and decoded literal

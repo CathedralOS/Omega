@@ -120,6 +120,14 @@ type may publish one canonical direct wrapper for a token/operand shape; a
 second wrapper with that shape rejects. Direct operators need no conformance
 selection.
 
+The source mechanism binding a nonboundary direct operator to its executable
+checked body is **undetermined**; see
+[the direct-operator executable-supply question](../../../OWNER_QUESTIONS.md#direct-operator-executable-supply).
+Selecting the operator declaration and checking a machine's `satisfies`
+relationship do not by themselves specify that body choice. This uncertainty
+does not change boundary-provider or explicitly selected trait-conformance
+selection.
+
 ### Operator families
 
 A qualified declaration such as `Domain::operation` establishes its semantic

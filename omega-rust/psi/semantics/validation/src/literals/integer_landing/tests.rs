@@ -1,6 +1,8 @@
 use super::*;
 use typed_trees::expression::TableBinaryExpression;
 
+mod anonymous_dispatch;
+
 #[test]
 fn single_landing_preserves_fractional_warning_value_and_authored_span() {
     let mut program = TypedTrees::default();

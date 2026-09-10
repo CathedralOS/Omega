@@ -23,6 +23,7 @@ pub(crate) fn validate_computation_calls(
 ) -> Result<(), LoweringError> {
     let expressions = authored_expressions(checked, authored_root)?;
     validate_local_availability(checked, state, statement, &expressions)?;
+    let executable = expression_membership(checked, authored_root, true)?;
     let plans = &checked.facts.values.scalar_computations;
     let control = &checked.facts.flow.control;
     let mut states = control
@@ -56,6 +57,7 @@ pub(crate) fn validate_computation_calls(
         active.push(handle);
         pending.push((handle, true, authored_scope));
         let node = plans.nodes.get(handle);
+        let authored_scope = operand_scopes::folded_match_scope(checked, authored_scope)?;
         match &node.kind {
             CheckedScalarComputationKind::Dispatch {
                 source_expression,
@@ -99,9 +101,12 @@ pub(crate) fn validate_computation_calls(
                 when_true,
                 when_false,
             } => {
-                if !authored_expressions(checked, authored_scope)?.contains(source_expression) {
-                    return unsupported("computed selection escaped its authored operand scope");
-                }
+                dispatch::source_scope(
+                    checked,
+                    authored_scope,
+                    *source_expression,
+                    node.primitive_type,
+                )?;
                 let (condition_scope, selected_scope, evaluate_when) =
                     operand_scopes::selection(checked, *source_expression)?;
                 let (selected, skipped) = if evaluate_when {
@@ -127,9 +132,12 @@ pub(crate) fn validate_computation_calls(
                 operands,
                 ..
             } => {
-                if !authored_expressions(checked, authored_scope)?.contains(source_expression) {
-                    return unsupported("computed application escaped its authored operand scope");
-                }
+                dispatch::source_scope(
+                    checked,
+                    authored_scope,
+                    *source_expression,
+                    node.primitive_type,
+                )?;
                 let operands = plans
                     .operands
                     .span(*operands)
@@ -156,7 +164,13 @@ pub(crate) fn validate_computation_calls(
                     return unsupported("computed invocation has no live checked source call");
                 }
                 let source = control.calls.get(*source_call);
-                let scoped_expressions = authored_expressions(checked, authored_scope)?;
+                dispatch::source_scope(
+                    checked,
+                    authored_scope,
+                    source.authored_expression,
+                    node.primitive_type,
+                )?;
+                let scoped_expressions = expression_membership(checked, authored_scope, true)?;
                 let matching = source_calls
                     .iter()
                     .filter(|candidate| {
@@ -167,7 +181,7 @@ pub(crate) fn validate_computation_calls(
                 if matching.len() != 1
                     || !std::ptr::eq(matching[0], source)
                     || source.target_symbol != *target_state
-                    || !expressions.contains(&source.authored_expression)
+                    || !executable.contains(&source.authored_expression)
                     || !scoped_expressions.contains(&source.authored_expression)
                     || calls.contains(&source.authored_expression)
                 {
@@ -215,7 +229,7 @@ pub(crate) fn validate_computation_calls(
     }
     if source_calls.iter().any(|source| {
         source.statement_index == statement as usize
-            && expressions.contains(&source.authored_expression)
+            && executable.contains(&source.authored_expression)
             && !calls.contains(&source.authored_expression)
     }) {
         return unsupported("computed invocation omitted an authored source call");
@@ -272,6 +286,16 @@ fn authored_expressions(
     checked: &CheckedTrees,
     root: ExpressionHandle,
 ) -> Result<Vec<ExpressionHandle>, LoweringError> {
+    expression_membership(checked, root, false)
+}
+
+// Availability still uses the complete authored tree. Only call coverage and
+// executable operand custody exclude independently proved dead Match arms.
+fn expression_membership(
+    checked: &CheckedTrees,
+    root: ExpressionHandle,
+    executable_only: bool,
+) -> Result<Vec<ExpressionHandle>, LoweringError> {
     let table = &checked.expression_table;
     let mut expressions = Vec::new();
     let mut active = Vec::new();
@@ -306,6 +330,13 @@ fn authored_expressions(
             }
             ExpressionNode::Binary(binary) => children.extend([binary.left, binary.right]),
             ExpressionNode::Match(dispatch) => {
+                if executable_only
+                    && let Some(selected) =
+                        operand_scopes::anonymous_match_value(checked, expression)
+                {
+                    pending.push((selected, false));
+                    continue;
+                }
                 children.push(dispatch.subject);
                 let arms = table.match_arms(dispatch.arms);
                 if arms.len() != dispatch.arms.len() {

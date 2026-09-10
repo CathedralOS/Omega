@@ -1058,7 +1058,7 @@ Owners include
   [value-dispatch contract](wiki/spec/language/patterns.md) on the retained
   source and scalar computation route. Remaining work: ownership-bearing result
   and conditional-transfer joins, nonnumeric Terminal results, structural/case/
-  domain patterns and their coverage, anonymous-only numeric subject execution,
+  domain patterns and their coverage,
   semantic-domain and selected-operator result-type retention (shared with
   `STATE-LOCAL-VALUE-FRONTIER` numeric landing), and canonical
   package-review contract/index projection where dispatch is currently rejected.
@@ -1089,18 +1089,24 @@ Owners include
   result facts. Unknown lookup must not stand in for anonymous numeric meaning.
   The concrete operator-result customer is
   `tests/omega/pass/expressions/declared_operator_match_result/main.omg`.
-  Its checked `u8::sum` realization returns `u64`, but nested selected operator
-  execution still needs the ordinary scalar computation call path in
+  Direct nonboundary operator execution is **OWNER-BLOCKED** on
+  [Q6: executable supply](OWNER_QUESTIONS.md#direct-operator-executable-supply).
+  Its checked `u8::sum` satisfier returns `u64`, but satisfaction does not select
+  that body for the operator use. The missing source binding rule must be settled
+  before connecting nested execution to the ordinary scalar computation call path in
   `typed-trees-to-checked-trees/src/values/scalar/computations.rs` and its
   `computations/integers.rs` operand owner, with source-custody replay in
   `checked-trees-to-lowered-psi/src/scalar_source_custody`.
-  On macOS AArch64, `ab0b7c8ad1` plus the selected-result repair passes CLI
+  On macOS AArch64, `9f112f359d` passes CLI source
   checking; `cargo run -p omega -- inspect-terminal --machine choose --target
   macos_arm64 tests/omega/pass/expressions/declared_operator_match_result/main.omg`
   rejects with `scalar computation needs one checked expression and one source binding`.
   Keep the declared result, complete operand order, exact selected application,
-  and branch-local call obligations; do not replace the operator with builtin
-  addition or a synthesized source state. Next acceptance is independent
+  and branch-local call obligations; do not infer a unique satisfier, fabricate
+  boundary-provider selection, replace the operator with builtin addition, or
+  synthesize a source state. This blocks only direct-operator execution, not
+  result-type retention or independent Match work. After the supply decision,
+  next acceptance is independent
   Terminal replay of `choose(true, 250u8, 10u8) = 260u64` and the false arm = 1.
 
 - **MODULE-NAMESPACE-RESOLUTION.** Finish the

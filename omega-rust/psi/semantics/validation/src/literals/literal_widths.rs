@@ -72,6 +72,33 @@ pub(crate) fn validate_literal_widths(program: &TypedTrees, diagnostics: &mut Ve
         }
         visited.push(handle);
         let node = program.expression_table.expression(handle);
+        if let ExpressionNode::Match(dispatch) = node
+            && super::select_anonymous_numeric_match_arm(program, dispatch, |expression| {
+                super::has_anonymous_operator_meaning(program, expression)
+            })
+            .is_some()
+        {
+            // These comparison inputs are consumed as exact anonymous values,
+            // not emitted as fixed-width operands. Do not globally bless their
+            // handles: another occurrence can still need a runtime carrier.
+            // Every result keeps its own destination checks, including dead
+            // arms; typed or unevaluable patterns retain the ordinary gate.
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                pending.push(arm.value);
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern
+                    && super::evaluate_anonymous_numeric_equality(
+                        program,
+                        dispatch.subject,
+                        pattern,
+                        |expression| super::has_anonymous_operator_meaning(program, expression),
+                    )
+                    .is_none()
+                {
+                    pending.push(pattern);
+                }
+            }
+            continue;
+        }
         super::expression_children::children(program, node, |child| pending.push(child));
         if let ExpressionNode::Integer(literal) = node
             && literal.value_i64().is_none()

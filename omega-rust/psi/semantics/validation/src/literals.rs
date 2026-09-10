@@ -91,6 +91,7 @@ pub(crate) use integer_landing::{
 pub use integer_landing::{
     evaluate_anonymous_numeric_comparison, has_anonymous_operator_meaning,
     land_anonymous_integer_expression, land_anonymous_integer_expression_with_warning,
+    select_anonymous_numeric_match_arm,
 };
 pub(crate) use integer_remainder::validate_anonymous_remainders;
 
