@@ -1171,10 +1171,7 @@ Owners include
   scalar-only contract lowering while extending that route.
   Borrowed/projected payloads, state transfers, and boundary-provider array
   results also remain unsupported. Native lowering rejects `EstablishScalarArray`,
-  including empty payloads. Before native array transport is admitted, update
-  `omega-rust/omega/semantics/optimization-unit-semantics/src/current_ownership/replay.rs`:
-  its abstract structural-call result replay still inserts unrestricted payloads
-  into the ownership frontier and needs the same availability/custody distinction.
+  including empty payloads.
   Continue with complete value/storage paths and
   independent custody checks; do not
   substitute opaque structural identities for executable values.

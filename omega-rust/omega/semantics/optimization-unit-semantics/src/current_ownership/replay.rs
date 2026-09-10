@@ -388,7 +388,14 @@ pub(super) fn validate_current_ownership_cfg(
                             },
                         );
                     }
-                    if frontier.owned_places.remove(source).is_none() {
+                    // Structural-root validation has already matched the
+                    // available source to this exact result contract. Returning
+                    // a copyable value removes no disposal obligation, but its
+                    // returned claims still require the exact replay below.
+                    let unrestricted_result = function.result.structural().is_some_and(|result| {
+                        result.multiplicity == StructuralMultiplicity::Unrestricted
+                    });
+                    if !unrestricted_result && frontier.owned_places.remove(source).is_none() {
                         return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
                             machine: function.machine,
                             block: block_id,

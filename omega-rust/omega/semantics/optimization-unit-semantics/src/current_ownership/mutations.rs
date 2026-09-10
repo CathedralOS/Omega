@@ -8,6 +8,12 @@ pub(super) fn insert_owned_result(
     place: PlaceId,
     multiplicity: StructuralMultiplicity,
 ) -> Result<(), OptimizationUnitValidationError> {
+    // Copyable payloads do not add disposal obligations. Their producer and
+    // availability were checked before replay; result claims are replayed by
+    // the caller independently of this owned-place insertion.
+    if multiplicity == StructuralMultiplicity::Unrestricted {
+        return Ok(());
+    }
     if frontier.owned_places.insert(place, multiplicity).is_some() {
         return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
             machine: function.machine,

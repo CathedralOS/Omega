@@ -3,6 +3,12 @@
 //! Entry reconstruction, CFG replay, frontier mutation, cleanup validation,
 //! structural placement, and partial-affine residual accounting descend into
 //! named leaves. This entrance owns the reconstruction-to-replay join.
+//!
+//! This frontier tracks disposal obligations, not every available value.
+//! Function validation first checks structural producer dominance and exact
+//! source/result contracts, so unrestricted roots need no owned-place entry.
+//! Claims remain independent obligations even when their root is unrestricted;
+//! omitting a root must not bypass claim replay or weaken CFG joins.
 
 use std::collections::{BTreeMap, BTreeSet};
 
