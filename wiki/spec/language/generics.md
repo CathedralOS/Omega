@@ -357,7 +357,10 @@ Generic code proves declared preconditions and may use declared guarantees.
 Calls through a requirement retain its complete
 [substitution contract](machines.md#substitution), including reach, independent
 suspension/blocking possibilities, crashes, progress, and context-visible
-resources. Selected implementations must refine that contract. Ordinary call
+resources. Selected implementations must refine that contract. Reach through a
+nominal static callable uses the published
+[reach dependency](effects.md#static-callback-reach-dependencies), specialized
+from the selected public contract within the requirement's bound. Ordinary call
 acknowledgements follow the abstract envelope, not incidental stronger behavior.
 
 A required member operation belongs to a named trait and is supplied through an
@@ -389,7 +392,10 @@ call that machine directly without introducing a generic abstraction.
 
 The nominal form inherits the exact requirement's complete shape, conditions,
 operational ceilings, and any boundary calling/entry plan; it does not repeat
-the signature. Declaration selection obeys ordinary visibility and direct-
+the signature. Calling it contributes a reach dependency automatically; the
+consumer authors neither a forwarding clause nor a second reach bound.
+Suspension/blocking remain fixed by the requirement, not the selection's narrower
+behavior. Declaration selection obeys ordinary visibility and direct-
 dependency rules, including nested contracts. A signature-free requirement
 path must identify one overload independently of its satisfiers.
 

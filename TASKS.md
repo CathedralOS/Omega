@@ -107,6 +107,29 @@ do not claim a faster compiler from a smaller helper alone.
 
 Optimizer revision/analysis reuse is tracked only in `TASKS_OPTIMIZER.md`.
 
+## Automatic service reach
+
+Implement [reach propagation and static callback dependencies](wiki/spec/language/effects.md#static-callback-reach-dependencies)
+in Psi contract checking, call-component normalization, specialization, exported
+contract identity, and Terminal evidence/replay. Direct boundary calls require
+authored service declarations; ordinary wrappers, including exports, propagate
+reach without repeated annotations. Nominal callback calls retain bounded union
+dependencies and specialize from selected public contracts. Replace the old
+export-omission-is-empty and generic-always-uses-fixed-reach rules, not the
+independent suspension/blocking checks. No forwarding syntax, closure machinery,
+reach-prohibition syntax, or backend effect inference.
+
+Acceptance: the same named traversal with no-reach and Console callbacks publishes
+empty and Console rows to ordinary callers and evaluation admission respectively;
+the former evaluates when its other obligations hold. Missing direct boundary
+declarations and selections exceeding requirement bounds reject. Cover nested
+generic/private helpers, recursive call components, opaque/dynamic conservatism,
+and unchanged summaries after call reordering/helper extraction. Adding Console
+in a private helper or selected contract changes interface identity and invalidates
+stale evidence; a no-reach requirement/evaluation context rejects it. Transitive
+reach cannot be hidden by omission or a memberless clause. Fixed operational
+markers and suspending-call positions remain enforced for every selection.
+
 ## Semantic reflection
 
 Implement [semantic reflection](wiki/spec/language/reflection.md) in Psi schema
@@ -117,8 +140,8 @@ format-specific compiler. Anonymous syntax is not an implementation dependency.
 First deliver owned qualified schema graphs, authorized projections, and scoped
 typed selections frozen into independently checked result snapshots. Continue
 with recursive derivation, explicit runtime metadata/adapters, and authorized
-Placed access under the same contract. Fixed callback ceilings do not depend on
-the separate callback-forwarding owner question.
+Placed access under the same contract. Fixed callbacks can proceed independently;
+selection-dependent evaluation reach uses the Automatic service reach task above.
 
 Acceptance: one inspector and one serializer use the same visitation mechanism;
 a 40-field record with five field types uses five reusable policy rules plus

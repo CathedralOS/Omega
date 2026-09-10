@@ -8,14 +8,14 @@ Keep five questions separate:
 
 | Question | Where the answer lives |
 | --- | --- |
-| Which services may this code reach? | The `reaches` ceiling. |
+| Which services may this code reach? | Direct `reaches` declarations and the published transitive summary. |
 | May it park, block a worker, or crash? | Independent operational clauses. |
 | What authority was it given? | Values with established qualifications and provenance. |
 | Why trust the implementation? | Checked evidence or explicit provider admissions. |
 | What resources and mechanism does it use? | Selected plans, resource contracts, and receiving policy. |
 
 An empty service row does not prove termination or absence of mutation. A
-capability does not override a reach ceiling. Selecting a provider does not
+capability does not override a requirement's reach ceiling. Selecting a provider does not
 establish a runtime claim. The [effect specification](../spec/language/effects.md)
 defines these distinctions precisely.
 
@@ -184,7 +184,10 @@ for service carriers, duplication, era pins, and replacement.
 
 ## Service Reach And Operational Clauses
 
-`reaches` is a `+`-separated ceiling of boundary services. Parking, worker
+`reaches` declares a `+`-separated set of boundary services. Direct boundary
+calls require the declaration; ordinary calls propagate reach without repeating
+it. Bodyless requirements declare the ceiling their implementations must fit.
+Parking, worker
 blocking, and crashes use independent clauses; `terminates` is a positive
 progress guarantee, not another may-effect.
 
@@ -208,11 +211,69 @@ Services are exact boundary-trait identities, not a built-in numeric list or
 names recognized by spelling. Inheritance adds parent services and `+` means
 set union, never a choice between target providers.
 
-Private checked bodies may omit clauses to request inference. Published surfaces
-keep stable ceilings: omitted reach is empty, omitted suspension and blocking
-forbid those possibilities, and omitted crash causes are forbidden. An explicitly
-empty private `reaches` clause is a ceiling, not inference. Implementations may
-refine requirements but cannot widen them after callers have compiled.
+Checked bodies publish the reach contributed by their declarations and calls,
+including when exported. For example, with a Console binding in entry state:
+
+```omega
+data App {
+    console: Console;
+}
+
+machine App::greet(&mut self)
+reaches Console;
+{
+    self.console.write_line("Hello");
+}
+
+machine App::start(&mut self) {
+    self.greet();
+}
+```
+
+`greet` must declare Console because it calls the boundary directly. `start`
+automatically publishes Console reach through `greet`. Provider selection and
+any required runtime authority remain separate obligations. This example uses
+an instance binding, not a requirement that every service be a runtime object.
+The same reach rule applies to receiver-free static boundary calls; provider
+selection is not creation of a global mutable Console object.
+
+The same propagation works through a named static callback:
+
+```omega
+trait Visitor<Context> {
+    machine visit(context: &mut Context, value: u32)
+    reaches Console;
+}
+
+machine visit_pair<Context, Step>(
+    context: &mut Context, first: u32, second: u32
+)
+where machine Step satisfies Visitor<Context>::visit;
+{
+    Step(context, first);
+    Step(context, second);
+}
+```
+
+The requirement permits at most Console reach. A selected no-reach callback
+leaves this traversal's reach empty; a Console-reaching callback contributes
+Console. There is no `reaches Step.reaches` declaration. The compiler derives a
+normalized dependency summary and substitutes selected public contracts into it.
+Call order and private-helper extraction preserving net reach preserve that
+summary. Adding logging inside a private helper can change the exported
+interface; callers and retained evidence are revalidated against the new row.
+This does not automatically require a package-version bump or break every caller.
+
+Reach omission on a checked body is not a no-effects promise. A memberless
+clause is not one either: it cannot suppress transitive reach. Forbidding effects
+is a separate design, not a second meaning of this declaration.
+
+Suspension/blocking do not vary with the selected callback's narrower behavior.
+Published omissions forbid those possibilities; private bodies may infer them.
+Omitted published crash causes remain forbidden. Calls through a requirement
+retain its operational envelope and exact acknowledgements for every selection.
+Implementations must satisfy requirements, and interface changes cannot bypass
+downstream checking. See [static callback reach](../spec/language/effects.md#static-callback-reach-dependencies).
 
 A checked in-memory `Readable` provider may avoid opaque trust and blocking;
 it does not erase the abstract `Readable` reach. An empty service row says nothing
