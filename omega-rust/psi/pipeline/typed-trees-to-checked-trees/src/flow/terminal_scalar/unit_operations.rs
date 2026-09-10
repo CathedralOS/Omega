@@ -45,7 +45,7 @@ pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
                                 call.statement_index == ordinal && call.call_ordinal == 0
                             });
                             let call = exact.next()?;
-                            if exact.next().is_some() {
+                            if exact.next().is_some() || call.has_receiver {
                                 return None;
                             }
                             let operation =
@@ -67,7 +67,11 @@ pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
                                 CheckedUnitEffectOperationPlan::CallUnit {
                                     claim_transfers,
                                     ..
-                                } if claim_transfers.is_empty() => Some(operation),
+                                } if claim_transfers.is_empty()
+                                    && eligible(program, facts, &operation) =>
+                                {
+                                    Some(operation)
+                                }
                                 _ => None,
                             }
                         })
@@ -90,4 +94,72 @@ pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
             }
             true
         });
+}
+
+// The scalar emitter has no contract-substitution or service machinery. Keep
+// those semantic operations with the ordinary Unit body owner, before graph
+// selection becomes authoritative. The receiver independently checks custody.
+fn eligible(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    operation: &CheckedUnitEffectOperationPlan,
+) -> bool {
+    use checked_trees::CheckedUnitStructuralArgumentSourcePlan as Source;
+    use typed_trees::types::TypeReferenceNode;
+    let CheckedUnitEffectOperationPlan::CallUnit {
+        target_machine,
+        target_state,
+        service_reach,
+        structural_arguments,
+        ..
+    } = operation
+    else {
+        return false;
+    };
+    let Some(state) = crate::find_state(program, *target_state) else {
+        return false;
+    };
+    let Some(contract) = facts.contract_plans.for_machine(*target_machine) else {
+        return false;
+    };
+    let plain_primitive = |reference| {
+        matches!(
+            program.type_reference_table.type_reference(reference),
+            TypeReferenceNode::Named { .. }
+        ) && program.primitive_type_reference(reference).is_some()
+    };
+    program.state_contracts(state).is_empty()
+        && contract.closed_scalar_values.requires().is_empty()
+        && contract.closed_scalar_values.ensures().is_empty()
+        && contract.crash.published().is_empty()
+        && contract
+            .crash
+            .structural_runtime_requirements()
+            .is_none_or(|requirements| requirements.is_empty())
+        && facts
+            .service_reaches
+            .rows
+            .services(service_reach.direct)
+            .is_empty()
+        && facts
+            .service_reaches
+            .rows
+            .services(service_reach.transitive)
+            .is_empty()
+        && program.state_parameters(state).iter().all(|parameter| {
+            !parameter.is_self
+                && !parameter.is_const
+                && (plain_primitive(parameter.type_reference)
+                    || matches!(
+                        program.type_reference_table.type_reference(parameter.type_reference),
+                        TypeReferenceNode::Reference { referee, .. } if plain_primitive(*referee)
+                    ))
+        })
+        && structural_arguments.iter().all(|argument| {
+            argument.path.is_empty()
+                && matches!(
+                    argument.source,
+                    Source::Parameter { .. } | Source::PrimitiveLocal { .. }
+                )
+        })
 }
