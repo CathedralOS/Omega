@@ -397,14 +397,14 @@ fn cross_linux_value_syscalls_compile_on_both_architectures() {
         .expect("read Linux target filesystem policy");
         if target == "linux_arm64" {
             assert!(
-                target_source.contains("self.entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::IntegerAt { offset: 20, stored_width: 32")
-                    && target_source.contains("self.entries[13] = FieldEntry { key: schema.fields[13].key, placement: FieldPlan::IntegerAt { offset: 56, stored_width: 32"),
+                target_source.contains("entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::IntegerAt { offset: 20, stored_width: 32")
+                    && target_source.contains("entries[13] = FieldEntry { key: schema.fields[13].key, placement: FieldPlan::IntegerAt { offset: 56, stored_width: 32"),
                 "Linux AArch64 stat must retain its 32-bit nlink and blksize encodings"
             );
         } else {
             assert!(
-                target_source.contains("self.entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::At { offset: 16 }")
-                    && target_source.contains("self.entries[13] = FieldEntry { key: schema.fields[13].key, placement: FieldPlan::At { offset: 56 }"),
+                target_source.contains("entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::At { offset: 16 }")
+                    && target_source.contains("entries[13] = FieldEntry { key: schema.fields[13].key, placement: FieldPlan::At { offset: 56 }"),
                 "Linux x86-64 stat must retain its 64-bit nlink and blksize encodings"
             );
         }

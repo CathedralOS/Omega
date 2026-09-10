@@ -368,7 +368,7 @@ fn acceptance_views_publish_exact_state_owned_borrow_compatibility_certificates(
 #[test]
 fn acceptance_views_publish_exact_statement_owned_qualification_correspondences() {
     let source = r#"
-        data Quantity { value: i32; }
+        data Quantity [copy] { value: i32; }
 
         domain Quantity::Additive;
 
@@ -570,7 +570,7 @@ fn acceptance_views_publish_exact_statement_owned_qualification_correspondences(
 #[test]
 fn source_lowering_retains_prior_state_local_qualification_transfer_endpoints() {
     let source = r#"
-        data Quantity { value: i32; }
+        data Quantity [copy] { value: i32; }
 
         domain Quantity::Additive;
 
@@ -578,7 +578,7 @@ fn source_lowering_retains_prior_state_local_qualification_transfer_endpoints() 
         ensures
             value in Quantity::Additive;
 
-        data Pair {
+        data Pair [copy] {
             source: Quantity;
             destination: Quantity;
         }

@@ -172,28 +172,29 @@ data UartLayout {
 }
 
 machine UartLayout::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut owned_entries: [FieldEntry; 64];
+    owned_entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 0 }
     };
-    self.entries[1] = FieldEntry {
+    owned_entries[1] = FieldEntry {
         key: schema.fields[1].key,
         placement: FieldPlan::At { offset: 4 }
     };
-    self.entries[2] = FieldEntry {
+    owned_entries[2] = FieldEntry {
         key: schema.fields[2].key,
         placement: FieldPlan::At { offset: 6 }
     };
-    self.entries[3] = FieldEntry {
+    owned_entries[3] = FieldEntry {
         key: schema.fields[3].key,
         placement: FieldPlan::At { offset: 8 }
     };
-    self.entries[4] = FieldEntry {
+    owned_entries[4] = FieldEntry {
         key: schema.fields[4].key,
         placement: FieldPlan::At { offset: 16 }
     };
     Plan {
-        entries: self.entries,
+        entries: owned_entries,
         entry_count: 5,
         size_fixed: 24,
         size_is_dynamic: false,
@@ -281,38 +282,39 @@ satisfies Access::plan
 }
 
 pub data UartPlacement {
-    layout_entries: [FieldEntry; 64];
     services: [u64; 32];
 }
 
 machine UartPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
-    self.layout_entries[0] = FieldEntry {
+    let mut layout_entries: [FieldEntry; 64];
+    layout_entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 0 }
     };
-    self.layout_entries[1] = FieldEntry {
+    layout_entries[1] = FieldEntry {
         key: schema.fields[1].key,
         placement: FieldPlan::At { offset: 4 }
     };
-    self.layout_entries[2] = FieldEntry {
+    layout_entries[2] = FieldEntry {
         key: schema.fields[2].key,
         placement: FieldPlan::At { offset: 6 }
     };
-    self.layout_entries[3] = FieldEntry {
+    layout_entries[3] = FieldEntry {
         key: schema.fields[3].key,
         placement: FieldPlan::At { offset: 8 }
     };
-    self.layout_entries[4] = FieldEntry {
+    layout_entries[4] = FieldEntry {
         key: schema.fields[4].key,
         placement: FieldPlan::At { offset: 16 }
     };
     let access: AccessPlan = AccessPlan::inaccessible(schema);
-    transition { _ -> place_status(schema, access) }
+    transition { _ -> place_status(schema, access, layout_entries) }
 
     state place_status(
         &mut self,
         schema: Schema,
-        access: AccessPlan
+        access: AccessPlan,
+        layout_entries: [FieldEntry; 64]
     ) -> PlacementPlan {
         transition { _ -> place_transmit(
             schema,
@@ -323,14 +325,16 @@ machine UartPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
                     write: false,
                     exposure: Exposure::Exported
                 }
-            )
+            ),
+            layout_entries
         ) }
     }
 
     state place_transmit(
         &mut self,
         schema: Schema,
-        access: AccessPlan
+        access: AccessPlan,
+        layout_entries: [FieldEntry; 64]
     ) -> PlacementPlan {
         transition { _ -> place_snapshot(
             schema,
@@ -341,14 +345,16 @@ machine UartPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
                     write: true,
                     exposure: Exposure::Exported
                 }
-            )
+            ),
+            layout_entries
         ) }
     }
 
     state place_snapshot(
         &mut self,
         schema: Schema,
-        access: AccessPlan
+        access: AccessPlan,
+        layout_entries: [FieldEntry; 64]
     ) -> PlacementPlan {
         transition { _ -> place_counter(
             schema,
@@ -359,14 +365,16 @@ machine UartPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
                     write: true,
                     exposure: Exposure::BindingPrivate
                 }
-            )
+            ),
+            layout_entries
         ) }
     }
 
     state place_counter(
         &mut self,
         schema: Schema,
-        access: AccessPlan
+        access: AccessPlan,
+        layout_entries: [FieldEntry; 64]
     ) -> PlacementPlan {
         transition { _ -> finish(
             access.with(
@@ -388,15 +396,16 @@ machine UartPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
                     },
                     exposure: Exposure::Exported
                 }
-            )
+            ),
+            layout_entries
         ) }
     }
 
-    state finish(&mut self, access: AccessPlan) -> PlacementPlan {
+    state finish(&mut self, access: AccessPlan, layout_entries: [FieldEntry; 64]) -> PlacementPlan {
     self.services[0] = 19;
     PlacementPlan {
         layout: Plan {
-            entries: self.layout_entries,
+            entries: layout_entries,
             entry_count: 5,
             size_fixed: 24,
             size_is_dynamic: false,
@@ -449,15 +458,16 @@ fn corpus_inaccessible_seed_exposes_only_the_selected_field() {
             r#"
 data PairLayout { entries: [FieldEntry; 64]; }
 machine PairLayout::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut owned_entries: [FieldEntry; 64];
+    owned_entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 0 },
     };
-    self.entries[1] = FieldEntry {
+    owned_entries[1] = FieldEntry {
         key: schema.fields[1].key,
         placement: FieldPlan::At { offset: 4 },
     };
-    Plan { entries: self.entries, entry_count: 2,
+    Plan { entries: owned_entries, entry_count: 2,
            size_fixed: 8, size_is_dynamic: false, align: 4 }
 }
 "#
@@ -583,11 +593,12 @@ use omega::language::core::layout;
 
 data RetainedLayout { entries: [FieldEntry; 64]; }
 machine RetainedLayout::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut owned_entries: [FieldEntry; 64];
+    owned_entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 0 },
     };
-    Plan { entries: self.entries, entry_count: 1,
+    Plan { entries: owned_entries, entry_count: 1,
            size_fixed: 4, size_is_dynamic: false, align: 4 }
 }
 
@@ -2112,14 +2123,15 @@ pub data AtomicPlacement {
 }
 
 machine AtomicPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
+    let mut owned_entries: [FieldEntry; 64];
     let access: AccessPlan = AccessPlan::inaccessible(schema);
-    self.entries[0] = FieldEntry {
+    owned_entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 0 }
     };
     PlacementPlan {
         layout: Plan {
-            entries: self.entries,
+            entries: owned_entries,
             entry_count: 1,
             size_fixed: 8,
             size_is_dynamic: false,
@@ -2747,11 +2759,12 @@ use omega::language::core::layout;
 data Samples { values: [u16; 3]; }
 data ArrayLayout { entries: [FieldEntry; 64]; }
 machine ArrayLayout::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut owned_entries: [FieldEntry; 64];
+    owned_entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 0 },
     };
-    Plan { entries: self.entries, entry_count: 1,
+    Plan { entries: owned_entries, entry_count: 1,
            size_fixed: 6, size_is_dynamic: false, align: 2 }
 }
 
@@ -2852,14 +2865,15 @@ pub data HomePlacement {
 }
 
 machine HomePlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
+    let mut owned_entries: [FieldEntry; 64];
     let access: AccessPlan = AccessPlan::inaccessible(schema);
-    self.entries[0] = FieldEntry {
+    owned_entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 0 }
     };
     PlacementPlan {
         layout: Plan {
-            entries: self.entries,
+            entries: owned_entries,
             entry_count: 1,
             size_fixed: 8,
             size_is_dynamic: false,
@@ -2886,14 +2900,15 @@ pub data ShiftedPlacement {
 }
 
 machine ShiftedPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
+    let mut owned_entries: [FieldEntry; 64];
     let access: AccessPlan = AccessPlan::inaccessible(schema);
-    self.entries[0] = FieldEntry {
+    owned_entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 4 }
     };
     PlacementPlan {
         layout: Plan {
-            entries: self.entries,
+            entries: owned_entries,
             entry_count: 1,
             size_fixed: 8,
             size_is_dynamic: false,
@@ -3094,14 +3109,15 @@ pub data HomePlacement {
 }
 
 machine HomePlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
+    let mut owned_entries: [FieldEntry; 64];
     let access: AccessPlan = AccessPlan::inaccessible(schema);
-    self.entries[0] = FieldEntry {
+    owned_entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 0 }
     };
     PlacementPlan {
         layout: Plan {
-            entries: self.entries,
+            entries: owned_entries,
             entry_count: 1,
             size_fixed: 8,
             size_is_dynamic: false,
@@ -3128,14 +3144,15 @@ pub data ShiftedPlacement {
 }
 
 machine ShiftedPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
+    let mut owned_entries: [FieldEntry; 64];
     let access: AccessPlan = AccessPlan::inaccessible(schema);
-    self.entries[0] = FieldEntry {
+    owned_entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 4 }
     };
     PlacementPlan {
         layout: Plan {
-            entries: self.entries,
+            entries: owned_entries,
             entry_count: 1,
             size_fixed: 8,
             size_is_dynamic: false,
@@ -3415,14 +3432,15 @@ pub data AtomicPlacement {
 }
 
 machine AtomicPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
+    let mut owned_entries: [FieldEntry; 64];
     let access: AccessPlan = AccessPlan::inaccessible(schema);
-    self.entries[0] = FieldEntry {
+    owned_entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 0 }
     };
     PlacementPlan {
         layout: Plan {
-            entries: self.entries,
+            entries: owned_entries,
             entry_count: 1,
             size_fixed: 4,
             size_is_dynamic: false,
@@ -3652,14 +3670,15 @@ pub data DestructivePlacement {
 }
 
 machine DestructivePlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
+    let mut owned_entries: [FieldEntry; 64];
     let access: AccessPlan = AccessPlan::inaccessible(schema);
-    self.entries[0] = FieldEntry {
+    owned_entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 0 }
     };
     PlacementPlan {
         layout: Plan {
-            entries: self.entries,
+            entries: owned_entries,
             entry_count: 1,
             size_fixed: 4,
             size_is_dynamic: false,

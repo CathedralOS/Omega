@@ -60,8 +60,17 @@ pub(super) fn append_statement_ownership_events(
             }
         }
         StatementNode::LocalData(local_data) => {
-            if type_requires_ownership(program, local_data.type_reference) {
-                let source = FlowOwnershipEventSource::Statement { statement_index };
+            let source = FlowOwnershipEventSource::Statement { statement_index };
+            if !type_requires_ownership(program, local_data.type_reference) {
+                moves::observations::append(
+                    program,
+                    sink,
+                    state_symbol,
+                    statement_index,
+                    local_data.initial_value,
+                    source,
+                );
+            } else {
                 append_move_events_for_expression(
                     program,
                     sink,
@@ -153,11 +162,12 @@ pub(super) fn append_statement_ownership_events(
 pub(crate) fn discover_state_move_events(
     program: &typed_trees::TypedTrees,
     borrow: &BorrowFacts,
+    operators: &checked_trees::CheckedOperatorFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     segments: &mut arena::Arena<facts::PlaceSegment>,
 ) -> Vec<DiscoveredMoveEvent> {
-    let mut sink = DirectMoveEventSink::new(segments);
+    let mut sink = DirectMoveEventSink::new(segments, operators);
     let borrow_calls = borrow_state_fact(borrow, machine.symbol, state.symbol)
         .map(|(_, state)| borrow.calls.span_or_empty(state.calls))
         .unwrap_or_default();

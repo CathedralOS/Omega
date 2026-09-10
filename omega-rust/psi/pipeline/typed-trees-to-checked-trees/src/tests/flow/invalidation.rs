@@ -559,7 +559,7 @@ fn preserves_imported_domain_requires_across_disjoint_mutating_call() {
 #[test]
 fn preserves_domain_intersection_requires_across_unrelated_machine_field_mutation() {
     let source = r#"
-        data Password {
+        data Password [copy] {
             length: i32;
             score: i32;
             salt: i32;

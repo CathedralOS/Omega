@@ -208,7 +208,7 @@ fn an_imported_public_generic_keeps_the_consumers_payload_private() {
 #[test]
 fn a_public_attached_template_method_does_not_publish_private_instances() {
     check(&format!(
-        "{DECLARATIONS}pub machine Envelope::stored<T>(&self) -> T {{ self.value }}\nmachine consume(value: &Envelope<Secret>) {{}}\n"
+        "{DECLARATIONS}pub machine Envelope::stored<T>(&self) -> &T {{ &self.value }}\nmachine consume(value: &Envelope<Secret>) {{}}\n"
     ))
     .expect("a generated attached method does not publish a private instance argument");
 }

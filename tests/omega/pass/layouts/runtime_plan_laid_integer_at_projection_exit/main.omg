@@ -34,9 +34,10 @@ data Plan {
     align: u64;
 }
 
-data ForeignIntegers { entries: [FieldEntry; 64]; }
+data ForeignIntegers { }
 machine ForeignIntegers::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::IntegerAt {
             offset: 0,
@@ -44,7 +45,7 @@ machine ForeignIntegers::plan(&mut self, schema: Schema) -> Plan {
             interpretation: IntegerInterpretation::Signed,
         },
     };
-    self.entries[1] = FieldEntry {
+    entries[1] = FieldEntry {
         key: schema.fields[1].key,
         placement: FieldPlan::IntegerAt {
             offset: 2,
@@ -53,7 +54,7 @@ machine ForeignIntegers::plan(&mut self, schema: Schema) -> Plan {
         },
     };
     Plan {
-        entries: self.entries,
+        entries: entries,
         entry_count: 2,
         size_fixed: 4,
         size_is_dynamic: false,

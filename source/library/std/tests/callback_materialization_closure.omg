@@ -1,4 +1,3 @@
-
 use omega::language::core::layout;
 use calling;
 
@@ -10,9 +9,7 @@ boundary trait UnusedProcedure {
     machine call(message: u64) -> u64;
 }
 
-data Spread {
-    entries: [FieldEntry; 64];
-}
+data Spread {}
 
 WndClassWindowProcedureSlot:
     Spread satisfies PrivateCallbackSlot<WindowProcedure::call>;
@@ -24,12 +21,13 @@ UnusedWindowProcedureSlot:
     Spread satisfies PrivateCallbackSlot<UnusedProcedure::call>;
 
 machine Spread::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut owned_entries: [FieldEntry; 64];
+    owned_entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 0 },
     };
     let plan: Plan = Plan {
-        entries: self.entries,
+        entries: owned_entries,
         entry_count: 1,
         size_fixed: 24,
         size_is_dynamic: false,

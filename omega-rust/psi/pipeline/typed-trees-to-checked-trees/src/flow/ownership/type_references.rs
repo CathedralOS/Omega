@@ -101,7 +101,9 @@ fn expression_is_place_like(
 
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(_) => false,
-        ExpressionNode::Borrow(inner) => expression_is_place_like(program, inner.target),
+        // Forming a loan does not transfer the referent. Nested call arguments
+        // retain their own moves through ordinary call discovery.
+        ExpressionNode::Borrow(_) => false,
         ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => true,
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Match(_)
@@ -117,4 +119,67 @@ fn expression_is_place_like(
         | ExpressionNode::Unary(_)
         | ExpressionNode::ZeroValue(_) => false,
     }
+}
+
+/// Equality observes the tags of an exact payload-free nominal sum. The shared
+/// typed classifier excludes authored and selected operator meanings first.
+pub(super) fn intrinsic_enum_equality(
+    program: &typed_trees::TypedTrees,
+    state: SymbolHandle,
+    statement: usize,
+    expression: ExpressionHandle,
+) -> bool {
+    use typed_trees::types::TypeReferenceNode;
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    let spelling = match binary.operator {
+        typed_trees::expression::BinaryOperator::Equal => {
+            language_core::operator_spelling::OperatorSpelling::Equal
+        }
+        typed_trees::expression::BinaryOperator::NotEqual => {
+            language_core::operator_spelling::OperatorSpelling::NotEqual
+        }
+        _ => return false,
+    };
+    let operands = [binary.left, binary.right]
+        .map(|operand| expression_type_reference_in_state(program, state, statement, operand));
+    let nominal = |reference: Option<typed_trees::types::TypeReferenceHandle>| {
+        let mut reference = reference?;
+        let mut seen = Vec::new();
+        while !seen.contains(&reference) {
+            seen.push(reference);
+            match program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+                TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+                TypeReferenceNode::Named { symbol, .. } => return Some(*symbol),
+                _ => return None,
+            }
+        }
+        None
+    };
+    let Some(symbol) = nominal(operands[0]) else {
+        return false;
+    };
+    if nominal(operands[1]) != Some(symbol) {
+        return false;
+    }
+    let Some(data) = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == symbol)
+    else {
+        return false;
+    };
+    let members = program.data_members(data);
+    if members.is_empty() || !members.iter().all(|member| matches!(member, typed_trees::data::DataMember::Variant(variant) if program.data_payload_fields(variant).is_empty())) { return false; }
+    let machine = program.symbols.get(state).parent;
+    if program.symbols.get(state).kind != symbols::SymbolKind::State
+        || program.symbols.get(machine).kind != symbols::SymbolKind::Machine
+    {
+        return false;
+    }
+    typed_trees::operator::has_builtin_spelled_expression_meaning(
+        program, machine, expression, spelling, &operands,
+    )
 }

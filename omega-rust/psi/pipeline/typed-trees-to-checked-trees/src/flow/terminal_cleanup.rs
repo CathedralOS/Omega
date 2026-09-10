@@ -130,8 +130,14 @@ fn build_projected_edge_plan(
         return None;
     }
     let mut segments = facts.flow.ownership.segments.clone();
-    let moves =
-        super::discover_state_move_events(program, &facts.borrow, machine, state, &mut segments);
+    let moves = super::discover_state_move_events(
+        program,
+        &facts.borrow,
+        &facts.operators,
+        machine,
+        state,
+        &mut segments,
+    );
     let edge_moves = moves
         .iter()
         .filter(|event| {
@@ -228,8 +234,14 @@ fn build_state_plan(
     }
 
     let mut segments = facts.flow.ownership.segments.clone();
-    let moves =
-        super::discover_state_move_events(program, &facts.borrow, machine, state, &mut segments);
+    let moves = super::discover_state_move_events(
+        program,
+        &facts.borrow,
+        &facts.operators,
+        machine,
+        state,
+        &mut segments,
+    );
     let mut edges = Vec::new();
     for (statement_index, statement) in statements.iter().enumerate() {
         let StatementNode::Transition(transition) = statement else {

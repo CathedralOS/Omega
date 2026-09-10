@@ -12,21 +12,22 @@
 // portable record keeps semantic carriers; this policy owns the kernel offsets
 // and uses IntegerAt only for genuinely narrower physical integers.
 linux_x86_64 machine StatLayout::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
-    self.entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 24 } };
-    self.entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::At { offset: 16 } };
-    self.entries[3] = FieldEntry { key: schema.fields[3].key, placement: FieldPlan::At { offset: 8 } };
-    self.entries[4] = FieldEntry { key: schema.fields[4].key, placement: FieldPlan::At { offset: 28 } };
-    self.entries[5] = FieldEntry { key: schema.fields[5].key, placement: FieldPlan::At { offset: 32 } };
-    self.entries[6] = FieldEntry { key: schema.fields[6].key, placement: FieldPlan::At { offset: 40 } };
-    self.entries[7] = FieldEntry { key: schema.fields[7].key, placement: FieldPlan::At { offset: 72 } };
-    self.entries[8] = FieldEntry { key: schema.fields[8].key, placement: FieldPlan::At { offset: 88 } };
-    self.entries[9] = FieldEntry { key: schema.fields[9].key, placement: FieldPlan::At { offset: 104 } };
-    self.entries[10] = FieldEntry { key: schema.fields[10].key, placement: FieldPlan::At { offset: 120 } };
-    self.entries[11] = FieldEntry { key: schema.fields[11].key, placement: FieldPlan::At { offset: 48 } };
-    self.entries[12] = FieldEntry { key: schema.fields[12].key, placement: FieldPlan::At { offset: 64 } };
-    self.entries[13] = FieldEntry { key: schema.fields[13].key, placement: FieldPlan::At { offset: 56 } };
-    Plan { entries: self.entries, entry_count: 14, size_fixed: 144, size_is_dynamic: false, align: 8 }
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+    entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 24 } };
+    entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::At { offset: 16 } };
+    entries[3] = FieldEntry { key: schema.fields[3].key, placement: FieldPlan::At { offset: 8 } };
+    entries[4] = FieldEntry { key: schema.fields[4].key, placement: FieldPlan::At { offset: 28 } };
+    entries[5] = FieldEntry { key: schema.fields[5].key, placement: FieldPlan::At { offset: 32 } };
+    entries[6] = FieldEntry { key: schema.fields[6].key, placement: FieldPlan::At { offset: 40 } };
+    entries[7] = FieldEntry { key: schema.fields[7].key, placement: FieldPlan::At { offset: 72 } };
+    entries[8] = FieldEntry { key: schema.fields[8].key, placement: FieldPlan::At { offset: 88 } };
+    entries[9] = FieldEntry { key: schema.fields[9].key, placement: FieldPlan::At { offset: 104 } };
+    entries[10] = FieldEntry { key: schema.fields[10].key, placement: FieldPlan::At { offset: 120 } };
+    entries[11] = FieldEntry { key: schema.fields[11].key, placement: FieldPlan::At { offset: 48 } };
+    entries[12] = FieldEntry { key: schema.fields[12].key, placement: FieldPlan::At { offset: 64 } };
+    entries[13] = FieldEntry { key: schema.fields[13].key, placement: FieldPlan::At { offset: 56 } };
+    Plan { entries: entries, entry_count: 14, size_fixed: 144, size_is_dynamic: false, align: 8 }
 }
 
 linux_x86_64 machine Filesystem::encode_open_options(&mut self) {
@@ -156,7 +157,7 @@ invokes
     state rd_malformed(&mut self, dfd: i32) -> IoResult {
         let closed: i32 = self.host.close(dfd);
         self.err_kind = ErrorKind::Other;
-        IoResult::Error { kind: self.err_kind }
+        IoResult::Error { kind: ErrorKind::Other }
     }
 }
 
@@ -251,7 +252,7 @@ linux_x86_64 machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) 
     state rds_malformed(&mut self, dfd: i32) -> DirStatsResult {
         let closed: i32 = self.host.close(dfd);
         self.err_kind = ErrorKind::Other;
-        DirStatsResult::Error { kind: self.err_kind }
+        DirStatsResult::Error { kind: ErrorKind::Other }
     }
 }
 
@@ -387,7 +388,7 @@ invokes
     state rdn_malformed(&mut self, dfd: i32) -> DirEntryResult {
         let closed: i32 = self.host.close(dfd);
         self.err_kind = ErrorKind::Other;
-        DirEntryResult::Error { kind: self.err_kind }
+        DirEntryResult::Error { kind: ErrorKind::Other }
     }
 }
 
@@ -504,7 +505,7 @@ linux_x86_64 machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: u64) 
     state rdef_malformed(&mut self) -> DirEntryResult {
         self.rda_rc = 0 - 5;
         self.err_kind = ErrorKind::Other;
-        DirEntryResult::Error { kind: self.err_kind }
+        DirEntryResult::Error { kind: ErrorKind::Other }
     }
 }
 

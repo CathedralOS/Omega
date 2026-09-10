@@ -130,7 +130,6 @@ data Plan {
 // validation catches any garbage plan), and the padding uses the modulo form
 // ((a - offset % a) % a) so no division is needed.
 data CLayout {
-    entries: [FieldEntry; 64];
     index: u64 in Wrapping;
     offset: u64 in Wrapping;
     widest: u64 in Wrapping;
@@ -145,65 +144,69 @@ machine CLayout::plan(&mut self, schema: Schema) -> Plan {
 machine CLayout::evaluate(&mut self, schema: Schema, fuel: u64 [1..=256]) -> Plan
 terminates by fuel;
 {
+    // The returned entries are owned state data; the borrowed policy retains
+    // only scalar scratch, so completion never moves out of its receiver.
+    let entries: [FieldEntry; 64];
     self.index = 0;
     self.offset = 0;
     self.widest = 1;
-    transition { _ -> place_loop(schema, fuel) }
+    transition { _ -> place_loop(schema, entries, fuel) }
 
-    state place_loop(&mut self, schema: Schema, fuel: u64 [1..=256]) {
+    state place_loop(&mut self, schema: Schema, entries: [FieldEntry; 64], fuel: u64 [1..=256]) {
         transition fuel > 1 && self.index < 32 && self.index < schema.field_count {
-            true -> read_field(schema, fuel - 1)
-            _ -> done(schema)
+            true -> read_field(schema, entries, fuel - 1)
+            _ -> done(schema, entries)
         }
     }
-    state read_field(&mut self, schema: Schema, fuel: u64 [1..=256]) {
+    state read_field(&mut self, schema: Schema, entries: [FieldEntry; 64], fuel: u64 [1..=256]) {
         self.fsize = schema.fields[self.index].size;
         self.falign = schema.fields[self.index].align;
         // C rule: round up to the field's alignment, place, advance.
         self.pad = (self.falign - self.offset % self.falign) % self.falign;
         self.offset = self.offset + self.pad;
         transition fuel > 1 && self.index < 32 {
-            true -> place_field(schema, fuel - 1)
-            _ -> done(schema)
+            true -> place_field(schema, entries, fuel - 1)
+            _ -> done(schema, entries)
         }
     }
-    state place_field(&mut self, schema: Schema, fuel: u64 [1..=256]) {
-        self.entries[self.index] = FieldEntry {
+    state place_field(&mut self, schema: Schema, entries: [FieldEntry; 64], fuel: u64 [1..=256]) {
+        let mut updated: [FieldEntry; 64] = entries;
+        updated[self.index] = FieldEntry {
             key: schema.fields[self.index].key,
             placement: FieldPlan::At { offset: self.offset as u64 },
         };
         self.offset = self.offset + self.fsize;
         transition fuel > 1 {
-            true -> choose_widen(schema, fuel - 1)
-            _ -> done(schema)
+            true -> choose_widen(schema, updated, fuel - 1)
+            _ -> done(schema, updated)
         }
     }
-    state choose_widen(&mut self, schema: Schema, fuel: u64 [1..=256]) {
+    state choose_widen(&mut self, schema: Schema, entries: [FieldEntry; 64], fuel: u64 [1..=256]) {
         transition {
-            fuel > 1 && self.widest < self.falign -> widen(schema, fuel - 1)
-            fuel > 1 -> advance(schema, fuel - 1)
-            _ -> done(schema)
+            fuel > 1 && self.widest < self.falign -> widen(schema, entries, fuel - 1)
+            fuel > 1 -> advance(schema, entries, fuel - 1)
+            _ -> done(schema, entries)
         }
     }
-    state widen(&mut self, schema: Schema, fuel: u64 [1..=256]) {
+    state widen(&mut self, schema: Schema, entries: [FieldEntry; 64], fuel: u64 [1..=256]) {
         self.widest = self.falign;
         transition fuel > 1 {
-            true -> advance(schema, fuel - 1)
-            _ -> done(schema)
+            true -> advance(schema, entries, fuel - 1)
+            _ -> done(schema, entries)
         }
     }
-    state advance(&mut self, schema: Schema, fuel: u64 [1..=256]) {
+    state advance(&mut self, schema: Schema, entries: [FieldEntry; 64], fuel: u64 [1..=256]) {
         self.index = self.index + 1;
         transition fuel > 1 {
-            true -> place_loop(schema, fuel - 1)
-            _ -> done(schema)
+            true -> place_loop(schema, entries, fuel - 1)
+            _ -> done(schema, entries)
         }
     }
-    state done(&mut self, schema: Schema) -> Plan {
+    state done(&mut self, schema: Schema, entries: [FieldEntry; 64]) -> Plan {
         // Round the total size up to the struct alignment (the C tail rule).
         self.pad = (self.widest - self.offset % self.widest) % self.widest;
         Plan {
-            entries: self.entries,
+            entries: entries,
             entry_count: schema.field_count,
             size_fixed: (self.offset + self.pad) as u64,
             size_is_dynamic: false,
@@ -908,13 +911,14 @@ fn fixed_primitive_arrays_are_reflected_as_one_repeated_at_field() {
         r#"
 use omega::language::core::layout;
 
-data ArrayLayout { entries: [FieldEntry; 64]; }
+data ArrayLayout { }
 machine ArrayLayout::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 8 },
     };
-    Plan { entries: self.entries, entry_count: 1,
+    Plan { entries: entries, entry_count: 1,
            size_fixed: 16, size_is_dynamic: false, align: 2 }
 }
 data Samples { values: [u16; 3]; }
@@ -937,13 +941,14 @@ fn nested_fixed_primitive_arrays_remain_one_repeated_at_field() {
         r#"
 use omega::language::core::layout;
 
-data ArrayLayout { entries: [FieldEntry; 64]; }
+data ArrayLayout { }
 machine ArrayLayout::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 8 },
     };
-    Plan { entries: self.entries, entry_count: 1,
+    Plan { entries: entries, entry_count: 1,
            size_fixed: 16, size_is_dynamic: false, align: 2 }
 }
 
@@ -967,13 +972,14 @@ fn fixed_records_are_reflected_as_one_nested_at_field() {
         r#"
 use omega::language::core::layout;
 
-data RecordLayout { entries: [FieldEntry; 64]; }
+data RecordLayout { }
 machine RecordLayout::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 8 },
     };
-    Plan { entries: self.entries, entry_count: 1,
+    Plan { entries: entries, entry_count: 1,
            size_fixed: 24, size_is_dynamic: false, align: 4 }
 }
 
@@ -1010,13 +1016,14 @@ fn typed_owned_fixed_records_materialize_without_caller_supplied_field_bytes() {
         r#"
 use omega::language::core::layout;
 
-data RecordLayout { entries: [FieldEntry; 64]; }
+data RecordLayout { }
 machine RecordLayout::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 8 },
     };
-    Plan { entries: self.entries, entry_count: 1,
+    Plan { entries: entries, entry_count: 1,
            size_fixed: 24, size_is_dynamic: false, align: 4 }
 }
 data Pair { low: u8; high: u32; }
@@ -1094,13 +1101,14 @@ fn typed_owned_numbered_aggregate_rejoins_a_retained_layout_after_rename() {
         r#"
 use omega::language::core::layout;
 
-data RecordLayout { entries: [FieldEntry; 64]; }
+data RecordLayout { }
 machine RecordLayout::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 4 },
     };
-    Plan { entries: self.entries, entry_count: 1,
+    Plan { entries: entries, entry_count: 1,
            size_fixed: 12, size_is_dynamic: false, align: 2 }
 }
 data Pair { low: u16; high: u16; }
@@ -1175,13 +1183,14 @@ fn source_machine_owned_record_materializes_through_the_typed_bridge() {
         r#"
 use omega::language::core::layout;
 
-data RecordLayout { entries: [FieldEntry; 64]; }
+data RecordLayout { }
 machine RecordLayout::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 8 },
     };
-    Plan { entries: self.entries, entry_count: 1,
+    Plan { entries: entries, entry_count: 1,
            size_fixed: 24, size_is_dynamic: false, align: 4 }
 }
 data Pair { low: u8; high: u32; }
@@ -1216,21 +1225,22 @@ fn const_materializable_record_binds_value_layout_order_and_zero_padding() {
         r#"
 use omega::language::core::layout;
 
-data RecordLayout { entries: [FieldEntry; 64]; }
+data RecordLayout { }
 machine RecordLayout::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 0 },
     };
-    self.entries[1] = FieldEntry {
+    entries[1] = FieldEntry {
         key: schema.fields[1].key,
         placement: FieldPlan::At { offset: 4 },
     };
-    self.entries[2] = FieldEntry {
+    entries[2] = FieldEntry {
         key: schema.fields[2].key,
         placement: FieldPlan::At { offset: 12 },
     };
-    Plan { entries: self.entries, entry_count: 3,
+    Plan { entries: entries, entry_count: 3,
            size_fixed: 16, size_is_dynamic: false, align: 4 }
 }
 data Pair [copy] { enabled: bool; code: u32; }
@@ -1345,21 +1355,22 @@ fn const_materializable_non_nan_float_leaves_bind_exact_format_bits() {
         r#"
 use omega::language::core::layout;
 
-data FloatLayout { entries: [FieldEntry; 64]; }
+data FloatLayout { }
 machine FloatLayout::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 0 },
     };
-    self.entries[1] = FieldEntry {
+    entries[1] = FieldEntry {
         key: schema.fields[1].key,
         placement: FieldPlan::At { offset: 8 },
     };
-    self.entries[2] = FieldEntry {
+    entries[2] = FieldEntry {
         key: schema.fields[2].key,
         placement: FieldPlan::At { offset: 16 },
     };
-    Plan { entries: self.entries, entry_count: 3,
+    Plan { entries: entries, entry_count: 3,
            size_fixed: 24, size_is_dynamic: false, align: 8 }
 }
 data Samples [copy] { narrow: f32; wide: f64; signed_zero: f64; }
@@ -1454,13 +1465,14 @@ fn source_machine_owned_fixed_array_materializes_through_the_typed_bridge() {
         r#"
 use omega::language::core::layout;
 
-data ArrayLayout { entries: [FieldEntry; 64]; }
+data ArrayLayout { }
 machine ArrayLayout::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 4 },
     };
-    Plan { entries: self.entries, entry_count: 1,
+    Plan { entries: entries, entry_count: 1,
            size_fixed: 12, size_is_dynamic: false, align: 2 }
 }
 data Samples { values: [u16; 3]; }
@@ -1495,21 +1507,22 @@ fn source_machine_owned_fixed_array_materializes_through_element_at_tiling() {
         r#"
 use omega::language::core::layout;
 
-data ArrayLayout { entries: [FieldEntry; 64]; }
+data ArrayLayout { }
 machine ArrayLayout::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 12 },
     };
-    self.entries[1] = FieldEntry {
+    entries[1] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 4 },
     };
-    self.entries[2] = FieldEntry {
+    entries[2] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 8 },
     };
-    Plan { entries: self.entries, entry_count: 3,
+    Plan { entries: entries, entry_count: 3,
            size_fixed: 16, size_is_dynamic: false, align: 2 }
 }
 data Samples { values: [u16; 3]; }
@@ -1574,13 +1587,14 @@ fn source_machine_owned_fixed_record_array_materializes_through_the_typed_bridge
         r#"
 use omega::language::core::layout;
 
-data ArrayLayout { entries: [FieldEntry; 64]; }
+data ArrayLayout { }
 machine ArrayLayout::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 8 },
     };
-    Plan { entries: self.entries, entry_count: 1,
+    Plan { entries: entries, entry_count: 1,
            size_fixed: 32, size_is_dynamic: false, align: 4 }
 }
 data Pair { low: u16; high: u32; }
@@ -1740,21 +1754,22 @@ fn source_machine_owned_closed_generic_records_use_exact_specialized_shapes() {
         r#"
 use omega::language::core::layout;
 
-data Split { entries: [FieldEntry; 64]; }
+data Split { }
 machine Split::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
         key: schema.fields[1].key,
         placement: FieldPlan::At { offset: 16 },
     };
-    self.entries[1] = FieldEntry {
+    entries[1] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 2 },
     };
-    self.entries[2] = FieldEntry {
+    entries[2] = FieldEntry {
         key: schema.fields[1].key,
         placement: FieldPlan::At { offset: 8 },
     };
-    Plan { entries: self.entries, entry_count: 3,
+    Plan { entries: entries, entry_count: 3,
            size_fixed: 24, size_is_dynamic: false, align: 4 }
 }
 data Evidence { case Only; }
@@ -1902,17 +1917,18 @@ fn source_machine_owned_erased_fields_are_semantic_but_not_materialized() {
         r#"
 use omega::language::core::layout;
 
-data Spread { entries: [FieldEntry; 64]; }
+data Spread { }
 machine Spread::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 4 },
     };
-    self.entries[1] = FieldEntry {
+    entries[1] = FieldEntry {
         key: schema.fields[1].key,
         placement: FieldPlan::At { offset: 12 },
     };
-    Plan { entries: self.entries, entry_count: 2,
+    Plan { entries: entries, entry_count: 2,
            size_fixed: 20, size_is_dynamic: false, align: 4 }
 }
 data Evidence { case Only; }
@@ -1959,13 +1975,14 @@ fn source_machine_owned_nested_erased_fields_are_exact_and_storage_free() {
         r#"
 use omega::language::core::layout;
 
-data Whole { entries: [FieldEntry; 64]; }
+data Whole { }
 machine Whole::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 4 },
     };
-    Plan { entries: self.entries, entry_count: 1,
+    Plan { entries: entries, entry_count: 1,
            size_fixed: 16, size_is_dynamic: false, align: 4 }
 }
 data Evidence { case Only; }
@@ -2040,13 +2057,14 @@ fn source_machine_owned_record_arrays_omit_each_erased_field() {
         r#"
 use omega::language::core::layout;
 
-data Whole { entries: [FieldEntry; 64]; }
+data Whole { }
 machine Whole::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 4 },
     };
-    Plan { entries: self.entries, entry_count: 1,
+    Plan { entries: entries, entry_count: 1,
            size_fixed: 24, size_is_dynamic: false, align: 4 }
 }
 data Evidence { case Only; }
@@ -2123,17 +2141,18 @@ fn tiled_record_arrays_keep_erased_fields_semantic_and_storage_free() {
         r#"
 use omega::language::core::layout;
 
-data Tiled { entries: [FieldEntry; 64]; }
+data Tiled { }
 machine Tiled::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 16 },
     };
-    self.entries[1] = FieldEntry {
+    entries[1] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 4 },
     };
-    Plan { entries: self.entries, entry_count: 2,
+    Plan { entries: entries, entry_count: 2,
            size_fixed: 28, size_is_dynamic: false, align: 4 }
 }
 data Evidence { case Only; }
@@ -2193,9 +2212,10 @@ fn source_machine_owned_all_erased_record_materializes_only_plan_storage() {
         r#"
 use omega::language::core::layout;
 
-data Whole { entries: [FieldEntry; 64]; }
+data Whole { }
 machine Whole::plan(&mut self, schema: Schema) -> Plan {
-    Plan { entries: self.entries, entry_count: 0,
+    let entries: [FieldEntry; 64];
+    Plan { entries: entries, entry_count: 0,
            size_fixed: 8, size_is_dynamic: false, align: 4 }
 }
 data Evidence { case Only; }
@@ -2249,13 +2269,14 @@ fn source_machine_owned_nested_all_erased_record_is_semantic_and_storage_free() 
         r#"
 use omega::language::core::layout;
 
-data Whole { entries: [FieldEntry; 64]; }
+data Whole { }
 machine Whole::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 4 },
     };
-    Plan { entries: self.entries, entry_count: 1,
+    Plan { entries: entries, entry_count: 1,
            size_fixed: 12, size_is_dynamic: false, align: 4 }
 }
 data Evidence { case Only; }
@@ -2323,13 +2344,14 @@ fn source_machine_owned_array_of_erased_records_is_semantic_and_storage_free() {
         r#"
 use omega::language::core::layout;
 
-data Whole { entries: [FieldEntry; 64]; }
+data Whole { }
 machine Whole::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 4 },
     };
-    Plan { entries: self.entries, entry_count: 1,
+    Plan { entries: entries, entry_count: 1,
            size_fixed: 12, size_is_dynamic: false, align: 4 }
 }
 data Evidence { case Only; }
@@ -2412,13 +2434,14 @@ fn typed_owned_unsigned_values_reject_negative_structured_carriers_atomically() 
         r#"
 use omega::language::core::layout;
 
-data Whole { entries: [FieldEntry; 64]; }
+data Whole { }
 machine Whole::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 0 },
     };
-    Plan { entries: self.entries, entry_count: 1,
+    Plan { entries: entries, entry_count: 1,
            size_fixed: 8, size_is_dynamic: false, align: 8 }
 }
 data Samples { value: u64; }
@@ -2454,16 +2477,17 @@ fn fixed_primitive_arrays_reject_scalar_bit_placement() {
         r#"
 use omega::language::core::layout;
 
-data ArrayBits { entries: [FieldEntry; 64]; }
+data ArrayBits { }
 machine ArrayBits::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::Bits {
             container: 0, container_width: 64,
             destination_lsb: 0, source_lsb: 0, width: 48,
         },
     };
-    Plan { entries: self.entries, entry_count: 1,
+    Plan { entries: entries, entry_count: 1,
            size_fixed: 8, size_is_dynamic: false, align: 8 }
 }
 data Samples { values: [u16; 3]; }
@@ -2489,10 +2513,11 @@ data FieldPlan { case At(offset: u64); case Skip; }
 data FieldEntry { key: u64; placement: FieldPlan; }
 data Plan { entries: [FieldEntry; 64]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
 boundary trait Console { machine write(code: i64); }
-data Chatty { console: Console; entries: [FieldEntry; 64]; }
+data Chatty { console: Console; }
 machine Chatty::plan(&mut self, schema: Schema) -> Plan {
+    let entries: [FieldEntry; 64];
     self.console.write(1);
-    Plan { entries: self.entries, entry_count: schema.field_count,
+    Plan { entries: entries, entry_count: schema.field_count,
            size_fixed: 0, size_is_dynamic: true, align: 1 }
 }
 data Simple { value: i32; }
@@ -2520,11 +2545,12 @@ data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
 data FieldPlan { case At(offset: u64); case Skip; }
 data FieldEntry { key: u64; placement: FieldPlan; }
 data Plan { entries: [FieldEntry; 64]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
-data Overlapper { entries: [FieldEntry; 64]; }
+data Overlapper { }
 machine Overlapper::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
-    self.entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 0 } };
-    Plan { entries: self.entries, entry_count: schema.field_count,
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+    entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 0 } };
+    Plan { entries: entries, entry_count: schema.field_count,
            size_fixed: 8, size_is_dynamic: false, align: 1 }
 }
 
@@ -2557,15 +2583,16 @@ data FieldPlan {
 
 data FieldEntry { key: u64; placement: FieldPlan; }
 data Plan { entries: [FieldEntry; 64]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
-data SplitAddress { entries: [FieldEntry; 64]; }
+data SplitAddress { }
 machine SplitAddress::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits {
         container: 0, container_width: 16, destination_lsb: 0, source_lsb: 0, width: 16 } };
-    self.entries[1] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits {
+    entries[1] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits {
         container: 2, container_width: 16, destination_lsb: 0, source_lsb: 16, width: 16 } };
-    self.entries[2] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits {
+    entries[2] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits {
         container: 8, container_width: 64, destination_lsb: 0, source_lsb: 32, width: 32 } };
-    Plan { entries: self.entries, entry_count: 3, size_fixed: 16, size_is_dynamic: false, align: 1 }
+    Plan { entries: entries, entry_count: 3, size_fixed: 16, size_is_dynamic: false, align: 1 }
 }
 data EntryTarget { address: u64; }
 data Main { }
@@ -2629,13 +2656,14 @@ data FieldPlan {
 }
 data FieldEntry { key: u64; placement: FieldPlan; }
 data Plan { entries: [FieldEntry; 64]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
-data ForeignIntegers { entries: [FieldEntry; 64]; }
+data ForeignIntegers { }
 machine ForeignIntegers::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::IntegerAt {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::IntegerAt {
         offset: 0, stored_width: 32, interpretation: IntegerInterpretation::Signed } };
-    self.entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::IntegerAt {
+    entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::IntegerAt {
         offset: 4, stored_width: 32, interpretation: IntegerInterpretation::Unsigned } };
-    Plan { entries: self.entries, entry_count: 2, size_fixed: 8, size_is_dynamic: false, align: 1 }
+    Plan { entries: entries, entry_count: 2, size_fixed: 8, size_is_dynamic: false, align: 1 }
 }
 data PortableStat { seconds: i64; inode: u64; }
 data Main { value: ForeignIntegers<PortableStat>; }
@@ -2836,11 +2864,12 @@ data IntegerInterpretation { case Signed; case Unsigned; }
 data FieldPlan { case IntegerAt(offset: u64, stored_width: u64, interpretation: IntegerInterpretation); }
 data FieldEntry { key: u64; placement: FieldPlan; }
 data Plan { entries: [FieldEntry; 64]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
-data BadInteger { entries: [FieldEntry; 64]; }
+data BadInteger { }
 machine BadInteger::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::IntegerAt {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::IntegerAt {
         offset: 0, stored_width: 32, interpretation: IntegerInterpretation::Signed } };
-    Plan { entries: self.entries, entry_count: 1, size_fixed: 4, size_is_dynamic: false, align: 1 }
+    Plan { entries: entries, entry_count: 1, size_fixed: 4, size_is_dynamic: false, align: 1 }
 }
 data UnsignedOnly { value: u64; }
 data Main { }
@@ -2868,13 +2897,14 @@ data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
 data FieldPlan { case At(offset: u64); case Bits(container: u64, container_width: u64, destination_lsb: u64, source_lsb: u64, width: u64); }
 data FieldEntry { key: u64; placement: FieldPlan; }
 data Plan { entries: [FieldEntry; 64]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
-data CompactBits { entries: [FieldEntry; 64]; }
+data CompactBits { }
 machine CompactBits::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits {
         container: 0, container_width: 8, destination_lsb: 0, source_lsb: 0, width: 1 } };
-    self.entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::Bits {
+    entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::Bits {
         container: 0, container_width: 8, destination_lsb: 1, source_lsb: 0, width: 3 } };
-    Plan { entries: self.entries, entry_count: 2, size_fixed: 1, size_is_dynamic: false, align: 1 }
+    Plan { entries: entries, entry_count: 2, size_fixed: 1, size_is_dynamic: false, align: 1 }
 }
 data PackedFlags { present: bool; mode: u8 [0..=7]; }
 data Main { }
@@ -2938,11 +2968,12 @@ data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
 data FieldPlan { case At(offset: u64); case Bits(container: u64, container_width: u64, destination_lsb: u64, source_lsb: u64, width: u64); }
 data FieldEntry { key: u64; placement: FieldPlan; }
 data Plan { entries: [FieldEntry; 64]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
-data TooNarrow { entries: [FieldEntry; 64]; }
+data TooNarrow { }
 machine TooNarrow::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits {
         container: 0, container_width: 8, destination_lsb: 0, source_lsb: 0, width: 2 } };
-    Plan { entries: self.entries, entry_count: 1, size_fixed: 1, size_is_dynamic: false, align: 1 }
+    Plan { entries: entries, entry_count: 1, size_fixed: 1, size_is_dynamic: false, align: 1 }
 }
 data PackedMode { mode: u8 [0..=7]; }
 data Main { }
@@ -2969,13 +3000,14 @@ data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
 data FieldPlan { case At(offset: u64); case Bits(container: u64, container_width: u64, destination_lsb: u64, source_lsb: u64, width: u64); }
 data FieldEntry { key: u64; placement: FieldPlan; }
 data Plan { entries: [FieldEntry; 64]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
-data Gap { entries: [FieldEntry; 64]; }
+data Gap { }
 machine Gap::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits {
         container: 0, container_width: 64, destination_lsb: 0, source_lsb: 0, width: 31 } };
-    self.entries[1] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits {
+    entries[1] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits {
         container: 8, container_width: 64, destination_lsb: 0, source_lsb: 32, width: 32 } };
-    Plan { entries: self.entries, entry_count: 2, size_fixed: 16, size_is_dynamic: false, align: 1 }
+    Plan { entries: entries, entry_count: 2, size_fixed: 16, size_is_dynamic: false, align: 1 }
 }
 data EntryTarget { address: u64; }
 data Main { }
@@ -3002,10 +3034,11 @@ data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
 data FieldPlan { case At(offset: u64); }
 data FieldEntry { key: u64; placement: FieldPlan; }
 data Plan { entries: [FieldEntry; 64]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
-data Excess { entries: [FieldEntry; 64]; }
+data Excess { }
 machine Excess::plan(&mut self, schema: Schema) -> Plan {
+    let entries: [FieldEntry; 64];
     Plan {
-        entries: self.entries,
+        entries: entries,
         entry_count: 18446744073709551615,
         size_fixed: 0,
         size_is_dynamic: false,
@@ -3042,24 +3075,25 @@ data Choice {
     retired #99;
 }
 
-data InspectCases { entries: [FieldEntry; 64]; }
+data InspectCases { }
 machine InspectCases::plan(&mut self, schema: Schema) -> Plan {
     transition schema.cases[0].identity {
         Optional::Some { value } -> selected(value, schema)
         Optional::None -> selected(1, schema)
     }
     state selected(&mut self, identity: u64, schema: Schema) {
+        let entries: [FieldEntry; 64];
         transition schema.retired_case_identity_count == 1
             && schema.retired_case_identities[0] == 99 {
         true -> (Plan {
-            entries: self.entries,
+            entries: entries,
             entry_count: 0,
             size_fixed: identity,
             size_is_dynamic: false,
             align: 1
         })
         _ -> (Plan {
-            entries: self.entries,
+            entries: entries,
             entry_count: 0,
             size_fixed: 1,
             size_is_dynamic: false,
@@ -3094,10 +3128,11 @@ data Choice {
     retired #99;
 }
 
-data InspectCases { entries: [FieldEntry; 64]; }
+data InspectCases { }
 machine InspectCases::plan(&mut self, schema: Schema) -> Plan {
+    let entries: [FieldEntry; 64];
     Plan {
-        entries: self.entries,
+        entries: entries,
         entry_count: 0,
         size_fixed: 1,
         size_is_dynamic: false,

@@ -5,20 +5,20 @@ use omega_language_std::console;
 use omega::language::core::layout;
 
 data SpreadArray {
-    entries: [FieldEntry; 64];
 }
 
 machine SpreadArray::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 8 },
     };
-    self.entries[1] = FieldEntry {
+    entries[1] = FieldEntry {
         key: schema.fields[1].key,
         placement: FieldPlan::At { offset: 24 },
     };
     Plan {
-        entries: self.entries,
+        entries: entries,
         entry_count: 2,
         size_fixed: 32,
         size_is_dynamic: false,

@@ -219,9 +219,7 @@ boundary trait UnusedProcedure {
     machine call(message: u64) -> u64;
 }
 
-data Spread {
-    entries: [FieldEntry; 64];
-}
+data Spread {}
 
 WndClassWindowProcedureSlot:
     Spread satisfies PrivateCallbackSlot<WindowProcedure::call>;
@@ -233,12 +231,13 @@ UnusedWindowProcedureSlot:
     Spread satisfies PrivateCallbackSlot<UnusedProcedure::call>;
 
 machine Spread::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut owned_entries: [FieldEntry; 64];
+    owned_entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 0 },
     };
     let plan: Plan = Plan {
-        entries: self.entries,
+        entries: owned_entries,
         entry_count: 1,
         size_fixed: 24,
         size_is_dynamic: false,
@@ -496,12 +495,13 @@ fn target_selected_callback_policy_retains_inline_child_layout_catalog() {
 data Envelope { entries: [FieldEntry; 64]; }
 
 machine Envelope::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut owned_entries: [FieldEntry; 64];
+    owned_entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 8 },
     };
     Plan {
-        entries: self.entries,
+        entries: owned_entries,
         entry_count: 1,
         size_fixed: 32,
         size_is_dynamic: false,
@@ -1038,10 +1038,7 @@ fn callback_private_materialization_requires_an_explicit_cited_demand() {
 #[test]
 fn callback_private_materialization_rejects_a_foreign_layout_subject() {
     let source = CALLBACK_MATERIALIZATION_POLICY
-        .replace(
-            "data Spread {\n    entries: [FieldEntry; 64];\n}",
-            "data Spread {\n    entries: [FieldEntry; 64];\n}\n\ndata OtherSpread {\n    entries: [FieldEntry; 64];\n}",
-        )
+        .replace("data Spread {}", "data Spread {}\n\ndata OtherSpread {}")
         .replace(
             "Spread satisfies PrivateCallbackSlot<WindowProcedure::call>;",
             "OtherSpread satisfies PrivateCallbackSlot<WindowProcedure::call>;",
@@ -3152,7 +3149,8 @@ data Plan {
 
 data SignedByte { entries: [FieldEntry; 64]; }
 machine SignedByte::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut owned_entries: [FieldEntry; 64];
+    owned_entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::IntegerAt {
             offset: 0,
@@ -3161,7 +3159,7 @@ machine SignedByte::plan(&mut self, schema: Schema) -> Plan {
         },
     };
     Plan {
-        entries: self.entries,
+        entries: owned_entries,
         entry_count: 1,
         size_fixed: 1,
         size_is_dynamic: false,

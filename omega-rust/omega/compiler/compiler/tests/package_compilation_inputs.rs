@@ -3540,12 +3540,13 @@ fn plan_laid_evaluation_requires_direct_authority_before_execution() {
         r#"use omega::language::core::layout;
 pub data LeafLayout { entries: [FieldEntry; 64]; }
 pub machine LeafLayout::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut owned_entries: [FieldEntry; 64];
+    owned_entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 0 }
     };
     Plan {
-        entries: self.entries,
+        entries: owned_entries,
         entry_count: 1,
         size_fixed: 4,
         size_is_dynamic: false,
@@ -3618,14 +3619,15 @@ pub data LeafPlacement {
     services: [u64; 32];
 }
 pub machine LeafPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
-    self.entries[0] = FieldEntry {
+    let mut owned_entries: [FieldEntry; 64];
+    owned_entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 0 }
     };
     let access: AccessPlan = AccessPlan::inaccessible(schema);
     PlacementPlan {
         layout: Plan {
-            entries: self.entries,
+            entries: owned_entries,
             entry_count: 1,
             size_fixed: 4,
             size_is_dynamic: false,

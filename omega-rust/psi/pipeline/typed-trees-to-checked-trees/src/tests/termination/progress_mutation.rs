@@ -7,7 +7,9 @@ mod arrivals;
 const CONTEXT_FIXTURE: &str = r#"
     data Main {}
     machine Main::run(&mut self) {}
-    pub data SchedulerHandle {}
+    // Copyable subject metadata lets these fixtures test snapshot lineage;
+    // copying still cannot establish a missing or invalidated progress profile.
+    pub data SchedulerHandle [copy] {}
     pub data Context { scheduler: SchedulerHandle; counter: u64; }
     pub domain SchedulerHandle::WeakFair
     satisfies ProgressProfile

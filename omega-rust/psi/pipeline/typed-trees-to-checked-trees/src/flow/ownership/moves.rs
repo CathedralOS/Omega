@@ -1,5 +1,6 @@
 use super::type_references::{OperatorResultOwnership, classify_operator_result_ownership};
 use super::*;
+pub(super) mod observations;
 
 pub(super) fn append_move_events_for_expression(
     program: &typed_trees::TypedTrees,
@@ -13,6 +14,8 @@ pub(super) fn append_move_events_for_expression(
     // nominal value whose tag is read. Restrict this to static symbol paths so
     // calls and computed indexes still expose their owned argument transfers.
     if let Some((subject, _)) = crate::proof::exact_outcome_case_test(program, expression)
+        && observations::selected_operator(sink, state_symbol, statement_index, expression)
+            .is_none()
         && canonical_place_from_expression_in_state(program, state_symbol, statement_index, subject)
             .is_some_and(|place| {
                 matches!(place.root, facts::PlaceRoot::Symbol(_))
@@ -25,6 +28,39 @@ pub(super) fn append_move_events_for_expression(
                         )
                     })
             })
+    {
+        return;
+    }
+
+    if type_references::intrinsic_enum_equality(program, state_symbol, statement_index, expression)
+    {
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+            unreachable!()
+        };
+        for operand in [binary.left, binary.right] {
+            observations::append(
+                program,
+                sink,
+                state_symbol,
+                statement_index,
+                operand,
+                source,
+            );
+        }
+        return;
+    }
+
+    if matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Indexed(_)
+    ) && observations::append_indexed_operands(
+        program,
+        sink,
+        state_symbol,
+        statement_index,
+        expression,
+        source,
+    ) == Some(true)
     {
         return;
     }
@@ -171,20 +207,9 @@ pub(super) fn append_move_events_for_expression(
                 );
             }
         }
-        // A call appearing in a *value* sub-expression position (a nested
-        // operator/boundary or state call used as an aggregate element/field, a
-        // binary or range operand, or a cast operand) still transfers ownership
-        // of any owned by-value arguments it consumes. Recursion reaches such a
-        // call only *through* an enclosing value expression; the call-flow
-        // discovery pass only records argument moves for state borrow calls, so
-        // for non-state (operator/boundary) calls reached this way the owned
-        // argument transfers would otherwise leave no ownership event. Descend
-        // into the call's owned by-value arguments here.
-        //
-        // State borrow calls (`find_state(target) == Some`) are intentionally
-        // excluded: their by-value argument transfers are emitted by
-        // `append_call_ownership_events` from the discovered `BorrowCallFact`s,
-        // so descending into them here would double-count.
+        // Nested calls retain their parameter-aligned owned arguments.
+        // Ordinary state/signature calls are already owned by call-flow;
+        // the helper avoids recording those transfers twice.
         ExpressionNode::Call(call) => {
             append_move_events_for_call_arguments(
                 program,
@@ -195,8 +220,15 @@ pub(super) fn append_move_events_for_expression(
                 source,
             );
         }
-        ExpressionNode::Borrow(_)
-        | ExpressionNode::Name(_)
+        ExpressionNode::Borrow(borrow) => observations::append(
+            program,
+            sink,
+            state_symbol,
+            statement_index,
+            borrow.target,
+            source,
+        ),
+        ExpressionNode::Name(_)
         | ExpressionNode::Member(_)
         | ExpressionNode::Indexed(_)
         | ExpressionNode::Boolean(_)
@@ -207,21 +239,8 @@ pub(super) fn append_move_events_for_expression(
     }
 }
 
-/// Append type-aware move events for the owned by-value arguments (and receiver)
-/// of a call that is itself reached as a value sub-expression.
-///
-/// State borrow calls are skipped because the call-flow pass already records
-/// their argument transfers from the discovered borrow-call facts. For an
-/// operator/boundary call the per-parameter ownership policy comes from the
-/// callee's declared parameter types (the same source of truth as
-/// [`classify_operator_result_ownership`]); a parameter whose type copies or
-/// borrows reads its argument without transferring ownership, so it produces no
-/// move event. When no operator declaration is found the argument expression's
-/// own type-aware policy decides via the recursive descent.
-///
-/// A static type-name receiver (`String::with_capacity(8)`) names a type, not a
-/// runtime value: it is never a place and never moves, so it is excluded from
-/// the receiver descent regardless of the callee.
+/// Evaluate nested call operands using their declared ownership policy.
+/// Static type/module receivers name declarations rather than runtime storage.
 fn append_move_events_for_call_arguments(
     program: &typed_trees::TypedTrees,
     sink: &mut DirectMoveEventSink<'_>,
@@ -250,6 +269,18 @@ fn append_move_events_for_call_arguments(
         arguments.len(),
         call.receiver.is_valid() && !receiver_is_static_path,
     );
+    if operator.is_none()
+        && observations::append_builtin_collection_view(
+            program,
+            sink,
+            state_symbol,
+            statement_index,
+            call,
+            source,
+        )
+    {
+        return;
+    }
     let policy = operator_call_ownership_policy(
         program,
         operator,
