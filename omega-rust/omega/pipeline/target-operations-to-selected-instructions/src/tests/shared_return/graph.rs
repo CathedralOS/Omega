@@ -123,15 +123,17 @@ fn scalar_cfg_accepts_signed_comparisons_and_more_than_four_blocks() {
                 };
                 assert_eq!(
                     operand_type,
-                    IntegerType::new(
-                        if signed {
-                            IntegerSign::Signed
-                        } else {
-                            IntegerSign::Unsigned
-                        },
-                        64
+                    ScalarType::Integer(
+                        IntegerType::new(
+                            if signed {
+                                IntegerSign::Signed
+                            } else {
+                                IntegerSign::Unsigned
+                            },
+                            64
+                        )
+                        .unwrap()
                     )
-                    .unwrap()
                 );
                 validate_legalized_operations(&target, &plan, &unit, legalized.plan().clone())
                     .unwrap();
@@ -190,7 +192,10 @@ fn scalar_cfg_replay_rejects_comparison_type_operands_and_fuel_substitution() {
         };
         match change {
             0 => *predicate = LegalizedScalarComparison::LessOrEqual,
-            1 => *operand_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+            1 => {
+                *operand_type =
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap())
+            }
             2 => *left = value(2),
             3 => *right = value(1),
             4 => {

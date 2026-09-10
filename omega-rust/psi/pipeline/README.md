@@ -80,11 +80,20 @@ a fresh successor value without a runtime tag or operation. Every incoming edge,
 ordinary call and result independently preserves that type.
 `cargo run -p omega -- inspect-terminal --machine choose --target macos_arm64 tests/omega/pass/expressions/match_domain_results/main.omg`
 publishes this fixture; `value_dispatch` replays both selections from canonical
-bytes. Predicate/routed evidence, explicit semantic erasure and shared structural
-qualification transport remain separate obligations, not bare-carrier fallbacks.
-The source checker still needs expression-membership grants when a qualified
-call or Match result supplies a qualified formal; exact Terminal call signature
-checking does not discharge that upstream source obligation.
+bytes. Explicit same-carrier erasure uses that same computation node and a strict
+subset qualification edge, including a bare destination. Its authored cast must
+survive source replay even when later qualification restores the original tags.
+Pure payload reconstruction cannot silently erase it. Qualified scalar calls and
+Match results retain exact membership grants for compatible formals, including
+closed indices. Predicate/routed evidence and erasure, plus shared structural
+qualification transport, remain separate obligations, not bare-carrier fallbacks.
+
+`cargo run -p omega -- inspect-terminal --machine choose --target macos_arm64 tests/omega/pass/expressions/explicit_scalar_tag_erasure/main.omg`
+publishes an explicitly erased qualified Match/call result. The native regression
+`cargo nextest run -p omega-native-differential-test --test scalar_array_results tag_erasure --no-fail-fast`
+checks canonical replay, four-target publication, and matching-host execution.
+No runtime tag is introduced: ordinary jumps carry fresh values, and Boolean
+pattern equality uses the existing comparison and branch machinery.
 
 `cargo run -p omega -- --check tests/omega/pass/expressions/declared_operator_match_result/main.omg`
 checks a wider declared operator result joined with an anonymous numeric arm.

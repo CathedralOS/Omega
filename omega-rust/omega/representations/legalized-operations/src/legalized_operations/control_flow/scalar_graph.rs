@@ -216,7 +216,8 @@ pub enum LegalizedScalarInstructionKind {
     },
     Compare {
         predicate: LegalizedScalarComparison,
-        operand_type: IntegerType,
+        /// Boolean operands remain Boolean; only equality shares integer-register comparison.
+        operand_type: ScalarType,
         left: ValueId,
         right: ValueId,
     },

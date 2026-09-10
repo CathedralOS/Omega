@@ -1,5 +1,6 @@
-//! Optimizer module role: executable entrance. Straight-line scalar lowering lifecycle and its exact operation routes.
+//! Optimizer module role: executable entrance. Evaluate the actual straight-line route, not its block storage order.
 
+mod blocks;
 mod call;
 mod exit;
 mod integer_arithmetic;
@@ -13,7 +14,7 @@ mod structural_scalar_field;
 
 use super::*;
 
-/// Evaluate operations in source order, then seal the single terminal target
+/// Evaluate operations in entry/Jump execution order, then seal the terminal target
 /// operation together with the provenance accumulated along that route.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_straight_line(
@@ -29,25 +30,44 @@ pub(super) fn lower_straight_line(
     let mut provenance = TerminalPsiProvenance::default();
     let mut returned = None;
     let mut structural_scalar_field_stores = Vec::new();
-    for (operation_index, abstract_operation) in function.operations.iter().enumerate() {
-        if returned.is_some() {
-            return Err(LoweringError::OperationAfterReturn(function.machine));
+    let mut block = function.entry;
+    let mut visited = BTreeSet::new();
+    loop {
+        let invalid =
+            || LoweringError::ConditionalControlFlowRequiresBlockLowering(function.machine);
+        if !visited.insert(block) {
+            return Err(invalid());
         }
-        operation::lower_operation(
-            abstract_operation,
-            operation_index,
-            function,
-            target,
-            functions,
-            structural_types,
-            &mut values,
-            function_result,
-            &call_plan,
-            &target_structural_parameters,
-            &mut provenance,
-            &mut structural_scalar_field_stores,
-            &mut returned,
-        )?;
+        let (start, body) = blocks::block_body(function, block)?;
+        // Block storage order is not execution order. Bind each arrival before
+        // evaluating its destination, keeping original operation coordinates.
+        for (relative_index, abstract_operation) in body.iter().enumerate() {
+            if returned.is_some() {
+                return Err(LoweringError::OperationAfterReturn(function.machine));
+            }
+            operation::lower_operation(
+                abstract_operation,
+                start + relative_index,
+                function,
+                target,
+                functions,
+                structural_types,
+                &mut values,
+                function_result,
+                &call_plan,
+                &target_structural_parameters,
+                &mut provenance,
+                &mut structural_scalar_field_stores,
+                &mut returned,
+            )?;
+        }
+        if returned.is_some() {
+            break;
+        }
+        let Some(AbstractOperation::Jump { target, .. }) = body.last() else {
+            return Err(invalid());
+        };
+        block = *target;
     }
 
     let mut operation = returned.ok_or(LoweringError::FunctionHasNoReturn(function.machine))?;
@@ -69,7 +89,7 @@ pub(super) fn lower_straight_line(
         attachment: function.attachment,
         scalar_abi: None,
         mixed_structural_scalar_abi: None,
-        provenance,
+        provenance: source_ordered_provenance(function, provenance.operations, provenance.edges),
         operation,
     })
 }

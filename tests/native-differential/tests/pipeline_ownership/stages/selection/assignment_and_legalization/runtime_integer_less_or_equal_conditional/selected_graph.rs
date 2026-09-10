@@ -57,7 +57,9 @@ fn runtime_u64_parameter_less_or_equal_selects_reversed_compare_on_both_isas() {
             comparison.kind,
             legalized_operations::LegalizedScalarInstructionKind::Compare {
                 predicate: legalized_operations::LegalizedScalarComparison::LessOrEqual,
-                operand_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                operand_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap()
+                ),
                 left,
                 right,
             }

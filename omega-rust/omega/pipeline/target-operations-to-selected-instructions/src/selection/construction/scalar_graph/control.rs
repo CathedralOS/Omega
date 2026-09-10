@@ -174,11 +174,7 @@ pub(super) fn build(
                 )?;
                 // A Boolean register is true when nonzero, unlike Equal's zero predicate.
                 inverted = !inverted;
-                (
-                    Comparison::Equal,
-                    semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64)
-                        .map_err(|_| invalid())?,
-                )
+                (Comparison::Equal, ScalarType::Boolean)
             };
             let branch_provenance = SelectedInstructionProvenance {
                 operations: not_rows.iter().map(|row| row.operation).collect(),
@@ -206,7 +202,7 @@ pub(super) fn build(
             } else {
                 (when_true, when_false)
             };
-            let signed = operand_type.sign() == IntegerSign::Signed;
+            let signed = matches!(operand_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed);
             let kind = match predicate {
                 Comparison::Equal => SelectedInstructionKind::ConditionalBranchNonZero,
                 _ if signed => SelectedInstructionKind::ConditionalBranchI64LessThan,

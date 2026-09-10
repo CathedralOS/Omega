@@ -314,7 +314,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                         LegalizedScalarComparison::LessThan => 1,
                         LegalizedScalarComparison::LessOrEqual => 2,
                     });
-                    encode_integer_type(bytes, *operand_type);
+                    encode_scalar_type(bytes, *operand_type);
                     bytes.extend_from_slice(&left.get().to_le_bytes());
                     bytes.extend_from_slice(&right.get().to_le_bytes());
                 }

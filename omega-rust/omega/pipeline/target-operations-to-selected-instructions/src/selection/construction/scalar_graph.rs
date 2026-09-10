@@ -255,6 +255,14 @@ pub(super) fn build(
                     left,
                     right,
                 } => {
+                    // Normalized Boolean registers share comparison mechanics,
+                    // not integer meaning or ordered predicates.
+                    if !matches!(*operand_type, ScalarType::Integer(_))
+                        && !(*operand_type == ScalarType::Boolean
+                            && *predicate == legalized_operations::LegalizedScalarComparison::Equal)
+                    {
+                        return Err(invalid());
+                    }
                     if !control::branch_suffix(block, operation_index) {
                         return Err(invalid());
                     }
@@ -266,9 +274,7 @@ pub(super) fn build(
                         };
                         let (_, register, _, actual_type) =
                             builder.resolve(input).ok_or_else(invalid)?;
-                        if actual_type != ScalarType::Integer(*operand_type)
-                            || scalar_type != ScalarType::Boolean
-                        {
+                        if actual_type != *operand_type || scalar_type != ScalarType::Boolean {
                             return Err(invalid());
                         }
                         builder.emit(
@@ -292,7 +298,7 @@ pub(super) fn build(
                         builder.resolve(*left).ok_or_else(invalid)?;
                     let (_, right_register, _, right_type) =
                         builder.resolve(*right).ok_or_else(invalid)?;
-                    if left_type != ScalarType::Integer(*operand_type)
+                    if left_type != *operand_type
                         || right_type != left_type
                         || scalar_type != ScalarType::Boolean
                     {

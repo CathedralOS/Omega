@@ -5,6 +5,7 @@ use target_operations::{
     ScalarParameterLocation, TargetBooleanExpression as Boolean, TargetIntegerControl as Control,
     TargetIntegerExpression as Expression, TargetScalarExpression, TargetUnitOperation,
 };
+mod boolean_parameters;
 mod byte_view;
 pub(in crate::legalization::scalar_graph_input) mod control_flow;
 mod expressions;
@@ -189,71 +190,6 @@ impl Checker<'_> {
         if path.contains(&block) {
             return false;
         }
-        if let Control::Conditional {
-            condition_source,
-            condition_parameter_index,
-            condition_location,
-            when_true,
-            when_false,
-        } = control
-        {
-            let Some(parameter) = self.scalar_parameters().get(*condition_parameter_index) else {
-                return false;
-            };
-            if parameter.scalar_type != ScalarType::Boolean
-                || !location_matches(*condition_location, &parameter.placement)
-            {
-                return false;
-            }
-            let parameter_expression = Boolean::Parameter {
-                source_value: parameter.value,
-                parameter_index: *condition_parameter_index,
-                location: *condition_location,
-            };
-            // The target's direct-parameter form encodes Not(Parameter) by
-            // swapping its arms, while retaining the authored Not result ID.
-            let (expression, true_arm, false_arm) = if *condition_source == parameter.value {
-                (parameter_expression, when_true, when_false)
-            } else {
-                let Some(operation) = self
-                    .optimized
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.nodes)
-                    .find_map(|node| match node.operation {
-                        AbstractOperation::BooleanNot {
-                            psi_operation,
-                            result,
-                            operand,
-                        } if result == *condition_source && operand == parameter.value => {
-                            Some(psi_operation)
-                        }
-                        _ => None,
-                    })
-                else {
-                    return false;
-                };
-                (
-                    Boolean::Not {
-                        psi_operation: operation,
-                        operand: Box::new(parameter_expression),
-                    },
-                    when_false,
-                    when_true,
-                )
-            };
-            return self.control(
-                block,
-                &Control::ConditionalExpression {
-                    condition_source: *condition_source,
-                    condition: expression,
-                    when_true: true_arm.clone(),
-                    when_false: false_arm.clone(),
-                },
-                aliases,
-                path,
-            );
-        }
         let Some(source) = self
             .optimized
             .blocks
@@ -267,6 +203,63 @@ impl Checker<'_> {
         };
         let mut path = path.to_vec();
         path.push(block);
+        if let AbstractOperation::Jump {
+            target, bindings, ..
+        } = &terminator.operation
+        {
+            return self.control(*target, control, &bind(aliases, bindings), &path);
+        }
+        if let Control::Conditional {
+            condition_source,
+            condition_parameter_index,
+            condition_location,
+            when_true: true_arm,
+            when_false: false_arm,
+        } = control
+        {
+            let AbstractOperation::Conditional {
+                condition,
+                when_true,
+                when_false,
+            } = &terminator.operation
+            else {
+                return false;
+            };
+            let Some(parameter) = self.scalar_parameters().get(*condition_parameter_index) else {
+                return false;
+            };
+            let Some((base, inverted)) =
+                self.parameter_predicate(*condition, aliases, &mut Vec::new())
+            else {
+                return false;
+            };
+            if condition_source != condition
+                || parameter.value != base
+                || parameter.scalar_type != ScalarType::Boolean
+                || !location_matches(*condition_location, &parameter.placement)
+            {
+                return false;
+            }
+            let (true_arm, false_arm) = if inverted {
+                (false_arm, true_arm)
+            } else {
+                (true_arm, false_arm)
+            };
+            return when_true.psi_edge == true_arm.psi_edge
+                && when_false.psi_edge == false_arm.psi_edge
+                && self.control(
+                    when_true.target,
+                    &true_arm.control,
+                    &bind(aliases, &when_true.bindings),
+                    &path,
+                )
+                && self.control(
+                    when_false.target,
+                    &false_arm.control,
+                    &bind(aliases, &when_false.bindings),
+                    &path,
+                );
+        }
         match (&terminator.operation, control) {
             (
                 AbstractOperation::Jump {

@@ -81,7 +81,7 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
             }),
             kind: LegalizedScalarInstructionKind::Compare {
                 predicate: LegalizedScalarComparison::Equal,
-                operand_type: integer,
+                operand_type: ScalarType::Integer(integer),
                 left: id(112),
                 right: id(114),
             },
@@ -197,7 +197,10 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
                 match mutation {
                     13 => *predicate = LegalizedScalarComparison::LessThan,
                     14 => *predicate = LegalizedScalarComparison::LessOrEqual,
-                    15 => *operand_type = IntegerType::new(IntegerSign::Signed, 64).unwrap(),
+                    15 => {
+                        *operand_type =
+                            ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap())
+                    }
                     16 => *left = id(999),
                     _ => *right = id(999),
                 }

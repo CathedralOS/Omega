@@ -21,6 +21,7 @@ pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Resu
                 AbstractOperation::IntegerConstant { psi_operation, .. }
                 | AbstractOperation::IeeeFloatConstant { psi_operation, .. }
                 | AbstractOperation::BooleanConstant { psi_operation, .. }
+                | AbstractOperation::BooleanEqual { psi_operation, .. }
                 | AbstractOperation::IntegerEqual { psi_operation, .. }
                 | AbstractOperation::IntegerLessThan { psi_operation, .. }
                 | AbstractOperation::IntegerLessOrEqual { psi_operation, .. }

@@ -259,7 +259,7 @@ fn retained_comparison_demands_operands_even_when_its_result_is_unused() {
         &[1, 2],
         Instruction::Compare {
             predicate: LegalizedScalarComparison::LessThan,
-            operand_type: integer(),
+            operand_type: ScalarType::Integer(integer()),
             left: value(1),
             right: value(2),
         },

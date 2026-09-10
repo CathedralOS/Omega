@@ -327,7 +327,8 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     None => cleanup_actions.is_empty()
                         || super::structural::read_result_cleanup_actions_match(abstracted, selected, cleanup_actions),
                 },
-                AbstractOperation::IntegerEqual { .. }
+                AbstractOperation::BooleanEqual { .. }
+                | AbstractOperation::IntegerEqual { .. }
                 | AbstractOperation::IntegerLessThan { .. }
                 | AbstractOperation::IntegerLessOrEqual { .. }
                 | AbstractOperation::BooleanNot { .. }
