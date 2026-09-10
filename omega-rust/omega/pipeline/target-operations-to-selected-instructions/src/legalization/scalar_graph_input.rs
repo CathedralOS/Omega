@@ -132,17 +132,6 @@ pub(super) fn i32_type() -> IntegerType {
 pub(super) fn u64_type() -> IntegerType {
     IntegerType::new(IntegerSign::Unsigned, 64).expect("U64")
 }
-pub(super) fn register(placement: &ValuePlacement) -> bool {
-    placement.shape == ValueShape::integer(8, 8)
-        && matches!(
-            placement.locations.as_slice(),
-            [ValueLocation::Register {
-                value_byte_offset: 0,
-                byte_size: 8,
-                ..
-            }]
-        )
-}
 pub(super) fn match_input(
     target: &TargetFunction,
     abstracted: &AbstractFunction,
@@ -217,7 +206,7 @@ pub(super) fn match_input(
         {
             return Err(invalid);
         }
-        nodes::validate(block, optimized, ranked)?;
+        nodes::validate(block, optimized, ranked, plan)?;
     }
     let entry = optimized
         .blocks
@@ -295,7 +284,7 @@ pub(super) fn match_input(
             let call = callee_plan(*callee, native, plan, unit)?;
             if call.result.is_none()
                 || call.parameters.len() != arguments.len()
-                || !call.parameters.iter().all(register)
+                || !call.parameters.iter().all(scalar_register)
             {
                 return Err(invalid);
             }
@@ -396,13 +385,15 @@ pub(super) fn callee_plan(
         && ((target.attachment.is_some()
             && !matches!(abstracted.result, AbstractFunctionResult::Unit))
             || !matches!(abstracted.result, AbstractFunctionResult::Unit)
-                && !matches!(abstracted.result, AbstractFunctionResult::Scalar(result) if result.scalar_type == ScalarType::Integer(u64_type()))
+                && !matches!(abstracted.result, AbstractFunctionResult::Scalar(result) if matches!(result.scalar_type, ScalarType::Integer(_)) && scalar_shape(result.scalar_type).is_some())
             || abstracted.parameters.iter().any(|parameter| {
                 if matches!(abstracted.result, AbstractFunctionResult::Unit) {
                     scalar_shape(parameter.scalar_type).is_none()
                 } else {
-                    ![ScalarType::Integer(u64_type()), ScalarType::Boolean]
-                        .contains(&parameter.scalar_type)
+                    !matches!(
+                        parameter.scalar_type,
+                        ScalarType::Integer(_) | ScalarType::Boolean
+                    ) || scalar_shape(parameter.scalar_type).is_none()
                 }
             }))
     {
@@ -415,8 +406,15 @@ pub(super) fn callee_plan(
     } else {
         function_abi(native.target, target, abstracted, optimized)?
     };
-    if !call_plan.parameters.iter().all(|placement| {
+    if !call_plan.parameters.iter().enumerate().all(|(position, placement)| {
         scalar_register(placement)
+            || position.checked_sub(abstracted.parameters.len())
+                .and_then(|position| abstracted.structural_parameters.get(position))
+                .is_some_and(|parameter| parameter.access == terminal_psi::StructuralAccess::Owned
+                    && crate::structural_reference_input::parameter_shape(parameter, &plan.structural_types) == Some(placement.shape)
+                    && placement.locations.iter().all(|location| matches!(location,
+                        ValueLocation::Register { byte_size: 1 | 2 | 4 | 8, .. }
+                        | ValueLocation::Stack { byte_size: 1 | 2 | 4 | 8, .. })))
             || scalar_stack(placement)
             || crate::structural_reference_input::stack_pointer_offset(placement).is_some()
             || placement.shape.class == calling_conventions::ValueClass::BorrowedReference
@@ -479,6 +477,19 @@ pub(super) fn integer_type(scalar: ScalarType) -> Option<IntegerType> {
                 || integer == i32_type() =>
         {
             Some(integer)
+        }
+        _ => None,
+    }
+}
+
+/// Call results need defined full-register contents before scalar evaluation.
+pub(super) fn integer_call_shape(scalar: ScalarType) -> Option<ValueShape> {
+    match scalar {
+        ScalarType::Integer(integer)
+            if integer.bits() == 64
+                || integer.sign() == IntegerSign::Unsigned && matches!(integer.bits(), 8 | 32) =>
+        {
+            scalar_shape(scalar)
         }
         _ => None,
     }

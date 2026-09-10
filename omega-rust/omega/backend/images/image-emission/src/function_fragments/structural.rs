@@ -79,12 +79,31 @@ pub(super) fn published_call(contract: &selected_instructions::SelectedCallContr
     // legacy singular structural-result record describes a different family
     // (whole-input returns); recording that here would misstate result custody.
     contract.call.structural_result.is_none()
+        // Direct value fragments have no pointer/copy record in the legacy
+        // projection. Their complete call operands and homes belong to the
+        // mandatory selected graph replay, just like aggregate results.
+        && !contract.call.arguments.iter().any(|argument| {
+            matches!(argument, LegalizedScalarArgument::Structural { target, .. }
+                if direct_owned_placement(target.access, &target.destination))
+        })
         && (contract.call.result_placement.is_none()
             || contract
                 .call
                 .arguments
                 .iter()
                 .any(|argument| matches!(argument, LegalizedScalarArgument::Structural { .. })))
+}
+
+fn direct_owned_placement(
+    access: terminal_psi::StructuralAccess,
+    placement: &ValuePlacement,
+) -> bool {
+    access == terminal_psi::StructuralAccess::Owned
+        && !placement.locations.is_empty()
+        && placement
+            .locations
+            .iter()
+            .all(|location| matches!(location, ValueLocation::Register { .. }))
 }
 fn pointer(placement: &ValuePlacement) -> Result<calling_conventions::MachineRegister, Error> {
     match placement.locations.as_slice() {
@@ -280,7 +299,10 @@ pub(super) fn populate(
                 access: target.access,
                 shape: target.shape,
             });
-            if unused_owned {
+            // Direct incoming values retain their complete ABI and captured
+            // registers in graph replay; a pointer-only legacy home would lie
+            // about their residence. Replay independently verifies each capture.
+            if unused_owned || direct_owned_placement(target.access, &target.placement) {
                 continue;
             }
             homes.push(UnitParameterHomeRecord {
@@ -340,6 +362,11 @@ pub(super) fn populate(
                 return Err(Error::Unsupported("Unit call scalar publication"));
             };
             let (argument_source, location) = match &target.source {
+                target_operations::TargetStructuralArgumentSource::StructuralHome { .. } => {
+                    return Err(Error::Mismatch(
+                        "aggregate home cannot use pointer-only call records",
+                    ));
+                }
                 target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
                     psi_operation,
                 } => (

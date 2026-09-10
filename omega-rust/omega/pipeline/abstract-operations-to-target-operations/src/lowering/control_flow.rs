@@ -66,7 +66,8 @@ pub(super) fn lower(
                 && ((parameter.access != StructuralAccess::Owned
                     && parameter.multiplicity == StructuralMultiplicity::Unrestricted)
                     || (parameter.access == StructuralAccess::Owned
-                        && parameter.multiplicity == StructuralMultiplicity::Affine
+                        && (parameter.multiplicity == StructuralMultiplicity::Affine
+                            || scalar_arrays::is_owned_parameter(parameter, structural_types))
                         && !parameter.is_self))
         }))
         || !function.entry_claims.is_empty()

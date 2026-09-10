@@ -86,6 +86,16 @@ pub(super) fn emit(
     };
     let result = operation.result.ok_or_else(invalid)?;
     let scalar_type = result.scalar_type;
+    let result_shape =
+        crate::selection::scalar_call_abi::integer_call_shape(scalar_type).ok_or_else(invalid)?;
+    if call
+        .result_placement
+        .as_ref()
+        .map(|placement| placement.shape)
+        != Some(result_shape)
+    {
+        return Err(invalid());
+    }
     let key = builder
         .constraints
         .keys
@@ -109,6 +119,12 @@ pub(super) fn emit(
         if let legalized_operations::LegalizedScalarArgument::Structural { semantic, target } =
             argument
         {
+            if semantic.access == StructuralAccess::Owned {
+                operands.extend(super::aggregate_argument::argument(
+                    source, operation, semantic, target, builder,
+                )?);
+                continue;
+            }
             if let Some(pointer) =
                 argument_pointer(builder, operation, argument_index, semantic, target)?
             {
@@ -119,13 +135,8 @@ pub(super) fn emit(
         let (_, input, site, argument_type) = builder
             .resolve(argument.scalar_source().ok_or_else(invalid)?)
             .ok_or_else(invalid)?;
-        let shape = match argument_type {
-            ScalarType::Boolean => calling_conventions::ValueShape::integer(1, 1),
-            ScalarType::Integer(integer) if integer.bits() == 64 => {
-                calling_conventions::ValueShape::integer(8, 8)
-            }
-            _ => return Err(invalid()),
-        };
+        let shape = crate::selection::scalar_call_abi::integer_call_shape(argument_type)
+            .ok_or_else(invalid)?;
         if argument.placement().shape != shape {
             return Err(invalid());
         }
@@ -182,10 +193,15 @@ pub(super) fn emit(
             ..Default::default()
         },
     )?;
-    builder.copy(
-        short_result,
-        result.value,
-        result.definition_site,
-        scalar_type,
-    )
+    let output = builder.register(result.value, result.definition_site, scalar_type)?;
+    builder.emit(
+        crate::selection::scalar_call_abi::integer_abi_normalization(scalar_type),
+        builder.constraints.keys.copy_i64,
+        &[short_result, output],
+        SelectedInstructionProvenance {
+            values: vec![result.value],
+            ..Default::default()
+        },
+    )?;
+    Ok(output)
 }

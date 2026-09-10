@@ -111,7 +111,20 @@ fn replay(target: target::NativeTarget, maximum: usize) {
                 for mutation in 0..corruption::SOURCE_COUNT {
                     let mut changed = source.clone();
                     corruption::source(&mut changed, scalar_count, mutation);
-                    assert!(construct(&changed).is_err(), "source corruption {mutation}");
+                    if mutation == 21 && !conditional {
+                        // Signed and unsigned 64-bit results share this ABI. The
+                        // raw graph can select either exact carrier; legalization
+                        // separately rejoins it to the callee declaration. An
+                        // artifact selected for the original carrier still rejects.
+                        // The conditional fixture additionally compares this result
+                        // with a u64 value, so its unchanged operand contract must
+                        // reject the substituted i64 result during construction.
+                        let changed_selected =
+                            construct(&changed).expect("supported i64 call result");
+                        validate(&changed, &changed_selected).expect("replay exact i64 carrier");
+                    } else {
+                        assert!(construct(&changed).is_err(), "source corruption {mutation}");
+                    }
                     assert!(
                         validate(&changed, &selected).is_err(),
                         "receiving corruption {mutation}"

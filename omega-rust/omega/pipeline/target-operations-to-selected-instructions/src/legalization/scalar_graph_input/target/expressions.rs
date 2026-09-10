@@ -86,7 +86,7 @@ impl Checker<'_> {
                 if *source_value != resolved || *result != resolved || actual != callee || requirement_obligations != requirements || crash_continuations != crashes || arguments.len() != sources.len() || arguments.len() != call.parameters.len() {return false;}
                 arguments.iter().zip(sources).zip(&call.parameters).all(|((argument,source),placement)| {
                     let TargetScalarExpression::Integer {scalar_type,expression} = &argument.expression else {return false;};
-                    argument.scalar_type == ScalarType::Integer(u64_type()) && *scalar_type == u64_type() && location_matches(argument.location,placement) && self.expression(expression,*source,aliases)
+                    argument.scalar_type == ScalarType::Integer(*scalar_type) && value_type(self.optimized, *source) == Some(argument.scalar_type) && scalar_shape(argument.scalar_type) == Some(placement.shape) && location_matches(argument.location,placement) && self.expression(expression,*source,aliases)
                 })
             }
             Expression::ExactAdd {psi_operation,obligation,left,right} | Expression::ExactSubtract {psi_operation,obligation,left,right} => {

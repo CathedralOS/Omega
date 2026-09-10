@@ -1136,28 +1136,6 @@ pub(super) fn build_checked_machine_with(
         .then(|| checked_unit_structural_result_local(program, shapes, statements, &binders))
         .flatten();
     let structural_result_symbol = structural_result_local.as_ref().map(|(_, symbol)| *symbol);
-    let has_structural_result =
-        statements.iter().any(|statement| {
-            statement_sequence::has_structural_result(program, facts, machine, statement)
-        }) || state_flow(facts, machine.symbol, state.symbol).is_some_and(|flow| {
-            facts
-                .flow
-                .control
-                .calls
-                .span_or_empty(flow.calls)
-                .iter()
-                .any(|call| {
-                    call.call_ordinal != 0
-                        && structural_operands::result(
-                            program,
-                            facts,
-                            machine.symbol,
-                            call.authored_expression,
-                            &mut ShapeCollector::new(program),
-                        )
-                        .is_some()
-                })
-        });
     let carries_fused_service_parameter = program.state_parameters(state).iter().any(|parameter| {
         typed_trees::service::exact_bound_service_requirement(program, parameter.type_reference)
             .is_some()
@@ -1175,12 +1153,13 @@ pub(super) fn build_checked_machine_with(
                     free_fused_service_scalar_signature(program, shapes, state, &binders)?;
                 (None, structural, scalar)
             } else if (selected_scalar_result_local.is_some()
-                || selected_structural_result_local.is_some()
-                || structural_result_local.is_some()
-                || has_structural_result)
+                || selected_structural_result_local.is_some())
                 && !carries_scalar_parameter
                 && !program.state_parameters(state).is_empty()
             {
+                // Selected operators retain their affine signature contract. An
+                // ordinary result local does not establish that category: its call
+                // retains the declared signature, including unrestricted arrays.
                 let structural =
                     free_selected_operator_structural_signature(program, shapes, state, &binders)?;
                 (None, structural, Vec::new())

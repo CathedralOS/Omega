@@ -173,3 +173,65 @@ fn array_legalized_replay_rejects_leaf_order_shape_and_result_substitution() {
         }
     }
 }
+
+#[test]
+fn incoming_array_identity_rejects_substituted_parameter_storage() {
+    let (mut source, _, _) = fixture(0);
+    let StructuralTypeShape::FixedArray { length, .. } = &mut source.structural_types[0].shape
+    else {
+        panic!("array")
+    };
+    *length = 1;
+    let function = &mut source.functions[0];
+    function.operations.remove(0);
+    function
+        .structural_parameters
+        .push(terminal_psi::StructuralParameterDeclaration {
+            place: PlaceId::new(1).unwrap(),
+            position: 0,
+            is_self: false,
+            structural_type: StructuralTypeId::new(1).unwrap(),
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: terminal_psi::StructuralAccess::Owned,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        });
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &source,
+        target::NativeTarget::linux_x64(),
+    )
+    .unwrap();
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &source,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+    let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
+    validate_legalized_operations(&target, &source, &unit, legalized.plan().clone()).unwrap();
+    for mutation in 0..5 {
+        let mut changed = target.clone();
+        let TargetOperation::ControlGraph(graph) = &mut changed.functions[0].operation else {
+            panic!("graph")
+        };
+        let target_operations::TargetControlTerminator::ReturnStructural {
+            source: target_operations::TargetStructuralReturnSource::Parameter(parameter),
+            ..
+        } = &mut graph.blocks[0].terminator
+        else {
+            panic!("parameter return")
+        };
+        match mutation {
+            0 => parameter.place = PlaceId::new(99).unwrap(),
+            1 => parameter.structural_type = StructuralTypeId::new(2).unwrap(),
+            2 => parameter.multiplicity = StructuralMultiplicity::Affine,
+            3 => parameter.access = terminal_psi::StructuralAccess::SharedBorrow,
+            4 => parameter.shape = ValueShape::integer(8, 8),
+            _ => unreachable!(),
+        }
+        assert!(
+            legalize_target_operations(&changed, &source, &unit).is_err(),
+            "mutation {mutation}"
+        );
+    }
+}

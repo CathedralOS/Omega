@@ -50,12 +50,18 @@ pub(super) fn build(
                         ValueLocation::Register {
                             register,
                             value_byte_offset: 0,
-                            byte_size: 8,
+                            byte_size,
                         },
                     ] = result.locations.as_slice()
                     else {
                         return Err(invalid());
                     };
+                    if crate::selection::scalar_call_abi::scalar_shape(value_type)
+                        != Some(result.shape)
+                        || *byte_size != result.shape.byte_size
+                    {
+                        return Err(invalid());
+                    }
                     let [operand] = row(builder.catalog, keys.return_i64)?.operands.as_slice()
                     else {
                         return Err(invalid());

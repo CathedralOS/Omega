@@ -216,6 +216,16 @@ pub(super) fn call(
         .zip(&callee_function.structural_parameters)
         .zip(&signature.parameters)
         .map(|((argument, declaration), destination)| {
+            if super::scalar_arrays::is_owned_parameter(declaration, types) {
+                return super::scalar_arrays::argument(
+                    argument,
+                    declaration,
+                    destination,
+                    prepared,
+                    live,
+                    types,
+                );
+            }
             if !argument.path.is_empty()
                 || argument.access != declaration.access
                 || !crate::lowering::scalar::byte_views::is_byte_parameter(declaration, types)

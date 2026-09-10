@@ -2,6 +2,7 @@
 
 use super::shared::*;
 mod borrowed_argument;
+mod owned_argument;
 use borrowed_argument::validate_borrowed_argument;
 use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
 use legalized_operations::{LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarFunction};
@@ -70,7 +71,8 @@ pub(super) fn register_argument_count(call: &LegalizedScalarCall) -> usize {
             stack_pointer_offset(argument.placement()).is_none()
                 && scalar_stack_placement(argument.placement()).is_none()
         })
-        .count()
+        .map(|argument| argument.placement().locations.len())
+        .sum()
 }
 
 /// Preserve ABI register-bank order while keeping source arguments in their authored roster.
@@ -120,12 +122,21 @@ pub(super) fn unit_key(
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Option<RegisterConstraintKey> {
     let order = register_argument_order(call);
-    let mut views = order
-        .iter()
-        .map(|index| {
-            environment.fixed_register_view(placement_register(call.arguments[*index].placement())?)
-        })
-        .collect::<Option<Vec<_>>>()?;
+    let mut views = Vec::new();
+    for index in &order {
+        let placement = call.arguments[*index].placement();
+        if matches!(&call.arguments[*index], LegalizedScalarArgument::Structural { semantic, .. } if semantic.access == StructuralAccess::Owned)
+        {
+            for location in &placement.locations {
+                let ValueLocation::Register { register, .. } = location else {
+                    return None;
+                };
+                views.push(environment.fixed_register_view(*register)?);
+            }
+        } else {
+            views.push(environment.fixed_register_view(placement_register(placement)?)?);
+        }
+    }
     let inputs = views.len();
     if call.structural_result.is_some() {
         for location in &call.result_placement.as_ref()?.locations {
@@ -181,7 +192,16 @@ pub(super) fn validate(
         if source.call_plan.policy != CallingPolicy::native_for_target(environment.target()) {
             return Err(invalid());
         }
-        validate_borrowed_argument(source, call, operation).ok_or_else(invalid)?;
+        if call.arguments.iter().any(|argument| matches!(argument, LegalizedScalarArgument::Structural { semantic, .. } if semantic.access == StructuralAccess::Owned)) {
+            owned_argument::validate_owned_arguments(source, call, operation).ok_or_else(invalid)?;
+        }
+        for (argument_index, argument) in call.arguments.iter().enumerate() {
+            if matches!(argument, LegalizedScalarArgument::Structural { semantic, .. } if semantic.access != StructuralAccess::Owned)
+            {
+                validate_borrowed_argument(source, call, operation, argument_index)
+                    .ok_or_else(invalid)?;
+            }
+        }
     }
     let count = call.arguments.len();
     let register_count = register_argument_count(call);
@@ -224,6 +244,30 @@ pub(super) fn validate(
     }
     let order = register_argument_order(call);
     for (index, placement) in call.call_plan.parameters.iter().chain(result).enumerate() {
+        if matches!(call.arguments.get(index), Some(LegalizedScalarArgument::Structural { semantic, .. }) if semantic.access == StructuralAccess::Owned)
+        {
+            let start = order
+                .iter()
+                .take_while(|argument| **argument != index)
+                .map(|argument| call.arguments[*argument].placement().locations.len())
+                .sum::<usize>();
+            if call.arguments[index].placement() != placement {
+                return Err(invalid());
+            }
+            for (fragment, location) in placement.locations.iter().enumerate() {
+                let ValueLocation::Register { register, .. } = location else {
+                    return Err(invalid());
+                };
+                let operand = row.operands.get(start + fragment).ok_or_else(invalid)?;
+                if operand.access != RegisterOperandAccess::Use
+                    || operand.fixed_view.is_none()
+                    || operand.fixed_view != environment.fixed_register_view(*register)
+                {
+                    return Err(invalid());
+                }
+            }
+            continue;
+        }
         if index == count && aggregate.is_some() {
             for (fragment, location) in placement.locations.iter().enumerate() {
                 let ValueLocation::Register { register, .. } = location else {
@@ -260,10 +304,14 @@ pub(super) fn validate(
         let operand_index = if index == count {
             register_count
         } else {
+            if !order.contains(&index) {
+                return Err(invalid());
+            }
             order
                 .iter()
-                .position(|argument| *argument == index)
-                .ok_or_else(invalid)?
+                .take_while(|argument| **argument != index)
+                .map(|argument| call.arguments[*argument].placement().locations.len())
+                .sum()
         };
         let operand = row.operands.get(operand_index).ok_or_else(invalid)?;
         let register = match placement.locations.as_slice() {
@@ -350,6 +398,35 @@ pub(super) fn scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
             Some(ValueShape::integer(integer.bits() / 8, integer.bits() / 8))
         }
         _ => None,
+    }
+}
+
+/// Narrow call values need normalization before whole-register consumers.
+/// The selected vocabulary has no 16-bit zero extension or narrow sign extension.
+pub(super) fn integer_call_shape(scalar_type: ScalarType) -> Option<ValueShape> {
+    match scalar_type {
+        ScalarType::Boolean => scalar_shape(scalar_type),
+        ScalarType::Integer(integer)
+            if integer.bits() == 64
+                || integer.sign() == IntegerSign::Unsigned && matches!(integer.bits(), 8 | 32) =>
+        {
+            scalar_shape(scalar_type)
+        }
+        _ => None,
+    }
+}
+
+/// ABI homes only promise the scalar's low bits, not the rest of the GPR.
+pub(super) fn integer_abi_normalization(scalar_type: ScalarType) -> SelectedInstructionKind {
+    match scalar_type {
+        ScalarType::Boolean => SelectedInstructionKind::ZeroExtendU8,
+        ScalarType::Integer(integer) if integer.bits() == 8 => {
+            SelectedInstructionKind::ZeroExtendU8
+        }
+        ScalarType::Integer(integer) if integer.bits() == 32 => {
+            SelectedInstructionKind::ZeroExtendU32
+        }
+        _ => SelectedInstructionKind::CopyI64,
     }
 }
 

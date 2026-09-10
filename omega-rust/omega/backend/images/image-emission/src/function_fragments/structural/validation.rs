@@ -43,10 +43,16 @@ pub(in crate::function_fragments) fn validate_function(
                 &function.scalar_structural_parameter_homes,
             )
         };
+    let pointer_parameters = || {
+        parameters.iter().filter(|parameter| {
+            !unused_owned
+                && !direct_owned_placement(parameter.target.access, &parameter.target.placement)
+        })
+    };
     if !unused_records.is_empty()
         || !unused_homes.is_empty()
         || records.len() != parameters.len()
-        || homes.len() != if unused_owned { 0 } else { parameters.len() }
+        || homes.len() != pointer_parameters().count()
         || function.internal_unit_calls.len()
             != selected
                 .calls
@@ -67,7 +73,7 @@ pub(in crate::function_fragments) fn validate_function(
             return Err(invalid());
         }
     }
-    for (home, expected) in homes.iter().zip(parameters) {
+    for (home, expected) in homes.iter().zip(pointer_parameters()) {
         let expected = &expected.target;
         if home.place != expected.place
             || home.structural_type != expected.structural_type

@@ -1,6 +1,7 @@
 //! Returning Unit branches join through ordinary source blocks.
 use super::*;
 mod cycles;
+mod scalar_arrays;
 mod structural_cases;
 mod transfers;
 use abstract_operations::AbstractSuccessor;

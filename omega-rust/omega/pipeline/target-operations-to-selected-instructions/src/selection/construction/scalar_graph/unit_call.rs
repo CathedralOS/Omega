@@ -35,6 +35,14 @@ pub(super) fn emit(
     for (argument_index, argument) in call.arguments.iter().enumerate() {
         match argument {
             LegalizedScalarArgument::Structural { semantic, target } => {
+                if semantic.access == StructuralAccess::Owned {
+                    for register in super::aggregate_argument::argument(
+                        source, operation, semantic, target, builder,
+                    )? {
+                        operands.push((argument_index, register));
+                    }
+                    continue;
+                }
                 if let Some(pointer) = super::scalar_call::argument_pointer(
                     builder,
                     operation,
@@ -95,14 +103,13 @@ pub(super) fn emit(
     let order = crate::selection::scalar_call_abi::register_argument_order(call);
     let mut operands = order
         .iter()
-        .map(|index| {
+        .flat_map(|index| {
             operands
                 .iter()
-                .find(|(argument, _)| argument == index)
+                .filter(move |(argument, _)| argument == index)
                 .map(|(_, register)| *register)
-                .ok_or_else(invalid)
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Vec<_>>();
     let mut result_registers = Vec::new();
     if let Some(result) = &call.structural_result {
         for location in &call

@@ -88,11 +88,11 @@ pub(super) fn call_pointer(
     place: PlaceId,
     byte_offset: u32,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let integer = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| replay.invalid())?;
     if !matches!(row.ownership.as_slice(), [optimization_unit::OwnershipEvent::ClaimTransfer(claims)] if claims.is_empty())
-        || row
-            .result
-            .is_some_and(|result| result.scalar_type != ScalarType::Integer(integer))
+        || row.result.is_some_and(|result| {
+            !crate::selection::scalar_call_abi::scalar_shape(result.scalar_type)
+                .is_some_and(|shape| shape.class == calling_conventions::ValueClass::Integer)
+        })
     {
         return Err(replay.invalid());
     }
@@ -213,7 +213,7 @@ pub(super) fn operation(
     let LegalizedScalarInstructionKind::Call(call) = &node.kind else {
         return Err(replay.invalid());
     };
-    if call.arguments.iter().all(|argument| !matches!(argument, LegalizedScalarArgument::Structural { semantic, .. } if semantic.access == StructuralAccess::Owned)) {
+    if call.arguments.iter().all(|argument| !matches!(argument, LegalizedScalarArgument::Structural { semantic, target } if semantic.access == StructuralAccess::Owned && crate::selection::scalar_array_input::shape(source, target.structural_type).is_none())) {
         super::unit_call::validate(source, node, environment, replay)?;
         return Ok(true);
     }

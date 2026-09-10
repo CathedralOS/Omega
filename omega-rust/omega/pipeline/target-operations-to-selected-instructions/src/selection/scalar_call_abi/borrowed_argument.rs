@@ -7,10 +7,12 @@ pub(super) fn validate_borrowed_argument(
     source: &LegalizedScalarFunction,
     call: &LegalizedScalarCall,
     operation: semantic_vocabulary::OperationId,
+    argument_index: usize,
 ) -> Option<()> {
     let signature = source.structural.as_ref()?;
-    let (last, scalars) = call.arguments.split_last()?;
-    let LegalizedScalarArgument::Structural { semantic, target } = last else {
+    let LegalizedScalarArgument::Structural { semantic, target } =
+        call.arguments.get(argument_index)?
+    else {
         return None;
     };
     // Only incoming structural parameters participate in the caller's ABI.
@@ -31,20 +33,6 @@ pub(super) fn validate_borrowed_argument(
     {
         return None;
     }
-    let scalar_shapes = scalars
-        .iter()
-        .map(|argument| {
-            let LegalizedScalarArgument::Scalar {
-                source: value,
-                placement,
-            } = argument
-            else {
-                return None;
-            };
-            let shape = scalar_shape(scalar_value_type(source, *value)?)?;
-            (placement.shape == shape).then_some(shape)
-        })
-        .collect::<Option<Vec<_>>>()?;
     let parameters = signature
         .parameters
         .iter()
@@ -103,10 +91,27 @@ pub(super) fn validate_borrowed_argument(
     let expected = evaluate_call_plan(
         source.call_plan.policy,
         &CallSignature {
-            parameters: scalar_shapes
-                .into_iter()
-                .chain(std::iter::once(shape))
-                .collect(),
+            parameters: call
+                .arguments
+                .iter()
+                .enumerate()
+                .map(|(position, argument)| match argument {
+                    LegalizedScalarArgument::Scalar {
+                        source: value,
+                        placement,
+                    } => {
+                        let shape = scalar_shape(scalar_value_type(source, *value)?)?;
+                        (placement.shape == shape).then_some(shape)
+                    }
+                    LegalizedScalarArgument::Structural { target, .. } => {
+                        Some(if position == argument_index {
+                            shape
+                        } else {
+                            target.shape
+                        })
+                    }
+                })
+                .collect::<Option<Vec<_>>>()?,
             result: if call.structural_result.is_some() {
                 Some(
                     crate::selection::aggregate_result_input::call_result(source, call)?
@@ -116,7 +121,7 @@ pub(super) fn validate_borrowed_argument(
             } else {
                 call.result_placement
                     .as_ref()
-                    .map(|_| ValueShape::integer(8, 8))
+                    .map(|placement| placement.shape)
             },
         },
     )
@@ -150,11 +155,12 @@ pub(super) fn validate_borrowed_argument(
         || (!exclusive && target.source_byte_offset != 0)
         || target.fixed_array_length != byte_view.map(|(_, length)| length)
         || target.element_stride != byte_view.map(|_| 1)
-        || Some(&target.destination) != expected.parameters.last()
+        || Some(&target.destination) != expected.parameters.get(argument_index)
     {
         return None;
     }
     match &target.source {
+        target_operations::TargetStructuralArgumentSource::StructuralHome { .. } => return None,
         target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
             psi_operation,
         } => {

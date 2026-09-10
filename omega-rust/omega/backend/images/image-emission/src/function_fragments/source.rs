@@ -14,6 +14,22 @@ mod tests;
 
 pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) -> bool {
     operations.iter().any(|operation| {
+        if let AbstractOperation::CallStructuralScalar {
+            structural_arguments,
+            ..
+        }
+        | AbstractOperation::CallUnit {
+            structural_arguments,
+            ..
+        } = operation
+            && structural_arguments
+                .iter()
+                .any(|argument| argument.access == terminal_psi::StructuralAccess::Owned)
+        {
+            // Owned call payloads may be direct fragments with no legacy
+            // pointer record. Their exact source and ABI stay in graph replay.
+            return true;
+        }
         matches!(
             operation,
             AbstractOperation::EstablishPrimitiveLocal { .. }
@@ -223,13 +239,21 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 }
                 AbstractOperation::CallStructuralScalar { psi_operation, callee, result, .. } => {
                     let (_, target) = function(source, *callee)?;
+                    // Structural-call semantics can retain a scalar-only callee
+                    // whose body builds arrays. Parameter ABI, not body shape,
+                    // selects the result contract joined to this call.
+                    let abi = match (&target.scalar_abi, &target.mixed_structural_scalar_abi) {
+                        (Some(abi), None) => Some((&abi.result, &abi.call_plan)),
+                        (None, Some(abi)) => Some((&abi.result, &abi.call_plan)),
+                        _ => None,
+                    };
                     selected.calls.iter().filter(|row| row.operation == *psi_operation
                         && row.call.callee == *callee
                         && row.call.result_placement.as_ref().is_some_and(|placement| {
-                            target.mixed_structural_scalar_abi.as_ref().is_some_and(|abi|
-                                abi.result.scalar_type == result.scalar_type
-                                    && abi.result.placement == *placement
-                                    && abi.call_plan == row.call.call_plan)
+                            abi.is_some_and(|(returned, plan)|
+                                returned.scalar_type == result.scalar_type
+                                    && returned.placement == *placement
+                                    && *plan == row.call.call_plan)
                         })).count() == 1
                 }
                 AbstractOperation::IntegerConstant { .. }

@@ -46,6 +46,10 @@ pub struct TargetStructuralArgument {
 /// different storage origins, even when the callee receives the same pointer ABI.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetStructuralArgumentSource {
+    /// Complete owned aggregate established by this exact dominating producer.
+    StructuralHome {
+        psi_operation: OperationId,
+    },
     /// Original activation-local primitive storage established by this operation.
     EstablishedPrimitiveLocal {
         psi_operation: semantic_vocabulary::OperationId,

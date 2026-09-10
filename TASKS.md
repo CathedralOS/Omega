@@ -1174,15 +1174,20 @@ Owners include
   transitive owned calls. Native construction and direct result calls now use
   `abstract-operations-to-target-operations/src/lowering/control_flow/aggregate_results.rs`
   and the existing selected aggregate homes. Resume native transport from base
-  `5409686628` plus the array payload checkpoint, macOS AArch64 with the same Cargo
+  `9a192dae7f` plus the owned-array checkpoint, macOS AArch64 with the same Cargo
   environment: `cargo nextest run -p omega-native-differential-test --test scalar_array_results --no-fail-fast`.
-  The computed/called/bound helpers publish on all four targets and execute on
-  macOS; the full transitive customer still needs owned actuals and incoming
-  array identity returns. Preserve the complete example above. Next acceptance
-  is native argument/result transport through `keep_row` and `answer_row`, not
-  another constructor-only helper. Empty/odd ABI fragments and hidden-pointer
+  The complete transitive customer now transports actual payloads through
+  `keep_row` and `answer_row`, publishes on all four targets, and executes on
+  macOS. Preserve it while extending the remaining value/storage paths below.
+  Empty/odd ABI fragments, stack/indirect owned arguments, and hidden-pointer
   results remain explicit limits; the selected owner is
   `target-operations-to-selected-instructions/src/selection/aggregate_result_input.rs`.
+  Scalar call transport also needs unsigned-16 zero extension and signed-narrow
+  normalization before those call carriers can be admitted. The existing
+  `selection/scalar_call_abi.rs` guard and argument tests retain these rejections;
+  this is distinct from raw 1/2/4/8-byte array payload transport. Acceptance:
+  exact scalar call values survive whole-register consumers with hostile unused
+  upper ABI bits, and independent replay rejects missing normalization.
   The `source_float_array_still_needs_checked_execution_plan` control separately
   witnesses `[f32; 2]` source failing before Terminal production; extend the
   existing checked scalar execution path before claiming floating-array native

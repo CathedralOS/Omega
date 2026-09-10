@@ -77,7 +77,7 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             requirement_obligations,
             crash_continuations,
             ..
-        } if result.scalar_type == ScalarType::Integer(u64_type())
+        } if integer_call_shape(result.scalar_type).is_some()
             && structural_arguments.len() <= 1
             && claim_transfers.is_empty()
             && requirement_obligations.is_empty()
@@ -112,7 +112,7 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             requirement_obligations,
             crash_continuations,
             ..
-        } if *scalar_type == ScalarType::Integer(u64_type())
+        } if integer_call_shape(*scalar_type).is_some()
             && requirement_obligations.is_empty()
             && crash_continuations.is_empty() =>
         {
@@ -189,6 +189,7 @@ pub(super) fn validate(
     block: &OptimizationBlock,
     optimized: &PsiOptimizationFunction,
     ranked: bool,
+    plan: &AbstractOperationPlan,
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
     super::boolean::validate(block, optimized)?;
@@ -196,13 +197,9 @@ pub(super) fn validate(
     for (position, parameter) in block.parameters.iter().enumerate() {
         if (integer_type(parameter.scalar_type).is_none()
             && !(!ranked && parameter.scalar_type == ScalarType::Boolean)
-            && !(optimized.result == AbstractFunctionResult::Unit
-                && !ranked
-                && [
-                    ScalarType::Integer(u8_type()),
-                    ScalarType::Integer(i32_type()),
-                ]
-                .contains(&parameter.scalar_type)))
+            && !(!ranked
+                && matches!(parameter.scalar_type, ScalarType::Integer(_))
+                && scalar_shape(parameter.scalar_type).is_some()))
             || parameter.site
                 != (ValueDefinitionSite::BlockParameter {
                     block: block.id,
@@ -455,5 +452,5 @@ pub(super) fn validate(
             return Err(invalid);
         }
     }
-    super::control::validate(terminator, body, optimized, ranked)
+    super::control::validate(terminator, body, optimized, ranked, plan)
 }

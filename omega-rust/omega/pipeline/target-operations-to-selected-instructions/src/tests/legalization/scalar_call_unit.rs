@@ -4,6 +4,39 @@ use crate::tests::fixtures::scalar_call_unit::scalar_call_unit_fixture;
 use crate::{legalize_target_operations, validate_legalized_operations};
 
 #[test]
+fn scalar_call_result_sign_cannot_change_under_an_equal_abi_shape() {
+    let (abstract_plan, target, unit) = scalar_call_unit_fixture();
+    let legalized = legalize_target_operations(&target, &abstract_plan, &unit).unwrap();
+    let mut changed = legalized.plan().clone();
+    let instruction = changed.scalar_functions[0].blocks[0]
+        .instructions
+        .iter_mut()
+        .find(|instruction| {
+            matches!(
+                instruction.kind,
+                legalized_operations::LegalizedScalarInstructionKind::Call(_)
+            )
+        })
+        .expect("caller has an ordinary scalar call");
+    let result = instruction
+        .result
+        .as_mut()
+        .expect("scalar result definition");
+    assert_eq!(
+        result.scalar_type,
+        semantic_vocabulary::ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .unwrap()
+        )
+    );
+    result.scalar_type = semantic_vocabulary::ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 64)
+            .unwrap(),
+    );
+    assert!(validate_legalized_operations(&target, &abstract_plan, &unit, changed).is_err());
+}
+
+#[test]
 fn register_calls_retain_the_target_abi_home_area() {
     let (abstract_plan, _, unit) = scalar_call_unit_fixture();
     for native in [

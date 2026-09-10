@@ -43,10 +43,11 @@ pub(super) fn function_abi(
     let result = match &abstracted.result {
         AbstractFunctionResult::Unit => None,
         AbstractFunctionResult::Scalar(result)
-            if integer_type(result.scalar_type).is_some_and(|integer| integer.bits() == 64)
+            if matches!(result.scalar_type, ScalarType::Integer(_))
+                && scalar_shape(result.scalar_type).is_some()
                 && target.attachment.is_none() =>
         {
-            Some(ValueShape::integer(8, 8))
+            scalar_shape(result.scalar_type)
         }
         _ => return Err(invalid),
     };
@@ -65,7 +66,7 @@ pub(super) fn function_abi(
     if expected
         .result
         .as_ref()
-        .is_some_and(|value| !register(value))
+        .is_some_and(|value| !scalar_register(value))
     {
         return Err(invalid);
     }

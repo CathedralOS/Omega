@@ -83,7 +83,8 @@ pub(super) fn project(
                 | target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
                     ..
                 }
-                | target_operations::TargetStructuralArgumentSource::BlockParameter { .. } => {
+                | target_operations::TargetStructuralArgumentSource::BlockParameter { .. }
+                | target_operations::TargetStructuralArgumentSource::StructuralHome { .. } => {
                     return Err(SelectedInstructionError::UnsupportedProjectedStructuralShape);
                 }
             },

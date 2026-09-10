@@ -31,13 +31,6 @@ fn zero_odd_and_indirect_result_fragments_remain_explicit_limits() {
 }
 
 #[test]
-fn owned_array_actuals_and_incoming_identity_returns_still_need_transport() {
-    let source = "machine keep(row: [u8; 2]) -> [u8; 2] { row }
-        machine selected(value: u8) -> [u8; 2] { keep([value, 9u8]) }";
-    assert!(target_plan(source, "selected", NativeTarget::host()).is_err());
-}
-
-#[test]
 fn source_float_array_still_needs_checked_execution_plan() {
     assert!(matches!(
         produce(include_str!("shapes.omg"), "floating"),
