@@ -1,0 +1,13 @@
+operator + u8::sum(left: u8, right: u8) -> u64;
+
+machine sum(left: u8, right: u8) -> u64
+satisfies u8::sum {
+    (left as u64) + (right as u64)
+}
+
+machine choose(flag: bool, left: u8, right: u8) -> u64 {
+    match flag {
+        true -> left + right,
+        false -> 18446744073709551616 / 18446744073709551616
+    }
+}

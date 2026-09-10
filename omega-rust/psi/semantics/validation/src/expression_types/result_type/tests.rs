@@ -11,10 +11,81 @@ use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceN
 
 fn typed(arms: &str) -> TypedTrees {
     let source = format!("machine run(flag: bool) -> u64 {{ (match flag {{ {arms} }}) as u64 }}");
-    let tokens = Lexer::new(&source).tokenize().expect("tokens");
+    typed_source(&source)
+}
+
+fn typed_source(source: &str) -> TypedTrees {
+    let tokens = Lexer::new(source).tokenize().expect("tokens");
     let syntax = parse_syntax_trees(&tokens).expect("syntax");
     let resolved = lower_syntax_trees(&syntax).expect("resolution");
     lower_symbol_resolved_trees(&resolved).expect("typing")
+}
+
+fn declared_binary_arm(program: &TypedTrees) -> ExpressionHandle {
+    let ExpressionNode::Match(dispatch) = program
+        .expression_table
+        .expression(dispatch_handle(program))
+    else {
+        panic!("match result");
+    };
+    let value = program.expression_table.match_arms(dispatch.arms)[0].value;
+    assert!(matches!(
+        program.expression_table.expression(value),
+        ExpressionNode::Binary(_)
+    ));
+    value
+}
+
+fn operator_program(declarations: &str) -> TypedTrees {
+    typed_source(&format!(
+        "{declarations}
+         machine run(flag: bool, left: u8, right: u8) -> u64 {{
+             (match flag {{ true -> left + right, false -> 1 }}) as u64
+         }}"
+    ))
+}
+
+#[test]
+fn selected_operator_result_retains_exact_declaration_reference() {
+    for declaration in [
+        "operator + u8::sum(left: u8, right: u8) -> u64;",
+        "operator + u8::sum(left: u8, right: u8) -> u64 in Wrapping;",
+        "operator + Math::sum<T>(left: T, right: T) -> u64;",
+    ] {
+        let program = operator_program(declaration);
+        let [operator] = program.operators() else {
+            panic!("one authored operator");
+        };
+        assert_eq!(
+            query(&program, declared_binary_arm(&program)),
+            operator.return_type,
+            "{declaration}"
+        );
+    }
+}
+
+#[test]
+fn dependent_or_ambiguous_operator_results_remain_unresolved() {
+    for declarations in [
+        "operator + u8::sum(left: u8, right: u8) -> u64 [0..=left];",
+        "operator + Math::sum<T>(left: T, right: T) -> T;",
+        "operator + u8::sum(left: u8, right: u8) -> u64;
+         operator + u8::other(left: u8, right: u8) -> u64;",
+    ] {
+        let program = operator_program(declarations);
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        assert_eq!(
+            expression_result_type_reference(
+                &program,
+                machine,
+                state,
+                declared_binary_arm(&program)
+            ),
+            None,
+            "{declarations}"
+        );
+    }
 }
 
 fn dispatch_handle(program: &TypedTrees) -> ExpressionHandle {
