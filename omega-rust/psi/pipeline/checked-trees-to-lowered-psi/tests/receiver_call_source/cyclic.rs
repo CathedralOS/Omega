@@ -55,7 +55,7 @@ fn projected_unranked_callee_preserves_caller_observation() {
                 .replace("RANKING", "")
                 .replace("record(self.value)", &format!("record({expression})")),
         );
-        assert_observation(&artifact, integer(expected));
+        assert_observations(&artifact, &[vec![integer(expected)]]);
     }
 }
 
@@ -79,7 +79,7 @@ fn receiver_free_observer_keeps_attachment_erasure() {
         .find(|plan| plan.machine == observer.symbol)
         .unwrap();
     assert!(plan.structural_parameters.is_empty());
-    assert_observation(&produce(&source), integer(9));
+    assert_observations(&produce(&source), &[vec![integer(9)]]);
 }
 
 #[test]
@@ -90,7 +90,10 @@ fn projected_boolean_observer_retains_receiver() {
         .replace("value: u64;", "value: bool;")
         .replace("self.value = 7", "self.value = true")
         .replace("record(self.value)", "record(self.value == true)");
-    assert_observation(&produce(&source), TerminalScalarValue::Boolean(true));
+    assert_observations(
+        &produce(&source),
+        &[vec![TerminalScalarValue::Boolean(true)]],
+    );
 }
 
 #[test]
@@ -116,23 +119,108 @@ fn erased_observed_receiver_is_rejected_after_checking() {
 }
 
 #[test]
-fn natural_ranked_unit_callee_still_requires_retained_ranking() {
-    // Receiver retention does not manufacture the shared Unit graph's missing
-    // scalar Natural witness. Never replace the promised rank with no rank.
-    let checked = checked_from_source(
+fn natural_ranked_unit_callee_preserves_ordinary_projected_calls() {
+    for (primitive, bits) in [("u8", 8), ("u16", 16), ("u32", 32), ("u64", 64)] {
+        let artifact = produce(
+            &SOURCE
+                .replace("RANKING", "terminates by remaining -> Nat::Descending;")
+                .replace("remaining: u64", &format!("remaining: {primitive}")),
+        );
+        let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+        let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
+        assert_eq!(proof.control_cycles.len(), 1);
+        assert!(module.machines.iter().any(|machine| matches!(
+            machine.ranked_scc,
+            Some(terminal_psi::TerminalRankedScc::Natural(_))
+        )));
+        assert!(module.machines.iter().all(|machine| {
+            machine
+                .ranked_scc
+                .as_ref()
+                .is_none_or(|rank| rank.as_unsigned_countdown().is_none())
+        }));
+        for machine in &module.machines {
+            if let Some(terminal_psi::TerminalRankedScc::Natural(components)) = &machine.ranked_scc
+            {
+                assert!(components.iter().all(|component| {
+                    component.rank_type
+                        == semantic_vocabulary::IntegerType::new(
+                            semantic_vocabulary::IntegerSign::Unsigned,
+                            bits,
+                        )
+                        .unwrap()
+                }));
+            }
+        }
+        assert_observations(&artifact, &[vec![integer(7)]]);
+    }
+}
+
+#[test]
+fn natural_rank_subject_measure_and_carrier_cannot_be_substituted() {
+    let original = checked_from_source(
         &SOURCE.replace("RANKING", "terminates by remaining -> Nat::Descending;"),
     );
-    let error = terminal_production::produce_terminal_artifact(&checked, "Root::enter")
-        .expect_err("Natural-ranked Unit source remains outside this receiver-read fix");
-    assert!(matches!(
-        error,
-        terminal_production::TerminalArtifactProductionError::Lowering(
-            checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan {
-                reason: "attached Unit closure is missing a checked transitive machine plan",
-                ..
+    for corruption in ["missing", "measure", "carrier", "subject", "position"] {
+        let mut checked = original.clone();
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_machines
+            .iter_mut()
+            .find(|plan| !plan.natural_ranks.is_empty())
+            .unwrap();
+        match corruption {
+            "missing" => plan.natural_ranks.clear(),
+            "measure" => {
+                plan.natural_ranks[0].measure =
+                    checked_trees::CheckedNaturalRankMeasure::ByteSequenceLength
             }
-        )
-    ));
+            "carrier" => {
+                plan.natural_ranks[0].measure =
+                    checked_trees::CheckedNaturalRankMeasure::UnsignedParameter {
+                        primitive_type: typed_trees::types::PrimitiveType::U32,
+                    }
+            }
+            "subject" => plan.natural_ranks[0].parameter = symbols::SymbolHandle::invalid(),
+            "position" => plan.natural_ranks[0].parameter_position = 0,
+            _ => unreachable!(),
+        }
+        assert!(
+            terminal_production::produce_terminal_artifact(&checked, "Root::enter").is_err(),
+            "{corruption}"
+        );
+    }
+}
+
+#[test]
+fn natural_ranked_callee_rejects_missing_descent() {
+    let source = SOURCE
+        .replace("RANKING", "terminates by remaining -> Nat::Descending;")
+        .replace("walk(remaining - 1)", "walk(remaining)");
+    let tokens = Lexer::new(&source).tokenize().unwrap();
+    let syntax = parse_syntax_trees(&tokens).unwrap();
+    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+    assert!(typed_trees_to_checked_trees::lower_typed_trees(typed).is_err());
+}
+
+#[test]
+fn ranked_loop_retains_private_argument_evaluation_edges() {
+    for ranking in ["", "terminates by remaining -> Nat::Descending;"] {
+        let source = SOURCE
+            .replace("record(value: u64)", "record(value: u64, selected: bool)")
+            .replace("record(self.value)", "record(self.value, true)")
+            .replace("RANKING", &format!("{ranking}\nreaches Observe"))
+            .replace(
+                "self.value = 7;",
+                "self.value = 7;\nObserve::record(self.value, remaining > 0 && remaining < 3);",
+            );
+        let observations = [false, true, true, false, true]
+            .map(|selected| vec![integer(7), TerminalScalarValue::Boolean(selected)]);
+        assert_observations(&produce(&source), &observations);
+    }
 }
 
 fn integer(value: u128) -> TerminalScalarValue {
@@ -142,9 +230,9 @@ fn integer(value: u128) -> TerminalScalarValue {
     }
 }
 
-fn assert_observation(
+fn assert_observations(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
-    expected: TerminalScalarValue,
+    expected: &[Vec<TerminalScalarValue>],
 ) {
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
@@ -197,12 +285,14 @@ fn assert_observation(
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     let observed = |execution: &TerminalExecution| {
-        let [terminal_interpreter::TerminalEffect::BoundaryCall { arguments, .. }] =
-            execution.effects()
-        else {
-            panic!("one post-return observation");
-        };
-        assert_eq!(arguments, std::slice::from_ref(&expected));
+        assert_eq!(execution.effects().len(), expected.len());
+        for (effect, expected) in execution.effects().iter().zip(expected) {
+            let terminal_interpreter::TerminalEffect::BoundaryCall { arguments, .. } = effect
+            else {
+                panic!("ordered boundary observation");
+            };
+            assert_eq!(arguments, expected);
+        }
     };
     observed(&execution);
     assert_eq!(

@@ -22,10 +22,10 @@ pub(super) fn build(
     if states.len() < 2 && result == checked_trees::CheckedControlResultPlan::Unit {
         return None;
     }
-    let slice_length_ranks = if machine.termination_plan.implementation_witness.is_some() {
+    let natural_ranks = if machine.termination_plan.implementation_witness.is_some() {
         // Other retained witnesses belong to their existing producer until this
         // path can preserve them. Never publish an unranked replacement.
-        let ranks = crate::checks::termination::proven_slice_length_ranks(program, machine)?;
+        let ranks = crate::checks::termination::proven_state_natural_ranks(program, machine)?;
         if ranks.is_empty() {
             return None;
         }
@@ -269,7 +269,7 @@ pub(super) fn build(
         provider_attachment_requirements,
         planned,
     )?;
-    plan.slice_length_ranks = slice_length_ranks;
+    plan.natural_ranks = natural_ranks;
     plan.result = result;
     Some(plan)
 }

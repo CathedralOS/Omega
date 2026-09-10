@@ -371,10 +371,15 @@ multiplicity and cannot originate from write-only roots.
 Ordinary Unit helpers retain borrowed `self` when checked scalar operands read
 its fields, including through computed arguments. Attachment metadata cannot
 supply the referent. Helpers without runtime receiver reads keep their existing
-erasure eligibility. The `receiver_call_source::cyclic` tests observe a projected
-unranked callee's writes after return and across every interpreter fuel pause;
-scalar Natural-ranked Unit witness retention and native publication remain
-separate obligations.
+erasure eligibility. The `receiver_call_source::cyclic` tests observe projected
+unranked and Natural-ranked callees' writes after return and across every
+interpreter fuel pause. Shared Unit graphs retain the existing guarded unsigned
+countdown judgment for `u8`, `u16`, `u32`, and `u64` using the same natural-rank
+subject carrier as `Slice::Length`; private operand-evaluation edges preserve
+the rank while authored cyclic transfers strictly decrease it. The existing
+single-state cyclic-component restriction and unsupported explicit rank ranges
+remain; this does not introduce a fixed-work ceiling. Native looping borrowed
+record storage remains a separate target-lowering obligation.
 
 Projection replay rejoins every field/index, array bound, type, and source
 application. Nonescaping alias prefixes with immutable bindings to mutable or

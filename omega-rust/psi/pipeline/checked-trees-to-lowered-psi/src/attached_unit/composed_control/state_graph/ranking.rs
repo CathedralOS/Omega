@@ -1,6 +1,7 @@
 //! Retain the selected source view as natural ranks over the emitted graph.
 
 use super::*;
+use checked_trees::CheckedNaturalRankMeasure;
 use std::collections::BTreeMap;
 use terminal_psi::{
     TerminalBlockNaturalRank, TerminalNaturalCycle, TerminalNaturalRankComparison,
@@ -13,17 +14,21 @@ pub(super) fn validate_witness(
     plan: &CheckedComposedUnitControlMachinePlan,
 ) -> Result<(), LoweringError> {
     let Some(witness) = &machine.termination_plan.implementation_witness else {
-        return if plan.slice_length_ranks.is_empty() {
+        return if plan.natural_ranks.is_empty() {
             Ok(())
         } else {
             unsupported("Unit graph has a substituted ranking witness")
         };
     };
-    if witness.view_path != "Slice::Length"
+    if !matches!(
+        witness.ranking_view,
+        language_semantics::RankingViewId::SLICE_LENGTH
+            | language_semantics::RankingViewId::NAT_DESCENDING
+    ) || Some(witness.view_path.as_str()) != witness.ranking_view.canonical_path()
         || !witness.view_arguments.is_empty()
         || witness.rank_range.is_some()
-        || plan.slice_length_ranks.is_empty()
-        || plan.slice_length_ranks.windows(2).any(|ranks| {
+        || plan.natural_ranks.is_empty()
+        || plan.natural_ranks.windows(2).any(|ranks| {
             (ranks[0].state.arena_index(), ranks[0].state.generation())
                 >= (ranks[1].state.arena_index(), ranks[1].state.generation())
         })
@@ -36,12 +41,12 @@ pub(super) fn validate_witness(
             "Unit graph rank lost its exact source subject",
         ))?;
     let [subject] = custody.subjects.as_slice() else {
-        return unsupported("Unit graph requires one exact slice rank");
+        return unsupported("Unit graph requires one exact natural rank subject");
     };
     let checked_trees::expression::ExpressionNode::Name(subject) =
         checked.expression_table.expression(*subject)
     else {
-        return unsupported("Unit graph slice rank requires a parameter subject");
+        return unsupported("Unit graph natural rank requires a parameter subject");
     };
     let root = checked
         .machine_states(machine)
@@ -54,7 +59,7 @@ pub(super) fn validate_witness(
         .ok_or(LoweringError::Unsupported(
             "Unit graph rank subject is not an entry parameter",
         ))?;
-    for rank in &plan.slice_length_ranks {
+    for rank in &plan.natural_ranks {
         let state = checked
             .machine_states(machine)
             .iter()
@@ -68,19 +73,42 @@ pub(super) fn validate_witness(
             .ok_or(LoweringError::Unsupported(
                 "Unit graph rank names a missing parameter",
             ))?;
-        if parameter.symbol != rank.parameter
-            || parameter.is_self
-            || parameter.name != root_parameter.name
-            || plan
-                .states
-                .iter()
-                .find(|candidate| candidate.state == rank.state)
-                .is_none_or(|state| {
-                    !state
+        let state_plan = plan
+            .states
+            .iter()
+            .find(|candidate| candidate.state == rank.state)
+            .ok_or(LoweringError::Unsupported(
+                "Unit graph rank lost its source state",
+            ))?;
+        let measure_matches = match rank.measure {
+            CheckedNaturalRankMeasure::ByteSequenceLength => {
+                witness.ranking_view == language_semantics::RankingViewId::SLICE_LENGTH
+                    && state_plan
                         .structural_parameters
                         .iter()
                         .any(|parameter| parameter.position == rank.parameter_position)
-                })
+            }
+            CheckedNaturalRankMeasure::UnsignedParameter { primitive_type } => {
+                witness.ranking_view == language_semantics::RankingViewId::NAT_DESCENDING
+                    && matches!(
+                        primitive_type,
+                        PrimitiveType::U8
+                            | PrimitiveType::U16
+                            | PrimitiveType::U32
+                            | PrimitiveType::U64
+                    )
+                    && checked.primitive_type_reference(parameter.type_reference)
+                        == Some(primitive_type)
+                    && state_plan.scalar_parameters.iter().any(|parameter| {
+                        parameter.source_position == rank.parameter_position
+                            && parameter.primitive_type == primitive_type
+                    })
+            }
+        };
+        if parameter.symbol != rank.parameter
+            || parameter.is_self
+            || parameter.name != root_parameter.name
+            || !measure_matches
         {
             return unsupported("Unit graph rank no longer names its checked state subject");
         }
@@ -92,14 +120,51 @@ pub(super) fn parameter_position(
     plan: &CheckedComposedUnitControlMachinePlan,
     state: &CheckedComposedUnitControlStatePlan,
 ) -> Option<usize> {
-    let rank = plan
-        .slice_length_ranks
-        .iter()
-        .find(|rank| rank.state == state.state)?;
+    let rank = plan.natural_ranks.iter().find(|rank| {
+        rank.state == state.state && rank.measure == CheckedNaturalRankMeasure::ByteSequenceLength
+    })?;
     state
         .structural_parameters
         .iter()
         .position(|parameter| parameter.position == rank.parameter_position)
+}
+
+pub(super) fn scalar_parameter_position(
+    plan: &CheckedComposedUnitControlMachinePlan,
+    state: &CheckedComposedUnitControlStatePlan,
+) -> Option<usize> {
+    let rank = plan
+        .natural_ranks
+        .iter()
+        .find(|rank| rank.state == state.state)?;
+    let CheckedNaturalRankMeasure::UnsignedParameter { primitive_type } = rank.measure else {
+        return None;
+    };
+    state.scalar_parameters.iter().position(|parameter| {
+        parameter.source_position == rank.parameter_position
+            && parameter.primitive_type == primitive_type
+    })
+}
+
+pub(super) fn has_rank(
+    plan: &CheckedComposedUnitControlMachinePlan,
+    state: &CheckedComposedUnitControlStatePlan,
+) -> bool {
+    plan.natural_ranks
+        .iter()
+        .any(|rank| rank.state == state.state)
+}
+
+pub(super) fn byte_argument_position(
+    plan: &CheckedComposedUnitControlMachinePlan,
+    state: &CheckedComposedUnitControlStatePlan,
+) -> Option<usize> {
+    let parameter = &state.structural_parameters[parameter_position(plan, state)?];
+    state
+        .structural_parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .position(|candidate| candidate.position == parameter.position)
 }
 
 pub(super) fn retain(
@@ -156,8 +221,12 @@ pub(super) fn retain(
         }
         retained_ranks.sort_by_key(|rank| rank.block);
         retained_edges.sort_by_key(|edge| edge.edge);
+        let first_rank = retained_ranks
+            .first()
+            .ok_or(LoweringError::Unsupported("natural component has no rank"))?;
+        let rank_type = rank_type(machine, first_rank.value)?;
         components.push(TerminalNaturalCycle {
-            rank_type: IntegerType::new(IntegerSign::Unsigned, 64).expect("byte extent carrier"),
+            rank_type,
             ranks: retained_ranks,
             edges: retained_edges,
         });
@@ -167,4 +236,37 @@ pub(super) fn retain(
     }
     machine.ranked_scc = Some(TerminalRankedScc::Natural(components));
     Ok(())
+}
+
+fn rank_type(machine: &TerminalMachine, value: ValueId) -> Result<IntegerType, LoweringError> {
+    machine
+        .parameters
+        .iter()
+        .chain(machine.blocks.iter().flat_map(|block| &block.parameters))
+        .copied()
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .filter_map(|operation| {
+                    if let OperationResult::Scalar(value) = operation.result {
+                        Some(value)
+                    } else {
+                        None
+                    }
+                }),
+        )
+        .find_map(|declaration| {
+            if declaration.id == value
+                && let ScalarType::Integer(integer) = declaration.scalar_type
+            {
+                Some(integer)
+            } else {
+                None
+            }
+        })
+        .ok_or(LoweringError::Unsupported(
+            "natural rank has no declared integer carrier",
+        ))
 }

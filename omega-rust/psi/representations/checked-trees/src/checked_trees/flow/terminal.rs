@@ -765,9 +765,9 @@ impl CheckedUnitEffectPlans {
 pub struct CheckedComposedUnitControlMachinePlan {
     pub machine: SymbolHandle,
     pub result: CheckedControlResultPlan,
-    /// Exact cyclic-state subjects selected by the checked Slice::Length
-    /// witness. Empty means this shared plan retains no such witness.
-    pub slice_length_ranks: Vec<CheckedStateSliceLengthRank>,
+    /// Exact cyclic-state subjects and natural-valued measures selected by the
+    /// checked witness. Empty means this shared plan retains no witness.
+    pub natural_ranks: Vec<CheckedStateNaturalRank>,
     /// Free helpers have no attachment; attached bodies retain their authored owner.
     pub attachment_type_identity: Option<String>,
     pub provider_attachment_requirements: Vec<CheckedProviderAttachmentRequirementPlan>,
@@ -795,10 +795,17 @@ pub struct CheckedScalarCaseFieldPlan {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedStateSliceLengthRank {
+pub struct CheckedStateNaturalRank {
     pub state: SymbolHandle,
     pub parameter: SymbolHandle,
     pub parameter_position: u32,
+    pub measure: CheckedNaturalRankMeasure,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedNaturalRankMeasure {
+    ByteSequenceLength,
+    UnsignedParameter { primitive_type: PrimitiveType },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -264,12 +264,12 @@ fn checked_slice_rank_cannot_be_removed_or_redirected() {
             .terminal_unit_effects
             .composed_machines
             .iter_mut()
-            .find(|plan| !plan.slice_length_ranks.is_empty())
+            .find(|plan| !plan.natural_ranks.is_empty())
             .unwrap();
         if mutation == 0 {
-            plan.slice_length_ranks.clear();
+            plan.natural_ranks.clear();
         } else {
-            plan.slice_length_ranks[0].parameter_position = 0;
+            plan.natural_ranks[0].parameter_position = 0;
         }
         assert!(checked_trees_to_lowered_psi::lower_machine(&source, "Root::enter").is_err());
     }
