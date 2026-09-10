@@ -18,6 +18,9 @@ use tokens_to_syntax_trees::{parse_syntax_trees, parse_syntax_trees_with_id};
 #[path = "tests/generated_invocations.rs"]
 mod generated_invocations;
 
+#[path = "tests/retained_constants.rs"]
+mod retained_constants;
+
 #[test]
 fn numeric_result_policies_are_retained_without_result_annotations_or_input_ranges() {
     use numerics::arithmetic::ArithmeticDomain;

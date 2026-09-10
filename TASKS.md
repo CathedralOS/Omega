@@ -1149,8 +1149,7 @@ Owners include
   computed aggregate indices, open-template index expressions, module-owned
   templates, foreign/generic constant attachments, trait defaults,
   operator homes, qualified constructors, and remaining declaration forms.
-  Later syntax extensions also need retained base constant initializers; they
-  currently retain only declaration identity. The explicit temporary fences live in
+  The explicit temporary fences live in
   `syntax-trees-to-symbol-resolved-trees/src/module_normalization.rs`; replace
   them with exact namespace-aware normalization, not bare-name fallback.
   Source-prefix imports, nominal/free-machine namespaces and scalar body
