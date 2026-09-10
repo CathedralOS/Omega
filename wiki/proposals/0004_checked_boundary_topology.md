@@ -1,7 +1,7 @@
-# 0007: Checked boundary topology
+# 0004: Checked boundary topology
 
 Status: proposed, not ratified or implemented. This is a reference-package design
-and a customer for [0008: Build dependency scopes and isolated inputs](0008_build_dependency_scopes.md),
+and a customer for [0005: Build dependency scopes and isolated inputs](0005_build_dependency_scopes.md),
 not a compiler-owned topology subsystem. Examples use candidate library/build
 APIs, not existing deployment APIs or new Omega grammar. No Omega implementation
 or deployment-enforcement result is claimed; acceptance work remains below.
@@ -50,7 +50,7 @@ termination, availability, or distributed-consistency theorem.
 | Composition project's build entry and helpers | Exact component inputs, instance names, endpoint bindings, transport selections, policies, and a required artifact output. |
 | Topology package | Builder, graph algorithms, policy contracts, diagnostics, artifact schema/codec, and plan verification. |
 | Existing Psi/component verifier | Establish component identity, complete interfaces, and authority/call closure under the existing component contract. No graph policy or deployment execution. |
-| Generic Build facilities from 0008 | Admit build-only code, expose scoped inputs, account for required outputs, and publish exact bytes with provenance. No topology-aware success verdict. |
+| Generic Build facilities from 0005 | Admit build-only code, expose scoped inputs, account for required outputs, and publish exact bytes with provenance. No topology-aware success verdict. |
 | Package-owned installer and runtime adapters | Verify the plan, select admitted providers, establish bindings, and sequence activation/cleanup under existing installation rules. |
 | OS/transport providers | Supply exact confinement and endpoint identity guarantees, with checked or explicitly accepted assumptions. |
 
@@ -81,7 +81,7 @@ These are integration boundaries, not arguments that the feature already exists:
 - [Protocol proofs](../spec/language/concurrency.md#protocol-proofs): reach is not
   liveness; richer event-model extraction is separate from this proposal.
 
-0008 owns the proposed build-only dependency context, isolated inputs/staging, and
+0005 owns the proposed build-only dependency context, isolated inputs/staging, and
 required artifact publication. Existing component publication already requires
 closed imports/exports, all entries, outgoing authority, and installation
 obligations. This package consumes those facts; their current specification is
@@ -102,7 +102,7 @@ authority, grant access to private code, or establish installed endpoint identit
 ## Authoring surface
 
 Use an ordinary application build with the generic artifact-only output intent
-from 0008, or attach the plan as a required companion to an executable. No
+from 0005, or attach the plan as a required companion to an executable. No
 composition package role or topology-specific output kind is introduced.
 The helper package is a build dependency, not an implicit product dependency.
 Its revision remains part of build provenance; nothing here makes it callable
@@ -152,7 +152,7 @@ target component types as host types. Typed convenience methods may name
 `Authorize` and `Charge` through separately declared build protocol dependencies,
 but must join their complete normalized schemas to the target endpoint; equal
 names or independently checked host/target applications are not compatibility
-evidence. Product-description handles from 0008 cannot become generic type
+evidence. Product-description handles from 0005 cannot become generic type
 arguments merely to make this shortcut work.
 Storage sponsorship and checked error propagation are omitted only from the
 sketch, not the contract. No implicit unwraps or ambient filesystem access follow.
@@ -228,7 +228,7 @@ and checked custody/lifetime constraints. It also identifies the verification
 schema, semantic subject, selected realization evidence where available, and
 per-fact assumptions. No private executable bodies become author-selectable;
 their existence and authority consequences remain represented in completeness
-evidence. Early product-reference descriptions from 0008 are not accepted here:
+evidence. Early product-reference descriptions from 0005 are not accepted here:
 the package needs the completed component closure, after generated source and
 provider selection, not the build's partial declaration catalog.
 
@@ -653,7 +653,7 @@ Required acceptance cases:
 | Old request is correctly signed but differs from current installation authorization | Reject; authenticated history is not current permission. |
 | Plan names an unselected policy executable | Reject without executing it. |
 | Every binding receipt is individually valid but an import is omitted or duplicated | Reject the incomplete/non-bijective installed coverage. |
-| Build helper tries to read home files or open a network connection | No authority from the topology dependency; 0008's scoped execution refuses. |
+| Build helper tries to read home files or open a network connection | No authority from the topology dependency; 0005's scoped execution refuses. |
 | Plan file is published with a forged success flag | Publication is not approval; the package verifier rejects invalid evidence. |
 | Instance declaration order or binding order changed | Same normalized semantic graph and policy result. |
 | Cross-machine consumer with no source trees | Reconstruct and check from admitted artifacts and owned plan. |
@@ -676,7 +676,7 @@ not close it.
 | --- | --- |
 | Package discipline and manual reach audits | Useful today, but insufficient for instance-specific enforced wiring. |
 | Capability construction without graph policies | Valid when the permitted construction itself expresses the complete restriction. Keep it as the simpler option for small systems. Graph policies earn their place when independent wiring edits must preserve a global rule. |
-| Compiler-owned topology products, keywords, and graph algorithms | Not justified: use 0008's generic build outputs and package code. Component evidence remains owned by existing component verification. |
+| Compiler-owned topology products, keywords, and graph algorithms | Not justified: use 0005's generic build outputs and package code. Component evidence remains owned by existing component verification. |
 | Reflection-driven graph discovery | Optional convenience for authorized schemas, not evidence of complete executable authority or installed wiring. |
 | Precise per-entry internal dependency summaries | Viable later if conservative instance graphs reject a concrete needed architecture; not required to prove this bounded claim. |
 | Arbitrary program/network topology extraction | Much larger than the construction-controlled customer; not the first implementation. |
@@ -700,7 +700,7 @@ Before promotion, inventory which existing component facts already have portable
 producer/verifier support. Any missing completeness guarantee needs a precise
 contract and implementation task in that owner, not an assumed adapter. Specify
 the package codec field/tag tables and test corrupt/missing/duplicate/stale fields
-before shipping artifacts. Demonstrate 0008's generic output protocol with a code
+before shipping artifacts. Demonstrate 0005's generic output protocol with a code
 generator as well as topology. Exercise an actual private-pipe installation and
 its failures on the available hosts. These are required acceptance artifacts,
 not permission to claim runtime enforcement from successful graph tests.
@@ -710,7 +710,7 @@ contract and its assumptions. Topology-specific wire choices, container selectio
 and graph implementation stay with the package; any new trusted premise or
 language semantic change must be surfaced. Remote transport, automatic upgrades,
 arbitrary policy-code loading, and typed reflection across build/product contexts
-are deferred rather than unspecified v1 features. 0008 remains a proposed
+are deferred rather than unspecified v1 features. 0005 remains a proposed
 dependency, not a ratified requirement on current packages.
 
 ## Comparison and ownership rationale
