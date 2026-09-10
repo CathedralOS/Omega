@@ -5,7 +5,10 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use target_operations::TargetOperation;
 use terminal_psi::{TerminalAffineCleanupAction, TerminalRankedGuard};
-use terminal_psi_to_abstract_operations::lower_artifact_sections_for_native_ranked_countdown;
+use terminal_psi_to_abstract_operations::{
+    NativeArtifactOperationPlan, lower_artifact_sections_for_native_ranked_countdown,
+    lower_artifact_sections_for_native_realization,
+};
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
@@ -44,6 +47,16 @@ fn ranked_abstract() -> abstract_operations::RankedNativeAbstractOperationPlan {
 }
 
 fn ranked_abstract_from(source: &str) -> abstract_operations::RankedNativeAbstractOperationPlan {
+    let (semantic, proof) = countdown_artifact(source);
+    lower_artifact_sections_for_native_ranked_countdown(
+        &semantic,
+        &proof,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("admit native ranked countdown")
+}
+
+fn countdown_artifact(source: &str) -> (Vec<u8>, Vec<u8>) {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
@@ -53,18 +66,50 @@ fn ranked_abstract_from(source: &str) -> abstract_operations::RankedNativeAbstra
         .expect("lower terminal countdown");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).expect("semantic");
     let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).expect("proof");
-    lower_artifact_sections_for_native_ranked_countdown(
-        &semantic,
-        &proof,
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .expect("admit native ranked countdown")
+    (semantic, proof)
+}
+
+fn natural_receiver_abstract(source: &str) -> abstract_operations::AbstractOperationPlan {
+    let (semantic, proof) = countdown_artifact(source);
+    let profile = proof_admission::AdmissionProfile::default();
+    let mut module = terminal_codec::decode_module(&semantic).unwrap();
+    assert!(matches!(
+        module.machines[0].ranked_scc,
+        Some(terminal_psi::TerminalRankedScc::Natural(_))
+    ));
+    assert!(
+        matches!(
+            lower_artifact_sections_for_native_ranked_countdown(&semantic, &proof, &profile),
+            Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::Verification(
+                terminal_verifier::VerificationError::Module(
+                    terminal_verifier::ModuleError::NonExecutableRankedScc(machine)
+                )
+            )) if machine == module.entry
+        ),
+        "Natural receiver graphs cannot acquire legacy fixed-countdown authority"
+    );
+    let NativeArtifactOperationPlan::Ordinary(plan) =
+        lower_artifact_sections_for_native_realization(&semantic, &proof, &profile).unwrap()
+    else {
+        panic!("Natural receiver uses ordinary native admission");
+    };
+    module.machines[0].structural_parameters[0].is_self = false;
+    assert!(
+        lower_artifact_sections_for_native_realization(
+            &terminal_codec::encode_module(&module).unwrap(),
+            &proof,
+            &profile,
+        )
+        .is_err(),
+        "receiver identity must agree with its persistent invocation place"
+    );
+    plan
 }
 
 #[test]
-fn ranked_receiver_countdown_uses_one_persistent_pointer_custody_row() {
-    let ranked = ranked_abstract_from(RECEIVER_COUNTDOWN_SOURCE);
-    let replay = &ranked.countdown.semantic_replay.machines[0].structural_parameters[0];
+fn natural_receiver_countdown_uses_one_persistent_pointer_custody_row() {
+    let plan = natural_receiver_abstract(RECEIVER_COUNTDOWN_SOURCE);
+    let replay = &plan.functions[0].structural_parameters[0];
     assert!(replay.is_self);
     assert_eq!(
         replay.multiplicity,
@@ -73,12 +118,13 @@ fn ranked_receiver_countdown_uses_one_persistent_pointer_custody_row() {
     assert_eq!(replay.access, terminal_psi::StructuralAccess::MutableBorrow);
 
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let lowered = lower_ranked_to_target_operations(&ranked, target)
+        let lowered = crate::lower_to_target_operations(&plan, target)
             .expect("persistent receiver reaches target custody");
-        let TargetOperation::RankedU32Countdown(countdown) = &lowered.functions[0].operation else {
-            panic!("dedicated ranked carrier")
+        crate::validate_abstract_to_target_translation(&plan, target, &lowered).unwrap();
+        let TargetOperation::ControlGraph(countdown) = &lowered.functions[0].operation else {
+            panic!("ordinary Natural control graph")
         };
-        let [parameter] = countdown.structural_parameters.as_slice() else {
+        let [parameter] = countdown.parameters.as_slice() else {
             panic!("one receiver custody row")
         };
         assert_eq!(parameter.place, replay.place);
@@ -103,27 +149,38 @@ fn ranked_receiver_countdown_uses_one_persistent_pointer_custody_row() {
             }] if *register == receiver_register
         ));
         assert_eq!(countdown.call_plan.parameters[1], parameter.placement);
-        assert!(countdown.cleanup_actions.is_empty());
         assert!(
             countdown
-                .custody
-                .structural_frontiers
-                .header_entry
-                .owned_places()
-                .is_empty()
+                .blocks
+                .iter()
+                .all(|block| block.structural_parameters.is_empty()),
+            "persistent receiver is never rebound on a state edge"
         );
-        assert_eq!(
-            countdown.custody.structural_frontiers.header_entry,
-            countdown.custody.structural_frontiers.backedge_exit
+        assert!(
+            plan.functions[0]
+                .operations
+                .iter()
+                .filter_map(|operation| {
+                    if let abstract_operations::AbstractOperation::ReturnUnit {
+                        cleanup_actions,
+                        ..
+                    } = operation
+                    {
+                        Some(cleanup_actions)
+                    } else {
+                        None
+                    }
+                })
+                .all(Vec::is_empty),
+            "borrowed receiver has no owned cleanup"
         );
+        let mut forged = lowered.clone();
+        let TargetOperation::ControlGraph(graph) = &mut forged.functions[0].operation else {
+            unreachable!();
+        };
+        graph.parameters[0].access = terminal_psi::StructuralAccess::SharedBorrow;
+        assert!(crate::validate_abstract_to_target_translation(&plan, target, &forged).is_err());
     }
-
-    let mut forged = ranked;
-    forged.countdown.semantic_replay.machines[0].structural_parameters[0].is_self = false;
-    assert!(matches!(
-        lower_ranked_to_target_operations(&forged, NativeTarget::linux_x64()),
-        Err(LoweringError::InvalidRankedCountdown(machine)) if machine == forged.plan.entry
-    ));
 }
 
 #[test]
@@ -197,22 +254,21 @@ fn ranked_countdown_target_lowering_preserves_exact_custody_and_abi() {
 }
 
 #[test]
-fn ranked_receiver_shape_tracks_referent_size_and_alignment() {
+fn natural_receiver_shape_tracks_referent_size_and_alignment() {
     for (field, bytes, alignment) in [
         ("value: u8;", 1, 1),
         ("value: u64;", 8, 8),
         ("first: u64; second: u64; third: u64;", 24, 8),
     ] {
         let source = RECEIVER_COUNTDOWN_SOURCE.replace("value: i32;", field);
-        let ranked = ranked_abstract_from(&source);
+        let plan = natural_receiver_abstract(&source);
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-            let lowered = lower_ranked_to_target_operations(&ranked, target).unwrap();
-            let TargetOperation::RankedU32Countdown(countdown) = &lowered.functions[0].operation
-            else {
+            let lowered = crate::lower_to_target_operations(&plan, target).unwrap();
+            let TargetOperation::ControlGraph(countdown) = &lowered.functions[0].operation else {
                 panic!("ranked receiver")
             };
             assert_eq!(
-                countdown.structural_parameters[0].shape,
+                countdown.parameters[0].shape,
                 calling_conventions::ValueShape::borrowed_reference(bytes, alignment),
                 "{field} keeps its referent dimensions, not pointer dimensions"
             );
