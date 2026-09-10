@@ -54,6 +54,7 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
+ "terminal-verifier",
  "tokens-to-syntax-trees",
  "typed-trees-to-checked-trees",
 ]

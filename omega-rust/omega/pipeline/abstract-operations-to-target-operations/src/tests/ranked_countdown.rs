@@ -95,12 +95,7 @@ fn natural_receiver_abstract(source: &str) -> abstract_operations::AbstractOpera
     };
     module.machines[0].structural_parameters[0].is_self = false;
     assert!(
-        lower_artifact_sections_for_native_realization(
-            &terminal_codec::encode_module(&module).unwrap(),
-            &proof,
-            &profile,
-        )
-        .is_err(),
+        terminal_codec::encode_module(&module).is_err(),
         "receiver identity must agree with its persistent invocation place"
     );
     plan
