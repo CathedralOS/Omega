@@ -90,8 +90,12 @@ invalidation no longer appends discarded survivor lists when nothing changes.
 Fragmented selections and non-tail extensions still copy, and expression meets
 and entry-origin rebasing retain separate temporary lists.
 
-Range-state arguments form an entry-rooted all-predecessor fixed point. Rebuild
-edge contributions each pass and withhold unconverged inference. Assignment
+Range-state arguments form an entry-rooted all-predecessor fixed point. Retain
+source-owned edge contributions and replay only states whose incoming facts or
+reachability changed. Each replay replaces its complete contribution, so a late
+unknown predecessor can weaken every downstream fact. Synchronous rounds still
+fold all contributions in source order and withhold unconverged inference after
+the same 64-round budget; this does not expand proof acceptance. Assignment
 values share semantic contexts and invalidation with domain facts. Exit checking
 uses live assignment evidence, not initializer replay; scalar returns require
 exact result/arm binding and checked operator meaning.

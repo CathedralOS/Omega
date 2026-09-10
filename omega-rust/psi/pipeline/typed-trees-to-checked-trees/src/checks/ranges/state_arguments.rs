@@ -1,6 +1,8 @@
 mod calls;
 mod expressions;
 mod statements;
+#[cfg(test)]
+mod tests;
 
 use symbols::SymbolHandle;
 use typed_trees::machine::Machine;
@@ -142,6 +144,147 @@ pub(super) fn collect_state_argument_facts<'program>(
     operators: &checked_trees::CheckedOperatorFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Vec<StateArgumentFacts> {
+    #[cfg(test)]
+    if tests::WHOLE_PASS_REFERENCE.get() {
+        return collect_state_argument_facts_whole_pass(
+            program,
+            field_lengths,
+            machine,
+            call_frames,
+            calls,
+            operators,
+            mutation_summaries,
+        );
+    }
+    let states = program.machine_states(machine);
+    let Some(entry) = states.first() else {
+        return Vec::new();
+    };
+    let mut collected: Vec<StateArgumentFacts> = Vec::new();
+    // Source-owned outputs preserve statement encounter order. A dirty source
+    // replaces its complete contribution, including edges that lost facts.
+    let mut contributions = vec![Vec::new(); states.len()];
+    let mut dirty = vec![false; states.len()];
+    dirty[0] = true;
+    for _ in 0..MAX_PROPAGATION_PASSES {
+        for (state_index, (state, calls)) in states.iter().zip(calls).enumerate() {
+            if !dirty[state_index] {
+                continue;
+            }
+            let outgoing = &mut contributions[state_index];
+            outgoing.clear();
+            if state_index != 0 && !collected.iter().any(|facts| facts.state == state.symbol) {
+                continue;
+            }
+            #[cfg(test)]
+            tests::STATE_TRANSFERS.set(tests::STATE_TRANSFERS.get() + 1);
+            let context = StateArgumentContext {
+                program,
+                machine,
+                state,
+                call_frames,
+            };
+            let mut facts = RangeFacts::new(field_lengths);
+            facts.mutation_summaries = std::borrow::Cow::Borrowed(mutation_summaries);
+            facts.checked_calls = Some(calls);
+            facts.checked_operators = Some(operators);
+            for parameter in program.state_parameters(state) {
+                facts.define_local(
+                    parameter.symbol,
+                    parameter.name.to_string(),
+                    super::arrays::fixed_array_type_length(program, parameter.type_reference),
+                    None,
+                );
+            }
+            seed_state_requires(program, &mut facts, machine, state);
+            if state_index != 0 {
+                seed_state_argument_facts(&mut facts, state, &collected);
+            }
+            for (statement_index, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
+                facts.statement_index = statement_index;
+                collect_state_argument_facts_from_statement(
+                    &context, &mut facts, statement, outgoing,
+                );
+            }
+            // An internal edge never narrows the externally callable head.
+            outgoing.retain(|incoming| incoming.state != entry.symbol);
+        }
+        let mut next = Vec::new();
+        for outgoing in &contributions {
+            for incoming in outgoing {
+                merge_contribution(&mut next, incoming);
+            }
+        }
+        if next == collected {
+            return next;
+        }
+        for (state_index, state) in states.iter().enumerate() {
+            dirty[state_index] = state_index != 0
+                && next.iter().find(|facts| facts.state == state.symbol)
+                    != collected.iter().find(|facts| facts.state == state.symbol);
+        }
+        collected = next;
+    }
+    // Keep synchronous rounds and the original budget: an unfinished fixed
+    // point cannot publish provisional facts, even if only one state is dirty.
+    Vec::new()
+}
+
+fn merge_contribution(collected: &mut Vec<StateArgumentFacts>, incoming: &StateArgumentFacts) {
+    let Some(existing) = collected
+        .iter_mut()
+        .find(|facts| facts.state == incoming.state)
+    else {
+        collected.push(incoming.clone());
+        return;
+    };
+    for (existing, incoming) in existing.parameters.iter_mut().zip(&incoming.parameters) {
+        if incoming.length != MergedFact::Unseen {
+            existing.length.merge(incoming.length.get());
+        }
+        if incoming.integer != MergedFact::Unseen {
+            existing.integer.merge(incoming.integer.get());
+        }
+        if incoming.minimum_length != MergedBound::Unseen {
+            existing
+                .minimum_length
+                .merge_lower(incoming.minimum_length.get());
+        }
+        if incoming.upper_bound != MergedBound::Unseen {
+            existing.upper_bound.merge(incoming.upper_bound.get());
+        }
+    }
+    if let Some(incoming) = &incoming.index_proofs.proofs {
+        if let Some(existing) = &mut existing.index_proofs.proofs {
+            existing.retain(|proof| incoming.contains(proof));
+        } else {
+            existing.index_proofs.proofs = Some(incoming.clone());
+        }
+    }
+    if let Some(incoming) = &incoming.receiver_lengths {
+        if let Some(existing) = &mut existing.receiver_lengths {
+            existing.retain(|length| incoming.iter().any(|incoming| length.same_extent(incoming)));
+        } else {
+            existing.receiver_lengths = Some(incoming.clone());
+        }
+    }
+}
+
+#[cfg(test)]
+fn collect_state_argument_facts_whole_pass<'program>(
+    program: &'program typed_trees::TypedTrees,
+    field_lengths: &[(SymbolHandle, String, usize)],
+    machine: &'program Machine,
+    call_frames: Option<&validation::CallFrameResolver<'program>>,
+    calls: &[super::facts::RangeCallContext<'_>],
+    operators: &checked_trees::CheckedOperatorFacts,
+    mutation_summaries: &crate::flow::StateMutationSummaryCache,
+) -> Vec<StateArgumentFacts> {
     // Facts about a state's arguments are derived from the call/transition
     // sites that target it. On a recursive or cyclic control-flow path the
     // arguments handed to the *next* state are themselves built from the
@@ -176,6 +319,7 @@ pub(super) fn collect_state_argument_facts<'program>(
                 state,
                 call_frames,
             };
+            tests::STATE_TRANSFERS.set(tests::STATE_TRANSFERS.get() + 1);
             let mut facts = RangeFacts::new(field_lengths);
             // Only range contributions change between states and passes.
             // Borrow the invocation's completed source/borrow summaries before
