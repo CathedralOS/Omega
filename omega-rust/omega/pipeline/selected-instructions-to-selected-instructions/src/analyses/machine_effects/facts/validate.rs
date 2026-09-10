@@ -190,6 +190,22 @@ fn replay_declaration<'a>(
         SelectedInstructionKind::SignExtendI8 => MachineSemanticKind::SignExtendI8,
         SelectedInstructionKind::SignExtendI16 => MachineSemanticKind::SignExtendI16,
         SelectedInstructionKind::SignExtendI32 => MachineSemanticKind::SignExtendI32,
+        SelectedInstructionKind::MaterializeBooleanEqual => {
+            MachineSemanticKind::MaterializeBooleanEqual
+        }
+        SelectedInstructionKind::MaterializeBooleanU64LessThan => {
+            MachineSemanticKind::MaterializeBooleanU64LessThan
+        }
+        SelectedInstructionKind::MaterializeBooleanI64LessThan => {
+            MachineSemanticKind::MaterializeBooleanI64LessThan
+        }
+        SelectedInstructionKind::MaterializeBooleanU64LessOrEqual => {
+            MachineSemanticKind::MaterializeBooleanU64LessOrEqual
+        }
+        SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => {
+            MachineSemanticKind::MaterializeBooleanI64LessOrEqual
+        }
+
         SelectedInstructionKind::HostedWriteByteI32 { .. } => {
             MachineSemanticKind::HostedWriteByteI32
         }
@@ -267,6 +283,7 @@ fn copied_selected_keys(keys: &TargetRegisterEnvironmentConstraintKeys) -> Selec
         call_aggregate: keys.call_aggregate.clone(),
         return_aggregate: keys.return_aggregate.clone(),
         materialize_i64: keys.materialize_i64,
+        materialize_boolean: keys.materialize_boolean,
         copy_i64: keys.copy_i64,
         float32_to_bits: keys.float32_to_bits,
         float64_to_bits: keys.float64_to_bits,

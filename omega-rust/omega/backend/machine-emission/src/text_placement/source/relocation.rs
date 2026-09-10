@@ -126,6 +126,11 @@ pub(in crate::text_placement) fn prove_none(
                 | MachineAlternativeFamily::SignExtendI8
                 | MachineAlternativeFamily::SignExtendI16
                 | MachineAlternativeFamily::SignExtendI32
+                | MachineAlternativeFamily::MaterializeBooleanEqual
+                | MachineAlternativeFamily::MaterializeBooleanU64LessThan
+                | MachineAlternativeFamily::MaterializeBooleanI64LessThan
+                | MachineAlternativeFamily::MaterializeBooleanU64LessOrEqual
+                | MachineAlternativeFamily::MaterializeBooleanI64LessOrEqual
                 | MachineAlternativeFamily::ByteViewAddress
                 | MachineAlternativeFamily::ExactAddI64
                 | MachineAlternativeFamily::ExactAddI64Immediate

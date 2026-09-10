@@ -217,6 +217,7 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     /// Direct returns indexed by fragment count minus one; no hidden pointer ABI.
     pub return_aggregate: Vec<RegisterConstraintKey>,
     pub materialize_i64: RegisterConstraintKey,
+    pub materialize_boolean: RegisterConstraintKey,
     pub copy_i64: RegisterConstraintKey,
     pub float32_to_bits: Option<RegisterConstraintKey>,
     pub float64_to_bits: Option<RegisterConstraintKey>,
@@ -1651,6 +1652,7 @@ mod tests {
                 variant: 3,
             }],
             materialize_i64: instruction_key(1),
+            materialize_boolean: instruction_key(732),
             copy_i64: instruction_key(5),
             float32_to_bits: None,
             float64_to_bits: None,
@@ -1764,6 +1766,7 @@ mod tests {
             },
             TargetRegisterEnvironmentConstraintKeys {
                 materialize_i64: instruction_key(11),
+                materialize_boolean: instruction_key(732),
                 ..keys.clone()
             },
             TargetRegisterEnvironmentConstraintKeys {

@@ -16,6 +16,7 @@ mod register_model;
 pub use register_model::X86_64_LOAD8;
 pub use register_model::X86_64_LOAD16;
 pub use register_model::X86_64_LOAD32;
+pub use register_model::X86_64_MATERIALIZE_BOOLEAN;
 pub use register_model::{
     X86_64_BITS_TO_FLOAT32, X86_64_BITS_TO_FLOAT64, X86_64_FLOAT32_TO_BITS, X86_64_FLOAT64_TO_BITS,
     X86_64_HOSTED_READ_BYTE,

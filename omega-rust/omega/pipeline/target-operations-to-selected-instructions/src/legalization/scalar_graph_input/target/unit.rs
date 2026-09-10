@@ -240,6 +240,8 @@ pub(super) fn validate_operation(
             | AbstractOperation::IntegerEqual { .. }
             | AbstractOperation::IntegerLessThan { .. }
             | AbstractOperation::IntegerLessOrEqual { .. }
+            | AbstractOperation::BooleanNot { .. }
+            | AbstractOperation::BooleanEqual { .. }
             | AbstractOperation::ExactIntegerAdd { .. }
             | AbstractOperation::IntegerExactCast { .. }
             | AbstractOperation::ExactIntegerSubtract { .. },

@@ -260,7 +260,8 @@ remains available for bodies it can fully represent.
 The comparison probes are
 `cargo run -p omega -- inspect-terminal --machine scalar_comparison --target macos_arm64 tests/omega/pass/collections/owned_array_scalar_comparisons/main.omg`
 and the same command with `--machine array_comparison`. These publish Terminal
-Psi; native predicate materialization and Boolean return transport remain open.
+Psi. The native `scalar_array_results` suite publishes both entries on all four
+targets and checks their exact Boolean scalar/array payloads on supported hosts.
 Scalar computation calls retain array-valued actuals in expression-owned structural
 slots. The shared evaluator completes each array's scalar leaves, establishes its
 real structural result, then evaluates the next authored formal. Empty arrays use

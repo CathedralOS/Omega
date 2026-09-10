@@ -8,6 +8,7 @@ use semantic_vocabulary::IntegerValue;
 
 mod aggregate_argument;
 mod aggregate_return;
+mod boolean_value;
 mod byte_input;
 mod byte_output;
 mod control;
@@ -225,7 +226,9 @@ pub(super) fn build(
             {
                 continue;
             }
-            if zero_compare::folded_zero(source, block, operation_index + 1).is_some() {
+            if zero_compare::folded_zero(source, block, operation_index + 1).is_some()
+                && control::branch_suffix(source, block, operation_index + 1)
+            {
                 continue;
             }
             if structural::operation(
@@ -241,195 +244,145 @@ pub(super) fn build(
             }
             let result = operation.result.ok_or_else(invalid)?;
             let scalar_type = result.scalar_type;
-            let output = match &operation.kind {
-                LegalizedScalarInstructionKind::PrimitiveScalarRead { .. } => {
-                    structural::read(source, &mut builder, operation)?
-                }
-                LegalizedScalarInstructionKind::ByteSequenceRead { .. }
-                | LegalizedScalarInstructionKind::ByteSequenceLength { .. } => {
-                    structural::byte_observation(&mut builder, operation)?
-                }
-                LegalizedScalarInstructionKind::Compare {
-                    predicate,
-                    operand_type,
-                    left,
-                    right,
-                } => {
-                    // Normalized Boolean registers share comparison mechanics,
-                    // not integer meaning or ordered predicates.
-                    if !matches!(*operand_type, ScalarType::Integer(_))
-                        && !(*operand_type == ScalarType::Boolean
-                            && *predicate == legalized_operations::LegalizedScalarComparison::Equal)
-                    {
-                        return Err(invalid());
+            let output = if matches!(
+                operation.kind,
+                LegalizedScalarInstructionKind::Compare { .. }
+                    | LegalizedScalarInstructionKind::BooleanNot { .. }
+            ) && !control::branch_suffix(source, block, operation_index)
+            {
+                boolean_value::emit(operation, &mut builder)?
+            } else {
+                match &operation.kind {
+                    LegalizedScalarInstructionKind::PrimitiveScalarRead { .. } => {
+                        structural::read(source, &mut builder, operation)?
                     }
-                    if !control::branch_suffix(block, operation_index) {
-                        return Err(invalid());
+                    LegalizedScalarInstructionKind::ByteSequenceRead { .. }
+                    | LegalizedScalarInstructionKind::ByteSequenceLength { .. } => {
+                        structural::byte_observation(&mut builder, operation)?
                     }
-                    if let Some(zero) = zero_compare::folded_zero(source, block, operation_index) {
-                        let input = if *left == zero.result.ok_or_else(invalid)?.value {
-                            *right
-                        } else {
-                            *left
-                        };
-                        let (_, register, _, actual_type) =
-                            builder.resolve(input).ok_or_else(invalid)?;
-                        if actual_type != *operand_type || scalar_type != ScalarType::Boolean {
-                            return Err(invalid());
-                        }
-                        builder.emit(
-                            SelectedInstructionKind::CompareI64Zero,
-                            constraints.keys.compare_i64_zero,
-                            &[register],
-                            SelectedInstructionProvenance {
-                                operations: vec![zero.operation, operation.operation],
-                                values: vec![
-                                    input,
-                                    zero.result.ok_or_else(invalid)?.value,
-                                    result.value,
-                                ],
-                                fuel: zero.fuel.iter().chain(&operation.fuel).copied().collect(),
-                                ..Default::default()
-                            },
+                    LegalizedScalarInstructionKind::Compare { .. } => {
+                        boolean_value::emit_branch_comparison(
+                            function,
+                            source,
+                            block,
+                            operation_index,
+                            &mut builder,
                         )?;
                         continue;
                     }
-                    let (_, left_register, _, left_type) =
-                        builder.resolve(*left).ok_or_else(invalid)?;
-                    let (_, right_register, _, right_type) =
-                        builder.resolve(*right).ok_or_else(invalid)?;
-                    if left_type != *operand_type
-                        || right_type != left_type
-                        || scalar_type != ScalarType::Boolean
-                    {
-                        return Err(invalid());
+                    LegalizedScalarInstructionKind::BooleanNot { .. } => {
+                        if !control::branch_suffix(source, block, operation_index) {
+                            return Err(invalid());
+                        }
+                        continue;
                     }
-                    let operands = if matches!(
-                        predicate,
-                        legalized_operations::LegalizedScalarComparison::LessOrEqual
-                    ) {
-                        [right_register, left_register]
-                    } else {
-                        [left_register, right_register]
-                    };
-                    builder.emit(
-                        SelectedInstructionKind::CompareI64,
-                        constraints.keys.compare_i64,
-                        &operands,
-                        SelectedInstructionProvenance {
-                            operations: vec![operation.operation],
-                            values: vec![*left, *right, result.value],
-                            fuel: operation.fuel.clone(),
-                            ..Default::default()
-                        },
-                    )?;
-                    continue;
-                }
-                LegalizedScalarInstructionKind::BooleanNot { .. } => {
-                    if !control::branch_suffix(block, operation_index) {
-                        return Err(invalid());
+                    LegalizedScalarInstructionKind::IntegerWiden { .. }
+                    | LegalizedScalarInstructionKind::IntegerExactCast { .. } => {
+                        integer_conversion::emit(operation, &mut builder, function)?
                     }
-                    continue;
-                }
-                LegalizedScalarInstructionKind::IntegerWiden { .. }
-                | LegalizedScalarInstructionKind::IntegerExactCast { .. } => {
-                    integer_conversion::emit(operation, &mut builder, function)?
-                }
-                LegalizedScalarInstructionKind::Constant(value) => {
-                    if matches!(
-                        scalar_type,
-                        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32)
-                    ) && !matches!(value, IntegerValue::Unsigned(bits) if *bits <= u128::from(u32::MAX))
-                        || matches!(
+                    LegalizedScalarInstructionKind::Constant(value) => {
+                        if scalar_type == ScalarType::Boolean
+                            && !matches!(value, IntegerValue::Unsigned(0 | 1))
+                        {
+                            return Err(invalid());
+                        }
+                        if matches!(
                             scalar_type,
-                            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64)
-                        ) && !matches!(value, IntegerValue::Unsigned(bits) if *bits <= u128::from(u64::MAX))
-                    {
-                        return Err(invalid());
-                    }
-                    if scalar_type == ScalarType::Boolean
-                        && !matches!(value, IntegerValue::Unsigned(0 | 1))
-                    {
-                        return Err(invalid());
-                    }
-                    let output =
-                        builder.register(result.value, result.definition_site, scalar_type)?;
-                    builder.emit(
-                        SelectedInstructionKind::MaterializeI64 { value: *value },
-                        constraints.keys.materialize_i64,
-                        &[output],
-                        SelectedInstructionProvenance {
-                            operations: vec![operation.operation],
-                            values: vec![result.value],
-                            fuel: operation.fuel.clone(),
-                            ..Default::default()
-                        },
-                    )?;
-                    output
-                }
-                LegalizedScalarInstructionKind::ExactBinary {
-                    operator,
-                    left,
-                    right,
-                    obligation,
-                    accepted_fact,
-                } => {
-                    let (_, left_register, _, left_type) =
-                        builder.resolve(*left).ok_or_else(invalid)?;
-                    let (_, right_register, _, right_type) =
-                        builder.resolve(*right).ok_or_else(invalid)?;
-                    if left_type != scalar_type || right_type != scalar_type {
-                        return Err(invalid());
-                    }
-                    let (kind, key) = match operator {
-                        legalized_operations::LegalizedExactIntegerOperator::Add => (
-                            SelectedInstructionKind::ExactAddI64 {
-                                obligation: *obligation,
-                                accepted_fact: *accepted_fact,
+                            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32)
+                        ) && !matches!(value, IntegerValue::Unsigned(bits) if *bits <= u128::from(u32::MAX))
+                            || matches!(
+                                scalar_type,
+                                ScalarType::IeeeFloat(
+                                    semantic_vocabulary::IeeeFloatFormat::Binary64
+                                )
+                            ) && !matches!(value, IntegerValue::Unsigned(bits) if *bits <= u128::from(u64::MAX))
+                        {
+                            return Err(invalid());
+                        }
+                        if scalar_type == ScalarType::Boolean
+                            && !matches!(value, IntegerValue::Unsigned(0 | 1))
+                        {
+                            return Err(invalid());
+                        }
+                        let output =
+                            builder.register(result.value, result.definition_site, scalar_type)?;
+                        builder.emit(
+                            SelectedInstructionKind::MaterializeI64 { value: *value },
+                            constraints.keys.materialize_i64,
+                            &[output],
+                            SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![result.value],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
                             },
-                            constraints.keys.add_i64,
-                        ),
-                        legalized_operations::LegalizedExactIntegerOperator::Subtract => (
-                            SelectedInstructionKind::ExactSubtractI64 {
-                                obligation: *obligation,
-                                accepted_fact: *accepted_fact,
+                        )?;
+                        output
+                    }
+                    LegalizedScalarInstructionKind::ExactBinary {
+                        operator,
+                        left,
+                        right,
+                        obligation,
+                        accepted_fact,
+                    } => {
+                        let (_, left_register, _, left_type) =
+                            builder.resolve(*left).ok_or_else(invalid)?;
+                        let (_, right_register, _, right_type) =
+                            builder.resolve(*right).ok_or_else(invalid)?;
+                        if left_type != scalar_type || right_type != scalar_type {
+                            return Err(invalid());
+                        }
+                        let (kind, key) = match operator {
+                            legalized_operations::LegalizedExactIntegerOperator::Add => (
+                                SelectedInstructionKind::ExactAddI64 {
+                                    obligation: *obligation,
+                                    accepted_fact: *accepted_fact,
+                                },
+                                constraints.keys.add_i64,
+                            ),
+                            legalized_operations::LegalizedExactIntegerOperator::Subtract => (
+                                SelectedInstructionKind::ExactSubtractI64 {
+                                    obligation: *obligation,
+                                    accepted_fact: *accepted_fact,
+                                },
+                                constraints.keys.subtract_i64,
+                            ),
+                        };
+                        let output =
+                            builder.register(result.value, result.definition_site, scalar_type)?;
+                        builder.emit(
+                            kind,
+                            key,
+                            &[left_register, right_register, output],
+                            SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*left, *right, result.value],
+                                obligations: vec![*obligation],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
                             },
-                            constraints.keys.subtract_i64,
-                        ),
-                    };
-                    let output =
-                        builder.register(result.value, result.definition_site, scalar_type)?;
-                    builder.emit(
-                        kind,
-                        key,
-                        &[left_register, right_register, output],
-                        SelectedInstructionProvenance {
-                            operations: vec![operation.operation],
-                            values: vec![*left, *right, result.value],
-                            obligations: vec![*obligation],
-                            fuel: operation.fuel.clone(),
-                            ..Default::default()
-                        },
-                    )?;
-                    output
-                }
-                LegalizedScalarInstructionKind::EstablishScalarCase { .. }
-                | LegalizedScalarInstructionKind::EstablishScalarArray { .. }
-                | LegalizedScalarInstructionKind::HostedExitProcessI32 { .. }
-                | LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }
-                | LegalizedScalarInstructionKind::HostedReadByte { .. }
-                | LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
-                | LegalizedScalarInstructionKind::EstablishPrimitiveLocal { .. }
-                | LegalizedScalarInstructionKind::PrimitiveLocalStore { .. }
-                | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
-                | LegalizedScalarInstructionKind::ByteSequenceWrite { .. }
-                | LegalizedScalarInstructionKind::BoundarySettlement(_)
-                | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
-                | LegalizedScalarInstructionKind::ByteSequenceSubslice { .. } => {
-                    return Err(invalid());
-                }
-                LegalizedScalarInstructionKind::Call(_) => {
-                    scalar_call::emit(function, source, operation, &environment, &mut builder)?
+                        )?;
+                        output
+                    }
+                    LegalizedScalarInstructionKind::EstablishScalarCase { .. }
+                    | LegalizedScalarInstructionKind::EstablishScalarArray { .. }
+                    | LegalizedScalarInstructionKind::HostedExitProcessI32 { .. }
+                    | LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }
+                    | LegalizedScalarInstructionKind::HostedReadByte { .. }
+                    | LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
+                    | LegalizedScalarInstructionKind::EstablishPrimitiveLocal { .. }
+                    | LegalizedScalarInstructionKind::PrimitiveLocalStore { .. }
+                    | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
+                    | LegalizedScalarInstructionKind::ByteSequenceWrite { .. }
+                    | LegalizedScalarInstructionKind::BoundarySettlement(_)
+                    | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
+                    | LegalizedScalarInstructionKind::ByteSequenceSubslice { .. } => {
+                        return Err(invalid());
+                    }
+                    LegalizedScalarInstructionKind::Call(_) => {
+                        scalar_call::emit(function, source, operation, &environment, &mut builder)?
+                    }
                 }
             };
             builder

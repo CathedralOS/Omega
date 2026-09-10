@@ -30,38 +30,7 @@ impl LegalizedScalarFunction {
             block
                 .instructions
                 .iter()
-                .any(|instruction| match &instruction.kind {
-                    LegalizedScalarInstructionKind::EstablishScalarArray { elements, .. } => elements.contains(&value),
-                    LegalizedScalarInstructionKind::EstablishScalarCase { fields, .. } => fields.iter().any(|field| field.value == value),
-                    LegalizedScalarInstructionKind::HostedWriteByteI32 { source, .. }
-                    | LegalizedScalarInstructionKind::HostedExitProcessI32 { source, .. } => *source == value,
-                    LegalizedScalarInstructionKind::StructuralScalarFieldStore { value: stored, .. }
-                    | LegalizedScalarInstructionKind::EstablishPrimitiveLocal { value: stored, .. }
-                    | LegalizedScalarInstructionKind::PrimitiveLocalStore { value: stored, .. }
-                    | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { value: stored, .. } => stored.value == value,
-                    LegalizedScalarInstructionKind::ByteSequenceSubslice { start, end, length, .. } => *start == value || *end == value || *length == value,
-                    LegalizedScalarInstructionKind::ByteSequenceWrite { index, value: stored, length, .. } => [*index, *stored, *length].contains(&value),
-                    LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. } => *index == value || *length == value,
-                    LegalizedScalarInstructionKind::Constant(_)
-                    | LegalizedScalarInstructionKind::HostedReadByte { .. }
-                    | LegalizedScalarInstructionKind::PrimitiveScalarRead { .. }
-                    | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
-                    | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
-                    | LegalizedScalarInstructionKind::BoundarySettlement(_) => false,
-                    LegalizedScalarInstructionKind::BooleanNot { operand }
-                    | LegalizedScalarInstructionKind::IntegerWiden { operand, .. }
-                        | LegalizedScalarInstructionKind::IntegerExactCast { operand, .. } => {
-                        *operand == value
-                    }
-                    LegalizedScalarInstructionKind::Call(call) => call
-                        .arguments
-                        .iter()
-                        .any(|argument| matches!(argument, LegalizedScalarArgument::Scalar {source, ..} if *source == value)),
-                    LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
-                    | LegalizedScalarInstructionKind::Compare { left, right, .. } => {
-                        *left == value || *right == value
-                    }
-                })
+                .any(|instruction| instruction.references_value(value))
                 || block.terminator.references_value(value)
         })
     }
@@ -99,6 +68,43 @@ pub struct LegalizedValueDefinition {
     pub value: ValueId,
     pub scalar_type: ScalarType,
     pub definition_site: ValueDefinitionSite,
+}
+
+impl LegalizedScalarInstruction {
+    pub fn references_value(&self, value: ValueId) -> bool {
+        match &self.kind {
+                    LegalizedScalarInstructionKind::EstablishScalarArray { elements, .. } => elements.contains(&value),
+                    LegalizedScalarInstructionKind::EstablishScalarCase { fields, .. } => fields.iter().any(|field| field.value == value),
+                    LegalizedScalarInstructionKind::HostedWriteByteI32 { source, .. }
+                    | LegalizedScalarInstructionKind::HostedExitProcessI32 { source, .. } => *source == value,
+                    LegalizedScalarInstructionKind::StructuralScalarFieldStore { value: stored, .. }
+                    | LegalizedScalarInstructionKind::EstablishPrimitiveLocal { value: stored, .. }
+                    | LegalizedScalarInstructionKind::PrimitiveLocalStore { value: stored, .. }
+                    | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { value: stored, .. } => stored.value == value,
+                    LegalizedScalarInstructionKind::ByteSequenceSubslice { start, end, length, .. } => *start == value || *end == value || *length == value,
+                    LegalizedScalarInstructionKind::ByteSequenceWrite { index, value: stored, length, .. } => [*index, *stored, *length].contains(&value),
+                    LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. } => *index == value || *length == value,
+                    LegalizedScalarInstructionKind::Constant(_)
+                    | LegalizedScalarInstructionKind::HostedReadByte { .. }
+                    | LegalizedScalarInstructionKind::PrimitiveScalarRead { .. }
+                    | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
+                    | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
+                    | LegalizedScalarInstructionKind::BoundarySettlement(_) => false,
+                    LegalizedScalarInstructionKind::BooleanNot { operand }
+                    | LegalizedScalarInstructionKind::IntegerWiden { operand, .. }
+                        | LegalizedScalarInstructionKind::IntegerExactCast { operand, .. } => {
+                        *operand == value
+                    }
+                    LegalizedScalarInstructionKind::Call(call) => call
+                        .arguments
+                        .iter()
+                        .any(|argument| matches!(argument, LegalizedScalarArgument::Scalar {source, ..} if *source == value)),
+                    LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
+                    | LegalizedScalarInstructionKind::Compare { left, right, .. } => {
+                        *left == value || *right == value
+                    }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -342,7 +348,7 @@ pub enum LegalizedScalarReturnValue {
     },
     Value {
         value: ValueId,
-        scalar_type: IntegerType,
+        scalar_type: ScalarType,
     },
 }
 

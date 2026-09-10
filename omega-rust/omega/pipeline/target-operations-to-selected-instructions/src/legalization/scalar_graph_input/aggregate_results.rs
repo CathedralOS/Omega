@@ -167,7 +167,10 @@ pub(super) fn header(
     let result = match &abstracted.result {
         AbstractFunctionResult::Unit => None,
         AbstractFunctionResult::Scalar(result)
-            if matches!(result.scalar_type, ScalarType::Integer(_)) =>
+            if matches!(
+                result.scalar_type,
+                ScalarType::Boolean | ScalarType::Integer(_)
+            ) =>
         {
             Some(scalar_shape(result.scalar_type).ok_or(invalid.clone())?)
         }

@@ -10,6 +10,7 @@ use semantic_vocabulary::IntegerValue;
 
 mod aggregate_argument;
 mod aggregate_return;
+mod boolean_value;
 mod byte_input;
 mod byte_output;
 mod control;
@@ -135,7 +136,9 @@ pub(in crate::selection) fn validate(
             {
                 continue;
             }
-            if zero_compare::folded_zero(source, source_block, operation_index + 1).is_some() {
+            if zero_compare::folded_zero(source, source_block, operation_index + 1).is_some()
+                && control::branch_suffix(source, source_block, operation_index + 1)
+            {
                 continue;
             }
             if structural::operation(source, operation, &environment, &mut replay)? {
@@ -143,254 +146,273 @@ pub(in crate::selection) fn validate(
             }
             let result = operation.result.ok_or_else(invalid)?;
             let scalar_type = result.scalar_type;
-            let output = match &operation.kind {
-                LegalizedScalarInstructionKind::PrimitiveScalarRead { .. } => {
-                    structural::read(source, &mut replay, operation)?
-                }
-                LegalizedScalarInstructionKind::ByteSequenceRead { .. }
-                | LegalizedScalarInstructionKind::ByteSequenceLength { .. } => {
-                    structural::byte_observation(&mut replay, operation)?
-                }
-                LegalizedScalarInstructionKind::Compare {
-                    predicate,
-                    operand_type,
-                    left,
-                    right,
-                } => {
-                    if !matches!(*operand_type, ScalarType::Integer(_))
-                        && !(*operand_type == ScalarType::Boolean
-                            && *predicate == legalized_operations::LegalizedScalarComparison::Equal)
-                    {
-                        return Err(invalid());
+            let output = if matches!(
+                operation.kind,
+                LegalizedScalarInstructionKind::Compare { .. }
+                    | LegalizedScalarInstructionKind::BooleanNot { .. }
+            ) && !control::branch_suffix(source, source_block, operation_index)
+            {
+                boolean_value::validate(operation, &mut replay)?
+            } else {
+                match &operation.kind {
+                    LegalizedScalarInstructionKind::PrimitiveScalarRead { .. } => {
+                        structural::read(source, &mut replay, operation)?
                     }
-                    if !control::branch_suffix(source_block, operation_index) {
-                        return Err(invalid());
+                    LegalizedScalarInstructionKind::ByteSequenceRead { .. }
+                    | LegalizedScalarInstructionKind::ByteSequenceLength { .. } => {
+                        structural::byte_observation(&mut replay, operation)?
                     }
-                    if let Some(zero) =
-                        zero_compare::folded_zero(source, source_block, operation_index)
-                    {
-                        let input = if *left == zero.result.ok_or_else(invalid)?.value {
-                            *right
-                        } else {
-                            *left
-                        };
-                        let (_, register, _, actual_type) =
-                            replay.resolve(input).ok_or_else(invalid)?;
-                        if actual_type != *operand_type || scalar_type != ScalarType::Boolean {
+                    LegalizedScalarInstructionKind::Compare {
+                        predicate,
+                        operand_type,
+                        left,
+                        right,
+                    } => {
+                        if !control::branch_suffix(source, source_block, operation_index) {
                             return Err(invalid());
                         }
+                        if let Some(zero) =
+                            zero_compare::folded_zero(source, source_block, operation_index)
+                        {
+                            let input = if *left == zero.result.ok_or_else(invalid)?.value {
+                                *right
+                            } else {
+                                *left
+                            };
+                            let (_, register, _, actual_type) =
+                                replay.resolve(input).ok_or_else(invalid)?;
+                            if actual_type != *operand_type || scalar_type != ScalarType::Boolean {
+                                return Err(invalid());
+                            }
+                            replay.check_instruction(
+                                SelectedInstructionKind::CompareI64Zero,
+                                constraints.keys.compare_i64_zero,
+                                &[register],
+                                &SelectedInstructionProvenance {
+                                    operations: vec![zero.operation, operation.operation],
+                                    values: vec![
+                                        input,
+                                        zero.result.ok_or_else(invalid)?.value,
+                                        result.value,
+                                    ],
+                                    fuel: zero
+                                        .fuel
+                                        .iter()
+                                        .chain(&operation.fuel)
+                                        .copied()
+                                        .collect(),
+                                    ..Default::default()
+                                },
+                            )?;
+                            continue;
+                        }
+                        let (_, left_register, _, left_type) =
+                            replay.resolve(*left).ok_or_else(invalid)?;
+                        let (_, right_register, _, right_type) =
+                            replay.resolve(*right).ok_or_else(invalid)?;
+                        if left_type != *operand_type
+                            || right_type != left_type
+                            || scalar_type != ScalarType::Boolean
+                        {
+                            return Err(invalid());
+                        }
+                        let operands = if matches!(
+                            predicate,
+                            legalized_operations::LegalizedScalarComparison::LessOrEqual
+                        ) {
+                            [right_register, left_register]
+                        } else {
+                            [left_register, right_register]
+                        };
                         replay.check_instruction(
-                            SelectedInstructionKind::CompareI64Zero,
-                            constraints.keys.compare_i64_zero,
-                            &[register],
+                            SelectedInstructionKind::CompareI64,
+                            constraints.keys.compare_i64,
+                            &operands,
                             &SelectedInstructionProvenance {
-                                operations: vec![zero.operation, operation.operation],
-                                values: vec![
-                                    input,
-                                    zero.result.ok_or_else(invalid)?.value,
-                                    result.value,
-                                ],
-                                fuel: zero.fuel.iter().chain(&operation.fuel).copied().collect(),
+                                operations: vec![operation.operation],
+                                values: vec![*left, *right, result.value],
+                                fuel: operation.fuel.clone(),
                                 ..Default::default()
                             },
                         )?;
                         continue;
                     }
-                    let (_, left_register, _, left_type) =
-                        replay.resolve(*left).ok_or_else(invalid)?;
-                    let (_, right_register, _, right_type) =
-                        replay.resolve(*right).ok_or_else(invalid)?;
-                    if left_type != *operand_type
-                        || right_type != left_type
-                        || scalar_type != ScalarType::Boolean
-                    {
-                        return Err(invalid());
+                    LegalizedScalarInstructionKind::BooleanNot { .. } => {
+                        if !control::branch_suffix(source, source_block, operation_index) {
+                            return Err(invalid());
+                        }
+                        continue;
                     }
-                    let operands = if matches!(
-                        predicate,
-                        legalized_operations::LegalizedScalarComparison::LessOrEqual
-                    ) {
-                        [right_register, left_register]
-                    } else {
-                        [left_register, right_register]
-                    };
-                    replay.check_instruction(
-                        SelectedInstructionKind::CompareI64,
-                        constraints.keys.compare_i64,
-                        &operands,
-                        &SelectedInstructionProvenance {
-                            operations: vec![operation.operation],
-                            values: vec![*left, *right, result.value],
-                            fuel: operation.fuel.clone(),
-                            ..Default::default()
-                        },
-                    )?;
-                    continue;
-                }
-                LegalizedScalarInstructionKind::BooleanNot { .. } => {
-                    if !control::branch_suffix(source_block, operation_index) {
-                        return Err(invalid());
+                    LegalizedScalarInstructionKind::IntegerWiden {
+                        operand,
+                        source_type,
                     }
-                    continue;
-                }
-                LegalizedScalarInstructionKind::IntegerWiden {
-                    operand,
-                    source_type,
-                }
-                | LegalizedScalarInstructionKind::IntegerExactCast {
-                    operand,
-                    source_type,
-                    ..
-                } => {
-                    let (_, input, _, actual_type) =
-                        replay.resolve(*operand).ok_or_else(invalid)?;
-                    if actual_type != ScalarType::Integer(*source_type)
-                        || !matches!(scalar_type, ScalarType::Integer(integer)
-                        if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
-                            && matches!(integer.bits(), 8 | 16 | 32 | 64)
-                            && if matches!(operation.kind, LegalizedScalarInstructionKind::IntegerExactCast { .. }) {
-                                source_type.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
-                                    && matches!(source_type.bits(), 8 | 16 | 32 | 64)
-                                    && source_type.can_exact_cast_to(integer)
-                                    && !(source_type.sign() == IntegerSign::Signed
-                                        && integer.sign() == IntegerSign::Signed
-                                        && (source_type.bits() != 64 || integer.bits() != 64))
-                                    && !(source_type.bits() == 16 && integer.bits() > 16)
-                            } else {
-                                source_type.sign() == IntegerSign::Unsigned && source_type.bits() == 8
-                                    && matches!(integer.bits(), 16 | 32 | 64) && source_type.can_widen_to(integer)
-                            })
-                    {
-                        return Err(invalid());
-                    }
-                    let output = replay.result_register(
-                        result.value,
-                        result.definition_site,
-                        scalar_type,
-                    )?;
-                    replay.check_instruction(
-                        if matches!(
-                            operation.kind,
-                            LegalizedScalarInstructionKind::IntegerExactCast { .. }
-                        ) {
-                            crate::selection::scalar_call_abi::integer_abi_normalization(
-                                scalar_type,
-                            )
-                        } else {
-                            SelectedInstructionKind::CopyI64
-                        },
-                        constraints.keys.copy_i64,
-                        &[input, output],
-                        &SelectedInstructionProvenance {
-                            operations: vec![operation.operation],
-                            values: vec![*operand, result.value],
-                            fuel: operation.fuel.clone(),
-                            ..Default::default()
-                        },
-                    )?;
-                    output
-                }
-                LegalizedScalarInstructionKind::Constant(value) => {
-                    if matches!(
-                        scalar_type,
-                        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32)
-                    ) && !matches!(value, IntegerValue::Unsigned(bits) if *bits <= u128::from(u32::MAX))
-                        || matches!(
+                    | LegalizedScalarInstructionKind::IntegerExactCast {
+                        operand,
+                        source_type,
+                        ..
+                    } => {
+                        let (_, input, _, actual_type) =
+                            replay.resolve(*operand).ok_or_else(invalid)?;
+                        if actual_type != ScalarType::Integer(*source_type)
+                            || !matches!(scalar_type, ScalarType::Integer(integer)
+                            if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                                && matches!(integer.bits(), 8 | 16 | 32 | 64)
+                                && if matches!(operation.kind, LegalizedScalarInstructionKind::IntegerExactCast { .. }) {
+                                    source_type.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                                        && matches!(source_type.bits(), 8 | 16 | 32 | 64)
+                                        && source_type.can_exact_cast_to(integer)
+                                        && !(source_type.sign() == IntegerSign::Signed
+                                            && integer.sign() == IntegerSign::Signed
+                                            && (source_type.bits() != 64 || integer.bits() != 64))
+                                        && !(source_type.bits() == 16 && integer.bits() > 16)
+                                } else {
+                                    source_type.sign() == IntegerSign::Unsigned && source_type.bits() == 8
+                                        && matches!(integer.bits(), 16 | 32 | 64) && source_type.can_widen_to(integer)
+                                })
+                        {
+                            return Err(invalid());
+                        }
+                        let output = replay.result_register(
+                            result.value,
+                            result.definition_site,
                             scalar_type,
-                            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64)
-                        ) && !matches!(value, IntegerValue::Unsigned(bits) if *bits <= u128::from(u64::MAX))
-                    {
-                        return Err(invalid());
-                    }
-                    if scalar_type == ScalarType::Boolean
-                        && !matches!(value, IntegerValue::Unsigned(0 | 1))
-                    {
-                        return Err(invalid());
-                    }
-                    let register = replay.result_register(
-                        result.value,
-                        result.definition_site,
-                        scalar_type,
-                    )?;
-                    replay.check_instruction(
-                        SelectedInstructionKind::MaterializeI64 { value: *value },
-                        constraints.keys.materialize_i64,
-                        &[register],
-                        &SelectedInstructionProvenance {
-                            operations: vec![operation.operation],
-                            values: vec![result.value],
-                            fuel: operation.fuel.clone(),
-                            ..Default::default()
-                        },
-                    )?;
-                    register
-                }
-                LegalizedScalarInstructionKind::ExactBinary {
-                    operator,
-                    left,
-                    right,
-                    obligation,
-                    accepted_fact,
-                } => {
-                    let (_, left_register, _, left_type) =
-                        replay.resolve(*left).ok_or_else(invalid)?;
-                    let (_, right_register, _, right_type) =
-                        replay.resolve(*right).ok_or_else(invalid)?;
-                    if left_type != scalar_type || right_type != scalar_type {
-                        return Err(invalid());
-                    }
-                    let (kind, key) = match operator {
-                        legalized_operations::LegalizedExactIntegerOperator::Add => (
-                            SelectedInstructionKind::ExactAddI64 {
-                                obligation: *obligation,
-                                accepted_fact: *accepted_fact,
+                        )?;
+                        replay.check_instruction(
+                            if matches!(
+                                operation.kind,
+                                LegalizedScalarInstructionKind::IntegerExactCast { .. }
+                            ) {
+                                crate::selection::scalar_call_abi::integer_abi_normalization(
+                                    scalar_type,
+                                )
+                            } else {
+                                SelectedInstructionKind::CopyI64
                             },
-                            constraints.keys.add_i64,
-                        ),
-                        legalized_operations::LegalizedExactIntegerOperator::Subtract => (
-                            SelectedInstructionKind::ExactSubtractI64 {
-                                obligation: *obligation,
-                                accepted_fact: *accepted_fact,
+                            constraints.keys.copy_i64,
+                            &[input, output],
+                            &SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*operand, result.value],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
                             },
-                            constraints.keys.subtract_i64,
-                        ),
-                    };
-                    let output = replay.result_register(
-                        result.value,
-                        result.definition_site,
-                        scalar_type,
-                    )?;
-                    replay.check_instruction(
-                        kind,
-                        key,
-                        &[left_register, right_register, output],
-                        &SelectedInstructionProvenance {
-                            operations: vec![operation.operation],
-                            values: vec![*left, *right, result.value],
-                            obligations: vec![*obligation],
-                            fuel: operation.fuel.clone(),
-                            ..Default::default()
-                        },
-                    )?;
-                    output
-                }
-                LegalizedScalarInstructionKind::EstablishScalarCase { .. }
-                | LegalizedScalarInstructionKind::EstablishScalarArray { .. }
-                | LegalizedScalarInstructionKind::HostedExitProcessI32 { .. }
-                | LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }
-                | LegalizedScalarInstructionKind::HostedReadByte { .. }
-                | LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
-                | LegalizedScalarInstructionKind::EstablishPrimitiveLocal { .. }
-                | LegalizedScalarInstructionKind::PrimitiveLocalStore { .. }
-                | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
-                | LegalizedScalarInstructionKind::ByteSequenceWrite { .. }
-                | LegalizedScalarInstructionKind::BoundarySettlement(_)
-                | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
-                | LegalizedScalarInstructionKind::ByteSequenceSubslice { .. } => {
-                    return Err(invalid());
-                }
-                LegalizedScalarInstructionKind::Call(_) => {
-                    scalar_call::validate(source, operation, &mut replay, &environment, catalog)?
+                        )?;
+                        output
+                    }
+                    LegalizedScalarInstructionKind::Constant(value) => {
+                        if scalar_type == ScalarType::Boolean
+                            && !matches!(value, IntegerValue::Unsigned(0 | 1))
+                        {
+                            return Err(invalid());
+                        }
+                        if matches!(
+                            scalar_type,
+                            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32)
+                        ) && !matches!(value, IntegerValue::Unsigned(bits) if *bits <= u128::from(u32::MAX))
+                            || matches!(
+                                scalar_type,
+                                ScalarType::IeeeFloat(
+                                    semantic_vocabulary::IeeeFloatFormat::Binary64
+                                )
+                            ) && !matches!(value, IntegerValue::Unsigned(bits) if *bits <= u128::from(u64::MAX))
+                        {
+                            return Err(invalid());
+                        }
+                        if scalar_type == ScalarType::Boolean
+                            && !matches!(value, IntegerValue::Unsigned(0 | 1))
+                        {
+                            return Err(invalid());
+                        }
+                        let register = replay.result_register(
+                            result.value,
+                            result.definition_site,
+                            scalar_type,
+                        )?;
+                        replay.check_instruction(
+                            SelectedInstructionKind::MaterializeI64 { value: *value },
+                            constraints.keys.materialize_i64,
+                            &[register],
+                            &SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![result.value],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        register
+                    }
+                    LegalizedScalarInstructionKind::ExactBinary {
+                        operator,
+                        left,
+                        right,
+                        obligation,
+                        accepted_fact,
+                    } => {
+                        let (_, left_register, _, left_type) =
+                            replay.resolve(*left).ok_or_else(invalid)?;
+                        let (_, right_register, _, right_type) =
+                            replay.resolve(*right).ok_or_else(invalid)?;
+                        if left_type != scalar_type || right_type != scalar_type {
+                            return Err(invalid());
+                        }
+                        let (kind, key) = match operator {
+                            legalized_operations::LegalizedExactIntegerOperator::Add => (
+                                SelectedInstructionKind::ExactAddI64 {
+                                    obligation: *obligation,
+                                    accepted_fact: *accepted_fact,
+                                },
+                                constraints.keys.add_i64,
+                            ),
+                            legalized_operations::LegalizedExactIntegerOperator::Subtract => (
+                                SelectedInstructionKind::ExactSubtractI64 {
+                                    obligation: *obligation,
+                                    accepted_fact: *accepted_fact,
+                                },
+                                constraints.keys.subtract_i64,
+                            ),
+                        };
+                        let output = replay.result_register(
+                            result.value,
+                            result.definition_site,
+                            scalar_type,
+                        )?;
+                        replay.check_instruction(
+                            kind,
+                            key,
+                            &[left_register, right_register, output],
+                            &SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*left, *right, result.value],
+                                obligations: vec![*obligation],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        output
+                    }
+                    LegalizedScalarInstructionKind::EstablishScalarCase { .. }
+                    | LegalizedScalarInstructionKind::EstablishScalarArray { .. }
+                    | LegalizedScalarInstructionKind::HostedExitProcessI32 { .. }
+                    | LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }
+                    | LegalizedScalarInstructionKind::HostedReadByte { .. }
+                    | LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
+                    | LegalizedScalarInstructionKind::EstablishPrimitiveLocal { .. }
+                    | LegalizedScalarInstructionKind::PrimitiveLocalStore { .. }
+                    | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
+                    | LegalizedScalarInstructionKind::ByteSequenceWrite { .. }
+                    | LegalizedScalarInstructionKind::BoundarySettlement(_)
+                    | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
+                    | LegalizedScalarInstructionKind::ByteSequenceSubslice { .. } => {
+                        return Err(invalid());
+                    }
+                    LegalizedScalarInstructionKind::Call(_) => scalar_call::validate(
+                        source,
+                        operation,
+                        &mut replay,
+                        &environment,
+                        catalog,
+                    )?,
                 }
             };
             replay

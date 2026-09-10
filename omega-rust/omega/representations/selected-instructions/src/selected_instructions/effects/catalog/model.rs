@@ -64,10 +64,15 @@ pub enum MachineSemanticKind {
     HostedWriteByteI32,
     Store,
     AddressOffset,
+    MaterializeBooleanEqual,
+    MaterializeBooleanU64LessThan,
+    MaterializeBooleanI64LessThan,
+    MaterializeBooleanU64LessOrEqual,
+    MaterializeBooleanI64LessOrEqual,
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 41] = [
+    pub const ALL: [Self; 46] = [
         Self::CallAggregate,
         Self::ReturnAggregate,
         Self::HostedExitProcessI32,
@@ -109,6 +114,11 @@ impl MachineSemanticKind {
         Self::HostedWriteByteI32,
         Self::Store,
         Self::AddressOffset,
+        Self::MaterializeBooleanEqual,
+        Self::MaterializeBooleanU64LessThan,
+        Self::MaterializeBooleanI64LessThan,
+        Self::MaterializeBooleanU64LessOrEqual,
+        Self::MaterializeBooleanI64LessOrEqual,
     ];
 }
 
@@ -155,6 +165,11 @@ pub enum MachineAlternativeFamily {
     HostedWriteByteI32,
     Store,
     AddressOffset,
+    MaterializeBooleanEqual,
+    MaterializeBooleanU64LessThan,
+    MaterializeBooleanI64LessThan,
+    MaterializeBooleanU64LessOrEqual,
+    MaterializeBooleanI64LessOrEqual,
 }
 
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
@@ -197,6 +212,20 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::SignExtendI8 => Self::SignExtendI8,
             MachineSemanticKind::SignExtendI16 => Self::SignExtendI16,
             MachineSemanticKind::SignExtendI32 => Self::SignExtendI32,
+            MachineSemanticKind::MaterializeBooleanEqual => Self::MaterializeBooleanEqual,
+            MachineSemanticKind::MaterializeBooleanU64LessThan => {
+                Self::MaterializeBooleanU64LessThan
+            }
+            MachineSemanticKind::MaterializeBooleanI64LessThan => {
+                Self::MaterializeBooleanI64LessThan
+            }
+            MachineSemanticKind::MaterializeBooleanU64LessOrEqual => {
+                Self::MaterializeBooleanU64LessOrEqual
+            }
+            MachineSemanticKind::MaterializeBooleanI64LessOrEqual => {
+                Self::MaterializeBooleanI64LessOrEqual
+            }
+
             MachineSemanticKind::Load64 => Self::Load64,
             MachineSemanticKind::Store64 => Self::Store64,
             MachineSemanticKind::FrameAddress => Self::FrameAddress,

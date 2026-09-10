@@ -112,7 +112,8 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             requirement_obligations,
             crash_continuations,
             ..
-        } if integer_call_shape(*scalar_type).is_some()
+        } if (*scalar_type == ScalarType::Boolean
+            || integer_call_shape(*scalar_type).is_some())
             && requirement_obligations.is_empty()
             && crash_continuations.is_empty() =>
         {
@@ -197,7 +198,6 @@ pub(super) fn validate(
     plan: &AbstractOperationPlan,
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
-    super::boolean::validate(block, optimized)?;
     let (terminator, body) = block.nodes.split_last().ok_or(invalid.clone())?;
     for (position, parameter) in block.parameters.iter().enumerate() {
         if (integer_type(parameter.scalar_type).is_none()

@@ -199,6 +199,16 @@ pub(super) fn observation(
             psi_operation,
             result,
             ..
+        }
+        | AbstractOperation::BooleanNot {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::BooleanEqual {
+            psi_operation,
+            result,
+            ..
         } => (*psi_operation, *result, ScalarType::Boolean),
         _ => return Err(invalid),
     };

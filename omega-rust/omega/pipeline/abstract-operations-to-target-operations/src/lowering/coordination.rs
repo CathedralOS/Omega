@@ -1,6 +1,6 @@
 use super::function::lower_function;
 use super::scalar_abi::{
-    derive_fixed_integer_scalar_function_abi, derive_mixed_structural_scalar_function_abi,
+    derive_fixed_scalar_function_abi, derive_mixed_structural_scalar_function_abi,
 };
 use super::shared::*;
 
@@ -47,7 +47,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
         .collect::<BTreeMap<_, _>>();
     let mut scalar_abis = BTreeMap::new();
     for function in &plan.functions {
-        if let Some(abi) = derive_fixed_integer_scalar_function_abi(function, target)? {
+        if let Some(abi) = derive_fixed_scalar_function_abi(function, target)? {
             scalar_abis.insert(function.machine, abi);
         }
     }

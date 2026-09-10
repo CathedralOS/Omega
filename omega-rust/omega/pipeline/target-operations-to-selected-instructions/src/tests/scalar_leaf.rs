@@ -281,7 +281,9 @@ fn scalar_leaf_legalization_rejects_changed_literal_abi_and_return_register() {
                 };
                 returned.value = LegalizedScalarReturnValue::Value {
                     value: ValueId::new(99).unwrap(),
-                    scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    scalar_type: semantic_vocabulary::ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    ),
                 }
             }
             2 => {
@@ -449,5 +451,105 @@ fn scalar_leaf_selected_replay_rejects_literal_precolor_and_return_changes() {
             )
             .is_err()
         );
+    }
+}
+
+#[test]
+fn boolean_return_follows_entry_jumps_and_exact_bound_carrier() {
+    for native in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
+        target::NativeTarget::windows_x64(),
+    ] {
+        let (mut source, _, previous) = fixture(None, native);
+        let function = &mut source.functions[0];
+        let entry = function.entry;
+        let destination = semantic_vocabulary::BlockId::new(2).unwrap();
+        let parameter = function.parameters[0].value;
+        function.parameters[0].scalar_type = ScalarType::Boolean;
+        let result = function.result.scalar().unwrap().value;
+        function.result = AbstractFunctionResult::Scalar(AbstractResult {
+            value: result,
+            scalar_type: ScalarType::Boolean,
+        });
+        let arrival = ValueId::new(4).unwrap();
+        function.operations = vec![
+            AbstractOperation::Return {
+                psi_edge: EdgeId::new(2).unwrap(),
+                result,
+                value: arrival,
+                scalar_type: ScalarType::Boolean,
+                cleanup_actions: Vec::new(),
+            },
+            AbstractOperation::Jump {
+                psi_edge: EdgeId::new(1).unwrap(),
+                target: destination,
+                bindings: vec![abstract_operations::ValueBinding {
+                    parameter: arrival,
+                    argument: parameter,
+                    scalar_type: ScalarType::Boolean,
+                }],
+                structural_bindings: Vec::new(),
+                trivial_affine_discards: Vec::new(),
+                residual_affine_discards: Vec::new(),
+            },
+        ];
+        let mut return_entry = function.block_entries[0].clone();
+        return_entry.block = destination;
+        return_entry.operation_offset = 0;
+        return_entry.parameters = vec![AbstractParameter {
+            value: arrival,
+            scalar_type: ScalarType::Boolean,
+        }];
+        let mut entry_row = function.block_entries[0].clone();
+        entry_row.block = entry;
+        entry_row.operation_offset = 1;
+        entry_row.parameters.clear();
+        function.block_entries = vec![return_entry, entry_row];
+        let target =
+            abstract_operations_to_target_operations::lower_to_target_operations(&source, native)
+                .unwrap();
+        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            previous.fuel_schedule,
+        )
+        .unwrap();
+        let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+        validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = selection_constraints(&legal, &environment);
+        let selected = select_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        validate_selected_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap();
+        let mut changed = legal.plan().clone();
+        let returned = changed.scalar_functions[0]
+            .blocks
+            .iter_mut()
+            .find(|block| block.id == destination)
+            .unwrap();
+        let legalized_operations::LegalizedScalarTerminator::Return(returned) =
+            &mut returned.terminator
+        else {
+            panic!("return")
+        };
+        let LegalizedScalarReturnValue::Value { scalar_type, .. } = &mut returned.value else {
+            panic!("Boolean result")
+        };
+        *scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+        assert!(validate_legalized_operations(&target, &source, &unit, changed).is_err());
     }
 }

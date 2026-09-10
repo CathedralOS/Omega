@@ -22,6 +22,8 @@ mod admission;
 #[path = "scalar_array_results/arguments.rs"]
 mod arguments;
 
+#[path = "scalar_array_results/boolean_values.rs"]
+mod boolean_values;
 #[path = "scalar_array_results/tag_erasure.rs"]
 mod tag_erasure;
 
@@ -99,6 +101,7 @@ fn publish_target(
     publish_target_with_replay_expectation(target_plan, entry, target, ReplayExpectation::Required)
 }
 
+#[derive(Clone, Copy)]
 enum ReplayExpectation {
     Required,
     ScalarRecords,
@@ -149,6 +152,29 @@ fn publish_target_with_replay_expectation(
         bytes
     );
     for function_index in 0..decoded.functions().len() {
+        if decoded.functions()[function_index]
+            .scalar_abi
+            .as_ref()
+            .is_some_and(|abi| abi.result.scalar_type == semantic_vocabulary::ScalarType::Boolean)
+        {
+            let mut changed = decoded.clone();
+            changed.functions_mut_for_test()[function_index]
+                .scalar_abi
+                .as_mut()
+                .unwrap()
+                .result
+                .scalar_type = semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    8,
+                )
+                .unwrap(),
+            );
+            assert!(
+                image_emission::validate_installation_record(&changed, &image).is_err(),
+                "Boolean and u8 return authority must remain distinct"
+            );
+        }
         let mut changed = decoded.clone();
         let function = &mut changed.functions_mut_for_test()[function_index];
         if function.parameter_abi.is_some() {

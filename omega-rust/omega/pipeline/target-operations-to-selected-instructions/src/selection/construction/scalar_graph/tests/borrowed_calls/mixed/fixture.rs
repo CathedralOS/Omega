@@ -100,7 +100,9 @@ pub(super) fn source(
     }
     returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Value {
         value: ValueId::new(4).unwrap(),
-        scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+        scalar_type: semantic_vocabulary::ScalarType::Integer(
+            IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+        ),
     };
     if conditional {
         branches(&mut source);
@@ -164,7 +166,9 @@ fn branches(source: &mut LegalizedScalarFunction) {
                 edge: EdgeId::new(raw + 1).unwrap(),
                 value: LegalizedScalarReturnValue::Value {
                     value: call.result.unwrap().value,
-                    scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    scalar_type: semantic_vocabulary::ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    ),
                 },
                 fuel: Vec::new(),
                 effect: call.effect,

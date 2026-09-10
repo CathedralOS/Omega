@@ -222,7 +222,7 @@ impl KnownScalar {
     }
 }
 
-pub(super) fn negate_boolean(
+pub(in crate::lowering) fn negate_boolean(
     value: KnownScalar,
     psi_operation: OperationId,
     result: ValueId,
@@ -242,7 +242,7 @@ pub(super) fn negate_boolean(
     }
 }
 
-pub(super) fn equal_boolean(
+pub(in crate::lowering) fn equal_boolean(
     left: KnownScalar,
     right: KnownScalar,
     psi_operation: OperationId,

@@ -32,6 +32,7 @@ impl SelectedConstraintKeys {
         .chain(self.return_aggregate.iter().copied())
         .chain([
             self.materialize_i64,
+            self.materialize_boolean,
             self.copy_i64,
             self.add_i64,
             self.add_i64_immediate,
@@ -71,6 +72,12 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::CallUnit => return None,
             MachineSemanticKind::CompareI64Zero => self.compare_i64_zero,
             MachineSemanticKind::MaterializeI64 => self.materialize_i64,
+            MachineSemanticKind::MaterializeBooleanEqual => self.materialize_boolean,
+            MachineSemanticKind::MaterializeBooleanU64LessThan => self.materialize_boolean,
+            MachineSemanticKind::MaterializeBooleanI64LessThan => self.materialize_boolean,
+            MachineSemanticKind::MaterializeBooleanU64LessOrEqual => self.materialize_boolean,
+            MachineSemanticKind::MaterializeBooleanI64LessOrEqual => self.materialize_boolean,
+
             MachineSemanticKind::CopyI64
             | MachineSemanticKind::ZeroExtendU8
             | MachineSemanticKind::ZeroExtendU16

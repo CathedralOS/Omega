@@ -46,7 +46,7 @@ pub(super) fn receipt(
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v33\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v34\0".as_slice();
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -253,6 +253,11 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::SignExtendI8 => 38,
         SelectedInstructionKind::SignExtendI16 => 39,
         SelectedInstructionKind::SignExtendI32 => 40,
+        SelectedInstructionKind::MaterializeBooleanEqual => 41,
+        SelectedInstructionKind::MaterializeBooleanU64LessThan => 42,
+        SelectedInstructionKind::MaterializeBooleanI64LessThan => 43,
+        SelectedInstructionKind::MaterializeBooleanU64LessOrEqual => 44,
+        SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => 45,
         SelectedInstructionKind::ExactAddI64 { .. } => 5,
         SelectedInstructionKind::ExactAddI64Immediate { .. } => 6,
         SelectedInstructionKind::ExactSubtractI64 { .. } => 7,
@@ -356,6 +361,11 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         | SelectedInstructionKind::SignExtendI8
         | SelectedInstructionKind::SignExtendI16
         | SelectedInstructionKind::SignExtendI32
+        | SelectedInstructionKind::MaterializeBooleanEqual
+        | SelectedInstructionKind::MaterializeBooleanU64LessThan
+        | SelectedInstructionKind::MaterializeBooleanI64LessThan
+        | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
+        | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::ByteViewAddress
         | SelectedInstructionKind::ConditionalBranchNonZero

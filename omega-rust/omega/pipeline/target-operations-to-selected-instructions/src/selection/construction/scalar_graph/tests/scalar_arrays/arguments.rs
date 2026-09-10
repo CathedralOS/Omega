@@ -180,7 +180,7 @@ fn owned_array_arguments_replay_exact_home_type_and_fragments() {
                 };
                 returned.value = LegalizedScalarReturnValue::Value {
                     value: ValueId::new(3).unwrap(),
-                    scalar_type: integer,
+                    scalar_type: semantic_vocabulary::ScalarType::Integer(integer),
                 };
                 let selected = build(
                     0,
@@ -334,7 +334,7 @@ fn with_narrow_scalar_result(mut source: LegalizedScalarFunction) -> LegalizedSc
     };
     returned.value = LegalizedScalarReturnValue::Value {
         value: ValueId::new(3).unwrap(),
-        scalar_type: integer,
+        scalar_type: semantic_vocabulary::ScalarType::Integer(integer),
     };
     source
 }

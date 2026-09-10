@@ -31,8 +31,8 @@ use conditional_scalar::{
 };
 use expressions::*;
 pub(in crate::lowering) use expressions::{
-    KnownInteger, KnownScalar, equal_integer, order_integer, scalar_parameter_location,
-    scalar_shape,
+    KnownInteger, KnownScalar, equal_boolean, equal_integer, negate_boolean, order_integer,
+    scalar_parameter_location, scalar_shape,
 };
 
 #[allow(clippy::too_many_arguments)]

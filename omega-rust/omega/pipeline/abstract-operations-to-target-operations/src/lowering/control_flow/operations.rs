@@ -193,6 +193,8 @@ pub(super) fn lower_operation(
         | AbstractOperation::IntegerEqual { .. }
         | AbstractOperation::IntegerLessThan { .. }
         | AbstractOperation::IntegerLessOrEqual { .. }
+        | AbstractOperation::BooleanNot { .. }
+        | AbstractOperation::BooleanEqual { .. }
         | AbstractOperation::ExactIntegerAdd { .. }
         | AbstractOperation::ExactIntegerSubtract { .. }
         | AbstractOperation::IntegerExactCast { .. } => observations::lower(
@@ -204,15 +206,37 @@ pub(super) fn lower_operation(
             operations,
             provenance,
         ),
-        AbstractOperation::Call { .. } => crate::lowering::unit::scalar_call::lower_scalar_call(
-            operation,
-            target,
-            functions,
-            scalar_abis,
-            &mut live.integers,
-            operations,
-            provenance,
-        ),
+        AbstractOperation::Call { .. } => {
+            let call = crate::lowering::unit::scalar_call::lower_scalar_call(
+                operation,
+                target,
+                functions,
+                scalar_abis,
+                |value| super::scalar_sources::source(value, function, live),
+            )?;
+            let TargetUnitOperation::ScalarCall {
+                psi_operation,
+                result_home: home,
+                ..
+            } = &call
+            else {
+                unreachable!("scalar call planner returns its owned row")
+            };
+            if home.scalar_type == ScalarType::Boolean {
+                if live.scalar_homes.insert(home.source_value, *home).is_some() {
+                    return Err(LoweringError::DuplicateValue(home.source_value));
+                }
+            } else {
+                crate::lowering::unit::scalar_call::insert_known_unit_integer(
+                    &mut live.integers,
+                    home.source_value,
+                    super::KnownUnitInteger::Home(*home),
+                )?;
+            }
+            provenance.operations.push(*psi_operation);
+            operations.push(call);
+            Ok(())
+        }
         AbstractOperation::IntegerConstant {
             psi_operation,
             result,

@@ -245,10 +245,7 @@ pub(super) fn installed_scalar_abi_is_canonical(
     else {
         return false;
     };
-    let semantic_vocabulary::ScalarType::Integer(result_integer) = abi.result.scalar_type else {
-        return false;
-    };
-    let Some(result_shape) = fixed_integer_shape(result_integer) else {
+    let Some(result_shape) = scalar_home_shape(abi.result.scalar_type) else {
         return false;
     };
     let Ok(expected_plan) = evaluate_call_plan(

@@ -196,6 +196,11 @@ pub const AARCH64_INLINE_ASSEMBLY_DEFAULT: RegisterConstraintKey = RegisterConst
     family: RegisterConstraintFamily::InlineAssembly,
     variant: 0,
 };
+/// Canonical Boolean materialization reads condition state and defines every GPR bit.
+pub const AARCH64_MATERIALIZE_BOOLEAN: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 732,
+};
 pub const AARCH64_MATERIALIZE_I64: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 0,
@@ -307,7 +312,7 @@ pub const AARCH64_FRAME_ADDRESS: RegisterConstraintKey = RegisterConstraintKey {
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 73] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 74] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -486,6 +491,7 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 73] = [
     AARCH64_DARWIN_HOSTED_READ_BYTE,
     AARCH64_LOAD8,
     AARCH64_LOAD16,
+    AARCH64_MATERIALIZE_BOOLEAN,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -990,6 +996,14 @@ pub fn aarch64_register_constraint_catalog(
             key: AARCH64_MATERIALIZE_I64,
             operands: vec![allocatable(0, RegisterOperandAccess::Def, GPR64)],
             implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: Vec::new(),
+        },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(6),
+            key: AARCH64_MATERIALIZE_BOOLEAN,
+            operands: vec![allocatable(0, RegisterOperandAccess::Def, GPR64)],
+            implicit_uses: view("nzcv").units.clone(),
             implicit_defs: Vec::new(),
             clobbers: Vec::new(),
         },

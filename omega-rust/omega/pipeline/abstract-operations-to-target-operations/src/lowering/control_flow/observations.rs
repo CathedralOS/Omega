@@ -2,7 +2,8 @@
 
 use super::{KnownUnitInteger, LiveDefinitions};
 use crate::lowering::scalar::{
-    KnownInteger, KnownScalar, byte_views, equal_integer, order_integer, scalar_parameter_location,
+    KnownInteger, KnownScalar, byte_views, equal_boolean, equal_integer, negate_boolean,
+    order_integer, scalar_parameter_location,
 };
 use crate::lowering::shared::*;
 #[cfg(test)]
@@ -175,6 +176,51 @@ pub(super) fn lower(
                 .ok_or_else(invalid)?
                 .into_expression(result.value)?;
             (*psi_operation, result.value, result.scalar_type, expression)
+        }
+        AbstractOperation::BooleanEqual {
+            psi_operation,
+            result,
+            left,
+            right,
+        } => {
+            // Ordered definitions retain the equality occurrence even for literal operands.
+            let operand = |value| {
+                let known = values
+                    .get(&value)
+                    .cloned()
+                    .ok_or(LoweringError::UnknownValue(value))?;
+                let TargetScalarExpression::Boolean(expression) = known.into_expression(value)?
+                else {
+                    return Err(LoweringError::ValueTypeMismatch(value));
+                };
+                Ok(KnownScalar::BooleanRuntime(expression))
+            };
+            let known = equal_boolean(operand(*left)?, operand(*right)?, *psi_operation, *result)?;
+            provenance.operations.push(*psi_operation);
+            (
+                *psi_operation,
+                *result,
+                ScalarType::Boolean,
+                known.into_expression(*result)?,
+            )
+        }
+        AbstractOperation::BooleanNot {
+            psi_operation,
+            result,
+            operand,
+        } => {
+            let operand = values
+                .get(operand)
+                .cloned()
+                .ok_or(LoweringError::UnknownValue(*operand))?;
+            let known = negate_boolean(operand, *psi_operation, *result)?;
+            provenance.operations.push(*psi_operation);
+            (
+                *psi_operation,
+                *result,
+                ScalarType::Boolean,
+                known.into_expression(*result)?,
+            )
         }
         AbstractOperation::IntegerEqual {
             psi_operation,

@@ -46,18 +46,20 @@ pub(super) fn project(
         AbstractOperation::Return {
             psi_edge,
             value,
-            scalar_type: ScalarType::Integer(scalar_type),
+            scalar_type,
             ..
-        } => Ok(LegalizedScalarTerminator::Return(LegalizedScalarReturn {
-            edge: *psi_edge,
-            value: LegalizedScalarReturnValue::Value {
-                value: *value,
-                scalar_type: *scalar_type,
-            },
-            fuel: node.fuel.clone(),
-            effect: node.effect,
-            ownership: node.ownership.clone(),
-        })),
+        } if matches!(scalar_type, ScalarType::Boolean | ScalarType::Integer(_)) => {
+            Ok(LegalizedScalarTerminator::Return(LegalizedScalarReturn {
+                edge: *psi_edge,
+                value: LegalizedScalarReturnValue::Value {
+                    value: *value,
+                    scalar_type: *scalar_type,
+                },
+                fuel: node.fuel.clone(),
+                effect: node.effect,
+                ownership: node.ownership.clone(),
+            }))
+        }
         AbstractOperation::Jump { .. } => {
             let [edge] = node.successors.as_slice() else {
                 return Err(Error::SourceCustodyMismatch);

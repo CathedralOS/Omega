@@ -67,7 +67,7 @@ pub(super) fn derive_mixed_structural_scalar_function_abi(
     }))
 }
 
-pub(super) fn derive_fixed_integer_scalar_function_abi(
+pub(super) fn derive_fixed_scalar_function_abi(
     function: &AbstractFunction,
     target: NativeTarget,
 ) -> Result<Option<ScalarFunctionAbi>, LoweringError> {
@@ -86,10 +86,7 @@ pub(super) fn derive_fixed_integer_scalar_function_abi(
     let Some(result) = function.result.scalar() else {
         return Ok(None);
     };
-    let ScalarType::Integer(result_type) = result.scalar_type else {
-        return Ok(None);
-    };
-    let Some(result_shape) = fixed_native_integer_shape(result_type) else {
+    let Some(result_shape) = fixed_native_scalar_shape(result.scalar_type) else {
         return Ok(None);
     };
 
@@ -156,7 +153,7 @@ pub(super) fn derive_fixed_integer_scalar_function_abi(
         parameters,
         result: ScalarAbiValue {
             value: result.value,
-            scalar_type: ScalarType::Integer(result_type),
+            scalar_type: result.scalar_type,
             placement: result_placement,
         },
     }))
@@ -193,7 +190,7 @@ mod tests {
         ] {
             let mut source = function();
             source.parameters[0].scalar_type = ScalarType::Boolean;
-            let abi = derive_fixed_integer_scalar_function_abi(&source, target)
+            let abi = derive_fixed_scalar_function_abi(&source, target)
                 .unwrap()
                 .unwrap();
             assert_eq!(abi.parameters[0].value, source.parameters[0].value);
@@ -233,7 +230,7 @@ mod tests {
     fn only_complete_service_free_fixed_integer_scalar_signatures_receive_an_abi() {
         let target = NativeTarget::linux_x64();
         assert!(
-            derive_fixed_integer_scalar_function_abi(&function(), target)
+            derive_fixed_scalar_function_abi(&function(), target)
                 .unwrap()
                 .is_some()
         );
@@ -243,7 +240,7 @@ mod tests {
             .published_service_ceiling
             .push(semantic_vocabulary::ServiceId::new(1).unwrap());
         assert_eq!(
-            derive_fixed_integer_scalar_function_abi(&serviceful, target).unwrap(),
+            derive_fixed_scalar_function_abi(&serviceful, target).unwrap(),
             None
         );
 
@@ -261,14 +258,14 @@ mod tests {
                 projected_qualifications: Vec::new(),
             });
         assert_eq!(
-            derive_fixed_integer_scalar_function_abi(&structural, target).unwrap(),
+            derive_fixed_scalar_function_abi(&structural, target).unwrap(),
             None
         );
 
         let mut address = function();
         address.parameters[0].scalar_type = ScalarType::Integer(IntegerType::address(64).unwrap());
         assert_eq!(
-            derive_fixed_integer_scalar_function_abi(&address, target).unwrap(),
+            derive_fixed_scalar_function_abi(&address, target).unwrap(),
             None
         );
 
@@ -277,10 +274,11 @@ mod tests {
             value: ValueId::new(2).unwrap(),
             scalar_type: ScalarType::Boolean,
         });
-        assert_eq!(
-            derive_fixed_integer_scalar_function_abi(&boolean, target).unwrap(),
-            None
-        );
+        let abi = derive_fixed_scalar_function_abi(&boolean, target)
+            .unwrap()
+            .unwrap();
+        assert_eq!(abi.result.scalar_type, ScalarType::Boolean);
+        assert_eq!(abi.result.placement.shape, ValueShape::integer(1, 1));
     }
 
     #[test]

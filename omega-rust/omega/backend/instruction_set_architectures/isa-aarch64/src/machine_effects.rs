@@ -182,6 +182,7 @@ fn selected_keys(
             crate::aarch64_darwin_register_call_keys()
         },
         materialize_i64: AARCH64_MATERIALIZE_I64,
+        materialize_boolean: crate::AARCH64_MATERIALIZE_BOOLEAN,
         call_aggregate: crate::aarch64_register_aggregate_call_keys(
             target.object_format == ObjectFormat::MachO,
         ),
@@ -293,6 +294,11 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         MachineSemanticKind::CompareI64Zero => (vec![0], vec![]),
         MachineSemanticKind::CompareI64 => (vec![0, 1], vec![]),
         MachineSemanticKind::MaterializeI64 => (vec![], vec![0]),
+        MachineSemanticKind::MaterializeBooleanEqual
+        | MachineSemanticKind::MaterializeBooleanU64LessThan
+        | MachineSemanticKind::MaterializeBooleanI64LessThan
+        | MachineSemanticKind::MaterializeBooleanU64LessOrEqual
+        | MachineSemanticKind::MaterializeBooleanI64LessOrEqual => (vec![], vec![0]),
         MachineSemanticKind::Float32ToBits
         | MachineSemanticKind::Float64ToBits
         | MachineSemanticKind::BitsToFloat32
@@ -335,6 +341,16 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         }
     };
     let (implicit_uses, implicit_defs, trap, control) = match semantic {
+        MachineSemanticKind::MaterializeBooleanEqual
+        | MachineSemanticKind::MaterializeBooleanU64LessThan
+        | MachineSemanticKind::MaterializeBooleanI64LessThan
+        | MachineSemanticKind::MaterializeBooleanU64LessOrEqual
+        | MachineSemanticKind::MaterializeBooleanI64LessOrEqual => (
+            units("nzcv"),
+            vec![],
+            MachineEncodedTrapBehavior::NeverV1,
+            MachineEncodedControlEffect::FallThroughV1,
+        ),
         MachineSemanticKind::CompareI64Zero | MachineSemanticKind::CompareI64 => (
             vec![],
             units("nzcv"),

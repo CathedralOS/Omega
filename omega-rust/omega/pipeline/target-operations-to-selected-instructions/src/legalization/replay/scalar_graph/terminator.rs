@@ -64,7 +64,8 @@ pub(super) fn validate(
                     },
                 ) if returned.edge == *psi_edge
                     && value == source
-                    && ScalarType::Integer(*scalar_type) == *source_type => {}
+                    && *scalar_type == *source_type
+                    && matches!(scalar_type, ScalarType::Boolean | ScalarType::Integer(_)) => {}
                 _ => return Err(invalid),
             }
         }

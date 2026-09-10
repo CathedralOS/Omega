@@ -212,11 +212,7 @@ pub(super) fn validate(
                 TargetControlTerminator::ReturnScalar {
                     psi_edge,
                     source_value,
-                    expression:
-                        TargetScalarExpression::Integer {
-                            scalar_type,
-                            expression,
-                        },
+                    expression,
                     cleanup_actions,
                 },
                 AbstractOperation::Return {
@@ -231,7 +227,6 @@ pub(super) fn validate(
                     if declaration.value == *result && declaration.scalar_type == *expected_type)
                     && psi_edge == expected_edge
                     && source_value == value
-                    && *expected_type == ScalarType::Integer(*scalar_type)
                     && cleanup_actions == expected_cleanup
                     && (cleanup_actions.is_empty()
                         || (super::super::unobserved_owned::body(optimized)
@@ -239,15 +234,29 @@ pub(super) fn validate(
                     && available.iter().any(|(identity, source)| {
                         identity == value && source.scalar_type() == *expected_type
                     })
-                    && (Checker {
-                        function,
-                        available: Some(&available),
-                        optimized,
-                        native,
-                        plan,
-                        unit,
-                    })
-                    .expression(expression, *value, &[])
+                    && {
+                        let checker = Checker {
+                            function,
+                            available: Some(&available),
+                            optimized,
+                            native,
+                            plan,
+                            unit,
+                        };
+                        match expression {
+                            TargetScalarExpression::Integer {
+                                scalar_type,
+                                expression,
+                            } => {
+                                *expected_type == ScalarType::Integer(*scalar_type)
+                                    && checker.expression(expression, *value, &[])
+                            }
+                            TargetScalarExpression::Boolean(expression) => {
+                                *expected_type == ScalarType::Boolean
+                                    && checker.boolean(expression, *value, &[])
+                            }
+                        }
+                    }
             }
             (
                 TargetControlTerminator::StructuralCase { source, cases },

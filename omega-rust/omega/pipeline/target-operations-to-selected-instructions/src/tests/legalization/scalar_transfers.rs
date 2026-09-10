@@ -326,7 +326,7 @@ fn typed_unit_transfers_reject_owner_type_and_edge_substitution() {
 }
 
 #[test]
-fn computed_comparison_transfer_keeps_flags_only_admission_fence() {
+fn computed_comparison_branch_and_edge_arguments_retain_materialized_value() {
     let native = NativeTarget::linux_x64();
     let (mut source, _, _) = fixture(native, 64);
     let caller = &mut source.functions[0];
@@ -346,8 +346,7 @@ fn computed_comparison_transfer_keeps_flags_only_admission_fence() {
         panic!("conditional");
     };
     *condition = value(150);
-    // The same comparison is supported as a branch suffix, but has no
-    // materialized Boolean register to transport to either successor.
+    // Sharing the predicate with outgoing arguments requires its ordinary Boolean value.
     for transfer_comparison in [false, true] {
         if transfer_comparison {
             let AbstractOperation::Conditional {
@@ -369,9 +368,38 @@ fn computed_comparison_transfer_keeps_flags_only_admission_fence() {
             FuelScheduleIdentity::new(1).unwrap(),
         )
         .unwrap();
-        assert_eq!(
-            legalize_target_operations(&target, &source, &unit).is_err(),
-            transfer_comparison
-        );
+        let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+        validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = crate::selection_constraints(&legal, &environment);
+        let selected = select_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        validate_selected_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap();
+        let materializes = selected
+            .plan()
+            .functions
+            .iter()
+            .flat_map(|function| &function.blocks)
+            .flat_map(|block| &block.instructions)
+            .any(|row| {
+                matches!(
+                    row.kind,
+                    selected_instructions::SelectedInstructionKind::MaterializeBooleanU64LessThan
+                )
+            });
+        assert_eq!(materializes, transfer_comparison);
     }
 }

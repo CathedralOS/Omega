@@ -1,5 +1,5 @@
-// Checked source and Terminal coverage. Native comparison-value materialization
-// remains an open backend dependency for these two named entry machines.
+// Checked source, Terminal, and native comparison-value coverage for both entries.
+// The native scalar_array_results suite verifies their exact scalar/array payloads.
 machine keep(value: u16, row: [u8; 2]) -> u16 { value }
 machine forward(value: u16, row: [u8; 2]) -> u16 { keep(value, row) }
 

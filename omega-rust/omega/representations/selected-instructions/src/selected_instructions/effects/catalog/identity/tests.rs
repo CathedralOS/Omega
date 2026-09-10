@@ -49,6 +49,7 @@ fn keys() -> SelectedConstraintKeys {
             variant: 3,
         }],
         materialize_i64: instruction(0),
+        materialize_boolean: instruction(0),
         copy_i64: instruction(1),
         float32_to_bits: Some(instruction(28)),
         float64_to_bits: Some(instruction(29)),

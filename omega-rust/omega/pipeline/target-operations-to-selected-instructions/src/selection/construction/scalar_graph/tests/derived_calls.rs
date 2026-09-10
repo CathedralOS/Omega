@@ -45,7 +45,9 @@ fn derived_call(target: target::NativeTarget, empty: bool) -> LegalizedScalarFun
     );
     returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Value {
         value: ValueId::new(4).unwrap(),
-        scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+        scalar_type: semantic_vocabulary::ScalarType::Integer(
+            IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+        ),
     };
     source.provenance.operations.truncate(4);
     source
@@ -61,7 +63,9 @@ fn branched_call(target: target::NativeTarget, sibling: bool) -> LegalizedScalar
     returned(&mut left).edge = EdgeId::new(2).unwrap();
     returned(&mut left).value = LegalizedScalarReturnValue::Value {
         value: ValueId::new(2).unwrap(),
-        scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+        scalar_type: semantic_vocabulary::ScalarType::Integer(
+            IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+        ),
     };
     if sibling {
         left.instructions.push(slice);

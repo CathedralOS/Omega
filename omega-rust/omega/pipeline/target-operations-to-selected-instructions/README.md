@@ -67,8 +67,9 @@ mixed-bank aggregate-call constraint rows and their independent catalog readers;
 direct construction entries and owned-array-only calls do not establish that row.
 Narrow scalar calls normalize their exact signed or unsigned 8/16/32-bit carrier
 before whole-register consumers; raw array fragments need no such scalar
-interpretation. Computed Boolean comparison values still require predicate
-materialization independently of scalar integer transport.
+interpretation. Computed Boolean comparisons establish canonical full-register
+zero/one values before array stores, calls, or returns consume them. Their exact
+Boolean carrier remains distinct from the integer carrier sharing its ABI shape.
 
 Multi-case dispatch uses ordinary comparisons and explicitly identified
 `CaseDispatch` continuation blocks. An unsuccessful comparison has taken no
@@ -127,8 +128,12 @@ and legalized replay preserve its ordered actions, return edge, and fuel. A
 function-wide result roster cannot substitute for branch-local ownership.
 Non-scalar case layouts and executable or residual return cleanup remain separate
 admission limits; no new ISA case opcode or physical route is introduced.
-Computed Boolean comparisons remain branch predicates until value materialization
-is implemented.
+Comparison value materialization uses the existing instruction sequence: a
+comparison establishes flags and the immediately following condition materializer
+defines the Boolean value. Independent replay checks condition, operands, result,
+flags, and the single source-operation fuel charge. Branch-only folding requires
+exclusive consumption of the complete predicate suffix, including successor
+arguments; a shared value retains its ordinary register definition.
 Boolean equality retains Boolean operand types through comparison and independent
 replay; it uses normalized register values without admitting Boolean ordering.
 
