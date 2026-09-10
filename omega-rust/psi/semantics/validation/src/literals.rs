@@ -88,8 +88,11 @@ pub(crate) use integer_landing::{
     anonymous_numeric_value, evaluate_anonymous_numeric_equality, land_integer_value,
 };
 pub use integer_landing::{
-    evaluate_anonymous_numeric_comparison, has_anonymous_numeric_results,
+    evaluate_anonymous_numeric_comparison,
+    evaluate_anonymous_numeric_comparison_with_selected_match_arms,
+    evaluate_anonymous_numeric_expression_with_selected_match_arms, has_anonymous_numeric_results,
     has_anonymous_operator_meaning, land_anonymous_integer_expression,
+    land_anonymous_integer_expression_with_selected_match_arms,
     land_anonymous_integer_expression_with_warning, select_anonymous_numeric_match_arm,
 };
 pub(crate) use integer_remainder::validate_anonymous_remainders;

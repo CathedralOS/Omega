@@ -81,7 +81,10 @@ fn retained_primitive(program: &TypedTrees, expression: ExpressionHandle) -> Opt
         .and_then(|reference| program.primitive_type_reference(reference))
 }
 
-pub(crate) fn validate_match_dispatch(
+/// Check scalar pattern compatibility, coverage, and every result arm before
+/// an early evaluator erases the dispatch. The caller supplies a valid acyclic
+/// expression graph; this check does not evaluate landed arm operations.
+pub fn validate_match_dispatch(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,

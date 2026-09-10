@@ -34,6 +34,9 @@ mod array_call_results;
 #[path = "module_machine_indices/comparisons.rs"]
 mod comparisons;
 
+#[path = "module_machine_indices/value_dispatch.rs"]
+mod value_dispatch;
+
 #[path = "module_machine_indices/noninteger.rs"]
 mod noninteger;
 

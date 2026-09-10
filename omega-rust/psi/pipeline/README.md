@@ -357,6 +357,10 @@ rejects undefined rational values even in unselected comparisons; typed operands
 still require ordinary peer landing. The two-file CLI check
 `cargo run -p omega -- --check tests/omega/pass/modules/rational_boolean_indices/main.omg`
 covers fractional and decimal comparisons with their canonical Boolean results.
+Scalar `match` indices retain their complete source trees for the
+[typed evaluation owner](../semantics/build-time-evaluation/README.md), including
+coverage and unselected-arm admission. Their source check is
+`cargo run -p omega -- --check tests/omega/pass/modules/match_constant_indices/main.omg`.
 Open templates, machine-computed nominal aggregate indices, constrained destinations, authored operators
 and module-owned domain families remain outside this probe.
 Domain indices retain the declared family's identity; equal results share canonical

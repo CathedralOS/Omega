@@ -4,6 +4,8 @@
 //! In particular, literal Boolean expressions cannot use the integer-only parser
 //! fold: retain their trees so the typed evaluator can check operand carriers,
 //! preserve operator custody and choose the logical evaluation schedule.
+//! Match likewise retains its whole tree: only semantic checking can establish
+//! coverage, compatible arms, and the selected execution path.
 
 use crate::parser::expression::{
     parse_const_integer_expression_handle, parse_expression_handle_without_struct_literals,
@@ -22,6 +24,8 @@ use tokens::{KeywordKind, PunctuationKind};
 mod qualified_names;
 #[cfg(test)]
 mod remainder_tests;
+#[cfg(test)]
+mod value_dispatch_tests;
 
 pub(super) fn parse_type_reference_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
@@ -382,6 +386,7 @@ fn const_expression_requires_semantic_admission(
             | ExpressionNode::Boolean(_)
             | ExpressionNode::StructLiteral(_)
             | ExpressionNode::ArrayLiteral(_)
+            | ExpressionNode::Match(_)
     ) {
         return true;
     }

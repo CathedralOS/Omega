@@ -139,6 +139,7 @@ pub use expression_types::argument_matches_type_reference_handle as checked_argu
 pub use expression_types::bounded_byte_buffer_capacity;
 pub use expression_types::expression_result_type_reference;
 pub use expression_types::match_subject_primitive_type;
+pub use expression_types::validate_match_dispatch;
 pub use float_projection_bindings::{
     exact_toolchain_float_projection_contract, exact_toolchain_float_projection_primitive,
     is_exact_toolchain_float_meaning_type,
@@ -146,9 +147,12 @@ pub use float_projection_bindings::{
 pub use literals::builtin_constant_array_projection_type;
 pub use literals::declared_constant_array_type;
 pub use literals::evaluate_anonymous_numeric_comparison;
+pub use literals::evaluate_anonymous_numeric_comparison_with_selected_match_arms;
+pub use literals::evaluate_anonymous_numeric_expression_with_selected_match_arms;
 pub use literals::has_anonymous_numeric_results;
 pub use literals::has_anonymous_operator_meaning;
 pub use literals::land_anonymous_integer_expression;
+pub use literals::land_anonymous_integer_expression_with_selected_match_arms;
 pub use literals::land_anonymous_integer_expression_with_warning;
 /// The declared type of a simple place argument (bare name / `self.field`,
 /// through the `&mut` marker), WITH its Constrained shells -- exposed for the

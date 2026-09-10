@@ -72,7 +72,8 @@ fn append_integer_landing_warning(
     if primitive.is_some_and(|primitive| land_integer_value(&integer, primitive).is_none()) {
         return;
     }
-    let Some(warning) = integer_landing_warning(program, &evaluated, &integer, &mut builtin) else {
+    let Some(warning) = integer_landing_warning(program, &evaluated, &integer, &[], &mut builtin)
+    else {
         return;
     };
     warnings.push(warning);

@@ -45,12 +45,31 @@ pub fn land_anonymous_integer_expression_with_warning(
     program: &TypedTrees,
     expression: ExpressionHandle,
     destination: PrimitiveType,
+    builtin: impl FnMut(ExpressionHandle) -> bool,
+) -> Option<(IntegerLiteral, Option<Diagnostic>)> {
+    land_anonymous_integer_expression_with_selected_match_arms(
+        program,
+        expression,
+        destination,
+        &[],
+        builtin,
+    )
+}
+
+/// Land an anonymous calculation using the caller's already selected Match
+/// result edges. Each edge must belong to that exact dispatch; the caller owns
+/// subject evaluation, ordered selection, coverage, and all-arm static checking.
+pub fn land_anonymous_integer_expression_with_selected_match_arms(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    destination: PrimitiveType,
+    selected_arms: &[(ExpressionHandle, ExpressionHandle)],
     mut builtin: impl FnMut(ExpressionHandle) -> bool,
 ) -> Option<(IntegerLiteral, Option<Diagnostic>)> {
-    let value = anonymous_numeric_value(program, expression, &mut builtin)?;
+    let value = evaluate_anonymous_value::<true>(program, expression, selected_arms, &mut builtin)?;
     let integer = value.value.to_integer_exact()?;
     let literal = land_integer_value(&integer, destination)?;
-    let warning = integer_landing_warning(program, &value, &integer, &mut builtin);
+    let warning = integer_landing_warning(program, &value, &integer, selected_arms, &mut builtin);
     Some((literal, warning))
 }
 
@@ -62,6 +81,22 @@ pub fn land_anonymous_integer_expression_with_warning(
 pub fn evaluate_anonymous_numeric_comparison(
     program: &TypedTrees,
     expression: ExpressionHandle,
+    builtin: impl FnMut(ExpressionHandle) -> bool,
+) -> Option<bool> {
+    evaluate_anonymous_numeric_comparison_with_selected_match_arms(
+        program,
+        expression,
+        &[],
+        builtin,
+    )
+}
+
+/// Compare anonymous operands through exact result edges selected by the
+/// caller. These edges convey no operator or declaration-selection authority.
+pub fn evaluate_anonymous_numeric_comparison_with_selected_match_arms(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    selected_arms: &[(ExpressionHandle, ExpressionHandle)],
     mut builtin: impl FnMut(ExpressionHandle) -> bool,
 ) -> Option<bool> {
     use std::cmp::Ordering;
@@ -84,8 +119,9 @@ pub fn evaluate_anonymous_numeric_comparison(
     {
         return None;
     }
-    let left = anonymous_numeric_value(program, binary.left, &mut builtin)?;
-    let right = anonymous_numeric_value(program, binary.right, &mut builtin)?;
+    let left = evaluate_anonymous_value::<true>(program, binary.left, selected_arms, &mut builtin)?;
+    let right =
+        evaluate_anonymous_value::<true>(program, binary.right, selected_arms, &mut builtin)?;
     let ordering = left.value.cmp_value(&right.value);
     Some(match binary.operator {
         BinaryOperator::Equal => ordering == Ordering::Equal,
@@ -109,6 +145,20 @@ pub(crate) fn evaluate_anonymous_numeric_equality(
     let left = anonymous_numeric_value(program, left, &mut builtin)?;
     let right = anonymous_numeric_value(program, right, &mut builtin)?;
     Some(left.value.cmp_value(&right.value).is_eq())
+}
+
+/// Evaluate an exact anonymous value for invocation-local reuse, for example
+/// the saved subject of ordered scalar dispatch. No carrier is introduced;
+/// selected result edges and builtin authority obey the ordinary rational
+/// evaluator's checks. Fractional landing diagnostics remain destination-owned.
+pub fn evaluate_anonymous_numeric_expression_with_selected_match_arms(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    selected_arms: &[(ExpressionHandle, ExpressionHandle)],
+    mut builtin: impl FnMut(ExpressionHandle) -> bool,
+) -> Option<BigRational> {
+    evaluate_anonymous_value::<true>(program, expression, selected_arms, &mut builtin)
+        .map(|evaluated| evaluated.value)
 }
 
 /// Select an authored Match result using only total anonymous numeric values.
@@ -146,12 +196,18 @@ fn integer_landing_warning(
     program: &TypedTrees,
     evaluated: &AnonymousNumericValue,
     integer: &BigInt,
+    selected_arms: &[(ExpressionHandle, ExpressionHandle)],
     builtin: &mut impl FnMut(ExpressionHandle) -> bool,
 ) -> Option<Diagnostic> {
     if !evaluated.fractional_origin.is_valid() {
         return None;
     }
-    let fractional = anonymous_numeric_value(program, evaluated.fractional_origin, builtin)?;
+    let fractional = evaluate_anonymous_value::<true>(
+        program,
+        evaluated.fractional_origin,
+        selected_arms,
+        builtin,
+    )?;
     Some(Diagnostic::warning(format!(
         "anonymous arithmetic preserves the exact fractional intermediate `{}` before landing as integer `{integer}`; type an operand if typed integer division was intended",
         fractional.value,
@@ -212,7 +268,7 @@ pub(crate) fn anonymous_numeric_value(
     expression: ExpressionHandle,
     builtin: &mut impl FnMut(ExpressionHandle) -> bool,
 ) -> Option<AnonymousNumericValue> {
-    evaluate_anonymous_value::<true>(program, expression, builtin)
+    evaluate_anonymous_value::<true>(program, expression, &[], builtin)
 }
 
 /// Absence of a discovered type is not evidence of anonymity. Result joins
@@ -252,12 +308,13 @@ pub(super) fn anonymous_integer_literal_tree_value(
     expression: ExpressionHandle,
     builtin: &mut impl FnMut(ExpressionHandle) -> bool,
 ) -> Option<AnonymousNumericValue> {
-    evaluate_anonymous_value::<false>(program, expression, builtin)
+    evaluate_anonymous_value::<false>(program, expression, &[], builtin)
 }
 
 fn evaluate_anonymous_value<const ALLOW_DECIMAL_LITERALS: bool>(
     program: &TypedTrees,
     expression: ExpressionHandle,
+    selected_arms: &[(ExpressionHandle, ExpressionHandle)],
     builtin: &mut impl FnMut(ExpressionHandle) -> bool,
 ) -> Option<AnonymousNumericValue> {
     enum Step {
@@ -278,6 +335,24 @@ fn evaluate_anonymous_value<const ALLOW_DECIMAL_LITERALS: bool>(
                     return None;
                 }
                 match program.expression_table.expression(expression) {
+                    ExpressionNode::Match(dispatch) => {
+                        let mut selections = selected_arms
+                            .iter()
+                            .filter(|(owner, _)| *owner == expression);
+                        let (_, selected) = selections.next()?;
+                        if selections.any(|(_, other)| other != selected) {
+                            return None;
+                        }
+                        let arms = program.expression_table.match_arms(dispatch.arms);
+                        if arms.len() != dispatch.arms.len()
+                            || !arms.iter().any(|arm| arm.value == *selected)
+                        {
+                            return None;
+                        }
+                        active.push(expression);
+                        pending.push(Step::Leave(expression));
+                        pending.push(Step::Enter(*selected));
+                    }
                     ExpressionNode::Integer(literal) if literal.landing().is_none() => {
                         values.push(BigRational::from_integer(literal.value_bignum()?))
                     }

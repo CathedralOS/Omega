@@ -36,6 +36,77 @@ fn parsed_dispatch_result(
 }
 
 #[test]
+fn selected_match_result_edges_retain_membership_and_numeric_authority() {
+    let (program, dispatch) = parsed_dispatch("true", "true -> 7 / 2 * 2, false -> 9");
+    let root = program
+        .expression_table
+        .expression_entries()
+        .find_map(|(handle, node)| matches!(node, ExpressionNode::Match(_)).then_some(handle))
+        .expect("dispatch root");
+    let arms = program.expression_table.match_arms(dispatch.arms);
+    let selected = arms[0].value;
+    let other = arms[1].value;
+    let evaluate = |selections: &[(ExpressionHandle, ExpressionHandle)]| {
+        land_anonymous_integer_expression_with_selected_match_arms(
+            &program,
+            root,
+            PrimitiveType::U8,
+            selections,
+            |_| true,
+        )
+    };
+    let (literal, warning) = evaluate(&[(root, selected)]).expect("exact selected result edge");
+    assert_eq!(literal.value_u64(), Some(7));
+    assert!(
+        warning
+            .expect("fractional origin survives the selection")
+            .message
+            .contains("7/2")
+    );
+    assert!(evaluate(&[]).is_none(), "selection is not guessed");
+    assert!(
+        evaluate(&[(root, selected), (root, other)]).is_none(),
+        "contradictory selected edges reject"
+    );
+    assert!(
+        evaluate(&[(root, dispatch.subject)]).is_none(),
+        "a subject is not a result edge"
+    );
+    assert!(
+        evaluate(&[(
+            root,
+            ExpressionHandle::from_parts(selected.arena_index(), selected.generation() + 1)
+        )])
+        .is_none()
+    );
+    assert!(
+        land_anonymous_integer_expression_with_selected_match_arms(
+            &program,
+            root,
+            PrimitiveType::U8,
+            &[(root, selected)],
+            |_| false,
+        )
+        .is_none(),
+        "a result edge grants no builtin operator meaning"
+    );
+
+    let mut cyclic = program.clone();
+    *cyclic.expression_table.expression_mut(selected) = ExpressionNode::Match(dispatch);
+    assert!(
+        land_anonymous_integer_expression_with_selected_match_arms(
+            &cyclic,
+            root,
+            PrimitiveType::U8,
+            &[(root, selected), (selected, selected)],
+            |_| true,
+        )
+        .is_none(),
+        "a selected cycle cannot recurse indefinitely"
+    );
+}
+
+#[test]
 fn width_gate_does_not_assign_a_carrier_to_anonymous_comparison_inputs() {
     for (subject, arms) in [
         (
