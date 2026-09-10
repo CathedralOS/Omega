@@ -287,7 +287,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
         identity: "test::Empty".into(),
         shape: StructuralTypeShape::Record { fields: Vec::new() },
     });
-    with_local.machines[0].structural_places.push(local.clone());
+    with_local.machines[0].structural_places.push(local);
     with_local.machines[0].blocks[0]
         .operations
         .push(terminal_psi::Operation {
