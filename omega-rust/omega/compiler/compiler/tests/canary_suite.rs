@@ -774,6 +774,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
 ];
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
+    "operators/selected_crash_invocation",
     "expressions/match_float_equality_missing",
     "expressions/match_float_equality_requires",
     "modules/match_initializer_fraction",

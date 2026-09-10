@@ -1,0 +1,5 @@
+boundary operator == Float::equal(left: f32, right: f32) -> bool crashes Trap;
+
+machine compare(left: f32, right: f32) -> bool crashes Abort {
+    left == right
+}

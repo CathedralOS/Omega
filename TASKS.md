@@ -917,6 +917,22 @@ Owners include
   fact. Acceptance: safe calls discharge every route and mutations to guards,
   substitutions, or sites reject.
 
+  Spelled and implicit selected operators need shared invocation custody before
+  crash-qualified uses can pass `typed-trees-to-checked-trees/src/checks/operators.rs`: declaration
+  buckets currently feed package review, while `facts/crash_calls.rs` propagates
+  only machine/state `FlowCallFact` invocations. Join the selected occurrence,
+  saved actual operands, and post-evaluation live facts to same-cause caller
+  coverage and private/transitive summaries; do not fabricate source calls or
+  narrow an opaque requirement using a selected provider body. This also owns
+  the crash-qualified equality dependency of `MATCH-SELECTIVE-LOWERING`.
+  Named operator invocations need the same audit; their separate `named_uses`
+  roster is outside this gate.
+  Regression: `mbx nextest run -p typed-trees-to-checked-trees --lib
+  --no-fail-fast -E 'test(operators::crashes) | test(crash_qualified_float_equality)'`.
+  The missing invocation support is an implementation limit, not an owner decision;
+  next acceptance is correct guard discharge and retained surviving-route evidence
+  for spelled operators and individual Match arms through independent replay.
+
 - **PROOF-CONTRACT-MIGRATION.** Migrate the proof surface to
   [ordinary machine contracts and trait bundles](wiki/spec/proofs/contracts.md#machines-and-bundles).
   Owners: Psi syntax/resolution/typing, contract proof semantics, Terminal
