@@ -1,5 +1,6 @@
 //! Physical array construction and receiving replay retain each ordered leaf.
 mod arguments;
+mod empty;
 use super::*;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::{
@@ -156,8 +157,8 @@ fn array_selection_rejects_reordered_operands_and_changed_layout() {
             byte_size: 1,
         };
         assert!(validate(&source, &changed).is_err());
-        for length in [0, 3, 5, 6, 7] {
-            if length != 0 && target != target::NativeTarget::windows_x64() {
+        for length in [3, 5, 6, 7] {
+            if target != target::NativeTarget::windows_x64() {
                 continue;
             }
             assert!(
@@ -170,7 +171,7 @@ fn array_selection_rejects_reordered_operands_and_changed_layout() {
                     environment.constraints()
                 )
                 .is_err(),
-                "empty or indirect array transport {length}"
+                "indirect array transport {length}"
             );
         }
     }

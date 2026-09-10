@@ -96,7 +96,9 @@ pub(super) fn check(
                     else {
                         return Err(TextPlacementError::SourceShapeMismatch);
                     };
-                    let [operation] = source_row.provenance.operations.as_slice() else {
+                    // Zero-payload construction is an ordered prefix checked
+                    // by source replay; the final operation owns this call fixup.
+                    let Some(operation) = source_row.provenance.operations.last() else {
                         return Err(TextPlacementError::SourceShapeMismatch);
                     };
                     let candidate = resolutions

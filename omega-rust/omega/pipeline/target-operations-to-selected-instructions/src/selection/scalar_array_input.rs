@@ -54,12 +54,6 @@ pub(super) fn elements(
         return None;
     };
     let (scalar, count, shape) = shape(source, result.structural_type)?;
-    // Empty arrays retain semantic identity, but have no addressable payload.
-    // The current selected local-home path cannot charge that construction
-    // without inventing storage; reject until no-storage settlement is modeled.
-    if shape.byte_size == 0 {
-        return None;
-    }
     if row.result.is_some()
         || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
         || !result.claims.is_empty()

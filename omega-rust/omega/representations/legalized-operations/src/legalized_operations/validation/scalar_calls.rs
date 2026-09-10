@@ -50,6 +50,10 @@ impl LegalizedScalarCall {
 }
 /// Complete direct integer-bank aggregate result, with no gaps or hidden result pointer.
 fn direct_aggregate_registers(placement: &ValuePlacement) -> bool {
+    // Some(empty) preserves a structural result while requiring no register.
+    if placement.shape == ValueShape::integer(0, 1) && placement.locations.is_empty() {
+        return true;
+    }
     if placement.shape.class != calling_conventions::ValueClass::Integer
         || placement.shape.byte_size == 0
         || placement.shape.byte_size > 16

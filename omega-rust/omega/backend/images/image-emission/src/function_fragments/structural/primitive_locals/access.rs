@@ -83,7 +83,8 @@ pub(in crate::function_fragments) fn operation_retained(
     let Some(instruction) = instructions.next() else {
         return false;
     };
-    if instructions.next().is_some() || instruction.provenance.operations != [identity] {
+    if instructions.next().is_some() || instruction.provenance.operations.last() != Some(&identity)
+    {
         return false;
     }
     match operation {

@@ -55,7 +55,8 @@ pub(super) fn structural_contract(
             && (literals::roster(optimized)
                 || read_byte::roster(optimized)
                 || primitive_locals::roster(optimized)
-                || (aggregate_results::uses(optimized) && aggregate_results::roster(optimized))))
+                || (aggregate_results::uses(optimized, plan)
+                    && aggregate_results::roster(optimized))))
         .then_some(&[][..])
     }) {
         return Some(legalized_operations::LegalizedStructuralContract {
@@ -144,7 +145,7 @@ pub(super) fn match_input(
     let ranked = matches!(target.operation, TargetOperation::RankedU32Countdown(_));
     let call_plan = if ranked {
         ranked::validate(target, abstracted, optimized, native, plan, unit)?
-    } else if aggregate_results::uses(optimized) {
+    } else if aggregate_results::uses(optimized, plan) {
         aggregate_results::header(target, abstracted, optimized, native.target, plan)?
     } else if structural_parameters(target).is_some() {
         byte_views::validate(target, abstracted, optimized, native.target, plan)?
@@ -380,7 +381,7 @@ pub(super) fn callee_plan(
     ) else {
         return Err(LegalizationError::SourceCustodyMismatch);
     };
-    if !aggregate_results::uses(optimized)
+    if !aggregate_results::uses(optimized, plan)
         && ((target.attachment.is_some()
             && !matches!(abstracted.result, AbstractFunctionResult::Unit))
             || !matches!(abstracted.result, AbstractFunctionResult::Unit)
@@ -398,7 +399,7 @@ pub(super) fn callee_plan(
     {
         return Err(LegalizationError::SourceCustodyMismatch);
     }
-    let call_plan = if aggregate_results::uses(optimized) {
+    let call_plan = if aggregate_results::uses(optimized, plan) {
         aggregate_results::header(target, abstracted, optimized, native.target, plan)?
     } else if structural_parameters(target).is_some() {
         byte_views::validate(target, abstracted, optimized, native.target, plan)?

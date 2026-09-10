@@ -142,8 +142,8 @@ pub(super) fn establishment(
             })
         || store_instruction.operands.len() != 2
         || store_instruction.operands[0].virtual_register != pointer
-        || address_instruction.provenance.operations != [operation]
-        || store_instruction.provenance.operations != [operation]
+        || address_instruction.provenance.operations.last() != Some(&operation)
+        || store_instruction.provenance.operations.last() != Some(&operation)
         || !store_instruction.provenance.values.contains(&value.value)
         || !selected.virtual_registers.iter().any(|register| {
             register.id == store_instruction.operands[1].virtual_register

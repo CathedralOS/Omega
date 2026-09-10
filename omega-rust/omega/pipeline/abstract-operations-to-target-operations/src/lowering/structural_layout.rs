@@ -106,6 +106,14 @@ pub(crate) fn structural_shape(
                 Ok(ValueShape::integer(byte_size, alignment))
             }
             StructuralTypeShape::FixedArray { element, length } => {
+                // The complete primitive-array chain is still checked below
+                // empty dimensions. Its canonical zero-byte ABI must not need
+                // an addressable element layout or overflow an unused extent.
+                if let Ok((_, 0, shape)) =
+                    super::control_flow::scalar_arrays::shape(structural_type, declarations)
+                {
+                    return Ok(shape);
+                }
                 if *length == 0 {
                     return Err(LoweringError::EmptyStructuralType(structural_type));
                 }

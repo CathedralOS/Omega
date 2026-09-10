@@ -18,6 +18,17 @@ pub(super) fn establish(
     else {
         return Err(invalid());
     };
+    if shape.byte_size == 0 {
+        // The semantic result remains in the exact source frontier. No address,
+        // physical home or access exists; retain construction before the next
+        // executable instruction, including the block's terminator.
+        replay.pending_provenance.operations.push(row.operation);
+        replay
+            .pending_provenance
+            .fuel
+            .extend(row.fuel.iter().cloned());
+        return Ok(());
+    }
     let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
         place: established.place,

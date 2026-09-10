@@ -117,7 +117,7 @@ pub(super) fn settlement(
     };
     if instruction.kind != (SelectedInstructionKind::HostedReadByte { slot })
         || !instruction.operands.is_empty()
-        || instruction.provenance.operations != [*operation]
+        || instruction.provenance.operations.last() != Some(operation)
         || !instruction.provenance.values.is_empty()
     {
         return Err(invalid());
@@ -222,7 +222,7 @@ pub(super) fn validate(
     };
     if row.kind != (SelectedInstructionKind::HostedReadByte { slot })
         || !row.operands.is_empty()
-        || row.provenance.operations != [*operation]
+        || row.provenance.operations.last() != Some(operation)
         || !row.provenance.values.is_empty()
     {
         return Err(invalid());

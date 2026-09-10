@@ -31,7 +31,7 @@ pub(super) fn validate(
         return Err(invalid);
     }
     match optimized.result {
-        _ if super::super::aggregate_results::uses(optimized) => {
+        _ if super::super::aggregate_results::uses(optimized, plan) => {
             super::super::aggregate_results::header(
                 function,
                 abstracted,

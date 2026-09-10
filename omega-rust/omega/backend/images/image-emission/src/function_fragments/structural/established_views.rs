@@ -189,7 +189,7 @@ fn local_location(
             })
         || match origin {
             selected_instructions::SelectedMemoryAccessOrigin::Operation(producer) => {
-                instruction.provenance.operations != [producer]
+                instruction.provenance.operations.last() != Some(&producer)
             }
             selected_instructions::SelectedMemoryAccessOrigin::Block(owner) => {
                 // Edge copies initialize this descriptor independently. Its pure

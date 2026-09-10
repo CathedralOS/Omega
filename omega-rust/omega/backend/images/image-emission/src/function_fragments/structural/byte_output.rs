@@ -38,7 +38,7 @@ pub(super) fn settlement(
     let slot = LocalStorageSlotId::Boundary { operation };
     if instruction.kind != (SelectedInstructionKind::HostedWriteByteI32 { slot })
         || instruction.operands.len() != 1
-        || instruction.provenance.operations != [operation]
+        || instruction.provenance.operations.last() != Some(&operation)
         || instruction.provenance.values != [value]
     {
         return Err(Error::Mismatch(
@@ -153,7 +153,7 @@ pub(super) fn validate(
     let slot = LocalStorageSlotId::Boundary { operation };
     if row.kind != (SelectedInstructionKind::HostedWriteByteI32 { slot })
         || row.operands.len() != 1
-        || row.provenance.operations != [operation]
+        || row.provenance.operations.last() != Some(&operation)
         || row.provenance.values != [value]
     {
         return Err(invalid());

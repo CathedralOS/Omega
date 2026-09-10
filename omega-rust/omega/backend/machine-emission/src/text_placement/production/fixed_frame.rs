@@ -139,10 +139,13 @@ pub(in crate::text_placement) fn place(
 }
 
 fn exact_operation(operations: &[OperationId]) -> Result<OperationId, TextPlacementError> {
-    match operations {
-        [operation] => Ok(*operation),
-        _ => Err(TextPlacementError::SourceShapeMismatch),
-    }
+    // Selection replay can prefix zero-payload constructors to this call.
+    // The call itself remains the final operation; this placement phase only
+    // resolves its fixup, and does not grant authority to the preceding charges.
+    operations
+        .last()
+        .copied()
+        .ok_or(TextPlacementError::SourceShapeMismatch)
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -226,6 +226,17 @@ pub(super) fn call(
                     types,
                 );
             }
+            if super::primitive_storage::is_primitive_reference(declaration, types) {
+                return super::primitive_calls::argument(
+                    argument,
+                    declaration,
+                    destination,
+                    function,
+                    prepared,
+                    live,
+                    types,
+                );
+            }
             if !argument.path.is_empty()
                 || argument.access != declaration.access
                 || !crate::lowering::scalar::byte_views::is_byte_parameter(declaration, types)

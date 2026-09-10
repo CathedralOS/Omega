@@ -1,5 +1,89 @@
 use super::*;
 
+#[test]
+fn empty_aggregate_result_shape_retains_some_and_rejects_fake_storage() {
+    for policy in [
+        CallingPolicy::SystemVAMD64,
+        CallingPolicy::MicrosoftX64,
+        CallingPolicy::Aapcs64,
+    ] {
+        let mut plan = scalar_call_unit_plan();
+        let call = call(&mut plan);
+        call.arguments.clear();
+        call.call_plan = evaluate_call_plan(
+            policy,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: Some(ValueShape::integer(0, 1)),
+            },
+        )
+        .unwrap();
+        call.result_placement = call.call_plan.result.clone();
+        // Raw ABI checks retain the structural role, but do not establish that
+        // this nominal declaration actually names an empty source array.
+        call.structural_result = Some(terminal_psi::StructuralOperationResult {
+            place: semantic_vocabulary::PlaceId::new(1).unwrap(),
+            structural_type: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            claims: Vec::new(),
+        });
+        assert_eq!(call.validate_shape(), Ok(()));
+        assert_eq!(
+            call.result_placement.as_ref().unwrap().shape,
+            ValueShape::integer(0, 1)
+        );
+        assert!(call.result_placement.as_ref().unwrap().locations.is_empty());
+        for mutation in 0..8 {
+            let mut changed = call.clone();
+            match mutation {
+                0 => changed.call_plan.result.as_mut().unwrap().shape.alignment = 2,
+                1 => changed.call_plan.result.as_mut().unwrap().shape.alignment = 0,
+                2 => changed.call_plan.result.as_mut().unwrap().locations.push(
+                    calling_conventions::ValueLocation::Register {
+                        register: calling_conventions::MachineRegister::X86Rax,
+                        value_byte_offset: 0,
+                        byte_size: 0,
+                    },
+                ),
+                3 => {
+                    changed.call_plan.result.as_mut().unwrap().shape.class =
+                        calling_conventions::ValueClass::Float
+                }
+                4 => changed.call_plan.result = None,
+                5 => changed.structural_result = None,
+                6 => {
+                    changed.result_placement = None;
+                    assert!(changed.validate_shape().is_err());
+                    continue;
+                }
+                _ => changed.call_plan.result.as_mut().unwrap().locations.push(
+                    calling_conventions::ValueLocation::Stack {
+                        stack_byte_offset: 0,
+                        value_byte_offset: 0,
+                        byte_size: 0,
+                        alignment: 1,
+                    },
+                ),
+            }
+            // Keep both placement copies coherent to exercise geometry and
+            // structural-result presence, not merely redundant-field mismatch.
+            changed.result_placement = changed.call_plan.result.clone();
+            assert!(
+                changed.validate_shape().is_err(),
+                "{policy:?} mutation {mutation}"
+            );
+        }
+        let mut unit = call.clone();
+        unit.structural_result = None;
+        unit.result_placement = None;
+        unit.call_plan.result = None;
+        assert_eq!(unit.validate_shape(), Ok(()));
+        assert_ne!(unit, *call);
+    }
+}
+
 fn call(plan: &mut LegalizedOperationPlan) -> &mut LegalizedScalarCall {
     plan.scalar_functions[0].blocks[0]
         .instructions

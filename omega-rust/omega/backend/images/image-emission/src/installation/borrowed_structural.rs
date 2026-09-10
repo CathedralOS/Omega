@@ -138,6 +138,11 @@ fn combined_plan(function: &InstalledFunction, target: target::NativeTarget) -> 
             {
                 None => None,
                 Some(result)
+                    if result.shape == ValueShape::integer(0, 1) && result.locations.is_empty() =>
+                {
+                    Some(result.shape)
+                }
+                Some(result)
                     if result.shape.class == ValueClass::Integer
                         && matches!(result.shape.byte_size, 4 | 8 | 12 | 16) =>
                 {

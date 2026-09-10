@@ -313,6 +313,7 @@ pub(super) fn validate(
             }
             _ => return Err(invalid()),
         };
+    let provenance = replay.settle_provenance(provenance);
     if actual.id.0 as usize != replay.instruction_cursor
         || actual.kind != kind
         || actual.constraint != key

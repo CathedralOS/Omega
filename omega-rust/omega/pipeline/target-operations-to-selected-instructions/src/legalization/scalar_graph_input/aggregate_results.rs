@@ -5,11 +5,21 @@ use terminal_psi::{StructuralMultiplicity, StructuralOperationResult, Structural
 
 mod owned_arguments;
 
-pub(super) fn uses(function: &PsiOptimizationFunction) -> bool {
+pub(super) fn uses(function: &PsiOptimizationFunction, plan: &AbstractOperationPlan) -> bool {
     // Forwarding an incoming owned argument observes its payload even without
     // a local constructor or aggregate result. It needs aggregate ABI replay,
     // not the unused-owned-input path that deliberately emits no transport.
     function.result.structural().is_some()
+        // Unrestricted owned array parameters still require their complete
+        // graph ABI when unused: an empty placement is not an absent parameter.
+        || function.structural_parameters.iter().any(|parameter| {
+            parameter.access == terminal_psi::StructuralAccess::Owned
+                && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                && plan.structural_types.iter().any(|declaration| {
+                    declaration.id == parameter.structural_type
+                        && matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
+                })
+        })
         || function
             .blocks
             .iter()
@@ -355,6 +365,26 @@ pub(in crate::legalization) fn call_argument(
             caller,
             callee,
             call,
+            native,
+            plan,
+        );
+    }
+    if super::primitive_locals::scalar(&plan.structural_types, destination.structural_type)
+        .is_some()
+    {
+        if !argument.path.is_empty() {
+            return Err(invalid);
+        }
+        return super::structural_call::primitive_argument(
+            argument,
+            caller,
+            destination,
+            call,
+            callee
+                .parameters
+                .len()
+                .checked_add(position)
+                .ok_or(invalid)?,
             native,
             plan,
         );

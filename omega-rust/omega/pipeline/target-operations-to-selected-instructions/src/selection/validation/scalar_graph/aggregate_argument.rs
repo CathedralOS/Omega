@@ -21,6 +21,13 @@ pub(super) fn argument(
         target_operations::TargetStructuralArgumentSource::Placement(_) => None,
         _ => return Err(invalid()),
     };
+    // Exact semantic call replay retains the empty value's producer and type;
+    // zero ABI fragments cannot justify a fabricated physical home.
+    if crate::selection::scalar_call_abi::empty_aggregate_placement(&target.destination)
+        && target.shape == target.destination.shape
+    {
+        return Ok(Vec::new());
+    }
     let block = source
         .blocks
         .iter()

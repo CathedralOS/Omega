@@ -21,6 +21,13 @@ pub(super) fn argument(
         target_operations::TargetStructuralArgumentSource::Placement(_) => None,
         _ => return Err(invalid()),
     };
+    // Call custody has already rejoined the exact producer or parameter type.
+    // No physical home is needed to transport a zero-byte owned value.
+    if crate::selection::scalar_call_abi::empty_aggregate_placement(&target.destination)
+        && target.shape == target.destination.shape
+    {
+        return Ok(Vec::new());
+    }
     let block = source
         .blocks
         .iter()
