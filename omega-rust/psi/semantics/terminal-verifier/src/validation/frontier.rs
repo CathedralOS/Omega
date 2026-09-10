@@ -826,21 +826,17 @@ pub(super) fn validate_structural_frontier(
                         source_signature.qualifications,
                         source_signature.projected_qualifications,
                     )
-                    && machine.parameters.iter().all(|parameter| {
-                        matches!(
-                            parameter.scalar_type,
-                            ScalarType::Integer(integer)
-                                if matches!(integer.bits(), 8 | 16 | 32 | 64)
-                        )
-                    })
-                    && matches!(machine.structural_parameters.as_slice(), [parameter]
-                        if parameter.place == *source
-                            && parameter.position == 0
+                    // The path-sensitive frontier above consumed this live root;
+                    // other parameters and preceding operations do not change
+                    // whether its exact result contract needs return claims.
+                    && machine.structural_parameters.iter().any(|parameter| {
+                        parameter.place == *source
                             && !parameter.is_self
                             && parameter.multiplicity == StructuralMultiplicity::Affine
                             && parameter.access == StructuralAccess::Owned
                             && parameter.qualifications.is_empty()
-                            && parameter.projected_qualifications.is_empty())
+                            && parameter.projected_qualifications.is_empty()
+                    })
                     && machine.entry_claims.is_empty()
                     && machine.content_entry_claims.is_empty()
                     && machine.published_service_ceiling.is_empty()
@@ -848,10 +844,6 @@ pub(super) fn validate_structural_frontier(
                     && machine.contract.requires.is_empty()
                     && machine.contract.ensures.is_empty()
                     && machine.contract.outcome_specific_ensures.is_empty()
-                    && matches!(machine.blocks.as_slice(), [only]
-                        if only.id == machine.entry && only.id == block.id
-                            && only.parameters.is_empty()
-                            && only.operations.is_empty())
                     && super::structural_result_contracts::has_plain_owned_shape(
                         module,
                         result.structural_type,
