@@ -1,0 +1,5 @@
+module settings;
+
+const VALUE: u8 = 256;
+
+machine main() -> u64 { 0 }
