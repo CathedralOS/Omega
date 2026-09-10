@@ -210,3 +210,198 @@ pub(in crate::generic_data) fn constraint_slug(constraint: &TypeConstraintNode) 
         TypeConstraintNode::Range { .. } => None,
     }
 }
+
+/// Classify only arguments the existing closed-shape gate has admitted. Open
+/// binders remain on the ordinary generic path; no unresolved name is an atom.
+pub(super) fn closed_argument_identity(
+    syntax: &SyntaxTrees,
+    selection: Option<&constant_selection::ConstantSelection>,
+    handle: TypeReferenceHandle,
+    is_constant: bool,
+) -> Option<ClosedArgumentIdentity> {
+    let original = syntax.type_references.generic_application_origin(handle);
+    if original.is_valid() {
+        let TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+            ..
+        } = syntax.type_references.type_reference(original)
+        else {
+            return None;
+        };
+        let declaration = selected_data_item(syntax, selection, base_name)?;
+        let Item::Data(data) = syntax.root_item(declaration) else {
+            return None;
+        };
+        let parameters = syntax.items.type_parameters(data.type_parameters);
+        let arguments = syntax.type_references.type_reference_handles(*arguments);
+        if parameters.len() != arguments.len() {
+            return None;
+        }
+        let identities = parameters
+            .iter()
+            .zip(arguments)
+            .map(|(parameter, argument)| {
+                closed_argument_identity(
+                    syntax,
+                    selection,
+                    *argument,
+                    matches!(parameter.kind, TypeParameterKind::Const { .. }),
+                )
+            })
+            .collect::<Option<Vec<_>>>()?;
+        return Some(ClosedArgumentIdentity::Instance(declaration, identities));
+    }
+    match syntax.type_references.type_reference(handle) {
+        TypeReferenceNode::Generic {
+            base_name,
+            lifetime_arguments,
+            arguments,
+        } => {
+            if arguments.is_empty() {
+                let mut candidates = syntax.root_items().filter_map(|item| match item {
+                    Item::Data(data)
+                        if data.name.as_str() == base_name.as_str()
+                            && data.lifetime_parameters.len() == lifetime_arguments.len()
+                            && data.generic_instance.is_some() =>
+                    {
+                        Some(data)
+                    }
+                    _ => None,
+                });
+                let instance = candidates.next()?;
+                if candidates.next().is_some() {
+                    return None;
+                }
+                return closed_argument_identity(
+                    syntax,
+                    selection,
+                    instance.generic_instance?,
+                    false,
+                );
+            }
+            let declaration = selected_data_item(syntax, selection, base_name)?;
+            let Item::Data(data) = syntax.root_item(declaration) else {
+                return None;
+            };
+            let parameters = syntax.items.type_parameters(data.type_parameters);
+            let arguments = syntax.type_references.type_reference_handles(*arguments);
+            if parameters.len() != arguments.len() {
+                return None;
+            }
+            Some(ClosedArgumentIdentity::Instance(
+                declaration,
+                parameters
+                    .iter()
+                    .zip(arguments)
+                    .map(|(parameter, argument)| {
+                        closed_argument_identity(
+                            syntax,
+                            selection,
+                            *argument,
+                            matches!(parameter.kind, TypeParameterKind::Const { .. }),
+                        )
+                    })
+                    .collect::<Option<Vec<_>>>()?,
+            ))
+        }
+        TypeReferenceNode::Named(name) if is_constant => {
+            Some(ClosedArgumentIdentity::Constant(name.as_str().to_owned()))
+        }
+        TypeReferenceNode::Named(name) => {
+            if let Some(atom) = symbols::BuiltinTypeAtom::ALL
+                .into_iter()
+                .find(|atom| atom.symbol_name() == name.as_str())
+            {
+                return Some(ClosedArgumentIdentity::Builtin(atom));
+            }
+            if let Some(declaration) = selected_data_item(syntax, selection, name) {
+                Some(ClosedArgumentIdentity::Nominal(declaration))
+            } else {
+                Some(ClosedArgumentIdentity::RetainedNominal(
+                    selection?.retained_identity(name, symbols::SymbolKind::Data)?,
+                ))
+            }
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(length),
+        } => Some(ClosedArgumentIdentity::Array(
+            Box::new(closed_argument_identity(
+                syntax,
+                selection,
+                *element_type,
+                false,
+            )?),
+            *length,
+        )),
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            let base = closed_argument_identity(syntax, selection, *base_type, false)?;
+            let mut identities = Vec::new();
+            for constraint in syntax.type_references.constraints(*constraints) {
+                identities.push(match constraint {
+                    TypeConstraintNode::ArithmeticDomain(domain) => {
+                        ClosedConstraintIdentity::Arithmetic(*domain)
+                    }
+                    TypeConstraintNode::Domain(domain) if !domain.arguments.is_empty() => {
+                        return None;
+                    }
+                    TypeConstraintNode::Named(name)
+                    | TypeConstraintNode::Domain(syntax_trees::types::DomainConstraint {
+                        name,
+                        arguments: _,
+                    }) => {
+                        // Module-owned domains remain fenced. Root domains still
+                        // select one declaration rather than equating their text.
+                        let mut candidates =
+                            syntax.root_item_handles().iter().copied().filter(|handle| {
+                                let Item::Domain(domain) = syntax.root_item(*handle) else {
+                                    return false;
+                                };
+                                let matching_name = domain.name.as_str() == name.as_str()
+                                    || (!name.as_str().contains("::")
+                                        && domain.name.as_str().rsplit("::").next()
+                                            == Some(name.as_str()));
+                                matching_name
+                                    && closed_argument_identity(
+                                        syntax,
+                                        selection,
+                                        domain.target_type,
+                                        false,
+                                    )
+                                    .as_ref()
+                                        == Some(&base)
+                                    && selection.is_none_or(|selection| {
+                                        selection.current_domain_source_matches(domain, name)
+                                    })
+                            });
+                        if let Some(declaration) = candidates.next() {
+                            if candidates.next().is_some() {
+                                return None;
+                            }
+                            ClosedConstraintIdentity::Declaration(declaration)
+                        } else {
+                            let TypeReferenceNode::Named(carrier) =
+                                syntax.type_references.type_reference(*base_type)
+                            else {
+                                return None;
+                            };
+                            ClosedConstraintIdentity::RetainedDeclaration(
+                                selection?.retained_domain_identity(carrier, name)?,
+                            )
+                        }
+                    }
+                    TypeConstraintNode::Range { .. } => return None,
+                });
+            }
+            Some(ClosedArgumentIdentity::Constrained(
+                Box::new(base),
+                identities,
+            ))
+        }
+        _ => None,
+    }
+}

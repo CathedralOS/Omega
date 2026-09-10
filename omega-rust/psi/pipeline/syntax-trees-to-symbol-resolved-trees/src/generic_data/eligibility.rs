@@ -7,14 +7,15 @@ use super::*;
 /// composite, or a nested known generic whose arguments are substitutable.
 pub(in crate::generic_data) fn base_is_fully_monomorphizable(
     syntax: &SyntaxTrees,
-    generic_data: &HashMap<String, GenericData>,
+    generic_data: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
+    selection: Option<&constant_selection::ConstantSelection>,
     base_info: &GenericData,
 ) -> bool {
     // Recursive inline data is proof-only. Keep its generic identity intact so
     // the structural entailment tier continues to see the authored generic
     // constructors and recursive applications; closed-instance synthesis is
     // an executable-layout transform, not a proof-data transform.
-    if generic_data_is_recursive(syntax, generic_data, &base_info.name) {
+    if generic_data_is_recursive(syntax, generic_data, selection, base_info) {
         return false;
     }
     let parameters: HashMap<String, TypeReferenceHandle> = base_info
@@ -34,7 +35,14 @@ pub(in crate::generic_data) fn base_is_fully_monomorphizable(
             DataMember::Field(field)
                 if matches!(shape, GenericDataShape::Record | GenericDataShape::MixedSum) =>
             {
-                type_reference_is_substitutable(syntax, generic_data, base_info, field, &parameters)
+                type_reference_is_substitutable(
+                    syntax,
+                    generic_data,
+                    selection,
+                    base_info,
+                    field,
+                    &parameters,
+                )
             }
             DataMember::Variant(variant)
                 if matches!(
@@ -51,6 +59,7 @@ pub(in crate::generic_data) fn base_is_fully_monomorphizable(
                         type_reference_is_substitutable(
                             syntax,
                             generic_data,
+                            selection,
                             base_info,
                             field,
                             &parameters,
@@ -64,49 +73,68 @@ pub(in crate::generic_data) fn base_is_fully_monomorphizable(
 
 pub(in crate::generic_data) fn generic_data_is_recursive(
     syntax: &SyntaxTrees,
-    generic_data: &HashMap<String, GenericData>,
-    base: &str,
+    generic_data: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
+    selection: Option<&constant_selection::ConstantSelection>,
+    base: &GenericData,
 ) -> bool {
     fn reaches(
         syntax: &SyntaxTrees,
-        generic_data: &HashMap<String, GenericData>,
-        current: &str,
-        goal: &str,
-        visited: &mut HashSet<String>,
+        templates: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
+        selection: Option<&constant_selection::ConstantSelection>,
+        current: &GenericData,
+        goal: syntax_trees::item::ItemHandle,
+        visited: &mut HashSet<syntax_trees::item::ItemHandle>,
     ) -> bool {
-        if !visited.insert(current.to_owned()) {
+        if !visited.insert(current.declaration) {
             return false;
         }
-        let Some(definition) = generic_data.get(current) else {
-            return false;
-        };
-        generic_inline_data_edges(syntax, definition)
-            .into_iter()
-            .any(|next| next == goal || reaches(syntax, generic_data, &next, goal, visited))
+        generic_inline_data_edges(syntax, current)
+            .iter()
+            .any(|name| {
+                // A template binder shadows a same-spelled nominal declaration.
+                if current
+                    .parameter_names
+                    .iter()
+                    .any(|parameter| parameter == name.as_str())
+                {
+                    return false;
+                }
+                let Some(next) = selected_generic_data(syntax, templates, selection, name) else {
+                    return false;
+                };
+                next.declaration == goal
+                    || reaches(syntax, templates, selection, next, goal, visited)
+            })
     }
-
-    reaches(syntax, generic_data, base, base, &mut HashSet::new())
+    reaches(
+        syntax,
+        generic_data,
+        selection,
+        base,
+        base.declaration,
+        &mut HashSet::new(),
+    )
 }
 
 pub(in crate::generic_data) fn generic_inline_data_edges(
     syntax: &SyntaxTrees,
     definition: &GenericData,
-) -> HashSet<String> {
+) -> Vec<Identifier> {
     fn collect(
         syntax: &SyntaxTrees,
         type_reference: TypeReferenceHandle,
-        edges: &mut HashSet<String>,
+        edges: &mut Vec<Identifier>,
     ) {
         match syntax.tables.type_references.type_reference(type_reference) {
             TypeReferenceNode::Named(name) => {
-                edges.insert(name.as_str().to_owned());
+                edges.push(name.clone());
             }
             TypeReferenceNode::Generic {
                 base_name,
                 arguments,
                 ..
             } => {
-                edges.insert(base_name.as_str().to_owned());
+                edges.push(base_name.clone());
                 for argument in syntax
                     .tables
                     .type_references
@@ -130,7 +158,7 @@ pub(in crate::generic_data) fn generic_inline_data_edges(
         }
     }
 
-    let mut edges = HashSet::new();
+    let mut edges = Vec::new();
     for member in syntax.tables.items.data_members(definition.members) {
         match member {
             DataMember::Field(field) => collect(syntax, field.type_reference, &mut edges),
@@ -167,7 +195,8 @@ pub(in crate::generic_data) fn generic_data_shape(
 
 pub(in crate::generic_data) fn type_reference_is_substitutable(
     syntax: &SyntaxTrees,
-    generic_data: &HashMap<String, GenericData>,
+    generic_data: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
+    selection: Option<&constant_selection::ConstantSelection>,
     base_info: &GenericData,
     field: &syntax_trees::item::DataField,
     parameters: &HashMap<String, TypeReferenceHandle>,
@@ -175,6 +204,7 @@ pub(in crate::generic_data) fn type_reference_is_substitutable(
     type_reference_handle_is_substitutable(
         syntax,
         generic_data,
+        selection,
         base_info,
         field.type_reference,
         parameters,
@@ -183,7 +213,8 @@ pub(in crate::generic_data) fn type_reference_is_substitutable(
 
 pub(in crate::generic_data) fn type_reference_handle_is_substitutable(
     syntax: &SyntaxTrees,
-    generic_data: &HashMap<String, GenericData>,
+    generic_data: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
+    selection: Option<&constant_selection::ConstantSelection>,
     base_info: &GenericData,
     type_reference: TypeReferenceHandle,
     parameters: &HashMap<String, TypeReferenceHandle>,
@@ -195,7 +226,7 @@ pub(in crate::generic_data) fn type_reference_handle_is_substitutable(
             arguments,
             ..
         } => {
-            generic_data.contains_key(base_name.as_str())
+            selected_generic_data(syntax, generic_data, selection, base_name).is_some()
                 && syntax
                     .tables
                     .type_references
@@ -215,6 +246,7 @@ pub(in crate::generic_data) fn type_reference_handle_is_substitutable(
             let element_is_substitutable = type_reference_handle_is_substitutable(
                 syntax,
                 generic_data,
+                selection,
                 base_info,
                 *element_type,
                 parameters,
@@ -234,6 +266,7 @@ pub(in crate::generic_data) fn type_reference_handle_is_substitutable(
         TypeReferenceNode::Reference { referee, .. } => type_reference_handle_is_substitutable(
             syntax,
             generic_data,
+            selection,
             base_info,
             *referee,
             parameters,
@@ -241,6 +274,7 @@ pub(in crate::generic_data) fn type_reference_handle_is_substitutable(
         TypeReferenceNode::Slice { element_type } => type_reference_handle_is_substitutable(
             syntax,
             generic_data,
+            selection,
             base_info,
             *element_type,
             parameters,

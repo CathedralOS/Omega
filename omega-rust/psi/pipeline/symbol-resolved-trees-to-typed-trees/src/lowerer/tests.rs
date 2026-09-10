@@ -365,13 +365,20 @@ fn seeded_normalized_plain_data_inputs(
             .expect("tokenize extension"),
     )
     .expect("parse extension");
+    let resolved_base = typing_base.resolved_base_for_extension();
+    let sources = Arc::new(sources);
     let extension_syntax =
-        syntax_trees_to_symbol_resolved_trees::normalize_generic_data(extension_syntax)
-            .expect("normalize extension unit");
+        syntax_trees_to_symbol_resolved_trees::normalize_generic_data_with_retained_base(
+            extension_syntax,
+            sources.clone(),
+            Vec::new(),
+            Some(&resolved_base),
+        )
+        .expect("normalize extension unit with its exact retained argument declarations");
     let seeded = lower_syntax_extension_with_authored_selection_frontier(
-        typing_base.resolved_base_for_extension(),
+        resolved_base,
         &extension_syntax,
-        Arc::new(sources),
+        sources,
         Vec::new(),
     )
     .expect("resolve normalized seeded extension");
@@ -5135,6 +5142,27 @@ fn seeded_arithmetic_domain_argument_gate_rejects_identity_mutations() {
     assert!(
         !plain_data_extension_shape_is_supported(&changed_constraint_kind, frontier),
         "a spelling-identical named constraint cannot replace the arithmetic-domain tag"
+    );
+}
+
+#[test]
+fn seeded_primitive_declared_domain_argument_rejoins_exact_identity() {
+    let (base, extension) = seeded_normalized_plain_data_inputs(
+        "data Authored { value: u16; } domain u8::Issued;",
+        "data Cell<T> { value: T; } data Generated { value: Cell<u8 in Issued>; }",
+    );
+    assert!(plain_data_extension_shape_is_supported(
+        extension.trees(),
+        base.typed().data_definitions().len()
+    ));
+    let typed = lower_seeded_extension(extension, base)
+        .expect("the exact primitive domain instance keeps the existing continuation");
+    assert!(
+        typed
+            .data_definitions()
+            .iter()
+            .any(|data| data.name.as_str() == "Cell<u8 in Issued>"
+                && data.generic_instance.is_some())
     );
 }
 

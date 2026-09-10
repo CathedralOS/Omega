@@ -6,6 +6,7 @@ use typed_trees as typed;
 mod arithmetic_results;
 mod constraints;
 mod direct;
+mod generic_origins;
 mod table;
 
 pub(crate) use arithmetic_results::retain_arithmetic_result_type;
@@ -73,24 +74,7 @@ pub(super) fn retain_type_reference_selection(
     {
         return Ok(());
     }
-    if let Some(application) = source_trees
-        .tables
-        .types
-        .generic_application_origins
-        .iter()
-        .find_map(|(_, origin)| {
-            let (instance_symbol, instance_name) =
-                match source_trees.child_type_reference(origin.instance) {
-                    resolved::types::TypeReference::Named { symbol, name } => (*symbol, name),
-                    resolved::types::TypeReference::Generic(value) => {
-                        (value.base_symbol, &value.base_name)
-                    }
-                    _ => return None,
-                };
-            (instance_symbol == symbol && instance_name.source_span() == name.source_span())
-                .then_some(source_trees.child_type_reference(origin.application))
-        })
-    {
+    if let Some(application) = generic_origins::application(source_trees, name, symbol)? {
         lower_type_reference_handle_with_context(
             source_trees,
             typed_trees,

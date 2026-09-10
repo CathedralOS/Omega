@@ -1147,7 +1147,7 @@ Owners include
 - **MODULE-NAMESPACE-RESOLUTION.** Finish the
   [module/name contract](wiki/spec/language/modules.md) for pre-resolution
   computed aggregate indices, open-template index expressions, module-owned
-  templates, foreign/generic constant attachments, trait defaults,
+  sum and specialized templates, template attachments, foreign/generic constant attachments, trait defaults,
   operator homes, package-prefixed bare case constructors, qualified case
   membership, and remaining declaration forms.
   The explicit temporary fences live in

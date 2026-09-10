@@ -33,6 +33,7 @@ mod wire;
 pub use constant::requires_scalar_const_initializer_evaluation;
 pub use generic_data::{
     closed_data_const_argument_expressions, closed_machine_const_arguments, normalize_generic_data,
+    normalize_generic_data_with_retained_base,
     normalize_generic_data_with_sources_and_top_level_bindings,
 };
 pub use lowerer::{

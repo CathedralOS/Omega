@@ -28,6 +28,8 @@ mod fixtures;
 mod generic_visibility;
 #[path = "package_compilation_inputs/module_constants.rs"]
 mod module_constants;
+#[path = "package_compilation_inputs/module_generic_data.rs"]
+mod module_generic_data;
 #[path = "package_compilation_inputs/module_namespaces.rs"]
 mod module_namespaces;
 

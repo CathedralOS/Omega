@@ -1097,7 +1097,7 @@ mod module_tests {
             ),
             (
                 vec!["module settings; data Sizes<T> {} const Sizes::SIZE: [u8; 1] = [1];"],
-                "namespace-aware template normalization",
+                "exact nongeneric data carrier",
             ),
         ] {
             let diagnostics =

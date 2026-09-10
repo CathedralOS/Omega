@@ -13,15 +13,25 @@ use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{ConstDefinition, DataDefinition, DataMember, Item};
 
 /// Private selection state; transient symbols never escape into normalized syntax.
-pub(crate) struct ConstantSelection {
+pub(crate) struct ConstantSelection<'base> {
     symbols: SymbolTable,
+    retained: Option<&'base symbol_resolved_trees::SymbolResolvedTrees>,
 }
 
-impl ConstantSelection {
+impl<'base> ConstantSelection<'base> {
     pub(crate) fn new(
         syntax: &SyntaxTrees,
         sources: Option<Arc<SourceMap>>,
         bindings: Vec<SourceScopedTopLevelBinding>,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        Self::with_retained_base(syntax, sources, bindings, None)
+    }
+
+    pub(crate) fn with_retained_base(
+        syntax: &SyntaxTrees,
+        sources: Option<Arc<SourceMap>>,
+        bindings: Vec<SourceScopedTopLevelBinding>,
+        retained: Option<&'base symbol_resolved_trees::SymbolResolvedTrees>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let mut namespaces = crate::symbols::NamespaceDeclarations::default();
         let mut declarations = Vec::new();
@@ -39,6 +49,12 @@ impl ConstantSelection {
                     definition.name.source_span(),
                     Some(definition),
                 )),
+                Item::Domain(definition) => declarations.push((
+                    SymbolKind::Domain,
+                    definition.name.as_str().to_owned(),
+                    definition.name.source_span(),
+                    None,
+                )),
                 Item::Module(module) => namespaces
                     .modules
                     .push(syntax.items.identifier_path_members(module.path).to_vec()),
@@ -48,59 +64,134 @@ impl ConstantSelection {
                 _ => {}
             }
         }
-        let mut builder =
-            SymbolTableBuilder::with_sources_and_top_level_bindings(sources, bindings);
-        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-        let builtin_types = builtin_type_symbols();
-        let builtin_functions = builtin_function_symbols();
-        let builtin_count = builtin_types.len() + builtin_functions.len();
-        let children = builder.insert_children(
-            root,
-            builtin_types
-                .into_iter()
-                .chain(builtin_functions)
-                .chain(declarations.iter().map(|(kind, name, source_span, _)| {
-                    (
-                        *kind,
-                        SymbolNameRef::OwnedSource {
-                            value: name,
-                            source_span: *source_span,
-                        },
-                    )
-                })),
-        );
-        for (symbol, (_, _, _, definition)) in SymbolTableBuilder::child_handles(children)
-            .skip(builtin_count)
-            .zip(&declarations)
-        {
-            let Some(definition) = definition else {
-                continue;
-            };
-            builder.insert_children(
-                symbol,
-                syntax
-                    .items
-                    .data_members(definition.members)
-                    .iter()
-                    .filter_map(|member| {
-                        let DataMember::Variant(variant) = member else {
-                            return None;
-                        };
-                        Some((
-                            SymbolKind::Variant,
-                            SymbolNameRef::OwnedSource {
-                                value: variant.name.as_str(),
-                                source_span: variant.name.source_span(),
-                            },
-                        ))
-                    }),
+        let header_names = || {
+            declarations.iter().map(|(kind, name, span, _)| {
+                (
+                    *kind,
+                    SymbolNameRef::OwnedSource {
+                        value: name,
+                        source_span: *span,
+                    },
+                )
+            })
+        };
+        let mut symbols = if let Some(base) = retained {
+            // One combined resolver preserves local/import precedence and
+            // ambiguity. A failed current lookup never falls back to the base.
+            let mut builder = base.symbols.clone().begin_extension(sources, bindings);
+            let symbols = builder.insert_top_level(header_names());
+            for (symbol, (_, _, _, definition)) in symbols.into_iter().zip(&declarations) {
+                if let Some(definition) = definition {
+                    append_variants(&mut builder, syntax, symbol, definition);
+                }
+            }
+            builder.finish()
+        } else {
+            let mut builder =
+                SymbolTableBuilder::with_sources_and_top_level_bindings(sources, bindings);
+            let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let builtin_types = builtin_type_symbols();
+            let builtin_functions = builtin_function_symbols();
+            let builtin_count = builtin_types.len() + builtin_functions.len();
+            let children = builder.insert_children(
+                root,
+                builtin_types
+                    .into_iter()
+                    .chain(builtin_functions)
+                    .chain(header_names()),
             );
-        }
-        let mut symbols = builder.finish();
+            for (symbol, (_, _, _, definition)) in SymbolTableBuilder::child_handles(children)
+                .skip(builtin_count)
+                .zip(&declarations)
+            {
+                if let Some(definition) = definition {
+                    append_variants(&mut builder, syntax, symbol, definition);
+                }
+            }
+            builder.finish()
+        };
         // Machine, trait and other nondata import targets are absent from this
         // partial header table. Complete resolution validates those imports.
         namespaces.register(&mut symbols)?;
-        Ok(Self { symbols })
+        Ok(Self { symbols, retained })
+    }
+
+    pub(super) fn retained_identity(
+        &self,
+        name: &Identifier,
+        kind: SymbolKind,
+    ) -> Option<symbols::SymbolHandle> {
+        let selected = self.symbols.find_top_level_by_name_and_kinds_from_source(
+            name.as_str(),
+            &[kind],
+            name.source_span(),
+        )?;
+        let retained = self.retained?;
+        (retained.symbols.get(selected).kind == kind).then_some(selected)
+    }
+
+    // This selects normalization identity under source strata. Domain lowering
+    // retains each authored occurrence; final package admission independently
+    // checks its declaration visibility and direct dependency authority.
+    pub(super) fn current_domain_source_matches(
+        &self,
+        definition: &syntax_trees::item::DomainDefinition,
+        reference: &Identifier,
+    ) -> bool {
+        let Some(symbol) = self.symbols.find_top_level_by_name_and_kinds_from_source(
+            definition.name.as_str(),
+            &[SymbolKind::Domain],
+            definition.name.source_span(),
+        ) else {
+            return false;
+        };
+        self.symbols
+            .source_reference_can_see_symbol(reference.source_span(), symbol)
+            && (!reference.as_str().contains("::")
+                || self.symbols.find_top_level_by_name_and_kinds_from_source(
+                    reference.as_str(),
+                    &[SymbolKind::Domain],
+                    reference.source_span(),
+                ) == Some(symbol))
+    }
+
+    pub(super) fn retained_domain_identity(
+        &self,
+        carrier: &Identifier,
+        name: &Identifier,
+    ) -> Option<symbols::SymbolHandle> {
+        let carrier = self.symbols.find_top_level_by_name_and_kinds_from_source(
+            carrier.as_str(),
+            &[SymbolKind::BuiltinType, SymbolKind::Data],
+            carrier.source_span(),
+        )?;
+        let retained = self.retained?;
+        if !matches!(
+            retained.symbols.get(carrier).kind,
+            SymbolKind::BuiltinType | SymbolKind::Data
+        ) {
+            return None;
+        }
+        let qualified = if name.as_str().contains("::") {
+            self.symbols.find_top_level_by_name_and_kinds_from_source(
+                name.as_str(),
+                &[SymbolKind::Domain],
+                name.source_span(),
+            )?
+        } else {
+            symbols::SymbolHandle::invalid()
+        };
+        let mut candidates = retained.domain_definitions.iter().filter(|domain| {
+            matches!(&domain.target_type, symbol_resolved_trees::types::TypeReference::Named { symbol, .. } if *symbol == carrier)
+                && (if qualified.is_valid() {
+                    domain.symbol == qualified
+                } else {
+                    domain.name.as_str().rsplit("::").next() == Some(name.as_str())
+                })
+                && self.symbols.source_reference_can_see_symbol(name.source_span(), domain.symbol)
+        });
+        let selected = candidates.next()?.symbol;
+        candidates.next().is_none().then_some(selected)
     }
 
     /// Select the nominal carrier in the authored type/constructor's source.
@@ -176,6 +267,62 @@ impl ConstantSelection {
         Ok(definition)
     }
 
+    /// Find a lookup spelling for the already selected template. This is not
+    /// identity: every candidate is checked against the same selected header.
+    /// Keep requester imports and the use span; never relocate a use to its
+    /// declaration merely to make generated instance lookup succeed.
+    pub(super) fn data_lookup_path(
+        &self,
+        syntax: &SyntaxTrees,
+        name: &Identifier,
+    ) -> Option<String> {
+        let selected = self.symbols.find_top_level_by_name_and_kinds_from_source(
+            name.as_str(),
+            &[SymbolKind::Data],
+            name.source_span(),
+        )?;
+        let path = self.symbols.display_path(selected, "::");
+        let declaration = self.symbols.symbol_source_span(selected)?;
+        let selects = |path: &str| {
+            self.symbols.find_top_level_by_name_and_kinds_from_source(
+                path,
+                &[SymbolKind::Data],
+                name.source_span(),
+            ) == Some(selected)
+        };
+        if self
+            .symbols
+            .same_source_package(name.source_span(), declaration)
+            && selects(&path)
+        {
+            return Some(path);
+        }
+        if name.as_str().contains("::") && selects(name.as_str()) {
+            return Some(name.as_str().to_owned());
+        }
+        for item in syntax.root_items() {
+            let Item::Use(import) = item else {
+                continue;
+            };
+            let members = syntax.items.identifier_path_members(import.path);
+            if members.first()?.source_span().source_id != name.source_span().source_id {
+                continue;
+            }
+            let mut prefix = String::new();
+            for member in members {
+                if !prefix.is_empty() {
+                    prefix.push_str("::");
+                }
+                prefix.push_str(member.as_str());
+                let candidate = format!("{prefix}::{path}");
+                if selects(&candidate) {
+                    return Some(candidate);
+                }
+            }
+        }
+        None
+    }
+
     /// Return exact declaration custody, not a handle from the header table.
     /// No match includes unresolved or ambiguous selection; callers must defer
     /// it to ordinary validation, never fall back to a lexical constant map.
@@ -226,6 +373,33 @@ impl ConstantSelection {
         }
         Ok(Some(declaration.clone()))
     }
+}
+
+fn append_variants(
+    builder: &mut impl symbols::SymbolTableAppender,
+    syntax: &SyntaxTrees,
+    symbol: symbols::SymbolHandle,
+    definition: &DataDefinition,
+) {
+    builder.insert_children(
+        symbol,
+        syntax
+            .items
+            .data_members(definition.members)
+            .iter()
+            .filter_map(|member| {
+                let DataMember::Variant(variant) = member else {
+                    return None;
+                };
+                Some((
+                    SymbolKind::Variant,
+                    SymbolNameRef::OwnedSource {
+                        value: variant.name.as_str(),
+                        source_span: variant.name.source_span(),
+                    },
+                ))
+            }),
+    );
 }
 
 #[cfg(test)]

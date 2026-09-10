@@ -379,7 +379,7 @@ fn lower_syntax_trees_with_const_selection(
 pub(crate) struct Lowerer {
     pub(crate) const_resolution_mode: ConstResolutionMode,
     pub(crate) constant_selection:
-        Option<crate::generic_data::constant_selection::ConstantSelection>,
+        Option<crate::generic_data::constant_selection::ConstantSelection<'static>>,
     pub(crate) namespace_declarations: crate::symbols::NamespaceDeclarations,
     pub(crate) pending_static_module_calls: Vec<(
         symbol_resolved_trees::expression::ExpressionHandle,

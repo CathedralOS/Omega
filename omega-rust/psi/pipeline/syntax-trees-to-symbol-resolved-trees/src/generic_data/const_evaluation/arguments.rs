@@ -10,13 +10,14 @@ use super::*;
 /// UNTOUCHED for the existing type-check-only path (skip, never reject).
 pub(in crate::generic_data) fn consider_generic_spelling(
     syntax: &mut SyntaxTrees,
-    generic_data: &HashMap<String, GenericData>,
+    generic_data: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
     const_definitions: &HashMap<String, ConstDefinition>,
     const_values: &HashMap<String, i128>,
     selection: Option<&crate::generic_data::constant_selection::ConstantSelection>,
     type_reference: TypeReferenceHandle,
     rewrites: &mut Vec<PendingRewrite>,
     instantiations: &mut Vec<Instantiation>,
+    synthesized: &[Instantiation],
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<(), Diagnostic> {
     let (base_name, lifetime_arguments, arguments) =
@@ -29,7 +30,7 @@ pub(in crate::generic_data) fn consider_generic_spelling(
             _ => return Ok(()),
         };
     let base = base_name.as_str().to_string();
-    let Some(base_info) = generic_data.get(&base) else {
+    let Some(base_info) = selected_generic_data(syntax, generic_data, selection, &base_name) else {
         return Ok(()); // non-generic base: plan-laid / existing error paths
     };
 
@@ -254,24 +255,65 @@ pub(in crate::generic_data) fn consider_generic_spelling(
         // declaration-aware validator emits its precise diagnostic.
         return Ok(());
     }
-    if !base_is_fully_monomorphizable(syntax, generic_data, base_info) {
+    if !base_is_fully_monomorphizable(syntax, generic_data, selection, base_info) {
         return Ok(());
     }
 
-    let synthetic_name = format!("{base}<{}>", argument_names.join(", "));
+    let Some(argument_identity) = argument_handles
+        .iter()
+        .zip(&base_info.const_parameter_types)
+        .map(|(argument, parameter)| {
+            closed_argument_identity(syntax, selection, *argument, parameter.is_some())
+        })
+        .collect::<Option<Vec<_>>>()
+    else {
+        return Ok(());
+    };
+    let prior = synthesized
+        .iter()
+        .chain(instantiations.iter())
+        .find(|instance| {
+            instance.template == base_info.declaration
+                && instance.argument_identity == argument_identity
+        });
+    let synthetic_name = if let Some(prior) = prior {
+        prior.synthetic_name.clone()
+    } else {
+        let display = format!("{}<{}>", base_info.name, argument_names.join(", "));
+        if synthesized
+            .iter()
+            .chain(instantiations.iter())
+            .any(|instance| instance.synthetic_name == display)
+        {
+            format!("{display}__{}", synthesized.len() + instantiations.len())
+        } else {
+            display
+        }
+    };
+    let lookup_name = if let Some(selection) = selection {
+        let Some(path) = selection.data_lookup_path(syntax, &base_name) else {
+            return Ok(());
+        };
+        if let Some((prefix, _)) = path.rsplit_once("::") {
+            format!("{prefix}::{synthetic_name}")
+        } else {
+            synthetic_name.clone()
+        }
+    } else {
+        synthetic_name.clone()
+    };
     rewrites.push(PendingRewrite {
         type_reference,
-        synthetic_name: synthetic_name.clone(),
+        synthetic_name: lookup_name,
         lifetime_arguments,
     });
-    if !instantiations
-        .iter()
-        .any(|instance| instance.synthetic_name == synthetic_name)
-    {
+    if prior.is_none() {
         instantiations.push(Instantiation {
             synthetic_name,
             base_name: base,
+            template: base_info.declaration,
             argument_handles,
+            argument_identity,
         });
     }
     Ok(())
