@@ -93,7 +93,7 @@ pub use build_evaluation_sponsor::{
     BUILD_EVALUATION_SPONSOR_LIMITS_SCHEMA_VERSION, BuildEvaluationSponsor,
     BuildEvaluationSponsorLimits,
 };
-pub use build_time::BuildTimeValue;
+pub use build_time::{BuildTimeValue, SelectedBuildTimeBinaryOperator};
 pub use filesystem_replay::{
     FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_MODE, FilesystemInputOutputAbsentRemovesReplayRecord,
     FilesystemInputOutputDirectoryReplayRecord, FilesystemInputOutputTreeReplayRecord,
@@ -6458,6 +6458,18 @@ pub fn evaluate_build_time_machine_symbol_measured(
     arguments: Vec<BuildTimeValue>,
 ) -> Result<MeasuredEvaluation<BuildTimeValue>, String> {
     evaluator::run_build_time_machine_symbol(program, machine_symbol, arguments)
+}
+
+/// Execute using exact caller-validated selected binary semantics.
+pub fn evaluate_build_time_machine_symbol_with_selected_operators(
+    program: &typed_trees::TypedTrees,
+    machine: symbols::SymbolHandle,
+    arguments: Vec<BuildTimeValue>,
+    operators: &[SelectedBuildTimeBinaryOperator],
+) -> Result<MeasuredEvaluation<BuildTimeValue>, String> {
+    evaluator::run_build_time_machine_symbol_with_selected_operators(
+        program, machine, arguments, operators,
+    )
 }
 
 /// Evaluate one build-time machine while retaining compiler-known operation

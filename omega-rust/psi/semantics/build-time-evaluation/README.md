@@ -6,8 +6,8 @@ and machine-backed concrete const-domain fact discharge. Omega schedules the
 service; it does not reinterpret its language semantics.
 
 The public ownership-taking pre-resolution and pre-check conveyors keep these
-Psi phases separate. Omega may interpose target machine selection, then performs
-calling-policy ABI, provider, artifact, and native realization afterward.
+Psi phases separate. Omega interposes target machine selection and schedules
+provider-dependent evaluation after the actual provider plans are selected.
 Target decisions must not become Psi language elaboration.
 
 The [logical-work specification](../../../../wiki/spec/resources/logical_work.md)
@@ -72,6 +72,29 @@ need their own complete contexts;
 the standalone probe does not claim those forms.
 
 ## Semantic admission boundary
+
+Fixed-array length calls whose reachable closure needs an authored operator
+retain their pre-check continuation until Omega supplies selected execution.
+Independent length calls still run before Build; a Build invocation that needs
+a pending length rejects with that dependency. Deferred root evaluation also
+survives a supported generated-source extension. The seeded extension's existing
+limits on new computed lengths and wire schemas still apply.
+
+The connected selected path admits primitive Float boundary operations backed
+by the exact selected compiler intrinsic. Omega joins the requirement to the
+actual provider plan; Psi independently checks the current operator occurrence,
+ordered operands, format, and arithmetic policy before using the shared Float
+semantics kernel. A matching spelling or scalar signature cannot authorize an
+unrelated provider body. Ordinary helper calls retain the same closure admission.
+
+Private fold receipts retain the exact invoked machine, receiving declaration
+and type-child path, selected operations, and provider-plan commitment. Final
+checking rejoins independently derived operator facts and evaluates the retained
+invocation again before accepting its literal length. This establishes custody
+within checked source compilation; the portable target capsule and application
+closure described below remain separate obligations. Selected ordinary provider
+bodies and the earlier const-generic normalization stage still need connected
+execution paths.
 
 The [semantic-evaluation contract](../../../../wiki/spec/language/evaluation.md)
 is broader than the current implementation. [admission.rs](src/admission.rs)

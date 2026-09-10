@@ -119,18 +119,87 @@ fn expression_type_reference_in_state(
                 })
         }
         ExpressionNode::Binary(binary) => {
-            expression_type_reference_in_state(program, state_symbol, statement_index, binary.left)
-                .or_else(|| {
-                    expression_type_reference_in_state(
-                        program,
-                        state_symbol,
-                        statement_index,
-                        binary.right,
-                    )
-                })
-                .or_else(|| {
-                    contextual_type_reference_in_state(program, state_symbol, statement_index)
-                })
+            let operands = [
+                expression_type_reference_in_state(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    binary.left,
+                ),
+                expression_type_reference_in_state(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    binary.right,
+                ),
+            ];
+            if let Some(spelling) = super::binary_operator_spelling(binary.operator) {
+                let candidates = typed_trees::operator::resolve_spelling_for_operands(
+                    program, spelling, &operands,
+                );
+                if let [candidate] = candidates.as_slice() {
+                    if candidate.domain.is_none() {
+                        // Float arithmetic retains its selected operand policy for
+                        // enclosing operations; comparisons retain the declaration's
+                        // Boolean result instead of borrowing an operand carrier.
+                        if typed_trees::operator::primitive_float_binary_semantics(
+                            program,
+                            candidate.operator,
+                        )
+                        .is_some()
+                        {
+                            use checked_trees::CheckedArithmeticPolicyAdapter;
+                            use numerics::arithmetic::ArithmeticDomain;
+                            let domain = match super::arithmetic_policy_adapter(
+                                program, spelling, &operands,
+                            ) {
+                                CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
+                                    ..
+                                } => ArithmeticDomain::Saturating,
+                                CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
+                                    ..
+                                } => ArithmeticDomain::Trapping,
+                                _ => ArithmeticDomain::Exact,
+                            };
+                            let TypeReferenceNode::Named {
+                                symbol: carrier, ..
+                            } = program
+                                .type_reference_table
+                                .type_reference(candidate.operator.return_type)
+                            else {
+                                return None;
+                            };
+                            return program
+                                .type_reference_table
+                                .find_arithmetic_result_type_reference(*carrier, domain);
+                        }
+                        return Some(candidate.operator.return_type);
+                    }
+                    return None;
+                } else if !candidates.is_empty() {
+                    return None;
+                }
+            }
+            // A comparison's result is Boolean even when its operands select
+            // Float semantics. Propagating the operand carrier here would
+            // misclassify an enclosing Boolean case-pattern comparison.
+            use typed_trees::expression::BinaryOperator;
+            if matches!(
+                binary.operator,
+                BinaryOperator::Equal
+                    | BinaryOperator::NotEqual
+                    | BinaryOperator::Less
+                    | BinaryOperator::LessOrEqual
+                    | BinaryOperator::Greater
+                    | BinaryOperator::GreaterOrEqual
+                    | BinaryOperator::And
+                    | BinaryOperator::Or
+            ) {
+                return builtin_type_reference(program, symbols::BuiltinTypeAtom::Bool);
+            }
+            operands[0].or(operands[1]).or_else(|| {
+                contextual_type_reference_in_state(program, state_symbol, statement_index)
+            })
         }
         ExpressionNode::Float(literal) => literal
             .landing()
@@ -190,9 +259,12 @@ fn float_type_reference(program: &TypedTrees, format: FloatFormat) -> Option<Typ
         FloatFormat::F32 => typed_trees::types::PrimitiveType::F32,
         FloatFormat::F64 => typed_trees::types::PrimitiveType::F64,
     };
-    (1..=program.type_reference_table.type_reference_count())
-        .map(|index| TypeReferenceHandle::from_arena_index(index as u32))
-        .find(|type_reference| program.primitive_type_reference(*type_reference) == Some(primitive))
+    let atom = match primitive {
+        typed_trees::types::PrimitiveType::F32 => symbols::BuiltinTypeAtom::F32,
+        typed_trees::types::PrimitiveType::F64 => symbols::BuiltinTypeAtom::F64,
+        _ => return None,
+    };
+    builtin_type_reference(program, atom)
 }
 
 fn symbol_type_reference_in_state(
@@ -359,4 +431,17 @@ fn indexed_element_type_reference(
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Unit => None,
     }
+}
+
+fn builtin_type_reference(
+    program: &TypedTrees,
+    atom: symbols::BuiltinTypeAtom,
+) -> Option<TypeReferenceHandle> {
+    let symbol = program
+        .symbols
+        .child_handles(program.symbols.root())?
+        .find(|symbol| program.symbols.builtin_type_atom(*symbol) == Some(atom))?;
+    program
+        .type_reference_table
+        .find_named_type_reference(symbol)
 }

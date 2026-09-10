@@ -200,3 +200,18 @@ mod tests {
         assert_eq!(value.retained_text_byte_count(), Some(4096));
     }
 }
+
+/// One supplied semantic execution, tied to the exact checked operator use.
+/// The caller owns selected-provider validation; this interpreter never selects
+/// a provider from a token or declaration name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SelectedBuildTimeBinaryOperator {
+    pub expression: typed_trees::expression::ExpressionHandle,
+    pub origin: checked_trees::CheckedValueOrigin,
+    pub requirement: symbols::SymbolHandle,
+    pub operation: typed_trees::expression::BinaryOperator,
+    pub operands: [typed_trees::expression::ExpressionHandle; 2],
+    pub format: numerics::literals::FloatFormat,
+    pub policy: checked_trees::CheckedArithmeticPolicyAdapter,
+    pub provider: checked_trees::CheckedProviderPlanCommitment,
+}

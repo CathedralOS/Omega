@@ -9,6 +9,7 @@ name = "build_time_evaluation"
 path = "src/lib.rs"
 
 [dependencies]
+checked-trees = { path = "../../representations/checked-trees" }
 validation = { path = "../validation" }
 arena = { path = "../../foundation/arena" }
 access-plans = { path = "../../foundation/access-plans" }

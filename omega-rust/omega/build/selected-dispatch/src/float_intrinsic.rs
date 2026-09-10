@@ -445,7 +445,7 @@ fn resolve_float_intrinsic_call(
     }
 
     let Some(selected_realization) = selected_compiler_intrinsic_realization(
-        checked,
+        &checked.typed,
         plan,
         operator_use.selected_operator_symbol,
     )?
@@ -515,7 +515,7 @@ pub fn derive_selected_compiler_intrinsic_execution_identity(
     requirement_symbol: symbols::SymbolHandle,
 ) -> Result<Option<SelectedCompilerIntrinsicExecutionIdentity>, Diagnostic> {
     let Some(selected_realization) =
-        selected_compiler_intrinsic_realization(checked, plan, requirement_symbol)?
+        selected_compiler_intrinsic_realization(&checked.typed, plan, requirement_symbol)?
     else {
         return Ok(None);
     };
@@ -613,13 +613,29 @@ fn named_float_conversion_execution_identity(
     })
 }
 
+/// Derive the sealed binary semantic child only after the ordinary exact
+/// selected-provider/overload/realization join. No default provider is chosen.
+pub fn derive_selected_primitive_float_binary_execution(
+    typed: &typed_trees::TypedTrees,
+    plan: &effects::provider_plan::ProviderPlan,
+    requirement: symbols::SymbolHandle,
+) -> Result<Option<CompilerIntrinsicExecutionIdentity>, Diagnostic> {
+    Ok(
+        match selected_compiler_intrinsic_realization(typed, plan, requirement)? {
+            Some(SelectedCompilerIntrinsicRealization::PrimitiveFloatBinary(identity)) => {
+                Some(identity)
+            }
+            _ => None,
+        },
+    )
+}
+
 fn selected_compiler_intrinsic_realization(
-    checked: &CheckedTrees,
+    typed: &typed_trees::TypedTrees,
     plan: &effects::provider_plan::ProviderPlan,
     requirement_symbol: symbols::SymbolHandle,
 ) -> Result<Option<SelectedCompilerIntrinsicRealization>, Diagnostic> {
-    let operators = checked
-        .typed
+    let operators = typed
         .operators()
         .iter()
         .filter(|operator| operator.symbol == requirement_symbol)
@@ -639,7 +655,7 @@ fn selected_compiler_intrinsic_realization(
         )));
     }
     let overload_identity =
-        typed_trees::operator::boundary_operator_requirement_identity(&checked.typed, operator);
+        typed_trees::operator::boundary_operator_requirement_identity(typed, operator);
     if overload_identity.is_empty() {
         return Err(Diagnostic::error(format!(
             "selected ProviderPlan `{}` compiler intrinsic has an empty canonical overload identity",
@@ -673,17 +689,13 @@ fn selected_compiler_intrinsic_realization(
     let ProviderBinding::CompilerIntrinsic { machine } = &row.binding else {
         return Ok(None);
     };
-    if !provider_planning::plans::intrinsic_realization_matches_operator(
-        &checked.typed,
-        machine,
-        operator,
-    ) {
+    if !provider_planning::plans::intrinsic_realization_matches_operator(typed, machine, operator) {
         return Err(Diagnostic::error(format!(
             "selected compiler-intrinsic ProviderPlan `{}` binds realization `{machine}`, but it does not satisfy exact overload `{overload_identity}` as an external leaf",
             plan.name,
         )));
     }
-    provider_planning::plans::compiler_intrinsic_diagnostic_label(&checked.typed, operator)
+    provider_planning::plans::compiler_intrinsic_diagnostic_label(typed, operator)
         .ok_or_else(|| {
         Diagnostic::error(format!(
             "selected overload `{overload_identity}` has no compiler-known intrinsic realization",
@@ -691,8 +703,7 @@ fn selected_compiler_intrinsic_realization(
     })?;
     if let Some(identity) =
         provider_planning::plans::primitive_float_binary_intrinsic_execution_identity(
-            &checked.typed,
-            operator,
+            typed, operator,
         )
     {
         return Ok(Some(
@@ -700,7 +711,7 @@ fn selected_compiler_intrinsic_realization(
         ));
     }
     Ok(Some(
-        named_float_realization_from_operator(&checked.typed, operator)
+        named_float_realization_from_operator(typed, operator)
             .map(SelectedCompilerIntrinsicRealization::NamedFloat)
             .unwrap_or(SelectedCompilerIntrinsicRealization::OtherCompilerPath),
     ))

@@ -277,6 +277,7 @@ pub(crate) fn run_build_time_machine(
         program,
         BuildMachineEntry::Name(machine_name),
         arguments,
+        &[],
     )
     .map(|evaluation| {
         let (value, usage, _) = evaluation.into_parts();
@@ -293,6 +294,7 @@ pub(crate) fn run_build_time_machine_symbol(
         program,
         BuildMachineEntry::Symbol(machine_symbol),
         arguments,
+        &[],
     )
     .map(|evaluation| {
         let (value, usage, _) = evaluation.into_parts();
@@ -309,19 +311,40 @@ pub(crate) fn run_build_time_machine_with_operation_receipts(
         program,
         BuildMachineEntry::Name(machine_name),
         arguments,
+        &[],
     )
+}
+
+pub(crate) fn run_build_time_machine_symbol_with_selected_operators(
+    program: &TypedTrees,
+    machine: SymbolHandle,
+    arguments: Vec<crate::BuildTimeValue>,
+    operators: &[crate::SelectedBuildTimeBinaryOperator],
+) -> Result<MeasuredEvaluation<crate::BuildTimeValue>, String> {
+    run_build_time_machine_entry_with_operation_receipts(
+        program,
+        BuildMachineEntry::Symbol(machine),
+        arguments,
+        operators,
+    )
+    .map(|evaluation| {
+        let (value, usage, _) = evaluation.into_parts();
+        MeasuredEvaluation::new(value, usage)
+    })
 }
 
 fn run_build_time_machine_entry_with_operation_receipts(
     program: &TypedTrees,
     entry: BuildMachineEntry<'_>,
     arguments: Vec<crate::build_time::BuildTimeValue>,
+    operators: &[crate::SelectedBuildTimeBinaryOperator],
 ) -> Result<BuildTimeOperationEvaluation<crate::build_time::BuildTimeValue>, String> {
     std::thread::scope(|scope| {
         std::thread::Builder::new()
             .stack_size(256 * 1024 * 1024)
             .spawn_scoped(scope, || {
                 let mut evaluator = Evaluator::new(program, &[]);
+                evaluator.selected_build_time_operators = operators;
                 evaluator.configure_build_evaluation(CONST_EVAL_STEP_BUDGET, None);
                 let result = match entry {
                     BuildMachineEntry::Name(machine_name) => {
@@ -1158,6 +1181,7 @@ struct Evaluator<'program> {
     /// a root-preserving intrinsic rewrite can still report the source
     /// operation. Const/build-time evaluation runs before that evidence exists.
     operator_facts: Option<&'program CheckedOperatorFacts>,
+    selected_build_time_operators: &'program [crate::SelectedBuildTimeBinaryOperator],
     stdout: Vec<u8>,
     stderr: Vec<u8>,
     /// Exact output emitted through the compiler-owned `Build.log` facet.

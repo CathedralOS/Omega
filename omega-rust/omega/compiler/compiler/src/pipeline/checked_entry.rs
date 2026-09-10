@@ -1,3 +1,5 @@
+mod const_evaluation;
+
 use crate::pipeline::PackageCompilationInputs;
 use crate::pipeline::phase_transitions::{
     SelectedExecutionSettlementInput, TypedToCheckedSettlementInput,
@@ -18,6 +20,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone)]
 pub struct CheckedCompilation {
     program: CheckedTrees,
+    const_evaluation: const_evaluation::SelectedConstEvaluation,
     dispatch_source_edits: selected_dispatch::SelectedDispatchSourceEdits,
     boundary_dispatch_source_edits: selected_dispatch::SelectedDispatchSourceEdits,
     source_file_count: usize,
@@ -64,6 +67,7 @@ pub struct CheckedCompilation {
 impl PartialEq for CheckedCompilation {
     fn eq(&self, other: &Self) -> bool {
         self.program == other.program
+            && self.const_evaluation == other.const_evaluation
             && self.dispatch_source_edits == other.dispatch_source_edits
             && self.boundary_dispatch_source_edits == other.boundary_dispatch_source_edits
             && self.source_file_count == other.source_file_count
@@ -811,6 +815,7 @@ struct CheckedFrontend {
     selected_target_machine_declarations:
         crate::pipeline::target_machines::SelectedTargetMachineDeclarations,
     build_source_id: Option<source::SourceId>,
+    pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
 }
 
 enum CheckedFrontendTyping {
@@ -911,7 +916,10 @@ fn lower_checked_frontend(
     let build_source_id = syntax.build_source_id;
     let resolved = syntax_trees_to_symbol_resolved_trees(syntax, timings)?;
     let mut typing_base = symbol_resolved_trees_to_seeded_base(resolved, timings)?;
-    pre_check.evaluate(typing_base.typed_mut())?;
+    let pending_pre_checks = pre_check
+        .evaluate_or_defer(typing_base.typed_mut())?
+        .into_iter()
+        .collect();
     // Build evaluation consumes this coherent private typed stage before the
     // final checked-tree lowering. Bind trait-valued parameter-field calls now
     // so the evaluator receives the same exact requirement identity that the
@@ -921,6 +929,7 @@ fn lower_checked_frontend(
         typing: CheckedFrontendTyping::Continuable(typing_base),
         selected_target_machine_declarations,
         build_source_id,
+        pending_pre_checks,
     })
 }
 
@@ -937,6 +946,7 @@ fn try_seeded_extension(
     (
         typed_trees::TypedTrees,
         crate::pipeline::target_machines::SelectedTargetMachineDeclarations,
+        Vec<build_time_evaluation::PreCheckEvaluation>,
     ),
     Vec<Diagnostic>,
 > {
@@ -998,8 +1008,13 @@ fn try_seeded_extension(
             "generated-source continuation violated its retained-base invariant: {error:?}"
         ))]),
     }?;
+    let mut pending_pre_checks = Vec::new();
     for pre_check in pre_checks {
-        pre_check.evaluate_extension(&mut typed, wire_schema_frontier)?;
+        if let Some(pending) =
+            pre_check.evaluate_extension_or_defer(&mut typed, wire_schema_frontier)?
+        {
+            pending_pre_checks.push(pending);
+        }
         wire_schema_frontier = typed.wire_schemas().len();
     }
     if !symbol_resolved_trees_to_typed_trees::retained_typed_base_is_exact_prefix(
@@ -1010,7 +1025,11 @@ fn try_seeded_extension(
             "generated-source pre-check evaluation changed the retained typed base",
         )]);
     }
-    Ok((typed, selected_target_machine_declarations))
+    Ok((
+        typed,
+        selected_target_machine_declarations,
+        pending_pre_checks,
+    ))
 }
 
 fn compile_to_checked_inner_with_replay(
@@ -1186,31 +1205,36 @@ fn compile_assembled_checked_child(
             typing,
             selected_target_machine_declarations,
             build_source_id,
+            mut pending_pre_checks,
         } = frontend;
         let CheckedFrontendTyping::Continuable(typing_base) = typing else {
             return Err(vec![Diagnostic::error(
                 "generated-source continuation lost its retained frontend base",
             )]);
         };
-        let (typed, selected_target_machine_declarations) = try_seeded_extension(
-            typing_base,
-            &base_sources,
-            extension,
-            selected_target_machine_declarations,
-            target_name,
-            Some(package_inputs),
-            &mut timings,
-        )?;
+        let (typed, selected_target_machine_declarations, extension_pre_checks) =
+            try_seeded_extension(
+                typing_base,
+                &base_sources,
+                extension,
+                selected_target_machine_declarations,
+                target_name,
+                Some(package_inputs),
+                &mut timings,
+            )?;
+        pending_pre_checks.extend(extension_pre_checks);
         frontend = CheckedFrontend {
             typing: CheckedFrontendTyping::Complete(typed),
             selected_target_machine_declarations,
             build_source_id,
+            pending_pre_checks,
         };
         computed_build_config.selected_build_machine_symbol
     };
     let CheckedFrontend {
         typing,
         selected_target_machine_declarations,
+        pending_pre_checks,
         ..
     } = frontend;
     let mut typed = typing.into_typed();
@@ -1366,6 +1390,19 @@ fn compile_assembled_checked_child(
             &evaluated_via_bindings,
             selected_provider_plans,
         )?;
+    let mut const_evaluation = const_evaluation::SelectedConstEvaluation::default();
+    if !pending_pre_checks.is_empty() {
+        validation::land_float_literal_destinations(&mut typed);
+        const_evaluation.operators =
+            const_evaluation::selected_operators(&typed, &selected_provider_plan_facts)?;
+        for pre_check in pending_pre_checks {
+            const_evaluation.folds.extend(
+                pre_check
+                    .evaluate_with_selected_operators(&mut typed, &const_evaluation.operators)?,
+            );
+        }
+    }
+    const_evaluation::require_evaluated_array_lengths(&typed)?;
     let root_grants = build_config
         .grants
         .iter()
@@ -1393,6 +1430,11 @@ fn compile_assembled_checked_child(
             root_grants: &root_grants,
             authored_root_grants: &build_config.grants,
         },
+    )?;
+    const_evaluation.validate(
+        &checked.program,
+        &checked.selected_provider_plan_facts,
+        package_inputs,
     )?;
     if let Some(package_inputs) = package_inputs {
         crate::pipeline::package_declaration_admission::validate_authored_declaration_selections(
@@ -1474,6 +1516,7 @@ fn compile_assembled_checked_child(
     }
     Ok(CheckedCompilation {
         program,
+        const_evaluation,
         dispatch_source_edits: selected_execution_settlement.dispatch_source_edits,
         boundary_dispatch_source_edits: selected_execution_settlement
             .boundary_dispatch_source_edits,

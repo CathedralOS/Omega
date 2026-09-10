@@ -1,3 +1,5 @@
+#[path = "package_compilation_inputs/selected_const_evaluation.rs"]
+mod selected_const_evaluation;
 use compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileRequest, ExplicitTargetSet,
     MultiTargetCompileRequest, RequestedCompileProduct, compile, compile_targets,
@@ -700,6 +702,29 @@ data Main { bytes: [u8; array_length()]; }
     let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
         .expect("toolchain float candidates are already confined package authority");
     assert!(checked.authored_declaration_selections().all_finalized());
+    let main = checked
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Main")
+        .expect("Main data");
+    let field = checked
+        .data_members(main)
+        .iter()
+        .find_map(|member| match member {
+            typed_trees::data::DataMember::Field(field) if field.name.as_str() == "bytes" => {
+                Some(field)
+            }
+            _ => None,
+        })
+        .expect("Main.bytes field");
+    assert!(
+        checked
+            .type_reference_table
+            .fixed_array_lengths()
+            .any(|(handle, length)| handle == field.type_reference
+                && *length == typed_trees::types::FixedArrayLength::Literal(4)),
+        "Main.bytes must retain the evaluated length 4"
+    );
 }
 
 #[test]

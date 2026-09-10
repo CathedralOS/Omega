@@ -1641,6 +1641,11 @@ Owners include
 
 - **TARGET-SEMANTIC-APPLICATIONS.** Complete typed target observations,
   hermetic const evaluation, and [selected realization coverage](wiki/spec/terminal-psi/boundary_calls.md#operator-applications-and-physical-children). Finish
+  ordinary selected provider-body execution and earlier generic-application
+  evaluation through the [semantic evaluation owner](omega-rust/psi/semantics/build-time-evaluation/README.md#semantic-admission-boundary),
+  preserving exact provider selection and independently checked result custody.
+  Complete the portable target capsule and its application identity; a checked
+  source fold alone does not establish cross-artifact closure. Finish
   artifact-qualified symbolic substitution for separately compiled generics;
   recheck the reachable specialization's actual capability reach, proof
   obligations, target facts, and selected realization after closing every
