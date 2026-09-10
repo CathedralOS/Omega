@@ -120,7 +120,7 @@ fn nested_proof_slice_calls_cannot_borrow_another_edges_decrease() {
         ),
         (
             "recursive_guard",
-            "transition (items.len > 0) && ((extract(items[1..], other)) == Sequence::Empty) { true -> Sequence::Cons {head: items[0], tail: extract(items[1..], other)} _ -> Sequence::Empty }",
+            "transition (items.len > 0) && ((extract(items[1..], other)) in Sequence::Empty) { true -> Sequence::Cons {head: items[0], tail: extract(items[1..], other)} _ -> Sequence::Empty }",
         ),
         (
             "helper_state_shadow",

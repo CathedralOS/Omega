@@ -305,10 +305,10 @@ pub(in crate::symbols) fn assign_name_symbol(
                     .iter()
                     .find(|parameter| {
                         parameter.name.as_str() == member.as_str()
-                            && matches!(
+                            && (matches!(
                                 parameter.kind,
                                 symbol_resolved_trees::data::TypeParameterKind::Const { .. }
-                            )
+                            ) || !suffix.is_empty())
                     })
                     .map(|parameter| parameter.symbol)
             });
@@ -334,6 +334,11 @@ pub(in crate::symbols) fn assign_name_symbol(
             return;
         }
         lookup_state = SymbolHandle::invalid();
+    }
+
+    if !path.is_self_value && normalize_bare_case_value(symbols, expression_table, path, expression)
+    {
+        return;
     }
 
     let member_symbols = resolve_state_scoped_table_path_member_symbols(
@@ -371,6 +376,55 @@ pub(in crate::symbols) fn assign_name_symbol(
         path.head_symbol = head_symbol;
         path.symbol = symbol;
     }
+}
+
+// Bare case values and braces share construction after lexical binding has
+// selected the value frontier. Package aliases need no invented declaration
+// symbols: the existing constructor selector retains their source authority.
+// Membership has a separate domain-path node and never enters this value route.
+fn normalize_bare_case_value(
+    symbols: &SymbolTable,
+    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
+    path: &symbol_resolved_trees::expression::TableNamePath,
+    expression: symbol_resolved_trees::expression::ExpressionHandle,
+) -> bool {
+    let members = expression_table.name_path_members(path.members);
+    if members.len() < 2 {
+        return false;
+    }
+    let name = members
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::");
+    let source_span = diagnostic_path_source_span(members);
+    let (owner, case_symbol, case) =
+        match crate::symbols::bare_case_type(symbols, &name, source_span) {
+            Ok(Some(selected)) => selected,
+            Ok(None) => return false,
+            // Keep the unresolved authored Name for the fallible selection
+            // finalizer, which rejoins this exact error. Never try a simpler path.
+            Err(_) => return true,
+        };
+    let case_name = members
+        .last()
+        .expect("case path has at least two members")
+        .clone();
+    let owner_name = &name[..name.len() - case.len() - 2];
+    *expression_table.expression_mut(expression) =
+        symbol_resolved_trees::expression::ExpressionNode::StructLiteral(
+            symbol_resolved_trees::expression::TableStructLiteral {
+                type_name: symbol_resolved_trees::name::DiagnosticName::new(
+                    owner_name,
+                    source_span,
+                ),
+                type_symbol: owner,
+                case_name: Some(case_name),
+                case_symbol: Some(case_symbol),
+                fields: Default::default(),
+            },
+        );
+    true
 }
 
 pub(in crate::symbols) fn assign_struct_literal_symbols(

@@ -824,6 +824,16 @@ fn expression_candidates(
         }
         ExpressionNode::Name(path) if !path.is_self_value => {
             let members = expressions.name_path_members(path.members);
+            if !path.head_symbol.is_valid() && members.len() > 1 {
+                let name = members
+                    .iter()
+                    .map(|member| member.as_str())
+                    .collect::<Vec<_>>()
+                    .join("::");
+                let reference = path_span(members, expression_span);
+                let _ = crate::symbols::bare_case_type(&program.symbols, &name, reference)
+                    .map_err(|message| Diagnostic::error(message).with_source_span(reference))?;
+            }
             let symbols = expressions.name_path_member_symbols(path.member_symbols);
             for (offset, member) in members.iter().enumerate() {
                 let symbol = symbols

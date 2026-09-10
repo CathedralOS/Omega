@@ -32,8 +32,7 @@ pub(super) fn append_move_events_for_expression(
         return;
     }
 
-    if type_references::intrinsic_enum_equality(program, state_symbol, statement_index, expression)
-    {
+    if type_references::intrinsic_enum_equality(program, state_symbol, expression) {
         let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
             unreachable!()
         };

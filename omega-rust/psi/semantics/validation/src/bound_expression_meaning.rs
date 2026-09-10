@@ -194,7 +194,10 @@ pub(super) fn builtin_boolean_equality(
     )
 }
 
-pub(crate) fn has_exact_case_membership_meaning(
+/// Rejoin a retained case-membership occurrence with its exact subject and
+/// carrier. This distinguishes tag observation from ordinary value equality;
+/// it does not admit the operands or their declarations.
+pub fn has_exact_case_membership_meaning(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,

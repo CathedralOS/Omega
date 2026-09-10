@@ -543,9 +543,7 @@ fn scan_expression_calls_at_position(
             != 1
             || !path.head_symbol.is_valid()
             || path.head_symbol == path.symbol;
-        if crate::bound_expression_meaning::exact_case_reference_owner(program, expression)
-            .is_none()
-            && name != "true"
+        if name != "true"
             && name != "false"
             && (!bare_identity_matches
                 || !crate::locals::state_value_root_is_known(

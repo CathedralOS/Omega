@@ -283,8 +283,8 @@ fn build_payloadless_case_return_machine(
         return None;
     }
     let returned_case_symbol = match program.expression_table.expression(*return_expression) {
-        // The canonical payload-less constructor is represented as its exact
-        // two-symbol nominal path (`Sum::Case`), not as an empty record.
+        // Retained case references still require their exact nominal path.
+        // Newly resolved bare values share the case-literal arm below.
         ExpressionNode::Name(path)
             if path.head_symbol == *result_data_symbol
                 && path.symbol.is_valid()
@@ -296,8 +296,8 @@ fn build_payloadless_case_return_machine(
         {
             path.symbol
         }
-        // Retain the equivalent explicit empty-brace case form if the parser
-        // preserves it as a structural literal.
+        // Bare payload-free values and explicit braces share this resolved
+        // construction while retaining the actual nominal case symbol.
         ExpressionNode::StructLiteral(literal)
             if literal.type_symbol == *result_data_symbol
                 && literal.case_name.is_some()
