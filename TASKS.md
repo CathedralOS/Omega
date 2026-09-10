@@ -760,16 +760,6 @@ Owners include
 
 ## P3 - Terminal Psi, PCC, and observation
 
-- **SCALAR-SOURCE-DEBUG-MAP.** Reconcile source-backed owned scalar graph
-  publication with its retained debug plans in
-  `typed-trees-to-checked-trees/src/flow/terminal_debug.rs` and
-  `checked-trees-to-lowered-psi/src/lib.rs`. On unchanged `5d5333554e`, macOS
-  AArch64 with a fresh build cache and `RUST_MIN_STACK=33554432`,
-  `cargo nextest run -p checked-trees-to-lowered-psi --test owned_scalar_graphs --no-fail-fast`
-  fails thirteen tests at `support.rs:38`: successful lowering has no debug map.
-  Acceptance: the existing target passes, preserving canonical debug-map
-  round trips and independent source/ownership rejection checks.
-
 - **PSIIR.** Extend Terminal Psi only in complete vertical slices through
   canonical encoding, independent reconstruction, verification,
   interpretation, resource analysis, native lowering, artifact custody, and

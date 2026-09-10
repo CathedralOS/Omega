@@ -59,6 +59,8 @@ pub struct CheckedTerminalMachineDebugPlan {
 pub struct CheckedTerminalStateDebugPlan {
     pub state: SymbolHandle,
     pub state_span: Option<source::SourceSpan>,
+    /// Dense scalar declaration order; structural and borrowed formals have
+    /// places, not scalar ValueIds, and do not occupy this presentation lane.
     pub parameter_spans: Vec<Option<source::SourceSpan>>,
     pub transition_spans: Vec<source::SourceSpan>,
     pub operation_spans: Vec<source::SourceSpan>,

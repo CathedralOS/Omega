@@ -567,7 +567,19 @@ pub(super) fn lower_selected_machine(
             SelectedMachineRoute::StructuralUnitControl,
         );
     }
+    // A scalar forwarding body can also have a Unit-closure plan. Its scalar
+    // graph owns the source signature, operand, and affine-transfer custody;
+    // selecting the overlapping closure plan here would bypass those checks
+    // and suppress the graph's debug map. The graph path below already shares
+    // the real structural/Unit callee catalog when it needs that namespace.
+    // A rejected graph must not fall back to the overlapping plan.
     if selection.signature == CheckedTerminalSignatureEligibility::Eligible
+        && checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .for_machine(selection.machine)
+            .is_none()
         && checked
             .facts
             .flow

@@ -81,10 +81,70 @@ fn literal_array_argument_supports_direct_scalar_completion() {
 }
 
 #[test]
-fn literal_array_scalar_completion_rejects_forged_result_metadata() {
+fn literal_array_scalar_graph_rejects_result_drift_without_closure_fallback() {
     let original = checked_source(
         "machine answer(row: [u8; 2], value: u8) -> u8 { value }
          machine selected() -> u8 { answer([7, 9], 42u8) }",
+    );
+    let selected = checked_trees_to_lowered_psi::select_terminal_machine(&original, "selected")
+        .unwrap()
+        .machine;
+    assert!(
+        original
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(selected)
+            .is_some(),
+        "the overlapping operation-body plan must not rescue an invalid graph"
+    );
+    checked_trees_to_lowered_psi::lower_machine(&original, "selected").unwrap();
+    for mutation in ["type", "binding", "statement"] {
+        let mut changed = original.clone();
+        let state = &mut changed
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .machines
+            .iter_mut()
+            .find(|graph| graph.machine == selected)
+            .unwrap()
+            .states[0];
+        match mutation {
+            "type" => state.result_type = PrimitiveType::Bool,
+            "binding" => state.bindings[0].statement_ordinal = u32::MAX,
+            "statement" => {
+                state.terminator = checked_trees::CheckedScalarStateTerminator::Return {
+                    statement_ordinal: u32::MAX,
+                }
+            }
+            _ => unreachable!(),
+        }
+        reject(&changed, mutation);
+    }
+}
+
+#[test]
+fn literal_array_scalar_completion_rejects_forged_result_metadata() {
+    // A standalone scalar call now uses its scalar graph. Keep a real Unit
+    // call here so this test still exercises operation-body completion and
+    // all of its result metadata, rather than mutating an unselected plan.
+    let original = checked_source(
+        "machine touch() {}
+         machine answer(row: [u8; 2], value: u8) -> u8 { value }
+         machine selected() -> u8 { touch(); answer([7, 9], 42u8) }",
+    );
+    let selected = checked_trees_to_lowered_psi::select_terminal_machine(&original, "selected")
+        .unwrap()
+        .machine;
+    assert!(
+        original
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .for_machine(selected)
+            .is_none(),
+        "the operation-body result is selected, not a redundant graph plan"
     );
     checked_trees_to_lowered_psi::lower_machine(&original, "selected")
         .expect("scalar completion lowers before metadata corruption");
