@@ -48,6 +48,7 @@ fn payload_module() -> TerminalModule {
     ];
     machine.blocks[1].parameters = [10, 11]
         .map(|value| ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(value).unwrap(),
             scalar_type: ScalarType::Integer(integer()),
         })
@@ -58,6 +59,7 @@ fn payload_module() -> TerminalModule {
         cleanup_actions: Vec::new(),
     };
     machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(30).unwrap(),
         scalar_type: ScalarType::Integer(integer()),
     });
@@ -92,6 +94,7 @@ fn bounded_payload_module() -> TerminalModule {
         trivial_affine_discards: Vec::new(),
     };
     receiver.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(1).unwrap(),
         scalar_type: ScalarType::Integer(integer()),
     }];
@@ -440,6 +443,7 @@ fn selected_case_boolean_payload_has_a_checked_certificate() {
         parameter.scalar_type = ScalarType::Boolean;
     }
     machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(30).unwrap(),
         scalar_type: ScalarType::Boolean,
     });
@@ -482,6 +486,7 @@ fn selected_case_payload_certificate_survives_ordinary_forwarding() {
     machine.blocks.push(Block {
         id: BlockId::new(12).unwrap(),
         parameters: vec![ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(12).unwrap(),
             scalar_type: ScalarType::Integer(integer()),
         }],
@@ -622,6 +627,7 @@ fn forwarded_call_module() -> TerminalModule {
     let continuation = Block {
         id: BlockId::new(12).unwrap(),
         parameters: vec![ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(12).unwrap(),
             scalar_type: ScalarType::Integer(integer()),
         }],
@@ -729,6 +735,7 @@ fn selected_case_payload_observation_expires_after_owned_call() {
     callee.blocks.push(Block {
         id: BlockId::new(903).unwrap(),
         parameters: vec![ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(110).unwrap(),
             scalar_type: ScalarType::Integer(integer()),
         }],
@@ -741,6 +748,7 @@ fn selected_case_payload_observation_expires_after_owned_call() {
         },
     });
     callee.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(130).unwrap(),
         scalar_type: ScalarType::Integer(integer()),
     });
@@ -750,6 +758,7 @@ fn selected_case_payload_observation_expires_after_owned_call() {
     });
     let call = &mut module.machines[0].blocks[2].operations[0];
     call.result = OperationResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(40).unwrap(),
         scalar_type: ScalarType::Integer(integer()),
     });
@@ -814,6 +823,7 @@ fn selected_case_payload_owned_entry_observation_expires_at_mutable_loan() {
         let premise = Proposition::Equal(field(1, 1, 2), zero.clone());
         let scalar_premise = Proposition::Equal(term(50), zero);
         machine.parameters.push(ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(50).unwrap(),
             scalar_type: ScalarType::Integer(integer()),
         });

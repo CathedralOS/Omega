@@ -18,6 +18,7 @@ pub(super) fn widened_byte_output_module() -> TerminalModule {
         Operation {
             id: OperationId::new(6).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: widened,
                 scalar_type: destination_type,
             }),
@@ -35,6 +36,7 @@ fn widening_return_module() -> TerminalModule {
     let machine = &mut module.machines[0];
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(9).unwrap(),
         scalar_type,
     });

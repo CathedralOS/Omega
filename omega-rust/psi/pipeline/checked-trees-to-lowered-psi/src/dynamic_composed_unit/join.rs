@@ -281,6 +281,7 @@ pub(super) fn lower(
         id: caller_machine,
         attachment: Some(caller_attachment),
         parameters: vec![ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(1),
             scalar_type: semantic_vocabulary::ScalarType::Boolean,
         }],
@@ -309,6 +310,7 @@ pub(super) fn lower(
 
     Ok(LoweredPsi {
         semantic_module: TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: caller_machine,
@@ -582,6 +584,7 @@ fn branch_block(
         operations: vec![Operation {
             id: operation,
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: result,
                 scalar_type,
             }),

@@ -100,6 +100,7 @@ fn module() -> TerminalModule {
 fn branch(module: &mut TerminalModule) {
     let machine = &mut module.machines[0];
     machine.parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(2),
         scalar_type: ScalarType::Boolean,
     });

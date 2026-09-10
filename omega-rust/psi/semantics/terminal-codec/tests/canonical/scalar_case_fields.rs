@@ -39,10 +39,12 @@ fn fixture() -> TerminalModule {
     let machine = &mut module.machines[0];
     machine.parameters = vec![
         ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(1),
             scalar_type: integer,
         },
         ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(2),
             scalar_type: integer,
         },

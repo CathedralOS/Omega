@@ -90,6 +90,7 @@ fn subslice_module(bytes: Vec<u8>, start: u64) -> TerminalModule {
         Operation {
             id: operation_id(61),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(61),
                 scalar_type: ScalarType::Boolean,
             }),
@@ -191,6 +192,7 @@ fn block_module(select_first: bool, byte_index: u64) -> TerminalModule {
         Operation {
             id: operation_id(51),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(51),
                 scalar_type: ScalarType::Boolean,
             }),
@@ -213,6 +215,7 @@ fn block_module(select_first: bool, byte_index: u64) -> TerminalModule {
     }
     let caller = &mut source.machines[2];
     caller.parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(49),
         scalar_type: ScalarType::Boolean,
     });

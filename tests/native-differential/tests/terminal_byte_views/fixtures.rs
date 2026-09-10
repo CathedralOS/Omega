@@ -26,6 +26,7 @@ pub(super) fn byte_view_length_module() -> TerminalModule {
     let length = ValueId::new(5).unwrap();
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -72,6 +73,7 @@ pub(super) fn byte_view_length_module() -> TerminalModule {
             }],
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(6).unwrap(),
                 scalar_type,
             }),
@@ -95,6 +97,7 @@ pub(super) fn byte_view_length_module() -> TerminalModule {
                 operations: vec![Operation {
                     id: OperationId::new(7).unwrap(),
                     result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: length,
                         scalar_type,
                     }),
@@ -126,12 +129,14 @@ pub(super) fn byte_view_read_module() -> TerminalModule {
     let condition = ValueId::new(11).unwrap();
     let u64_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     machine.parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: byte_index,
         scalar_type: u64_type,
     });
     machine.blocks[0].operations.push(Operation {
         id: OperationId::new(11).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: condition,
             scalar_type: ScalarType::Boolean,
         }),
@@ -161,6 +166,7 @@ pub(super) fn byte_view_read_module() -> TerminalModule {
                 Operation {
                     id: OperationId::new(13).unwrap(),
                     result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: ValueId::new(13).unwrap(),
                         scalar_type: ScalarType::Integer(
                             IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
@@ -176,6 +182,7 @@ pub(super) fn byte_view_read_module() -> TerminalModule {
                 Operation {
                     id: OperationId::new(14).unwrap(),
                     result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: ValueId::new(14).unwrap(),
                         scalar_type: u64_type,
                     }),
@@ -197,6 +204,7 @@ pub(super) fn byte_view_read_module() -> TerminalModule {
             operations: vec![Operation {
                 id: OperationId::new(16).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: ValueId::new(16).unwrap(),
                     scalar_type: u64_type,
                 }),
@@ -310,12 +318,14 @@ pub(super) fn byte_view_read_call_module() -> TerminalModule {
     caller.id = caller_id;
     caller.entry = BlockId::new(101).unwrap();
     caller.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: byte_index,
         scalar_type,
     }];
     caller.structural_parameters[0].place = source;
     caller.structural_places[0].id = source;
     caller.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(104).unwrap(),
         scalar_type,
     });
@@ -330,6 +340,7 @@ pub(super) fn byte_view_read_call_module() -> TerminalModule {
             .map(|(operation, result)| Operation {
                 id: OperationId::new(operation).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: ValueId::new(result).unwrap(),
                     scalar_type,
                 }),
@@ -384,6 +395,7 @@ pub(super) fn byte_view_conditional_read_call_module() -> TerminalModule {
             Operation {
                 id: OperationId::new(121).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: zero,
                     scalar_type,
                 }),
@@ -394,6 +406,7 @@ pub(super) fn byte_view_conditional_read_call_module() -> TerminalModule {
             Operation {
                 id: OperationId::new(122).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: condition,
                     scalar_type: ScalarType::Boolean,
                 }),
@@ -418,6 +431,7 @@ pub(super) fn byte_view_conditional_read_call_module() -> TerminalModule {
         operations: vec![Operation {
             id: OperationId::new(124).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: sentinel,
                 scalar_type,
             }),

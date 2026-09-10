@@ -492,10 +492,12 @@ fn scalar_return_composes_every_nominal_cleanup_bound() {
     let mut module = ordered_empty_nominal_affine_fixture(true);
     let caller = &mut module.machines[0];
     caller.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(900),
         scalar_type: ScalarType::Boolean,
     }];
     caller.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(901),
         scalar_type: ScalarType::Boolean,
     });
@@ -555,10 +557,12 @@ fn contextual_scalar_cleanup_proof_metadata_adds_zero_fixed_fuel() {
         .collect();
     let caller = &mut module.machines[0];
     caller.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(910),
         scalar_type: ScalarType::Boolean,
     }];
     caller.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(911),
         scalar_type: ScalarType::Boolean,
     });
@@ -681,10 +685,12 @@ fn mixed_scalar_return_counts_nominal_work_but_not_root_discards() {
     let mut module = three_ordered_shared_executable_nominal_affine_fixture();
     let caller = &mut module.machines[0];
     caller.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(910),
         scalar_type: ScalarType::Boolean,
     }];
     caller.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(911),
         scalar_type: ScalarType::Boolean,
     });
@@ -1446,6 +1452,7 @@ fn mixed_call_outcomes_do_not_cross_product_crash_and_caller_return_costs() {
                 Operation {
                     id: operation_id(3),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value_id(6),
                         scalar_type: ScalarType::Boolean,
                     }),
@@ -1454,6 +1461,7 @@ fn mixed_call_outcomes_do_not_cross_product_crash_and_caller_return_costs() {
                 Operation {
                     id: operation_id(4),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value_id(7),
                         scalar_type: ScalarType::Boolean,
                     }),
@@ -1589,6 +1597,7 @@ fn retained_safe_point_catalog_is_complete_ordered_and_semantically_exact() {
 
 fn unit_fixture() -> TerminalModule {
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(900),
@@ -2198,6 +2207,7 @@ fn three_helper_nominal_affine_fixture() -> TerminalModule {
 fn unit_effect_fixture() -> TerminalModule {
     let service = service_id(1);
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(700),
@@ -2403,6 +2413,7 @@ fn write_only_primitive_store_fixture() -> TerminalModule {
         Operation {
             id: operation_id(702),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(960),
                 scalar_type,
             }),
@@ -2429,6 +2440,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
     let goal = Proposition::Equal(literal.clone(), literal);
     let obligation = obligation_id(1);
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
@@ -2464,6 +2476,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
             parameters: Vec::new(),
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(3),
                 scalar_type,
             }),
@@ -2480,6 +2493,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
                     operations: vec![Operation {
                         id: operation_id(1),
                         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: value_id(1),
                             scalar_type,
                         }),
@@ -2500,6 +2514,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
                     structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: vec![ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value_id(2),
                         scalar_type,
                     }],
@@ -2538,6 +2553,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
 fn call_fixture() -> TerminalModule {
     let boolean = ScalarType::Boolean;
     let declaration = |raw| ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(raw),
         scalar_type: boolean,
     };
@@ -2549,6 +2565,7 @@ fn call_fixture() -> TerminalModule {
         outcome_specific_ensures: Vec::new(),
     };
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),

@@ -23,6 +23,7 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
     let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     let parameter = ScalarType::Integer(IntegerType::new(sign, 64).unwrap());
     let value = |id, scalar_type| ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(id).unwrap(),
         scalar_type,
     };
@@ -151,6 +152,7 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
         operation.id = OperationId::new(u64::try_from(index + 1).unwrap()).unwrap();
     }
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine.id,

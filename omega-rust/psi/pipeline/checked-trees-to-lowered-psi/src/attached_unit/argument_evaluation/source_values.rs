@@ -70,9 +70,10 @@ impl Evaluation {
             .with_primitive_storage(&self.primitive_storage)
             .with_structural_parameters(&self.structural_parameters)
             .with_resolved_structural_fields(&self.structural_fields);
+        let qualifications = prepare_shared_qualifications(checked, machine, values)?;
         let source_types = values
             .iter()
-            .map(|value| value.scalar_type)
+            .map(|value| value.value_type())
             .collect::<Vec<_>>();
         if let CheckedCallScalarArgument::Pure(value) = value {
             let expression = bindings.expression(value)?;
@@ -80,15 +81,17 @@ impl Evaluation {
                 return unsupported("scalar value type differs from its destination carrier");
             }
             if !direct_expression_contains_short_circuit(&expression) {
-                validate_direct_parameter_types(&expression, &source_types)?;
+                validate_direct_parameter_types(&expression, &scalar_carriers(&source_types))?;
                 return Ok(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: emit_direct_expression(&expression, values, next_value, operations),
                     scalar_type,
                 });
             }
         }
-        let mut expansion = crate::scalar_computations::Expansion::new(checked, machine, 1)
-            .with_arrays(&self.arrays);
+        let mut expansion =
+            crate::scalar_computations::Expansion::new(checked, &qualifications, machine, 1)
+                .with_arrays(&self.arrays);
         let entry = match value {
             CheckedCallScalarArgument::Pure(_) => expansion.retained_pure_value(
                 state,
@@ -96,7 +99,7 @@ impl Evaluation {
                 role,
                 &bindings,
                 &source_types,
-                scalar_type,
+                scalar_type.into(),
                 0,
             )?,
             CheckedCallScalarArgument::Computation(_) => expansion.retained_value(
@@ -110,7 +113,7 @@ impl Evaluation {
                 },
                 &bindings,
                 &source_types,
-                scalar_type,
+                scalar_type.into(),
                 0,
             )?,
         };
@@ -118,7 +121,7 @@ impl Evaluation {
         let completed = self.complete_expansion(
             &states,
             entry,
-            &[scalar_type],
+            &[scalar_type.into()],
             values,
             next_value,
             next_block,

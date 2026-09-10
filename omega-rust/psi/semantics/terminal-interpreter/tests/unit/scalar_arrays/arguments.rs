@@ -134,6 +134,7 @@ fn module(
     entry.blocks[0].operations.push(Operation {
         id: operation_id(102),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(102),
             scalar_type: ScalarType::Boolean,
         }),
@@ -168,12 +169,14 @@ fn module(
     let sink = callee(2);
     let mut scalar = callee(3);
     scalar.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(3002),
         scalar_type: ScalarType::Boolean,
     });
     scalar.blocks[0].operations.push(Operation {
         id: operation_id(3001),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(3001),
             scalar_type: ScalarType::Boolean,
         }),

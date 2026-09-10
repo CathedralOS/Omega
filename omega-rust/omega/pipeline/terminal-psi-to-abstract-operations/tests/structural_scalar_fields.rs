@@ -55,6 +55,7 @@ fn structural_scalar_field_module() -> TerminalModule {
     let value_field = id::<StructuralFieldId>(1);
     let integer = integer_type();
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: caller,
@@ -138,6 +139,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                         Operation {
                             id: id::<OperationId>(1),
                             result: OperationResult::Scalar(ValueDeclaration {
+                                qualifications: Default::default(),
                                 id: id::<ValueId>(1),
                                 scalar_type: integer,
                             }),
@@ -158,6 +160,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                         Operation {
                             id: id::<OperationId>(3),
                             result: OperationResult::Scalar(ValueDeclaration {
+                                qualifications: Default::default(),
                                 id: id::<ValueId>(2),
                                 scalar_type: integer,
                             }),
@@ -198,6 +201,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                 }],
                 ranked_scc: None,
                 result: TerminalMachineResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: id::<ValueId>(3),
                     scalar_type: integer,
                 }),
@@ -215,6 +219,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                     operations: vec![Operation {
                         id: id::<OperationId>(4),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: id::<ValueId>(4),
                             scalar_type: integer,
                         }),
@@ -321,6 +326,7 @@ fn retains_direct_mutable_self_store_in_scalar_function() {
         Operation {
             id: id::<OperationId>(4),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: id::<ValueId>(4),
                 scalar_type: integer,
             }),
@@ -341,6 +347,7 @@ fn retains_direct_mutable_self_store_in_scalar_function() {
         Operation {
             id: id::<OperationId>(6),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: id::<ValueId>(5),
                 scalar_type: integer,
             }),

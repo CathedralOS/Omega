@@ -58,6 +58,7 @@ pub(super) fn nested_suffix_module() -> TerminalModule {
     let condition = ValueId::new(32).unwrap();
     let nested = PlaceId::new(40).unwrap();
     machine.parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: start,
         scalar_type,
     });
@@ -71,6 +72,7 @@ pub(super) fn nested_suffix_module() -> TerminalModule {
     machine.blocks[1].operations.push(Operation {
         id: OperationId::new(32).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: condition,
             scalar_type: ScalarType::Boolean,
         }),
@@ -110,6 +112,7 @@ pub(super) fn nested_suffix_module() -> TerminalModule {
             Operation {
                 id: OperationId::new(42).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: ValueId::new(42).unwrap(),
                     scalar_type,
                 }),
@@ -138,6 +141,7 @@ pub(super) fn derived_read_module(nested: bool) -> TerminalModule {
     let source = PlaceId::new(if nested { 40 } else { 30 }).unwrap();
     let length = ValueId::new(if nested { 42 } else { 14 }).unwrap();
     machine.parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: position,
         scalar_type,
     });
@@ -145,6 +149,7 @@ pub(super) fn derived_read_module(nested: bool) -> TerminalModule {
     producer_block.operations.push(Operation {
         id: OperationId::new(51).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: condition,
             scalar_type: ScalarType::Boolean,
         }),
@@ -166,6 +171,7 @@ pub(super) fn derived_read_module(nested: bool) -> TerminalModule {
             Operation {
                 id: OperationId::new(60).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: ValueId::new(60).unwrap(),
                     scalar_type: ScalarType::Integer(
                         IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
@@ -181,6 +187,7 @@ pub(super) fn derived_read_module(nested: bool) -> TerminalModule {
             Operation {
                 id: OperationId::new(61).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: ValueId::new(61).unwrap(),
                     scalar_type,
                 }),
@@ -209,6 +216,7 @@ pub(super) fn subrange_module(read: bool) -> TerminalModule {
     machine.parameters.insert(
         1,
         ValueDeclaration {
+            qualifications: Default::default(),
             id: end,
             scalar_type: machine.parameters[0].scalar_type,
         },
@@ -234,6 +242,7 @@ pub(super) fn subrange_module(read: bool) -> TerminalModule {
         operations: vec![Operation {
             id: OperationId::new(71).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(71).unwrap(),
                 scalar_type: ScalarType::Boolean,
             }),

@@ -3289,10 +3289,12 @@ fn generic_conformance_application_crosses_terminal_scalar_closure() {
 fn scalar_crash_disjunction_lowers_to_canonical_terminal_propositions() {
     let values = vec![
         ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(2),
             scalar_type: ScalarType::Boolean,
         },
         ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(1),
             scalar_type: ScalarType::Boolean,
         },

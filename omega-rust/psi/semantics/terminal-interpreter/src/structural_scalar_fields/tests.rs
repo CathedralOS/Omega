@@ -335,6 +335,7 @@ fn boolean_reads_require_entry_inputs_but_integer_reads_defer_until_execution() 
             .push(Operation {
                 id: OperationId::new(1).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: ValueId::new(1).unwrap(),
                     scalar_type: if boolean {
                         ScalarType::Boolean

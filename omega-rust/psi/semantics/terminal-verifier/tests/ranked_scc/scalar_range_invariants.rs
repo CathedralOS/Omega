@@ -221,6 +221,7 @@ fn scalar_range_invariant_checks_every_conditional_arrival() {
     let mut module = module();
     let machine = &mut module.machines[0];
     machine.parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: id(40, ValueId::new),
         scalar_type: ScalarType::Boolean,
     });
@@ -266,6 +267,7 @@ fn scalar_range_invariant_checks_every_conditional_arrival() {
     invalid.machines[0].blocks[2].operations.push(Operation {
         id: id(30, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: id(30, ValueId::new),
             scalar_type: ScalarType::Integer(integer()),
         }),

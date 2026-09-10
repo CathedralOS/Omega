@@ -36,6 +36,7 @@ fn module(store_first: bool, entry_predicate: bool) -> TerminalModule {
             Operation {
                 id: id::<OperationId>(1),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: id::<ValueId>(1),
                     scalar_type: ScalarType::Boolean,
                 }),
@@ -56,6 +57,7 @@ fn module(store_first: bool, entry_predicate: bool) -> TerminalModule {
     operations.push(Operation {
         id: id::<OperationId>(3),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: id::<ValueId>(2),
             scalar_type: ScalarType::Boolean,
         }),
@@ -70,6 +72,7 @@ fn module(store_first: bool, entry_predicate: bool) -> TerminalModule {
         predicate(ScalarTerm::value(id(2), ScalarType::Boolean), true)
     };
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: id::<MachineId>(1),

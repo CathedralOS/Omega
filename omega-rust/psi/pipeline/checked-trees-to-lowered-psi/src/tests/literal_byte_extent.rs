@@ -95,6 +95,7 @@ fn fixture(literal: &str, byte_index: u128) -> LoweredPsi {
     let byte = value_id(next_value + 2);
     let scalar_result = |id, primitive| {
         OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id,
             scalar_type: terminal_scalar_type(primitive).unwrap(),
         })

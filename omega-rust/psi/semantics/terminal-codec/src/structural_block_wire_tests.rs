@@ -20,6 +20,7 @@ fn id<T: PsiSemanticId>(raw: u64) -> T {
 
 fn unit_module() -> TerminalModule {
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: id::<MachineId>(1),
@@ -113,10 +114,12 @@ fn primitive_local_operations_round_trip_with_exact_result_and_operand_identitie
         });
         let machine = &mut module.machines[0];
         machine.parameters.push(ValueDeclaration {
+            qualifications: Default::default(),
             id: id(11),
             scalar_type,
         });
         machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: id(59),
             scalar_type,
         });
@@ -143,6 +146,7 @@ fn primitive_local_operations_round_trip_with_exact_result_and_operand_identitie
             Operation {
                 id: id(32),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: id(47),
                     scalar_type,
                 }),
@@ -156,7 +160,7 @@ fn primitive_local_operations_round_trip_with_exact_result_and_operand_identitie
         };
 
         let bytes = encode_module(&module).expect("primitive local module encodes");
-        assert_eq!(&bytes[8..12], &[87, 0, 94, 0]);
+        assert_eq!(&bytes[8..12], &[87, 0, 95, 0]);
         let decoded = decode_module(&bytes).expect("primitive local module decodes");
         assert_eq!(decoded, module);
         assert_eq!(encode_module(&decoded).unwrap(), bytes);
@@ -194,6 +198,7 @@ fn structural_block_module() -> TerminalModule {
     let machine = &mut module.machines[0];
     machine.structural_parameters = vec![borrowed_parameter(1, 0), borrowed_parameter(2, 1)];
     machine.parameters.push(terminal_psi::ValueDeclaration {
+        qualifications: Default::default(),
         id: id(1),
         scalar_type: semantic_vocabulary::ScalarType::Boolean,
     });
@@ -256,7 +261,7 @@ fn structural_block_module() -> TerminalModule {
 fn structural_block_bindings_round_trip_and_bind_each_argument_order() {
     let module = structural_block_module();
     let bytes = encode_module(&module).expect("borrowed block bindings encode");
-    assert_eq!(&bytes[8..12], &[87, 0, 94, 0]);
+    assert_eq!(&bytes[8..12], &[87, 0, 95, 0]);
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(
         encode_module(&decode_module(&bytes).unwrap()),
@@ -296,7 +301,7 @@ fn structural_block_bindings_round_trip_and_bind_each_argument_order() {
             super::semantic_fingerprint(&module).unwrap()
         );
     }
-    for (offset, marker) in [(8, 86_u16), (8, 88), (10, 93), (10, 95)] {
+    for (offset, marker) in [(8, 86_u16), (8, 88), (10, 94), (10, 96)] {
         let mut stale = bytes.clone();
         stale[offset..offset + 2].copy_from_slice(&marker.to_le_bytes());
         assert!(decode_module(&stale).is_err());

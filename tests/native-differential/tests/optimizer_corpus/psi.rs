@@ -62,7 +62,11 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
     let false_add_operation = OperationId::new(base + 18).unwrap();
     let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
     let scalar_type = ScalarType::Integer(integer_type);
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     let literal = |id, result, value: u64| Operation {
         id,
         result: OperationResult::Scalar(declaration(result)),
@@ -98,6 +102,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
         ),
     };
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -131,6 +136,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: condition,
                 scalar_type: ScalarType::Boolean,
             }],

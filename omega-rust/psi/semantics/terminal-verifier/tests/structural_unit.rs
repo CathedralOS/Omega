@@ -232,6 +232,7 @@ fn unused_provider_attachment_verifier_rejects_runtime_scalar_field_projection()
     module.machines[0].blocks[0].operations.push(Operation {
         id: operation_id(1),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(1),
             scalar_type: ScalarType::Boolean,
         }),
@@ -469,6 +470,7 @@ fn direct_write_only_primitive_store_rejects_custody_shape_and_value_mutations()
     late_value.machines[0].blocks[0].operations.push(Operation {
         id: operation_id(3),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(1),
             scalar_type: signed_i8(),
         }),
@@ -484,6 +486,7 @@ fn direct_write_only_primitive_store_rejects_custody_shape_and_value_mutations()
     let mut forged_result = write_only_primitive_store_module();
     forged_result.machines[0].blocks[0].operations[0].result =
         OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(2),
             scalar_type: signed_i8(),
         });
@@ -573,10 +576,12 @@ fn scalar_return_nominal_cleanup_reconstructs_target_requirement() {
     let mut module = contextual_nominal_affine_module();
     let caller = &mut module.machines[0];
     caller.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(10),
         scalar_type: ScalarType::Boolean,
     }];
     caller.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(11),
         scalar_type: ScalarType::Boolean,
     });
@@ -612,10 +617,12 @@ fn scalar_return_contextual_cleanups_require_reverse_root_order() {
     let mut module = two_root_shared_contextual_nominal_affine_module();
     let caller = &mut module.machines[0];
     caller.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(10),
         scalar_type: ScalarType::Boolean,
     }];
     caller.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(11),
         scalar_type: ScalarType::Boolean,
     });
@@ -1670,6 +1677,7 @@ fn nominal_affine_cleanup_rejects_forged_target_and_unsupported_field_type() {
     target_parameter.machines[1]
         .parameters
         .push(ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(1),
             scalar_type: ScalarType::Boolean,
         });
@@ -2376,6 +2384,7 @@ fn linear_projected_custody_survives_an_empty_jump() {
 fn projected_unit_calls_reject_signatures_outside_the_bounded_slice() {
     let mut scalar_caller = projected_unit_call_module();
     scalar_caller.machines[0].parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(10),
         scalar_type: ScalarType::Boolean,
     });
@@ -3570,6 +3579,7 @@ fn scalar_return_cannot_abandon_linear_structural_custody() {
     module.root_service_reach.concrete.clear();
     let value = ValueId::new(1).expect("scalar value");
     let result = ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(2).expect("result value"),
         scalar_type: ScalarType::Boolean,
     };
@@ -3578,6 +3588,7 @@ fn scalar_return_cannot_abandon_linear_structural_custody() {
     machine.blocks[0].operations = vec![Operation {
         id: operation_id(2),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: value,
             scalar_type: ScalarType::Boolean,
         }),
@@ -3794,10 +3805,12 @@ fn scalar_return_requires_exact_affine_discards() {
         },
     });
     machine.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(10),
         scalar_type: ScalarType::Boolean,
     }];
     machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(11),
         scalar_type: ScalarType::Boolean,
     });
@@ -3884,10 +3897,12 @@ fn jump_applies_a_canonical_subset_of_affine_discards() {
         },
     });
     machine.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(10),
         scalar_type: ScalarType::Boolean,
     }];
     machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(11),
         scalar_type: ScalarType::Boolean,
     });
@@ -3910,6 +3925,7 @@ fn jump_applies_a_canonical_subset_of_affine_discards() {
             structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(12),
                 scalar_type: ScalarType::Boolean,
             }],
@@ -3970,10 +3986,12 @@ fn conditional_applies_affine_discards_only_to_each_selected_successor() {
         },
     });
     machine.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(10),
         scalar_type: ScalarType::Boolean,
     }];
     machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(11),
         scalar_type: ScalarType::Boolean,
     });
@@ -4005,6 +4023,7 @@ fn conditional_applies_affine_discards_only_to_each_selected_successor() {
             structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(12),
                 scalar_type: ScalarType::Boolean,
             }],
@@ -4019,6 +4038,7 @@ fn conditional_applies_affine_discards_only_to_each_selected_successor() {
             structural_parameters: Vec::new(),
             id: block_id(4),
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(13),
                 scalar_type: ScalarType::Boolean,
             }],
@@ -4245,6 +4265,7 @@ fn unit_call_crash_routes_substitute_structural_parameters() {
 fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
     let mut module = hard_root_module();
     let declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(id),
         scalar_type: ScalarType::Boolean,
     };
@@ -4434,6 +4455,7 @@ fn write_only_primitive_store_module() -> TerminalModule {
         id: machine_id(1),
         attachment: None,
         parameters: vec![ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(1),
             scalar_type: signed_i8(),
         }],
@@ -4466,6 +4488,7 @@ fn write_only_primitive_store_module() -> TerminalModule {
         contract: empty_contract(contract_id(1)),
     };
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine.id,
@@ -4648,6 +4671,7 @@ fn hard_root_module() -> TerminalModule {
     };
 
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: caller.id,
@@ -4864,6 +4888,7 @@ fn partial_affine_field_module() -> TerminalModule {
         contract: empty_contract(contract_id(2)),
     };
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: caller.id,
@@ -5131,6 +5156,7 @@ fn nominal_affine_module() -> TerminalModule {
         contract: empty_contract(contract_id(2)),
     };
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: caller.id,

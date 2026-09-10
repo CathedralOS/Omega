@@ -56,6 +56,7 @@ pub(super) fn lower(
     let call_result_value = value_id(allocate_dense(&mut next_value)?);
     let call_result_type = terminal_scalar_type(plan.result.primitive_type)?;
     let call_result = ValueDeclaration {
+        qualifications: Default::default(),
         id: call_result_value,
         scalar_type: call_result_type,
     };
@@ -308,6 +309,7 @@ pub(super) fn lower(
     let source_machine_ids = catalogs.scalar_calls.machine_ids.clone();
     let mut lowered = catalogs.shared_units.take().unwrap_or_else(|| LoweredPsi {
         semantic_module: TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: caller_machine,

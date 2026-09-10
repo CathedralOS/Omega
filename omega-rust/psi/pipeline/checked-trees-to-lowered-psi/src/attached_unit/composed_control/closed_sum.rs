@@ -285,6 +285,7 @@ fn emit(
                 .iter()
                 .map(|parameter| {
                     let declaration = ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value_id(allocate_dense(&mut next_value)?),
                         scalar_type: terminal_scalar_type(parameter.primitive_type)?,
                     };

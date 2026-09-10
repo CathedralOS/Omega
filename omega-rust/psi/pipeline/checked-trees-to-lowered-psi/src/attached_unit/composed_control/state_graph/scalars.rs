@@ -123,7 +123,11 @@ pub(super) fn emit_prefix(
         )?;
         let id = emit_direct_expression(&expression, values, next_value, operations);
         bindings.append(binding.destination, scalar_type, values.len())?;
-        values.push(ValueDeclaration { id, scalar_type });
+        values.push(ValueDeclaration {
+            qualifications: Default::default(),
+            id,
+            scalar_type,
+        });
         if binding.destination == CheckedScalarBindingDestination::Immutable {
             immutable_ordinal += 1;
         }

@@ -52,6 +52,7 @@ fn immutable_subslice_source_retains_both_bounds_and_store_capacity() {
         Operation {
             id: id(6),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: id(3),
                 scalar_type: ScalarType::Integer(integer()),
             }),
@@ -176,6 +177,7 @@ fn cyclic_literal_store_requires_establishment_before_each_iteration_read() {
         is_self: true,
     };
     machine.parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: id(3),
         scalar_type: ScalarType::Boolean,
     });

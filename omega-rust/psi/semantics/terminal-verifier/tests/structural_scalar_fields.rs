@@ -56,6 +56,7 @@ fn structural_scalar_field_module() -> TerminalModule {
     let realization_self = id::<PlaceId>(2);
     let integer = integer_type();
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: caller,
@@ -139,6 +140,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                         Operation {
                             id: id::<OperationId>(1),
                             result: OperationResult::Scalar(ValueDeclaration {
+                                qualifications: Default::default(),
                                 id: id::<ValueId>(1),
                                 scalar_type: integer,
                             }),
@@ -159,6 +161,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                         Operation {
                             id: id::<OperationId>(3),
                             result: OperationResult::Scalar(ValueDeclaration {
+                                qualifications: Default::default(),
                                 id: id::<ValueId>(2),
                                 scalar_type: integer,
                             }),
@@ -187,6 +190,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                 id: realization,
                 attachment: Some(item_type),
                 parameters: vec![ValueDeclaration {
+                    qualifications: Default::default(),
                     id: id::<ValueId>(5),
                     scalar_type: integer,
                 }],
@@ -202,6 +206,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                 }],
                 ranked_scc: None,
                 result: TerminalMachineResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: id::<ValueId>(3),
                     scalar_type: integer,
                 }),
@@ -219,6 +224,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                     operations: vec![Operation {
                         id: id::<OperationId>(4),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: id::<ValueId>(4),
                             scalar_type: integer,
                         }),
@@ -574,6 +580,7 @@ fn rejects_mixed_structural_call_scalar_argument_corruption() {
         Operation {
             id: id::<OperationId>(5),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: id::<ValueId>(6),
                 scalar_type: ScalarType::Boolean,
             }),

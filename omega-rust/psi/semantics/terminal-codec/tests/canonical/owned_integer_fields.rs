@@ -38,12 +38,14 @@ fn owned_field(multiplicity: StructuralMultiplicity) -> TerminalModule {
         },
     });
     machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(902),
         scalar_type,
     });
     machine.blocks[0].operations.push(Operation {
         id: operation_id(901),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(901),
             scalar_type,
         }),

@@ -6,6 +6,7 @@ pub(super) fn unsigned_type(bits: u16) -> ScalarType {
 
 pub(super) fn scalar(ordinal: u64, bits: u16) -> ValueDeclaration {
     ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(ordinal),
         scalar_type: unsigned_type(bits),
     }
@@ -119,6 +120,7 @@ pub(super) fn guarded_module(bytes: Vec<u8>, byte_index: u64) -> TerminalModule 
                 Operation {
                     id: operation_id(11),
                     result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value_id(11),
                         scalar_type: ScalarType::Boolean,
                     }),
@@ -420,6 +422,7 @@ fn byte_read_rejects_wrong_result_index_and_view_custody() {
     ] {
         let mut module = base.clone();
         read(&mut module).result = OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(12),
             scalar_type,
         });
@@ -444,6 +447,7 @@ fn byte_read_rejects_wrong_result_index_and_view_custody() {
     let mut signed = base.clone();
     let mut index = integer(14, 64, 0);
     index.result = OperationResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(14),
         scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap()),
     });
@@ -539,8 +543,8 @@ fn byte_read_requires_exact_selected_guard_and_certificate() {
 fn byte_read_wire_rejects_tampered_operands_and_stale_vocabulary() {
     let module = guarded_module(vec![0xff], 0);
     let semantic = encode_module(&module).unwrap();
-    assert_eq!(&semantic[10..12], &94_u16.to_le_bytes());
-    for generation in [90_u16, 91, 92, 93, 95] {
+    assert_eq!(&semantic[10..12], &95_u16.to_le_bytes());
+    for generation in [90_u16, 91, 92, 93, 94, 96] {
         let mut stale = semantic.clone();
         stale[10..12].copy_from_slice(&generation.to_le_bytes());
         assert!(decode_module(&stale).is_err());

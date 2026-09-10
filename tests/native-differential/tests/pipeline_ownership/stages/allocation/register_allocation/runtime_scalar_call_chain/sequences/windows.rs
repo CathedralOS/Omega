@@ -12,6 +12,7 @@ fn artifact(argument_count: usize) -> (Vec<u8>, Vec<u8>) {
         let scalar_type = callee.parameters[0].scalar_type;
         callee.parameters = (0..argument_count)
             .map(|index| ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(26_000 + index as u64).unwrap(),
                 scalar_type,
             })
@@ -27,6 +28,7 @@ fn artifact(argument_count: usize) -> (Vec<u8>, Vec<u8>) {
                 callee.blocks[0].operations.push(Operation {
                     id: OperationId::new(26_101).unwrap(),
                     result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value,
                         scalar_type,
                     }),

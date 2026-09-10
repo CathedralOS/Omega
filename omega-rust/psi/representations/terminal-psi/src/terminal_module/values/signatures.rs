@@ -7,6 +7,16 @@ use semantic_vocabulary::{PlaceId, ScalarType, StructuralDomainId, StructuralTyp
 pub struct ValueDeclaration {
     pub id: ValueId,
     pub scalar_type: ScalarType,
+    pub qualifications: semantic_vocabulary::ScalarQualificationSetId,
+}
+
+impl ValueDeclaration {
+    pub const fn value_type(self) -> semantic_vocabulary::QualifiedScalarType {
+        semantic_vocabulary::QualifiedScalarType {
+            scalar_type: self.scalar_type,
+            qualifications: self.qualifications,
+        }
+    }
 }
 
 /// The normal result shape of one terminal machine.

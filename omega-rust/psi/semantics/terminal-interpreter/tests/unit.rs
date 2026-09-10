@@ -42,6 +42,8 @@ use terminal_verifier::{
 
 #[path = "unit/indexed_structural_store.rs"]
 mod indexed_structural_store;
+#[path = "unit/scalar_qualifications.rs"]
+mod scalar_qualifications;
 
 #[path = "unit/primitive_locals.rs"]
 mod primitive_locals;
@@ -155,6 +157,7 @@ fn verifier_rejects_nearest_fma_with_a_mixed_format_operand() {
     ]);
     let wrong = &mut module.machines[0].blocks[0].operations[1];
     wrong.result = OperationResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(2),
         scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
     });
@@ -380,6 +383,7 @@ fn structural_scalar_call_binds_scalar_and_structural_arguments_together() {
     arguments.push(value_id(1));
     let callee = &mut module.machines[1];
     callee.parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(6),
         scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap()),
     });
@@ -694,6 +698,7 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
     let claim = claim_id(1);
     let edge = edge_id(1);
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
@@ -1779,10 +1784,12 @@ fn scalar_return_performs_affine_discard_only_after_edge_charge() {
     machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
     machine.entry_claims.clear();
     machine.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(10),
         scalar_type: ScalarType::Boolean,
     }];
     machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(11),
         scalar_type: ScalarType::Boolean,
     });
@@ -1826,10 +1833,12 @@ fn jump_performs_affine_discard_only_after_edge_charge() {
     machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
     machine.entry_claims.clear();
     machine.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(10),
         scalar_type: ScalarType::Boolean,
     }];
     machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(11),
         scalar_type: ScalarType::Boolean,
     });
@@ -1852,6 +1861,7 @@ fn jump_performs_affine_discard_only_after_edge_charge() {
             structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(12),
                 scalar_type: ScalarType::Boolean,
             }],
@@ -1903,10 +1913,12 @@ fn conditional_commits_only_the_selected_affine_cleanup_after_edge_charge() {
     machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
     machine.entry_claims.clear();
     machine.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(10),
         scalar_type: ScalarType::Boolean,
     }];
     machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(11),
         scalar_type: ScalarType::Boolean,
     });
@@ -1938,6 +1950,7 @@ fn conditional_commits_only_the_selected_affine_cleanup_after_edge_charge() {
             structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(12),
                 scalar_type: ScalarType::Boolean,
             }],
@@ -1952,6 +1965,7 @@ fn conditional_commits_only_the_selected_affine_cleanup_after_edge_charge() {
             structural_parameters: Vec::new(),
             id: block_id(4),
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(13),
                 scalar_type: ScalarType::Boolean,
             }],
@@ -2656,6 +2670,7 @@ fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
     let structural_type = structural_type_id(1);
     let literal = place_id(1);
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
@@ -2773,6 +2788,7 @@ fn effect_artifact_sections() -> (Vec<u8>, Vec<u8>) {
 
 fn scalar_boundary_effect_module() -> TerminalModule {
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
@@ -2832,6 +2848,7 @@ fn scalar_boundary_effect_module() -> TerminalModule {
                     Operation {
                         id: operation_id(1),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: value_id(1),
                             scalar_type: ScalarType::Boolean,
                         }),
@@ -2840,6 +2857,7 @@ fn scalar_boundary_effect_module() -> TerminalModule {
                     Operation {
                         id: operation_id(2),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: value_id(2),
                             scalar_type: ScalarType::Boolean,
                         }),
@@ -2917,6 +2935,7 @@ fn effect_module() -> TerminalModule {
     let domain = structural_domain_id(1);
     let service = service_id(1);
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
@@ -3298,6 +3317,7 @@ fn payloadless_call_module() -> TerminalModule {
 
 fn unit_module() -> TerminalModule {
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
@@ -3365,11 +3385,13 @@ fn nearest_fma_module(operands: [IeeeFloatValue; 3]) -> TerminalModule {
     let mut module = unit_module();
     let operand_ids = [value_id(1), value_id(2), value_id(3)];
     let result = ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(4),
         scalar_type: ScalarType::IeeeFloat(format),
     };
     let machine = &mut module.machines[0];
     machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(5),
         scalar_type: result.scalar_type,
     });
@@ -3380,6 +3402,7 @@ fn nearest_fma_module(operands: [IeeeFloatValue; 3]) -> TerminalModule {
         .map(|(index, (value, id))| Operation {
             id: operation_id(index as u64 + 1),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id,
                 scalar_type: ScalarType::IeeeFloat(format),
             }),
@@ -3474,6 +3497,7 @@ fn write_only_primitive_call_module() -> TerminalModule {
                 Operation {
                     id: operation_id(92),
                     result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value_id(92),
                         scalar_type,
                     }),
@@ -3506,6 +3530,7 @@ fn write_only_boolean_call_module() -> TerminalModule {
     module.structural_types[0].shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean);
     let constant = &mut module.machines[1].blocks[0].operations[0];
     constant.result = OperationResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(92),
         scalar_type: ScalarType::Boolean,
     });
@@ -3572,6 +3597,7 @@ fn structural_scalar_field_call_module() -> TerminalModule {
     )];
     caller.structural_places = vec![place(caller_place)];
     caller.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(3),
         scalar_type: integer,
     });
@@ -3579,6 +3605,7 @@ fn structural_scalar_field_call_module() -> TerminalModule {
         Operation {
             id: operation_id(1),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(1),
                 scalar_type: integer,
             }),
@@ -3599,6 +3626,7 @@ fn structural_scalar_field_call_module() -> TerminalModule {
         Operation {
             id: operation_id(3),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(2),
                 scalar_type: integer,
             }),
@@ -3633,6 +3661,7 @@ fn structural_scalar_field_call_module() -> TerminalModule {
         )],
         ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(5),
             scalar_type: integer,
         }),
@@ -3650,6 +3679,7 @@ fn structural_scalar_field_call_module() -> TerminalModule {
             operations: vec![Operation {
                 id: operation_id(4),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: value_id(4),
                     scalar_type: integer,
                 }),
@@ -3814,6 +3844,7 @@ fn parameter_dynamic_scalar_call_module() -> TerminalModule {
         structural_parameters: Vec::new(),
         ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(6),
             scalar_type: integer,
         }),
@@ -3831,6 +3862,7 @@ fn parameter_dynamic_scalar_call_module() -> TerminalModule {
             operations: vec![Operation {
                 id: helper_operation,
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: value_id(7),
                     scalar_type: integer,
                 }),
@@ -3919,6 +3951,7 @@ fn joined_parameter_dynamic_scalar_call_module() -> TerminalModule {
 
     let caller_machine = &mut module.machines[0];
     caller_machine.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(10),
         scalar_type: ScalarType::Boolean,
     }];
@@ -3953,6 +3986,7 @@ fn joined_parameter_dynamic_scalar_call_module() -> TerminalModule {
             operations: vec![Operation {
                 id: operation_id(3),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: value_id(2),
                     scalar_type: integer,
                 }),
@@ -3978,6 +4012,7 @@ fn joined_parameter_dynamic_scalar_call_module() -> TerminalModule {
             operations: vec![Operation {
                 id: operation_id(7),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: value_id(8),
                     scalar_type: integer,
                 }),
@@ -4008,6 +4043,7 @@ fn joined_parameter_dynamic_scalar_call_module() -> TerminalModule {
     second_machine.structural_parameters[0].place = place_id(98);
     second_machine.structural_places[0].id = place_id(98);
     second_machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(9),
         scalar_type: integer,
     });
@@ -4015,6 +4051,7 @@ fn joined_parameter_dynamic_scalar_call_module() -> TerminalModule {
     second_machine.blocks[0].id = block_id(98);
     second_machine.blocks[0].operations[0].id = operation_id(6);
     second_machine.blocks[0].operations[0].result = OperationResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(11),
         scalar_type: integer,
     });
@@ -4038,6 +4075,7 @@ fn nominal_affine_module() -> TerminalModule {
         shape: StructuralTypeShape::Record { fields: Vec::new() },
     };
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
@@ -4147,10 +4185,12 @@ fn scalar_return_materializes_result_then_runs_nominal_cleanup() {
     let mut module = nominal_affine_module();
     let caller = &mut module.machines[0];
     caller.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(10),
         scalar_type: ScalarType::Boolean,
     }];
     caller.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(11),
         scalar_type: ScalarType::Boolean,
     });
@@ -4234,10 +4274,12 @@ fn contextual_scalar_return_materializes_then_executes_reverse_ordered_cleanups(
         .collect();
     let caller = &mut module.machines[0];
     caller.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(30),
         scalar_type: ScalarType::Boolean,
     }];
     caller.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(31),
         scalar_type: ScalarType::Boolean,
     });
@@ -4387,10 +4429,12 @@ fn mixed_scalar_return_cleanup_resumes_nominal_work_around_a_no_code_discard() {
     let mut module = three_ordered_empty_nominal_affine_module(false);
     let caller = &mut module.machines[0];
     caller.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(20),
         scalar_type: ScalarType::Boolean,
     }];
     caller.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(21),
         scalar_type: ScalarType::Boolean,
     });
@@ -5062,6 +5106,7 @@ fn partial_affine_field_module() -> TerminalModule {
         contract: empty_contract(contract_id(2)),
     };
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: caller.id,
@@ -5296,6 +5341,7 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
         },
     };
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: caller.id,

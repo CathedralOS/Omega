@@ -12,6 +12,7 @@ fn scalar_transfer_output_module() -> TerminalModule {
     let mut output = caller.blocks[1].operations.remove(0);
     caller.blocks[2].operations.pop().unwrap();
     caller.blocks[1].parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(151).unwrap(),
         scalar_type: byte_type,
     });
@@ -27,6 +28,7 @@ fn scalar_transfer_output_module() -> TerminalModule {
     }
     let joined = ValueId::new(150).unwrap();
     caller.blocks[3].parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: joined,
         scalar_type: byte_type,
     });
@@ -49,6 +51,7 @@ fn scalar_guard_transfer_module(boolean: bool) -> TerminalModule {
     caller.parameters[1].scalar_type = scalar_type;
     let transferred = ValueId::new(152).unwrap();
     caller.blocks[0].parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: transferred,
         scalar_type,
     });
@@ -70,6 +73,7 @@ fn scalar_guard_transfer_module(boolean: bool) -> TerminalModule {
             Operation {
                 id: OperationId::new(161).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: ValueId::new(161).unwrap(),
                     scalar_type,
                 }),
@@ -80,6 +84,7 @@ fn scalar_guard_transfer_module(boolean: bool) -> TerminalModule {
             Operation {
                 id: OperationId::new(162).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: ValueId::new(162).unwrap(),
                     scalar_type: ScalarType::Boolean,
                 }),
@@ -108,6 +113,7 @@ fn paired_scalar_transfer_module() -> TerminalModule {
     let mut constant = caller.blocks[2].operations[0].clone();
     constant.id = OperationId::new(156).unwrap();
     constant.result = OperationResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(156).unwrap(),
         scalar_type: byte_type,
     });
@@ -119,6 +125,7 @@ fn paired_scalar_transfer_module() -> TerminalModule {
         arguments.push(ValueId::new(value).unwrap());
     }
     caller.blocks[3].parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(155).unwrap(),
         scalar_type: byte_type,
     });
@@ -182,6 +189,7 @@ fn literal_boolean_transfer_module() -> TerminalModule {
     entry.operations.push(Operation {
         id: OperationId::new(161).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(161).unwrap(),
             scalar_type: ScalarType::Boolean,
         }),

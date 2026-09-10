@@ -1013,6 +1013,7 @@ fn assemble_unit_closure(
             .into_iter()
             .map(|scalar_type| {
                 Ok(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: value_id(allocate_dense(&mut next_value)?),
                     scalar_type,
                 })
@@ -2228,7 +2229,8 @@ fn assemble_unit_closure(
                                 return unsupported("selected scalar call has unsupported argument control or carrier");
                             }
                             validate_direct_parameter_types(&argument, &source_types)?;
-                            Ok(ValueDeclaration { id: emit_direct_expression(&argument, &scalar_result_values, &mut next_value_identity, &mut operations), scalar_type })
+                            Ok(ValueDeclaration {
+qualifications: Default::default(), id: emit_direct_expression(&argument, &scalar_result_values, &mut next_value_identity, &mut operations), scalar_type })
                         }).collect::<Result<Vec<_>, LoweringError>>()?
                     };
                     let target_contract = checked
@@ -2262,6 +2264,7 @@ fn assemble_unit_closure(
                         })
                         .collect::<Result<Vec<_>, LoweringError>>()?;
                     let value = ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value_id(next_value_identity),
                         scalar_type: target_result,
                     };
@@ -2507,6 +2510,7 @@ fn assemble_unit_closure(
                         &primitive_local_places,
                     )?;
                     let value = ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value_id(next_value_identity),
                         scalar_type: terminal_scalar_type(result.primitive_type)?,
                     };
@@ -2742,6 +2746,7 @@ fn assemble_unit_closure(
                     let right = lower_operand(right)?;
                     let addend = lower_operand(addend)?;
                     let value = ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value_id(next_value_identity),
                         scalar_type: result_type,
                     };
@@ -3006,6 +3011,7 @@ fn assemble_unit_closure(
                             .collect::<Result<Vec<_>, LoweringError>>()?,
                     };
                     let value = ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value_id(next_value_identity),
                         scalar_type: terminal_scalar_type(result.primitive_type)?,
                     };
@@ -3536,6 +3542,7 @@ fn assemble_unit_closure(
                 Ok::<_, LoweringError>((
                     source.id,
                     ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value_id(allocate_dense(&mut next_value_identity)?),
                         scalar_type,
                     },
@@ -3824,9 +3831,15 @@ fn assemble_unit_closure(
             .ok_or(LoweringError::Unsupported(
                 "scalar graph emission lost its allocated parameters",
             ))?;
+        if !machine.scalar_qualifications.domains.is_empty() {
+            return unsupported(
+                "attached scalar graph requires the enclosing qualification catalog namespace",
+            );
+        }
         let mut lowered = crate::scalar_graph_module::build_scalar_graph_module_in_namespace(
             &machine.states,
             machine.result_type,
+            &machine.scalar_qualifications,
             machine.contract,
             machine.crash_routes,
             machine.identity_reshuffles,
@@ -3958,6 +3971,7 @@ fn assemble_unit_closure(
     call_evidence.append(&mut scalar_evidence);
     let lowered = LoweredPsi {
         semantic_module: TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             // Operation bodies are emitted first; a scalar entry may follow

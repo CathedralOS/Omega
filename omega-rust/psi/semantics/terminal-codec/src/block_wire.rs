@@ -1689,6 +1689,7 @@ mod tests {
             operations: vec![Operation {
                 id: id::<OperationId>(8),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: id::<ValueId>(9),
                     scalar_type: integer,
                 }),
@@ -1728,6 +1729,7 @@ mod tests {
             Operation {
                 id: id::<OperationId>(2),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: id::<ValueId>(3),
                     scalar_type: count_type,
                 }),
@@ -1771,7 +1773,8 @@ mod tests {
             let mut writer = Writer::default();
             encode_block(&mut writer, &block).unwrap();
             let bytes = writer.finish();
-            let operation_tag_offset = if tag == 59 { 41 } else { 29 };
+            // Scalar declarations include the eight-byte qualification-set ID.
+            let operation_tag_offset = if tag == 59 { 49 } else { 29 };
             assert_eq!(bytes[operation_tag_offset], tag);
             let mut reader = Reader::new(&bytes);
             assert_eq!(decode_block(&mut reader), Ok(block));
@@ -1800,6 +1803,7 @@ mod tests {
             Operation {
                 id: id::<OperationId>(32),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: id(47),
                     scalar_type: ScalarType::Boolean,
                 }),
@@ -1809,7 +1813,7 @@ mod tests {
         // The empty block rosters precede the operation ID and its typed result.
         for (operation, (tag, tag_offset, operand)) in operations
             .into_iter()
-            .zip([(61, 58, 11_u64), (62, 38, 23_u64)])
+            .zip([(61, 58, 11_u64), (62, 46, 23_u64)])
         {
             let block = Block {
                 id: id(1),
@@ -1892,6 +1896,7 @@ mod tests {
             operations: vec![Operation {
                 id: id::<OperationId>(2),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: id::<ValueId>(3),
                     scalar_type: ScalarType::Integer(
                         IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
@@ -2053,6 +2058,7 @@ mod tests {
             operations: vec![Operation {
                 id: id::<OperationId>(2),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: id::<ValueId>(3),
                     scalar_type: ScalarType::Integer(
                         IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
@@ -2101,6 +2107,7 @@ mod tests {
             operations: vec![Operation {
                 id: id::<OperationId>(2),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: id::<ValueId>(3),
                     scalar_type: ScalarType::Boolean,
                 }),

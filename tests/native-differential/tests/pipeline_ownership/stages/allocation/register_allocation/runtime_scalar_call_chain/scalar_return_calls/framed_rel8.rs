@@ -29,6 +29,7 @@ fn padded_returning_call_artifact(equal: bool, padding: u32) -> (Vec<u8>, Vec<u8
         middle.blocks[1].operations.push(Operation {
             id: OperationId::new(identity).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(identity).unwrap(),
                 scalar_type,
             }),

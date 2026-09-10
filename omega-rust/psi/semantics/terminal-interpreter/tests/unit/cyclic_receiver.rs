@@ -77,6 +77,7 @@ fn cyclic_receiver_module(projected: bool) -> TerminalModule {
     let scalar = |identity, kind| Operation {
         id: operation_id(identity),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(identity),
             scalar_type: integer,
         }),
@@ -202,6 +203,7 @@ fn cyclic_receiver_module(projected: bool) -> TerminalModule {
                 Operation {
                     id: operation_id(22),
                     result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value_id(22),
                         scalar_type: ScalarType::Boolean,
                     }),

@@ -803,6 +803,7 @@ mod tests {
         Operation {
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(10).unwrap(),
                 scalar_type: ScalarType::Integer(integer_type(8)),
             }),
@@ -921,6 +922,7 @@ mod tests {
         let goal_free = Operation {
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(10).unwrap(),
                 scalar_type: ScalarType::Integer(integer_type(8)),
             }),

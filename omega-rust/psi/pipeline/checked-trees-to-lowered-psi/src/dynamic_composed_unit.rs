@@ -274,6 +274,7 @@ fn lower_dynamic_composed_unit_machine(
     caller_operations.push(Operation {
         id: call_operation,
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: call_result_value,
             scalar_type: call_result_type,
         }),
@@ -301,6 +302,7 @@ fn lower_dynamic_composed_unit_machine(
 
     let lowered = LoweredPsi {
         semantic_module: TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: caller_machine,
@@ -1606,6 +1608,7 @@ fn materialize_forwarded_helper_for_source(
         structural_parameters: Vec::new(),
         ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: ids.result_value,
             scalar_type,
         }),
@@ -1623,6 +1626,7 @@ fn materialize_forwarded_helper_for_source(
             operations: vec![Operation {
                 id: ids.operation,
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: ids.operation_value,
                     scalar_type,
                 }),
@@ -2073,6 +2077,7 @@ fn materialize_dynamic_realizations(
                 structural_parameters: vec![parameter.clone()],
                 ranked_scc: None,
                 result: TerminalMachineResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: result_value,
                     scalar_type,
                 }),
@@ -2514,6 +2519,7 @@ fn lower_caller_store_operations(
         Operation {
             id: operation_id(1),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(1),
                 scalar_type,
             }),
@@ -2587,6 +2593,7 @@ fn lower_realization_operations(
         operations.push(Operation {
             id: operation,
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value,
                 scalar_type: semantic_vocabulary::ScalarType::Boolean,
             }),
@@ -2634,6 +2641,7 @@ fn lower_realization_operations(
         operations.push(Operation {
             id: operation,
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value,
                 scalar_type: expected,
             }),
@@ -2729,6 +2737,7 @@ fn lower_realization_store_operation(
         Operation {
             id: constant_operation,
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: constant_value,
                 scalar_type,
             }),

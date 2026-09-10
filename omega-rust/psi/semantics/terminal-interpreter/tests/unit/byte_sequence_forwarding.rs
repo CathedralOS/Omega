@@ -223,6 +223,7 @@ fn nested_repeated_unit_helpers_keep_each_invocations_exact_bytes() {
 fn structural_scalar_helpers_forward_bytes_and_restore_the_caller() {
     let mut module = nested_module();
     let result = ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(20),
         scalar_type: ScalarType::Boolean,
     };
@@ -240,12 +241,14 @@ fn structural_scalar_helpers_forward_bytes_and_restore_the_caller() {
     };
     let inner = &mut module.machines[2];
     inner.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(31),
         ..result
     });
     inner.blocks[0].operations.push(Operation {
         id: operation_id(33),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(30),
             ..result
         }),
@@ -302,6 +305,7 @@ fn unrelated_unit_scalar_and_structural_result_calls_preserve_caller_bytes() {
             Operation {
                 id: operation_id(6),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: value_id(10),
                     scalar_type: ScalarType::Boolean,
                 }),
@@ -315,6 +319,7 @@ fn unrelated_unit_scalar_and_structural_result_calls_preserve_caller_bytes() {
             Operation {
                 id: operation_id(7),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: value_id(11),
                     scalar_type: ScalarType::Boolean,
                 }),
@@ -332,12 +337,14 @@ fn unrelated_unit_scalar_and_structural_result_calls_preserve_caller_bytes() {
     root.blocks[0].operations.push(boundary(4, &[5]));
     let mut scalar = helper(4, &[]);
     scalar.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(41),
         scalar_type: ScalarType::Boolean,
     });
     scalar.blocks[0].operations = vec![Operation {
         id: operation_id(40),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(40),
             scalar_type: ScalarType::Boolean,
         }),

@@ -197,6 +197,7 @@ fn positive_guard_operation(
     block.operations[..condition_index].iter().any(|operation| {
         operation.result
             == OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                qualifications: Default::default(),
                 id: left,
                 scalar_type: ScalarType::Integer(rank_type),
             })
@@ -230,6 +231,7 @@ fn decrement_operation(
     block.operations[..subtract_index].iter().any(|operation| {
         operation.result
             == OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                qualifications: Default::default(),
                 id: right,
                 scalar_type: ScalarType::Integer(rank_type),
             })

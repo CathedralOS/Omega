@@ -8,6 +8,7 @@ pub(super) fn conditional_unit_byte_output_module() -> TerminalModule {
     let caller = module.machines.last_mut().unwrap();
     let selector = ValueId::new(104).unwrap();
     caller.parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: selector,
         scalar_type: ScalarType::Boolean,
     });
@@ -36,6 +37,7 @@ pub(super) fn conditional_unit_byte_output_module() -> TerminalModule {
         Operation {
             id: OperationId::new(132).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(132).unwrap(),
                 scalar_type: caller.parameters[0].scalar_type,
             }),

@@ -17,6 +17,8 @@ mod calls;
 mod dispatch;
 mod source_custody;
 mod structural_arguments;
+mod value_types;
+pub(super) use value_types::computation_value_type;
 
 type Computation = Handle<CheckedScalarComputation>;
 
@@ -33,6 +35,7 @@ struct Site<'a> {
 
 pub(super) struct Expansion<'a> {
     checked: &'a CheckedTrees,
+    qualifications: &'a PreparedScalarQualifications,
     machine: symbols::SymbolHandle,
     base: usize,
     states: Vec<LoweredScalarBranchState>,
@@ -43,11 +46,13 @@ pub(super) struct Expansion<'a> {
 impl<'a> Expansion<'a> {
     pub(super) fn new(
         checked: &'a CheckedTrees,
+        qualifications: &'a PreparedScalarQualifications,
         machine: symbols::SymbolHandle,
         base: usize,
     ) -> Self {
         Self {
             checked,
+            qualifications,
             machine,
             base,
             states: Vec::new(),
@@ -77,7 +82,7 @@ impl<'a> Expansion<'a> {
         arguments: &[checked_trees::CheckedCallScalarArgument],
         argument_ordinal_start: usize,
         bindings: &storage::ScalarBindings,
-        source_types: &[ScalarType],
+        source_types: &[QualifiedScalarType],
         target: usize,
     ) -> Result<usize, LoweringError> {
         let site = Site {
@@ -133,9 +138,9 @@ impl<'a> Expansion<'a> {
         state: symbols::SymbolHandle,
         successor: &CheckedScalarSuccessor,
         bindings: &storage::ScalarBindings,
-        source_types: &[ScalarType],
+        source_types: &[QualifiedScalarType],
         target: usize,
-        target_types: &[PrimitiveType],
+        target_types: &[QualifiedScalarType],
         structural_arguments: &[StructuralArgument],
     ) -> Result<Option<usize>, LoweringError> {
         let scalar_arguments = self
@@ -159,8 +164,8 @@ impl<'a> Expansion<'a> {
                 }
             })
             .zip(target_types)
-            .map(|(role, primitive_type)| Ok((role, terminal_scalar_type(*primitive_type)?)))
-            .collect::<Result<Vec<_>, LoweringError>>()?;
+            .map(|(role, value_type)| (role, *value_type))
+            .collect::<Vec<_>>();
         self.destination(
             Site {
                 state,
@@ -181,8 +186,8 @@ impl<'a> Expansion<'a> {
         statement: u32,
         role: CheckedScalarExpressionRole,
         bindings: &storage::ScalarBindings,
-        source_types: &[ScalarType],
-        result_type: ScalarType,
+        source_types: &[QualifiedScalarType],
+        result_type: QualifiedScalarType,
         target: usize,
     ) -> Result<Option<usize>, LoweringError> {
         self.destination(
@@ -207,12 +212,12 @@ impl<'a> Expansion<'a> {
         statement: u32,
         role: CheckedScalarExpressionRole,
         bindings: &storage::ScalarBindings,
-        source_types: &[ScalarType],
-        result_type: ScalarType,
+        source_types: &[QualifiedScalarType],
+        result_type: QualifiedScalarType,
         target: usize,
     ) -> Result<usize, LoweringError> {
         let expression = bindings.expression_at(self.checked, state, statement, role)?;
-        if expression.scalar_type() != result_type {
+        if expression.value_type(source_types)? != result_type {
             return unsupported("retained scalar operand disagrees with its destination type");
         }
         self.argument(
@@ -236,8 +241,8 @@ impl<'a> Expansion<'a> {
         role: CheckedScalarExpressionRole,
         destination: symbols::SymbolHandle,
         bindings: &storage::ScalarBindings,
-        source_types: &[ScalarType],
-        result_type: ScalarType,
+        source_types: &[QualifiedScalarType],
+        result_type: QualifiedScalarType,
         target: usize,
     ) -> Result<usize, LoweringError> {
         let site = Site {
@@ -285,7 +290,7 @@ impl<'a> Expansion<'a> {
             destination,
         )?;
         let argument = Argument::Computation(root.root);
-        if self.argument_type(&argument)? != result_type {
+        if self.argument_type(&argument, &site, source_types)? != result_type {
             return unsupported("scalar computation result disagrees with its destination");
         }
         // Unlike a state transfer, the following statements retain every prior
@@ -296,8 +301,8 @@ impl<'a> Expansion<'a> {
     fn destination(
         &mut self,
         site: Site<'_>,
-        roles: &[(CheckedScalarExpressionRole, ScalarType)],
-        source_types: &[ScalarType],
+        roles: &[(CheckedScalarExpressionRole, QualifiedScalarType)],
+        source_types: &[QualifiedScalarType],
         target: usize,
         structural_arguments: &[StructuralArgument],
     ) -> Result<Option<usize>, LoweringError> {
@@ -356,7 +361,7 @@ impl<'a> Expansion<'a> {
                     role,
                 )?)
             };
-            let argument_type = self.argument_type(&argument)?;
+            let argument_type = self.argument_type(&argument, &site, source_types)?;
             if argument_type != expected_type {
                 return unsupported("scalar computation result disagrees with its destination");
             }
@@ -393,23 +398,28 @@ impl<'a> Expansion<'a> {
         index
     }
 
-    fn argument_type(&self, argument: &Argument) -> Result<ScalarType, LoweringError> {
+    fn argument_type(
+        &self,
+        argument: &Argument,
+        site: &Site<'_>,
+        source_types: &[QualifiedScalarType],
+    ) -> Result<QualifiedScalarType, LoweringError> {
         match argument {
-            Argument::Value(value) => Ok(value.scalar_type()),
-            Argument::Computation(handle) => {
-                let nodes = &self.checked.facts.values.scalar_computations.nodes;
-                if !nodes.is_valid(*handle) {
-                    return unsupported("scalar computation has an invalid node handle");
-                }
-                terminal_scalar_type(nodes.get(*handle).primitive_type)
-            }
+            Argument::Value(value) => value.value_type(source_types),
+            Argument::Computation(handle) => computation_value_type(
+                self.checked,
+                self.qualifications,
+                *handle,
+                site.bindings,
+                source_types,
+            ),
         }
     }
 
     fn sequence(
         &mut self,
         arguments: &[Argument],
-        input_types: &[ScalarType],
+        input_types: &[QualifiedScalarType],
         target: usize,
         site: &Site<'_>,
         active: &mut Vec<Computation>,
@@ -417,7 +427,7 @@ impl<'a> Expansion<'a> {
         let mut prefixes = vec![input_types.to_vec()];
         for argument in arguments {
             let mut next = prefixes.last().expect("input prefix").clone();
-            next.push(self.argument_type(argument)?);
+            next.push(self.argument_type(argument, site, input_types)?);
             prefixes.push(next);
         }
         let mut continuation = target;
@@ -429,13 +439,13 @@ impl<'a> Expansion<'a> {
 
     fn binding(
         &mut self,
-        input_types: &[ScalarType],
+        input_types: &[QualifiedScalarType],
         retained: usize,
         target: usize,
         binding: LoweredScalarBinding,
     ) -> usize {
         let mut arguments = parameters(&input_types[..retained]);
-        arguments.push(parameter(input_types.len(), binding.scalar_type()));
+        arguments.push(parameter(input_types.len(), binding.scalar_type().into()));
         self.push(LoweredScalarBranchState {
             structural_effects: Vec::new(),
             parameter_types: input_types.to_vec(),
@@ -451,7 +461,7 @@ impl<'a> Expansion<'a> {
     fn argument(
         &mut self,
         argument: &Argument,
-        input_types: &[ScalarType],
+        input_types: &[QualifiedScalarType],
         target: usize,
         site: &Site<'_>,
         active: &mut Vec<Computation>,
@@ -460,7 +470,7 @@ impl<'a> Expansion<'a> {
             let Argument::Value(expression) = argument else {
                 unreachable!()
             };
-            validate_direct_parameter_types(expression, input_types)?;
+            validate_direct_parameter_types(expression, &scalar_carriers(input_types))?;
             return Ok(self.binding(
                 input_types,
                 input_types.len(),
@@ -471,16 +481,33 @@ impl<'a> Expansion<'a> {
         if active.contains(handle) {
             return unsupported("scalar computation contains a cycle");
         }
-        let result_type = self.argument_type(argument)?;
+        let result_type = self.argument_type(argument, site, input_types)?;
         active.push(*handle);
         let plans = &self.checked.facts.values.scalar_computations;
         let node = plans.nodes.get(*handle).clone();
         let entry = match node.kind {
-            // Qualification is retained and source-replayed in the checked graph,
-            // but these continuations still describe payload types only. Passing
-            // its operand through would silently erase the semantic interface.
-            CheckedScalarComputationKind::Qualification { .. } => {
-                return unsupported("scalar qualification requires Terminal membership transport");
+            CheckedScalarComputationKind::Qualification { operand, .. } => {
+                let operand = Argument::Computation(operand);
+                let operand_type = self.argument_type(&operand, site, input_types)?;
+                if operand_type == result_type {
+                    self.argument(&operand, input_types, target, site, active)?
+                } else {
+                    let mut operand_types = input_types.to_vec();
+                    operand_types.push(operand_type);
+                    // The target was prepared with the full result type. Only
+                    // this edge establishes it, leaving the operand unchanged.
+                    let qualify = self.push(LoweredScalarBranchState {
+                        parameter_types: operand_types.clone(),
+                        bindings: Vec::new(),
+                        structural_effects: Vec::new(),
+                        terminator: LoweredScalarBranchTerminator::Qualify {
+                            target,
+                            arguments: parameters(&operand_types),
+                            structural_arguments: Vec::new(),
+                        },
+                    });
+                    self.argument(&operand, input_types, qualify, site, active)?
+                }
             }
             CheckedScalarComputationKind::Dispatch { subject, arms, .. } => self.dispatch(
                 subject,
@@ -493,10 +520,10 @@ impl<'a> Expansion<'a> {
             )?,
             CheckedScalarComputationKind::Value(expression) => {
                 let expression = site.bindings.expression(&expression)?;
-                if expression.scalar_type() != result_type {
+                if expression.value_type(input_types)? != result_type {
                     return unsupported("scalar computation value carrier disagrees");
                 }
-                validate_direct_parameter_types(&expression, input_types)?;
+                validate_direct_parameter_types(&expression, &scalar_carriers(input_types))?;
                 self.binding(
                     input_types,
                     input_types.len(),
@@ -510,9 +537,12 @@ impl<'a> Expansion<'a> {
                 when_false,
                 ..
             } => {
-                if self.argument_type(&Argument::Computation(condition))? != ScalarType::Boolean
-                    || self.argument_type(&Argument::Computation(when_true))? != result_type
-                    || self.argument_type(&Argument::Computation(when_false))? != result_type
+                if self.argument_type(&Argument::Computation(condition), site, input_types)?
+                    != ScalarType::Boolean.into()
+                    || self.argument_type(&Argument::Computation(when_true), site, input_types)?
+                        != result_type
+                    || self.argument_type(&Argument::Computation(when_false), site, input_types)?
+                        != result_type
                 {
                     return unsupported("scalar computation selection carriers disagree");
                 }
@@ -531,7 +561,7 @@ impl<'a> Expansion<'a> {
                     active,
                 )?;
                 let mut condition_types = input_types.to_vec();
-                condition_types.push(ScalarType::Boolean);
+                condition_types.push(ScalarType::Boolean.into());
                 let dispatch = self.push(LoweredScalarBranchState {
                     structural_effects: Vec::new(),
                     parameter_types: condition_types,
@@ -591,17 +621,17 @@ impl<'a> Expansion<'a> {
                     .collect::<Vec<_>>();
                 let mut operand_types = input_types.to_vec();
                 for operand in &operands {
-                    operand_types.push(self.argument_type(operand)?);
+                    operand_types.push(self.argument_type(operand, site, input_types)?);
                 }
                 let expression = storage::ScalarBindings::for_computation_operands(
                     input_types.len(),
                     operands.len(),
                 )
                 .expression(&expression)?;
-                if expression.scalar_type() != result_type {
+                if expression.value_type(&operand_types)? != result_type {
                     return unsupported("scalar computation application carrier disagrees");
                 }
-                validate_direct_parameter_types(&expression, &operand_types)?;
+                validate_direct_parameter_types(&expression, &scalar_carriers(&operand_types))?;
                 let apply = self.binding(
                     &operand_types,
                     input_types.len(),
@@ -616,14 +646,14 @@ impl<'a> Expansion<'a> {
     }
 }
 
-fn parameter(position: usize, scalar_type: ScalarType) -> LoweredDirectExpression {
+fn parameter(position: usize, value_type: QualifiedScalarType) -> LoweredDirectExpression {
     LoweredDirectExpression::Parameter {
         position,
-        scalar_type,
+        scalar_type: value_type.scalar_type,
     }
 }
 
-pub(super) fn parameters(types: &[ScalarType]) -> Vec<LoweredDirectExpression> {
+pub(super) fn parameters(types: &[QualifiedScalarType]) -> Vec<LoweredDirectExpression> {
     types
         .iter()
         .copied()

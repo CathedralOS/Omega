@@ -17,6 +17,7 @@ fn value(identity: u64) -> ValueId {
 
 fn scalar(identity: u64) -> ValueDeclaration {
     ValueDeclaration {
+        qualifications: Default::default(),
         id: value(identity),
         scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
     }
@@ -147,6 +148,7 @@ pub(super) fn conditional() -> TerminalModule {
         Operation {
             id: OperationId::new(127).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value(125),
                 scalar_type: ScalarType::Boolean,
             }),
@@ -232,6 +234,7 @@ fn bounded_operand(identity: u64, operand: ValueId, maximum: ValueId) -> Operati
     Operation {
         id: OperationId::new(identity).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: value(identity),
             scalar_type: ScalarType::Boolean,
         }),

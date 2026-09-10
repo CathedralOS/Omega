@@ -8,6 +8,7 @@ fn length(operation: u64, value: u64, source: u64) -> Operation {
     Operation {
         id: id(operation, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: id(value, ValueId::new),
             scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
         }),
@@ -71,6 +72,7 @@ fn current_observations() -> TerminalModule {
     machine.blocks[1].operations.push(Operation {
         id: id(32, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: id(32, ValueId::new),
             scalar_type: ScalarType::Boolean,
         }),
@@ -183,6 +185,7 @@ fn target_local_descriptor() -> TerminalModule {
     let header = &mut machine.blocks[1];
     header.structural_parameters.clear();
     header.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: id(2, ValueId::new),
         scalar_type: scalar,
     }];
@@ -191,6 +194,7 @@ fn target_local_descriptor() -> TerminalModule {
         Operation {
             id: id(40, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: id(40, ValueId::new),
                 scalar_type: scalar,
             }),
@@ -201,6 +205,7 @@ fn target_local_descriptor() -> TerminalModule {
         Operation {
             id: id(41, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: id(41, ValueId::new),
                 scalar_type: scalar,
             }),
@@ -213,6 +218,7 @@ fn target_local_descriptor() -> TerminalModule {
         Operation {
             id: id(42, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: id(42, ValueId::new),
                 scalar_type: scalar,
             }),

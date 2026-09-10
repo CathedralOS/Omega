@@ -81,6 +81,29 @@ macro_rules! semantic_id {
 
 semantic_id!(ValueId, "Stable identity of one terminal-Psi value.");
 semantic_id!(
+    ScalarDomainId,
+    "Stable identity of one scalar qualification domain in terminal Psi."
+);
+
+/// Immutable canonical module coordinate. Zero denotes the bare qualification
+/// set and has no catalog row; this is not a reclaimable arena handle.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ScalarQualificationSetId(u64);
+
+impl ScalarQualificationSetId {
+    pub const ZERO: Self = Self(0);
+
+    pub const fn new(raw: u64) -> Self {
+        Self(raw)
+    }
+    pub const fn get(self) -> u64 {
+        self.0
+    }
+    pub const fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+}
+semantic_id!(
     StructuralTypeId,
     "Stable identity of one concrete instantiated structural type in terminal Psi."
 );

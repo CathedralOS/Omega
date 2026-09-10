@@ -106,6 +106,7 @@ fn fixture() -> TerminalModule {
         Block {
             id: id(2, BlockId::new),
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: id(1, ValueId::new),
                 scalar_type,
             }],

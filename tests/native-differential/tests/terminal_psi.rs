@@ -41,6 +41,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
         parameters: Vec::new(),
         ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: result,
             scalar_type,
         }),
@@ -57,6 +58,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
                 operations: vec![Operation {
                     id: OperationId::new(1).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: constant,
                         scalar_type,
                     }),
@@ -77,6 +79,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
                 structural_parameters: Vec::new(),
                 id: BlockId::new(2).expect("exit"),
                 parameters: vec![ValueDeclaration {
+                    qualifications: Default::default(),
                     id: forwarded,
                     scalar_type,
                 }],
@@ -100,6 +103,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
         },
     };
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine.id,
@@ -368,6 +372,7 @@ fn verified_crashes_are_stable_terminal_outcomes() {
         parameters: Vec::new(),
         ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(90).expect("result"),
             scalar_type: ScalarType::Integer(integer),
         }),
@@ -400,6 +405,7 @@ fn verified_crashes_are_stable_terminal_outcomes() {
         },
     };
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine.id,
@@ -484,11 +490,13 @@ fn interpreter_rejects_an_out_of_range_integer_argument() {
         entry_claims: Vec::new(),
         published_service_ceiling: Vec::new(),
         parameters: vec![ValueDeclaration {
+            qualifications: Default::default(),
             id: parameter,
             scalar_type,
         }],
         ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: result,
             scalar_type,
         }),
@@ -517,6 +525,7 @@ fn interpreter_rejects_an_out_of_range_integer_argument() {
         },
     };
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine.id,

@@ -156,6 +156,7 @@ fn cyclic_scalar_return_rejects_nonexistent_cleanup() {
     let mut module = unranked_effectful_unit_cycle();
     let machine = &mut module.machines[0];
     machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: id(20, ValueId::new),
         scalar_type: ScalarType::Boolean,
     });

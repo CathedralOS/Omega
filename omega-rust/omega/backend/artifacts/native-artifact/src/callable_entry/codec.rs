@@ -6,6 +6,7 @@ pub(super) fn encode_record_content(
     bytes: &mut Vec<u8>,
     record: &OptimizedOrdinaryCallableEntryRecord,
 ) -> Result<(), OptimizedOrdinaryCallableEntryError> {
+    super::reconstruction::validate_entry_qualifications(&[], &record.result.declaration)?;
     bytes.extend_from_slice(&record.source_artifact.bytes());
     bytes.extend_from_slice(&record.source_manifest.bytes());
     encode_psi(bytes, record.psi);
@@ -36,8 +37,7 @@ pub(super) fn encode_record_content(
         bytes.extend_from_slice(&parameter.assigned_view.0.to_le_bytes());
         encode_units(bytes, &parameter.storage_units)?;
     }
-    bytes.extend_from_slice(&record.result.declaration.id.get().to_le_bytes());
-    encode_scalar(bytes, record.result.declaration.scalar_type);
+    encode_result_declaration(bytes, &record.result.declaration)?;
     encode_shape(bytes, record.result.shape);
     encode_register(bytes, record.result.abi_register);
     bytes.extend_from_slice(&record.result.view.0.to_le_bytes());
@@ -61,6 +61,19 @@ pub(super) fn encode_record_content(
     Ok(())
 }
 
+fn encode_result_declaration(
+    bytes: &mut Vec<u8>,
+    declaration: &ValueDeclaration,
+) -> Result<(), OptimizedOrdinaryCallableEntryError> {
+    super::reconstruction::validate_entry_qualifications(&[], declaration)?;
+    bytes.extend_from_slice(&declaration.id.get().to_le_bytes());
+    encode_scalar(bytes, declaration.scalar_type);
+    Ok(())
+}
+
+#[cfg(test)]
+#[path = "codec/qualification_tests.rs"]
+mod qualification_tests;
 pub(super) fn decode_record_content(
     cursor: &mut Cursor<'_>,
     identity: OptimizedTerminalOrdinaryCallableEntryIdentity,
@@ -108,6 +121,7 @@ pub(super) fn decode_record_content(
     }
     let result = OptimizedOrdinaryCallableResult {
         declaration: ValueDeclaration {
+            qualifications: Default::default(),
             id: decode_id(cursor, ValueId::new)?,
             scalar_type: decode_scalar(cursor)?,
         },

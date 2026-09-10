@@ -914,6 +914,7 @@ fn affine_triple_residuals_follow_the_exact_decreasing_live_index_order() {
             .find(|candidate| candidate.id == scalar_parameter.entry)
             .unwrap();
         entry.parameters.push(terminal_psi::ValueDeclaration {
+            qualifications: Default::default(),
             id: semantic_vocabulary::ValueId::new(1).unwrap(),
             scalar_type: semantic_vocabulary::ScalarType::Boolean,
         });
@@ -951,6 +952,7 @@ fn affine_triple_residuals_follow_the_exact_decreasing_live_index_order() {
         entry.blocks[0]
             .parameters
             .push(terminal_psi::ValueDeclaration {
+                qualifications: Default::default(),
                 id: semantic_vocabulary::ValueId::new(1).unwrap(),
                 scalar_type: semantic_vocabulary::ScalarType::Boolean,
             });

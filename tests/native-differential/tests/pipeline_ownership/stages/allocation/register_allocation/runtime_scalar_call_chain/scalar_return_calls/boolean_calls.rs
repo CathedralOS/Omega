@@ -110,6 +110,7 @@ fn boolean_call_artifact(inverted: bool) -> (Vec<u8>, Vec<u8>) {
     let entry = &mut module.machines[0];
     let condition = ValueId::new(29_000).unwrap();
     entry.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: condition,
         scalar_type: ScalarType::Boolean,
     }];
@@ -134,6 +135,7 @@ fn boolean_call_artifact(inverted: bool) -> (Vec<u8>, Vec<u8>) {
         prefix.push(Operation {
             id: OperationId::new(29_001).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: result,
                 scalar_type: ScalarType::Boolean,
             }),

@@ -272,6 +272,8 @@ pub(super) fn lower_scalar_call_closure(
     checked: &CheckedTrees,
     closure: &[symbols::SymbolHandle],
 ) -> Result<LoweredPsi, LoweringError> {
+    let qualifications =
+        crate::scalar_qualifications::PreparedScalarQualifications::prepare(checked, closure)?;
     let prepared = closure
         .iter()
         .map(|machine| {
@@ -283,7 +285,7 @@ pub(super) fn lower_scalar_call_closure(
                 .ok_or(LoweringError::Unsupported(
                     "terminal call-closure machine has no checked scalar graph",
                 ))?;
-            prepare_scalar_graph_machine(checked, *machine, graph)
+            prepare_scalar_graph_machine(checked, &qualifications, *machine, graph)
         })
         .collect::<Result<Vec<_>, _>>()?;
     if prepared.iter().any(|machine| {
@@ -322,6 +324,7 @@ pub(super) fn lower_scalar_call_closure(
     let mut evidence = Vec::new();
     let mut source_call_occurrences = Vec::new();
     let mut selected_ieee_float_fma_occurrences = Vec::new();
+    let mut scalar_qualifications = qualifications.catalog().clone();
     for (index, machine) in prepared.into_iter().enumerate() {
         let terminal_machine = machine_ids[index].1;
         let identity_base = u64::try_from(index)
@@ -333,6 +336,7 @@ pub(super) fn lower_scalar_call_closure(
         let mut lowered = build_scalar_graph_module(
             &machine.states,
             machine.result_type,
+            &machine.scalar_qualifications,
             machine.contract,
             machine.crash_routes,
             machine.identity_reshuffles,
@@ -343,6 +347,14 @@ pub(super) fn lower_scalar_call_closure(
             &requirement_counts,
             machine.loop_plan.as_ref(),
         )?;
+        if lowered.semantic_module.scalar_qualifications.domains != scalar_qualifications.domains
+            || lowered.semantic_module.scalar_qualifications.sets != scalar_qualifications.sets
+        {
+            return unsupported("scalar call closure changed its shared qualification namespace");
+        }
+        scalar_qualifications
+            .coercions
+            .append(&mut lowered.semantic_module.scalar_qualifications.coercions);
         let [terminal_machine] = lowered.semantic_module.machines.as_slice() else {
             unreachable!("one prepared scalar graph emits one terminal machine")
         };
@@ -354,6 +366,7 @@ pub(super) fn lower_scalar_call_closure(
     }
     let lowered = LoweredPsi {
         semantic_module: TerminalModule {
+            scalar_qualifications,
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine_id(1),

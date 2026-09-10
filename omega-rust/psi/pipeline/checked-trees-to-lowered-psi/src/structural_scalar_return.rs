@@ -233,10 +233,12 @@ pub(super) fn lower_trait_operator_scalar_return_machine(
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let call_result = ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(1),
         scalar_type: result_type,
     };
     let machine_result = ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(2),
         scalar_type: result_type,
     };
@@ -476,6 +478,7 @@ pub(super) fn lower_structural_scalar_return_machine_in_namespace(
         .iter()
         .map(|parameter| {
             let value = ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(allocate_dense(&mut next_value)?),
                 scalar_type: terminal_scalar_type(parameter.primitive_type)?,
             };
@@ -580,7 +583,11 @@ pub(super) fn lower_structural_scalar_return_machine_in_namespace(
             &mut next_value,
             &mut operations,
         );
-        scalar_values.push(ValueDeclaration { id, scalar_type });
+        scalar_values.push(ValueDeclaration {
+            qualifications: Default::default(),
+            id,
+            scalar_type,
+        });
     }
     effects::emit(
         plan,
@@ -671,6 +678,7 @@ pub(super) fn lower_structural_scalar_return_machine_in_namespace(
             blocks.append(&mut children);
 
             let local = ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(allocate_dense(&mut next_value)?),
                 scalar_type: ScalarType::Boolean,
             };
@@ -723,7 +731,11 @@ pub(super) fn lower_structural_scalar_return_machine_in_namespace(
                     &mut next_value,
                     &mut operations,
                 );
-                scalar_values.push(ValueDeclaration { id, scalar_type });
+                scalar_values.push(ValueDeclaration {
+                    qualifications: Default::default(),
+                    id,
+                    scalar_type,
+                });
             }
         }
         if let LoweredDirectExpression::Boolean { expression } = &expression
@@ -884,6 +896,7 @@ pub(super) fn lower_structural_scalar_return_machine_in_namespace(
         }]
     };
     let result = ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(next_value),
         scalar_type: result_type,
     };
@@ -933,6 +946,7 @@ pub(super) fn lower_structural_scalar_return_machine_in_namespace(
     };
     let mut lowered = LoweredPsi {
         semantic_module: TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,

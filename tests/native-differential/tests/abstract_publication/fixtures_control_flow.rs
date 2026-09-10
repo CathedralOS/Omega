@@ -112,6 +112,7 @@ pub(super) fn non_adjacent_block_merge_verified() -> VerifiedPsiOptimizationUnit
     let predecessor_value = ValueId::new(1_520).unwrap();
     let result = ValueId::new(1_522).unwrap();
     let boolean = |id| ValueDeclaration {
+        qualifications: Default::default(),
         id,
         scalar_type: ScalarType::Boolean,
     };
@@ -228,6 +229,7 @@ pub(super) fn shared_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
     let left_value = ValueId::new(1_067).unwrap();
     let right_value = ValueId::new(1_068).unwrap();
     let boolean = |id| ValueDeclaration {
+        qualifications: Default::default(),
         id,
         scalar_type: ScalarType::Boolean,
     };

@@ -14,6 +14,18 @@ pub(super) fn validate_control_flow(
     value_types: &BTreeMap<ValueId, ScalarType>,
     representation_backedges: &BTreeSet<EdgeId>,
 ) -> Result<(), ModuleError> {
+    // Ordinary scalar operators, storage and boundary presentation currently
+    // consume bare carriers. Reuse their complete operand checks with a bare
+    // namespace; direct calls instead transport their full checked signature.
+    // Build this projection once per machine, not once per operation.
+    let bare_value_types = super::scalar_qualifications::declarations(machine)
+        .any(|value| !value.qualifications.is_empty())
+        .then(|| {
+            super::scalar_qualifications::declarations(machine)
+                .filter(|value| value.qualifications.is_empty())
+                .map(|value| (value.id, value.scalar_type))
+                .collect::<BTreeMap<_, _>>()
+        });
     let globally_defined = machine
         .parameters
         .iter()
@@ -275,7 +287,17 @@ pub(super) fn validate_control_flow(
                 operation,
                 machines,
                 boundary_machines,
-                value_types,
+                if matches!(
+                    operation.kind,
+                    OperationKind::Call { .. }
+                        | OperationKind::CallUnit { .. }
+                        | OperationKind::CallStructuralScalar { .. }
+                        | OperationKind::CallStructuralWithScalarArguments { .. }
+                ) {
+                    value_types
+                } else {
+                    bare_value_types.as_ref().unwrap_or(value_types)
+                },
                 &defined,
             )?;
             super::scalar_array::validate_uses(

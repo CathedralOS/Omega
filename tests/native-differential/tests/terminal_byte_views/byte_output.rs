@@ -44,6 +44,7 @@ fn byte_output_module() -> TerminalModule {
     machine.structural_places.clear();
     let value = ValueId::new(5).unwrap();
     machine.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: value,
         scalar_type,
     }];

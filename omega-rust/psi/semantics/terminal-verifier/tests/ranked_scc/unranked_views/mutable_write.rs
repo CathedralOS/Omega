@@ -9,6 +9,7 @@ fn fixture() -> TerminalModule {
     machine.structural_parameters[0].access = StructuralAccess::MutableBorrow;
     machine.blocks[1].structural_parameters[0].access = StructuralAccess::MutableBorrow;
     machine.parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: id(30, ValueId::new),
         scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap()),
     });

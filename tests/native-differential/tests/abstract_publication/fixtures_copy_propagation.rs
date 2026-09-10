@@ -10,7 +10,11 @@ pub(super) fn redundant_block_parameter_verified() -> VerifiedPsiOptimizationUni
     let forwarded = ValueId::new(1_035).unwrap();
     let result = ValueId::new(1_036).unwrap();
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     verified(
         module_with_blocks(
             machine,
@@ -66,6 +70,7 @@ pub(super) fn call_result_block_parameter_verified() -> VerifiedPsiOptimizationU
     let callee_value = ValueId::new(1_612).unwrap();
     let callee_result = ValueId::new(1_613).unwrap();
     let boolean = |id| ValueDeclaration {
+        qualifications: Default::default(),
         id,
         scalar_type: ScalarType::Boolean,
     };

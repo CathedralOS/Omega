@@ -637,12 +637,13 @@ fn structural_unit_control_lowers_exact_transfer_and_edge_cleanup() {
     };
     assert_eq!(machine.structural_parameters.len(), 2);
     assert!(matches!(
-        machine.parameters.as_slice(),
-        [ValueDeclaration {
-            id,
-            scalar_type: ScalarType::Integer(_),
-        }] if *id == value_id(1)
-    ));
+            machine.parameters.as_slice(),
+            [ValueDeclaration {
+    qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+                id,
+                scalar_type: ScalarType::Integer(_),
+            }] if *id == value_id(1)
+        ));
     assert_eq!(machine.blocks.len(), 2);
     assert!(
         machine
@@ -662,12 +663,13 @@ fn structural_unit_control_lowers_exact_transfer_and_edge_cleanup() {
             && trivial_affine_discards == &[place_id(1)]
     ));
     assert!(matches!(
-        machine.blocks[1].parameters.as_slice(),
-        [ValueDeclaration {
-            id,
-            scalar_type: ScalarType::Integer(_),
-        }] if *id == value_id(2)
-    ));
+            machine.blocks[1].parameters.as_slice(),
+            [ValueDeclaration {
+    qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+                id,
+                scalar_type: ScalarType::Integer(_),
+            }] if *id == value_id(2)
+        ));
     assert!(matches!(
         &machine.blocks[1].terminator,
         Terminator::ReturnUnit {
@@ -735,18 +737,20 @@ fn structural_unit_conditional_lowers_independent_transfer_cleanup_frontiers() {
         panic!("structural conditional slice lowers one attached machine")
     };
     assert!(matches!(
-        machine.parameters.as_slice(),
-        [
-            ValueDeclaration {
-                id: guard,
-                scalar_type: ScalarType::Boolean,
-            },
-            ValueDeclaration {
-                id: value,
-                scalar_type: ScalarType::Integer(_),
-            },
-        ] if *guard == value_id(1) && *value == value_id(2)
-    ));
+            machine.parameters.as_slice(),
+            [
+                ValueDeclaration {
+    qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+                    id: guard,
+                    scalar_type: ScalarType::Boolean,
+                },
+                ValueDeclaration {
+    qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+                    id: value,
+                    scalar_type: ScalarType::Integer(_),
+                },
+            ] if *guard == value_id(1) && *value == value_id(2)
+        ));
     assert_eq!(machine.blocks.len(), 3);
     assert!(matches!(
         &machine.blocks[0].terminator,
@@ -773,19 +777,21 @@ fn structural_unit_conditional_lowers_independent_transfer_cleanup_frontiers() {
             && false_discards == &[place_id(1)]
     ));
     assert!(matches!(
-        machine.blocks[1].parameters.as_slice(),
-        [ValueDeclaration {
-            id,
-            scalar_type: ScalarType::Integer(_),
-        }] if *id == value_id(3)
-    ));
+            machine.blocks[1].parameters.as_slice(),
+            [ValueDeclaration {
+    qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+                id,
+                scalar_type: ScalarType::Integer(_),
+            }] if *id == value_id(3)
+        ));
     assert!(matches!(
-        machine.blocks[2].parameters.as_slice(),
-        [ValueDeclaration {
-            id,
-            scalar_type: ScalarType::Integer(_),
-        }] if *id == value_id(4)
-    ));
+            machine.blocks[2].parameters.as_slice(),
+            [ValueDeclaration {
+    qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+                id,
+                scalar_type: ScalarType::Integer(_),
+            }] if *id == value_id(4)
+        ));
     assert!(matches!(
         &machine.blocks[1].terminator,
         Terminator::ReturnUnit {
@@ -884,18 +890,20 @@ fn structural_unit_conditional_lowers_after_an_unconditional_prefix() {
             && trivial_affine_discards.is_empty()
     ));
     assert!(matches!(
-        machine.blocks[1].parameters.as_slice(),
-        [
-            ValueDeclaration {
-                id: guard,
-                scalar_type: ScalarType::Boolean,
-            },
-            ValueDeclaration {
-                id: value,
-                scalar_type: ScalarType::Integer(_),
-            },
-        ] if *guard == value_id(3) && *value == value_id(4)
-    ));
+            machine.blocks[1].parameters.as_slice(),
+            [
+                ValueDeclaration {
+    qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+                    id: guard,
+                    scalar_type: ScalarType::Boolean,
+                },
+                ValueDeclaration {
+    qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+                    id: value,
+                    scalar_type: ScalarType::Integer(_),
+                },
+            ] if *guard == value_id(3) && *value == value_id(4)
+        ));
     assert!(matches!(
         &machine.blocks[1].terminator,
         Terminator::Conditional {
@@ -1000,18 +1008,20 @@ fn structural_unit_two_conditional_tree_lowers_exact_edge_maps() {
             && false_discards == &[place_id(1)]
     ));
     assert!(matches!(
-        machine.blocks[1].parameters.as_slice(),
-        [
-            ValueDeclaration {
-                id: guard,
-                scalar_type: ScalarType::Boolean,
-            },
-            ValueDeclaration {
-                id: value,
-                scalar_type: ScalarType::Integer(_),
-            },
-        ] if *guard == value_id(3) && *value == value_id(4)
-    ));
+            machine.blocks[1].parameters.as_slice(),
+            [
+                ValueDeclaration {
+    qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+                    id: guard,
+                    scalar_type: ScalarType::Boolean,
+                },
+                ValueDeclaration {
+    qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+                    id: value,
+                    scalar_type: ScalarType::Integer(_),
+                },
+            ] if *guard == value_id(3) && *value == value_id(4)
+        ));
     assert!(matches!(
         &machine.blocks[1].terminator,
         Terminator::Conditional {
@@ -1109,12 +1119,13 @@ fn structural_unit_diamond_requires_one_exact_join_frontier() {
             && trivial_affine_discards.is_empty()
     ));
     assert!(matches!(
-        machine.blocks[3].parameters.as_slice(),
-        [ValueDeclaration {
-            id,
-            scalar_type: ScalarType::Integer(_),
-        }] if *id == value_id(6)
-    ));
+            machine.blocks[3].parameters.as_slice(),
+            [ValueDeclaration {
+    qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+                id,
+                scalar_type: ScalarType::Integer(_),
+            }] if *id == value_id(6)
+        ));
     assert!(matches!(
         &machine.blocks[3].terminator,
         Terminator::ReturnUnit {

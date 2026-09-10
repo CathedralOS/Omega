@@ -3,6 +3,9 @@
 //! This file owns the build-and-replay join. The data contract lives in
 //! `model`, semantic reconstruction in `reconstruction`, and canonical
 //! wire encoding in `codec`.
+//! Installed entry parameters/results currently require bare scalar declarations;
+//! qualified interfaces need catalog-bound invocation custody. This restriction
+//! does not prohibit verified qualified values internal to a bare-entry body.
 
 use calling_conventions::{
     CallSignature, CallingPolicy, MachineRegister, ValueLocation, ValueShape, evaluate_call_plan,

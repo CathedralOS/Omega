@@ -998,6 +998,13 @@ impl TerminalExecution {
         let machine = machines
             .get(&module.entry)
             .ok_or(TerminalInterpretError::VerifiedEntryMachineMissing)?;
+        if machine
+            .parameters
+            .iter()
+            .any(|parameter| !parameter.qualifications.is_empty())
+        {
+            return Err(TerminalInterpretError::ScalarEntryQualificationUnsupported);
+        }
         let values = bind_arguments(&machine.parameters, scalar_arguments)?;
         let structural_values =
             bind_structural_arguments(&machine.structural_parameters, structural_arguments)?;
@@ -5051,6 +5058,7 @@ impl MeasuredTerminalExecution {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalInterpretError {
+    ScalarEntryQualificationUnsupported,
     UnsupportedSemanticVariant(&'static str),
     /// The artifact's exact affine cleanup transaction does not match the
     /// interpreter's live ownership paths.

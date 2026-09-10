@@ -13,6 +13,7 @@ pub(crate) fn integer_bitwise_xor_immediate_return_artifact(
     let right = ValueId::new(79_006).unwrap();
     let bitwise_xor = ValueId::new(79_008).unwrap();
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -46,6 +47,7 @@ pub(crate) fn integer_bitwise_xor_immediate_return_artifact(
             structural_parameters: Vec::new(),
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(79_010).unwrap(),
                 scalar_type: ScalarType::Integer(scalar_type),
             }),
@@ -64,6 +66,7 @@ pub(crate) fn integer_bitwise_xor_immediate_return_artifact(
                     Operation {
                         id: OperationId::new(79_003).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: left,
                             scalar_type: ScalarType::Integer(scalar_type),
                         }),
@@ -72,6 +75,7 @@ pub(crate) fn integer_bitwise_xor_immediate_return_artifact(
                     Operation {
                         id: OperationId::new(79_005).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: right,
                             scalar_type: ScalarType::Integer(scalar_type),
                         }),
@@ -80,6 +84,7 @@ pub(crate) fn integer_bitwise_xor_immediate_return_artifact(
                     Operation {
                         id: OperationId::new(79_007).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: bitwise_xor,
                             scalar_type: ScalarType::Integer(scalar_type),
                         }),

@@ -98,6 +98,7 @@ pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
     let block = |raw| BlockId::new(raw).unwrap();
     let edge = |raw| EdgeId::new(raw).unwrap();
     let declaration = |raw| ValueDeclaration {
+        qualifications: Default::default(),
         id: value(raw),
         scalar_type,
     };
@@ -160,6 +161,7 @@ pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
             operations: vec![Operation {
                 id: OperationId::new(28_140).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: value(28_140),
                     scalar_type: ScalarType::Boolean,
                 }),

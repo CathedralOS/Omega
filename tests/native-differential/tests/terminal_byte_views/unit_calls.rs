@@ -21,6 +21,7 @@ fn unit_call_module() -> TerminalModule {
         .unwrap();
     helper.result = TerminalMachineResult::Unit;
     helper.parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(114).unwrap(),
         scalar_type: ScalarType::Boolean,
     });
@@ -60,6 +61,7 @@ fn unit_call_module() -> TerminalModule {
         Operation {
             id: OperationId::new(206).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(206).unwrap(),
                 scalar_type: ScalarType::Boolean,
             }),

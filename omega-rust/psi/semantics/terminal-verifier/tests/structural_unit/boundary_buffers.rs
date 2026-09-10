@@ -260,6 +260,7 @@ fn byte_field_presentation_does_not_widen_scalar_result_calls() {
     };
     let structural_arguments = structural_arguments.clone();
     let result = ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(101),
         scalar_type: ScalarType::Boolean,
     };
@@ -274,12 +275,14 @@ fn byte_field_presentation_does_not_widen_scalar_result_calls() {
     };
     let callee = &mut module.machines[1];
     callee.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(102),
         scalar_type: ScalarType::Boolean,
     });
     callee.blocks[0].operations = vec![Operation {
         id: operation_id(100),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(100),
             scalar_type: ScalarType::Boolean,
         }),

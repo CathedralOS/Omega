@@ -16,6 +16,7 @@ fn conditional_fixed_bound_uses_the_maximum_path_not_the_sum() {
     module.machines[0].blocks[1].operations.push(Operation {
         id: OperationId::new(1).unwrap(),
         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(7).unwrap(),
             scalar_type: ScalarType::Boolean,
         }),
@@ -76,10 +77,12 @@ fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
     let integer =
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 terminal type"));
     let declaration = |raw, scalar_type| ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(raw).expect("nonzero value"),
         scalar_type,
     };
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker,
         entry: MachineId::new(1).unwrap(),

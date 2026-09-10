@@ -109,6 +109,7 @@ mod tests {
             id: MachineId::new(1).expect("machine"),
             attachment: None,
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: scalar_parameter,
                 scalar_type: ScalarType::Integer(integer),
             }],
@@ -124,6 +125,7 @@ mod tests {
             }],
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: result,
                 scalar_type: ScalarType::Integer(integer),
             }),

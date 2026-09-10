@@ -10,7 +10,11 @@ pub(super) fn local_cse_verified() -> VerifiedPsiOptimizationUnit {
     let redundant = ValueId::new(1_325).unwrap();
     let result = ValueId::new(1_326).unwrap();
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     let mut module = module_with_blocks(
         machine,
         block,
@@ -55,7 +59,11 @@ pub(super) fn proof_certified_local_cse_verified() -> VerifiedPsiOptimizationUni
     let leader_obligation = ObligationId::new(1_390).unwrap();
     let redundant_obligation = ObligationId::new(1_391).unwrap();
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     let module = module_with_blocks(
         machine,
         block,
@@ -136,7 +144,11 @@ pub(super) fn compatible_policy_local_cse_verified() -> VerifiedPsiOptimizationU
     let redundant_operation = OperationId::new(1_409).unwrap();
     let redundant_obligation = ObligationId::new(1_411).unwrap();
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     let module = module_with_blocks(
         machine,
         block,
@@ -205,7 +217,11 @@ pub(super) fn dominator_gvn_verified() -> VerifiedPsiOptimizationUnit {
     let redundant = ValueId::new(1_366).unwrap();
     let result = ValueId::new(1_367).unwrap();
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     let mut module = module_with_blocks(
         machine,
         entry,
@@ -285,7 +301,11 @@ pub(super) fn phi_translated_gvn_verified_fixture(
     let right_obligation = ObligationId::new(1_474).unwrap();
     let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
     let result_integer = integer;
-    let declaration = |id, scalar_type| ValueDeclaration { id, scalar_type };
+    let declaration = |id, scalar_type| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     let mut module = module_with_blocks(
         machine,
         entry,

@@ -12,6 +12,9 @@ mod bounded_integer_type;
 mod content;
 mod identity;
 mod proposition;
+mod qualified_scalar_type;
+
+pub use qualified_scalar_type::QualifiedScalarType;
 
 pub use bounded_integer_type::BoundedIntegerType;
 pub use content::{
@@ -25,8 +28,8 @@ pub use identity::{
     CycleComponentId, DomainSemanticId, EdgeId, EvidenceIdentity, EvidenceTermId,
     FuelScheduleIdentity, MachineId, ObligationId, OperationId, PackageKeyIdentity, PlaceId,
     ProfileDecisionId, PropositionId, PsiSemanticId, RankingRelationId, RecursiveComponentId,
-    ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId, StructuralTypeId,
-    SuspensionCrossingId, ValueId,
+    ScalarDomainId, ScalarQualificationSetId, ServiceId, StructuralCaseId, StructuralDomainId,
+    StructuralFieldId, StructuralTypeId, SuspensionCrossingId, ValueId,
 };
 pub use proposition::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, IeeeFloatComparisonKind,

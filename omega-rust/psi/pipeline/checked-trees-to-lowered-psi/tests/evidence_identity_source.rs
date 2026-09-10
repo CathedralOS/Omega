@@ -2558,6 +2558,7 @@ fn static_requirement_i32_result_uses_one_ordinary_scalar_call_without_runtime_o
 
     let mut forged_argument = lowered.semantic_module.clone();
     let argument = terminal_psi::ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(u64::MAX).expect("nonzero forged argument ID"),
         scalar_type: i32_type,
     };
@@ -2575,6 +2576,7 @@ fn static_requirement_i32_result_uses_one_ordinary_scalar_call_without_runtime_o
         .expect("forged realization")
         .parameters
         .push(terminal_psi::ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(u64::MAX - 1).expect("nonzero forged parameter ID"),
             scalar_type: i32_type,
         });

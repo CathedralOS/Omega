@@ -173,6 +173,7 @@ fn primitive_reads_emit_fresh_typed_results_after_intervening_stores() {
             assert_eq!(
                 operations[operation_position].result,
                 terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: value,
                     scalar_type
                 },)
@@ -261,6 +262,7 @@ fn primitive_boolean_reads_stay_in_selected_short_circuit_blocks() {
         };
         let decision = lower_boolean_value_decision(&expression);
         let parameter = ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(1),
             scalar_type: ScalarType::Boolean,
         };

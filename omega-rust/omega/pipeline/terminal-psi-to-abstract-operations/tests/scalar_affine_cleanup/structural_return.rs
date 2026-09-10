@@ -28,6 +28,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
     let structural_domain = structural_domain_id(1);
     let edge = edge_id(1);
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
@@ -203,6 +204,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
         .push(terminal_psi::Operation {
             id: semantic_vocabulary::OperationId::new(1).unwrap(),
             result: terminal_psi::OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                qualifications: Default::default(),
                 id: condition,
                 scalar_type: semantic_vocabulary::ScalarType::Boolean,
             }),

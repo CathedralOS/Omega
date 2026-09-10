@@ -14,6 +14,7 @@ pub(crate) fn wrapping_integer_shift_right_immediate_return_artifact(
     let count_result = ValueId::new(83_006).unwrap();
     let shift_result = ValueId::new(83_008).unwrap();
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -47,6 +48,7 @@ pub(crate) fn wrapping_integer_shift_right_immediate_return_artifact(
             structural_parameters: Vec::new(),
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: ValueId::new(83_010).unwrap(),
                 scalar_type: ScalarType::Integer(value_type),
             }),
@@ -65,6 +67,7 @@ pub(crate) fn wrapping_integer_shift_right_immediate_return_artifact(
                     Operation {
                         id: OperationId::new(83_003).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: value_result,
                             scalar_type: ScalarType::Integer(value_type),
                         }),
@@ -73,6 +76,7 @@ pub(crate) fn wrapping_integer_shift_right_immediate_return_artifact(
                     Operation {
                         id: OperationId::new(83_005).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: count_result,
                             scalar_type: ScalarType::Integer(count_type),
                         }),
@@ -81,6 +85,7 @@ pub(crate) fn wrapping_integer_shift_right_immediate_return_artifact(
                     Operation {
                         id: OperationId::new(83_007).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: shift_result,
                             scalar_type: ScalarType::Integer(value_type),
                         }),

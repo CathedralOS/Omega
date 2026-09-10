@@ -35,6 +35,30 @@ places remain distinct through lowering, assignment, emission, and installation.
 A result's qualifications and claims are semantic metadata, not additional ABI
 words.
 
+### Scalar qualifications
+
+A scalar declaration retains both its payload carrier and its normalized
+qualification set. The empty set is bare. A matching payload carrier alone does
+not make signatures interchangeable: ordinary successor bindings, calls and
+returns preserve the complete qualification set. A call's qualified result is
+available only on normal completion.
+
+Predicate-free, route-free scalar domain declarations can be carried in the
+closed scalar qualification catalog. Canonical declarations, normalized sets,
+and exact introduction edges participate in semantic identity. An introduction
+names the machine, edge, argument position, source value and fresh destination
+parameter. It may add same-carrier membership; it cannot remove an existing
+atom, alter payload bits, or qualify the original source retroactively. Every
+incoming edge is checked independently. A result annotation, ordinary constant,
+load or arithmetic operation cannot establish membership by itself.
+
+These declarations do not encode predicate proofs or routed authority. Those
+theories require their own evidence vocabulary rather than an assertion that
+they are obligation-free. Qualification adds no runtime tag, storage or operation;
+the ordinary edge transports the payload. Host scalar arguments alone do not
+establish a qualified entry contract. Current interpreter entry therefore rejects
+qualified host inputs until an evidence-bearing input interface exists.
+
 ### Primitive array construction
 
 `EstablishScalarArray { elements }` establishes one complete owned structural

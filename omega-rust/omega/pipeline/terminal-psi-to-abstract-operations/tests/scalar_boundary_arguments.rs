@@ -17,6 +17,7 @@ use terminal_verifier::ProofBundle;
 #[test]
 fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
     let boolean = ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(1),
         scalar_type: ScalarType::Boolean,
     };
@@ -25,12 +26,14 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
             .expect("u8 is a valid integer type"),
     );
     let byte = ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(2),
         scalar_type: byte_type,
     };
     let boundary = boundary_id(1);
     let operation = operation_id(1);
     let mut module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),

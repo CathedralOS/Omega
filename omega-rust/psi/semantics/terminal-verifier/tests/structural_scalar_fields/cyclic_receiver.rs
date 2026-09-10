@@ -15,6 +15,7 @@ fn boolean_read(operation: u64, source: u64, field: u64) -> Operation {
     Operation {
         id: id(operation),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: id(operation),
             scalar_type: ScalarType::Boolean,
         }),
@@ -29,6 +30,7 @@ fn boolean_constant(operation: u64, value: bool) -> Operation {
     Operation {
         id: id(operation),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: id(operation),
             scalar_type: ScalarType::Boolean,
         }),
@@ -108,6 +110,7 @@ fn receiver_module(cyclic: bool) -> TerminalModule {
         caller.blocks[0].operations.push(Operation {
             id: id(operation),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: id(operation),
                 scalar_type: integer_type(),
             }),
@@ -281,10 +284,12 @@ fn valid_callee_requirement_is_admitted_acyclically_but_fenced_in_cycles() {
         let mut module = receiver_module(cyclic);
         // A scalar entry requirement remains immutable across receiver writes.
         module.machines[0].parameters.push(ValueDeclaration {
+            qualifications: Default::default(),
             id: id(70),
             scalar_type: ScalarType::Boolean,
         });
         module.machines[1].parameters.push(ValueDeclaration {
+            qualifications: Default::default(),
             id: id(71),
             scalar_type: ScalarType::Boolean,
         });
@@ -388,6 +393,7 @@ fn projected_mutable_unit_call_can_return_a_caller_scalar_observation() {
     structural_arguments[0].path = vec![StructuralPathSegment::Field("item".into())];
     module.machines[0].blocks[0].operations.insert(2, invoke);
     module.machines[0].result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: id(30),
         scalar_type: integer_type(),
     });

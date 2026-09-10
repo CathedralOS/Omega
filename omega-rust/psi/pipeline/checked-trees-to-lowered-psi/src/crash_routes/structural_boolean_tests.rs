@@ -75,6 +75,7 @@ impl Fixture {
         .collect();
         Self {
             scalars: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: id(7),
                 scalar_type: ScalarType::Boolean,
             }],

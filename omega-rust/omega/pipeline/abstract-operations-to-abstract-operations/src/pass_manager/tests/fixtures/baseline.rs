@@ -10,6 +10,7 @@ pub(in crate::pass_manager::tests) fn verified_empty_unit() -> VerifiedPsiOptimi
     };
 
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(401).unwrap(),

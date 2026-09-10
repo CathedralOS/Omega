@@ -11,8 +11,13 @@ pub(crate) fn conditional_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
     let forwarded = ValueId::new(4_006).unwrap();
     let result = ValueId::new(4_007).unwrap();
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
-    let declaration = |id, scalar_type| ValueDeclaration { id, scalar_type };
+    let declaration = |id, scalar_type| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -133,8 +138,13 @@ pub(crate) fn constant_conditional_prune_artifact() -> (Vec<u8>, Vec<u8>) {
     let forwarded = ValueId::new(4_106).unwrap();
     let result = ValueId::new(4_107).unwrap();
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
-    let declaration = |id, scalar_type| ValueDeclaration { id, scalar_type };
+    let declaration = |id, scalar_type| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -256,6 +266,7 @@ pub(crate) fn linear_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
     let empty = BlockId::new(4_203).unwrap();
     let target = BlockId::new(4_204).unwrap();
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -366,10 +377,12 @@ pub(crate) fn adjacent_block_merge_artifact() -> (Vec<u8>, Vec<u8>) {
     let result = ValueId::new(4_256).unwrap();
     let computed = ValueId::new(4_261).unwrap();
     let boolean = |id| ValueDeclaration {
+        qualifications: Default::default(),
         id,
         scalar_type: ScalarType::Boolean,
     };
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -471,10 +484,12 @@ pub(crate) fn adjacent_conditional_merge_artifact() -> (Vec<u8>, Vec<u8>) {
     let condition = ValueId::new(4_276).unwrap();
     let forwarded = ValueId::new(4_277).unwrap();
     let boolean = |id| ValueDeclaration {
+        qualifications: Default::default(),
         id,
         scalar_type: ScalarType::Boolean,
     };
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -604,6 +619,7 @@ pub(crate) fn path_qualified_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
     let target = BlockId::new(4_306).unwrap();
     let condition = ValueId::new(4_307).unwrap();
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -634,6 +650,7 @@ pub(crate) fn path_qualified_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
             id: machine,
             attachment: None,
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: condition,
                 scalar_type: ScalarType::Boolean,
             }],

@@ -391,6 +391,7 @@ mod tests {
         let machine = id(1, MachineId::new);
         let block = id(1, BlockId::new);
         TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine,
@@ -484,10 +485,12 @@ mod tests {
     #[test]
     fn reconstructs_ordered_scalar_input_and_exact_result_schema() {
         let parameter = ValueDeclaration {
+            qualifications: Default::default(),
             id: id(2, ValueId::new),
             scalar_type: ScalarType::Boolean,
         };
         let result = ValueDeclaration {
+            qualifications: Default::default(),
             id: id(3, ValueId::new),
             scalar_type: ScalarType::Boolean,
         };
@@ -621,10 +624,12 @@ mod tests {
         }];
         module.machines[0].parameters = vec![
             ValueDeclaration {
+                qualifications: Default::default(),
                 id: argument,
                 scalar_type: ScalarType::Boolean,
             },
             ValueDeclaration {
+                qualifications: Default::default(),
                 id: id(2, ValueId::new),
                 scalar_type: u8_type,
             },
@@ -672,6 +677,7 @@ mod tests {
             Operation {
                 id: id(2, OperationId::new),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: id(3, ValueId::new),
                     scalar_type: u8_type,
                 }),

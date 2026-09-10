@@ -387,6 +387,7 @@ fn scalar_call_module(scalar_type: ScalarType, constant_kind: OperationKind) -> 
     let callee_parameter = value_id(4);
     let callee_result = value_id(5);
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
@@ -511,7 +512,11 @@ fn empty_contract(raw: u64) -> MachineContract {
 }
 
 fn scalar_declaration(id: ValueId, scalar_type: ScalarType) -> ValueDeclaration {
-    ValueDeclaration { id, scalar_type }
+    ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    }
 }
 
 fn i32_type() -> IntegerType {

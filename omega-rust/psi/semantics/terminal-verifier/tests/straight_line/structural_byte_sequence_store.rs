@@ -74,6 +74,7 @@ fn fixture(access: StructuralAccess) -> (TerminalModule, ProofBundle) {
         Operation {
             id: id(1),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: id(2),
                 scalar_type: ScalarType::Integer(integer()),
             }),
@@ -92,6 +93,7 @@ fn fixture(access: StructuralAccess) -> (TerminalModule, ProofBundle) {
         Operation {
             id: id(3),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: id(1),
                 scalar_type: ScalarType::Integer(integer()),
             }),
@@ -375,6 +377,7 @@ fn cross_block_literal_requires_dominating_establishment() {
     let machine = &mut module.machines[0];
     let literal = machine.blocks[0].operations.remove(1);
     machine.parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: id(3),
         scalar_type: ScalarType::Boolean,
     });

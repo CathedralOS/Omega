@@ -39,6 +39,8 @@ use terminal_verifier::{
 
 #[path = "straight_line/false_edge_custody.rs"]
 mod false_edge_custody;
+#[path = "straight_line/scalar_qualifications.rs"]
+mod scalar_qualifications;
 
 #[path = "straight_line/affine_local_frontier.rs"]
 mod affine_local_frontier;
@@ -313,6 +315,7 @@ fn verifier_rejects_mismatched_unit_and_scalar_return_shapes() {
 
     let mut unit_return = unit_module();
     unit_return.machines[0].result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(900).unwrap(),
         scalar_type: ScalarType::Boolean,
     });
@@ -630,6 +633,7 @@ fn boolean_constant_axiom_proves_the_return_contract() {
     let term = |id| ScalarTerm::value(id, ScalarType::Boolean);
     let goal = Proposition::Equal(term(result), ScalarTerm::boolean(true));
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(10).expect("machine"),
@@ -665,6 +669,7 @@ fn boolean_constant_axiom_proves_the_return_contract() {
             parameters: Vec::new(),
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: result,
                 scalar_type: ScalarType::Boolean,
             }),
@@ -680,6 +685,7 @@ fn boolean_constant_axiom_proves_the_return_contract() {
                 operations: vec![Operation {
                     id: OperationId::new(10).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: constant,
                         scalar_type: ScalarType::Boolean,
                     }),
@@ -744,6 +750,7 @@ fn boolean_not_axiom_proves_the_return_contract() {
     let not_parameter = ScalarTerm::boolean_not(term(parameter)).unwrap();
     let goal = Proposition::Equal(term(result), not_parameter.clone());
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(20).expect("machine"),
@@ -777,11 +784,13 @@ fn boolean_not_axiom_proves_the_return_contract() {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: parameter,
                 scalar_type: ScalarType::Boolean,
             }],
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: result,
                 scalar_type: ScalarType::Boolean,
             }),
@@ -797,6 +806,7 @@ fn boolean_not_axiom_proves_the_return_contract() {
                 operations: vec![Operation {
                     id: OperationId::new(20).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: negated,
                         scalar_type: ScalarType::Boolean,
                     }),
@@ -984,6 +994,7 @@ fn boolean_equality_axiom_proves_the_return_contract() {
     let equality = ScalarTerm::boolean_equal(term(left), term(right)).unwrap();
     let goal = Proposition::Equal(term(result), equality.clone());
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(30).expect("machine"),
@@ -1018,16 +1029,19 @@ fn boolean_equality_axiom_proves_the_return_contract() {
             published_service_ceiling: Vec::new(),
             parameters: vec![
                 ValueDeclaration {
+                    qualifications: Default::default(),
                     id: left,
                     scalar_type: ScalarType::Boolean,
                 },
                 ValueDeclaration {
+                    qualifications: Default::default(),
                     id: right,
                     scalar_type: ScalarType::Boolean,
                 },
             ],
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: result,
                 scalar_type: ScalarType::Boolean,
             }),
@@ -1043,6 +1057,7 @@ fn boolean_equality_axiom_proves_the_return_contract() {
                 operations: vec![Operation {
                     id: OperationId::new(30).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: compared,
                         scalar_type: ScalarType::Boolean,
                     }),
@@ -1141,6 +1156,7 @@ fn integer_equality_axiom_proves_the_return_contract() {
     .expect("matching integer operands form equality");
     let goal = Proposition::Equal(value(result, ScalarType::Boolean), equality.clone());
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(40).expect("machine"),
@@ -1175,16 +1191,19 @@ fn integer_equality_axiom_proves_the_return_contract() {
             published_service_ceiling: Vec::new(),
             parameters: vec![
                 ValueDeclaration {
+                    qualifications: Default::default(),
                     id: left,
                     scalar_type: integer_scalar,
                 },
                 ValueDeclaration {
+                    qualifications: Default::default(),
                     id: right,
                     scalar_type: integer_scalar,
                 },
             ],
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: result,
                 scalar_type: ScalarType::Boolean,
             }),
@@ -1200,6 +1219,7 @@ fn integer_equality_axiom_proves_the_return_contract() {
                 operations: vec![Operation {
                     id: OperationId::new(40).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: compared,
                         scalar_type: ScalarType::Boolean,
                     }),
@@ -1346,6 +1366,7 @@ fn integer_ordering_axioms_prove_return_contracts() {
             OperationKind::IntegerLessThan { left, right }
         };
         let module = TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: MachineId::new(50).expect("machine"),
@@ -1380,16 +1401,19 @@ fn integer_ordering_axioms_prove_return_contracts() {
                 published_service_ceiling: Vec::new(),
                 parameters: vec![
                     ValueDeclaration {
+                        qualifications: Default::default(),
                         id: left,
                         scalar_type: integer_scalar,
                     },
                     ValueDeclaration {
+                        qualifications: Default::default(),
                         id: right,
                         scalar_type: integer_scalar,
                     },
                 ],
                 ranked_scc: None,
                 result: TerminalMachineResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: result,
                     scalar_type: ScalarType::Boolean,
                 }),
@@ -1405,6 +1429,7 @@ fn integer_ordering_axioms_prove_return_contracts() {
                     operations: vec![Operation {
                         id: OperationId::new(50).expect("operation"),
                         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: compared,
                             scalar_type: ScalarType::Boolean,
                         }),
@@ -1543,6 +1568,7 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
         let goal = Proposition::Equal(value(result), term.clone());
         let obligation = ObligationId::new(60 + u64::from(kind)).expect("obligation");
         let module = TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: MachineId::new(60).expect("machine"),
@@ -1577,16 +1603,19 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
                 published_service_ceiling: Vec::new(),
                 parameters: vec![
                     ValueDeclaration {
+                        qualifications: Default::default(),
                         id: left,
                         scalar_type,
                     },
                     ValueDeclaration {
+                        qualifications: Default::default(),
                         id: right,
                         scalar_type,
                     },
                 ],
                 ranked_scc: None,
                 result: TerminalMachineResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: result,
                     scalar_type,
                 }),
@@ -1602,6 +1631,7 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
                     operations: vec![Operation {
                         id: OperationId::new(60).expect("operation"),
                         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: computed,
                             scalar_type,
                         }),
@@ -1690,6 +1720,7 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
     let goal = Proposition::Equal(value(result), term.clone());
     let obligation = ObligationId::new(65).expect("obligation");
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(65).expect("machine"),
@@ -1723,11 +1754,13 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: operand,
                 scalar_type,
             }],
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: result,
                 scalar_type,
             }),
@@ -1743,6 +1776,7 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
                 operations: vec![Operation {
                     id: OperationId::new(65).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: computed,
                         scalar_type,
                     }),
@@ -1817,6 +1851,7 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
     let goal = Proposition::Equal(ScalarTerm::value(result, target_scalar), widened.clone());
     let obligation = ObligationId::new(68).expect("obligation");
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(68).expect("machine"),
@@ -1850,11 +1885,13 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: operand,
                 scalar_type: source_scalar,
             }],
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: result,
                 scalar_type: target_scalar,
             }),
@@ -1870,6 +1907,7 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
                 operations: vec![Operation {
                     id: OperationId::new(68).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: computed,
                         scalar_type: target_scalar,
                     }),
@@ -1972,6 +2010,7 @@ fn preserves_address_carrier_identity() {
     let parameter = ValueId::new(168).expect("parameter");
     let result = ValueId::new(169).expect("result");
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(168).expect("machine"),
@@ -2005,11 +2044,13 @@ fn preserves_address_carrier_identity() {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: parameter,
                 scalar_type: address,
             }],
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: result,
                 scalar_type: address,
             }),
@@ -2053,6 +2094,7 @@ fn exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligatio
     let result = ValueId::new(172).expect("result");
     let cast_obligation = ObligationId::new(170).expect("cast obligation");
     let mut module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(170).expect("machine"),
@@ -2086,11 +2128,13 @@ fn exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligatio
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: operand,
                 scalar_type: source,
             }],
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: result,
                 scalar_type: target,
             }),
@@ -2106,6 +2150,7 @@ fn exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligatio
                 operations: vec![Operation {
                     id: OperationId::new(170).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: computed,
                         scalar_type: target,
                     }),
@@ -2180,6 +2225,7 @@ fn exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
     let computed = ValueId::new(182).expect("computed");
     let result = ValueId::new(183).expect("result");
     let mut module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(180).expect("machine"),
@@ -2214,16 +2260,19 @@ fn exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
             published_service_ceiling: Vec::new(),
             parameters: vec![
                 ValueDeclaration {
+                    qualifications: Default::default(),
                     id: value,
                     scalar_type: value_type,
                 },
                 ValueDeclaration {
+                    qualifications: Default::default(),
                     id: count,
                     scalar_type: count_type,
                 },
             ],
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: result,
                 scalar_type: value_type,
             }),
@@ -2239,6 +2288,7 @@ fn exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
                 operations: vec![Operation {
                     id: OperationId::new(180).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: computed,
                         scalar_type: value_type,
                     }),
@@ -2283,6 +2333,7 @@ fn exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
     let computed = ValueId::new(192).expect("computed");
     let result = ValueId::new(193).expect("result");
     let mut module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(190).expect("machine"),
@@ -2317,16 +2368,19 @@ fn exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
             published_service_ceiling: Vec::new(),
             parameters: vec![
                 ValueDeclaration {
+                    qualifications: Default::default(),
                     id: value,
                     scalar_type: value_type,
                 },
                 ValueDeclaration {
+                    qualifications: Default::default(),
                     id: count,
                     scalar_type: count_type,
                 },
             ],
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: result,
                 scalar_type: value_type,
             }),
@@ -2342,6 +2396,7 @@ fn exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
                 operations: vec![Operation {
                     id: OperationId::new(190).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: computed,
                         scalar_type: value_type,
                     }),
@@ -2383,8 +2438,13 @@ fn exact_add_requires_same_fixed_integer_operands_and_an_obligation() {
     let right = ValueId::new(195).expect("right");
     let computed = ValueId::new(196).expect("computed");
     let result = ValueId::new(197).expect("result");
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        id,
+        scalar_type,
+        qualifications: Default::default(),
+    };
     let mut module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(194).expect("machine"),
@@ -2470,8 +2530,13 @@ fn exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
     let right = ValueId::new(199).expect("right");
     let computed = ValueId::new(200).expect("computed");
     let result = ValueId::new(201).expect("result");
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        id,
+        scalar_type,
+        qualifications: Default::default(),
+    };
     let mut module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(198).expect("machine"),
@@ -2557,8 +2622,13 @@ fn exact_multiply_requires_same_fixed_integer_operands_and_an_obligation() {
     let right = ValueId::new(203).expect("right");
     let computed = ValueId::new(204).expect("computed");
     let result = ValueId::new(205).expect("result");
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        id,
+        scalar_type,
+        qualifications: Default::default(),
+    };
     let mut module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(202).expect("machine"),
@@ -2652,8 +2722,13 @@ fn exact_divide_requires_same_fixed_integer_operands_and_an_obligation() {
     let right = ValueId::new(213).expect("right");
     let computed = ValueId::new(214).expect("computed");
     let result = ValueId::new(215).expect("result");
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        id,
+        scalar_type,
+        qualifications: Default::default(),
+    };
     let mut module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(212).expect("machine"),
@@ -2765,8 +2840,13 @@ fn exact_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
     let right = ValueId::new(223).expect("right");
     let computed = ValueId::new(224).expect("computed");
     let result = ValueId::new(225).expect("result");
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        id,
+        scalar_type,
+        qualifications: Default::default(),
+    };
     let mut module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(222).expect("machine"),
@@ -2851,8 +2931,13 @@ fn wrapping_divide_requires_same_fixed_integer_operands_and_an_obligation() {
     let right = ValueId::new(233).expect("right");
     let computed = ValueId::new(234).expect("computed");
     let result = ValueId::new(235).expect("result");
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        id,
+        scalar_type,
+        qualifications: Default::default(),
+    };
     let mut module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(232).expect("machine"),
@@ -2937,8 +3022,13 @@ fn wrapping_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
     let right = ValueId::new(243).expect("right");
     let computed = ValueId::new(244).expect("computed");
     let result = ValueId::new(245).expect("result");
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        id,
+        scalar_type,
+        qualifications: Default::default(),
+    };
     let mut module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(242).expect("machine"),
@@ -3023,8 +3113,13 @@ fn saturating_divide_requires_same_fixed_integer_operands_and_an_obligation() {
     let right = ValueId::new(253).expect("right");
     let computed = ValueId::new(254).expect("computed");
     let result = ValueId::new(255).expect("result");
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        id,
+        scalar_type,
+        qualifications: Default::default(),
+    };
     let mut module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(252).expect("machine"),
@@ -3109,8 +3204,13 @@ fn saturating_remainder_requires_same_fixed_integer_operands_and_an_obligation()
     let right = ValueId::new(257).expect("right");
     let computed = ValueId::new(258).expect("computed");
     let result = ValueId::new(259).expect("result");
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        id,
+        scalar_type,
+        qualifications: Default::default(),
+    };
     let mut module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(256).expect("machine"),
@@ -3226,6 +3326,7 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
         let goal = Proposition::Equal(value_term(result), term.clone());
         let obligation = ObligationId::new(70 + u64::from(kind)).expect("obligation");
         let module = TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: MachineId::new(70).expect("machine"),
@@ -3260,16 +3361,19 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
                 published_service_ceiling: Vec::new(),
                 parameters: vec![
                     ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value,
                         scalar_type: value_scalar,
                     },
                     ValueDeclaration {
+                        qualifications: Default::default(),
                         id: count,
                         scalar_type: count_scalar,
                     },
                 ],
                 ranked_scc: None,
                 result: TerminalMachineResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: result,
                     scalar_type: value_scalar,
                 }),
@@ -3285,6 +3389,7 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
                     operations: vec![Operation {
                         id: OperationId::new(70).expect("operation"),
                         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: computed,
                             scalar_type: value_scalar,
                         }),
@@ -3492,6 +3597,7 @@ fn structural_return_rejects_inexact_custody_and_scalar_content_carriers() {
 
     let mut scalar_carrier = module;
     scalar_carrier.machines[0].result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(999).unwrap(),
         scalar_type: ScalarType::Boolean,
     });
@@ -4497,6 +4603,7 @@ fn partition_composition_is_scheduled_strictly_after_the_producer_call() {
     let add_probe = |operation, result, obligation| Operation {
         id: operation,
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: result,
             scalar_type: ScalarType::Integer(source_type),
         }),
@@ -4509,6 +4616,7 @@ fn partition_composition_is_scheduled_strictly_after_the_producer_call() {
 
     let mut before = module.clone();
     before.machines[0].parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(92).expect("probe input"),
         scalar_type: ScalarType::Integer(source_type),
     });
@@ -4531,6 +4639,7 @@ fn partition_composition_is_scheduled_strictly_after_the_producer_call() {
 
     let mut after = module;
     after.machines[0].parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(92).expect("probe input"),
         scalar_type: ScalarType::Integer(source_type),
     });
@@ -4566,6 +4675,7 @@ fn partition_composition_rejects_missing_and_noncall_producers() {
     noncall.machines[0].blocks[0].operations.push(Operation {
         id: noncall_operation,
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: ValueId::new(92).expect("constant result"),
             scalar_type: ScalarType::Boolean,
         }),
@@ -5002,6 +5112,7 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
     };
     (
         TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
@@ -5225,6 +5336,7 @@ fn structural_call_module() -> TerminalModule {
         },
     };
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: caller,
@@ -5459,12 +5571,14 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
         id: MachineId::new(90).expect("machine"),
         attachment: None,
         parameters: vec![ValueDeclaration {
+            qualifications: Default::default(),
             id: parameter,
             scalar_type: ScalarType::Boolean,
         }],
         structural_parameters: vec![structural_parameter.clone()],
         ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: result,
             scalar_type: ScalarType::Boolean,
         }),
@@ -5550,6 +5664,7 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
     };
     (
         TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
@@ -5674,11 +5789,13 @@ fn reflexive_content_module() -> (TerminalModule, Proposition, ObligationId) {
         entry_claims: Vec::new(),
         published_service_ceiling: Vec::new(),
         parameters: vec![ValueDeclaration {
+            qualifications: Default::default(),
             id: parameter,
             scalar_type: ScalarType::Boolean,
         }],
         ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: result,
             scalar_type: ScalarType::Boolean,
         }),
@@ -5717,6 +5834,7 @@ fn reflexive_content_module() -> (TerminalModule, Proposition, ObligationId) {
     };
     (
         TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
@@ -6201,16 +6319,19 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
         published_service_ceiling: Vec::new(),
         parameters: vec![
             ValueDeclaration {
+                qualifications: Default::default(),
                 id: left,
                 scalar_type,
             },
             ValueDeclaration {
+                qualifications: Default::default(),
                 id: right,
                 scalar_type,
             },
         ],
         ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: result,
             scalar_type,
         }),
@@ -6226,6 +6347,7 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
             operations: vec![Operation {
                 id: OperationId::new(20).expect("add operation"),
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: sum,
                     scalar_type,
                 }),
@@ -6250,6 +6372,7 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
     };
     (
         TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
@@ -6304,16 +6427,19 @@ fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
         published_service_ceiling: Vec::new(),
         parameters: vec![
             ValueDeclaration {
+                qualifications: Default::default(),
                 id: left,
                 scalar_type,
             },
             ValueDeclaration {
+                qualifications: Default::default(),
                 id: right,
                 scalar_type,
             },
         ],
         ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: result,
             scalar_type,
         }),
@@ -6329,6 +6455,7 @@ fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
             operations: vec![Operation {
                 id: OperationId::new(30).expect("add operation"),
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: sum,
                     scalar_type,
                 }),
@@ -6353,6 +6480,7 @@ fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
     };
     (
         TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
@@ -6407,16 +6535,19 @@ fn wrapping_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
         published_service_ceiling: Vec::new(),
         parameters: vec![
             ValueDeclaration {
+                qualifications: Default::default(),
                 id: left,
                 scalar_type,
             },
             ValueDeclaration {
+                qualifications: Default::default(),
                 id: right,
                 scalar_type,
             },
         ],
         ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: result,
             scalar_type,
         }),
@@ -6432,6 +6563,7 @@ fn wrapping_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
             operations: vec![Operation {
                 id: OperationId::new(40).expect("subtract operation"),
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: difference,
                     scalar_type,
                 }),
@@ -6456,6 +6588,7 @@ fn wrapping_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
     };
     (
         TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
@@ -6510,16 +6643,19 @@ fn saturating_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
         published_service_ceiling: Vec::new(),
         parameters: vec![
             ValueDeclaration {
+                qualifications: Default::default(),
                 id: left,
                 scalar_type,
             },
             ValueDeclaration {
+                qualifications: Default::default(),
                 id: right,
                 scalar_type,
             },
         ],
         ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: result,
             scalar_type,
         }),
@@ -6535,6 +6671,7 @@ fn saturating_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
             operations: vec![Operation {
                 id: OperationId::new(50).expect("subtract operation"),
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: difference,
                     scalar_type,
                 }),
@@ -6559,6 +6696,7 @@ fn saturating_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
     };
     (
         TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
@@ -6613,16 +6751,19 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
         published_service_ceiling: Vec::new(),
         parameters: vec![
             ValueDeclaration {
+                qualifications: Default::default(),
                 id: left,
                 scalar_type,
             },
             ValueDeclaration {
+                qualifications: Default::default(),
                 id: right,
                 scalar_type,
             },
         ],
         ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: result,
             scalar_type,
         }),
@@ -6638,6 +6779,7 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
             operations: vec![Operation {
                 id: OperationId::new(60).expect("multiply operation"),
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: product,
                     scalar_type,
                 }),
@@ -6662,6 +6804,7 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
     };
     (
         TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
@@ -6716,16 +6859,19 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
         published_service_ceiling: Vec::new(),
         parameters: vec![
             ValueDeclaration {
+                qualifications: Default::default(),
                 id: left,
                 scalar_type,
             },
             ValueDeclaration {
+                qualifications: Default::default(),
                 id: right,
                 scalar_type,
             },
         ],
         ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: result,
             scalar_type,
         }),
@@ -6741,6 +6887,7 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
             operations: vec![Operation {
                 id: OperationId::new(70).expect("multiply operation"),
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: product,
                     scalar_type,
                 }),
@@ -6765,6 +6912,7 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
     };
     (
         TerminalModule {
+            scalar_qualifications: Default::default(),
             scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
@@ -6920,6 +7068,7 @@ fn proof_recursive_bundle(module: &TerminalModule) -> ProofBundle {
 
 fn unit_module() -> TerminalModule {
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(900).unwrap(),
@@ -7099,10 +7248,12 @@ fn multi_exit_payloadless_guard_module() -> (
     let machine = &mut module.machines[0];
     machine.parameters = vec![
         ValueDeclaration {
+            qualifications: Default::default(),
             id: first,
             scalar_type: ScalarType::Boolean,
         },
         ValueDeclaration {
+            qualifications: Default::default(),
             id: second,
             scalar_type: ScalarType::Boolean,
         },
@@ -7251,6 +7402,7 @@ impl Fixture {
             parameters: Vec::new(),
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: result,
                 scalar_type,
             }),
@@ -7267,6 +7419,7 @@ impl Fixture {
                     operations: vec![Operation {
                         id: OperationId::new(1).expect("constant operation"),
                         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: constant,
                             scalar_type,
                         }),
@@ -7287,6 +7440,7 @@ impl Fixture {
                     structural_parameters: Vec::new(),
                     id: BlockId::new(2).expect("exit block"),
                     parameters: vec![ValueDeclaration {
+                        qualifications: Default::default(),
                         id: forwarded,
                         scalar_type,
                     }],
@@ -7311,6 +7465,7 @@ impl Fixture {
         };
         Self {
             module: TerminalModule {
+                scalar_qualifications: Default::default(),
                 scalar_range_invariants: Vec::new(),
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 entry: machine.id,

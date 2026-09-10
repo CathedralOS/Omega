@@ -97,6 +97,7 @@ pub(super) fn prepare<'a>(
                 values.push((
                     payload.target_scalar_parameter_index,
                     ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value_id(allocate_dense(next_value)?),
                         scalar_type,
                     },

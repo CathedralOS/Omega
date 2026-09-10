@@ -254,6 +254,7 @@ fn scalar_call_artifact() -> terminal_codec::CanonicalTerminalArtifact {
     });
     let scalar_type = template.parameters[0].scalar_type;
     let declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
         id: ValueId::new(id).unwrap(),
         scalar_type,
     };

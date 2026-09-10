@@ -2,6 +2,9 @@
 
 use super::*;
 
+mod exact_add;
+pub(super) use exact_add::exact_add_verified_with_result;
+
 fn remainder_by_one_certificate(
     integer: IntegerType,
     divisor: ValueId,
@@ -119,7 +122,11 @@ pub(super) fn live_exact_add_zero_verified() -> VerifiedPsiOptimizationUnit {
     let result = ValueId::new(1_086).unwrap();
     let obligation = ObligationId::new(1_087).unwrap();
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     let mut module = module_with_blocks(
         machine,
         block,
@@ -177,7 +184,11 @@ pub(super) fn live_exact_divide_by_one_verified() -> VerifiedPsiOptimizationUnit
     let result = ValueId::new(1_096).unwrap();
     let obligation = ObligationId::new(1_097).unwrap();
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     let mut module = module_with_blocks(
         machine,
         block,
@@ -239,7 +250,11 @@ pub(super) fn live_exact_multiply_by_zero_verified() -> VerifiedPsiOptimizationU
     let result = ValueId::new(1_106).unwrap();
     let obligation = ObligationId::new(1_107).unwrap();
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     let mut module = module_with_blocks(
         machine,
         block,
@@ -297,7 +312,11 @@ pub(super) fn live_exact_zero_dividend_verified() -> VerifiedPsiOptimizationUnit
     let result = ValueId::new(1_116).unwrap();
     let obligation = ObligationId::new(1_117).unwrap();
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     let module = module_with_blocks(
         machine,
         block,
@@ -367,8 +386,13 @@ pub(super) fn live_exact_zero_value_shift_verified() -> VerifiedPsiOptimizationU
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
     let count_scalar_type =
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 1).unwrap());
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     let count_declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
         id,
         scalar_type: count_scalar_type,
     };
@@ -437,8 +461,13 @@ pub(super) fn live_exact_signed_negative_one_shift_right_verified() -> VerifiedP
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 8).unwrap());
     let count_scalar_type =
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 1).unwrap());
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     let count_declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
         id,
         scalar_type: count_scalar_type,
     };
@@ -504,7 +533,11 @@ pub(super) fn live_exact_self_subtract_verified() -> VerifiedPsiOptimizationUnit
     let result = ValueId::new(1_137).unwrap();
     let obligation = ObligationId::new(1_138).unwrap();
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     let mut module = module_with_blocks(
         machine,
         block,
@@ -548,7 +581,11 @@ pub(super) fn live_exact_self_division_or_remainder_verified(
     let obligation = ObligationId::new(1_147).unwrap();
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
     let scalar_type = ScalarType::Integer(integer);
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     let mut module = module_with_blocks(
         machine,
         block,
@@ -641,7 +678,11 @@ pub(super) fn live_exact_remainder_by_unit_verified(
     let result = ValueId::new(1_156).unwrap();
     let obligation = ObligationId::new(1_157).unwrap();
     let scalar_type = ScalarType::Integer(integer);
-    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
     let constant_left = divisor == IntegerValue::Signed(-1);
     let mut operations = Vec::new();
     if constant_left {
@@ -701,82 +742,6 @@ pub(super) fn live_exact_remainder_by_unit_verified(
                 } else {
                     remainder_by_one_certificate(integer, one, 0)
                 },
-            }],
-        },
-    )
-}
-
-pub(super) fn exact_add_verified_with_result(return_result: bool) -> VerifiedPsiOptimizationUnit {
-    let machine = MachineId::new(1_011).unwrap();
-    let block = BlockId::new(1_012).unwrap();
-    let left = ValueId::new(1_013).unwrap();
-    let right = ValueId::new(1_014).unwrap();
-    let computed = ValueId::new(1_015).unwrap();
-    let result = ValueId::new(1_016).unwrap();
-    let obligation = ObligationId::new(1_017).unwrap();
-    let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
-    let declaration = |id| ValueDeclaration { id, scalar_type };
-    let machine_result = if return_result {
-        TerminalMachineResult::Scalar(declaration(result))
-    } else {
-        TerminalMachineResult::Unit
-    };
-    let terminator = if return_result {
-        Terminator::Return {
-            cleanup_actions: Vec::new(),
-            edge: EdgeId::new(1_021).unwrap(),
-            value: computed,
-        }
-    } else {
-        Terminator::ReturnUnit {
-            edge: EdgeId::new(1_021).unwrap(),
-            trivial_affine_discards: Vec::new(),
-        }
-    };
-    verified(
-        module_with_blocks(
-            machine,
-            block,
-            machine_result,
-            vec![Block {
-                structural_parameters: Vec::new(),
-                id: block,
-                parameters: Vec::new(),
-                operations: vec![
-                    Operation {
-                        id: OperationId::new(1_018).unwrap(),
-                        result: OperationResult::Scalar(declaration(left)),
-                        kind: OperationKind::IntegerConstant {
-                            value: IntegerValue::Unsigned(7),
-                        },
-                    },
-                    Operation {
-                        id: OperationId::new(1_019).unwrap(),
-                        result: OperationResult::Scalar(declaration(right)),
-                        kind: OperationKind::IntegerConstant {
-                            value: IntegerValue::Unsigned(8),
-                        },
-                    },
-                    Operation {
-                        id: OperationId::new(1_020).unwrap(),
-                        result: OperationResult::Scalar(declaration(computed)),
-                        kind: OperationKind::ExactIntegerAdd {
-                            left,
-                            right,
-                            obligation,
-                        },
-                    },
-                ],
-                terminator,
-            }],
-        ),
-        ProofBundle {
-            recursive_components: Vec::new(),
-            control_cycles: Vec::new(),
-            evidence_producers: Vec::new(),
-            evidence: vec![ObligationEvidence {
-                obligation,
-                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
             }],
         },
     )

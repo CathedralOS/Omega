@@ -231,6 +231,7 @@ fn fixture() -> TerminalModule {
     let scalar_type =
         ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).expect("valid integer type"));
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
@@ -264,11 +265,13 @@ fn fixture() -> TerminalModule {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(1),
                 scalar_type,
             }],
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value_id(2),
                 scalar_type,
             }),

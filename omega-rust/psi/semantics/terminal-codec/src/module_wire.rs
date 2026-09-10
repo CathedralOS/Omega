@@ -767,6 +767,7 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     writer.u16(FORMAT_MARKER);
     writer.u16(module.vocabulary_marker.get());
     writer.id(module.entry);
+    super::scalar_qualification_wire::encode(&mut writer, &module.scalar_qualifications)?;
     writer.len("structural types", module.structural_types.len())?;
     for declaration in &module.structural_types {
         encode_structural_type(&mut writer, declaration)?;
@@ -1243,6 +1244,7 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     }
     let vocabulary_marker = VocabularyMarker::CURRENT;
     let entry = reader.id("MachineId")?;
+    let scalar_qualifications = super::scalar_qualification_wire::decode(reader)?;
     let structural_types = decode_counted(reader, decode_structural_type)?;
     let structural_domains = decode_counted(reader, |reader| {
         Ok(StructuralDomainDeclaration {
@@ -1644,6 +1646,7 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         machines.push(super::machine_wire::decode_machine(reader)?);
     }
     Ok(TerminalModule {
+        scalar_qualifications,
         scalar_range_invariants,
         vocabulary_marker,
         entry,

@@ -10,6 +10,7 @@ fn ordered_scalar_module() -> TerminalModule {
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     let value = |identity| ValueId::new(identity).unwrap();
     let declaration = |identity| ValueDeclaration {
+        qualifications: Default::default(),
         id: value(identity),
         scalar_type,
     };
@@ -17,10 +18,12 @@ fn ordered_scalar_module() -> TerminalModule {
         declaration(10),
         declaration(11),
         ValueDeclaration {
+            qualifications: Default::default(),
             id: value(12),
             scalar_type: ScalarType::Boolean,
         },
         ValueDeclaration {
+            qualifications: Default::default(),
             id: value(13),
             scalar_type: ScalarType::Boolean,
         },

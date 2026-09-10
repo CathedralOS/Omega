@@ -6,10 +6,14 @@ fn guarded_division_obligation_retains_its_selected_arm_facts() {
         "machine value(denominator: u8) -> u8\nrequires 7u8 == 7u8\nensures 7u8 == 7u8\n{ transition (1 <= denominator) { true -> (7u8 / denominator) false -> 7 } }",
     );
     let graph = &checked.facts.flow.terminal_scalar_graphs.machines[0];
-    let prepared = prepare_scalar_graph_machine(&checked, graph.machine, graph).expect("prepare");
+    let qualifications =
+        PreparedScalarQualifications::prepare(&checked, &[graph.machine]).expect("qualifications");
+    let prepared = prepare_scalar_graph_machine(&checked, &qualifications, graph.machine, graph)
+        .expect("prepare");
     let lowered = build_scalar_graph_module(
         &prepared.states,
         prepared.result_type,
+        qualifications.catalog(),
         prepared.contract,
         prepared.crash_routes,
         prepared.identity_reshuffles,

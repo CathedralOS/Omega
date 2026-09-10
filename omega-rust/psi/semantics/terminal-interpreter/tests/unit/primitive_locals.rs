@@ -9,6 +9,7 @@ mod ranking;
 
 fn scalar(ordinal: u64) -> ValueDeclaration {
     ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(ordinal),
         scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
     }
@@ -242,6 +243,7 @@ fn primitive_local_missing_reordered_or_non_dominating_establishment_rejects() {
     caller.blocks[0].operations.push(Operation {
         id: operation_id(6),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(6),
             scalar_type: ScalarType::Boolean,
         }),
@@ -270,6 +272,7 @@ fn primitive_local_missing_reordered_or_non_dominating_establishment_rejects() {
 fn primitive_local_wrong_types_and_write_only_read_reject() {
     let mut input = local_module();
     input.machines[0].blocks[0].operations[0].result = OperationResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(1),
         scalar_type: ScalarType::Boolean,
     });
@@ -281,6 +284,7 @@ fn primitive_local_wrong_types_and_write_only_read_reject() {
     ));
     let mut output = local_module();
     output.machines[0].blocks[0].operations[3].result = OperationResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
         id: value_id(4),
         scalar_type: ScalarType::Boolean,
     });

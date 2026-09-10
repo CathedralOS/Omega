@@ -88,6 +88,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
                     .iter()
                     .map(|parameter| {
                         Ok(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: value_id(allocate_dense(&mut catalogs.next_value)?),
                             scalar_type: terminal_scalar_type(parameter.primitive_type)?,
                         })

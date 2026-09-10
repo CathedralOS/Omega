@@ -53,6 +53,7 @@ fn omega_rejects_substituting_a_computed_i32_for_the_exact_caller_parameter() {
         Operation {
             id: operation_id(9),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: replacement,
                 scalar_type,
             }),
@@ -128,6 +129,7 @@ fn scalar_provider_module() -> TerminalModule {
     module.boundary_machines[0].scalar_parameters = vec![scalar_type];
     for (index, machine) in module.machines.iter_mut().enumerate() {
         let parameter = ValueDeclaration {
+            qualifications: Default::default(),
             id: value_id(index as u64 + 1),
             scalar_type,
         };

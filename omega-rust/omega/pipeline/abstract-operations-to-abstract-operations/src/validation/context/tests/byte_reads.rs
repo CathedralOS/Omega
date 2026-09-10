@@ -90,10 +90,12 @@ pub(super) fn verified_byte_operation(
     machine.contract.ensures.clear();
     machine.parameters = vec![
         ValueDeclaration {
+            qualifications: Default::default(),
             id: value(1),
             scalar_type: count_type,
         },
         ValueDeclaration {
+            qualifications: Default::default(),
             id: value(5),
             scalar_type: count_type,
         },
@@ -138,6 +140,7 @@ pub(super) fn verified_byte_operation(
                 Operation {
                     id: id(1, OperationId::new),
                     result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value(2),
                         scalar_type: count_type,
                     }),
@@ -148,6 +151,7 @@ pub(super) fn verified_byte_operation(
                 Operation {
                     id: id(2, OperationId::new),
                     result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value(3),
                         scalar_type: ScalarType::Boolean,
                     }),
@@ -170,6 +174,7 @@ pub(super) fn verified_byte_operation(
             operations: vec![Operation {
                 id: id(3, OperationId::new),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: value(4),
                     scalar_type: ScalarType::Integer(
                         IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
@@ -225,6 +230,7 @@ pub(super) fn verified_byte_operation(
         machine.blocks[1].operations.push(Operation {
             id: id(4, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value(6),
                 scalar_type: count_type,
             }),

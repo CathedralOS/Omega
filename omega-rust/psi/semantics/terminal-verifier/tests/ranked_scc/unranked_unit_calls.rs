@@ -42,6 +42,7 @@ fn helper_call(module: &mut TerminalModule, source: u64) -> Operation {
         operations: vec![Operation {
             id: id(100, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: id(100, ValueId::new),
                 scalar_type: ScalarType::Integer(
                     IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
@@ -85,6 +86,7 @@ fn literal_cycle() -> TerminalModule {
     let machine = &mut module.machines[0];
     machine.ranked_scc = None;
     machine.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: id(20, ValueId::new),
         scalar_type: ScalarType::Boolean,
     }];

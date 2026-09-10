@@ -4,9 +4,11 @@
 //! The checked node must preserve the cast occurrence and its normalized result;
 //! the vacuous-use row alone cannot classify a routed or predicate-bearing
 //! declaration as empty. Replay checks both owners, including expanded aliases
-//! and canonical indexed instances. Terminal transport remains a separate gap.
+//! and canonical indexed instances. The scalar qualification owner supplies the
+//! same declaration replay to the closure's canonical Terminal catalog.
 
 use super::*;
+use crate::scalar_qualifications::declared_atoms;
 use checked_trees::types::{
     DomainConstraintSubject, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
@@ -160,87 +162,6 @@ pub(super) fn operand(
         return unsupported("scalar qualification substituted its normalized domain instance");
     }
     Ok(cast.value)
-}
-
-fn declared_atoms(
-    checked: &CheckedTrees,
-    symbol: symbols::SymbolHandle,
-    arguments: &[TypeReferenceHandle],
-    semantic_id: SemanticDomainId,
-    primitive: PrimitiveType,
-    active: &mut Vec<symbols::SymbolHandle>,
-    atoms: &mut Vec<(symbols::SymbolHandle, SemanticDomainId)>,
-) -> Result<(), LoweringError> {
-    if !symbol.is_valid() || active.contains(&symbol) || !semantic_id.is_valid() {
-        return unsupported("scalar qualification has a stale or cyclic domain definition");
-    }
-    let mut declarations = checked
-        .domain_definitions()
-        .iter()
-        .filter(|domain| domain.symbol == symbol);
-    let domain = declarations.next().ok_or(LoweringError::Unsupported(
-        "scalar qualification has no domain definition",
-    ))?;
-    if declarations.next().is_some()
-        || domain.predicate_body.is_present()
-        || !domain.facts.is_empty()
-        || !domain.establishment_routes.is_empty()
-        || (!checked_trees::domain::has_generic_carrier(checked, domain)
-            && checked.primitive_type_reference(domain.target_type) != Some(primitive))
-    {
-        return unsupported(
-            "scalar qualification declaration needs non-vacuous evidence or another carrier",
-        );
-    }
-    let parameters = checked_trees::domain::index_parameters(checked, domain);
-    if parameters.len() != arguments.len()
-        || arguments.iter().any(|argument| {
-            !checked
-                .type_reference_table
-                .contains_type_reference(*argument)
-        })
-    {
-        return unsupported("scalar qualification changed its domain index arity or identity");
-    }
-    let identity =
-        checked_trees::domain::indexed_domain_instance_name(checked, domain, parameters, arguments)
-            .map_err(|_| {
-                LoweringError::Unsupported("scalar qualification has unresolved domain indices")
-            })?;
-    if checked.semantic_domains.name(semantic_id) != Some(identity.as_str())
-        || (arguments.is_empty() && semantic_id != domain.semantic_id)
-    {
-        return unsupported("scalar qualification changed its canonical domain instance");
-    }
-    if let Some(alias) = &domain.alias {
-        if alias.constituents.is_empty() || !arguments.is_empty() {
-            return unsupported("scalar qualification has an empty or indexed alias expansion");
-        }
-        active.push(symbol);
-        for constituent in &alias.constituents {
-            let identity = checked
-                .domain_definitions()
-                .iter()
-                .find(|domain| domain.symbol == constituent.domain_symbol)
-                .map(|domain| domain.semantic_id)
-                .ok_or(LoweringError::Unsupported(
-                    "scalar qualification has an unresolved alias atom",
-                ))?;
-            declared_atoms(
-                checked,
-                constituent.domain_symbol,
-                &[],
-                identity,
-                primitive,
-                active,
-                atoms,
-            )?;
-        }
-        active.pop();
-    } else {
-        atoms.push((symbol, semantic_id));
-    }
-    Ok(())
 }
 
 #[cfg(test)]

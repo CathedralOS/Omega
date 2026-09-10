@@ -53,6 +53,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
     let return_edge = id(5, EdgeId::new);
 
     TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -83,6 +84,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
             id: machine,
             attachment: None,
             parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
                 id: initial,
                 scalar_type: scalar,
             }],
@@ -141,6 +143,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                     structural_parameters: Vec::new(),
                     id: header,
                     parameters: vec![ValueDeclaration {
+                        qualifications: Default::default(),
                         id: rank,
                         scalar_type: scalar,
                     }],
@@ -148,6 +151,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                         Operation {
                             id: id(1, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
+                                qualifications: Default::default(),
                                 id: zero,
                                 scalar_type: scalar,
                             }),
@@ -158,6 +162,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                         Operation {
                             id: id(2, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
+                                qualifications: Default::default(),
                                 id: condition,
                                 scalar_type: ScalarType::Boolean,
                             }),
@@ -193,6 +198,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                         Operation {
                             id: id(3, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
+                                qualifications: Default::default(),
                                 id: one,
                                 scalar_type: scalar,
                             }),
@@ -203,6 +209,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                         Operation {
                             id: id(4, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
+                                qualifications: Default::default(),
                                 id: next,
                                 scalar_type: scalar,
                             }),
@@ -251,6 +258,7 @@ fn unranked_scalar_cycle() -> TerminalModule {
     let entry = id(1, BlockId::new);
     let done = id(4, BlockId::new);
     machine.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: condition,
         scalar_type: ScalarType::Boolean,
     }];
@@ -481,6 +489,7 @@ fn ranked_countdown_with_borrowed_subslice_is_representation_only() {
         Operation {
             id: id(5, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: id(7, ValueId::new),
                 scalar_type: machine.parameters[0].scalar_type,
             }),
@@ -694,6 +703,7 @@ fn interpreter_ranked_countdown_rejects_extra_mixed_work() {
     module.machines[0].blocks[0].operations.push(Operation {
         id: id(20, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
             id: id(20, ValueId::new),
             scalar_type: ScalarType::Integer(integer),
         }),

@@ -290,6 +290,7 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
         ScalarTerm::boolean_field(caller_place, field),
     );
     let module = TerminalModule {
+        scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
@@ -363,6 +364,7 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
                 ],
                 ranked_scc: None,
                 result: TerminalMachineResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: value_id(1),
                     scalar_type: ScalarType::Boolean,
                 }),
@@ -395,6 +397,7 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
                     operations: vec![Operation {
                         id: semantic_vocabulary::OperationId::new(1).expect("operation"),
                         result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
                             id: value_id(2),
                             scalar_type: ScalarType::Boolean,
                         }),

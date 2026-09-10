@@ -18,6 +18,7 @@ pub(super) fn byte_operation_fence(subslice: bool) {
     let count_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     let value = |ordinal| ValueId::new(ordinal).unwrap();
     machine.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
         id: value(1),
         scalar_type: count_type,
     }];
@@ -53,6 +54,7 @@ pub(super) fn byte_operation_fence(subslice: bool) {
             operations: vec![Operation {
                 id: operation_id(3),
                 result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
                     id: value(4),
                     scalar_type: ScalarType::Integer(
                         IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
@@ -78,6 +80,7 @@ pub(super) fn byte_operation_fence(subslice: bool) {
                 Operation {
                     id: operation_id(1),
                     result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value(2),
                         scalar_type: count_type,
                     }),
@@ -88,6 +91,7 @@ pub(super) fn byte_operation_fence(subslice: bool) {
                 Operation {
                     id: operation_id(2),
                     result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
                         id: value(3),
                         scalar_type: ScalarType::Boolean,
                     }),
@@ -141,6 +145,7 @@ pub(super) fn byte_operation_fence(subslice: bool) {
         machine.blocks[0].operations.push(Operation {
             id: operation_id(4),
             result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
                 id: value(5),
                 scalar_type: count_type,
             }),
