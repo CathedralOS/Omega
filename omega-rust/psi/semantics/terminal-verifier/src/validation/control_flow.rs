@@ -22,6 +22,7 @@ pub(super) fn validate_control_flow(
     let mut definition_blocks = BTreeMap::new();
     let mut borrowed_view_definitions = BTreeMap::new();
     let mut primitive_local_definitions = BTreeMap::new();
+    let mut scalar_array_definitions = BTreeMap::new();
     for block in blocks.values() {
         for parameter in &block.structural_parameters {
             borrowed_view_definitions.insert(parameter.place, block.id);
@@ -30,6 +31,11 @@ pub(super) fn validate_control_flow(
             definition_blocks.insert(parameter.id, block.id);
         }
         for operation in &block.operations {
+            if let Some(result) = operation.result.structural()
+                && super::scalar_array::plain_return_source(module, machine, result.place)
+            {
+                scalar_array_definitions.insert(result.place, block.id);
+            }
             if let Some(result) = operation.result.structural()
                 && super::primitive_storage::local_result(machine, result.place).is_some()
             {
@@ -161,6 +167,19 @@ pub(super) fn validate_control_flow(
         order = blocks.keys().copied().collect();
     }
 
+    // Array payload slots currently establish once per activation. Keep loop
+    // re-establishment unsupported while allowing an outside definition to
+    // dominate ordinary uses within a loop.
+    if !scalar_array_definitions.is_empty() && (cyclic || !representation_backedges.is_empty()) {
+        for component in crate::control_graph::cyclic_components(machine) {
+            if let Some(block) = scalar_array_definitions
+                .values()
+                .find(|block| component.contains(block))
+            {
+                return Err(ModuleError::ControlCycle(*block));
+            }
+        }
+    }
     let dominators = if cyclic {
         crate::control_graph::dominators(machine)
     } else {
@@ -225,6 +244,12 @@ pub(super) fn validate_control_flow(
                 (*definition != block_id && block_dominators.contains(definition)).then_some(*place)
             })
             .collect::<BTreeSet<_>>();
+        let mut available_arrays = scalar_array_definitions
+            .iter()
+            .filter_map(|(place, definition)| {
+                (*definition != block_id && block_dominators.contains(definition)).then_some(*place)
+            })
+            .collect::<BTreeSet<_>>();
         available_views.extend(
             block
                 .structural_parameters
@@ -253,6 +278,16 @@ pub(super) fn validate_control_flow(
                 value_types,
                 &defined,
             )?;
+            super::scalar_array::validate_uses(
+                operation,
+                &scalar_array_definitions,
+                &available_arrays,
+            )?;
+            if let Some(result) = operation.result.structural()
+                && scalar_array_definitions.contains_key(&result.place)
+            {
+                available_arrays.insert(result.place);
+            }
             if let Some(result) = operation.result.scalar() {
                 defined.insert(result.id);
             }
@@ -421,6 +456,15 @@ pub(super) fn validate_control_flow(
                 }
             }
             Terminator::ReturnStructural { source, .. } => {
+                if scalar_array_definitions.contains_key(source)
+                    && !available_arrays.contains(source)
+                {
+                    return Err(ModuleError::StructuralReturnSourceNotLive {
+                        machine: machine.id,
+                        block: block.id,
+                        place: *source,
+                    });
+                }
                 if super::byte_sequence_subslice::borrowed_result(machine, *source).is_some()
                     || super::block_views::parameter(machine, *source).is_some()
                 {

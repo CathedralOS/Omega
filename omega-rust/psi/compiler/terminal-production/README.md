@@ -257,7 +257,15 @@ scalar contracts or result refinements; existing scalar-only contract lowering
 remains available for bodies it can fully represent.
 Scalar computation calls with array-valued actuals need expression-owned structural
 temporary slots in the computation evaluator; they cannot hoist construction
-out of a selective Boolean branch. Transitive scalar callees whose bodies require
+out of a selective Boolean branch. The verifier checks unrestricted array payload
+availability through producer dominance and same-block order, separately from
+the exact affine/linear ownership frontier. Branch-local unused arrays therefore
+permit scalar continuation joins; use outside their dominating scope still rejects.
+Repeated array establishment in cycles and block-parameter payload transport remain
+unsupported. The source probe is
+`cargo run -p omega -- inspect-terminal --machine computation_row tests/omega/pass/modules/module_array_constant_indices/main.omg`;
+its next dependency is the computation evaluator, not a new Terminal opcode.
+Transitive scalar callees whose bodies require
 this ordered structural operation sequence also need scalar-callee catalog support.
 Array state transfers, borrowed/projected payloads, boundary-provider array
 payloads, and native construction still need their complete value/storage paths.

@@ -1,7 +1,49 @@
 //! Whole owned primitive-array parameters, constructions, and call results.
+//! Plain unrestricted payloads carry value availability, not affine/linear
+//! disposal obligations. Control-flow dominance checks their uses separately
+//! from the exact ownership frontier, just as for primitive local storage.
 
 use super::operations::require_defined;
 use super::*;
+
+pub(super) fn validate_uses(
+    operation: &terminal_psi::Operation,
+    definitions: &BTreeMap<PlaceId, BlockId>,
+    available: &BTreeSet<PlaceId>,
+) -> Result<(), ModuleError> {
+    let arguments = match &operation.kind {
+        OperationKind::CallUnit {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::CallStructuralScalar {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::CallStructural {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::CallStructuralWithScalarArguments {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::BoundaryCall {
+            structural_arguments,
+            ..
+        } => structural_arguments,
+        _ => return Ok(()),
+    };
+    for argument in arguments {
+        if definitions.contains_key(&argument.place) && !available.contains(&argument.place) {
+            return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+                operation: operation.id,
+                place: argument.place,
+            });
+        }
+    }
+    Ok(())
+}
 
 pub(super) fn plain_return_source(
     module: &TerminalModule,

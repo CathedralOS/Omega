@@ -27,6 +27,8 @@ pub struct VerifiedPartialStructuralCustody {
 }
 
 /// Exact verifier-owned ownership state at one deterministic control site.
+/// Plain unrestricted arrays, primitive locals, and borrowed views have no
+/// by-value disposal debt here; their availability is validated separately.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedStructuralOwnershipFrontier {
     claims: Vec<VerifiedLiveClaim>,
@@ -263,7 +265,7 @@ pub(super) fn validate_structural_frontier(
             snapshots
                 .operation_entries
                 .insert(operation.id, frontier.snapshot());
-            validate_owned_reads(module, machine, operation, &frontier)?;
+            validate_owned_reads(machine, operation, &frontier)?;
             if let OperationKind::EstablishTrivialAffineLocal { destination } = operation.kind
                 && frontier
                     .owned_places
@@ -432,6 +434,7 @@ pub(super) fn validate_structural_frontier(
             if let OperationResult::Structural(result) = &operation.result
                 && super::byte_sequence_subslice::borrowed_result(machine, result.place).is_none()
                 && super::primitive_storage::local_result(machine, result.place).is_none()
+                && !super::scalar_array::plain_return_source(module, machine, result.place)
             {
                 if frontier
                     .owned_places
@@ -763,9 +766,11 @@ pub(super) fn validate_structural_frontier(
                             && parameter.position == 0
                             && !parameter.is_self
                             && parameter.access == StructuralAccess::Owned);
+                // Plain array results have already passed exact producer
+                // dominance/order checks in the control-flow validation pass.
                 if frontier.owned_places.remove(source).is_none()
                     && !exact_unrestricted_parameter_return
-                    && !super::scalar_array::plain_parameter(module, machine, *source)
+                    && !super::scalar_array::plain_return_source(module, machine, *source)
                 {
                     return Err(ModuleError::StructuralReturnSourceNotLive {
                         machine: machine.id,
@@ -944,7 +949,6 @@ pub(super) fn validate_structural_frontier(
 /// Check every read before committing any outgoing move; repeated shared
 /// arguments do not alter the frontier.
 fn validate_owned_reads(
-    module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
     frontier: &StructuralOwnershipFrontier,
@@ -972,21 +976,6 @@ fn validate_owned_reads(
         } => structural_arguments.as_slice(),
         _ => &[],
     };
-    // Unrestricted argument passing copies custody rather than consuming it,
-    // but a local payload must still have been established on this path.
-    for argument in arguments {
-        if super::scalar_array::owned_payload_source(module, machine, argument.place)
-            && !super::scalar_array::plain_parameter(module, machine, argument.place)
-            && (frontier.owned_places.get(&argument.place)
-                != Some(&StructuralMultiplicity::Unrestricted)
-                || frontier.partial_custody_paths.contains_key(&argument.place))
-        {
-            return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
-                operation: operation.id,
-                place: argument.place,
-            });
-        }
-    }
     let observation = match operation.kind {
         OperationKind::IntegerStructuralField { source, .. }
         | OperationKind::BooleanStructuralField { source, .. } => Some(source),
@@ -1130,13 +1119,6 @@ fn validate_scalar_cleanup_actions(
     let mut frontier = frontier.clone();
     let max_residuals = actions.len();
     let mut actions = actions.iter();
-
-    // An unrestricted primitive array carries no disposal obligation. Its
-    // initialized local contents expire with this activation on scalar return.
-    frontier.owned_places.retain(|place, multiplicity| {
-        *multiplicity != StructuralMultiplicity::Unrestricted
-            || !super::scalar_array::plain_return_source(module, machine, *place)
-    });
 
     // Scalar-case temporaries follow the same reverse producer order as
     // ordinary edge and Unit-return disposal, before older named roots.

@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "arguments/selection.rs"]
+mod selection;
+
 fn parameters(machine: &mut TerminalMachine, count: u32) {
     for position in 0..count {
         let place = place_id(machine.id.get() * 1000 + u64::from(position) + 1);

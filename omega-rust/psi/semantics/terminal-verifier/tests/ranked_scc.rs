@@ -825,3 +825,6 @@ mod natural_stale_observations;
 
 #[path = "ranked_scc/natural_topology.rs"]
 mod natural_topology;
+
+#[path = "ranked_scc/scalar_array_availability.rs"]
+mod scalar_array_availability;

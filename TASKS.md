@@ -1168,18 +1168,32 @@ Owners include
   `typed-trees-to-checked-trees/src/flow/terminal_unit/control/statement_sequence.rs`
   and `checked-trees-to-lowered-psi/src/attached_unit/scalar_arrays.rs`.
   Next acceptance is array-valued operands inside scalar computations, including
-  selected branches. Source-inspected dependency:
+  selected branches. On macOS AArch64, base `71868fe4db` plus the array-availability
+  change, the probe is
+  `cargo run -p omega -- inspect-terminal --machine computation_row tests/omega/pass/modules/module_array_constant_indices/main.omg`:
+  `keep_row([answer_row([7u8, 9u8], value), 9u8])` still rejects with
+  `machine has no source-independent checked scalar control plan`.
+  It must return `[42u8, 9u8]` for input `42u8`. Source-inspected dependencies:
   `flow/terminal_unit/calls/computation_arguments.rs` has no expression-owned
-  structural temporary slots. The unrun next probe
-  `keep([answer([7u8, 9u8], 42u8), 9u8])` should return `[42u8, 9u8]`;
-  retain construction in the selected computation, not hoisted outside its control.
+  structural temporaries, and `checked-trees-to-lowered-psi/src/scalar_computations.rs`
+  expands into private bindings that each require a scalar result. Extend the
+  shared evaluation sequence with actual structural results, not fake scalar slots
+  (empty arrays have no scalar leaf). Preserve authored formal order and construct
+  only in the selected computation. Terminal array availability is independently
+  checked by dominance and same-block order; unused unrestricted payloads do not
+  enter the disposal frontier or prevent a scalar continuation join. Array-producing
+  cycles and structural block-parameter payload transport remain explicit fences.
   Transitive scalar callees with ordered structural operation bodies also need
   the scalar-callee catalog join. Ordered scalar completion contracts and result
   refinements need their complete predicate/evidence path; preserve existing
   scalar-only contract lowering while extending that route.
   Borrowed/projected payloads, state transfers, and boundary-provider array
   results also remain unsupported. Native lowering rejects `EstablishScalarArray`,
-  including empty payloads. Continue with complete value/storage paths and
+  including empty payloads. Before native array transport is admitted, update
+  `omega-rust/omega/semantics/optimization-unit-semantics/src/current_ownership/replay.rs`:
+  its abstract structural-call result replay still inserts unrestricted payloads
+  into the ownership frontier and needs the same availability/custody distinction.
+  Continue with complete value/storage paths and
   independent custody checks; do not
   substitute opaque structural identities for executable values.
   General slice-backed `.len` operands also need retained view formation and bounds
