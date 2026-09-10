@@ -114,6 +114,11 @@ bodies and effect-free primitive-reference scalar returns are discovered before
 Unit closure; nominal-cleanup-dependent return bodies
 remain in the later discovery phase. Exact authored structural actuals and dense
 scalar positions survive the call, including a result binding after scalar inputs.
+Complete ordinary operation bodies can also supply scalar callees without a
+legacy return row. Receiving replay checks each call's exact authored reach,
+the callee's body/state summary, and its independently published service contract.
+A caller's transitive contribution and the callee's direct boundary use retain
+their distinct roles; neither can replace the other's summary.
 Effect-free bodies may take several plain primitive borrows interleaved with
 scalar parameters. They retain an empty effect prefix, not a fabricated store;
 the authored statement roster still rejects deletion of a real assignment.

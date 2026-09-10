@@ -41,13 +41,35 @@ fn primitive_store_scalar_return_retains_source_effect_and_borrow() {
                 value: CheckedScalarExpression::IntegerLiteral { literal },
             }] if literal.value_i64() == Some(0)
         ));
+        // Scalar completion shares the ordinary operation owner. Its source
+        // effect must remain before the separately established return value.
+        let ordered = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine)
+            .expect("ordered primitive store and scalar completion");
+        assert_eq!(ordered.structural_parameters, plan.structural_parameters);
+        assert_eq!(ordered.scalar_parameters, plan.scalar_parameters);
+        let [
+            store,
+            CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value },
+            CheckedUnitEffectOperationPlan::Complete {
+                statement_index: 2, ..
+            },
+        ] = ordered.operations.as_slice()
+        else {
+            panic!("complete ordered scalar body");
+        };
+        assert_eq!(store, &plan.effects[0]);
+        assert_eq!(ordered.scalar_result.as_ref(), Some(result));
+        assert_eq!(
+            (result.statement_index, result.primitive_type),
+            (1, PrimitiveType::U64)
+        );
         assert!(
-            checked
-                .facts
-                .flow
-                .terminal_unit_effects
-                .for_machine(machine)
-                .is_none()
+            matches!(value, checked_trees::CheckedCallScalarArgument::Pure(
+            CheckedScalarExpression::IntegerLiteral { literal }) if literal.value_i64() == Some(0))
         );
         assert!(matches!(
             checked.facts.values.scalar_expressions.expression_at(

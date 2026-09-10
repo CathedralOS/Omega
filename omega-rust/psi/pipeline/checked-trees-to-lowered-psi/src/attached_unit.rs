@@ -552,7 +552,13 @@ fn assemble_unit_closure(
                     structural_arguments,
                     claim_transfers,
                 } => {
-                    retain_exact_checked_flow_call(checked, machine, *coordinate, *target_state)?;
+                    let source_call = retain_exact_flow_call(
+                        checked,
+                        machine.machine,
+                        machine.state,
+                        *coordinate,
+                        *target_state,
+                    )?;
                     let target = CheckedScalarCallee::find_for_unit_call(checked, *target_machine)?;
                     match &target {
                         CheckedScalarCallee::Boundary(_) | CheckedScalarCallee::Structural(_) => {
@@ -597,10 +603,25 @@ fn assemble_unit_closure(
                         .map(|(_, state)| state.service_reach)
                         .collect::<Vec<_>>();
                     let reach_matches = match &target {
-                        CheckedScalarCallee::Graph(_)
-                        | CheckedScalarCallee::Structural(_)
-                        | CheckedScalarCallee::Operations(_) => {
+                        CheckedScalarCallee::Graph(_) | CheckedScalarCallee::Structural(_) => {
                             target_reaches.as_slice() == [*service_reach]
+                        }
+                        CheckedScalarCallee::Operations(plan) => {
+                            // The body owns its direct effects; an ordinary call
+                            // contributes the published callee ceiling transitively.
+                            // Rejoin each subject instead of equating their summaries;
+                            // the caller still retains its exact source occurrence row.
+                            source_call.service_reach == *service_reach
+                                && target_reaches.as_slice() == [plan.service_reach]
+                                && checked
+                                    .facts
+                                    .service_reaches
+                                    .plan_for_machine(*target_machine)
+                                    == Some(plan.contract_service_reach)
+                                && checked_unit_target_reach_matches(
+                                    *service_reach,
+                                    plan.contract_service_reach,
+                                )
                         }
                         CheckedScalarCallee::Boundary(plan) => {
                             target_reaches.as_slice() == [plan.service_reach]

@@ -1,4 +1,8 @@
 //! Ordinary scalar calls retain an existing body plan, never a fabricated graph.
+//! A missing legacy return row may use a complete ordinary scalar-result body.
+//! A retained legacy row must match; its drift cannot select that fallback.
+//! Availability closes dependencies, while the receiving lowerer independently
+//! replays every retained operation and its authored source custody.
 
 use super::*;
 
