@@ -142,6 +142,12 @@ fn validate_partial_moves(
                 {
                     continue;
                 }
+                if projected_affine::is_borrowed_case_transfer(program, state, &event, path) {
+                    diagnostics.push(Diagnostic::error(
+                        "cannot transfer a non-copy case payload out of borrowed storage without replacing its owner",
+                    ));
+                    continue;
+                }
                 temporary_results::check_unselected_claims(
                     program,
                     state.symbol,

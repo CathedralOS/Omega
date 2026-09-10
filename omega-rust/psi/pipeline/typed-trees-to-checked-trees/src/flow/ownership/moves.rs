@@ -9,6 +9,26 @@ pub(super) fn append_move_events_for_expression(
     expression: ExpressionHandle,
     source: FlowOwnershipEventSource,
 ) {
+    // A case-membership test observes a saved place; it does not extract the
+    // nominal value whose tag is read. Restrict this to static symbol paths so
+    // calls and computed indexes still expose their owned argument transfers.
+    if let Some((subject, _)) = crate::proof::exact_outcome_case_test(program, expression)
+        && canonical_place_from_expression_in_state(program, state_symbol, statement_index, subject)
+            .is_some_and(|place| {
+                matches!(place.root, facts::PlaceRoot::Symbol(_))
+                    && place.segments.iter().all(|segment| {
+                        matches!(
+                            segment,
+                            facts::PlaceSegment::Field { .. }
+                                | facts::PlaceSegment::Case { .. }
+                                | facts::PlaceSegment::FixedIndex { .. }
+                        )
+                    })
+            })
+    {
+        return;
+    }
+
     if type_references::expression_requires_ownership(
         program,
         state_symbol,
