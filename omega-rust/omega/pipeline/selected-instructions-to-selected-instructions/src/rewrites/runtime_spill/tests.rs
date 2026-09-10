@@ -17,6 +17,7 @@ use super::*;
 
 mod control_flow;
 mod dominance;
+mod liveness_custody;
 mod parameters;
 mod scalar_payloads;
 
