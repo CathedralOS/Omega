@@ -163,6 +163,13 @@ impl Context<'_> {
         active.push(root);
         let node = plans.nodes.get(root);
         let valid = match &node.kind {
+            // Membership and the exact cast operand are replayed by shared
+            // source custody; qualification does not change payload meaning.
+            Computation::Qualification { operand, .. } => {
+                plans.nodes.is_valid(*operand)
+                    && plans.nodes.get(*operand).primitive_type == node.primitive_type
+                    && self.computation(*operand, active)
+            }
             Computation::Dispatch { subject, arms, .. } => {
                 // The caller independently rejoins ordered source arms. Replay
                 // every retained child's literal/operator meaning here.

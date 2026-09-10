@@ -63,6 +63,7 @@ pub(in crate::flow::terminal_unit) fn reads_receiver(
             } => {
                 pending.extend([*condition, *when_true, *when_false]);
             }
+            CheckedScalarComputationKind::Qualification { operand, .. } => pending.push(*operand),
             CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
                 pending.push(*subject);
                 for arm in computations.dispatch_arms.span_or_empty(*arms) {

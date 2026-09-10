@@ -15,6 +15,9 @@ pub(super) fn boolean_result(
     computation: CheckedScalarComputationHandle,
 ) -> Option<bool> {
     match &plans.nodes.get(computation).kind {
+        CheckedScalarComputationKind::Qualification { operand, .. } => {
+            boolean_result(plans, *operand)
+        }
         CheckedScalarComputationKind::Value(CheckedScalarExpression::Boolean(value)) => {
             boolean_expression_result(value)
         }

@@ -1067,8 +1067,14 @@ Owners include
   execution with exact membership custody, starting from `cargo run -p omega --
   inspect-terminal --machine choose --target macos_arm64
   tests/omega/pass/expressions/match_domain_results/main.omg`. On macOS arm64 at
-  `2ca035765c`, source checking passes but Terminal production rejects with
+  `3f446ca44f`, source checking passes but Terminal production rejects with
   `scalar computation needs one checked expression and one source binding`.
+  Checked `Qualification` nodes now retain predicate-/route-free scalar casts;
+  exact source, membership-use, declaration and normalized-instance replay lives
+  in `checked-trees-to-lowered-psi/src/scalar_source_custody/computation_calls/qualifications.rs`.
+  The current publication fence is `scalar qualification requires Terminal membership transport`:
+  add qualification-preserving Terminal values, joins and call/result signatures
+  before enabling emission. Explicit semantic erasure also needs its own custody.
   Do not erase qualification to enable the computation route or relax routed
   provenance/ownership joins. Keep incompatible-domain rejection before any
   outer bare-carrier cast.

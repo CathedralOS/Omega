@@ -49,6 +49,9 @@ pub(super) fn validate(
             }
             visited.push(handle);
             match &computations.nodes.get(handle).kind {
+                CheckedScalarComputationKind::Qualification { operand, .. } => {
+                    pending.push(*operand)
+                }
                 CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
                     pending.push(*subject);
                     for arm in computations.dispatch_arms.span(*arms)? {

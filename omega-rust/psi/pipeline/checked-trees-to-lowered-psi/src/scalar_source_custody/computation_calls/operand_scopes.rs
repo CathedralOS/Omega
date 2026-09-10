@@ -81,6 +81,9 @@ pub(super) fn application(
         }
         visited.push(source);
         match checked.expression_table.expression(source) {
+            ExpressionNode::Cast(cast) if !cast.semantic_domain.is_empty() => {
+                return unsupported("computed application cannot erase a semantic qualification");
+            }
             ExpressionNode::Binary(binary)
                 if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) =>
             {
