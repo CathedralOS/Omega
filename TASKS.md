@@ -1173,6 +1173,20 @@ Owners include
   Continue with computed/NaN public constant identities and foreign/generic
   attachments in
   `syntax-trees-to-symbol-resolved-trees`.
+  Computed declaration initializers need semantic admission and retained
+  value/selection custody before `build-time-evaluation/src/const_generic_expressions.rs`
+  constructs typed index probes: the existing declaration still fails literal
+  validation inside that probe. Changing only public value encoding cannot
+  establish this path.
+  Scalar Match index evaluation still needs general all-arm bounds and nonzero
+  proofs for anonymous arithmetic containing nested dispatch. The explicit
+  obligation boundaries are in
+  `build-time-evaluation/src/const_generic_expressions/value/match_dispatch.rs`.
+  Extend those proofs without enumerating independent arm combinations or
+  executing skipped landed subjects; preserve canonical identity and the full
+  declaration-selection roster. The source customer is
+  `tests/omega/pass/modules/match_constant_indices/main.omg` and integration
+  coverage is `module_machine_indices::value_dispatch`.
   Preserve exact carrier selection in `constant.rs` and local/narrow-import
   lookup in `symbols/src/table/modules.rs`. Closed record/case and fixed-array
   constants, including module-local nongeneric attachments, already retain

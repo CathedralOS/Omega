@@ -106,23 +106,22 @@ pub(super) fn evaluate(
                 .replace_type_reference(argument, original);
         }
     }
-    let pending =
-        arguments
-            .iter()
-            .filter_map(|(argument, destination, public)| {
-                let TypeReferenceNode::ConstExpression(expression) =
-                    syntax.type_references.type_reference(*argument)
-                else {
-                    return None;
-                };
-                let boolean_destination = matches!(
-                    syntax.type_references.type_reference(*destination),
-                    TypeReferenceNode::Named(name) if name.as_str() == "bool"
-                );
-                (boolean_destination || contains_constant_reference(&syntax, *expression))
-                    .then_some((*argument, *expression, *destination, *public))
-            })
-            .collect::<Vec<_>>();
+    let pending = arguments
+        .iter()
+        .filter_map(|(argument, destination, public)| {
+            let TypeReferenceNode::ConstExpression(expression) =
+                syntax.type_references.type_reference(*argument)
+            else {
+                return None;
+            };
+            let boolean_destination = matches!(
+                syntax.type_references.type_reference(*destination),
+                TypeReferenceNode::Named(name) if name.as_str() == "bool"
+            );
+            (boolean_destination || requires_typed_expression_probe(&syntax, *expression))
+                .then_some((*argument, *expression, *destination, *public))
+        })
+        .collect::<Vec<_>>();
     if pending.is_empty() {
         return Ok(syntax);
     }
@@ -269,7 +268,7 @@ pub(super) fn evaluate(
     Ok(syntax)
 }
 
-fn contains_constant_reference(syntax: &SyntaxTrees, expression: ExpressionHandle) -> bool {
+fn requires_typed_expression_probe(syntax: &SyntaxTrees, expression: ExpressionHandle) -> bool {
     let mut pending = vec![expression];
     let mut visited = Vec::new();
     while let Some(expression) = pending.pop() {
@@ -278,15 +277,7 @@ fn contains_constant_reference(syntax: &SyntaxTrees, expression: ExpressionHandl
         }
         visited.push(expression);
         match syntax.expressions.expression(expression) {
-            ExpressionNode::Match(dispatch) => {
-                for arm in syntax.expressions.match_arms(dispatch.arms).iter().rev() {
-                    pending.push(arm.value);
-                    if let syntax_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                        pending.push(pattern);
-                    }
-                }
-                pending.push(dispatch.subject);
-            }
+            ExpressionNode::Match(_) => return true,
             ExpressionNode::Name(_) => return true,
             ExpressionNode::Binary(binary) => {
                 pending.push(binary.right);

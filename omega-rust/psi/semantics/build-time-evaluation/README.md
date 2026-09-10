@@ -71,6 +71,23 @@ operator execution, constrained destinations and address-dependent arithmetic
 need their own complete contexts;
 the standalone probe does not claim those forms.
 
+Scalar `match` indices use the same typed probe and exact numeric evaluator.
+Subject evaluation and authored first-match selection precede the selected arm;
+later patterns and unselected landed operations do not execute. Every arm still
+owes coverage, compatible types, actual anonymous landing obligations, and exact
+declaration/operator admission. Selected result edges let anonymous arithmetic
+compose across a dispatch without choosing a premature integer width or cloning
+the typed program. The result alone determines canonical index identity; the
+separate authored-selection roster still includes skipped source occurrences.
+An all-arm numeric bound or nonzero obligation involving further dispatch inside
+anonymous arithmetic still rejects where the current checker cannot establish
+it. It must not execute a skipped landed subject or enumerate independent arm
+combinations to manufacture that proof.
+Exercise the source customer with
+`cargo run -p omega -- --check tests/omega/pass/modules/match_constant_indices/main.omg`
+and its canonical-type, selection, and rejection controls with
+`cargo nextest run -p compiler --test module_machine_indices value_dispatch:: --no-fail-fast`.
+
 ## Semantic admission boundary
 
 Fixed-array length calls whose reachable closure needs an authored operator

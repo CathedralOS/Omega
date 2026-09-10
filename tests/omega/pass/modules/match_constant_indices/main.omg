@@ -1,0 +1,16 @@
+pub data Buffer<const Size: u64> { value: [u8; Size]; }
+pub data Flag<const Enabled: bool> { value: u8; }
+
+const ENABLED: bool = true;
+
+machine choose(value: Buffer<((match ENABLED { true -> 7 / 2, false -> 0 }) * 2)>) -> Buffer<7> {
+    value
+}
+
+machine selective(value: Flag<(match ENABLED { true -> true, false -> (1u64 / 0 == 0) })>) -> Flag<true> {
+    value
+}
+
+machine ordered(value: Buffer<(match 3u64 { 3 -> 7, 3 -> (1u64 / 0), _ -> 9 })>) -> Buffer<7> {
+    value
+}

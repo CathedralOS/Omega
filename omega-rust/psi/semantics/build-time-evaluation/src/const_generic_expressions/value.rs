@@ -16,6 +16,14 @@
 //! neither integer truncation nor floating rounding belongs to this comparison.
 //! The static pass requires both rational values even in an unselected comparison:
 //! anonymous division by zero has no value under the numeric contract.
+//!
+//! Match uses this same work stack: retain the subject, test patterns in order,
+//! then visit only the selected result. The Match owner first checks the complete
+//! scalar graph, coverage, arm compatibility, and actual landing boundaries.
+//! Selected result handles let the shared rational evaluator read surrounding
+//! arithmetic without cloning the program or prematurely landing inner arms.
+//! All-arm bounds that need additional proofs reject instead of enumerating
+//! independent branch combinations or executing skipped landed expressions.
 
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstIdentity, CanonicalConstValue};
@@ -31,6 +39,19 @@ use typed_trees::{
     state::State,
     types::PrimitiveType,
 };
+
+mod match_dispatch;
+
+#[cfg(test)]
+#[path = "value/match_tests.rs"]
+mod match_tests;
+
+#[derive(Clone, Copy)]
+enum Shape {
+    Anonymous(ExpressionHandle),
+    Boolean,
+    Integer(LandedIntegerType),
+}
 
 #[derive(Clone, Copy)]
 enum Value {
@@ -56,11 +77,18 @@ pub(super) fn evaluate(
         Binary(ExpressionHandle, BinaryOperator),
         LogicalLeft(ExpressionHandle, BinaryOperator, ExpressionHandle),
         LogicalRight(ExpressionHandle),
+        MatchSubject(ExpressionHandle),
+        MatchNext(ExpressionHandle, usize, match_dispatch::MatchSubject),
+        MatchPattern(ExpressionHandle, usize, match_dispatch::MatchSubject),
+        MatchResult(ExpressionHandle),
     }
     let mut pending = vec![Step::Enter(expression)];
     let mut active = Vec::new();
     let mut values = Vec::new();
-    let mut warnings = validate_shapes(program, machine, state, expression)?;
+    match_dispatch::validate_graph(program, expression)?;
+    let (mut warnings, matches) =
+        validate_shapes(program, machine, state, expression, destination)?;
+    let mut selected_arms = Vec::new();
     while let Some(step) = pending.pop() {
         match step {
             Step::Enter(expression) => {
@@ -70,6 +98,11 @@ pub(super) fn evaluate(
                     return Err("invalid or cyclic constant expression".into());
                 }
                 match program.expression_table.expression(expression) {
+                    ExpressionNode::Match(dispatch) => {
+                        active.push(expression);
+                        pending.push(Step::MatchSubject(expression));
+                        pending.push(Step::Enter(dispatch.subject));
+                    }
                     ExpressionNode::Boolean(value) => values.push(Value::Boolean(*value)),
                     ExpressionNode::Integer(literal) if literal.landing().is_some() => {
                         values.push(landed_literal(literal)?);
@@ -105,6 +138,119 @@ pub(super) fn evaluate(
                     }
                     _ => return Err("unsupported node in exact integer constant expression".into()),
                 }
+            }
+            Step::MatchSubject(expression) => {
+                let plan = matches
+                    .iter()
+                    .find(|plan| plan.expression == expression)
+                    .ok_or("missing constant Match plan")?;
+                let subject = values.pop().ok_or("missing constant Match subject")?;
+                let subject = match_dispatch::coerce(
+                    program,
+                    machine,
+                    state,
+                    subject,
+                    plan.subject,
+                    &selected_arms,
+                    &mut warnings,
+                )?;
+                let subject = match_dispatch::MatchSubject::new(
+                    program,
+                    subject,
+                    &selected_arms,
+                    |operand| {
+                        validation::has_builtin_binary_expression_meaning(
+                            program,
+                            machine,
+                            Some(state),
+                            operand,
+                        )
+                    },
+                )?;
+                pending.push(Step::MatchNext(expression, 0, subject));
+            }
+            Step::MatchNext(expression, ordinal, subject) => {
+                let ExpressionNode::Match(dispatch) =
+                    program.expression_table.expression(expression)
+                else {
+                    return Err("constant Match lost dispatch".into());
+                };
+                let arm = program
+                    .expression_table
+                    .match_arms(dispatch.arms)
+                    .get(ordinal)
+                    .ok_or("constant Match has no selected arm")?;
+                match arm.pattern {
+                    typed_trees::expression::MatchPattern::Wildcard => {
+                        selected_arms.push((expression, arm.value));
+                        pending.push(Step::MatchResult(expression));
+                        pending.push(Step::Enter(arm.value));
+                    }
+                    typed_trees::expression::MatchPattern::Value(pattern) => {
+                        pending.push(Step::MatchPattern(expression, ordinal, subject));
+                        pending.push(Step::Enter(pattern));
+                    }
+                }
+            }
+            Step::MatchPattern(expression, ordinal, subject) => {
+                let plan = matches
+                    .iter()
+                    .find(|plan| plan.expression == expression)
+                    .ok_or("missing constant Match plan")?;
+                let pattern = values.pop().ok_or("missing constant Match pattern")?;
+                let pattern = match_dispatch::coerce(
+                    program,
+                    machine,
+                    state,
+                    pattern,
+                    plan.subject,
+                    &selected_arms,
+                    &mut warnings,
+                )?;
+                let matched = subject.matches(program, pattern, &selected_arms, |operand| {
+                    validation::has_builtin_binary_expression_meaning(
+                        program,
+                        machine,
+                        Some(state),
+                        operand,
+                    )
+                })?;
+                if matched {
+                    let ExpressionNode::Match(dispatch) =
+                        program.expression_table.expression(expression)
+                    else {
+                        return Err("constant Match lost dispatch".into());
+                    };
+                    let arm = program
+                        .expression_table
+                        .match_arms(dispatch.arms)
+                        .get(ordinal)
+                        .ok_or("constant Match lost arm")?;
+                    selected_arms.push((expression, arm.value));
+                    pending.push(Step::MatchResult(expression));
+                    pending.push(Step::Enter(arm.value));
+                } else {
+                    pending.push(Step::MatchNext(expression, ordinal + 1, subject));
+                }
+            }
+            Step::MatchResult(expression) => {
+                if active.pop() != Some(expression) {
+                    return Err("invalid constant Match traversal".into());
+                }
+                let plan = matches
+                    .iter()
+                    .find(|plan| plan.expression == expression)
+                    .ok_or("missing constant Match plan")?;
+                let value = values.pop().ok_or("constant Match lost selected result")?;
+                values.push(match_dispatch::coerce(
+                    program,
+                    machine,
+                    state,
+                    value,
+                    plan.result,
+                    &selected_arms,
+                    &mut warnings,
+                )?);
             }
             Step::LogicalLeft(expression, operator, right) => {
                 let Some(Value::Boolean(left)) = values.pop() else {
@@ -146,7 +292,13 @@ pub(super) fn evaluate(
                                 | BinaryOperator::GreaterOrEqual
                         ) =>
                     {
-                        Value::Boolean(compare_anonymous(program, machine, state, expression)?)
+                        Value::Boolean(compare_anonymous(
+                            program,
+                            machine,
+                            state,
+                            expression,
+                            &selected_arms,
+                        )?)
                     }
                     (Value::Anonymous(_), Value::Anonymous(_)) => {
                         if !matches!(
@@ -178,6 +330,7 @@ pub(super) fn evaluate(
                             state,
                             right,
                             right_destination,
+                            &selected_arms,
                             &mut warnings,
                         )?;
                         apply(operator, Value::Landed(carrier, left), right)?
@@ -195,6 +348,7 @@ pub(super) fn evaluate(
                             state,
                             left,
                             primitive(carrier)?,
+                            &selected_arms,
                             &mut warnings,
                         )?;
                         apply(operator, left, Value::Landed(carrier, right))?
@@ -215,6 +369,7 @@ pub(super) fn evaluate(
             state,
             expression,
             destination,
+            &selected_arms,
             &mut warnings,
         )?,
         value => value,
@@ -249,17 +404,13 @@ fn validate_shapes(
     machine: &Machine,
     state: &State,
     root: ExpressionHandle,
-) -> Result<Vec<Diagnostic>, String> {
-    #[derive(Clone, Copy)]
-    enum Shape {
-        Anonymous(ExpressionHandle),
-        Boolean,
-        Integer(LandedIntegerType),
-    }
+    destination: PrimitiveType,
+) -> Result<(Vec<Diagnostic>, Vec<match_dispatch::MatchPlan>), String> {
     let mut pending = vec![(root, false)];
     let mut active = Vec::new();
     let mut shapes = Vec::new();
     let mut warnings = Vec::new();
+    let mut matches = Vec::new();
     while let Some((expression, finish)) = pending.pop() {
         if !program.expression_table.expression_is_valid(expression) {
             return Err("invalid constant expression".into());
@@ -269,6 +420,22 @@ fn validate_shapes(
                 return Err("cyclic constant expression".into());
             }
             match program.expression_table.expression(expression) {
+                ExpressionNode::Match(dispatch) => {
+                    active.push(expression);
+                    pending.push((expression, true));
+                    for arm in program
+                        .expression_table
+                        .match_arms(dispatch.arms)
+                        .iter()
+                        .rev()
+                    {
+                        pending.push((arm.value, false));
+                        if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                            pending.push((pattern, false));
+                        }
+                    }
+                    pending.push((dispatch.subject, false));
+                }
                 ExpressionNode::Boolean(_) => shapes.push(Shape::Boolean),
                 ExpressionNode::Integer(literal) if literal.landing().is_some() => {
                     let Value::Landed(carrier, _) = landed_literal(literal)? else {
@@ -276,7 +443,8 @@ fn validate_shapes(
                     };
                     shapes.push(Shape::Integer(carrier));
                 }
-                ExpressionNode::Integer(_) | ExpressionNode::Float(_) => {
+                ExpressionNode::Integer(_) => shapes.push(Shape::Anonymous(expression)),
+                ExpressionNode::Float(literal) if literal.landing().is_none() => {
                     shapes.push(Shape::Anonymous(expression))
                 }
                 ExpressionNode::Binary(binary) => {
@@ -302,6 +470,22 @@ fn validate_shapes(
         if active.pop() != Some(expression) {
             return Err("invalid constant expression traversal".into());
         }
+        if matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Match(_)
+        ) {
+            let plan = match_dispatch::validate_join(
+                program,
+                machine,
+                state,
+                expression,
+                &mut shapes,
+                &mut warnings,
+            )?;
+            shapes.push(plan.result);
+            matches.push(plan);
+            continue;
+        }
         let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
             unreachable!()
         };
@@ -324,7 +508,7 @@ fn validate_shapes(
                         | BinaryOperator::GreaterOrEqual
                 ) =>
             {
-                compare_anonymous(program, machine, state, expression)?;
+                match_dispatch::validate_anonymous_comparison(program, machine, state, expression)?;
                 shapes.push(Shape::Boolean);
                 continue;
             }
@@ -349,18 +533,21 @@ fn validate_shapes(
                 } else {
                     primitive(carrier)?
                 };
-                let Value::Landed(right_carrier, _) =
-                    land_anonymous(program, machine, state, right, destination, &mut warnings)?
-                else {
-                    unreachable!()
-                };
+                let right_carrier = match_dispatch::validate_landing(
+                    program,
+                    machine,
+                    state,
+                    right,
+                    destination,
+                    &mut warnings,
+                )?;
                 (Shape::Integer(carrier), Shape::Integer(right_carrier))
             }
             (Shape::Anonymous(left), Shape::Integer(carrier)) => {
                 if shift {
                     return Err("shift value requires a selected fixed carrier".into());
                 }
-                land_anonymous(
+                match_dispatch::validate_landing(
                     program,
                     machine,
                     state,
@@ -414,7 +601,22 @@ fn validate_shapes(
     if shapes.len() != 1 {
         return Err("constant expression did not produce one type".into());
     }
-    Ok(warnings)
+    if matches!(shapes[0], Shape::Anonymous(_))
+        && matches!(
+            program.expression_table.expression(root),
+            ExpressionNode::Match(_)
+        )
+    {
+        match_dispatch::validate_landing(
+            program,
+            machine,
+            state,
+            root,
+            destination,
+            &mut warnings,
+        )?;
+    }
+    Ok((warnings, matches))
 }
 
 fn compare_anonymous(
@@ -422,10 +624,21 @@ fn compare_anonymous(
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
+    selected_arms: &[(ExpressionHandle, ExpressionHandle)],
 ) -> Result<bool, String> {
-    validation::evaluate_anonymous_numeric_comparison(program, expression, |operand| {
-        validation::has_builtin_binary_expression_meaning(program, machine, Some(state), operand)
-    })
+    validation::evaluate_anonymous_numeric_comparison_with_selected_match_arms(
+        program,
+        expression,
+        selected_arms,
+        |operand| {
+            validation::has_builtin_binary_expression_meaning(
+                program,
+                machine,
+                Some(state),
+                operand,
+            )
+        },
+    )
     .ok_or_else(|| {
         "anonymous comparison requires defined exact numeric operands and selected builtin meaning"
             .into()
@@ -438,22 +651,27 @@ fn land_anonymous(
     state: &State,
     expression: ExpressionHandle,
     destination: PrimitiveType,
+    selected_arms: &[(ExpressionHandle, ExpressionHandle)],
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Value, String> {
-    let (literal, warning) = validation::land_anonymous_integer_expression_with_warning(
-        program,
-        expression,
-        destination,
-        |expression| {
-            validation::has_builtin_binary_expression_meaning(
-                program,
-                machine,
-                Some(state),
-                expression,
-            )
-        },
-    )
-    .ok_or("anonymous constant expression cannot land exactly at the selected integer carrier")?;
+    let (literal, warning) =
+        validation::land_anonymous_integer_expression_with_selected_match_arms(
+            program,
+            expression,
+            destination,
+            selected_arms,
+            |expression| {
+                validation::has_builtin_binary_expression_meaning(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                )
+            },
+        )
+        .ok_or(
+            "anonymous constant expression cannot land exactly at the selected integer carrier",
+        )?;
     if let Some(warning) = warning
         && !warnings.contains(&warning)
     {
