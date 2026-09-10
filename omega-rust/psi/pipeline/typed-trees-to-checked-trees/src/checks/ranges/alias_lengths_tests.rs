@@ -36,8 +36,15 @@ fn bounded_byte_state_alias_names_cannot_relabel_an_old_receiver_extent() {
         let frames = validation::CallFrameResolver::new(&program)
             .expect("resolved alias fixture has call frames");
         let incoming = super::incoming_guards::IncomingGuardIndex::build(&program, Some(&frames));
-        let result =
-            super::check_indexed_accesses(&program, &operators, &borrows, Some(&frames), &incoming);
+        let flow = super::cache_tests::range_flow_fixture(&program, &borrows);
+        let result = super::check_indexed_accesses(
+            &program,
+            &operators,
+            &borrows,
+            &flow,
+            Some(&frames),
+            &incoming,
+        );
         assert_eq!(result.is_ok(), accepted, "{result:#?}\n{source}");
         if let Err(diagnostics) = result {
             assert!(

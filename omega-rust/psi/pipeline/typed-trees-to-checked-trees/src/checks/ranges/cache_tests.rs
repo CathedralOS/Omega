@@ -8,6 +8,7 @@ struct RangeCheckFixture {
     program: TypedTrees,
     borrows: BorrowFacts,
     operators: CheckedOperatorFacts,
+    flow: checked_trees::FlowFacts,
 }
 
 impl RangeCheckFixture {
@@ -65,10 +66,12 @@ impl RangeCheckFixture {
         let proof_plan = proof::obligations::build_proof_plan(&program);
         let values = crate::values::build_value_facts(&program, &proof_plan);
         let operators = crate::operators::build_operator_facts(&program, &values);
+        let flow = range_flow_fixture(&program, &borrows);
         Self {
             program,
             borrows,
             operators,
+            flow,
         }
     }
 
@@ -84,12 +87,35 @@ impl RangeCheckFixture {
             &self.program,
             &self.operators,
             &self.borrows,
+            &self.flow,
             Some(&frames),
             &incoming,
         );
         let initialized = StateMutationSummaryCache::build_count() - before;
         (result, initialized)
     }
+}
+
+pub(super) fn range_flow_fixture(
+    program: &TypedTrees,
+    borrows: &BorrowFacts,
+) -> checked_trees::FlowFacts {
+    let plan = proof::obligations::build_proof_plan(program);
+    let proof = crate::build_proof_facts(program, &plan, borrows);
+    let mut semantic = crate::build_semantic_facts(program, &proof);
+    let domains = crate::build_domain_facts(program, &semantic);
+    let operational = validation::infer_operational_may(program);
+    let mut flow = crate::build_flow_facts(
+        program,
+        borrows,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operational,
+    );
+    crate::review_sources::bind_checked_body_call_source_spans(program, &mut flow)
+        .expect("bind exact range fixture call identities as production does");
+    flow
 }
 
 #[test]

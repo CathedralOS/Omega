@@ -1,6 +1,7 @@
 use symbols::SymbolHandle;
 
 mod call_writes;
+pub(super) use call_writes::RangeCallContext;
 mod dependencies;
 mod invalidation;
 mod proofs;
@@ -12,7 +13,7 @@ pub(super) struct RangeFacts<'field> {
     #[cfg(test)]
     pub(super) clone_work: CloneWork<'field>,
     pub(super) checked_operators: Option<&'field checked_trees::CheckedOperatorFacts>,
-    pub(super) checked_borrows: Option<&'field checked_trees::BorrowFacts>,
+    pub(super) checked_calls: Option<&'field RangeCallContext<'field>>,
     pub(super) mutation_summaries: std::borrow::Cow<'field, crate::flow::StateMutationSummaryCache>,
     pub(super) statement_index: usize,
     expression_dependencies: Vec<dependencies::ExpressionDependencies>,
@@ -56,7 +57,7 @@ impl<'field> RangeFacts<'field> {
             #[cfg(test)]
             clone_work: CloneWork::default(),
             checked_operators: None,
-            checked_borrows: None,
+            checked_calls: None,
             mutation_summaries: std::borrow::Cow::Owned(
                 crate::flow::StateMutationSummaryCache::default(),
             ),

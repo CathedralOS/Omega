@@ -138,7 +138,7 @@ pub(super) fn collect_state_argument_facts<'program>(
     field_lengths: &[(SymbolHandle, String, usize)],
     machine: &'program Machine,
     call_frames: Option<&validation::CallFrameResolver<'program>>,
-    borrows: &checked_trees::BorrowFacts,
+    calls: &[super::facts::RangeCallContext<'_>],
     operators: &checked_trees::CheckedOperatorFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Vec<StateArgumentFacts> {
@@ -162,7 +162,7 @@ pub(super) fn collect_state_argument_facts<'program>(
     for _ in 0..MAX_PROPAGATION_PASSES {
         let previous = std::mem::take(&mut collected);
 
-        for state in program.machine_states(machine) {
+        for (state, calls) in program.machine_states(machine).iter().zip(calls) {
             if state.symbol != entry.symbol
                 && !previous
                     .iter()
@@ -181,7 +181,7 @@ pub(super) fn collect_state_argument_facts<'program>(
             // Borrow the invocation's completed source/borrow summaries before
             // any branch snapshots clone these per-state facts.
             facts.mutation_summaries = std::borrow::Cow::Borrowed(mutation_summaries);
-            facts.checked_borrows = Some(borrows);
+            facts.checked_calls = Some(calls);
             facts.checked_operators = Some(operators);
             for parameter in program.state_parameters(state) {
                 facts.define_local(

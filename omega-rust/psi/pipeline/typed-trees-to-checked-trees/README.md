@@ -109,6 +109,12 @@ Indexed-access checking owns one lazy mutation-summary table for its immutable
 program and borrow facts. Incoming-state propagation and branch snapshots borrow
 that same table while rebuilding their local bounds. A new check owns a fresh
 table; source or borrow changes cannot reuse an earlier invocation's summaries.
+Both range walks borrow per-state slices of completed flow and borrow calls,
+prepared once per machine alongside the existing call-frame resolver. Expression
+calls rejoin their retained authored handles; statement calls require the exact
+statement and root ordinal. Branch snapshots borrow this context rather than
+rediscovering call sites or preparing another resolver. Missing call evidence
+remains opaque, not a complete empty write frame.
 
 `checks/termination/ranking/` separates range membership from descent. Static
 single-state integer bounds and the strict-symbol relational tier retain exact
