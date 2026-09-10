@@ -5,6 +5,13 @@ pub(in crate::lowering) fn requires_graph(
     function: &AbstractFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<bool, LoweringError> {
+    if function.result.structural().is_some_and(|result| {
+        result.multiplicity == StructuralMultiplicity::Affine
+            && result.qualifications.is_empty()
+            && result.projected_qualifications.is_empty()
+    }) {
+        return Ok(true);
+    }
     if function.operations.iter().any(|operation| {
         matches!(
             operation,

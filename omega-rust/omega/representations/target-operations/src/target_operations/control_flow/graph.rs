@@ -37,7 +37,7 @@ pub struct TargetScalarBlockParameter {
 pub enum TargetControlTerminator {
     ReturnStructural {
         psi_edge: EdgeId,
-        source: crate::TargetStructuralHomeRequirement,
+        source: TargetStructuralReturnSource,
         cleanup_actions: Vec<TerminalAffineCleanupAction>,
     },
     ReturnScalar {
@@ -63,6 +63,13 @@ pub enum TargetControlTerminator {
         when_true: TargetControlSuccessor,
         when_false: TargetControlSuccessor,
     },
+}
+
+/// A structural return reads either a produced home or the original incoming ABI value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TargetStructuralReturnSource {
+    Home(crate::TargetStructuralHomeRequirement),
+    Parameter(TargetStructuralParameter),
 }
 
 /// Ordered sum alternative and the exact destination telescope it produces.

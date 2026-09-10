@@ -86,6 +86,76 @@ pub(super) fn call_result<'a>(
     (offset == layout.shape.byte_size).then_some((result, placement))
 }
 
+pub(super) fn returned_parameter<'a>(
+    source: &'a LegalizedScalarFunction,
+    value: &legalized_operations::LegalizedScalarReturnValue,
+) -> Option<(
+    &'a legalized_operations::LegalizedCallUnitParameter,
+    &'a calling_conventions::ValuePlacement,
+)> {
+    let legalized_operations::LegalizedScalarReturnValue::StructuralParameter { place } = value
+    else {
+        return None;
+    };
+    let signature = source.structural.as_ref()?;
+    let declared = signature.result.as_ref()?;
+    let parameter = signature
+        .parameters
+        .iter()
+        .find(|parameter| parameter.semantic.place == *place)?;
+    let semantic = &parameter.semantic;
+    if semantic.access != terminal_psi::StructuralAccess::Owned
+        || semantic.multiplicity != terminal_psi::StructuralMultiplicity::Affine
+        || semantic.structural_type != declared.structural_type
+        || semantic.multiplicity != declared.multiplicity
+        || semantic.is_self
+        || !semantic.qualifications.is_empty()
+        || !semantic.projected_qualifications.is_empty()
+        || !declared.qualifications.is_empty()
+        || !declared.projected_qualifications.is_empty()
+    {
+        return None;
+    }
+    let placement = source.call_plan.result.as_ref()?;
+    let shape =
+        crate::structural_reference_input::parameter_shape(semantic, &signature.structural_types)?;
+    if parameter.target.shape != shape
+        || placement.shape != shape
+        || !direct_fragments(placement)
+        || !direct_fragments(&parameter.target.placement)
+    {
+        return None;
+    }
+    Some((parameter, placement))
+}
+
+pub(super) fn direct_fragments(placement: &calling_conventions::ValuePlacement) -> bool {
+    if placement.shape.class != calling_conventions::ValueClass::Integer
+        || !(1..=2).contains(&placement.locations.len())
+    {
+        return false;
+    }
+    let mut offset = 0;
+    for location in &placement.locations {
+        let calling_conventions::ValueLocation::Register {
+            value_byte_offset,
+            byte_size,
+            ..
+        } = location
+        else {
+            return false;
+        };
+        if *value_byte_offset != offset || !matches!(byte_size, 4 | 8) {
+            return false;
+        }
+        let Some(next) = offset.checked_add(*byte_size) else {
+            return false;
+        };
+        offset = next;
+    }
+    offset == placement.shape.byte_size
+}
+
 pub(super) fn returned<'a>(
     source: &'a LegalizedScalarFunction,
     value: &legalized_operations::LegalizedScalarReturnValue,

@@ -13,6 +13,53 @@ pub(crate) struct Parameter<'a> {
     pub target: &'a target_operations::TargetStructuralParameter,
 }
 
+/// Each graph parameter has its own storage relation; result shape and statement
+/// sequencing cannot turn an owned fragment into a borrowed pointer.
+pub(crate) fn accepts_graph(
+    call_plan: &CallPlan,
+    parameters: &[Parameter<'_>],
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+) -> bool {
+    let Some(scalar_count) = call_plan.parameters.len().checked_sub(parameters.len()) else {
+        return false;
+    };
+    let mut shapes = call_plan.parameters[..scalar_count]
+        .iter()
+        .map(|placement| placement.shape)
+        .collect::<Vec<_>>();
+    for (position, parameter) in parameters.iter().enumerate() {
+        let semantic = parameter.semantic;
+        let Some(shape) =
+            crate::structural_reference_input::parameter_shape(semantic, structural_types)
+        else {
+            return false;
+        };
+        if semantic.position as usize != position
+            || parameters[..position]
+                .iter()
+                .any(|previous| previous.semantic.place == semantic.place)
+            || parameter.target.place != semantic.place
+            || parameter.target.structural_type != semantic.structural_type
+            || parameter.target.access != semantic.access
+            || parameter.target.multiplicity != semantic.multiplicity
+            || !parameter.target.projected_qualifications.is_empty()
+            || parameter.target.shape != shape
+            || parameter.target.placement != call_plan.parameters[scalar_count + position]
+        {
+            return false;
+        }
+        shapes.push(shape);
+    }
+    calling_conventions::evaluate_call_plan(
+        call_plan.policy,
+        &calling_conventions::CallSignature {
+            parameters: shapes,
+            result: call_plan.result.as_ref().map(|placement| placement.shape),
+        },
+    )
+    .is_ok_and(|expected| expected == *call_plan)
+}
+
 pub(crate) fn accepts_write_borrow(
     call_plan: &CallPlan,
     parameters: &[Parameter<'_>],

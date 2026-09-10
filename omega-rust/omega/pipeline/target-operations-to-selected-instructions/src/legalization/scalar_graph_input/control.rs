@@ -21,9 +21,28 @@ pub(super) fn validate(
             },
             AbstractFunctionResult::Structural(declared),
         ) => {
-            let (_, result) = super::structural_case::source_result(function, *source)?;
-            if result.structural_type != declared.structural_type
-                || result.multiplicity != declared.multiplicity
+            let (structural_type, multiplicity) = if let Some(parameter) = function
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == *source)
+            {
+                if parameter.access != terminal_psi::StructuralAccess::Owned
+                    || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Affine
+                    || parameter.is_self
+                    || !parameter.qualifications.is_empty()
+                    || !parameter.projected_qualifications.is_empty()
+                {
+                    return Err(invalid);
+                }
+                (parameter.structural_type, parameter.multiplicity)
+            } else {
+                let (_, result) = super::structural_case::source_result(function, *source)?;
+                (result.structural_type, result.multiplicity)
+            };
+            if structural_type != declared.structural_type
+                || multiplicity != declared.multiplicity
+                || !declared.qualifications.is_empty()
+                || !declared.projected_qualifications.is_empty()
                 || !returned_claims.is_empty()
                 || !trivial_affine_locals.is_empty()
                 || !trivial_affine_discards.is_empty()

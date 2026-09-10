@@ -130,12 +130,7 @@ pub(super) fn validate_borrowed_argument(
         || (source.call_plan.result.is_some() && !signature.published_service_ceiling.is_empty())
         || (!parameters.is_empty()
             && !crate::unobserved_owned_input::accepts(source)
-            && !crate::structural_unit_input::accepts_borrowed_view(
-                &source.call_plan,
-                &parameters,
-                &signature.structural_types,
-            )
-            && !crate::structural_unit_input::accepts_write_borrow(
+            && !crate::structural_unit_input::accepts_graph(
                 &source.call_plan,
                 &parameters,
                 &signature.structural_types,

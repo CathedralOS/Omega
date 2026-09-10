@@ -1,5 +1,5 @@
-//! Publication retains the ordinary graph's aggregate result, not a fabricated
-//! input parameter or legacy singular return record. Mandatory source/selection
+//! Publication rejoins graph aggregate returns to operation homes or incoming
+//! ABI parameters. Mandatory source/selection
 //! replay checks the layout, every fragment, and every load/store; these checks
 //! account for the exact declarations and operations at the object boundary.
 use abstract_operations::{AbstractFunction, AbstractOperation};
@@ -70,10 +70,13 @@ pub(super) fn operation(
             returned_claims.is_empty() && trivial_affine_locals.is_empty() && trivial_affine_discards.is_empty()
                 && graph.blocks.iter().filter(|block| matches!(&block.terminator,
                     TargetControlTerminator::ReturnStructural { psi_edge: retained, source: home, cleanup_actions }
-                        if retained == psi_edge && home.result.place == *source && cleanup_actions.is_empty())).count() == 1
+                        if retained == psi_edge && match home {
+                            target_operations::TargetStructuralReturnSource::Home(home) => home.result.place == *source,
+                            target_operations::TargetStructuralReturnSource::Parameter(parameter) => parameter.place == *source,
+                        } && cleanup_actions.is_empty())).count() == 1
                 && selected.blocks.iter().filter(|block| matches!(&block.terminator,
                     SelectedTerminator::Return { psi_return_edge, instruction }
-                        if psi_return_edge == psi_edge && matches!(instruction.kind, selected_instructions::SelectedInstructionKind::ReturnAggregate { .. }))).count() == 1
+                        if psi_return_edge == psi_edge && matches!(instruction.kind, selected_instructions::SelectedInstructionKind::ReturnAggregate { .. } | selected_instructions::SelectedInstructionKind::ReturnI64))).count() == 1
         }
         _ => false,
     }

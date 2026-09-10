@@ -92,9 +92,20 @@ pub(super) fn prepare_function_signature(
         &scalar_parameter_shapes,
         &function.structural_parameters,
         match &function.result {
-            AbstractFunctionResult::Structural(result) => Some(
-                super::control_flow::scalar_sums::result_layout(result, structural_types)?.shape,
-            ),
+            AbstractFunctionResult::Structural(result) => {
+                if result.multiplicity == StructuralMultiplicity::Linear
+                    || !result.qualifications.is_empty()
+                    || !result.projected_qualifications.is_empty()
+                {
+                    return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
+                }
+                Some(super::structural_layout::structural_shape(
+                    result.structural_type,
+                    structural_types,
+                    &mut shape_cache,
+                    &mut active,
+                )?)
+            }
             _ => function
                 .result
                 .scalar()
