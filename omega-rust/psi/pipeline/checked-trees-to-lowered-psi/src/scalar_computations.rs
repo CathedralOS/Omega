@@ -14,6 +14,7 @@ use checked_trees::{CheckedScalarComputation, CheckedScalarComputationKind};
 
 pub(crate) mod arrays;
 mod calls;
+pub(crate) mod comparisons;
 mod dispatch;
 mod source_custody;
 mod structural_arguments;
@@ -486,6 +487,30 @@ impl<'a> Expansion<'a> {
         let plans = &self.checked.facts.values.scalar_computations;
         let node = plans.nodes.get(*handle).clone();
         let entry = match node.kind {
+            CheckedScalarComputationKind::SelectedComparison {
+                operator_use,
+                left,
+                right,
+            } => {
+                let operand_type =
+                    self.argument_type(&Argument::Computation(left), site, input_types)?;
+                let mut tested_types = input_types.to_vec();
+                tested_types.extend([operand_type, operand_type]);
+                let binding = self.comparison_binding(
+                    operator_use,
+                    parameter(input_types.len(), operand_type),
+                    parameter(input_types.len() + 1, operand_type),
+                    site,
+                )?;
+                let comparison = self.binding(&tested_types, input_types.len(), target, binding);
+                self.sequence(
+                    &[Argument::Computation(left), Argument::Computation(right)],
+                    input_types,
+                    comparison,
+                    site,
+                    active,
+                )?
+            }
             CheckedScalarComputationKind::Qualification { operand, .. } => {
                 let operand = Argument::Computation(operand);
                 let operand_type = self.argument_type(&operand, site, input_types)?;
@@ -729,6 +754,9 @@ pub(crate) fn reachable_nodes(
         }
         visited.push(handle);
         match &plans.nodes.get(handle).kind {
+            CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
+                pending.extend([*left, *right])
+            }
             CheckedScalarComputationKind::Qualification { operand, .. } => {
                 pending.push(*operand);
             }

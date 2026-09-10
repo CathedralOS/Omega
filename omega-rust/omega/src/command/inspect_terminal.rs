@@ -33,6 +33,14 @@ pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) {
             std::process::exit(1);
         }
     };
+    if let Err(diagnostics) =
+        compiler::validate_lowered_ieee_float_comparison_custody(&checked, &lowered)
+    {
+        for diagnostic in diagnostics {
+            eprintln!("{diagnostic}");
+        }
+        std::process::exit(1);
+    }
     let fixed_fuel = match evidence::inspect(&lowered.semantic_module, &lowered.proof_bundle) {
         Ok(fixed_fuel) => fixed_fuel,
         Err(error) => {

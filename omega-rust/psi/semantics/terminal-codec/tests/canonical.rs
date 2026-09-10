@@ -127,7 +127,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "a9db5edc2296a0462dc68cc83762f2cb0c9c4552e338eb05e752e487414d199a"
+        "8b9259c722f25daa02dfb7bf81f452b512749224b135e358add627b8313f422e"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -308,7 +308,7 @@ fn natural_ranking_round_trips_exact_semantic_rows_and_rejects_malformed_coverag
     };
     module.machines[0].ranked_scc = Some(TerminalRankedScc::Natural(vec![cycle.clone()]));
     let bytes = encode_module(&module).expect("natural ranking representation encodes");
-    assert_eq!(&bytes[8..12], &[87, 0, 96, 0]);
+    assert_eq!(&bytes[8..12], &[87, 0, 97, 0]);
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_ne!(semantic_fingerprint(&module).unwrap(), countdown_identity);
     let mut stale = bytes;

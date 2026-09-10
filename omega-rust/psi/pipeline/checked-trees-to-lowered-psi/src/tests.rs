@@ -1348,7 +1348,7 @@ fn callback_custody_crosses_terminal_production_in_exact_order_and_returns_on_re
             .expect("opaque callback custody crosses canonical Terminal production");
     assert_eq!(produced.callback_custody(), &custody);
     produced.artifact().validate().expect("canonical artifact");
-    let (_, _, returned, _) = produced.into_parts();
+    let (_, _, returned, _, _) = produced.into_parts();
     assert_eq!(returned, custody);
 
     let swapped = vec![(29u64, "second"), (11u64, "first")];

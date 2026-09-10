@@ -52,6 +52,9 @@ fn guard_nodes(checked: &checked_trees::CheckedTrees) -> Vec<&CheckedScalarCompu
     while let Some(handle) = pending.pop() {
         let node = plans.nodes.get(handle);
         match &node.kind {
+            CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
+                pending.extend([*left, *right]);
+            }
             CheckedScalarComputationKind::Select {
                 condition,
                 when_true,

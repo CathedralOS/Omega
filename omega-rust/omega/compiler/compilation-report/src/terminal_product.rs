@@ -173,6 +173,9 @@ impl TerminalX86ScalarFmaAdmission {
     }
 }
 
+mod float_comparisons;
+use float_comparisons::validate_float_comparison_occurrences;
+
 /// Source-free join from one canonical Terminal nearest-FMA operation to the
 /// exact selected plan that authored it and, on x86, its admitted deployment
 /// carrier.
@@ -182,6 +185,54 @@ pub struct TerminalIeeeFloatFmaOccurrenceProposal {
     provider_plan_index: usize,
     format: semantic_vocabulary::IeeeFloatFormat,
     x86_admission: Option<TerminalX86ScalarFmaAdmission>,
+}
+
+/// Source-free custody for one IEEE comparison and its exact selected plan.
+/// This records semantic association, not native realization authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalIeeeFloatComparisonOccurrenceProposal {
+    pub terminal_machine: semantic_vocabulary::MachineId,
+    pub terminal_operation: semantic_vocabulary::OperationId,
+    pub provider_plan_index: usize,
+    pub provider_plan_commitment: effects::provider_plan::ProviderPlanDigest,
+    pub comparison: semantic_vocabulary::IeeeFloatComparisonOperation,
+    pub format: semantic_vocabulary::IeeeFloatFormat,
+}
+
+impl TerminalIeeeFloatComparisonOccurrenceProposal {
+    /// The exact compiler execution identity required by this semantic occurrence.
+    pub fn execution_identity(&self) -> effects::CompilerIntrinsicExecutionIdentity {
+        use effects::CompilerPrimitiveFloatBinaryOperation as Execution;
+        use semantic_vocabulary::IeeeFloatComparisonOperation as Comparison;
+        effects::CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary {
+            operation: match self.comparison {
+                Comparison::Equal => Execution::Equal,
+                Comparison::NotEqual => Execution::NotEqual,
+                Comparison::Less => Execution::Less,
+                Comparison::LessOrEqual => Execution::LessOrEqual,
+                Comparison::Greater => Execution::Greater,
+                Comparison::GreaterOrEqual => Execution::GreaterOrEqual,
+            },
+            format: match self.format {
+                semantic_vocabulary::IeeeFloatFormat::Binary32 => {
+                    numerics::literals::FloatFormat::F32
+                }
+                semantic_vocabulary::IeeeFloatFormat::Binary64 => {
+                    numerics::literals::FloatFormat::F64
+                }
+            },
+        }
+    }
+
+    /// Check complete one-to-one association with the independently verified
+    /// Terminal operation roster. This does not establish source custody.
+    pub fn validate_roster(
+        module: &terminal_psi::TerminalModule,
+        plans: &[effects::provider_plan::ProviderPlan],
+        occurrences: &[Self],
+    ) -> Result<(), &'static str> {
+        validate_float_comparison_occurrences(module, plans, occurrences)
+    }
 }
 
 impl TerminalIeeeFloatFmaOccurrenceProposal {
@@ -239,6 +290,7 @@ pub struct TerminalNativeRealizationProposal {
     compiler_builtins: Vec<TerminalCompilerBuiltinProposal>,
     callback_occurrences: Vec<TerminalCallbackOccurrenceProposal>,
     ieee_float_fma_occurrences: Vec<TerminalIeeeFloatFmaOccurrenceProposal>,
+    ieee_float_comparison_occurrences: Vec<TerminalIeeeFloatComparisonOccurrenceProposal>,
     boundary_application_coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
     checked_boundary_operator_scope:
         lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
@@ -261,6 +313,7 @@ impl TerminalNativeRealizationProposal {
         compiler_builtins: Vec<TerminalCompilerBuiltinProposal>,
         callback_occurrences: Vec<TerminalCallbackOccurrenceProposal>,
         ieee_float_fma_occurrences: Vec<TerminalIeeeFloatFmaOccurrenceProposal>,
+        ieee_float_comparison_occurrences: Vec<TerminalIeeeFloatComparisonOccurrenceProposal>,
         boundary_application_demands: boundary_applications::TerminalBoundaryApplicationDemands,
         boundary_application_realizations: boundary_applications::TerminalBoundaryApplicationRealizations,
         checked_boundary_operator_scope: lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
@@ -292,6 +345,7 @@ impl TerminalNativeRealizationProposal {
             compiler_builtins,
             callback_occurrences,
             ieee_float_fma_occurrences,
+            ieee_float_comparison_occurrences,
             boundary_application_coverage,
             checked_boundary_operator_scope,
         };
@@ -450,6 +504,32 @@ impl TerminalNativeRealizationProposal {
                 terminal_psi::OperationKind::BoundaryCall { .. }
             ) {
                 return Err("Terminal callback occurrence does not name a boundary call");
+            }
+        }
+        validate_float_comparison_occurrences(
+            &module,
+            self.selected_provider_plans.plans(),
+            &self.ieee_float_comparison_occurrences,
+        )?;
+        for occurrence in &self.ieee_float_comparison_occurrences {
+            let matching = self
+                .boundary_application_coverage
+                .realizations()
+                .rows()
+                .iter()
+                .filter(|row| row.terminal_operation() == occurrence.terminal_operation)
+                .collect::<Vec<_>>();
+            let [realization] = matching.as_slice() else {
+                return Err(
+                    "Terminal IEEE comparison requires one exact boundary realization companion",
+                );
+            };
+            if realization.selected_plan_digest() != occurrence.provider_plan_commitment.as_bytes()
+                || !matches!(realization.realization(),
+                    boundary_applications::BoundaryApplicationRealization::ExactCompilerIntrinsic { execution }
+                    if *execution == occurrence.execution_identity())
+            {
+                return Err("Terminal IEEE comparison changed its selected boundary realization");
             }
         }
         let terminal_fma_operations = module
@@ -781,6 +861,12 @@ impl TerminalNativeRealizationProposal {
 
     pub fn ieee_float_fma_occurrences(&self) -> &[TerminalIeeeFloatFmaOccurrenceProposal] {
         &self.ieee_float_fma_occurrences
+    }
+
+    pub fn ieee_float_comparison_occurrences(
+        &self,
+    ) -> &[TerminalIeeeFloatComparisonOccurrenceProposal] {
+        &self.ieee_float_comparison_occurrences
     }
 
     /// Non-caller-authored checked D29 scope retained before the checked

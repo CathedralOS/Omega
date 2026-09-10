@@ -387,6 +387,7 @@ dependencies = [
  "lowered-psi",
  "lowered-psi-to-terminal-psi",
  "native-artifact",
+ "numerics",
  "optimization-core",
  "package-compilation",
  "program-entry-plan",
@@ -952,6 +953,7 @@ dependencies = [
  "lowered-psi-to-lowered-psi",
  "semantic-vocabulary",
  "terminal-codec",
+ "terminal-psi",
 ]
 
 [[package]]

@@ -399,6 +399,7 @@ fn lower_dynamic_composed_unit_machine(
             &forwarded_helpers,
         )?,
         selected_ieee_float_fma_occurrences: Vec::new(),
+        selected_ieee_float_comparison_occurrences: Vec::new(),
     };
     retain_dynamic_source_owners(
         lowered,

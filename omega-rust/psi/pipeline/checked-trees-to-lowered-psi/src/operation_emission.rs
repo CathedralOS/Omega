@@ -349,6 +349,58 @@ pub(super) fn emit_scalar_binding(
     operations: &mut OperationBuffer,
     call_emission: &mut CallEmissionContext<'_>,
 ) -> Result<ValueId, LoweringError> {
+    if let LoweredScalarBinding::SelectedComparison {
+        occurrence,
+        source_machine,
+        left,
+        right,
+    } = binding
+    {
+        let left = emit_direct_expression(left, parameters, next_value_identity, operations);
+        let right = emit_direct_expression(right, parameters, next_value_identity, operations);
+        let id = value_id(*next_value_identity);
+        *next_value_identity =
+            next_value_identity
+                .checked_add(1)
+                .ok_or(LoweringError::Unsupported(
+                    "comparison value identity overflow",
+                ))?;
+        let operation = operations.allocate();
+        let terminal_machine = call_emission
+            .machine_ids
+            .iter()
+            .find_map(|(source, machine)| (*source == *source_machine).then_some(*machine))
+            .ok_or(LoweringError::Unsupported(
+                "comparison source machine has no Terminal identity",
+            ))?;
+        operations.selected_ieee_float_comparisons.push(
+            lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence {
+                operator_use: occurrence.operator_use,
+                application_site: occurrence.application_site,
+                requirement_operator: occurrence.requirement_operator,
+                provider_plan_report_fingerprint: occurrence.provider_plan_report_fingerprint,
+                provider_plan_commitment: occurrence.provider_plan_commitment,
+                comparison: occurrence.comparison,
+                format: occurrence.format,
+                terminal_machine,
+                terminal_operation: operation,
+            },
+        );
+        operations.push(Operation {
+            id: operation,
+            result: OperationResult::Scalar(ValueDeclaration {
+                id,
+                scalar_type: ScalarType::Boolean,
+                qualifications: Default::default(),
+            }),
+            kind: OperationKind::IeeeFloatCompare {
+                comparison: occurrence.comparison,
+                left,
+                right,
+            },
+        });
+        return Ok(id);
+    }
     if let LoweredScalarBinding::StoredValue { value, destination } = binding {
         use crate::scalar_graph_lowering::primitive_locals::StoreDestination;
         if direct_expression_contains_short_circuit(value) {

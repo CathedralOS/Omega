@@ -47,7 +47,8 @@ fn value_type(
         CheckedScalarComputationKind::Value(expression) => {
             bindings.expression(expression)?.value_type(source_types)?
         }
-        CheckedScalarComputationKind::Apply { .. } => {
+        CheckedScalarComputationKind::Apply { .. }
+        | CheckedScalarComputationKind::SelectedComparison { .. } => {
             terminal_scalar_type(node.primitive_type)?.into()
         }
         CheckedScalarComputationKind::Select {

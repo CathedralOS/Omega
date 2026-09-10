@@ -43,6 +43,9 @@ pub(in crate::flow) fn collect(
             }
             visited.push(handle);
             match &computations.nodes.get(handle).kind {
+                CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
+                    pending.extend([*left, *right])
+                }
                 CheckedScalarComputationKind::Qualification { operand, .. } => {
                     pending.push(*operand)
                 }

@@ -351,6 +351,7 @@ fn pure_scalar(kind: &OperationKind) -> bool {
             | OperationKind::BooleanConstant { .. }
             | OperationKind::IeeeFloatConstant { .. }
             | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
+            | OperationKind::IeeeFloatCompare { .. }
             | OperationKind::BooleanNot { .. }
             | OperationKind::BooleanEqual { .. }
             | OperationKind::IntegerEqual { .. }

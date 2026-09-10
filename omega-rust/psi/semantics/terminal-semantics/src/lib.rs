@@ -369,6 +369,7 @@ operation_semantic_rows! {
     BooleanConstant => ("schema:operation:boolean-constant", LeafDenotation,
         goal_free_scalar_leaf(ResultShape::Boolean, Operands::BooleanLiteral, Denotation::BooleanConstant)),
     IeeeFloatConstant => ("schema:operation:ieee-float-constant", LeafDenotation, None),
+    IeeeFloatCompare => ("schema:operation:ieee-float-compare", LeafDenotation, None),
     NearestIeeeFloatFusedMultiplyAdd => ("schema:operation:nearest-ieee-float-fused-multiply-add", LeafDenotation, None),
     BooleanStructuralField => ("schema:operation:boolean-structural-field", LeafDenotation, None),
     IntegerStructuralField => ("schema:operation:integer-structural-field", LeafDenotation, None),
@@ -771,14 +772,14 @@ mod tests {
 
     #[test]
     fn operation_inventory_is_exact_unique_and_closed() {
-        assert_eq!(OperationSemanticTag::ALL.len(), 64);
-        assert_eq!(OperationSemanticRow::ALL.len(), 64);
+        assert_eq!(OperationSemanticTag::ALL.len(), 65);
+        assert_eq!(OperationSemanticRow::ALL.len(), 65);
         assert_eq!(
             OperationSemanticRow::ALL
                 .iter()
                 .filter(|row| row.custody == OperationSemanticCustody::LeafDenotation)
                 .count(),
-            54,
+            55,
         );
         assert_eq!(
             OperationSemanticRow::ALL
@@ -800,7 +801,7 @@ mod tests {
                 .map(|row| row.tag)
                 .collect::<BTreeSet<_>>()
                 .len(),
-            64,
+            65,
         );
         assert_eq!(
             OperationSemanticRow::ALL
@@ -808,7 +809,7 @@ mod tests {
                 .map(|row| row.identity)
                 .collect::<BTreeSet<_>>()
                 .len(),
-            64,
+            65,
         );
         assert!(
             OperationSemanticRow::ALL

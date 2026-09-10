@@ -109,6 +109,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
         machine,
         source_call_occurrences,
         selected_ieee_float_fma_occurrences,
+        selected_ieee_float_comparison_occurrences,
     } = emit_boundary_scalar_return(
         checked,
         plan,
@@ -161,6 +162,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
         debug_map: None,
         source_call_occurrences,
         selected_ieee_float_fma_occurrences,
+        selected_ieee_float_comparison_occurrences,
     };
     scalar_calls.append_to(&mut lowered)?;
     finalize_operation_proofs(&mut lowered)?;

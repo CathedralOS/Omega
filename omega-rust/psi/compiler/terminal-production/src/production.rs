@@ -1,6 +1,9 @@
 use checked_trees::CheckedTrees;
 use checked_trees_to_lowered_psi::{LoweringError, lower_machine, select_terminal_machine};
-use lowered_psi::{LoweredPsi, LoweredSelectedIeeeFloatFmaOccurrence, LoweredSourceCallOccurrence};
+use lowered_psi::{
+    LoweredPsi, LoweredSelectedIeeeFloatComparisonOccurrence,
+    LoweredSelectedIeeeFloatFmaOccurrence, LoweredSourceCallOccurrence,
+};
 use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
 use lowered_psi_to_terminal_psi::{
     CheckedBoundaryOperatorApplicationScope, finalize_terminal_artifact,
@@ -16,6 +19,7 @@ pub struct ProducedTerminalArtifact {
     artifact: terminal_codec::CanonicalTerminalArtifact,
     boundary_operator_scope: CheckedBoundaryOperatorApplicationScope,
     selected_ieee_float_fma_occurrences: Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
+    selected_ieee_float_comparison_occurrences: Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
 }
 
 impl ProducedTerminalArtifact {
@@ -31,17 +35,25 @@ impl ProducedTerminalArtifact {
         &self.selected_ieee_float_fma_occurrences
     }
 
+    pub fn selected_ieee_float_comparison_occurrences(
+        &self,
+    ) -> &[LoweredSelectedIeeeFloatComparisonOccurrence] {
+        &self.selected_ieee_float_comparison_occurrences
+    }
+
     pub fn into_parts(
         self,
     ) -> (
         terminal_codec::CanonicalTerminalArtifact,
         CheckedBoundaryOperatorApplicationScope,
         Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
+        Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
     ) {
         (
             self.artifact,
             self.boundary_operator_scope,
             self.selected_ieee_float_fma_occurrences,
+            self.selected_ieee_float_comparison_occurrences,
         )
     }
 }
@@ -61,6 +73,7 @@ pub struct ProducedTerminalArtifactWithCallbackCustody<C> {
     callback_custody: C,
     source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
     selected_ieee_float_fma_occurrences: Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
+    selected_ieee_float_comparison_occurrences: Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
 }
 
 impl<C> ProducedTerminalArtifactWithCallbackCustody<C> {
@@ -84,6 +97,12 @@ impl<C> ProducedTerminalArtifactWithCallbackCustody<C> {
         &self.selected_ieee_float_fma_occurrences
     }
 
+    pub fn selected_ieee_float_comparison_occurrences(
+        &self,
+    ) -> &[LoweredSelectedIeeeFloatComparisonOccurrence] {
+        &self.selected_ieee_float_comparison_occurrences
+    }
+
     pub fn into_parts(
         self,
     ) -> (
@@ -91,12 +110,14 @@ impl<C> ProducedTerminalArtifactWithCallbackCustody<C> {
         CheckedBoundaryOperatorApplicationScope,
         C,
         Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
+        Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
     ) {
         (
             self.artifact,
             self.boundary_operator_scope,
             self.callback_custody,
             self.selected_ieee_float_fma_occurrences,
+            self.selected_ieee_float_comparison_occurrences,
         )
     }
 
@@ -108,6 +129,7 @@ impl<C> ProducedTerminalArtifactWithCallbackCustody<C> {
         C,
         Vec<LoweredSourceCallOccurrence>,
         Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
+        Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
     ) {
         (
             self.artifact,
@@ -115,6 +137,7 @@ impl<C> ProducedTerminalArtifactWithCallbackCustody<C> {
             self.callback_custody,
             self.source_call_occurrences,
             self.selected_ieee_float_fma_occurrences,
+            self.selected_ieee_float_comparison_occurrences,
         )
     }
 }
@@ -187,6 +210,7 @@ pub struct ProducedProgramEntryTerminalArtifact {
     receipt: CheckedProgramEntryTerminalReceipt,
     boundary_operator_scope: CheckedBoundaryOperatorApplicationScope,
     selected_ieee_float_fma_occurrences: Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
+    selected_ieee_float_comparison_occurrences: Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
 }
 
 impl ProducedProgramEntryTerminalArtifact {
@@ -206,6 +230,12 @@ impl ProducedProgramEntryTerminalArtifact {
         &self.selected_ieee_float_fma_occurrences
     }
 
+    pub fn selected_ieee_float_comparison_occurrences(
+        &self,
+    ) -> &[LoweredSelectedIeeeFloatComparisonOccurrence] {
+        &self.selected_ieee_float_comparison_occurrences
+    }
+
     pub fn into_parts(
         self,
     ) -> (
@@ -213,12 +243,14 @@ impl ProducedProgramEntryTerminalArtifact {
         CheckedProgramEntryTerminalReceipt,
         CheckedBoundaryOperatorApplicationScope,
         Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
+        Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
     ) {
         (
             self.artifact,
             self.receipt,
             self.boundary_operator_scope,
             self.selected_ieee_float_fma_occurrences,
+            self.selected_ieee_float_comparison_occurrences,
         )
     }
 }
@@ -283,6 +315,8 @@ pub fn produce_terminal_artifact_with_checked_boundary_operator_scope_and_optimi
         artifact,
         boundary_operator_scope,
         selected_ieee_float_fma_occurrences: lowered.selected_ieee_float_fma_occurrences,
+        selected_ieee_float_comparison_occurrences: lowered
+            .selected_ieee_float_comparison_occurrences,
     })
 }
 
@@ -363,6 +397,8 @@ pub fn produce_terminal_artifact_with_callback_custody_and_optimizations<C>(
         callback_custody,
         source_call_occurrences: lowered.source_call_occurrences,
         selected_ieee_float_fma_occurrences: lowered.selected_ieee_float_fma_occurrences,
+        selected_ieee_float_comparison_occurrences: lowered
+            .selected_ieee_float_comparison_occurrences,
     })
 }
 
@@ -443,6 +479,8 @@ pub fn produce_program_entry_terminal_artifact_with_optimizations(
             terminal_entry,
         },
         selected_ieee_float_fma_occurrences: lowered.selected_ieee_float_fma_occurrences,
+        selected_ieee_float_comparison_occurrences: lowered
+            .selected_ieee_float_comparison_occurrences,
     })
 }
 

@@ -96,9 +96,9 @@ fn evaluate_known_scalar_graph(states: &[LoweredScalarBranchState]) -> Option<Kn
                 LoweredScalarBinding::Expression(expression) => {
                     evaluate_direct_expression(expression, &values)
                 }
-                LoweredScalarBinding::DirectCall(_) | LoweredScalarBinding::StoredValue { .. } => {
-                    None
-                }
+                LoweredScalarBinding::DirectCall(_)
+                | LoweredScalarBinding::StoredValue { .. }
+                | LoweredScalarBinding::SelectedComparison { .. } => None,
             };
             values.push(value);
         }
@@ -1602,6 +1602,10 @@ pub(super) fn direct_expression_contains_short_circuit(
 
 fn scalar_binding_contains_short_circuit(binding: &LoweredScalarBinding) -> bool {
     match binding {
+        LoweredScalarBinding::SelectedComparison { left, right, .. } => {
+            direct_expression_contains_short_circuit(left)
+                || direct_expression_contains_short_circuit(right)
+        }
         LoweredScalarBinding::Expression(expression) => {
             direct_expression_contains_short_circuit(expression)
         }

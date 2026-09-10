@@ -114,6 +114,11 @@ impl Default for CheckedScalarComputation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedScalarComputationKind {
+    SelectedComparison {
+        operator_use: Handle<crate::CheckedOperatorUseFact>,
+        left: CheckedScalarComputationHandle,
+        right: CheckedScalarComputationHandle,
+    },
     /// Representation-identical semantic qualification transfer at one authored
     /// cast, including explicit non-owning erasure to a bare result.
     /// The full result reference retains domain instances; this node does not
@@ -162,6 +167,8 @@ pub enum CheckedScalarComputationKind {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedScalarDispatchArm {
+    /// Zero for builtin comparisons; otherwise the exact implicit arm use.
+    pub equality_use: Handle<crate::CheckedOperatorUseFact>,
     pub source_arm: Handle<typed_trees::expression::TableMatchArm>,
     pub pattern: CheckedScalarDispatchPattern,
     pub value: CheckedScalarComputationHandle,

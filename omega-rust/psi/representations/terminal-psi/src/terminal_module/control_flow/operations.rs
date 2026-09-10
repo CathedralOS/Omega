@@ -392,6 +392,14 @@ pub enum OperationKind {
     IeeeFloatConstant {
         value: IeeeFloatValue,
     },
+    /// Compare two values of the same exact IEEE format, producing Bool.
+    /// Selection custody belongs to the source/installation companions, not
+    /// to a proof-only equality proposition or a guessed arithmetic token.
+    IeeeFloatCompare {
+        comparison: semantic_vocabulary::IeeeFloatComparisonOperation,
+        left: ValueId,
+        right: ValueId,
+    },
     /// Compute `round_nearest_even(left * right + addend)` in the result's
     /// exact IEEE format. This remains distinct from multiply-then-add.
     NearestIeeeFloatFusedMultiplyAdd {

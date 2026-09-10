@@ -69,6 +69,9 @@ impl PreparedScalarQualifications {
             }
             visited.push(handle);
             match &plans.nodes.get(handle).kind {
+                CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
+                    pending.extend([*left, *right])
+                }
                 CheckedScalarComputationKind::Qualification {
                     operand,
                     result_type,

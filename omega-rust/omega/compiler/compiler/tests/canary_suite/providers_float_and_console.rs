@@ -2262,6 +2262,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
             proposal.compiler_builtins().to_vec(),
             proposal.callback_occurrences().to_vec(),
             proposal.ieee_float_fma_occurrences().to_vec(),
+            proposal.ieee_float_comparison_occurrences().to_vec(),
             proposal.boundary_application_demands().clone(),
             proposal.boundary_application_realizations().clone(),
             proposal.checked_boundary_operator_scope().clone(),

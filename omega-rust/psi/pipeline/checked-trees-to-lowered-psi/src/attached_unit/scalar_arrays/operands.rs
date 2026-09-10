@@ -163,6 +163,23 @@ impl Context<'_> {
         active.push(root);
         let node = plans.nodes.get(root);
         let valid = match &node.kind {
+            Computation::SelectedComparison {
+                operator_use,
+                left,
+                right,
+            } => {
+                self.checked
+                    .facts
+                    .operators
+                    .selected_float_comparison(&self.checked.typed, *operator_use)
+                    .is_some_and(|(_, primitive)| {
+                        node.primitive_type == PrimitiveType::Bool
+                            && plans.nodes.get(*left).primitive_type == primitive
+                            && plans.nodes.get(*right).primitive_type == primitive
+                    })
+                    && self.computation(*left, active)
+                    && self.computation(*right, active)
+            }
             // Membership and the exact cast operand are replayed by shared
             // source custody; qualification does not change payload meaning.
             Computation::Qualification { operand, .. } => {

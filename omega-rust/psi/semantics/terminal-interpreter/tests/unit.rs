@@ -40,6 +40,8 @@ use terminal_verifier::{
     ModuleError, ObligationEvidence, ProofBundle, VerificationError, verify_module,
 };
 
+#[path = "unit/ieee_float_comparisons.rs"]
+mod ieee_float_comparisons;
 #[path = "unit/indexed_structural_store.rs"]
 mod indexed_structural_store;
 #[path = "unit/scalar_qualifications.rs"]

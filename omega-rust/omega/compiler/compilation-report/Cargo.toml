@@ -19,6 +19,7 @@ effects = { path = "../../representations/effects" }
 function-identity = { path = "../../representations/function-identity" }
 image = { path = "../../backend/images/image" }
 native-artifact = { path = "../../backend/artifacts/native-artifact" }
+numerics = { path = "../../../psi/foundation/numerics" }
 package-compilation = { path = "../../build/package-compilation" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 optimization-core = { path = "../../representations/optimization-core" }

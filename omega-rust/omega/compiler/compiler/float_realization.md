@@ -28,6 +28,19 @@ wrong-format, and multiply-then-add substitution cannot borrow FMA admission.
 
 ## Operation and control custody
 
+Ordinary selected comparisons and floating Match arms share one Terminal
+`IeeeFloatCompare` operation with six explicit relations. The scalar computation
+graph evaluates the subject once and each reached pattern once; arm identity
+and exact selected provider commitment survive alongside the operation.
+Canonical verification and the Terminal interpreter implement both formats,
+including NaNs and signed zeros. Native realization of this operation is still
+explicitly unsupported; existing native provider definitions alone do not close
+that path. Reproduce the portable boundary with:
+
+```text
+mbx run -p omega -- inspect-terminal --machine choose --target macos_arm64 tests/omega/pass/expressions/match_float_patterns/main.omg
+```
+
 A supported source lane carries independent landed-literal FMA locals through
 Terminal raw-bit constants and FMA operations. Exact per-occurrence proposals
 cover the source-ordered Terminal operation roster one-to-one. The ordinary

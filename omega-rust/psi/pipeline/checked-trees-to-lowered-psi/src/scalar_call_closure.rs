@@ -324,6 +324,7 @@ pub(super) fn lower_scalar_call_closure(
     let mut evidence = Vec::new();
     let mut source_call_occurrences = Vec::new();
     let mut selected_ieee_float_fma_occurrences = Vec::new();
+    let mut selected_ieee_float_comparison_occurrences = Vec::new();
     let mut scalar_qualifications = qualifications.catalog().clone();
     for (index, machine) in prepared.into_iter().enumerate() {
         let terminal_machine = machine_ids[index].1;
@@ -363,6 +364,8 @@ pub(super) fn lower_scalar_call_closure(
         source_call_occurrences.append(&mut lowered.source_call_occurrences);
         selected_ieee_float_fma_occurrences
             .append(&mut lowered.selected_ieee_float_fma_occurrences);
+        selected_ieee_float_comparison_occurrences
+            .append(&mut lowered.selected_ieee_float_comparison_occurrences);
     }
     let lowered = LoweredPsi {
         semantic_module: TerminalModule {
@@ -404,6 +407,7 @@ pub(super) fn lower_scalar_call_closure(
         debug_map: None,
         source_call_occurrences,
         selected_ieee_float_fma_occurrences,
+        selected_ieee_float_comparison_occurrences,
     };
     // Final proof metadata and invariant identities belong to the assembled
     // root module, not this provisional scalar closure.

@@ -4,6 +4,21 @@ use super::LoweredPsi;
 use semantic_vocabulary::{BlockId, MachineId, OperationId};
 use terminal_psi::ValueDeclaration;
 
+/// Exact selected source comparison joined to one emitted operation. Provider
+/// authority is independently rejoined by Omega before execution is admitted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LoweredSelectedIeeeFloatComparisonOccurrence {
+    pub operator_use: checked_trees::CheckedOperatorUseHandle,
+    pub application_site: checked_trees::CheckedBoundaryOperatorApplicationUseSite,
+    pub requirement_operator: symbols::SymbolHandle,
+    pub provider_plan_report_fingerprint: u64,
+    pub provider_plan_commitment: checked_trees::CheckedProviderPlanCommitment,
+    pub terminal_machine: MachineId,
+    pub terminal_operation: OperationId,
+    pub comparison: semantic_vocabulary::IeeeFloatComparisonOperation,
+    pub format: semantic_vocabulary::IeeeFloatFormat,
+}
+
 /// Exact checked-to-Terminal join for the first bounded callback body cohort.
 /// Source handles remain target-owned sidecar evidence; they are never encoded
 /// into the canonical Terminal artifact.

@@ -11,9 +11,11 @@
 mod bounded_integer_type;
 mod content;
 mod identity;
+mod ieee_float_comparison_operation;
 mod proposition;
 mod qualified_scalar_type;
 
+pub use ieee_float_comparison_operation::IeeeFloatComparisonOperation;
 pub use qualified_scalar_type::QualifiedScalarType;
 
 pub use bounded_integer_type::BoundedIntegerType;

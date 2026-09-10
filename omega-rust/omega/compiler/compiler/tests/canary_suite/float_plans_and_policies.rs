@@ -200,6 +200,102 @@ fn float_match_arms_retain_distinct_applications_of_the_selected_provider() {
 }
 
 #[test]
+fn float_match_executes_selected_arms_through_verified_terminal() {
+    let canary = pass_canary("expressions/match_float_patterns");
+    let checked = compile_to_checked(&canary.join("main.omg"), Some("macos_arm64")).unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
+        .expect("the unchanged call-bearing Match customer must reach Terminal");
+    compiler::validate_lowered_ieee_float_comparison_custody(&checked, &lowered)
+        .expect("each comparison independently rejoins its selected provider");
+    assert_eq!(lowered.selected_ieee_float_comparison_occurrences.len(), 2);
+    let produced =
+        terminal_production::produce_terminal_artifact_with_checked_boundary_operator_scope(
+            &checked, "choose",
+        )
+        .expect("selected Match application scope survives canonical publication");
+    assert_eq!(produced.boundary_operator_scope().occurrences().len(), 2);
+    for change_relation in [false, true] {
+        let mut changed = lowered.clone();
+        // Omit replaceable debug evidence so this tests source custody rather
+        // than rejection of an old debug map's semantic digest.
+        changed.debug_map = None;
+        let occurrence = &mut changed.selected_ieee_float_comparison_occurrences[0];
+        if change_relation {
+            occurrence.comparison = semantic_vocabulary::IeeeFloatComparisonOperation::NotEqual;
+            let operation_id = occurrence.terminal_operation;
+            for machine in &mut changed.semantic_module.machines {
+                for block in &mut machine.blocks {
+                    for operation in &mut block.operations {
+                        if operation.id == operation_id {
+                            let terminal_psi::OperationKind::IeeeFloatCompare {
+                                comparison, ..
+                            } = &mut operation.kind
+                            else {
+                                panic!("comparison occurrence")
+                            };
+                            *comparison =
+                                semantic_vocabulary::IeeeFloatComparisonOperation::NotEqual;
+                        }
+                    }
+                }
+            }
+        } else {
+            occurrence.format = semantic_vocabulary::IeeeFloatFormat::Binary64;
+        }
+        let optimized =
+            lowered_psi_to_lowered_psi::run_psi_optimization(changed, Default::default())
+                .expect("source custody corruption can remain valid portable semantics");
+        let changed_artifact =
+            lowered_psi_to_terminal_psi::finalize_terminal_artifact(&optimized).unwrap();
+        assert!(
+            lowered_psi_to_terminal_psi::checked_boundary_operator_scope(
+                &checked,
+                &changed_artifact,
+                optimized.lowered(),
+            )
+            .is_err(),
+            "published source scope must independently rederive relation and format"
+        );
+    }
+    let artifact = produced.artifact();
+    for (value, first, second, expected) in [
+        (1.0_f32.to_bits(), 1.0_f32.to_bits(), 2.0_f32.to_bits(), 7),
+        (2.0_f32.to_bits(), 1.0_f32.to_bits(), 2.0_f32.to_bits(), 9),
+        (3.0_f32.to_bits(), 1.0_f32.to_bits(), 2.0_f32.to_bits(), 11),
+        (1.0_f32.to_bits(), 1.0_f32.to_bits(), 1.0_f32.to_bits(), 7),
+        (0x8000_0000, 0, 0x8000_0000, 7),
+        (0x7fc0_0042, 0x7fc0_0042, 0x7fc0_0042, 11),
+        (2.0_f32.to_bits(), 0x7fc0_0042, 2.0_f32.to_bits(), 9),
+    ] {
+        let arguments = [value, first, second].map(|bits| {
+            terminal_interpreter::TerminalScalarValue::IeeeFloat(
+                semantic_vocabulary::IeeeFloatValue::Binary32(bits),
+            )
+        });
+        let measured = terminal_interpreter::interpret_terminal_artifact_measured(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &arguments,
+        )
+        .expect("decoded and independently verified Match executes");
+        assert_eq!(
+            measured.value(),
+            terminal_interpreter::TerminalExecutionResult::Scalar(
+                terminal_interpreter::TerminalScalarValue::Integer {
+                    scalar_type: semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Unsigned,
+                        64,
+                    )
+                    .unwrap(),
+                    value: semantic_vocabulary::IntegerValue::Unsigned(expected),
+                },
+            )
+        );
+    }
+}
+
+#[test]
 fn float_provider_plan_identities_ignore_arena_and_display_perturbations() {
     fn float_plan_snapshot(checked: &compiler::CheckedCompilation) -> Vec<(String, u64)> {
         checked

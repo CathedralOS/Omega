@@ -40,6 +40,9 @@ pub(super) fn source_scope(
 
 pub(super) fn operands(
     checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    statement: u32,
     source: ExpressionHandle,
     subject: CheckedScalarComputationHandle,
     arms: arena::HandleSpan<CheckedScalarDispatchArm>,
@@ -96,8 +99,37 @@ pub(super) fn operands(
             return unsupported("computed dispatch substituted its ordered arm identity or result");
         }
         match (&arm.pattern, &authored_arm.pattern) {
-            (CheckedScalarDispatchPattern::Wildcard, MatchPattern::Wildcard) => covered = true,
+            (CheckedScalarDispatchPattern::Wildcard, MatchPattern::Wildcard) => {
+                if arm.equality_use.is_valid() {
+                    return unsupported("wildcard retained an unauthored comparison");
+                }
+                covered = true;
+            }
             (CheckedScalarDispatchPattern::Value(pattern), MatchPattern::Value(expression)) => {
+                if matches!(subject_type, PrimitiveType::F32 | PrimitiveType::F64) {
+                    let occurrence = crate::scalar_computations::comparisons::occurrence(
+                        checked,
+                        arm.equality_use,
+                        machine,
+                        state,
+                        statement,
+                    )?;
+                    let selected = checked.facts.operators.uses.get(arm.equality_use);
+                    if selected.expression != source
+                        || selected.occurrence
+                            != (checked_trees::CheckedOperatorOccurrence::MatchEquality {
+                                source_arm,
+                            })
+                        || occurrence.comparison
+                            != semantic_vocabulary::IeeeFloatComparisonOperation::Equal
+                    {
+                        return unsupported(
+                            "dispatch comparison substituted its authored arm meaning",
+                        );
+                    }
+                } else if arm.equality_use.is_valid() {
+                    return unsupported("builtin dispatch acquired selected float equality");
+                }
                 if !plans.nodes.is_valid(*pattern)
                     || plans.nodes.get(*pattern).primitive_type != subject_type
                 {

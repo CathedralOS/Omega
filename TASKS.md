@@ -1165,7 +1165,7 @@ Owners include
   [value-dispatch contract](wiki/spec/language/patterns.md) on the retained
   source and scalar computation route. Remaining work: ownership-bearing result
   and conditional-transfer joins, nonnumeric Terminal results, selected floating-point
-  pattern comparisons, structural/case/
+  pattern native realization, structural/case/
   domain patterns and their coverage,
   semantic-domain and selected-operator result-type retention (shared with
   `STATE-LOCAL-VALUE-FRONTIER` numeric landing), and canonical
@@ -1175,20 +1175,19 @@ Owners include
   are implementation limits, not narrower language semantics. Do not flatten
   conditional transfers into a whole-statement move/discard roster.
 
-  Floating comparison resume (macOS, checked-selection change atop 8dc3fe6eed): `mbx run -p omega --
+  Floating comparison resume (macOS, comparison change atop 32153f920e): `mbx run -p omega --
   inspect-terminal --machine choose --target macos_arm64
-  tests/omega/pass/expressions/match_float_patterns/main.omg` rejects at the
-  checked scalar computation producer ("needs one checked expression and one
-  source binding"). Source checking retains exact arm equality occurrences,
-  selected provider identities, and effect-adjusted invocation preconditions.
-  Next: arm-local selected execution with saved-subject custody and the general
-  Terminal producer for selected intrinsic float comparisons. Interpreter
-  comparison execution remains explicitly unsupported; crash-qualified equality
-  and contract guarantees need arm-local custody too. Extend existing provider
-  selection and independent source custody, not unselected raw equality or a
-  fabricated source call. The source-checking acceptance is `--check` on the same
-  fixture, with `match_float_equality` failure canaries rejecting missing selection
-  and unproven requirements; these do not establish Terminal/native execution.
+  tests/omega/pass/expressions/match_float_patterns/main.omg` passes with verified
+  Terminal and fixed-fuel ceiling 22. Canonical Terminal interpretation covers
+  ordered matches, overlaps, signed zeros and NaNs; ordinary comparisons share
+  its selected six-relation operation. Next: realize `IeeeFloatCompare` through
+  the general native pipeline with exact provider/source custody and independent
+  byte replay. The Terminal-to-Abstract route explicitly rejects this operation;
+  selected native provider definitions are not execution evidence. Crash-qualified
+  equality and contract guarantees still need arm-local execution custody. Extend
+  the existing graph and provider selection, not raw unselected equality or a
+  fabricated source call. The checked-source interpreter's floating dispatch
+  remains fenced separately from the working Terminal interpreter.
 
   Resume with `mbx nextest run -p checked-trees-to-lowered-psi --test value_dispatch
   --no-fail-fast` and the checker/interpreter `value_dispatch` regressions. These

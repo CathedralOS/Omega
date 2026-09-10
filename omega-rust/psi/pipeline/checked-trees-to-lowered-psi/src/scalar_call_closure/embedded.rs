@@ -113,6 +113,9 @@ impl EmbeddedScalarCalls {
             lowered
                 .selected_ieee_float_fma_occurrences
                 .append(&mut helper.selected_ieee_float_fma_occurrences);
+            lowered
+                .selected_ieee_float_comparison_occurrences
+                .append(&mut helper.selected_ieee_float_comparison_occurrences);
         }
         Ok(())
     }

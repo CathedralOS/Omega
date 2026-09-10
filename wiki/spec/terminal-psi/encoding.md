@@ -44,6 +44,14 @@ verification checks the exact arrival and strict same-carrier addition or
 subset erasure under the
 [scalar qualification rules](calls_and_outcomes.md#scalar-qualifications).
 
+IEEE scalar comparison uses operation tag 65, followed by a one-byte relation
+(`Equal`, `NotEqual`, `Less`, `LessOrEqual`, `Greater`, `GreaterOrEqual` as 0–5)
+and the left and right value identities. Both operands have the same IEEE
+format and the result is Boolean. Unknown relation tags reject. This executable
+operation follows FloatSemantics, including unordered NaN comparisons and equal
+signed zeros; it does not assert mathematical equality facts. Source selection
+and provider realization custody remain separate from these portable semantics.
+
 The semantic scalar-range-invariant roster precedes the machine table. Rows
 are strictly ordered by `(machine, header, parameter)` and encode those three
 identities, the integer carrier, inclusive minimum and maximum, and a counted

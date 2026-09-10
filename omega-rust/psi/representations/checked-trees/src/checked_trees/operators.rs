@@ -6,6 +6,8 @@
 //! the saved subject again or to publish builtin equality facts.
 
 use crate::{CheckedValueOrigin, CrashCause};
+mod comparisons;
+pub type CheckedOperatorUseHandle = arena::Handle<CheckedOperatorUseFact>;
 use arena::{Arena, Handle, HandleSpan};
 use language_core::operator_spelling::OperatorSpelling;
 use language_semantics::const_value::CanonicalConstIdentity;

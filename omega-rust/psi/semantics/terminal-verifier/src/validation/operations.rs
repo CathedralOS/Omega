@@ -137,6 +137,20 @@ pub(super) fn validate_operation_operands(
         }
         return Ok(());
     }
+    if let OperationKind::IeeeFloatCompare { left, right, .. } = operation.kind {
+        require_defined(left, value_types, defined)?;
+        require_defined(right, value_types, defined)?;
+        let left_type = value_types[&left];
+        let right_type = value_types[&right];
+        if !matches!(left_type, ScalarType::IeeeFloat(_)) || left_type != right_type {
+            return Err(ModuleError::IeeeFloatComparisonOperandTypeMismatch {
+                operation: operation.id,
+                left: left_type,
+                right: right_type,
+            });
+        }
+        return Ok(());
+    }
     if let OperationKind::NearestIeeeFloatFusedMultiplyAdd {
         left,
         right,
@@ -696,6 +710,7 @@ pub(super) fn validate_operation_operands(
         OperationKind::IntegerConstant { .. }
         | OperationKind::BooleanConstant { .. }
         | OperationKind::IeeeFloatConstant { .. }
+        | OperationKind::IeeeFloatCompare { .. }
         | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
         | OperationKind::BooleanStructuralField { .. }
         | OperationKind::IntegerStructuralField { .. }

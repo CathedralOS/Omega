@@ -118,8 +118,8 @@ fn literal_lengths_are_exact_u64_and_meter_once_across_resume() {
 #[test]
 fn byte_sequence_length_artifact_rejects_stale_vocabulary() {
     let semantic = encode_module(&literal_module(vec![0xff])).unwrap();
-    assert_eq!(&semantic[10..12], &95_u16.to_le_bytes());
-    for generation in [90_u16, 91, 92, 93, 94, 96] {
+    assert_eq!(&semantic[10..12], &97_u16.to_le_bytes());
+    for generation in [90_u16, 91, 92, 93, 94, 95, 96, 98] {
         let mut stale = semantic.clone();
         stale[10..12].copy_from_slice(&generation.to_le_bytes());
         assert!(decode_module(&stale).is_err());

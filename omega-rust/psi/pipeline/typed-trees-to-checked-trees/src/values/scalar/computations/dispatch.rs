@@ -5,6 +5,20 @@ use checked_trees::{CheckedScalarDispatchArm, CheckedScalarDispatchPattern};
 use typed_trees::expression::{MatchPattern, TableMatchExpression};
 
 impl Builder<'_, '_> {
+    pub(super) fn comparison_use(
+        &self,
+        expression: ExpressionHandle,
+        occurrence: checked_trees::CheckedOperatorOccurrence,
+    ) -> Option<arena::Handle<checked_trees::CheckedOperatorUseFact>> {
+        let mut matching = self.operators.uses.iter().filter_map(|(handle, selected)| {
+            (selected.expression == expression && selected.occurrence == occurrence
+                && matches!(selected.origin, checked_trees::CheckedValueOrigin::StateStatement { machine_symbol, state_symbol, statement_index, .. }
+                    if machine_symbol == self.machine && state_symbol == self.state && statement_index == self.statement_index)
+                && self.operators.selected_float_comparison(self.program, handle).is_some()).then_some(handle)
+        });
+        let selected = matching.next()?;
+        matching.next().is_none().then_some(selected)
+    }
     pub(super) fn dispatch(
         &mut self,
         source_expression: ExpressionHandle,
@@ -28,7 +42,10 @@ impl Builder<'_, '_> {
         let subject = if let Some(subject_type) =
             validation::match_subject_primitive_type(self.program, dispatch)
         {
-            if subject_type != PrimitiveType::Bool && !is_integer(subject_type) {
+            if subject_type != PrimitiveType::Bool
+                && !is_integer(subject_type)
+                && !matches!(subject_type, PrimitiveType::F32 | PrimitiveType::F64)
+            {
                 return None;
             }
             self.expression(dispatch.subject, subject_type)?
@@ -45,6 +62,24 @@ impl Builder<'_, '_> {
         let mut boolean_coverage = [false; 2];
         let mut covered = false;
         for (ordinal, arm) in authored.iter().enumerate() {
+            let source_arm = arena::Handle::from_parts(
+                dispatch
+                    .arms
+                    .start()
+                    .arena_index()
+                    .checked_add(u32::try_from(ordinal).ok()?)?,
+                dispatch.arms.start().generation(),
+            );
+            let equality_use = if matches!(arm.pattern, MatchPattern::Value(_))
+                && matches!(subject_type, PrimitiveType::F32 | PrimitiveType::F64)
+            {
+                self.comparison_use(
+                    source_expression,
+                    checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm },
+                )?
+            } else {
+                arena::Handle::invalid()
+            };
             let pattern = match arm.pattern {
                 MatchPattern::Wildcard => {
                     covered = true;
@@ -62,15 +97,8 @@ impl Builder<'_, '_> {
                 }
             };
             let value = self.expression(arm.value, result_type)?;
-            let source_arm = arena::Handle::from_parts(
-                dispatch
-                    .arms
-                    .start()
-                    .arena_index()
-                    .checked_add(u32::try_from(ordinal).ok()?)?,
-                dispatch.arms.start().generation(),
-            );
             arms.push(CheckedScalarDispatchArm {
+                equality_use,
                 source_arm,
                 pattern,
                 value,

@@ -54,7 +54,13 @@ pub(super) fn prepare_terminal_artifact(
         checked_program_entry,
         checked_boundary_operator_scope,
         selected_ieee_float_fma_occurrences,
+        selected_ieee_float_comparison_occurrences,
     ) = produced.into_parts();
+    if !selected_ieee_float_comparison_occurrences.is_empty() {
+        return Err(vec![Diagnostic::error(
+            "optimized direct native realization does not consume IEEE comparison occurrence custody",
+        )]);
+    }
     if !selected_ieee_float_fma_occurrences.is_empty() {
         return Err(vec![Diagnostic::error(
             "optimized direct native realization does not yet consume retained IEEE-FMA occurrence custody",

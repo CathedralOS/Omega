@@ -156,6 +156,12 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_poli
         proposal
             .validate_for_artifact(&artifact)
             .map_err(|message| diagnostic("Terminal native proposal", message))?;
+        if !proposal.ieee_float_comparison_occurrences().is_empty() {
+            return Err(diagnostic(
+                "Terminal IEEE comparison proposal",
+                "general control-flow IEEE comparison native realization is not implemented",
+            ));
+        }
         if proposal.post_terminal_optimizations().selections() != optimization_selections {
             return Err(diagnostic(
                 "Terminal native proposal",
