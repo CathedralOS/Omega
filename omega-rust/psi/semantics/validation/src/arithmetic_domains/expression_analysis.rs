@@ -792,6 +792,44 @@ pub(super) fn analyze(
                 }
             }
 
+            // Parents observe this node's policy result, not its unbounded
+            // mathematical calculation. In particular saturation followed by
+            // subtraction is not saturation of the final subtraction, and a
+            // wrapped quotient consumes the already-wrapped dividend.
+            if effective_domain != ArithmeticDomain::Exact
+                && let Some(carrier) = primitive.and_then(primitive_range)
+            {
+                let count_is_ordinary =
+                    !matches!(
+                        operator,
+                        BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+                    ) || primitive.and_then(integer_bit_width).is_some_and(|width| {
+                        matches!(right.interval.low, Some(low) if low >= 0)
+                            && matches!(right.interval.high, Some(high) if high < width)
+                    });
+                // An unbounded unsigned high endpoint is the analysis window,
+                // not proof that arbitrary mathematical overflow fits u64.
+                let proven_in_carrier = carrier.contains(interval)
+                    && (carrier.high.is_some() || interval.high.is_some());
+                if !count_is_ordinary {
+                    interval = carrier;
+                } else if effective_domain == ArithmeticDomain::Saturating {
+                    let clamp = |value: i64| {
+                        let value = carrier.low.map_or(value, |low| value.max(low));
+                        carrier.high.map_or(value, |high| value.min(high))
+                    };
+                    interval = Interval {
+                        low: interval.low.map(clamp).or(carrier.low),
+                        high: interval.high.map(clamp).or(carrier.high),
+                    };
+                } else if !proven_in_carrier {
+                    // Modular reduction is not monotone across a wrap. A
+                    // conservative carrier also describes any normal return
+                    // from a potentially trapping operation without claiming
+                    // that its independent definedness obligations hold.
+                    interval = carrier;
+                }
+            }
             Analysis {
                 domain,
                 interval,
@@ -928,6 +966,31 @@ pub(super) fn analyze(
                     diagnostics,
                 )
             };
+            // Source facts precede target qualification. In particular a
+            // Wrapping cast must not use its asserted target range to prove
+            // that same range, or repair an out-of-range initial value.
+            let source_interval = source
+                .primitive
+                .and_then(primitive_range)
+                .map(|carrier| {
+                    if carrier.contains(source.interval) {
+                        source.interval
+                    } else {
+                        carrier
+                    }
+                })
+                .unwrap_or(source.interval);
+            super::cast_ranges::validate_target_ranges(
+                program,
+                machine,
+                state,
+                cast,
+                source_interval,
+                source.primitive,
+                env,
+                owner,
+                diagnostics,
+            );
             // F4 (the float->int cast ruling): there is NO MODULAR READING
             // of a float, so `f as iN in Wrapping` is a compile error (ch5;
             // the ruling's precedent generalized to the float domain list).
@@ -1011,7 +1074,9 @@ pub(super) fn analyze(
             // enclosing arithmetic. Wrapped expressions can carry a computed
             // interval outside their carrier; in that case use the carrier's
             // full range rather than manufacturing an impossible intersection.
-            // Non-Exact casts still re-range to the target carrier.
+            // Same-carrier policy qualification also preserves payload and
+            // source bounds. Other non-Exact casts retain the conservative
+            // target-carrier approximation.
             let interval = if source.primitive == Some(PrimitiveType::Bool)
                 && primitive.is_some_and(|target| integer_bit_width(target).is_some())
             {
@@ -1019,7 +1084,7 @@ pub(super) fn analyze(
                     low: Some(0),
                     high: Some(1),
                 }
-            } else if cast.domain == ArithmeticDomain::Exact
+            } else if (cast.domain == ArithmeticDomain::Exact || source.primitive == primitive)
                 && let Some(source_primitive) = source.primitive
                 && integer_bit_width(source_primitive).is_some()
                 && primitive.is_some_and(|target| integer_bit_width(target).is_some())

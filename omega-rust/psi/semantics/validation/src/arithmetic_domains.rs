@@ -61,6 +61,9 @@ pub fn integer_widen_is_total(source: PrimitiveType, target: PrimitiveType) -> b
 mod abstract_shift_count;
 mod bitwise;
 mod call_result_bounds;
+mod cast_ranges;
+pub(crate) use cast_ranges::record_float_literal_assignment;
+pub(crate) use cast_ranges::validate_range_cast_at_use;
 mod dependent_products;
 mod dependent_relations;
 mod exact_division_definedness;
@@ -478,6 +481,13 @@ pub(crate) fn record_assignment(
     declared_range: Option<Interval>,
 ) {
     if let Some(path) = path {
+        // A new payload retires float range/non-NaN facts as well as integer
+        // facts. Literal recording may establish fresh facts after the store
+        // has passed its ordinary validation.
+        env.float_intervals
+            .retain(|known, _| !place_paths_overlap(known, &path));
+        env.non_nan
+            .retain(|known| !place_paths_overlap(known, &path));
         env.ordered_values
             .retain(|relation| relation.survives(std::slice::from_ref(&path)));
         env.known_u64_values

@@ -1,0 +1,1 @@
+machine main() -> u64 { 11 as u64 [0..=10] }

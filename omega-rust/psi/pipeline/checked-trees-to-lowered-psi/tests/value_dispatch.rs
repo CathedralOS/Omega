@@ -568,3 +568,20 @@ fn qualified_computed_match_results_retain_policy_until_explicit_erasure() {
         }
     }
 }
+
+#[test]
+fn proved_range_qualified_casts_preserve_values_across_policy_selection() {
+    for policy in ["", " in Wrapping", " in Saturating"] {
+        let source = format!(
+            "machine choose(value: u64[0..=10]) -> u64 {{ (value as u64[0..=10]{policy}) as u64 }}"
+        );
+        for value in [0, 7, 10] {
+            let (_, execution) = execute(&source, &[unsigned(value)]);
+            assert_eq!(
+                execution.value(),
+                TerminalExecutionResult::Scalar(unsigned(value)),
+                "{source}; value={value}"
+            );
+        }
+    }
+}

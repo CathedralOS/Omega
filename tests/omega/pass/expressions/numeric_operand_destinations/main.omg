@@ -26,3 +26,7 @@ machine qualified(flag: bool, value: u64 in Wrapping) -> u64 {
 }
 
 machine main() -> u64 { combine(true) | composed(false) }
+
+machine bounded(value: u64 [0..=10]) -> u64 {
+    (value as u64 [0..=10] in Wrapping) as u64
+}
