@@ -37,7 +37,7 @@ consumer contracts are not necessary to accept fixed-contract lambdas.
 
 ## Open questions and acceptance bar
 
-[Callback contract forwarding](../../OWNER_QUESTIONS.md#q2--callback-contract-forwarding)
+[Callback contract forwarding](../../OWNER_QUESTIONS.md#callback-contract-forwarding)
 remains an independent owner question for named generic consumers as well. No
 effect projection, conditional call marker, or wholesale contract forwarding is
 accepted by this proposal. The choice among no surface, simple forms, and full
@@ -272,7 +272,7 @@ later calls use the previous post-state. Reentrancy or concurrent invocation is
 not granted by receiver inference.
 
 A general facility forwarding a callback's variable operational envelope is
-unresolved under [callback contract forwarding](../../OWNER_QUESTIONS.md#q2--callback-contract-forwarding).
+unresolved under [callback contract forwarding](../../OWNER_QUESTIONS.md#callback-contract-forwarding).
 It is not implicit in lambda support. The question covers named generic machines
 equally and does not block fixed-ceiling callbacks. Failure remains ordinary
 result data; crash guards require substitution; repetition and overlap affect

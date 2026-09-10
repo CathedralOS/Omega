@@ -1,10 +1,10 @@
 # Whole-chain minimization
 
 This contract governs retention and engineering comparisons for the selected
-[bootstrap chain](README.md). It does not authorize changing a language,
-admission, observation contract, or chain edge. The
-[owner-escalation rules](#owner-escalation)
-apply before implementing an architectural alternative.
+[bootstrap chain](README.md). Non-authoritative design experiments are delegated;
+they do not themselves change the accepted chain, admissions, or observation
+contracts. Apply the [owner-escalation rules](#owner-escalation) before relying
+on a changed trust boundary or weaker assurance.
 
 ## Objective
 
@@ -13,6 +13,13 @@ an individual file or rung. Count semantics, native seeds and admitted tapes,
 mutable state, compiler/evaluator/checker source, proof obligations and rules,
 certificates, resource profiles, wire formats, permanent tests, and host tools.
 Complexity nearer Alpha costs more because later edges inherit it.
+
+Below Omega these are purpose-built compiler and checker languages, not
+general-purpose products. Support the next consumer and its required assurance;
+an exact, deliberately small facility is sufficient. Language breadth, ergonomic
+symmetry with Omega, and hypothetical customers do not justify extra machinery.
+Prefer code a human can trace, including bounds, storage lifetime, and failure
+paths. Resource limits alone are not a memory-safety or refinement proof.
 
 ## Retention test
 
@@ -43,7 +50,7 @@ preserving any still-required assertions in their selected owners.
 Closures, macros, general garbage collection, polymorphism, continuations,
 exceptions, packages, and ambient effects do not enter the small functional
 rungs by convenience. Reconsidering an exclusion requires a whole-chain
-comparison and the applicable owner decision, not a local extension.
+comparison, not a local extension justified only by familiarity.
 
 ## Constraints on comparisons
 
@@ -91,12 +98,13 @@ bootstrap work, authorize abandoning proof obligations, or permit a replacement
 rung. Comparative background belongs in
 [the comparison notes](../wiki/drafts/bootstrap_chain_alternatives.md),
 not beside the selected chain as another authority. A concrete proposed change
-belongs in proposals and still requires owner approval.
+belongs in proposals; an experiment alone does not ratify it.
 
 ## Owner escalation
 
-Stop the affected implementation for an owner ruling rather than silently
-changing architecture when:
+The following findings require a whole-chain reassessment, not another local
+workaround. Investigation and non-authoritative experiments may proceed without
+an owner ruling:
 
 - representative interpreted-D-to-omega0 or omega0-to-omega work has prohibitive
   time, memory, or tape size after ordinary algorithmic/diagnostic cleanup;
@@ -119,9 +127,11 @@ changing architecture when:
 - implementation pressure would weaken language meaning, observations, subject
   identity, or fail-closed behavior.
 
-These criteria do not grant permission to add complexity. Until the owner rules,
-language semantics and Alpha's instruction set remain fixed and the affected
-edge stays open. Existing explicitly selected evaluator composition is not an
-undeclared older-rung dependency. A proposed alternative must compare complete
-audit cost, preserve required proof obligations, and receive the applicable
-owner decision before implementation.
+These findings do not grant permission to add complexity or claim a completed
+edge. Keep experimental semantics and artifacts separate from the selected
+chain. Before adopting a result, reconcile its written contracts and downstream
+consumers and establish the required evidence; do not silently change the
+question a certificate proves. Escalate a proposed weakening of trust,
+observation, identity, or fail-closed guarantees to the owner rather than relying
+on it. Existing explicitly selected evaluator composition is not an undeclared
+older-rung dependency.

@@ -196,15 +196,13 @@ remain required. The final evaluator boundary and `main`, resource containment,
 and complete Omega D composition remain implementation gaps. New execution work
 must name a concrete failing program or required conformance/refinement
 obligation, not assume an unspecified syntax form is unimplemented.
-The entry-diagnostic subjudgment is implemented. Profile-
-independent structural type-formation judgment is now implemented; its
-expanded-storage admission remains later than complete checking, with the
-[resource contract](LANGUAGE.md#10-resource-classification) fixing its over-`Int`
-demand representation. This unimplemented admission rule measures logical
-expanded storage, not the sparse runtime's actual allocation. It cannot bound
-cumulative immutable Gamma allocation, and the Gamma heap limit cannot supply
-its required source-coordinate witness. The proposed policy revision is tracked
-in that contract; neither obligation is discharged by current diagnostic runs.
+The entry-diagnostic and profile-independent structural type-formation judgments
+are implemented. The [resource contract](LANGUAGE.md#10-resource-classification)
+requires containment of actual evaluator demand, including cumulative immutable
+Gamma allocation, not a separate hypothetical dense-storage admission pass.
+The sparse representation preserves declared bounds but does not establish
+final-profile containment; current diagnostic runs discharge neither that
+obligation nor independent execution refinement.
 The existing source is
 therefore not yet a compiler edge and no validation may describe it as one.
 

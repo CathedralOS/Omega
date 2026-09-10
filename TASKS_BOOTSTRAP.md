@@ -74,16 +74,16 @@ Rust remains a comparator, not bootstrap authority. Optimization matters where
 measured execution or audit feasibility requires it, not as an unbounded
 prerequisite to every lower-rung milestone.
 
-## Next decision - measured complexity follow-through
+## Measured complexity follow-through
 
 - **BOOTSTRAP-AUTHORING-READABILITY.** Improve the implementation-to-expressiveness
   tradeoff within the selected rungs. Customers are the Gamma-written Delta
   checker and its generated runtime, not language-feature completeness. Next
-  comparisons are checked named products after the
-  [product-guarantee decision](OWNER_QUESTIONS.md#gamma-product-checking), and
-  ordinary runtime source after the
-  [artifact-composition decision](OWNER_QUESTIONS.md#bootstrap-runtime-source-composition).
-  The linked questions carry exact probe results and unresolved contracts.
+  comparisons are checked named products and ordinary runtime source. The
+  [product guarantees](OWNER_QUESTIONS.md#gamma-product-checking) and
+  [artifact composition](OWNER_QUESTIONS.md#bootstrap-runtime-source-composition)
+  questions carry exact probe results and unresolved adoption contracts;
+  they do not block non-authoritative experiments under whole-chain minimization.
   Do not repeat independent per-field accessor wrappers as the product solution.
   A source-only direct-recursion rewrite of
   [conditional checking](bootstrap/3_delta/implementation/checking/types/branches.gamma)
@@ -245,13 +245,13 @@ prerequisite to every lower-rung milestone.
   one explicit resource/request/observation profile against the selected lower
   chain and test exact/adjacent refusals without publishing an Epsilon
   observation. The private diagnostic adapter is not that boundary.
-  Before adding expanded-storage analysis, resolve the proposed
-  [Epsilon storage-policy revision](OWNER_QUESTIONS.md#epsilon-static-storage-policy).
-  The existing section 10 requirement remains in force pending the ruling;
-  logical expanded size and actual cumulative evaluator allocation are different
-  obligations. This decision does not block checking/runtime conformance or
-  lower-chain resource analysis. Do not treat sparse diagnostic success as
-  final-profile admission or restore the retired Epsilon Alpha backend.
+  Account for actual evaluator storage, including cumulative immutable Gamma
+  allocation, under [section 10](bootstrap/4_epsilon/LANGUAGE.md#10-resource-classification).
+  Do not add a hypothetical dense-storage sizing pass. Cover a large sparse
+  array with few updates and a small array with repeated updates: declared
+  bounds and value semantics remain exact, while actual resource exhaustion
+  refuses without publishing a successful observation. Sparse diagnostic success
+  is not final-profile admission; do not restore the retired Epsilon Alpha backend.
   Justify retained features by the Epsilon-written D source.
   Use concrete existing D slices for intermediate acceptance; do not invent
   speculative language facilities while D is incomplete.
