@@ -56,6 +56,67 @@ machine enter(left: Flags, marker: bool, right: Flags, other: bool) -> bool {
 "#;
 
 #[test]
+fn source_debug_parameters_follow_scalar_positions_among_owned_inputs() {
+    for entry in ["inspect", "enter"] {
+        let (checked, _, _, _) = support::publish(ORDERED, entry);
+        let selection =
+            checked_trees_to_lowered_psi::select_terminal_machine(&checked, entry).unwrap();
+        let graph = checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .for_machine(selection.machine)
+            .unwrap();
+        let source_machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == selection.machine)
+            .unwrap();
+        let source_parameters =
+            checked.state_parameters(&checked.machine_states(source_machine)[0]);
+        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry).unwrap();
+        let root = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .find(|machine| machine.id == lowered.semantic_module.entry)
+            .unwrap();
+        let debug = lowered.debug_map.unwrap();
+        assert_eq!(
+            root.parameters.len(),
+            graph.states[0].scalar_parameters.len()
+        );
+        for (parameter, retained) in root
+            .parameters
+            .iter()
+            .zip(&graph.states[0].scalar_parameters)
+        {
+            let source = &source_parameters[retained.source_position as usize];
+            let expected = checked
+                .typed
+                .symbols
+                .symbol_source_span(source.symbol)
+                .unwrap();
+            let site = debug
+                .sites
+                .iter()
+                .find(|site| site.subject == terminal_psi::DebugSubject::Value(parameter.id))
+                .unwrap();
+            assert_eq!(
+                site.span.start, expected.span.start as u64,
+                "{entry}: {}",
+                source.name
+            );
+            assert_eq!(
+                site.span.end, expected.span.end as u64,
+                "{entry}: {}",
+                source.name
+            );
+        }
+    }
+}
+
+#[test]
 fn limits_root_and_forwarding_caller_publish_integer_field_and_local_mutation() {
     for (entry, machines) in [("inspect", 2), ("enter", 3)] {
         let (_, module, _, _) = support::publish(LIMITS, entry);

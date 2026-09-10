@@ -40,6 +40,13 @@ fn build_machine_debug_plan(
                 .state_parameters(state)
                 .iter()
                 .filter(|parameter| !parameter.is_self)
+                // Terminal ValueIds use the dense scalar lane, not authored
+                // positions interleaved with structural places and borrows.
+                .filter(|parameter| {
+                    program
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_some()
+                })
                 .map(|parameter| program.symbols.symbol_source_span(parameter.symbol))
                 .collect(),
             transition_spans: source_transition_spans(program, state),
