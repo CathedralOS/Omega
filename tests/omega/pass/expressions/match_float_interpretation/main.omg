@@ -1,0 +1,67 @@
+use omega::language::core::float_operations;
+
+machine choose32(value: f32, first: f32, second: f32) -> i64 {
+    match value { first -> 7, second -> 9, _ -> 11 }
+}
+machine choose64(value: f64, first: f64, second: f64) -> i64 {
+    match value { first -> 7, second -> 9, _ -> 11 }
+}
+
+machine first32() -> i64 { choose32(1.0f32, 1.0f32, 2.0f32) }
+machine second32() -> i64 { choose32(2.0f32, 1.0f32, 2.0f32) }
+machine fallback32() -> i64 { choose32(3.0f32, 1.0f32, 2.0f32) }
+machine overlap32() -> i64 { choose32(2.0f32, 2.0f32, 2.0f32) }
+machine zeros32() -> i64 { choose32(-0.0f32, 0.0f32, 0.0f32) }
+machine nan32() -> i64 {
+    let value: f32 = 0.0f32 / 0.0f32;
+    choose32(value, value, value)
+}
+machine first64() -> i64 { choose64(1.0f64, 1.0f64, 2.0f64) }
+machine second64() -> i64 { choose64(2.0f64, 1.0f64, 2.0f64) }
+machine fallback64() -> i64 { choose64(3.0f64, 1.0f64, 2.0f64) }
+machine overlap64() -> i64 { choose64(2.0f64, 2.0f64, 2.0f64) }
+machine zeros64() -> i64 { choose64(-0.0f64, 0.0f64, 0.0f64) }
+machine nan64() -> i64 {
+    let value: f64 = 0.0f64 / 0.0f64;
+    choose64(value, value, value)
+}
+
+machine divide(value: i64) -> i64 { 7 / value }
+machine observe32(calls: &mut i32 in Wrapping, value: f32) -> f32 {
+    calls = calls + 1;
+    value
+}
+machine observe64(calls: &mut i32 in Wrapping, value: f64) -> f64 {
+    calls = calls + 1;
+    value
+}
+
+machine ordered32() -> i32 {
+    let mut calls: i32 in Wrapping = 0;
+    let result: i64 = match observe32(&mut calls, 2.0f32) {
+        observe32(&mut calls, 1.0f32) -> 99,
+        observe32(&mut calls, 2.0f32) -> 7,
+        observe32(&mut calls, 3.0f32) -> divide(0),
+        _ -> divide(0)
+    };
+    transition result == 7 && calls == 3 { true -> 7 false -> 0 }
+}
+machine ordered64() -> i32 {
+    let mut calls: i32 in Wrapping = 0;
+    let result: i64 = match observe64(&mut calls, 2.0f64) {
+        observe64(&mut calls, 1.0f64) -> 99,
+        observe64(&mut calls, 2.0f64) -> 7,
+        observe64(&mut calls, 3.0f64) -> divide(0),
+        _ -> divide(0)
+    };
+    transition result == 7 && calls == 3 { true -> 7 false -> 0 }
+}
+
+machine projection32() -> i64 {
+    let values: [f32; 1] = [1.0f32];
+    match values[0u64] { 1.0f32 -> 7, _ -> 11 }
+}
+machine projection64() -> i64 {
+    let values: [f64; 1] = [1.0f64];
+    match values[0u64] { 1.0f64 -> 7, _ -> 11 }
+}

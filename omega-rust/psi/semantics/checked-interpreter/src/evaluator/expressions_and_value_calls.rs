@@ -1,54 +1,9 @@
 use super::*;
 
-impl<'program> Evaluator<'program> {
-    pub(super) fn select_match_arm(
-        &mut self,
-        dispatch: &checked_trees::expression::TableMatchExpression,
-        frame: &Frame,
-    ) -> EvalResult<ExpressionHandle> {
-        let destination = self
-            .expression_scalar_type(dispatch.subject, frame)
-            .map(|(primitive, _)| primitive);
-        let subject =
-            self.eval_expression_with_destination(dispatch.subject, destination, frame)?;
-        for arm in self.program.expression_table.match_arms(dispatch.arms) {
-            let matches = match arm.pattern {
-                checked_trees::expression::MatchPattern::Wildcard => true,
-                checked_trees::expression::MatchPattern::Value(pattern) => {
-                    let pattern =
-                        self.eval_expression_with_destination(pattern, destination, frame)?;
-                    // Projection metadata can be absent even when evaluation
-                    // produces a float. Neither path grants selected equality
-                    // execution; a wildcard above invokes no comparison.
-                    if matches!(destination, Some(PrimitiveType::F32 | PrimitiveType::F64))
-                        || matches!(subject, Value::Float(_))
-                        || matches!(pattern, Value::Float(_))
-                    {
-                        return unsupported(
-                            "selected floating Match equality has no interpreter execution custody",
-                        );
-                    }
-                    self.eval_binary(
-                        BinaryOperator::Equal,
-                        subject.clone(),
-                        pattern,
-                        false,
-                        None,
-                        None,
-                    )?
-                    .as_bool()
-                    .ok_or_else(|| {
-                        Halt::Unsupported("match equality did not produce a Boolean".to_owned())
-                    })?
-                }
-            };
-            if matches {
-                return Ok(arm.value);
-            }
-        }
-        unsupported("checked match has no selected arm; exhaustive dispatch evidence is required")
-    }
+#[path = "expressions_and_value_calls/match_dispatch.rs"]
+mod match_dispatch;
 
+impl<'program> Evaluator<'program> {
     pub(super) fn eval_expression(
         &mut self,
         handle: ExpressionHandle,
@@ -65,7 +20,7 @@ impl<'program> Evaluator<'program> {
         }
         match node {
             ExpressionNode::Match(dispatch) => {
-                let selected = self.select_match_arm(&dispatch, frame)?;
+                let selected = self.select_match_arm(handle, &dispatch, frame)?;
                 self.eval_expression(selected, frame)
             }
             ExpressionNode::Atomic(atomic) => self.eval_expression(atomic.value, frame),

@@ -63,6 +63,24 @@ correctness-first expansion, not an optimized hardware-comparison sequence.
 Adding direct ISA comparison forms can reduce code size later, but must retain
 the same NaN, zero, control and independent byte-replay obligations.
 
+The checked-source interpreter consumes target-neutral comparison executions
+retained by selected dispatch after exact intrinsic-plan validation. It rejoins
+each record to the current root, generational arm, source operands, requirement
+and selected plan commitment, then compares the saved subject and reached
+pattern through `FloatSemantics`. It does not manufacture source expressions
+or re-evaluate operands. Raw checked source without settled execution remains
+rejected; wildcard-only dispatch invokes no equality. The integration cases
+include both formats, NaNs, signed zeros, array projections, effectful subjects
+and patterns, unselected trapping bodies, and substituted execution records:
+
+```text
+mbx nextest run -p compiler --test canary_suite --no-fail-fast -E 'test(float_match_checked_interpreter) | test(float_match_interpreter::)'
+mbx nextest run -p checked-interpreter --test value_dispatch --no-fail-fast
+```
+
+This interpreter milestone does not close crash-qualified equality or
+checked-adapter Match execution; those require their own arm-local custody.
+
 Float call/return ABI transfers and block arguments use the ordinary scalar
 graph, with exact floating register views at call boundaries and raw-bit local
 transport. Provider selection alone is still not execution evidence: both the

@@ -7,6 +7,8 @@
 
 use crate::{CheckedValueOrigin, CrashCause};
 mod comparisons;
+mod selected_float_comparison_execution;
+pub use selected_float_comparison_execution::CheckedSelectedFloatComparisonExecution;
 pub type CheckedOperatorUseHandle = arena::Handle<CheckedOperatorUseFact>;
 use arena::{Arena, Handle, HandleSpan};
 use language_core::operator_spelling::OperatorSpelling;
@@ -542,6 +544,9 @@ impl CheckedOperatorCrashContract {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedOperatorFacts {
     pub uses: Arena<CheckedOperatorUseFact>,
+    /// Target-neutral executions settled by Omega from exact selected plans.
+    /// Source classification alone never populates this roster.
+    pub selected_float_comparisons: Arena<CheckedSelectedFloatComparisonExecution>,
     pub named_uses: Arena<CheckedNamedOperatorUseFact>,
     pub candidates: Arena<CheckedOperatorCandidateFact>,
     pub operator_crash_contracts: Vec<CheckedOperatorCrashContract>,
@@ -630,6 +635,7 @@ impl CheckedOperatorFacts {
     ) -> Self {
         Self {
             uses,
+            selected_float_comparisons: Arena::new(),
             named_uses,
             candidates,
             operator_crash_contracts: Vec::new(),

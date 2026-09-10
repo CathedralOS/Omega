@@ -70,6 +70,17 @@ fn wildcard_only_float_dispatch_does_not_invoke_equality() {
 }
 
 #[test]
+fn wildcard_before_float_pattern_does_not_require_unreached_execution_custody() {
+    let outcome = execute(
+        "boundary operator == Float::equal(left: f32, right: f32) -> bool;
+         machine choose(value: f32) -> i64 { match value { _ -> 7, 1.0f32 -> 11 } }
+         machine main() -> i64 { choose(1.0f32) }",
+    );
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 7);
+}
+
+#[test]
 fn indexed_float_subject_cannot_bypass_selected_equality_custody() {
     let outcome = execute(
         "boundary operator == Float::equal(left: f32, right: f32) -> bool;
