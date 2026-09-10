@@ -1,32 +1,19 @@
 # Omega
 
-Omega is a systems language built around explicit state machines, checked
-contracts, and ownership of memory and resources.
+Omega is a systems language built around explicit state machines, checked contracts, and ownership of memory and resources.
 
-In essence, Omega eliminates entire classes of bugs while keeping performance on par with C.
+This eliminates entire classes of bugs while keeping performance on par with C.
 
-Omega is betting on the following software trends into the future:
-- High assurance, high performance languages will be the default.
-- "Don't trust, and verify" will become necessary to avoid an onslaught of malicious or buggy code. This means provable claims about performance, capabilities, and stability.
-- Software will permeate every aspect of our lives. Some of these areas are too costly to get wrong, like transportation and medical fields.
-- Coding intelligence will continue to increase and become cheap.
-- Software will be expected to be fast, resource efficient, and 'just work'. Wasting compute and storage on garbage collection, emulation, and bloatware layers will be unacceptable.
+By making trust explicit, narrow, and auditable, an Omega program can keep all of its promises. Instability can only arise under faulty premises. For example, an Omega program will trust that the OS APIs do what they claim. As long as this is true, it can prove safety. There is no `unsafe` escape hatch: even inline assembly must satisfy checked contracts.
 
-Make trust explicit, narrow, and auditable. For example, trusting the protocol of a driver, or that an OS API does what it claims. When trust holds, the program keeps
-its promises. There is no `unsafe` escape hatch: even inline assembly must
-satisfy checked contracts.
-
-The acyclic graph-like nature of Omega programs allow us to answer otherwise difficult questions at compile-time:
-- Does an API call provably terminate? Can it crash? Under what conditions?
+The state-machine structure of Omega allows us to answer otherwise difficult questions at compile-time:
 - Does an API access the filesystem, including through its dependencies?
+- Does an API call crash? Does it provably terminate? Under what conditions?
 - Does a program perform well under load?
 
-Omega is being built for software where failure is costly—from aircraft systems
-to OS kernels—without sacrificing performance.
+Omega is being built for software where performance is critical, and failure is costly. This spans from user facing apps to aircraft systems to OS kernels.
 
-Its first major application is **[Cathedral](https://github.com/CathedralOS/Cathedral)**, an operating system being developed
-alongside the language. Cathedral puts the design to work on kernel problems:
-managing memory, controlling hardware, and running untrusted software.
+Its first major application is **[Cathedral](https://github.com/CathedralOS/Cathedral)**, an operating system being developed alongside the language. Cathedral puts the design to work on kernel problems: managing memory, controlling hardware, and running untrusted software.
 
 **Pre-Alpha.** The Rust compiler is under active development. The language
 design is ahead of its implementation; native support is still being completed.
@@ -38,8 +25,7 @@ design is ahead of its implementation; native support is still being completed.
 
 ## Machines
 
-A machine defines behavior, its inputs, and its contract. A simple machine looks
-like an ordinary function or method:
+A machine defines behavior, its inputs, and its contract. A simple machine looks like an ordinary function or method:
 
 ```omega
 data Player {
@@ -60,19 +46,15 @@ machine Player::take_damage(&mut self, amount: u32)
 - `ensures` is the implementation's obligation: prove the promised result.
   `before(...)` refers to the value on entry.
 
-The caller can establish the condition through a branch or facts already known.
-An unproved call is a compile error, not an automatically inserted runtime
-assertion.
+The caller can establish the condition through a branch or facts already known. An unproved call is a compile error, not an automatically inserted runtime assertion.
 
-For longer control flow, machines contain named states and explicit transitions.
-Transfers carry values and ownership without growing the call stack.
-[Machines](wiki/language_guide/chapter_3_machines.md) ·
-[States and transitions](wiki/language_guide/chapter_4_states_transitions.md)
+For longer control flow, machines contain named states and explicit transitions. Transfers carry values and ownership without growing the call stack.
+- [Machines](wiki/language_guide/chapter_3_machines.md)
+- [States and transitions](wiki/language_guide/chapter_4_states_transitions.md)
 
 ## Domains and invariants
 
-Contracts can describe relationships between fields, not just individual
-arguments. A data type's `where` clause defines its **default domain**:
+Contracts can describe relationships between fields, not just individual arguments. A data type's `where` clause defines its **default domain**:
 
 ```omega
 data Span
@@ -164,6 +146,17 @@ These are design guarantees, within the stated trust boundaries:
 These guarantees rely on the contracts of external code and hardware. A foreign
 function that lies about its memory access, or an OS that violates its contract,
 is not made safe by calling it from Omega.
+
+## Omega's big bets
+
+| The bet | What it demands |
+| --- | --- |
+| High assurance and high performance become the baseline. | Correctness without sacrificing speed. |
+| Malicious and buggy code proliferate. | Verify claims about capabilities, performance, and stability instead of trusting assertions. |
+| Software permeates areas where failure is intolerable. | Guarantees strong enough for transportation, medicine, and operating systems. |
+| Systems become increasingly distributed. | Checkable contracts across services and binaries, not just within one program. |
+| Coding intelligence becomes powerful and cheap. | Design around checking abundant generated code, not merely making it easier to write. |
+| Waste becomes unacceptable. | Stop treating garbage collection, emulation, and layers of bloat as unavoidable costs. |
 
 ## Building
 
