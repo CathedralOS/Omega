@@ -434,25 +434,21 @@ fn unit_scalar_call_retains_registered_boundary_return_target() {
 }
 
 #[test]
-fn unit_scalar_call_rejects_missing_or_drifted_boundary_return_registration() {
+fn unit_scalar_call_rejects_drifted_retained_boundary_return_registration() {
     let original = checked(SOURCE);
     let root = machine_named(&original, "run");
     let target = machine_named(&original, "Scalar::measure");
-    for mutation in 0..3 {
+    for mutation in 1..3 {
         let mut changed = original.clone();
         let plans = &mut changed.facts.flow.terminal_boundary_scalar_returns.machines;
-        if mutation == 0 {
-            plans.retain(|plan| plan.machine != target);
+        let plan = plans
+            .iter_mut()
+            .find(|plan| plan.machine == target)
+            .unwrap();
+        if mutation == 1 {
+            plan.result_type = PrimitiveType::Bool;
         } else {
-            let plan = plans
-                .iter_mut()
-                .find(|plan| plan.machine == target)
-                .unwrap();
-            if mutation == 1 {
-                plan.result_type = PrimitiveType::Bool;
-            } else {
-                plan.state = arena::Handle::invalid();
-            }
+            plan.state = arena::Handle::invalid();
         }
         let rebuilt =
             crate::flow::build_checked_unit_effect_plans(&changed.typed, &changed.facts, &[], &[]);
@@ -774,4 +770,42 @@ fn scalar_wrapper_transfer_keeps_unconsumed_empty_prefix_cleanup() {
         trivial_affine_local_discard_ordinals, ..
     }) if trivial_affine_local_discard_ordinals == &[0])
     );
+}
+
+#[test]
+fn unit_scalar_call_rejoins_ordinary_body_without_legacy_boundary_return_row() {
+    let mut checked = checked(SOURCE);
+    let root = machine_named(&checked, "run");
+    let target = machine_named(&checked, "Scalar::measure");
+    let original = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(root)
+        .unwrap()
+        .clone();
+    let callee = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(target)
+        .unwrap()
+        .clone();
+    // The legacy wrapper record is not the only executable body owner. The
+    // source-derived ordinary body must retain its boundary call and result.
+    checked
+        .facts
+        .flow
+        .terminal_boundary_scalar_returns
+        .machines
+        .retain(|plan| plan.machine != target);
+    let rebuilt =
+        crate::flow::build_checked_unit_effect_plans(&checked.typed, &checked.facts, &[], &[]);
+    assert_eq!(rebuilt.for_machine(root), Some(&original));
+    assert_eq!(rebuilt.for_machine(target), Some(&callee));
+    assert!(callee.scalar_result.is_some());
+    assert!(callee.operations.iter().any(|operation| matches!(
+        operation,
+        CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
+    )));
 }

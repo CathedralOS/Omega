@@ -308,3 +308,95 @@ fn constrained_referents_scalar_inputs_and_results_cannot_lose_their_ranges() {
         );
     }
 }
+
+#[test]
+fn ordinary_store_completion_replays_retained_effects_without_legacy_return_rows() {
+    let mut original = checked("machine reset(value: &mut u64) -> u64 { value = 0; 0 }");
+    let target = original
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "reset")
+        .unwrap()
+        .symbol;
+    original
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .machines
+        .retain(|plan| plan.machine != target);
+    let artifact = terminal_production::produce_terminal_artifact(&original, "reset")
+        .expect("ordinary operation body independently retains the store and scalar result");
+    execute(&artifact, &[], unsigned(91), unsigned(0), unsigned(0));
+    for mutation in [
+        "missing body",
+        "duplicate body",
+        "missing store",
+        "duplicate store",
+        "destination",
+        "access",
+        "value",
+        "completion",
+        "order",
+    ] {
+        let mut changed = original.clone();
+        let plans = &mut changed.facts.flow.terminal_unit_effects.machines;
+        let position = plans
+            .iter()
+            .position(|plan| plan.machine == target)
+            .unwrap();
+        if mutation == "missing body" {
+            plans.remove(position);
+        } else if mutation == "duplicate body" {
+            plans.push(plans[position].clone());
+        } else {
+            let plan = &mut plans[position];
+            let store =
+                plan.operations
+                    .iter()
+                    .position(|operation| {
+                        matches!(operation,
+                checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. })
+                    })
+                    .unwrap();
+            match mutation {
+                "missing store" => {
+                    plan.operations.remove(store);
+                }
+                "duplicate store" => {
+                    plan.operations
+                        .insert(store, plan.operations[store].clone());
+                }
+                "access" => {
+                    plan.structural_parameters[0].access =
+                        checked_trees::CheckedStructuralAccess::SharedBorrow
+                }
+                "completion" => plan.scalar_result.as_mut().unwrap().statement_index = 0,
+                "order" => plan.operations.swap(store, store + 1),
+                "destination" | "value" => {
+                    let checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                        destination,
+                        value,
+                        ..
+                    } = &mut plan.operations[store]
+                    else {
+                        unreachable!();
+                    };
+                    if mutation == "destination" {
+                        *destination = checked_trees::CheckedPrimitiveStoreDestination::Parameter {
+                            parameter_index: 1,
+                        };
+                    } else {
+                        *value = checked_trees::CheckedScalarExpression::IntegerLiteral {
+                            literal: numerics::literals::IntegerLiteral::from_value(9),
+                        };
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
+        assert!(
+            terminal_production::produce_terminal_artifact(&changed, "reset").is_err(),
+            "{mutation}"
+        );
+    }
+}

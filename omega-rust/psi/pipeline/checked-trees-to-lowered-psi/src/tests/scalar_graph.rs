@@ -65,8 +65,47 @@ fn scalar_completion_after_array_calls_replays_its_expression_and_statement_orde
         "../../../../../../tests/omega/pass/collections/owned_array_scalar_comparisons/main.omg"
     ));
     for entry in ["scalar_comparison", "array_comparison"] {
-        let _artifact = produce_terminal_artifact(&checked, entry)
+        let artifact = produce_terminal_artifact(&checked, entry)
             .expect("comparison completes the ordered array/call body in Terminal");
+        let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+        let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
+        let profile = proof_admission::AdmissionProfile::default();
+        terminal_verifier::verify_module(&module, &proof, &profile).unwrap();
+        for value in [65535, 42] {
+            let argument = terminal_interpreter::TerminalScalarValue::Integer {
+                scalar_type: semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    16,
+                )
+                .unwrap(),
+                value: semantic_vocabulary::IntegerValue::Unsigned(value),
+            };
+            let result = terminal_interpreter::interpret_terminal_artifact(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &profile,
+                &[argument],
+            )
+            .unwrap();
+            let expected = terminal_interpreter::TerminalScalarValue::Boolean(value == 65535);
+            match (entry, result) {
+                (
+                    "scalar_comparison",
+                    terminal_interpreter::TerminalExecutionResult::Scalar(result),
+                ) => assert_eq!(result, expected),
+                (
+                    "array_comparison",
+                    terminal_interpreter::TerminalExecutionResult::ScalarArray(result),
+                ) => assert_eq!(
+                    result.value.elements,
+                    [
+                        expected,
+                        terminal_interpreter::TerminalScalarValue::Boolean(true)
+                    ]
+                ),
+                (_, result) => panic!("unexpected {entry} result: {result:?}"),
+            }
+        }
     }
     let selected = checked
         .machines()

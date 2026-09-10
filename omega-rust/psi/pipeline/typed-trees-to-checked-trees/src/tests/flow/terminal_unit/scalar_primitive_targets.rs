@@ -65,13 +65,36 @@ fn primitive_scalar_callee_is_discovered_before_its_unit_caller() {
         checked_trees::CheckedStructuralAccess::MutableBorrow
     );
     assert!(structural_arguments[0].path.is_empty());
+    let ordered_callee = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(callee)
+        .expect("callee retains its complete ordered scalar body")
+        .clone();
+    assert_eq!(
+        ordered_callee.structural_parameters,
+        primitive.structural_parameters
+    );
+    let [
+        store,
+        CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value },
+        CheckedUnitEffectOperationPlan::Complete {
+            statement_index: 2, ..
+        },
+    ] = ordered_callee.operations.as_slice()
+    else {
+        panic!("ordered store then scalar return");
+    };
+    assert_eq!(store, &primitive.effects[0]);
+    assert_eq!(ordered_callee.scalar_result.as_ref(), Some(result));
+    assert_eq!(
+        (result.statement_index, result.primitive_type),
+        (1, PrimitiveType::U64)
+    );
     assert!(
-        checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .for_machine(callee)
-            .is_none()
+        matches!(value, checked_trees::CheckedCallScalarArgument::Pure(
+        CheckedScalarExpression::IntegerLiteral { literal }) if literal.value_i64() == Some(7))
     );
 
     crate::rebuild_checked_terminal_plans_with_selected_execution(&mut checked, &[], &[])
@@ -80,10 +103,18 @@ fn primitive_scalar_callee_is_discovered_before_its_unit_caller() {
         checked.facts.flow.terminal_unit_effects.for_machine(caller),
         Some(&plan)
     );
+    assert_eq!(
+        checked.facts.flow.terminal_unit_effects.for_machine(callee),
+        Some(&ordered_callee)
+    );
     crate::rebuild_checked_unit_effect_plans_with_selected_execution(&mut checked, &[], &[]);
     assert_eq!(
         checked.facts.flow.terminal_unit_effects.for_machine(caller),
         Some(&plan)
+    );
+    assert_eq!(
+        checked.facts.flow.terminal_unit_effects.for_machine(callee),
+        Some(&ordered_callee)
     );
     assert_eq!(
         checked

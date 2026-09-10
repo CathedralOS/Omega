@@ -458,15 +458,19 @@ fn equal_selected_type_declarations_coalesce_without_changing_module_bytes() {
         .find(|plan| plan.identity == "named(name(Scalar))")
         .unwrap()
         .clone();
-    assert!(
-        !checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .structural_types
+    // Ordinary scalar bodies now retain this same selected type themselves.
+    // Cross-catalog equality coalesces; duplicate/conflicting rows within a
+    // catalog remain covered by the independent rejection test above.
+    let ordinary = &mut checked.facts.flow.terminal_unit_effects.structural_types;
+    assert_eq!(
+        ordinary
             .iter()
-            .any(|plan| plan.identity == declaration.identity)
+            .filter(|plan| plan.identity == declaration.identity)
+            .collect::<Vec<_>>(),
+        vec![&declaration]
     );
+    ordinary.retain(|plan| plan.identity != declaration.identity);
+    assert_eq!(artifact(&checked), original);
     checked
         .facts
         .flow
@@ -539,4 +543,198 @@ fn wrapper_operand_crash_preserves_call_ceiling_and_prevents_boundary_effects() 
     assert!(
         terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default()).is_err()
     );
+}
+
+#[test]
+fn ordinary_boundary_wrapper_replays_actual_body_and_call_custody() {
+    let source = source().replace(
+        "    machine finish",
+        "    machine alternate(value: i32) -> i32 reaches Host;\n    machine finish",
+    );
+    // Retain a real same-signature alternative boundary through another body;
+    // Main's reachable closure still calls only the authored measure target.
+    let source = format!(
+        "{source}\nmachine alternate_helper() -> i32 reaches Host {{ let value: i32 = Host::alternate(70); value }}"
+    );
+    let mut original = checked_from_source(&source);
+    let target = original
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Scalar::measure")
+        .unwrap()
+        .symbol;
+    let host = original
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Host")
+        .unwrap();
+    let alternate_symbol = original
+        .trait_machine_signatures(host)
+        .iter()
+        .find(|signature| signature.name.as_str() == "alternate")
+        .unwrap()
+        .symbol;
+    let alternate = original
+        .facts
+        .flow
+        .terminal_unit_effects
+        .boundary_machines
+        .iter()
+        .find(|boundary| boundary.machine == alternate_symbol)
+        .unwrap();
+    let alternate_state = alternate.state;
+    let alternate_contract = alternate.contract_report_fingerprint;
+    original
+        .facts
+        .flow
+        .terminal_boundary_scalar_returns
+        .machines
+        .retain(|plan| plan.machine != target);
+    let body = original
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(target)
+        .unwrap();
+    let body_reach = body.service_reach;
+    let caller = original.facts.flow.terminal_unit_effects.machines.iter()
+        .find(|plan| plan.operations.iter().any(|operation| matches!(operation,
+            CheckedUnitEffectOperationPlan::ScalarCall { target_machine, .. } if *target_machine == target))).unwrap();
+    let caller_symbol = caller.machine;
+    let CheckedUnitEffectOperationPlan::ScalarCall { service_reach: call_reach, .. } = caller.operations.iter().find(|operation| matches!(operation,
+        CheckedUnitEffectOperationPlan::ScalarCall { target_machine, .. } if *target_machine == target)).unwrap() else { unreachable!(); };
+    let empty_reach = call_reach.direct;
+    assert_ne!(empty_reach, body_reach.direct);
+    let state = body.state;
+    let published = artifact(&original);
+    let (status, observed) = execute(&published);
+    assert_eq!(
+        status,
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(observed.arguments, [vec![integer(70)], vec![integer(70)]]);
+    for mutation in [
+        "missing body",
+        "duplicate body",
+        "missing boundary",
+        "duplicate boundary",
+        "redirect boundary",
+        "completion",
+        "order",
+        "contract",
+        "body direct",
+        "body transitive",
+        "published reach",
+        "inferred reach",
+        "call direct",
+        "call transitive",
+        "missing state",
+        "duplicate state",
+    ] {
+        let mut changed = original.clone();
+        if mutation == "missing state" || mutation == "duplicate state" {
+            let (handle, retained) = changed
+                .facts
+                .flow
+                .control
+                .states
+                .iter()
+                .find(|(_, row)| row.machine_symbol == target && row.state_symbol == state)
+                .unwrap();
+            let retained = retained.clone();
+            if mutation == "missing state" {
+                changed
+                    .facts
+                    .flow
+                    .control
+                    .states
+                    .get_mut(handle)
+                    .state_symbol = symbols::SymbolHandle::invalid();
+            } else {
+                changed.facts.flow.control.states.insert(retained);
+            }
+        } else if mutation == "call direct" || mutation == "call transitive" {
+            let caller = changed
+                .facts
+                .flow
+                .terminal_unit_effects
+                .machines
+                .iter_mut()
+                .find(|plan| plan.machine == caller_symbol)
+                .unwrap();
+            let CheckedUnitEffectOperationPlan::ScalarCall { service_reach, .. } = caller.operations.iter_mut().find(|operation| matches!(operation,
+                CheckedUnitEffectOperationPlan::ScalarCall { target_machine, .. } if *target_machine == target)).unwrap() else { unreachable!(); };
+            if mutation == "call direct" {
+                service_reach.direct = body_reach.direct;
+            } else {
+                service_reach.transitive = empty_reach;
+            }
+        }
+        let plans = &mut changed.facts.flow.terminal_unit_effects.machines;
+        let position = plans
+            .iter()
+            .position(|plan| plan.machine == target)
+            .unwrap();
+        if mutation == "missing body" {
+            plans.remove(position);
+        } else if mutation == "duplicate body" {
+            plans.push(plans[position].clone());
+        } else {
+            let plan = &mut plans[position];
+            let boundary = plan
+                .operations
+                .iter()
+                .position(|operation| {
+                    matches!(
+                        operation,
+                        CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
+                    )
+                })
+                .unwrap();
+            match mutation {
+                "missing boundary" => {
+                    plan.operations.remove(boundary);
+                }
+                "duplicate boundary" => {
+                    plan.operations
+                        .insert(boundary, plan.operations[boundary].clone());
+                }
+                "redirect boundary" => {
+                    let CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                        target_machine,
+                        target_state,
+                        target_contract_report_fingerprint,
+                        ..
+                    } = &mut plan.operations[boundary]
+                    else {
+                        unreachable!();
+                    };
+                    *target_machine = alternate_symbol;
+                    *target_state = alternate_state;
+                    *target_contract_report_fingerprint = alternate_contract;
+                }
+                "completion" => plan.scalar_result.as_mut().unwrap().binding_ordinal += 1,
+                "order" => plan.operations.swap(boundary, boundary + 1),
+                "body direct" => plan.service_reach.direct = empty_reach,
+                "body transitive" => plan.service_reach.transitive = empty_reach,
+                "published reach" => {
+                    plan.contract_service_reach.interface =
+                        language_semantics::ServiceReachInterface::PublishedCeiling(empty_reach)
+                }
+                "inferred reach" => plan.contract_service_reach.checked_inferred = empty_reach,
+                "call direct" | "call transitive" | "missing state" | "duplicate state" => {}
+                "contract" => {
+                    plan.contract_commitment =
+                        checked_trees::MachineContractCommitment::from_digest([0; 32])
+                }
+                _ => unreachable!(),
+            }
+        }
+        // Do not rebuild source plans here: the receiving stage must reject
+        // corrupted retained evidence despite an otherwise valid typed source.
+        assert!(
+            terminal_production::produce_terminal_artifact(&changed, "Main::main").is_err(),
+            "{mutation}"
+        );
+    }
 }
