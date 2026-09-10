@@ -100,6 +100,11 @@ use type_capabilities::{
 };
 use value_expressions::{ValuePosition, value_expression_preserves_transparent_result};
 
+#[cfg(test)]
+thread_local! {
+    static PREFIX_WALKS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// Instantiate the conservative may-write set of a resolved internal call in
 /// the caller's place namespace. `None` means the summary is not complete and
 /// the caller must invalidate every flow fact. Internal acyclic calls and
@@ -411,6 +416,8 @@ fn walk_state_write_prefix_inner(
     complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
     query: Option<StateWriteQuery<'_>>,
 ) -> Option<StateWritePrefix> {
+    #[cfg(test)]
+    PREFIX_WALKS.with(|walks| walks.set(walks.get() + 1));
     let parameters = program.state_parameters(state);
     let mut locals = Vec::new();
     let mut isolated_local_roots = Vec::new();
@@ -461,6 +468,32 @@ fn walk_state_write_prefix_inner(
         }
         let queried_assignment = matches!(query,
             Some(StateWriteQuery::Assignment(candidate)) if std::ptr::eq(candidate, statement));
+        if queried_assignment
+            && local_alias_origins.is_empty()
+            && stored.is_empty()
+            && let StatementNode::Assignment(assignment) = statement
+            && let Some(path) = coarse_place_path(program, assignment.target)
+        {
+            // The direct-store query has always admitted an untracked coarse
+            // target without evaluating operand effects. Keep that boundary
+            // when locating the target and its origins in one prefix walk.
+            if stored_origins::statement_exposes_frozen_binding(
+                program,
+                machine,
+                state,
+                statement,
+                &stored,
+                &local_alias_origins,
+            ) {
+                return None;
+            }
+            return Some(StateWritePrefix {
+                written,
+                aliases: local_alias_origins,
+                stored,
+                assignment: Some(AssignmentWriteTarget::Storage { paths: vec![path] }),
+            });
+        }
         let declared_local_alias_origin = match statement {
             StatementNode::LocalData(local)
                 if (type_may_carry_write(program, local.type_reference)

@@ -121,35 +121,71 @@ pub enum AssignmentWriteTarget {
     Storage { paths: Vec<String> },
 }
 
+struct AssignmentEvidence {
+    target: AssignmentWriteTarget,
+    aliases: Vec<(String, FramePlaceOrigin)>,
+    stored: Vec<StoredLocalOrigins>,
+}
+
 pub(super) fn assignment_write_target(
     program: &TypedTrees,
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     statement: &StatementNode,
 ) -> Option<AssignmentWriteTarget> {
+    assignment_evidence(program, machine, symbols, statement).map(|evidence| evidence.target)
+}
+
+pub(super) fn assignment_write_paths(
+    program: &TypedTrees,
+    machine: &Machine,
+    symbols: &TopLevelSymbols<'_>,
+    statement: &StatementNode,
+) -> Option<Vec<String>> {
+    let evidence = assignment_evidence(program, machine, symbols, statement)?;
+    match evidence.target {
+        AssignmentWriteTarget::LocalBindingReplacement { path } => Some(vec![path]),
+        AssignmentWriteTarget::Storage { paths } => Some(close_over_origins(
+            paths,
+            &evidence.aliases,
+            &evidence.stored,
+        )),
+    }
+}
+
+fn assignment_evidence(
+    program: &TypedTrees,
+    machine: &Machine,
+    symbols: &TopLevelSymbols<'_>,
+    statement: &StatementNode,
+) -> Option<AssignmentEvidence> {
     let StatementNode::Assignment(assignment) = statement else {
         return None;
     };
-    let (aliases, stored) = caller_aliases_at_site(
-        program,
-        machine,
-        symbols,
-        CallerWriteSite::Statement(statement),
-    )?;
-    if aliases.is_empty()
-        && stored.is_empty()
+    let site = caller_prefix_site(program, machine, CallerWriteSite::Statement(statement))?;
+    if matches!(site, CallerPrefixSite::Untracked)
         && let Some(path) = super::coarse_place_path(program, assignment.target)
     {
-        return Some(AssignmentWriteTarget::Storage { paths: vec![path] });
+        return Some(AssignmentEvidence {
+            target: AssignmentWriteTarget::Storage { paths: vec![path] },
+            aliases: Vec::new(),
+            stored: Vec::new(),
+        });
     }
-    let state = program.machine_states(machine).iter().find(|state| {
-        program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .any(|candidate| std::ptr::eq(statement, candidate))
-    })?;
-    walk_state_write_prefix(
+    let state = match site {
+        CallerPrefixSite::Tracked { state, .. } => state,
+        CallerPrefixSite::Untracked => program.machine_states(machine).iter().find(|state| {
+            program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .any(|candidate| std::ptr::eq(statement, candidate))
+        })?,
+    };
+    // One exact prefix supplies both the target and alias closure. Storage
+    // writes leave the prefix origins intact; binding replacements return only
+    // their slot and must not be closed over the slot's former referent.
+    let prefix = walk_state_write_prefix(
         program,
         machine,
         state,
@@ -157,8 +193,12 @@ pub(super) fn assignment_write_target(
         &mut FrameInference::default(),
         &mut Vec::new(),
         Some(StateWriteQuery::Assignment(statement)),
-    )?
-    .assignment
+    )?;
+    Some(AssignmentEvidence {
+        target: prefix.assignment?,
+        aliases: prefix.aliases,
+        stored: prefix.stored,
+    })
 }
 
 pub(super) fn local_write_origins_before_statement(
@@ -167,12 +207,8 @@ pub(super) fn local_write_origins_before_statement(
     symbols: &TopLevelSymbols<'_>,
     statement: &StatementNode,
 ) -> Option<Vec<LocalWriteOrigin>> {
-    let (aliases, stored) = caller_aliases_at_site(
-        program,
-        machine,
-        symbols,
-        CallerWriteSite::Statement(statement),
-    )?;
+    let site = caller_prefix_site(program, machine, CallerWriteSite::Statement(statement))?;
+    let (aliases, stored) = caller_aliases_at_prefix(program, machine, symbols, site)?;
     let mut origins = stored
         .into_iter()
         .flat_map(|local| local.references)
@@ -192,21 +228,15 @@ pub(super) fn local_write_origins_before_statement(
     if aliases.is_empty() {
         return Some(origins);
     }
-    let state = program.machine_states(machine).iter().find(|state| {
-        program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .any(|candidate| std::ptr::eq(statement, candidate))
-    })?;
+    let CallerPrefixSite::Tracked { state, index, .. } = site else {
+        return None;
+    };
+    let preceding = &program.statement_table.statements(state.statement_nodes)[..index];
     let aliases = aliases
         .into_iter()
         .map(|(name, origin)| {
-            let local_symbol = program
-                .statement_table
-                .statements(state.statement_nodes)
+            let local_symbol = preceding
                 .iter()
-                .take_while(|candidate| !std::ptr::eq(statement, *candidate))
                 .find_map(|candidate| match candidate {
                     StatementNode::LocalData(local) if local.name.as_str() == name => {
                         Some(local.symbol)
@@ -239,7 +269,8 @@ pub(super) fn local_write_origins_before_statement(
     Some(origins)
 }
 
-pub(super) fn close_caller_aliases(
+#[cfg(test)]
+fn close_caller_aliases(
     program: &TypedTrees,
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
@@ -252,6 +283,9 @@ pub(super) fn close_caller_aliases(
     let (aliases, stored) = caller_aliases_at_site(program, machine, symbols, site)?;
     Some(close_over_origins(written, &aliases, &stored))
 }
+
+#[cfg(test)]
+mod tests;
 
 /// Freeze the caller prefix once before resolving a demand, then use exactly
 /// that evidence for both contextual case selection and storage closure.
@@ -331,6 +365,25 @@ fn caller_aliases_at_site(
     symbols: &TopLevelSymbols<'_>,
     site: CallerWriteSite<'_>,
 ) -> Option<(Vec<(String, FramePlaceOrigin)>, Vec<StoredLocalOrigins>)> {
+    let site = caller_prefix_site(program, machine, site)?;
+    caller_aliases_at_prefix(program, machine, symbols, site)
+}
+
+#[derive(Clone, Copy)]
+enum CallerPrefixSite<'program> {
+    Untracked,
+    Tracked {
+        state: &'program typed_trees::state::State,
+        statement: &'program StatementNode,
+        index: usize,
+    },
+}
+
+fn caller_prefix_site<'program>(
+    program: &'program TypedTrees,
+    machine: &Machine,
+    site: CallerWriteSite<'_>,
+) -> Option<CallerPrefixSite<'program>> {
     let may_declare_origins = |statement: &StatementNode| {
         matches!(statement, StatementNode::LocalData(local)
             if super::stored_origins::has_aggregate_case_shape(program, local.type_reference)
@@ -352,7 +405,7 @@ fn caller_aliases_at_site(
                 .iter()
                 .any(may_declare_origins)
     }) {
-        return Some((Vec::new(), Vec::new()));
+        return Some(CallerPrefixSite::Untracked);
     }
     let (state, statement, index) = caller_statement_at_site(program, machine, site)?;
     if !has_incoming_carrier(state)
@@ -360,8 +413,27 @@ fn caller_aliases_at_site(
             .iter()
             .any(may_declare_origins)
     {
-        return Some((Vec::new(), Vec::new()));
+        return Some(CallerPrefixSite::Untracked);
     }
+    Some(CallerPrefixSite::Tracked {
+        state,
+        statement,
+        index,
+    })
+}
+
+fn caller_aliases_at_prefix(
+    program: &TypedTrees,
+    machine: &Machine,
+    symbols: &TopLevelSymbols<'_>,
+    site: CallerPrefixSite<'_>,
+) -> Option<(Vec<(String, FramePlaceOrigin)>, Vec<StoredLocalOrigins>)> {
+    let CallerPrefixSite::Tracked {
+        state, statement, ..
+    } = site
+    else {
+        return Some((Vec::new(), Vec::new()));
+    };
     let prefix = walk_state_write_prefix(
         program,
         machine,

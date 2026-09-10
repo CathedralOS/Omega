@@ -146,6 +146,12 @@ bodies, not finite caller-argument composition; unknown or recursive bodies stay
 opaque. Cycle equations retain exact frames through supported bijective
 write-capable argument transport, not arbitrary alias-changing backedges.
 
+Assignment queries use one prefix result for both the direct target and its
+alias closure. Binding replacement never closes over the former referent.
+The located state and statement index also serve local-origin recovery without
+another owner search. Before-statement, reference-result, and assignment queries
+keep their distinct transfer rules; this is not a shared mutable replay cursor.
+
 `value_expressions.rs` expands one level into a shared finite worklist. Every
 eager receiver/index/argument/field/element contributes producer writes, including
 unselected literal children. Primitive computations and concrete caller-isolated
