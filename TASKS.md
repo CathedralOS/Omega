@@ -1219,12 +1219,6 @@ Owners include
   Empty/odd ABI fragments, stack/indirect owned arguments, and hidden-pointer
   results remain explicit limits; the selected owner is
   `target-operations-to-selected-instructions/src/selection/aggregate_result_input.rs`.
-  Scalar call transport also needs unsigned-16 zero extension and signed-narrow
-  normalization before those call carriers can be admitted. The existing
-  `selection/scalar_call_abi.rs` guard and argument tests retain these rejections;
-  this is distinct from raw 1/2/4/8-byte array payload transport. Acceptance:
-  exact scalar call values survive whole-register consumers with hostile unused
-  upper ABI bits, and independent replay rejects missing normalization.
   The `source_float_array_still_needs_checked_execution_plan` control separately
   witnesses `[f32; 2]` source failing before Terminal production; extend the
   existing checked scalar execution path before claiming floating-array native

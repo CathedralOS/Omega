@@ -5,6 +5,8 @@ use crate::lowering::scalar::{
     KnownInteger, KnownScalar, byte_views, equal_integer, order_integer, scalar_parameter_location,
 };
 use crate::lowering::shared::*;
+#[cfg(test)]
+mod tests;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower(
@@ -263,7 +265,8 @@ pub(super) fn scalar_values(
     live: &LiveDefinitions,
     parameters: &[ScalarAbiValue],
 ) -> Result<BTreeMap<ValueId, KnownScalar>, LoweringError> {
-    live.integers
+    let mut values = live
+        .integers
         .iter()
         .map(|(value, known)| {
             let scalar_type = known.scalar_type();
@@ -320,5 +323,44 @@ pub(super) fn scalar_values(
                 },
             ))
         })
-        .collect()
+        .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
+    for (parameter_index, parameter) in parameters.iter().enumerate() {
+        if parameter.scalar_type == ScalarType::Boolean {
+            values.insert(
+                parameter.value,
+                KnownScalar::BooleanRuntime(TargetBooleanExpression::Parameter {
+                    source_value: parameter.value,
+                    parameter_index,
+                    location: scalar_parameter_location(
+                        &AbstractParameter {
+                            value: parameter.value,
+                            scalar_type: parameter.scalar_type,
+                        },
+                        &parameter.placement,
+                    )?,
+                }),
+            );
+        }
+    }
+    for (value, (_, immediate)) in &live.booleans {
+        values.insert(*value, KnownScalar::Boolean(*immediate));
+    }
+    for (value, home) in &live.scalar_homes {
+        if home.scalar_type == ScalarType::Boolean {
+            values.insert(
+                *value,
+                KnownScalar::BooleanRuntime(TargetBooleanExpression::ScalarHome(*home)),
+            );
+        }
+    }
+    for (value, parameter) in &live.boolean_parameters {
+        if parameter.scalar_type != ScalarType::Boolean || parameter.value != *value {
+            return Err(LoweringError::ValueTypeMismatch(*value));
+        }
+        values.insert(
+            *value,
+            KnownScalar::BooleanRuntime(TargetBooleanExpression::BlockParameter(*parameter)),
+        );
+    }
+    Ok(values)
 }

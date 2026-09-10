@@ -1,5 +1,7 @@
 #[cfg(test)]
 mod byte_view_address_tests;
+#[cfg(test)]
+mod integer_normalization_tests;
 
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
@@ -472,6 +474,16 @@ fn family_and_operand_count(
         }
         SelectedInstructionKind::CopyI64 => (MachineAlternativeFamily::CopyI64, 2, 0..=0),
         SelectedInstructionKind::ZeroExtendU8 => (MachineAlternativeFamily::ZeroExtendU8, 2, 0..=0),
+        SelectedInstructionKind::ZeroExtendU16 => {
+            (MachineAlternativeFamily::ZeroExtendU16, 2, 0..=0)
+        }
+        SelectedInstructionKind::SignExtendI8 => (MachineAlternativeFamily::SignExtendI8, 2, 0..=0),
+        SelectedInstructionKind::SignExtendI16 => {
+            (MachineAlternativeFamily::SignExtendI16, 2, 0..=0)
+        }
+        SelectedInstructionKind::SignExtendI32 => {
+            (MachineAlternativeFamily::SignExtendI32, 2, 0..=0)
+        }
         SelectedInstructionKind::ZeroExtendU32 => {
             (MachineAlternativeFamily::ZeroExtendU32, 2, 0..=0)
         }
@@ -700,6 +712,37 @@ fn encode_unchecked(
                 0xc0 | ((registers[1] & 7) << 3) | (registers[0] & 7),
             ]);
         }
+        SelectedInstructionKind::ZeroExtendU16 => {
+            bytes.extend([
+                0x40 | ((registers[1] >> 3) << 2) | (registers[0] >> 3),
+                0x0f,
+                0xb7,
+                0xc0 | ((registers[1] & 7) << 3) | (registers[0] & 7),
+            ]);
+        }
+        SelectedInstructionKind::SignExtendI8 => {
+            bytes.extend([
+                0x48 | ((registers[1] >> 3) << 2) | (registers[0] >> 3),
+                0x0f,
+                0xbe,
+                0xc0 | ((registers[1] & 7) << 3) | (registers[0] & 7),
+            ]);
+        }
+        SelectedInstructionKind::SignExtendI16 => {
+            bytes.extend([
+                0x48 | ((registers[1] >> 3) << 2) | (registers[0] >> 3),
+                0x0f,
+                0xbf,
+                0xc0 | ((registers[1] & 7) << 3) | (registers[0] & 7),
+            ]);
+        }
+        SelectedInstructionKind::SignExtendI32 => {
+            bytes.extend([
+                0x48 | ((registers[1] >> 3) << 2) | (registers[0] >> 3),
+                0x63,
+                0xc0 | ((registers[1] & 7) << 3) | (registers[0] & 7),
+            ]);
+        }
         SelectedInstructionKind::ZeroExtendU32 => {
             bytes.extend([
                 0x40 | ((registers[0] >> 3) << 2) | (registers[1] >> 3),
@@ -784,6 +827,22 @@ fn encode_unchecked(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DecodedInstruction {
+    ZeroExtendU16 {
+        source: u8,
+        destination: u8,
+    },
+    SignExtendI8 {
+        source: u8,
+        destination: u8,
+    },
+    SignExtendI16 {
+        source: u8,
+        destination: u8,
+    },
+    SignExtendI32 {
+        source: u8,
+        destination: u8,
+    },
     ZeroExtendU8 {
         source: u8,
         destination: u8,
@@ -860,6 +919,54 @@ fn decode_one(
                 destination: ((modrm >> 3) & 7) | (((rex >> 2) & 1) << 3),
             },
             4,
+        ));
+    }
+    if let [rex, 0x0f, 0xb7, modrm, ..] = bytes
+        && rex & !0x05 == 0x40
+        && modrm & 0xc0 == 0xc0
+    {
+        return Ok((
+            DecodedInstruction::ZeroExtendU16 {
+                source: (modrm & 7) | ((rex & 1) << 3),
+                destination: ((modrm >> 3) & 7) | (((rex >> 2) & 1) << 3),
+            },
+            4,
+        ));
+    }
+    if let [rex, 0x0f, 0xbe, modrm, ..] = bytes
+        && rex & !0x05 == 0x48
+        && modrm & 0xc0 == 0xc0
+    {
+        return Ok((
+            DecodedInstruction::SignExtendI8 {
+                source: (modrm & 7) | ((rex & 1) << 3),
+                destination: ((modrm >> 3) & 7) | (((rex >> 2) & 1) << 3),
+            },
+            4,
+        ));
+    }
+    if let [rex, 0x0f, 0xbf, modrm, ..] = bytes
+        && rex & !0x05 == 0x48
+        && modrm & 0xc0 == 0xc0
+    {
+        return Ok((
+            DecodedInstruction::SignExtendI16 {
+                source: (modrm & 7) | ((rex & 1) << 3),
+                destination: ((modrm >> 3) & 7) | (((rex >> 2) & 1) << 3),
+            },
+            4,
+        ));
+    }
+    if let [rex, 0x63, modrm, ..] = bytes
+        && rex & !0x05 == 0x48
+        && modrm & 0xc0 == 0xc0
+    {
+        return Ok((
+            DecodedInstruction::SignExtendI32 {
+                source: (modrm & 7) | ((rex & 1) << 3),
+                destination: ((modrm >> 3) & 7) | (((rex >> 2) & 1) << 3),
+            },
+            3,
         ));
     }
     if let [rex, 0x89, modrm, ..] = bytes
@@ -1024,6 +1131,34 @@ fn validate_decoded(
                     destination: registers[1],
                 }]
         }
+        SelectedInstructionKind::ZeroExtendU16 => {
+            decoded
+                == [DecodedInstruction::ZeroExtendU16 {
+                    source: registers[0],
+                    destination: registers[1],
+                }]
+        }
+        SelectedInstructionKind::SignExtendI8 => {
+            decoded
+                == [DecodedInstruction::SignExtendI8 {
+                    source: registers[0],
+                    destination: registers[1],
+                }]
+        }
+        SelectedInstructionKind::SignExtendI16 => {
+            decoded
+                == [DecodedInstruction::SignExtendI16 {
+                    source: registers[0],
+                    destination: registers[1],
+                }]
+        }
+        SelectedInstructionKind::SignExtendI32 => {
+            decoded
+                == [DecodedInstruction::SignExtendI32 {
+                    source: registers[0],
+                    destination: registers[1],
+                }]
+        }
         SelectedInstructionKind::ZeroExtendU32 => {
             decoded
                 == [DecodedInstruction::ZeroExtendU32 {
@@ -1160,6 +1295,10 @@ fn footprint(
         SelectedInstructionKind::MaterializeI64 { .. } => (vec![], vec![operands[0]], false),
         SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::ZeroExtendU8
+        | SelectedInstructionKind::ZeroExtendU16
+        | SelectedInstructionKind::SignExtendI8
+        | SelectedInstructionKind::SignExtendI16
+        | SelectedInstructionKind::SignExtendI32
         | SelectedInstructionKind::ZeroExtendU32 => (vec![operands[0]], vec![operands[1]], false),
         SelectedInstructionKind::CompareI64Zero => (vec![operands[0]], vec![], true),
         SelectedInstructionKind::CompareI64 => (vec![operands[0], operands[1]], vec![], true),
@@ -1260,6 +1399,10 @@ fn footprint(
                 SelectedInstructionKind::MaterializeI64 { .. } => vec![],
                 SelectedInstructionKind::CopyI64
                 | SelectedInstructionKind::ZeroExtendU8
+                | SelectedInstructionKind::ZeroExtendU16
+                | SelectedInstructionKind::SignExtendI8
+                | SelectedInstructionKind::SignExtendI16
+                | SelectedInstructionKind::SignExtendI32
                 | SelectedInstructionKind::ZeroExtendU32
                 | SelectedInstructionKind::CompareI64Zero
                 | SelectedInstructionKind::ExactAddI64Immediate { .. }
@@ -1277,6 +1420,10 @@ fn footprint(
                 SelectedInstructionKind::MaterializeI64 { .. } => vec![0],
                 SelectedInstructionKind::CopyI64
                 | SelectedInstructionKind::ZeroExtendU8
+                | SelectedInstructionKind::ZeroExtendU16
+                | SelectedInstructionKind::SignExtendI8
+                | SelectedInstructionKind::SignExtendI16
+                | SelectedInstructionKind::SignExtendI32
                 | SelectedInstructionKind::ZeroExtendU32
                 | SelectedInstructionKind::ExactAddI64Immediate { .. }
                 | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![1],

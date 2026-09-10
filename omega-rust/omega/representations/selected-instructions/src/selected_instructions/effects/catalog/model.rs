@@ -51,6 +51,10 @@ pub enum MachineSemanticKind {
     Jump,
     ZeroExtendU8,
     ZeroExtendU32,
+    ZeroExtendU16,
+    SignExtendI8,
+    SignExtendI16,
+    SignExtendI32,
     Load64,
     Store64,
     FrameAddress,
@@ -63,7 +67,7 @@ pub enum MachineSemanticKind {
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 37] = [
+    pub const ALL: [Self; 41] = [
         Self::CallAggregate,
         Self::ReturnAggregate,
         Self::HostedExitProcessI32,
@@ -92,6 +96,10 @@ impl MachineSemanticKind {
         Self::Jump,
         Self::ZeroExtendU8,
         Self::ZeroExtendU32,
+        Self::ZeroExtendU16,
+        Self::SignExtendI8,
+        Self::SignExtendI16,
+        Self::SignExtendI32,
         Self::Load64,
         Self::Store64,
         Self::FrameAddress,
@@ -134,6 +142,10 @@ pub enum MachineAlternativeFamily {
     Jump,
     ZeroExtendU8,
     ZeroExtendU32,
+    ZeroExtendU16,
+    SignExtendI8,
+    SignExtendI16,
+    SignExtendI32,
     Load64,
     Store64,
     FrameAddress,
@@ -181,6 +193,10 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::Jump => Self::Jump,
             MachineSemanticKind::ZeroExtendU8 => Self::ZeroExtendU8,
             MachineSemanticKind::ZeroExtendU32 => Self::ZeroExtendU32,
+            MachineSemanticKind::ZeroExtendU16 => Self::ZeroExtendU16,
+            MachineSemanticKind::SignExtendI8 => Self::SignExtendI8,
+            MachineSemanticKind::SignExtendI16 => Self::SignExtendI16,
+            MachineSemanticKind::SignExtendI32 => Self::SignExtendI32,
             MachineSemanticKind::Load64 => Self::Load64,
             MachineSemanticKind::Store64 => Self::Store64,
             MachineSemanticKind::FrameAddress => Self::FrameAddress,

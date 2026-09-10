@@ -304,6 +304,10 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::Load64
         | MachineSemanticKind::AddressOffset
         | MachineSemanticKind::ZeroExtendU8
+        | MachineSemanticKind::ZeroExtendU16
+        | MachineSemanticKind::SignExtendI8
+        | MachineSemanticKind::SignExtendI16
+        | MachineSemanticKind::SignExtendI32
         | MachineSemanticKind::ZeroExtendU32 => (vec![0], vec![1]),
         MachineSemanticKind::ByteViewAddress
         | MachineSemanticKind::ExactAddI64
@@ -473,6 +477,53 @@ mod tests {
             &physical,
         )
         .unwrap_or_else(|error: Aarch64RegisterConstraintCatalogValidationError| panic!("{error}"))
+    }
+
+    #[test]
+    fn integer_normalization_catalog_binds_identity_size_and_effects() {
+        for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
+            let constraints = constraints();
+            let catalog = aarch64_machine_effect_catalog(target, &constraints).unwrap();
+            validate_aarch64_machine_effect_catalog(target, &constraints, catalog.clone()).unwrap();
+            for semantic in [
+                MachineSemanticKind::ZeroExtendU16,
+                MachineSemanticKind::SignExtendI8,
+                MachineSemanticKind::SignExtendI16,
+                MachineSemanticKind::SignExtendI32,
+            ] {
+                let declaration = catalog
+                    .declarations
+                    .iter()
+                    .find(|row| row.semantic == semantic)
+                    .unwrap();
+                assert_eq!(declaration.constraint, AARCH64_COPY_I64);
+                assert_eq!(declaration.alternatives.len(), 1);
+                let alternative = &declaration.alternatives[0];
+                assert_eq!(alternative.key.family, semantic.into());
+                assert_eq!(alternative.size, MachineSizeKnowledge::ExactBytes(4));
+                assert_eq!(
+                    alternative.encoded,
+                    MachineEncodedEffects::fallthrough_v1(vec![0], vec![1])
+                );
+                for corruption in 0..3 {
+                    let mut changed = catalog.clone();
+                    let row = changed
+                        .declarations
+                        .iter_mut()
+                        .find(|row| row.semantic == semantic)
+                        .unwrap();
+                    match corruption {
+                        0 => row.alternatives[0].key.family = MachineSemanticKind::CopyI64.into(),
+                        1 => row.alternatives[0].size = MachineSizeKnowledge::ExactBytes(1),
+                        _ => row.alternatives[0].encoded.external_operand_reads.clear(),
+                    }
+                    assert!(
+                        validate_aarch64_machine_effect_catalog(target, &constraints, changed)
+                            .is_err()
+                    );
+                }
+            }
+        }
     }
 
     #[test]

@@ -120,7 +120,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
             .find(|row| row.machine == fragment.machine)
             .ok_or(Error::Mismatch("missing selected function"))?;
         let structural = selected.structural.as_ref();
-        let aggregate_result = aggregate_results::header(abstracted, targeted, selected);
+        let graph_result = aggregate_results::header(abstracted, targeted, selected);
         // A provider service ceiling is declaration metadata, not a structural
         // argument or an executable permission grant. Retain its exact canonical
         // source identity even when the Unit ABI has no structural parameters.
@@ -167,7 +167,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
             || (!abstracted.structural_parameters.is_empty() && structural.is_none())
             || (structural.is_some_and(|contract| !contract.parameters.is_empty())
                 && !unit
-                && !aggregate_result
+                && !graph_result
                 && targeted.mixed_structural_scalar_abi.is_none())
             || (structural.is_none()
                 && (!abstracted.entry_claims.is_empty()
@@ -176,7 +176,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 && (targeted.scalar_abi.is_some()
                     || targeted.mixed_structural_scalar_abi.is_some()))
             || (!unit
-                && !aggregate_result
+                && !graph_result
                 && (targeted.scalar_abi.is_some()
                     == targeted.mixed_structural_scalar_abi.is_some()))
         {
@@ -187,7 +187,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         if let Some(abi) = &targeted.mixed_structural_scalar_abi {
             super::mixed_scalar_abi::admit(abstracted, targeted, selected, abi)?;
         }
-        if (unit && !abstracted.parameters.is_empty() || aggregate_result) && ranked.is_none() {
+        if (unit && !abstracted.parameters.is_empty() || graph_result) && ranked.is_none() {
             let (call_plan, scalar_parameters, structural_parameters) = parameter_abi(targeted)
                 .ok_or(Error::Mismatch(
                     "shared function has no retained parameter/result ABI",
@@ -195,7 +195,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
             if scalar_parameters.len() != abstracted.parameters.len()
                 || call_plan.parameters.len()
                     != abstracted.parameters.len() + abstracted.structural_parameters.len()
-                || call_plan.result.is_some() != aggregate_result
+                || call_plan.result.is_some() != graph_result
                 || structural_parameters.len() != abstracted.structural_parameters.len()
                 || structural.is_some_and(|contract| {
                     contract.parameters.len() != structural_parameters.len()
@@ -238,22 +238,27 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     super::structural::primitive_operation_retained(abstracted, selected, operation)
                 }
                 AbstractOperation::CallStructuralScalar { psi_operation, callee, result, .. } => {
-                    let (_, target) = function(source, *callee)?;
+                    let (body, target) = function(source, *callee)?;
                     // Structural-call semantics can retain a scalar-only callee
                     // whose body builds arrays. Parameter ABI, not body shape,
                     // selects the result contract joined to this call.
-                    let abi = match (&target.scalar_abi, &target.mixed_structural_scalar_abi) {
-                        (Some(abi), None) => Some((&abi.result, &abi.call_plan)),
-                        (None, Some(abi)) => Some((&abi.result, &abi.call_plan)),
+                    let call_plan = match (&target.scalar_abi, &target.mixed_structural_scalar_abi) {
+                        (Some(abi), None) => Some(&abi.call_plan),
+                        (None, Some(abi)) => Some(&abi.call_plan),
+                        // A replayed control graph owns its complete ABI without
+                        // a legacy scalar mirror. Bind its semantic result below;
+                        // source/selection replay validates every return and call.
+                        (None, None) => parameter_abi(target).map(|(plan, _, _)| plan),
                         _ => None,
                     };
                     selected.calls.iter().filter(|row| row.operation == *psi_operation
                         && row.call.callee == *callee
                         && row.call.result_placement.as_ref().is_some_and(|placement| {
-                            abi.is_some_and(|(returned, plan)|
-                                returned.scalar_type == result.scalar_type
-                                    && returned.placement == *placement
-                                    && *plan == row.call.call_plan)
+                            body.result.scalar().is_some_and(|returned|
+                                returned.scalar_type == result.scalar_type)
+                                && call_plan.is_some_and(|plan|
+                                    plan.result.as_ref() == Some(placement)
+                                        && *plan == row.call.call_plan)
                         })).count() == 1
                 }
                 AbstractOperation::IntegerConstant { .. }

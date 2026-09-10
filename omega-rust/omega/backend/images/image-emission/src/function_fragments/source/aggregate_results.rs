@@ -1,5 +1,5 @@
-//! Publication rejoins graph aggregate returns to operation homes or incoming
-//! ABI parameters. Mandatory source/selection
+//! Publication rejoins graph results to operation homes or incoming ABI
+//! parameters, including scalar results of aggregate-bearing calls. Mandatory source/selection
 //! replay checks the layout, every fragment, and every load/store; these checks
 //! account for the exact declarations and operations at the object boundary.
 use abstract_operations::{AbstractFunction, AbstractOperation};
@@ -13,15 +13,19 @@ pub(super) fn header(
     target: &TargetFunction,
     selected: &SelectedFunction,
 ) -> bool {
-    let Some(result) = source.result.structural() else {
-        return false;
-    };
     let (TargetOperation::ControlGraph(graph), Some(contract)) =
         (&target.operation, &selected.structural)
     else {
         return false;
     };
-    contract.result.as_ref() == Some(result)
+    let result_matches = match &source.result {
+        abstract_operations::AbstractFunctionResult::Structural(result) => {
+            contract.result.as_ref() == Some(result)
+        }
+        abstract_operations::AbstractFunctionResult::Scalar(_) => contract.result.is_none(),
+        _ => false,
+    };
+    result_matches
         && graph.call_plan.result.is_some()
         && target.scalar_abi.is_none()
         && target.mixed_structural_scalar_abi.is_none()

@@ -144,18 +144,18 @@ fn owned_array_arguments_replay_exact_home_type_and_fragments() {
                 (IntegerSign::Signed, 16),
                 (IntegerSign::Signed, 32),
             ] {
-                let mut unsupported = narrow.clone();
+                let mut supported = narrow.clone();
                 let integer = IntegerType::new(sign, bits).unwrap();
                 let result_shape = ValueShape::integer(bits / 8, bits / 8);
-                unsupported.call_plan = evaluate_call_plan(
-                    unsupported.call_plan.policy,
+                supported.call_plan = evaluate_call_plan(
+                    supported.call_plan.policy,
                     &CallSignature {
                         parameters: Vec::new(),
                         result: Some(result_shape),
                     },
                 )
                 .unwrap();
-                let row = &mut unsupported.blocks[0].instructions[3];
+                let row = &mut supported.blocks[0].instructions[3];
                 row.result.as_mut().unwrap().scalar_type = ScalarType::Integer(integer);
                 let LegalizedScalarInstructionKind::Call(call) = &mut row.kind else {
                     panic!("call");
@@ -174,7 +174,7 @@ fn owned_array_arguments_replay_exact_home_type_and_fragments() {
                 .unwrap();
                 call.result_placement = call.call_plan.result.clone();
                 let LegalizedScalarTerminator::Return(returned) =
-                    &mut unsupported.blocks[0].terminator
+                    &mut supported.blocks[0].terminator
                 else {
                     panic!("return");
                 };
@@ -182,18 +182,44 @@ fn owned_array_arguments_replay_exact_home_type_and_fragments() {
                     value: ValueId::new(3).unwrap(),
                     scalar_type: integer,
                 };
+                let selected = build(
+                    0,
+                    &supported,
+                    target,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                )
+                .unwrap();
+                validate(&supported, &selected).unwrap();
+                let expected = match (sign, bits) {
+                    (IntegerSign::Unsigned, 16) => SelectedInstructionKind::ZeroExtendU16,
+                    (IntegerSign::Signed, 8) => SelectedInstructionKind::SignExtendI8,
+                    (IntegerSign::Signed, 16) => SelectedInstructionKind::SignExtendI16,
+                    (IntegerSign::Signed, 32) => SelectedInstructionKind::SignExtendI32,
+                    _ => panic!("test normalization"),
+                };
                 assert!(
-                    build(
-                        0,
-                        &unsupported,
-                        target,
-                        &constraints,
-                        environment.physical(),
-                        environment.constraints()
-                    )
-                    .is_err()
+                    selected.blocks[0]
+                        .instructions
+                        .iter()
+                        .any(|row| row.kind == expected)
                 );
-                assert!(validate(&unsupported, &selected_narrow).is_err());
+                for replacement in [
+                    SelectedInstructionKind::CopyI64,
+                    SelectedInstructionKind::ZeroExtendU8,
+                    SelectedInstructionKind::ZeroExtendU32,
+                ] {
+                    let mut changed = selected.clone();
+                    changed.blocks[0]
+                        .instructions
+                        .iter_mut()
+                        .find(|row| row.kind == expected)
+                        .unwrap()
+                        .kind = replacement;
+                    assert!(validate(&supported, &changed).is_err());
+                }
+                assert!(validate(&supported, &selected_narrow).is_err());
             }
             for mutation in 0..3 {
                 let mut changed = source.clone();

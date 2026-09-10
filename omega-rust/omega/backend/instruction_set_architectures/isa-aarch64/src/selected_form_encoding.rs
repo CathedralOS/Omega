@@ -1,5 +1,7 @@
 #[cfg(test)]
 mod byte_view_address_tests;
+#[cfg(test)]
+mod integer_normalization_tests;
 
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
@@ -558,6 +560,10 @@ fn family_and_operand_count(
         }
         SelectedInstructionKind::CopyI64 => (MachineAlternativeFamily::CopyI64, 2),
         SelectedInstructionKind::ZeroExtendU8 => (MachineAlternativeFamily::ZeroExtendU8, 2),
+        SelectedInstructionKind::ZeroExtendU16 => (MachineAlternativeFamily::ZeroExtendU16, 2),
+        SelectedInstructionKind::SignExtendI8 => (MachineAlternativeFamily::SignExtendI8, 2),
+        SelectedInstructionKind::SignExtendI16 => (MachineAlternativeFamily::SignExtendI16, 2),
+        SelectedInstructionKind::SignExtendI32 => (MachineAlternativeFamily::SignExtendI32, 2),
         SelectedInstructionKind::ZeroExtendU32 => (MachineAlternativeFamily::ZeroExtendU32, 2),
         SelectedInstructionKind::ByteViewAddress => (MachineAlternativeFamily::ByteViewAddress, 3),
         SelectedInstructionKind::ExactAddI64 { .. } => (MachineAlternativeFamily::ExactAddI64, 3),
@@ -688,6 +694,18 @@ fn encode_unchecked(
         }
         SelectedInstructionKind::ZeroExtendU8 => {
             words.push(0xd340_1c00 | (u32::from(registers[0]) << 5) | u32::from(registers[1]));
+        }
+        SelectedInstructionKind::ZeroExtendU16 => {
+            words.push(0xd340_3c00 | (u32::from(registers[0]) << 5) | u32::from(registers[1]));
+        }
+        SelectedInstructionKind::SignExtendI8 => {
+            words.push(0x9340_1c00 | (u32::from(registers[0]) << 5) | u32::from(registers[1]));
+        }
+        SelectedInstructionKind::SignExtendI16 => {
+            words.push(0x9340_3c00 | (u32::from(registers[0]) << 5) | u32::from(registers[1]));
+        }
+        SelectedInstructionKind::SignExtendI32 => {
+            words.push(0x9340_7c00 | (u32::from(registers[0]) << 5) | u32::from(registers[1]));
         }
         SelectedInstructionKind::ZeroExtendU32 => {
             words.push(0xd340_7c00 | (u32::from(registers[0]) << 5) | u32::from(registers[1]));
@@ -844,6 +862,22 @@ fn encode_movn_materialization_recipe(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DecodedWord {
+    ZeroExtendU16 {
+        source: u8,
+        destination: u8,
+    },
+    SignExtendI8 {
+        source: u8,
+        destination: u8,
+    },
+    SignExtendI16 {
+        source: u8,
+        destination: u8,
+    },
+    SignExtendI32 {
+        source: u8,
+        destination: u8,
+    },
     ZeroExtendU8 {
         source: u8,
         destination: u8,
@@ -916,6 +950,30 @@ fn decode_words(bytes: &[u8]) -> Result<Vec<DecodedWord>, Aarch64SelectedFormEnc
 fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingError> {
     if word & 0xffff_fc00 == 0xd340_1c00 {
         return Ok(DecodedWord::ZeroExtendU8 {
+            source: ((word >> 5) & 31) as u8,
+            destination: (word & 31) as u8,
+        });
+    }
+    if word & 0xffff_fc00 == 0xd340_3c00 {
+        return Ok(DecodedWord::ZeroExtendU16 {
+            source: ((word >> 5) & 31) as u8,
+            destination: (word & 31) as u8,
+        });
+    }
+    if word & 0xffff_fc00 == 0x9340_1c00 {
+        return Ok(DecodedWord::SignExtendI8 {
+            source: ((word >> 5) & 31) as u8,
+            destination: (word & 31) as u8,
+        });
+    }
+    if word & 0xffff_fc00 == 0x9340_3c00 {
+        return Ok(DecodedWord::SignExtendI16 {
+            source: ((word >> 5) & 31) as u8,
+            destination: (word & 31) as u8,
+        });
+    }
+    if word & 0xffff_fc00 == 0x9340_7c00 {
+        return Ok(DecodedWord::SignExtendI32 {
             source: ((word >> 5) & 31) as u8,
             destination: (word & 31) as u8,
         });
@@ -1010,6 +1068,34 @@ fn validate_decoded(
         SelectedInstructionKind::ZeroExtendU8 => {
             decoded
                 == [DecodedWord::ZeroExtendU8 {
+                    source: registers[0],
+                    destination: registers[1],
+                }]
+        }
+        SelectedInstructionKind::ZeroExtendU16 => {
+            decoded
+                == [DecodedWord::ZeroExtendU16 {
+                    source: registers[0],
+                    destination: registers[1],
+                }]
+        }
+        SelectedInstructionKind::SignExtendI8 => {
+            decoded
+                == [DecodedWord::SignExtendI8 {
+                    source: registers[0],
+                    destination: registers[1],
+                }]
+        }
+        SelectedInstructionKind::SignExtendI16 => {
+            decoded
+                == [DecodedWord::SignExtendI16 {
+                    source: registers[0],
+                    destination: registers[1],
+                }]
+        }
+        SelectedInstructionKind::SignExtendI32 => {
+            decoded
+                == [DecodedWord::SignExtendI32 {
                     source: registers[0],
                     destination: registers[1],
                 }]
@@ -1207,6 +1293,10 @@ fn footprint(
         SelectedInstructionKind::MaterializeI64 { .. } => (vec![], vec![operands[0]], false),
         SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::ZeroExtendU8
+        | SelectedInstructionKind::ZeroExtendU16
+        | SelectedInstructionKind::SignExtendI8
+        | SelectedInstructionKind::SignExtendI16
+        | SelectedInstructionKind::SignExtendI32
         | SelectedInstructionKind::ZeroExtendU32 => (vec![operands[0]], vec![operands[1]], false),
         SelectedInstructionKind::CompareI64Zero => (vec![operands[0]], vec![], true),
         SelectedInstructionKind::CompareI64 => (vec![operands[0], operands[1]], vec![], true),
@@ -1294,6 +1384,10 @@ fn footprint(
                 SelectedInstructionKind::MaterializeI64 { .. } => vec![],
                 SelectedInstructionKind::CopyI64
                 | SelectedInstructionKind::ZeroExtendU8
+                | SelectedInstructionKind::ZeroExtendU16
+                | SelectedInstructionKind::SignExtendI8
+                | SelectedInstructionKind::SignExtendI16
+                | SelectedInstructionKind::SignExtendI32
                 | SelectedInstructionKind::ZeroExtendU32
                 | SelectedInstructionKind::CompareI64Zero
                 | SelectedInstructionKind::ExactAddI64Immediate { .. }
@@ -1308,6 +1402,10 @@ fn footprint(
                 SelectedInstructionKind::MaterializeI64 { .. } => vec![0],
                 SelectedInstructionKind::CopyI64
                 | SelectedInstructionKind::ZeroExtendU8
+                | SelectedInstructionKind::ZeroExtendU16
+                | SelectedInstructionKind::SignExtendI8
+                | SelectedInstructionKind::SignExtendI16
+                | SelectedInstructionKind::SignExtendI32
                 | SelectedInstructionKind::ZeroExtendU32
                 | SelectedInstructionKind::ExactAddI64Immediate { .. }
                 | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![1],

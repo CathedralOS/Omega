@@ -73,6 +73,10 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::MaterializeI64 => self.materialize_i64,
             MachineSemanticKind::CopyI64
             | MachineSemanticKind::ZeroExtendU8
+            | MachineSemanticKind::ZeroExtendU16
+            | MachineSemanticKind::SignExtendI8
+            | MachineSemanticKind::SignExtendI16
+            | MachineSemanticKind::SignExtendI32
             | MachineSemanticKind::ZeroExtendU32 => self.copy_i64,
             MachineSemanticKind::ByteViewAddress | MachineSemanticKind::ExactAddI64 => self.add_i64,
             MachineSemanticKind::ExactAddI64Immediate => self.add_i64_immediate,

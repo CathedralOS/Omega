@@ -269,15 +269,9 @@ pub(in crate::selection) fn validate(
                             operation.kind,
                             LegalizedScalarInstructionKind::IntegerExactCast { .. }
                         ) {
-                            match scalar_type {
-                                ScalarType::Integer(integer) if integer.bits() == 8 => {
-                                    SelectedInstructionKind::ZeroExtendU8
-                                }
-                                ScalarType::Integer(integer) if integer.bits() == 32 => {
-                                    SelectedInstructionKind::ZeroExtendU32
-                                }
-                                _ => SelectedInstructionKind::CopyI64,
-                            }
+                            crate::selection::scalar_call_abi::integer_abi_normalization(
+                                scalar_type,
+                            )
                         } else {
                             SelectedInstructionKind::CopyI64
                         },

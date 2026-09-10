@@ -92,6 +92,14 @@ pub enum SelectedInstructionKind {
     ZeroExtendU8,
     /// Normalize the low 32 input bits; upper ABI register bits are not meaningful.
     ZeroExtendU32,
+    /// Zero-extend the low 16 input bits into the complete result register.
+    ZeroExtendU16,
+    /// Sign-extend the low eight input bits into the complete result register.
+    SignExtendI8,
+    /// Sign-extend the low 16 input bits into the complete result register.
+    SignExtendI16,
+    /// Sign-extend the low 32 input bits into the complete result register.
+    SignExtendI32,
     /// Exact mathematical addition whose source proof obligation was
     /// discharged before target lowering. A validated legalization theorem
     /// may transport a narrower exact operation to this i64 form; the selected

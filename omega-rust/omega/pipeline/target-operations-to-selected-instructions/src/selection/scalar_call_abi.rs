@@ -402,16 +402,10 @@ pub(super) fn scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
 }
 
 /// Narrow call values need normalization before whole-register consumers.
-/// The selected vocabulary has no 16-bit zero extension or narrow sign extension.
 pub(super) fn integer_call_shape(scalar_type: ScalarType) -> Option<ValueShape> {
     match scalar_type {
         ScalarType::Boolean => scalar_shape(scalar_type),
-        ScalarType::Integer(integer)
-            if integer.bits() == 64
-                || integer.sign() == IntegerSign::Unsigned && matches!(integer.bits(), 8 | 32) =>
-        {
-            scalar_shape(scalar_type)
-        }
+        ScalarType::Integer(_) => scalar_shape(scalar_type),
         _ => None,
     }
 }
@@ -420,12 +414,15 @@ pub(super) fn integer_call_shape(scalar_type: ScalarType) -> Option<ValueShape> 
 pub(super) fn integer_abi_normalization(scalar_type: ScalarType) -> SelectedInstructionKind {
     match scalar_type {
         ScalarType::Boolean => SelectedInstructionKind::ZeroExtendU8,
-        ScalarType::Integer(integer) if integer.bits() == 8 => {
-            SelectedInstructionKind::ZeroExtendU8
-        }
-        ScalarType::Integer(integer) if integer.bits() == 32 => {
-            SelectedInstructionKind::ZeroExtendU32
-        }
+        ScalarType::Integer(integer) => match (integer.sign(), integer.bits()) {
+            (IntegerSign::Unsigned, 8) => SelectedInstructionKind::ZeroExtendU8,
+            (IntegerSign::Unsigned, 16) => SelectedInstructionKind::ZeroExtendU16,
+            (IntegerSign::Unsigned, 32) => SelectedInstructionKind::ZeroExtendU32,
+            (IntegerSign::Signed, 8) => SelectedInstructionKind::SignExtendI8,
+            (IntegerSign::Signed, 16) => SelectedInstructionKind::SignExtendI16,
+            (IntegerSign::Signed, 32) => SelectedInstructionKind::SignExtendI32,
+            _ => SelectedInstructionKind::CopyI64,
+        },
         _ => SelectedInstructionKind::CopyI64,
     }
 }

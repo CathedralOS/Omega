@@ -200,6 +200,22 @@ fn unused_owned_projection_refuses_borrowed_linear_or_materialized_arrivals() {
     let mut missing_abi = target.clone();
     missing_abi.mixed_structural_scalar_abi = None;
     assert!(!arrivals(&function, &missing_abi, &selected));
+    // Missing a legacy mirror cannot authorize unused-input erasure, but the
+    // complete graph ABI can still account for the result under mandatory replay.
+    let graph_header = super::super::aggregate_results::header;
+    assert!(graph_header(&function, &missing_abi, &selected));
+    for mutation in 0..3 {
+        let mut changed = missing_abi.clone();
+        let TargetOperation::ControlGraph(graph) = &mut changed.operation else {
+            unreachable!()
+        };
+        match mutation {
+            0 => graph.call_plan.result = None,
+            1 => graph.parameters.clear(),
+            _ => graph.parameters[0].place = PlaceId::new(2).unwrap(),
+        }
+        assert!(!graph_header(&function, &changed, &selected));
+    }
 }
 
 #[test]

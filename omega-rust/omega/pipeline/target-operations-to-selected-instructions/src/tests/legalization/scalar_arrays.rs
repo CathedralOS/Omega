@@ -101,6 +101,104 @@ fn fixture(
 }
 
 #[test]
+fn scalar_array_graph_returns_replay_exact_abi_without_optional_mirrors() {
+    let (mut source, _, _) = fixture(0);
+    let integer =
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 16)
+            .unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let result = ValueId::new(9).unwrap();
+    let returned = ValueId::new(8).unwrap();
+    source.functions[0].result =
+        AbstractFunctionResult::Scalar(abstract_operations::AbstractResult {
+            value: result,
+            scalar_type,
+        });
+    source.functions[0].operations.pop();
+    source.functions[0].operations.extend([
+        O::IntegerConstant {
+            psi_operation: OperationId::new(4).unwrap(),
+            result: returned,
+            scalar_type,
+            value: semantic_vocabulary::IntegerValue::Unsigned(65535),
+        },
+        O::Return {
+            psi_edge: EdgeId::new(1).unwrap(),
+            result,
+            value: returned,
+            scalar_type,
+            cleanup_actions: Vec::new(),
+        },
+    ]);
+    let mut target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &source,
+        target::NativeTarget::linux_x64(),
+    )
+    .unwrap();
+    target.functions[0].scalar_abi = None;
+    target.functions[0].mixed_structural_scalar_abi = None;
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &source,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
+    validate_legalized_operations(&target, &source, &unit, legalized.plan().clone()).unwrap();
+    for mutation in 0..4 {
+        let mut changed = target.clone();
+        let TargetOperation::ControlGraph(graph) = &mut changed.functions[0].operation else {
+            panic!("array scalar graph");
+        };
+        match mutation {
+            0 => graph.call_plan.result.as_mut().unwrap().shape = ValueShape::integer(4, 4),
+            1 => {
+                let target_operations::TargetControlTerminator::ReturnScalar { expression, .. } =
+                    &mut graph.blocks[0].terminator
+                else {
+                    panic!("scalar return");
+                };
+                let target_operations::TargetScalarExpression::Integer { scalar_type, .. } =
+                    expression
+                else {
+                    panic!("integer return");
+                };
+                *scalar_type = semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Signed,
+                    16,
+                )
+                .unwrap();
+            }
+            2 => {
+                let target_operations::TargetControlTerminator::ReturnScalar {
+                    source_value, ..
+                } = &mut graph.blocks[0].terminator
+                else {
+                    panic!("scalar return");
+                };
+                *source_value = result;
+            }
+            _ => {
+                let calling_conventions::ValueLocation::Register { byte_size, .. } =
+                    &mut graph.call_plan.result.as_mut().unwrap().locations[0]
+                else {
+                    panic!("register return");
+                };
+                *byte_size = 4;
+            }
+        }
+        assert!(
+            legalize_target_operations(&changed, &source, &unit).is_err(),
+            "mutation {mutation}"
+        );
+        assert!(
+            validate_legalized_operations(&changed, &source, &unit, legalized.plan().clone())
+                .is_err(),
+            "replay mutation {mutation}"
+        );
+    }
+}
+
+#[test]
 fn array_target_replay_rejects_leaf_storage_and_producer_substitution() {
     let (source, target, unit) = fixture(3);
     legalize_target_operations(&target, &source, &unit).unwrap();

@@ -186,6 +186,10 @@ fn replay_declaration<'a>(
         SelectedInstructionKind::BitsToFloat64 => MachineSemanticKind::BitsToFloat64,
         SelectedInstructionKind::ZeroExtendU8 => MachineSemanticKind::ZeroExtendU8,
         SelectedInstructionKind::ZeroExtendU32 => MachineSemanticKind::ZeroExtendU32,
+        SelectedInstructionKind::ZeroExtendU16 => MachineSemanticKind::ZeroExtendU16,
+        SelectedInstructionKind::SignExtendI8 => MachineSemanticKind::SignExtendI8,
+        SelectedInstructionKind::SignExtendI16 => MachineSemanticKind::SignExtendI16,
+        SelectedInstructionKind::SignExtendI32 => MachineSemanticKind::SignExtendI32,
         SelectedInstructionKind::HostedWriteByteI32 { .. } => {
             MachineSemanticKind::HostedWriteByteI32
         }

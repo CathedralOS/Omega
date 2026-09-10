@@ -59,10 +59,10 @@ hidden-pointer results remain explicit transport limits. Zero physical
 size never erases the semantic array type. The native differential
 `scalar_array_results` target covers full publication and matching-host execution;
 its floating-source control records the separate checked-plan production gap.
-Narrow scalar calls use the existing unsigned-byte/word zero extensions before
-whole-register consumers. Unsigned-16 and signed-narrow scalar calls remain
-unsupported pending their normalization; raw array fragments need no such
-scalar interpretation.
+Narrow scalar calls normalize their exact signed or unsigned 8/16/32-bit carrier
+before whole-register consumers; raw array fragments need no such scalar
+interpretation. Computed Boolean comparison values still require predicate
+materialization independently of scalar integer transport.
 
 Multi-case dispatch uses ordinary comparisons and explicitly identified
 `CaseDispatch` continuation blocks. An unsuccessful comparison has taken no
@@ -238,10 +238,16 @@ floating-register residents into GPR spill instructions.
 
 Integer and Boolean stack arguments use the same transport. Incoming loads and
 outgoing stores preserve the exact 1/2/4/8-byte payload width independently of
-the target's stack-slot spacing and alignment. Narrow loads retain signedness
-and Boolean type on the SSA value; zero-extension into GPR storage is not a
-semantic widening. Replay rejects substituted widths, ABI offsets, argument
-homes, and source identities, including when a borrowed pointer follows the
+the target's stack-slot spacing and alignment. Signed narrow stack loads are
+sign-extended after the raw load; unsigned and Boolean loads already zero-extend.
+Register parameters and ordinary scalar call results likewise normalize the
+complete GPR from their exact fixed-width type before comparisons or forwarding.
+`selection/scalar_call_abi.rs` selects the width and signedness; independent entry
+and call replay requires that exact operation. This normalizes unspecified ABI
+bits, not the source type or mathematical value, and charges no additional Psi
+fuel. Already-admitted exact casts normalize their destination carrier without
+changing proof or conversion admission. Replay rejects substituted widths, ABI
+offsets, argument homes, and source identities, including when a borrowed pointer follows the
 stack-passed scalars.
 
 IEEE field-store and Unit-call literals retain their exact defining operation,
@@ -295,12 +301,12 @@ inputs are zero-extended at the ABI boundary. Result type, defining operation,
 source identity and value residence remain independently replayed; no new
 instruction or forced stack home is needed. Proof-bearing exact casts retain
 their accepted obligation in ordinary control graphs, independently replay the
-source/result types, and normalize 8/32-bit results with existing selected forms.
+source/result types, and normalize narrow results by exact width and signedness.
 Supported casts use fixed 8/16/32/64-bit carriers. Signed-to-signed casts involving
-sub-64-bit carriers and widening from a 16-bit source reject. These cases need
-coherent signed-width normalization through arithmetic/comparison consumers or
-16-bit raw normalization, including selected ISA and replay support; copying a
-register does not supply it. Sign-changing casts retain the proof that their
+sub-64-bit carriers and widening from a 16-bit source still reject under the
+existing conversion admission rules. Extending those rules requires checking
+the complete producer/consumer path; adding ABI normalization alone does not
+admit another conversion. Sign-changing casts retain the proof that their
 mathematical value is nonnegative.
 
 [Construction](src/selection/construction/mod.rs) and independent validation

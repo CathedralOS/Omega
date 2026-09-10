@@ -1,8 +1,12 @@
 //! Narrow payload widths remain separate from target-selected stack slot spacing.
 use super::*;
 
-fn narrow_stack_call(target: target::NativeTarget, bits: u16) -> LegalizedScalarFunction {
-    let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap());
+fn narrow_stack_call(
+    target: target::NativeTarget,
+    sign: IntegerSign,
+    bits: u16,
+) -> LegalizedScalarFunction {
+    let scalar_type = ScalarType::Integer(IntegerType::new(sign, bits).unwrap());
     let shape = crate::selection::scalar_call_abi::scalar_shape(scalar_type).unwrap();
     let mut source = projected_borrows::projected_call(target);
     let root_shape = source.call_plan.parameters[0].shape;
@@ -78,7 +82,7 @@ fn narrow_unsigned_stack_fragments_preserve_payload_and_reject_substitutions() {
             fixed_inputs: Vec::new(),
         };
         for bits in [8, 16] {
-            let source = narrow_stack_call(target, bits);
+            let source = narrow_stack_call(target, IntegerSign::Unsigned, bits);
             let value = source.parameters[8].value;
             let shape = source.parameters[8].placement.shape;
             let ValueLocation::Stack {
@@ -265,6 +269,88 @@ fn narrow_unsigned_stack_fragments_preserve_payload_and_reject_substitutions() {
                 "parameter home must match caller ABI"
             );
             assert!(validate(&changed_source, &selected).is_err());
+        }
+    }
+}
+
+#[test]
+fn signed_stack_entry_normalizes_loaded_payload_before_outgoing_calls() {
+    for target in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let environment =
+            register_environment::baseline_target_register_environment(target).unwrap();
+        let constraints = SelectedSelectionConstraints {
+            keys: environment.selected_keys(),
+            projected_structural_call: None,
+            fixed_inputs: Vec::new(),
+        };
+        for (bits, expected, wrong_sign) in [
+            (
+                8,
+                SelectedInstructionKind::SignExtendI8,
+                SelectedInstructionKind::ZeroExtendU8,
+            ),
+            (
+                16,
+                SelectedInstructionKind::SignExtendI16,
+                SelectedInstructionKind::ZeroExtendU16,
+            ),
+            (
+                32,
+                SelectedInstructionKind::SignExtendI32,
+                SelectedInstructionKind::ZeroExtendU32,
+            ),
+        ] {
+            let source = narrow_stack_call(target, IntegerSign::Signed, bits);
+            let selected = build(
+                0,
+                &source,
+                target,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            let validate = |candidate: &SelectedFunction| {
+                crate::selection::validation::scalar_graph::validate(
+                    0,
+                    &source,
+                    candidate,
+                    target,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                )
+            };
+            validate(&selected).unwrap();
+            let rows = &selected.blocks[0].instructions;
+            let normalization = rows.iter().position(|row| row.kind == expected).unwrap();
+            assert_eq!(
+                rows[normalization].operands[0].virtual_register,
+                rows[normalization - 1].operands[1].virtual_register
+            );
+            assert_eq!(
+                rows[normalization].provenance.values,
+                [source.parameters[8].value]
+            );
+            assert!(rows[normalization].provenance.fuel.is_empty());
+            for replacement in [
+                SelectedInstructionKind::CopyI64,
+                wrong_sign,
+                if bits == 8 {
+                    SelectedInstructionKind::SignExtendI32
+                } else {
+                    SelectedInstructionKind::SignExtendI8
+                },
+            ] {
+                let mut changed = selected.clone();
+                changed.blocks[0].instructions[normalization].kind = replacement;
+                assert!(validate(&changed).is_err());
+            }
         }
     }
 }

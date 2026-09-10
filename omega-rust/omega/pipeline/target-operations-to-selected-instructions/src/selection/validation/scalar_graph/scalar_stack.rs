@@ -105,6 +105,24 @@ pub(super) fn entry(
             &[address, value],
             &provenance,
         )?;
+        let value = if matches!(parameter.scalar_type, ScalarType::Integer(integer)
+            if integer.sign() == IntegerSign::Signed && integer.bits() < 64)
+        {
+            let normalized = replay.result_register(
+                parameter.value,
+                parameter.definition_site,
+                parameter.scalar_type,
+            )?;
+            replay.check_instruction(
+                crate::selection::scalar_call_abi::integer_abi_normalization(parameter.scalar_type),
+                replay.constraints.keys.copy_i64,
+                &[value, normalized],
+                &provenance,
+            )?;
+            normalized
+        } else {
+            value
+        };
         replay.definitions.push((
             parameter.value,
             value,
