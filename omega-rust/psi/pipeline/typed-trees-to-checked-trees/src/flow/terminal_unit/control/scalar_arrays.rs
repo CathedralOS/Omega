@@ -11,6 +11,7 @@ pub(super) fn elements(
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_ordinal: u32,
+    source: checked_trees::CheckedArrayConstructionSource,
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,
 ) -> Option<Vec<checked_trees::CheckedCallScalarArgument>> {
@@ -35,6 +36,7 @@ pub(super) fn elements(
         .enumerate()
         .map(|(element_index, (expression, primitive_type))| {
             let role = CheckedScalarExpressionRole::ArrayElement {
+                source,
                 element_ordinal: u32::try_from(element_index).ok()?,
             };
             let computations = &facts.values.scalar_computations;

@@ -125,6 +125,45 @@ pub(super) fn argument(
                 }
             }
         }
+        facts::PlaceRoot::Expression(source)
+            if unrestricted_array
+                && source == value_expression
+                && !matches!(
+                    program.expression_table.expression(source),
+                    ExpressionNode::Call(_)
+                ) =>
+        {
+            if usize::try_from(result.statement_index).ok()? != call.statement_index {
+                return None;
+            }
+            let source_machine = program
+                .machines()
+                .iter()
+                .find(|candidate| candidate.symbol == machine)?;
+            let source_state = crate::find_state(program, state)?;
+            let parameter_position = crate::call_target_parameters(program, call.target_symbol)?
+                .iter()
+                .position(|candidate| candidate.symbol == parameter.symbol)?;
+            let expected = checked_trees::CheckedArrayConstructionSource::CallArgument {
+                call_ordinal: u32::try_from(call.call_ordinal).ok()?,
+                parameter_position: u32::try_from(parameter_position).ok()?,
+            };
+            if !crate::values::call_array_constructions(
+                program,
+                &facts.flow,
+                source_machine,
+                source_state,
+                call.statement_index,
+            )
+            .iter()
+            .any(|array| {
+                array.source == expected
+                    && array.expression == source
+                    && array.type_reference == parameter.type_reference
+            }) {
+                return None;
+            }
+        }
         // Ordinary and boundary affine producers own anonymous results.
         // Rejoin their exact captured
         // preorder coordinate; the shared sequencer executes it in postorder.

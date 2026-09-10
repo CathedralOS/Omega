@@ -138,7 +138,9 @@ pub(super) fn lower_unit_structural_types_including(
     let mut roots = additional_roots.to_vec();
     for symbol in closure {
         let body = UnitBody::find(plans, *symbol)?;
-        if let checked_trees::CheckedControlResultPlan::Structural(result) = body.result() {
+        if !matches!(body, UnitBody::Ordinary(plan) if plan.scalar_result.is_some())
+            && let checked_trees::CheckedControlResultPlan::Structural(result) = body.result()?
+        {
             roots.push(result.type_identity);
         }
         roots.extend(body.attachment().map(str::to_owned));
@@ -203,7 +205,7 @@ pub(super) fn lower_unit_structural_types_including(
                 } if UnitBody::contains(plans, *target_machine) => {
                     let target = UnitBody::find(plans, *target_machine)?;
                     let checked_trees::CheckedControlResultPlan::Structural(signature) =
-                        target.result()
+                        target.result()?
                     else {
                         return unsupported(
                             "structural graph call has no structural result catalog",

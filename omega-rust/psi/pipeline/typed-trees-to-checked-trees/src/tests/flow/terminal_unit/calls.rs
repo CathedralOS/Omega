@@ -2285,13 +2285,13 @@ fn retains_branch_free_scalar_local_after_boundary_scalar_result() {
             && result.binding_ordinal == 1
             && result.primitive_type == PrimitiveType::I32
             && matches!(
-                value,
-                CheckedScalarExpression::IntegerBinary {
+                value.as_pure(),
+                Some(CheckedScalarExpression::IntegerBinary {
                     kind: checked_trees::CheckedIntegerBinaryKind::ExactAdd,
                     primitive_type: PrimitiveType::I32,
                     left,
                     right,
-                } if matches!(
+                }) if matches!(
                     left.as_ref(),
                     CheckedScalarExpression::Local {
                         position: 0,
@@ -2313,7 +2313,7 @@ fn retains_branch_free_scalar_local_after_boundary_scalar_result() {
 }
 
 #[test]
-fn fences_short_circuit_scalar_local_after_boundary_result() {
+fn retains_short_circuit_scalar_local_after_boundary_result() {
     let checked = checked(
         r#"
         boundary trait Host {
@@ -2335,15 +2335,22 @@ fn fences_short_circuit_scalar_local_after_boundary_result() {
         "#,
     );
 
-    assert!(
-        checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .for_machine(machine_named(&checked, "Main::main"))
-            .is_none(),
-        "short-circuit control must not enter the branch-free scalar-local carrier",
-    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "Main::main"))
+        .expect("selective scalar local retains the boundary call sequence");
+    assert!(matches!(plan.operations.as_slice(), [
+        CheckedUnitEffectOperationPlan::BoundaryScalarCall { result: measured, .. },
+        CheckedUnitEffectOperationPlan::EstablishScalarLocal { result: accepted, value },
+        CheckedUnitEffectOperationPlan::BoundaryCall { .. },
+        CheckedUnitEffectOperationPlan::Complete { .. },
+    ] if measured.binding_ordinal == 0
+        && accepted.binding_ordinal == 1
+        && accepted.statement_index == 1
+        && accepted.primitive_type == PrimitiveType::Bool
+        && matches!(value.as_pure(), Some(CheckedScalarExpression::Boolean(_)))));
 }
 
 #[test]

@@ -2113,7 +2113,16 @@ pub(super) fn structural_call_arguments(
                 caller_state.symbol,
                 statement_index,
                 expression,
-            )?
+            )
+            .or_else(|| {
+                caller_structural_results
+                    .iter()
+                    .find(|(_, root)| *root == facts::PlaceRoot::Expression(expression))
+                    .map(|_| crate::flow::CanonicalPlace {
+                        root: facts::PlaceRoot::Expression(expression),
+                        segments: Vec::new(),
+                    })
+            })?
         };
         let restored_alias = reborrow_restored_call_alias_target(
             facts,

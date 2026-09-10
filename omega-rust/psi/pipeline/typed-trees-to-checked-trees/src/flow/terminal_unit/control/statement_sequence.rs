@@ -7,6 +7,7 @@ use super::*;
 use checked_trees::CheckedUnitStructuralReturnPlan;
 
 pub(in crate::flow::terminal_unit) struct StatementSequence {
+    pub(in crate::flow::terminal_unit) scalar_result: Option<CheckedUnitScalarResultBindingPlan>,
     pub(in crate::flow::terminal_unit) structural_result: Option<CheckedUnitStructuralReturnPlan>,
     pub(in crate::flow::terminal_unit) operations: Vec<CheckedUnitEffectOperationPlan>,
     pub(in crate::flow::terminal_unit) local_count: usize,
@@ -81,7 +82,10 @@ pub(super) fn has_statement_shape(
                             .statement_table
                             .statements(state.statement_nodes)
                             .len()
-                        && validation::is_closed_primitive_array_type(program, state.return_type))
+                        && (validation::is_closed_primitive_array_type(program, state.return_type)
+                            || program
+                                .primitive_type_reference(state.return_type)
+                                .is_some()))
             }
             StatementNode::LocalData(local) => {
                 program
@@ -114,6 +118,7 @@ pub(in crate::flow::terminal_unit) fn build(
     let mut structural_local_symbols = Vec::new();
     let mut array_bindings = Vec::<(SymbolHandle, CheckedUnitStructuralResultBindingPlan)>::new();
     let mut returned_call = None;
+    let mut returned_scalar_call = None;
     // Only whole claim-free affine results participate in move custody.
     // Unrestricted boundary results keep their separate non-moving route.
     let mut structural_results = Vec::new();
@@ -200,6 +205,7 @@ pub(in crate::flow::terminal_unit) fn build(
                         machine.symbol,
                         state.symbol,
                         statement_index,
+                        checked_trees::CheckedArrayConstructionSource::Statement,
                         local.initial_value,
                         local.type_reference,
                     )?;
@@ -208,6 +214,7 @@ pub(in crate::flow::terminal_unit) fn build(
                     structural_results.push((result.clone(), facts::PlaceRoot::Symbol(local.symbol)));
                     structural_local_symbols.push(local.symbol);
                     operations.push(CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                        source: checked_trees::CheckedArrayConstructionSource::Statement,
                         result,
                         elements,
                     });
@@ -260,9 +267,10 @@ pub(in crate::flow::terminal_unit) fn build(
                         program.expression_table.expression(local.initial_value),
                         ExpressionNode::Call(_)
                     ) {
-                        let (result, value) = scalar_expression_local_at(
+                        let (result, value) = scalar_computation_local_at(
                             program,
                             facts,
+                            machine.symbol,
                             state,
                             statement_index,
                             binding_ordinal,
@@ -309,6 +317,18 @@ pub(in crate::flow::terminal_unit) fn build(
                 None
             }
             StatementNode::Call(_) => None,
+            StatementNode::Expression(_) if completes_machine
+                && program.primitive_type_reference(state.return_type).is_some() =>
+            {
+                let result = CheckedUnitScalarResultBindingPlan {
+                    statement_index,
+                    binding_ordinal: u32::try_from(scalar_count).ok()?,
+                    primitive_type: program.primitive_type_reference(state.return_type)?,
+                };
+                scalar_count = scalar_count.checked_add(1)?;
+                returned_scalar_call = Some(result);
+                Some(result)
+            }
             StatementNode::Expression(_) if completes_machine => {
                 let mut result = checked_structural_result_type(program, shapes, state.return_type, &binders)?;
                 result.statement_index = statement_index;
@@ -347,7 +367,26 @@ pub(in crate::flow::terminal_unit) fn build(
             }
         }
         call_count = call_count.checked_add(1)?;
-        for nested in structural_operands::for_call(program, facts, machine, state, call)? {
+        for operand in structural_operands::operations_for_call(program, facts, machine, state, call)? {
+            let nested = match operand {
+                structural_operands::Operand::Array(array) => {
+                    let result = CheckedUnitStructuralResultBindingPlan {
+                        statement_index,
+                        binding_ordinal: u32::try_from(structural_count).ok()?,
+                        type_identity: shapes.add_type(array.type_reference, &[], &[])?,
+                        multiplicity: Multiplicity::Unrestricted,
+                    };
+                    let elements = super::scalar_arrays::elements(program, facts, machine.symbol,
+                        state.symbol, statement_index, array.source, array.expression, array.type_reference)?;
+                    structural_count = structural_count.checked_add(1)?;
+                    structural_results.push((result.clone(), facts::PlaceRoot::Expression(array.expression)));
+                    operations.push(CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                        source: array.source, result, elements,
+                    });
+                    continue;
+                }
+                structural_operands::Operand::Call(nested) => nested,
+            };
             let target = structural_operands::result(
                 program,
                 facts,
@@ -501,7 +540,7 @@ pub(in crate::flow::terminal_unit) fn build(
         }
         consume_results(&mut operations, &operation)?;
         operations.push(match result {
-            Some(result) => bind_scalar_call_result(facts, operation, result, true)?,
+            Some(result) => bind_scalar_call_result(facts, operation, result, !completes_machine)?,
             None => operation,
         });
         if let Some((result, root)) = partial_temporary {
@@ -592,6 +631,7 @@ pub(in crate::flow::terminal_unit) fn build(
                     machine.symbol,
                     state.symbol,
                     statement_index,
+                    checked_trees::CheckedArrayConstructionSource::Statement,
                     *expression,
                     state.return_type,
                 )?;
@@ -602,6 +642,7 @@ pub(in crate::flow::terminal_unit) fn build(
                     multiplicity: Multiplicity::Unrestricted,
                 };
                 operations.push(CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                    source: checked_trees::CheckedArrayConstructionSource::Statement,
                     result: result.clone(),
                     elements,
                 });
@@ -610,12 +651,121 @@ pub(in crate::flow::terminal_unit) fn build(
         } else {
             None
         };
+    if returned_scalar_call.is_none()
+        && let Some(primitive_type) = program.primitive_type_reference(state.return_type)
+    {
+        // Ordinary scalar tail calls may already be normalized into an
+        // immutable initializer and a final name. Return its retained call
+        // result without replaying the initializer or manufacturing a call.
+        let statements = program.statement_table.statements(state.statement_nodes);
+        let StatementNode::Expression(expression) = statements.last()? else {
+            return None;
+        };
+        let ExpressionNode::Name(name) = program.expression_table.expression(*expression) else {
+            return None;
+        };
+        let mut matching = statements
+            .iter()
+            .enumerate()
+            .filter_map(|(index, statement)| {
+                let StatementNode::LocalData(local) = statement else {
+                    return None;
+                };
+                (local.symbol == name.symbol).then_some((index, local))
+            });
+        let (index, local) = matching.next()?;
+        if matching.next().is_some()
+            || local.is_mutable
+            || program.primitive_type_reference(local.type_reference) != Some(primitive_type)
+            || !matches!(
+                program.expression_table.expression(local.initial_value),
+                ExpressionNode::Call(_)
+            )
+        {
+            return None;
+        }
+        let mut results = operations.iter().filter_map(|operation| {
+            let CheckedUnitEffectOperationPlan::ScalarCall { result, .. } = operation else {
+                return None;
+            };
+            (usize::try_from(result.statement_index).ok() == Some(index)
+                && result.primitive_type == primitive_type)
+                .then_some(result)
+        });
+        returned_scalar_call = Some(*results.next()?);
+        if results.next().is_some() {
+            return None;
+        }
+    }
     (call_count == calls.len()).then_some(StatementSequence {
+        scalar_result: returned_scalar_call,
         structural_result,
         operations,
         local_count,
         structural_local_symbols,
     })
+}
+
+fn scalar_computation_local_at(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    statement_index: u32,
+    binding_ordinal: u32,
+    local: &typed_trees::statement::TableLocalData,
+) -> Option<(
+    CheckedUnitScalarResultBindingPlan,
+    checked_trees::CheckedCallScalarArgument,
+)> {
+    let role = CheckedScalarExpressionRole::LocalInitializer { binding_ordinal };
+    let computations = &facts.values.scalar_computations;
+    let mut roots = computations
+        .roots
+        .iter()
+        .map(|(_, root)| root)
+        .filter(|root| {
+            root.state == state.symbol
+                && root.statement_ordinal == statement_index
+                && root.role == role
+        });
+    let Some(root) = roots.next() else {
+        let (result, value) = scalar_expression_local_at(
+            program,
+            facts,
+            state,
+            statement_index,
+            binding_ordinal,
+            local,
+        )?;
+        return Some((
+            result,
+            checked_trees::CheckedCallScalarArgument::Pure(value),
+        ));
+    };
+    let primitive_type = program.primitive_type_reference(local.type_reference)?;
+    if roots.next().is_some()
+        || root.machine != machine
+        || local.is_mutable
+        || !computations.nodes.is_valid(root.root)
+        || computations.nodes.get(root.root).authored_root != local.initial_value
+        || computations.nodes.get(root.root).primitive_type != primitive_type
+        || facts
+            .values
+            .scalar_expressions
+            .expression_at(state.symbol, statement_index, role)
+            .is_some()
+    {
+        return None;
+    }
+    Some((
+        CheckedUnitScalarResultBindingPlan {
+            statement_index,
+            binding_ordinal,
+            primitive_type,
+        },
+        checked_trees::CheckedCallScalarArgument::Computation(root.root),
+    ))
 }
 
 fn append_call_cleanup(

@@ -3,6 +3,11 @@
 
 use super::*;
 
+pub(in crate::flow::terminal_unit) enum Operand<'facts> {
+    Call(&'facts checked_trees::FlowCallFact),
+    Array(crate::values::CallArrayConstruction),
+}
+
 pub(in crate::flow::terminal_unit) fn for_call<'a>(
     program: &TypedTrees,
     facts: &'a CheckFacts,
@@ -10,20 +15,47 @@ pub(in crate::flow::terminal_unit) fn for_call<'a>(
     state: &typed_trees::state::State,
     call: &checked_trees::FlowCallFact,
 ) -> Option<Vec<&'a checked_trees::FlowCallFact>> {
+    Some(
+        operations_for_call(program, facts, machine, state, call)?
+            .into_iter()
+            .filter_map(|operand| match operand {
+                Operand::Call(call) => Some(call),
+                Operand::Array(_) => None,
+            })
+            .collect(),
+    )
+}
+
+pub(in crate::flow::terminal_unit) fn operations_for_call<'a>(
+    program: &TypedTrees,
+    facts: &'a CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    call: &checked_trees::FlowCallFact,
+) -> Option<Vec<Operand<'a>>> {
     let flow = state_flow(facts, machine.symbol, state.symbol)?;
     let calls = facts.flow.control.calls.span(flow.calls)?;
-    if !calls.iter().any(|nested| {
-        nested.statement_index == call.statement_index
-            && nested.call_ordinal != 0
-            && result(
-                program,
-                facts,
-                machine.symbol,
-                nested.authored_expression,
-                &mut ShapeCollector::new(program),
-            )
-            .is_some()
-    }) {
+    let arrays = crate::values::call_array_constructions(
+        program,
+        &facts.flow,
+        machine,
+        state,
+        call.statement_index,
+    );
+    if arrays.is_empty()
+        && !calls.iter().any(|nested| {
+            nested.statement_index == call.statement_index
+                && nested.call_ordinal != 0
+                && result(
+                    program,
+                    facts,
+                    machine.symbol,
+                    nested.authored_expression,
+                    &mut ShapeCollector::new(program),
+                )
+                .is_some()
+        })
+    {
         return Some(Vec::new());
     }
     let mut output = Vec::new();
@@ -33,6 +65,7 @@ pub(in crate::flow::terminal_unit) fn for_call<'a>(
         machine,
         state,
         calls,
+        &arrays,
         call,
         &mut Vec::new(),
         &mut output,
@@ -46,9 +79,10 @@ fn collect<'a>(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     calls: &'a [checked_trees::FlowCallFact],
+    arrays: &[crate::values::CallArrayConstruction],
     call: &checked_trees::FlowCallFact,
     active: &mut Vec<typed_trees::expression::ExpressionHandle>,
-    output: &mut Vec<&'a checked_trees::FlowCallFact>,
+    output: &mut Vec<Operand<'a>>,
 ) -> Option<()> {
     let site = crate::find_call_site(
         program,
@@ -66,16 +100,33 @@ fn collect<'a>(
             .count();
     let parameters = parameters
         .iter()
-        .filter(|parameter| !parameter.is_self || explicit_self)
+        .enumerate()
+        .filter(|(_, parameter)| !parameter.is_self || explicit_self)
         .collect::<Vec<_>>();
     if parameters.len() != arguments.len() {
         return None;
     }
-    for (argument, parameter) in arguments.iter().zip(&parameters) {
+    for (argument, (position, parameter)) in arguments.iter().zip(&parameters) {
         if program
             .primitive_type_reference(parameter.type_reference)
             .is_some()
         {
+            continue;
+        }
+        let source = checked_trees::CheckedArrayConstructionSource::CallArgument {
+            call_ordinal: u32::try_from(call.call_ordinal).ok()?,
+            parameter_position: u32::try_from(*position).ok()?,
+        };
+        if let Some(array) = arrays.iter().find(|array| array.source == source) {
+            if array.expression != *argument
+                || array.type_reference != parameter.type_reference
+                || output.iter().any(
+                    |operand| matches!(operand, Operand::Array(prior) if prior.source == source),
+                )
+            {
+                return None;
+            }
+            output.push(Operand::Array(*array));
             continue;
         }
         let place = crate::flow::canonical_place_from_expression_in_state(
@@ -113,7 +164,7 @@ fn collect<'a>(
         if active.contains(&expression)
             || output
                 .iter()
-                .any(|prior| prior.authored_expression == expression)
+                .any(|prior| matches!(prior, Operand::Call(prior) if prior.authored_expression == expression))
             || !authored.machine_arguments.is_empty()
             || !authored.evidence_arguments.is_empty()
             || authored.static_requirement_dispatch.is_some()
@@ -134,10 +185,10 @@ fn collect<'a>(
         }
         active.push(expression);
         collect(
-            program, facts, machine, state, calls, nested, active, output,
+            program, facts, machine, state, calls, arrays, nested, active, output,
         )?;
         active.pop();
-        output.push(nested);
+        output.push(Operand::Call(nested));
     }
     Some(())
 }

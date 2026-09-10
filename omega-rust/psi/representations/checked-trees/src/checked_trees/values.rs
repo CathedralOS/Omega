@@ -5,6 +5,8 @@ use typed_trees::types::TypeReferenceHandle;
 
 mod computations;
 pub use computations::*;
+mod array_construction_source;
+pub use array_construction_source::CheckedArrayConstructionSource;
 
 #[cfg(test)]
 mod tests;
@@ -210,6 +212,7 @@ pub struct CheckedLocatedScalarExpression {
 pub enum CheckedScalarExpressionRole {
     /// One row-major scalar operand of an array construction at this statement.
     ArrayElement {
+        source: CheckedArrayConstructionSource,
         element_ordinal: u32,
     },
     /// Scalar operand of an ordinary case-construction return, in authored order.

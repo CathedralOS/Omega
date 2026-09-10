@@ -9,6 +9,26 @@ struct Producer<'plan> {
     coordinate: checked_trees::CheckedUnitCallCoordinate,
     result: &'plan CheckedUnitStructuralResultBindingPlan,
     discard: bool,
+    construction_source: Option<checked_trees::CheckedArrayConstructionSource>,
+}
+
+impl Producer<'_> {
+    fn precedes_consumer(&self, coordinate: checked_trees::CheckedUnitCallCoordinate) -> bool {
+        if let Some(checked_trees::CheckedArrayConstructionSource::CallArgument {
+            call_ordinal,
+            ..
+        }) = self.construction_source
+        {
+            return self.result.statement_index == coordinate.statement_index
+                && call_ordinal == coordinate.call_ordinal;
+        }
+        if self.coordinate.call_ordinal == 0 {
+            self.result.statement_index < coordinate.statement_index
+        } else {
+            self.result.statement_index == coordinate.statement_index
+                && coordinate.call_ordinal < self.coordinate.call_ordinal
+        }
+    }
 }
 
 fn producer(
@@ -21,7 +41,7 @@ fn producer(
             .iter()
             .enumerate()
             .filter_map(|(operation_index, operation)| match operation {
-                CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
+                CheckedUnitEffectOperationPlan::EstablishScalarArray { source, result, .. }
                     if result.binding_ordinal == binding_ordinal =>
                 {
                     Some(Producer {
@@ -32,6 +52,7 @@ fn producer(
                         },
                         result,
                         discard: false,
+                        construction_source: Some(*source),
                     })
                 }
                 CheckedUnitEffectOperationPlan::StructuralCall {
@@ -50,6 +71,7 @@ fn producer(
                     coordinate: *coordinate,
                     result,
                     discard: *discard_result_on_return,
+                    construction_source: None,
                 }),
                 _ => None,
             });
@@ -180,12 +202,7 @@ pub(crate) fn validate_usage(
             if argument.source_structural_result_binding_ordinal() != Some(result.binding_ordinal) {
                 continue;
             }
-            let source_order = if producer.coordinate.call_ordinal == 0 {
-                result.statement_index < coordinate.statement_index
-            } else {
-                result.statement_index == coordinate.statement_index
-                    && coordinate.call_ordinal < producer.coordinate.call_ordinal
-            };
+            let source_order = producer.precedes_consumer(*coordinate);
             if consumed || disposed || operation_index <= producer.operation_index || !source_order
             {
                 return unsupported(
@@ -417,6 +434,54 @@ pub(crate) fn validate_consumer(
         // Check both directions: an authored result cannot be replaced with a
         // same-typed parameter or construction-local plan.
         for candidate in &caller.operations {
+            if let CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                source:
+                    source @ checked_trees::CheckedArrayConstructionSource::CallArgument {
+                        call_ordinal,
+                        parameter_position,
+                    },
+                result,
+                ..
+            } = candidate
+            {
+                // A literal has no local symbol. Its call occurrence and formal
+                // position own the constructor even when it has no leaf values.
+                let (source_expression, source_type) =
+                    super::super::scalar_arrays::construction_expression(
+                        checked,
+                        caller.machine,
+                        caller.state,
+                        result.statement_index,
+                        *source,
+                    )
+                    .ok_or(LoweringError::Unsupported(
+                        "array argument constructor lost its authored occurrence",
+                    ))?;
+                let names_result = result.statement_index == coordinate.statement_index
+                    && *call_ordinal == coordinate.call_ordinal
+                    && *parameter_position == parameter.position
+                    && expression == Some(source_expression);
+                if names_result != (binding_ordinal == Some(result.binding_ordinal)) {
+                    return unsupported(
+                        "array argument does not rejoin its exact constructor occurrence",
+                    );
+                }
+                if names_result
+                    && (authored.boundary
+                        || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                        || !argument.path.is_empty()
+                        || result.multiplicity != Multiplicity::Unrestricted
+                        || !validation::is_closed_primitive_array_type(&checked.typed, source_type)
+                        || checked
+                            .typed
+                            .normalized_type_identity(source_type)
+                            .into_string()
+                            != result.type_identity)
+                {
+                    return unsupported("array argument constructor lost whole owned custody");
+                }
+                continue;
+            }
             let (producer_coordinate, source_site, result) = match candidate {
                 CheckedUnitEffectOperationPlan::StructuralCall {
                     coordinate: producer_coordinate,
@@ -600,12 +665,7 @@ pub(crate) fn validate_consumer(
         };
         let producer = producer(caller, binding_ordinal)?;
         let result = producer.result;
-        let source_order = if producer.coordinate.call_ordinal == 0 {
-            result.statement_index < coordinate.statement_index
-        } else {
-            result.statement_index == coordinate.statement_index
-                && coordinate.call_ordinal < producer.coordinate.call_ordinal
-        };
+        let source_order = producer.precedes_consumer(*coordinate);
         if (producer.discard && argument.access == checked_trees::CheckedStructuralAccess::Owned)
             || producer.operation_index >= operation_index
             || !source_order

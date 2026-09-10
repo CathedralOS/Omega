@@ -410,7 +410,7 @@ fn attached_unit_scalar_expression_local_reaches_later_call_in_terminal_psi() {
         operations.as_slice(),
         [
             CheckedUnitEffectOperationPlan::BoundaryScalarCall { result: measured, .. },
-            CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value },
+            CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value: checked_trees::CheckedCallScalarArgument::Pure(value) },
             CheckedUnitEffectOperationPlan::BoundaryCall { scalar_arguments, .. },
             CheckedUnitEffectOperationPlan::Complete { .. },
         ] if measured.binding_ordinal == 0
@@ -494,14 +494,14 @@ fn attached_unit_scalar_expression_local_rejects_checked_fact_drift() {
     else {
         panic!("second operation should establish the dependent scalar local")
     };
-    *value = CheckedScalarExpression::Local {
+    *value = checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Local {
         position: 0,
         primitive_type: typed_trees::types::PrimitiveType::I32,
-    };
+    });
 
     assert_eq!(
         rejection_message(&checked),
-        "Unit scalar expression local drifted from its checked value fact"
+        "scalar value differs from its retained source binding"
     );
 }
 

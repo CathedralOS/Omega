@@ -1619,6 +1619,7 @@ pub enum CheckedUnitEffectOperationPlan {
     /// Construct an unrestricted primitive fixed array in authored row-major
     /// leaf order. Empty dimensions remain in the exact structural result type.
     EstablishScalarArray {
+        source: crate::CheckedArrayConstructionSource,
         result: CheckedUnitStructuralResultBindingPlan,
         elements: Vec<CheckedCallScalarArgument>,
     },
@@ -1651,14 +1652,14 @@ pub enum CheckedUnitEffectOperationPlan {
         field_identity: String,
         value: CheckedScalarExpression,
     },
-    /// Establish one immutable primitive local from a retained, branch-free
-    /// checked scalar expression. The result coordinate names the
+    /// Establish one immutable primitive local from a retained pure expression
+    /// or selective computation. The result coordinate names the
     /// same dense scalar namespace used by result-bearing calls; later
     /// consumers may therefore refer to either kind without reconstructing a
     /// source expression.
     EstablishScalarLocal {
         result: CheckedUnitScalarResultBindingPlan,
-        value: CheckedScalarExpression,
+        value: CheckedCallScalarArgument,
     },
     CallUnit {
         coordinate: CheckedUnitCallCoordinate,
@@ -1864,6 +1865,8 @@ pub enum CheckedUnitEffectOperationPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitEffectMachinePlan {
+    /// Final ordinary scalar call result, mutually exclusive with a structural result.
+    pub scalar_result: Option<CheckedUnitScalarResultBindingPlan>,
     /// Optional unrestricted structural value returned after ordinary sequencing.
     pub structural_result: Option<CheckedUnitStructuralReturnPlan>,
     pub machine: SymbolHandle,

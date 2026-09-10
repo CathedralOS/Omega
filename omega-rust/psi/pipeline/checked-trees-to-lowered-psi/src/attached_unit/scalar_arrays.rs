@@ -5,50 +5,119 @@
 //! parameter slot; equal array types cannot substitute for source correspondence.
 
 use super::*;
+use checked_trees::CheckedArrayConstructionSource;
 use checked_trees::CheckedStructuralAccess;
+use checked_trees::CheckedUnitCallCoordinate;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use checked_trees::{CheckedCallScalarArgument, CheckedUnitStructuralResultBindingPlan};
 
 mod operands;
 
-pub(super) fn validate(
+/// Reconstruct the constructor's expression and declared type from its owner.
+/// Formal positions, rather than filtered array positions, distinguish equal
+/// typed actuals. This join remains mandatory when an array has no leaves.
+pub(crate) fn construction_expression(
     checked: &CheckedTrees,
-    machine: &CheckedUnitEffectMachinePlan,
-    result: &CheckedUnitStructuralResultBindingPlan,
-    elements: &[CheckedCallScalarArgument],
-) -> Result<(), LoweringError> {
-    let source = checked
-        .typed
-        .machines()
-        .iter()
-        .find(|source| source.symbol == machine.machine)
-        .ok_or(LoweringError::Unsupported(
-            "array constructor machine is absent",
-        ))?;
-    let state = checked
-        .typed
-        .machine_states(source)
-        .iter()
-        .find(|state| state.symbol == machine.state)
-        .ok_or(LoweringError::Unsupported(
-            "array constructor state is absent",
-        ))?;
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    statement_index: u32,
+    source: CheckedArrayConstructionSource,
+) -> Option<(
+    checked_trees::expression::ExpressionHandle,
+    checked_trees::types::TypeReferenceHandle,
+)> {
+    let (owner, state) = crate::scalar_source_custody::authored_state(checked, state).ok()?;
+    if owner.symbol != machine {
+        return None;
+    }
     let statements = checked
         .typed
         .statement_table
         .statements(state.statement_nodes);
-    let (expression, reference) = match statements.get(result.statement_index as usize) {
-        Some(StatementNode::LocalData(local)) if !local.is_mutable => {
-            (local.initial_value, local.type_reference)
+    match source {
+        CheckedArrayConstructionSource::Statement => {
+            match statements.get(statement_index as usize)? {
+                StatementNode::LocalData(local) if !local.is_mutable => {
+                    Some((local.initial_value, local.type_reference))
+                }
+                StatementNode::Expression(expression)
+                    if statement_index as usize + 1 == statements.len() =>
+                {
+                    Some((*expression, state.return_type))
+                }
+                _ => None,
+            }
         }
-        Some(StatementNode::Expression(expression))
-            if result.statement_index as usize + 1 == statements.len() =>
-        {
-            (*expression, state.return_type)
+        CheckedArrayConstructionSource::CallArgument {
+            call_ordinal,
+            parameter_position,
+        } => {
+            let call = crate::call_source_custody::authored::locate_source(
+                checked,
+                state.symbol,
+                CheckedUnitCallCoordinate {
+                    statement_index,
+                    call_ordinal,
+                },
+            )
+            .ok()?;
+            let target = crate::call_source_custody::authored::target_signature(
+                checked,
+                machine,
+                call.source_target,
+            )
+            .ok()?;
+            if target.boundary {
+                return None;
+            }
+            let parameter = target.parameters.get(parameter_position as usize)?;
+            if parameter.is_self
+                || parameter.is_mutable
+                || parameter.is_const
+                || !validation::is_closed_primitive_array_type(
+                    &checked.typed,
+                    parameter.type_reference,
+                )
+            {
+                return None;
+            }
+            let mut actuals = call
+                .structural_arguments
+                .iter()
+                .filter(|(position, _)| *position == parameter_position);
+            let (_, expression) = actuals.next()?;
+            if actuals.next().is_some() {
+                return None;
+            }
+            validation::scalar_array_elements(
+                &checked.typed,
+                machine,
+                *expression,
+                parameter.type_reference,
+            )?;
+            Some((*expression, parameter.type_reference))
         }
-        _ => return unsupported("array constructor does not rejoin its source statement"),
-    };
+    }
+}
+
+pub(super) fn validate(
+    checked: &CheckedTrees,
+    machine: &CheckedUnitEffectMachinePlan,
+    source: CheckedArrayConstructionSource,
+    result: &CheckedUnitStructuralResultBindingPlan,
+    elements: &[CheckedCallScalarArgument],
+) -> Result<(), LoweringError> {
+    let (expression, reference) = construction_expression(
+        checked,
+        machine.machine,
+        machine.state,
+        result.statement_index,
+        source,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "array constructor does not rejoin its source owner",
+    ))?;
     if result.multiplicity != Multiplicity::Unrestricted
         || result.type_identity != checked.typed.normalized_type_identity(reference).as_str()
     {
@@ -81,7 +150,10 @@ pub(super) fn validate(
     for (ordinal, ((leaf, primitive), element)) in leaves.iter().zip(elements).enumerate() {
         let element_ordinal = u32::try_from(ordinal)
             .map_err(|_| LoweringError::Unsupported("array element ordinal exceeds u32"))?;
-        let role = CheckedScalarExpressionRole::ArrayElement { element_ordinal };
+        let role = CheckedScalarExpressionRole::ArrayElement {
+            source,
+            element_ordinal,
+        };
         match element {
             CheckedCallScalarArgument::Pure(value) => {
                 let (binding, retained) = checked
@@ -227,18 +299,27 @@ pub(super) fn validate_result(
                 .iter()
                 .filter_map(|operation| match operation {
                     CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                        source,
                         result: candidate,
                         ..
+                    } if candidate.binding_ordinal == binding_ordinal => Some((
+                        candidate,
+                        *source == CheckedArrayConstructionSource::Statement,
+                    )),
+                    CheckedUnitEffectOperationPlan::StructuralCall {
+                        coordinate,
+                        result: candidate,
+                        ..
+                    } if candidate.binding_ordinal == binding_ordinal => {
+                        Some((candidate, coordinate.call_ordinal == 0))
                     }
-                    | CheckedUnitEffectOperationPlan::StructuralCall {
-                        result: candidate, ..
-                    } if candidate.binding_ordinal == binding_ordinal => Some(candidate),
                     _ => None,
                 });
-            let binding = producers.next().ok_or(LoweringError::Unsupported(
-                "returned structural value has no exact producer",
-            ))?;
+            let (binding, owns_statement_result) = producers.next().ok_or(
+                LoweringError::Unsupported("returned structural value has no exact producer"),
+            )?;
             if producers.next().is_some()
+                || !owns_statement_result
                 || binding.type_identity != result.type_identity
                 || binding.multiplicity != result.multiplicity
             {
@@ -380,7 +461,7 @@ fn validate_shape(
     unsupported("array source carrier is cyclic")
 }
 
-fn source_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32> {
+pub(super) fn source_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32> {
     match operation {
         CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }

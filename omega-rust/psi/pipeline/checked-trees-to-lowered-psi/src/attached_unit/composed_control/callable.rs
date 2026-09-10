@@ -119,7 +119,7 @@ pub(in crate::attached_unit) fn emit(
                 );
             }
             Ok(catalogs::LoweredComposedInternalTarget {
-                result: body.result(),
+                result: body.result()?,
                 source: target.machine,
                 structural_parameters: target.structural_parameters.to_vec(),
                 id: lookup_machine_id(shared.machine_ids, target.machine)?,

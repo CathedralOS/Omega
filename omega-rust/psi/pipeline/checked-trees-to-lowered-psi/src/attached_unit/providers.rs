@@ -152,7 +152,7 @@ pub(super) fn checked_unit_provider_candidates(
                             error => error,
                         },
                     )?;
-                    if candidate.result() != checked_trees::CheckedControlResultPlan::Unit {
+                    if candidate.result()? != checked_trees::CheckedControlResultPlan::Unit {
                         return unsupported(
                             "provider result disagrees with its Unit boundary requirement",
                         );
@@ -167,7 +167,7 @@ pub(super) fn checked_unit_provider_candidates(
                     let (body, result) = if plans.composed_for_machine(machine.symbol).is_some() {
                         let candidate = callable_candidate(checked, machine.symbol)?;
                         let checked_trees::CheckedControlResultPlan::Structural(result) =
-                            candidate.result()
+                            candidate.result()?
                         else {
                             return unsupported(
                                 "provider result disagrees with its structural boundary requirement",

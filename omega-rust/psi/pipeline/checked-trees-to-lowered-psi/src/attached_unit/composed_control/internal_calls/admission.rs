@@ -55,7 +55,7 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
             ..
         } => {
             let target = UnitBody::find(plans, *target_machine)?;
-            let checked_trees::CheckedControlResultPlan::Structural(signature) = target.result()
+            let checked_trees::CheckedControlResultPlan::Structural(signature) = target.result()?
             else {
                 return unsupported("internal structural call has no structural graph result");
             };
@@ -109,7 +109,7 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
     }
     let target = UnitBody::find(plans, *target_machine)?;
     if matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
-        && target.result() != checked_trees::CheckedControlResultPlan::Unit
+        && target.result()? != checked_trees::CheckedControlResultPlan::Unit
     {
         return unsupported("internal Unit call cannot erase a structural result");
     }

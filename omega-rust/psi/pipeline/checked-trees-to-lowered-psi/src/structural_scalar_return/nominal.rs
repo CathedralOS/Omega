@@ -171,6 +171,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             "nominal scalar return is missing its checked flow state",
         ))?;
     let synthetic = CheckedUnitEffectMachinePlan {
+        scalar_result: None,
         structural_result: None,
         machine: plan.machine,
         state: plan.state,

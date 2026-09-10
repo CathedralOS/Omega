@@ -4,6 +4,8 @@
 mod call_arguments;
 #[path = "scalar_array_source/call_results.rs"]
 mod call_results;
+#[path = "scalar_array_source/literal_arguments.rs"]
+mod literal_arguments;
 
 use checked_trees::{
     CheckedCallScalarArgument, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
@@ -183,6 +185,7 @@ fn changed_array_result_and_constructor_facts_reject() {
         let CheckedUnitEffectOperationPlan::EstablishScalarArray {
             result: other_result,
             elements: other_elements,
+            ..
         } = &plan.operations[*second]
         else {
             panic!("second array");
@@ -506,6 +509,7 @@ fn array_element_pure_source_coordinates_and_destination_reject_corruption() {
                     "element ordinal" => {
                         plans.source_bindings.get_mut(handle).role =
                             CheckedScalarExpressionRole::ArrayElement {
+                                source: checked_trees::CheckedArrayConstructionSource::Statement,
                                 element_ordinal: u32::MAX,
                             }
                     }
@@ -676,7 +680,10 @@ fn array_pure_and_computed_operators_reject_semantic_substitution() {
                 *kind = CheckedIntegerBinaryKind::BitwiseXor;
                 for retained in &mut changed.facts.values.scalar_expressions.expressions {
                     if retained.role
-                        == (CheckedScalarExpressionRole::ArrayElement { element_ordinal: 0 })
+                        == (CheckedScalarExpressionRole::ArrayElement {
+                            source: checked_trees::CheckedArrayConstructionSource::Statement,
+                            element_ordinal: 0,
+                        })
                         && let CheckedScalarExpression::IntegerBinary { kind, .. } =
                             &mut retained.expression
                     {
@@ -737,7 +744,12 @@ fn array_boolean_values_reject_source_and_retained_substitution() {
         CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Constant(false))),
     );
     for retained in &mut changed.facts.values.scalar_expressions.expressions {
-        if retained.role == (CheckedScalarExpressionRole::ArrayElement { element_ordinal: 0 }) {
+        if retained.role
+            == (CheckedScalarExpressionRole::ArrayElement {
+                source: checked_trees::CheckedArrayConstructionSource::Statement,
+                element_ordinal: 0,
+            })
+        {
             retained.expression = CheckedScalarExpression::Boolean(Box::new(
                 CheckedBooleanExpression::Constant(false),
             ));

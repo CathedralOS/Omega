@@ -18,6 +18,9 @@ use typed_trees::{
 };
 use validation::integer_widen_is_total;
 
+mod array_constructions;
+pub(crate) use array_constructions::{CallArrayConstruction, call_array_constructions};
+pub(crate) use call_arguments::is_scalar_return_call;
 mod call_arguments;
 mod computations;
 mod constant_array_projection;
@@ -123,7 +126,10 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         ) else {
                             continue;
                         };
-                        let role = CheckedScalarExpressionRole::ArrayElement { element_ordinal };
+                        let role = CheckedScalarExpressionRole::ArrayElement {
+                            source: checked_trees::CheckedArrayConstructionSource::Statement,
+                            element_ordinal,
+                        };
                         source_bindings.append(CheckedScalarExpressionBindings {
                             destination,
                             state: state.symbol,
@@ -375,7 +381,12 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 &parameter_types,
                                 &locals,
                                 exact_integer_casts,
-                                unit_statement,
+                                unit_statement
+                                    || call_arguments::is_scalar_return_call(
+                                        program,
+                                        state,
+                                        *expression,
+                                    ),
                             )
                         {
                             retain_call_arguments(
