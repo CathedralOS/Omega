@@ -28,6 +28,14 @@ selected branch and are retired by writes to their inputs; they do not escape
 the result join. The interpreter forwards an existing destination into only the
 selected arm, preserving anonymous numeric landing without arithmetic desugaring.
 
+Declared storage, parameter, and return destinations flow through result arms
+and array elements. Each complete anonymous arm keeps exact intermediates until
+its own integral, in-range landing; even an unreachable fractional result rejects.
+Width permission follows result edges, never the dispatch subject or patterns,
+and independent call/constructor destinations retain their own custody. The
+shared numeric destination collector still lacks typed-peer and explicit-cast
+width admission for large anonymous trees, including trees without a match.
+
 [Lexing](source-files-to-tokens/src/lexer.rs) consumes loaded source records,
 preserving source identity and byte spans. Numeric metadata and decoded literal
 bytes are spelling-level payload, not typed values or proof facts. The closed

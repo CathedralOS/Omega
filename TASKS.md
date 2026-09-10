@@ -1072,7 +1072,8 @@ Owners include
   source and scalar computation route. Remaining work: ownership-bearing result
   and conditional-transfer joins, nonnumeric Terminal results, structural/case/
   domain patterns and their coverage, anonymous-only numeric subject execution,
-  destination-width custody for large anonymous arm literals, and canonical
+  typed-peer/cast destination discovery for large anonymous arm literals (shared
+  with `STATE-LOCAL-VALUE-FRONTIER` numeric landing), and canonical
   package-review contract/index projection where dispatch is currently rejected.
   Current ownership/pattern fences in
   `validation/src/expression_types/match_dispatch.rs`
@@ -1088,6 +1089,12 @@ Owners include
   still includes compatible owned/nonnumeric results, effectful subjects,
   unselected trapping arms, overlapping patterns and complete coverage through
   checking, artifact replay and target execution.
+
+  Declared-result numeric probe: `mbx run -p omega -- --check --target macos_arm64
+  tests/omega/pass/expressions/match_anonymous_result_landing/main.omg`.
+  The remaining typed-peer/cast width gate also rejects the corresponding
+  non-Match exact quotient at `9356485a0b`; do not invent Match-specific widths
+  to bypass that shared consumer limitation.
 
 - **MODULE-NAMESPACE-RESOLUTION.** Finish the
   [module/name contract](wiki/spec/language/modules.md) for pre-resolution

@@ -165,18 +165,59 @@ fn has_scalar_array_element_shape(
     }
 }
 
-/// A fixed scalar-array destination owns its literal tree, but every element
-/// still has an independent landing obligation. Rejected elements remain roots
-/// for the shared-node exclusion pass; admitting an array cannot bless a typed
-/// or differently used large literal inside it.
-pub(super) fn admit_array_elements(
+/// Results inherit their consumer's destination, not their dispatch inputs.
+/// Each array element and match arm retains its own landing obligation. Failed
+/// children remain exclusion roots even when their enclosing value is admitted.
+pub(super) fn admit_result_values(
     program: &TypedTrees,
     destination: TypeReferenceHandle,
     expression: ExpressionHandle,
     admitted: &mut impl FnMut(TypeReferenceHandle, ExpressionHandle) -> bool,
     other_elements: &mut Vec<ExpressionHandle>,
 ) -> bool {
+    admit_result_values_inner(
+        program,
+        destination,
+        expression,
+        admitted,
+        other_elements,
+        &mut Vec::new(),
+    )
+}
+
+fn admit_result_values_inner(
+    program: &TypedTrees,
+    destination: TypeReferenceHandle,
+    expression: ExpressionHandle,
+    admitted: &mut impl FnMut(TypeReferenceHandle, ExpressionHandle) -> bool,
+    other_elements: &mut Vec<ExpressionHandle>,
+    active: &mut Vec<ExpressionHandle>,
+) -> bool {
     use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
+    if !program.expression_table.expression_is_valid(expression) || active.contains(&expression) {
+        return false;
+    }
+    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
+        let arms = program.expression_table.match_arms(dispatch.arms);
+        if arms.is_empty() {
+            return false;
+        }
+        active.push(expression);
+        for arm in arms {
+            if !admit_result_values_inner(
+                program,
+                destination,
+                arm.value,
+                admitted,
+                other_elements,
+                active,
+            ) {
+                other_elements.push(arm.value);
+            }
+        }
+        active.pop();
+        return true;
+    }
     if let ExpressionNode::ArrayLiteral(elements) = program.expression_table.expression(expression)
         && let TypeReferenceNode::FixedArray {
             element_type,
@@ -190,11 +231,20 @@ pub(super) fn admit_array_elements(
         {
             return false;
         }
+        active.push(expression);
         for element in elements {
-            if !admit_array_elements(program, *element_type, *element, admitted, other_elements) {
+            if !admit_result_values_inner(
+                program,
+                *element_type,
+                *element,
+                admitted,
+                other_elements,
+                active,
+            ) {
                 other_elements.push(*element);
             }
         }
+        active.pop();
         true
     } else {
         admitted(destination, expression)
