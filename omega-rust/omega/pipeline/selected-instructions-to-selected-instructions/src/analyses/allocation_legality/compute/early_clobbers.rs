@@ -1,11 +1,8 @@
 //! Candidate derivation at early-definition points.
 
-use register_model::{
-    RegisterClass, RegisterViewId, ValidatedPhysicalRegisterModel,
-    ValidatedRegisterReservationProfile,
-};
+use register_model::{RegisterClass, RegisterViewId};
 
-use super::{fixed_views, view_candidates};
+use super::{fixed_views, view_candidates::CandidateViews};
 use crate::{
     AllocationLegalityError, FunctionLiveRanges, VirtualEarlyClobberPointLegality, VirtualLiveRange,
 };
@@ -17,8 +14,7 @@ pub(super) fn compute(
     register: &VirtualLiveRange,
     class: &RegisterClass,
     available: &[RegisterViewId],
-    physical: &ValidatedPhysicalRegisterModel,
-    reservations: &ValidatedRegisterReservationProfile,
+    views: &mut CandidateViews<'_>,
 ) -> Result<Vec<VirtualEarlyClobberPointLegality>, AllocationLegalityError> {
     let mut early_clobber_points = Vec::new();
     for early in function
@@ -34,24 +30,13 @@ pub(super) fn compute(
             });
         }
         let fixed = fixed_views::for_early_clobber(function_index, register, early)?;
-        let mut candidates = view_candidates::unconstrained(
-            class,
-            available,
-            early.block,
-            early.early_point,
-            function,
-            physical,
-            reservations,
-        );
-        view_candidates::restrict_to_fixed(
+        let mut candidates = views.unconstrained(class, available, early.block, early.early_point);
+        views.restrict_to_fixed(
             function_index,
             register,
             early.block,
             early.early_point,
             fixed,
-            function,
-            physical,
-            reservations,
             &mut candidates,
         )?;
         if candidates.is_empty() {

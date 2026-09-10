@@ -1,15 +1,97 @@
 //! Physical-view availability, reservation, and fixed-view filtering.
 
+use std::collections::BTreeMap;
+
 use register_model::{
-    RegisterClass, RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel,
+    RegisterClass, RegisterClassId, RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel,
     ValidatedRegisterReservationProfile,
 };
 use selected_instructions::SelectedBlockId;
 
 use crate::{AllocationLegalityError, FunctionLiveRanges, LiveRangePoint, VirtualLiveRange};
 
+/// General candidates depend on the physical location and class, not the value
+/// visiting it. Keep only requested combinations while the function/environment
+/// and its availability remain immutable. Register-major traversal revisits
+/// locations out of order; a sparse ordered table avoids allocating every class
+/// at every block point (including unused locations and empty value ranges).
+/// Fixed constraints remain per-register checks outside this reusable result.
+pub(super) struct CandidateViews<'a> {
+    function: &'a FunctionLiveRanges,
+    physical: &'a ValidatedPhysicalRegisterModel,
+    reservations: &'a ValidatedRegisterReservationProfile,
+    candidates: BTreeMap<(RegisterClassId, SelectedBlockId, LiveRangePoint), Vec<RegisterViewId>>,
+}
+
+impl<'a> CandidateViews<'a> {
+    #[cfg(test)]
+    pub(super) fn prepared_row_count(&self) -> usize {
+        self.candidates.len()
+    }
+
+    pub(super) fn new(
+        function: &'a FunctionLiveRanges,
+        physical: &'a ValidatedPhysicalRegisterModel,
+        reservations: &'a ValidatedRegisterReservationProfile,
+    ) -> Self {
+        Self {
+            function,
+            physical,
+            reservations,
+            candidates: BTreeMap::new(),
+        }
+    }
+
+    // The function caller validates one immutable availability input before
+    // visiting its registers; `available` is that input's exact class row.
+    pub(super) fn unconstrained(
+        &mut self,
+        class: &RegisterClass,
+        available: &[RegisterViewId],
+        block: SelectedBlockId,
+        point: LiveRangePoint,
+    ) -> Vec<RegisterViewId> {
+        self.candidates
+            .entry((class.id, block, point))
+            .or_insert_with(|| {
+                unconstrained(
+                    class,
+                    available,
+                    block,
+                    point,
+                    self.function,
+                    self.physical,
+                    self.reservations,
+                )
+            })
+            .clone()
+    }
+
+    pub(super) fn restrict_to_fixed(
+        &self,
+        function_index: usize,
+        register: &VirtualLiveRange,
+        block: SelectedBlockId,
+        point: LiveRangePoint,
+        fixed: Option<RegisterViewId>,
+        candidates: &mut Vec<RegisterViewId>,
+    ) -> Result<(), AllocationLegalityError> {
+        restrict_to_fixed(
+            function_index,
+            register,
+            block,
+            point,
+            fixed,
+            self.function,
+            self.physical,
+            self.reservations,
+            candidates,
+        )
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
-pub(super) fn unconstrained(
+fn unconstrained(
     class: &RegisterClass,
     available: &[RegisterViewId],
     block: SelectedBlockId,
@@ -38,7 +120,7 @@ pub(super) fn unconstrained(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn restrict_to_fixed(
+fn restrict_to_fixed(
     function_index: usize,
     register: &VirtualLiveRange,
     block: SelectedBlockId,

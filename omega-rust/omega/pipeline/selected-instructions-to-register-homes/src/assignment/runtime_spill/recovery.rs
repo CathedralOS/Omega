@@ -138,6 +138,23 @@ pub(super) fn overlaps_pressure(
                 }))
 }
 
+// The failed id is a tied-domain leader, not necessarily an admissible payload.
+// Prefer it only while it remains in the original roster; ordinary admission
+// still rejects terminal/edge uses, and removal restores the same fallback order.
+fn candidate_position(
+    failure: &crate::RegisterHomeError,
+    roster: &[(usize, VirtualRegisterId)],
+    overlaps: impl FnMut(&(usize, VirtualRegisterId)) -> bool,
+) -> Option<usize> {
+    let crate::RegisterHomeError::NoCompatibleHome { function, register } = failure else {
+        return None;
+    };
+    roster
+        .iter()
+        .position(|candidate| *candidate == (*function, VirtualRegisterId(*register)))
+        .or_else(|| roster.iter().position(overlaps))
+}
+
 pub(crate) fn recover(
     source: StagedOptimizedAllocationLegality,
 ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
@@ -161,7 +178,7 @@ pub(crate) fn recover(
     let mut steps: Vec<RuntimeSpillStep> = Vec::new();
     let mut roster = candidates(&source);
     let mut current_ranges = source.live_range_stage().ranges().clone();
-    while let Some(position) = roster.iter().position(|(function, register)| {
+    while let Some(position) = candidate_position(&failure, &roster, |(function, register)| {
         overlaps_pressure(&failure, &current_ranges, *function, *register)
     }) {
         let (function, register) = roster.remove(position);
@@ -216,3 +233,7 @@ pub(crate) fn recover(
     }
     Err(RuntimeSpillAllocationError::Homes(failure))
 }
+
+#[cfg(test)]
+#[path = "candidate_tests.rs"]
+mod candidate_tests;

@@ -1,5 +1,9 @@
 use std::collections::BTreeSet;
 
+mod candidates;
+
+use candidates::ReplayCandidates;
+
 use register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
@@ -64,6 +68,10 @@ pub fn validate_allocation_legality(
                 function: function_index,
             });
         }
+        // Register-order replay repeatedly visits the same immutable class/location.
+        // Share only this replay's general facts; every occurrence still checks its
+        // fixed constraints and exact proposed row in the original order.
+        let mut candidates = ReplayCandidates::new(source, physical, reservations);
         for (actual, source_register) in actual
             .virtual_registers
             .iter()
@@ -75,7 +83,7 @@ pub fn validate_allocation_legality(
                 source_register,
                 availability,
                 physical,
-                reservations,
+                &mut candidates,
             )?;
             if actual != &expected {
                 return Err(AllocationLegalityError::VirtualRegisterMismatch {
@@ -143,7 +151,7 @@ fn replay_register(
     register: &VirtualLiveRange,
     availability: &ValidatedAllocatorAvailability,
     physical: &ValidatedPhysicalRegisterModel,
-    reservations: &ValidatedRegisterReservationProfile,
+    prepared: &mut ReplayCandidates<'_>,
 ) -> Result<VirtualRegisterAllocationLegality, AllocationLegalityError> {
     let class = physical
         .model()
@@ -193,26 +201,9 @@ fn replay_register(
                 });
             }
             let fixed = fixed.into_iter().next();
-            let occupied = occupied_units(function, fragment.block, point, reservations);
-            let mut candidates = class
-                .views
-                .iter()
-                .filter(|view_id| available.binary_search(view_id).is_ok())
-                .filter_map(|view_id| {
-                    let view = physical
-                        .model()
-                        .views
-                        .iter()
-                        .find(|view| view.id == *view_id)?;
-                    (view.allocatable
-                        && view
-                            .units
-                            .iter()
-                            .chain(&view.write_units)
-                            .all(|unit| !occupied.contains(unit)))
-                    .then_some(*view_id)
-                })
-                .collect::<Vec<_>>();
+            let general = prepared.at(class, available, fragment.block, point);
+            let occupied = &general.occupied;
+            let mut candidates = general.views.clone();
             if let Some(fixed) = fixed {
                 let fixed_view = physical
                     .model()
@@ -298,26 +289,9 @@ fn replay_register(
                 view: fixed.last().expect("two fixed views exist").0,
             });
         }
-        let occupied = occupied_units(function, early.block, early.early_point, reservations);
-        let mut candidates = class
-            .views
-            .iter()
-            .filter(|view_id| available.binary_search(view_id).is_ok())
-            .filter_map(|view_id| {
-                let view = physical
-                    .model()
-                    .views
-                    .iter()
-                    .find(|view| view.id == *view_id)?;
-                (view.allocatable
-                    && view
-                        .units
-                        .iter()
-                        .chain(&view.write_units)
-                        .all(|unit| !occupied.contains(unit)))
-                .then_some(*view_id)
-            })
-            .collect::<Vec<_>>();
+        let general = prepared.at(class, available, early.block, early.early_point);
+        let occupied = &general.occupied;
+        let mut candidates = general.views.clone();
         if let Some(fixed) = fixed.into_iter().next() {
             let fixed_view = physical
                 .model()
@@ -399,39 +373,44 @@ pub(crate) fn replay_register_for_test(
     physical: &ValidatedPhysicalRegisterModel,
     reservations: &ValidatedRegisterReservationProfile,
 ) -> Result<VirtualRegisterAllocationLegality, AllocationLegalityError> {
+    let mut candidates = ReplayCandidates::uncached(function, physical, reservations);
     replay_register(
         function_index,
         function,
         register,
         availability,
         physical,
-        reservations,
+        &mut candidates,
     )
 }
 
-fn occupied_units(
+#[cfg(test)]
+pub(crate) fn replay_function_for_test(
+    function_index: usize,
     function: &crate::FunctionLiveRanges,
-    block: selected_instructions::SelectedBlockId,
-    point: LiveRangePoint,
+    availability: &ValidatedAllocatorAvailability,
+    physical: &ValidatedPhysicalRegisterModel,
     reservations: &ValidatedRegisterReservationProfile,
-) -> BTreeSet<register_model::RegisterUnitId> {
-    let mut occupied = reservations
-        .reserved_units()
+) -> Result<crate::FunctionAllocationLegality, AllocationLegalityError> {
+    let mut candidates = ReplayCandidates::new(function, physical, reservations);
+    let virtual_registers = function
+        .virtual_registers
         .iter()
-        .copied()
-        .collect::<BTreeSet<_>>();
-    for row in &function.architectural_units {
-        if row.fragments.iter().any(|fragment| {
-            fragment.block == block && fragment.start <= point && point < fragment.end
-        }) || row
-            .actions
-            .iter()
-            .any(|action| action.block == block && action.point == point)
-        {
-            occupied.insert(row.unit);
-        }
-    }
-    occupied
+        .map(|register| {
+            replay_register(
+                function_index,
+                function,
+                register,
+                availability,
+                physical,
+                &mut candidates,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(crate::FunctionAllocationLegality {
+        machine: function.machine,
+        virtual_registers,
+    })
 }
 
 fn validate_canonical(

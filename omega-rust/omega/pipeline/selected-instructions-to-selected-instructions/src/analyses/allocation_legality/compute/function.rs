@@ -2,7 +2,7 @@
 
 use register_model::{ValidatedPhysicalRegisterModel, ValidatedRegisterReservationProfile};
 
-use super::{early_clobbers, fixed_views, live_points};
+use super::{early_clobbers, fixed_views, live_points, view_candidates::CandidateViews};
 use crate::{
     AllocationLegalityError, FunctionAllocationLegality, FunctionLiveRanges,
     ValidatedAllocatorAvailability, VirtualRegisterAllocationLegality,
@@ -15,6 +15,7 @@ pub(super) fn compute(
     physical: &ValidatedPhysicalRegisterModel,
     reservations: &ValidatedRegisterReservationProfile,
 ) -> Result<FunctionAllocationLegality, AllocationLegalityError> {
+    let mut candidates = CandidateViews::new(function, physical, reservations);
     let virtual_registers = function
         .virtual_registers
         .iter()
@@ -42,13 +43,11 @@ pub(super) fn compute(
                 .map(|fragment| (fragment.block, fragment.start));
             let points = live_points::compute(
                 function_index,
-                function,
                 register,
                 class,
                 available,
                 entry_point,
-                physical,
-                reservations,
+                &mut candidates,
             )?;
             let early_clobber_points = early_clobbers::compute(
                 function_index,
@@ -56,8 +55,7 @@ pub(super) fn compute(
                 register,
                 class,
                 available,
-                physical,
-                reservations,
+                &mut candidates,
             )?;
             let entry_transitions = fixed_views::entry_transitions(register);
             Ok(VirtualRegisterAllocationLegality {
