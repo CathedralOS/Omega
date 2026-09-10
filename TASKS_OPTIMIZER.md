@@ -13,19 +13,14 @@ needed for independent replay through publication.
 
 ## Optimizer execution cost
 
-- **ANALYSIS-REVISION-REUSE.** In
-  `omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/manager.rs`
-  and `pass_manager/execution.rs`, make cached analysis reads borrow products
-  from an immutable validated revision. Today `require_all` serializes/hashes
-  the whole unit even on cache hits, then the rule loop clones its products.
-  Establish revision validity at admission/change boundaries with mutation
-  ownership that prevents stale content, retaining independent candidate and
-  publication checking. Stream necessary canonical hashing without changing
-  encoded bytes/identities. Acceptance: repeated no-change rule requests neither
-  re-encode the unit nor clone analysis payloads; mutated/stale units still
-  reject; invalidation, decisions and published identities match. Measure
-  multi-rule unchanged and rewrite-heavy runs, including allocations and total
-  optimizer time. Do not add a new cache framework or change rule selection.
+- **ANALYSIS-REVISION-REUSE.** Measure multi-rule unchanged and rewrite-heavy
+  optimizer runs, including allocations and total time. In the
+  `optimization-unit` canonical identity encoder, stream necessary hashing if
+  its temporary encoded buffers are a material cost; preserve exact bytes and
+  identities. Acceptance: compare full-run allocation/time and demonstrate
+  byte-identical identities, unchanged decisions and rejection of stale content.
+  Keep immutable revision borrowing and independent candidate/publication checks;
+  do not add a cache framework or change rule selection.
 
 ## Pipeline cleanup follow-ups
 

@@ -22,30 +22,21 @@ pub(crate) fn admit_checked_provider_installation(
     if selected.is_empty() {
         return Ok(None);
     }
-    let installation = if !request.optimization_selections.is_empty() {
-        terminal_psi_to_abstract_operations::admit_provider_installation_for_optimization(
-            plan,
-            semantic_bytes,
-            proof_bytes,
-            request.profile,
-            &selected,
+    if request.optimization_selections.is_empty()
+        && matches!(
+            input.authority(),
+            NativeRealizationAuthority::RankedU32Countdown(_)
         )
-    } else {
-        match input.authority() {
-            NativeRealizationAuthority::Ordinary => {
-                terminal_psi_to_abstract_operations::admit_provider_installation(
-                    plan,
-                    semantic_bytes,
-                    proof_bytes,
-                    request.profile,
-                    &selected,
-                )
-            }
-            NativeRealizationAuthority::RankedU32Countdown(_) => {
-                return Ok(None);
-            }
-        }
+    {
+        return Ok(None);
     }
+    let installation = terminal_psi_to_abstract_operations::admit_provider_installation(
+        plan,
+        semantic_bytes,
+        proof_bytes,
+        request.profile,
+        &selected,
+    )
     .map_err(|error| realization_error("checked-provider installation", format!("{error:?}")))?;
     Ok(Some(installation))
 }
