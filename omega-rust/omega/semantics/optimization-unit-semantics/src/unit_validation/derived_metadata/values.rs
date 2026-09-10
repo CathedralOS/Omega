@@ -181,6 +181,7 @@ pub(crate) fn expected_uses(
 ) -> Vec<ValueUse> {
     use abstract_operations::AbstractOperation as O;
     let values = match operation {
+        O::EstablishScalarArray { elements, .. } => elements.clone(),
         O::EstablishScalarCase { fields, .. } => fields.iter().map(|field| field.value).collect(),
         O::ByteSequenceRead { index, length, .. } => vec![*index, *length],
         O::ByteSequenceWrite {

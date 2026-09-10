@@ -315,40 +315,42 @@ pub(crate) fn validate_structural_root_operations(
                             },
                         );
                     };
-                    let source_contract = function
-                        .structural_parameters
-                        .iter()
-                        .find(|parameter| {
-                            parameter.place == *source
-                                && matches!(
-                                    place_kinds.get(source),
-                                    Some(StructuralPlaceKind::Parameter { position, is_self })
-                                        if *position == parameter.position
-                                            && *is_self == parameter.is_self
+                    let source_contract =
+                        function
+                            .structural_parameters
+                            .iter()
+                            .find(|parameter| {
+                                parameter.place == *source
+                                    && matches!(
+                                        place_kinds.get(source),
+                                        Some(StructuralPlaceKind::Parameter { position, is_self })
+                                            if *position == parameter.position
+                                                && *is_self == parameter.is_self
+                                    )
+                            })
+                            .map(|parameter| {
+                                (
+                                    parameter.structural_type,
+                                    parameter.multiplicity,
+                                    parameter.qualifications.as_slice(),
+                                    parameter.projected_qualifications.as_slice(),
                                 )
-                        })
-                        .map(|parameter| {
-                            (
-                                parameter.structural_type,
-                                parameter.multiplicity,
-                                parameter.qualifications.as_slice(),
-                                parameter.projected_qualifications.as_slice(),
-                            )
-                        })
-                        .or_else(|| {
-                            let Some(StructuralPlaceKind::OperationResult {
-                                producer,
-                                structural_type,
-                            }) = place_kinds.get(source).copied()
-                            else {
-                                return None;
-                            };
-                            function
+                            })
+                            .or_else(|| {
+                                let Some(StructuralPlaceKind::OperationResult {
+                                    producer,
+                                    structural_type,
+                                }) = place_kinds.get(source).copied()
+                                else {
+                                    return None;
+                                };
+                                function
                                 .blocks
                                 .iter()
                                 .flat_map(|block| &block.nodes)
                                 .find_map(|node| match &node.operation {
-                                    O::EstablishScalarCase {
+                                    O::EstablishScalarArray { psi_operation, result, .. }
+                                    | O::EstablishScalarCase {
                                         psi_operation,
                                         result,
                                         ..
@@ -383,7 +385,7 @@ pub(crate) fn validate_structural_root_operations(
                                     }
                                     _ => None,
                                 })
-                        });
+                            });
                     if source_contract.is_none_or(
                         |(structural_type, multiplicity, qualifications, projected)| {
                             structural_type != signature.structural_type

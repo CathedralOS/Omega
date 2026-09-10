@@ -49,6 +49,7 @@ pub(crate) fn operation_scalar_types_match(
             scalar(value.value) == Some(value.scalar_type)
         }
         O::PrimitiveScalarRead { .. }
+        | O::EstablishScalarArray { .. }
         | O::EstablishScalarCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }

@@ -20,6 +20,14 @@ use terminal_psi::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractOperation {
+    /// Establish one exact recursive fixed array from row-major scalar leaves.
+    /// Empty dimensions retain their declared type; physical storage is chosen
+    /// downstream, independently of this complete semantic payload.
+    EstablishScalarArray {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        elements: Vec<ValueId>,
+    },
     /// Establish initialized activation-local primitive storage, not a scalar alias.
     EstablishPrimitiveLocal {
         psi_operation: OperationId,

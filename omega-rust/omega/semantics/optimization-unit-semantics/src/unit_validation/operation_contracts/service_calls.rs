@@ -86,6 +86,9 @@ pub(crate) fn operation_structural_call_contract_matches(
     domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
 ) -> bool {
     match operation {
+        O::EstablishScalarArray { .. } => {
+            scalar_array_establishment_matches(caller, operation, types)
+        }
         O::EstablishScalarCase { .. } => {
             scalar_case_establishment_matches(caller, operation, types)
         }
@@ -238,6 +241,7 @@ pub(crate) fn operation_structural_call_contract_matches(
                 result,
                 callee,
                 exact_payloadless_structural_call(operation, callee, types)
+                    || plain_scalar_array_call(operation, callee, types)
                     || plain_scalar_sum_call(operation, callee, types)
                     || exact_plain_affine_structural_call(operation, callee, types),
                 claim_transfers,

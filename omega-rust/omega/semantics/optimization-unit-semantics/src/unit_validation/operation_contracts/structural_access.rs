@@ -318,7 +318,8 @@ fn structural_operation_result_contract(
                 O::ByteSequenceSubslice { result, .. } => {
                     (result, terminal_psi::StructuralAccess::SharedBorrow)
                 }
-                O::EstablishScalarCase { result, .. }
+                O::EstablishScalarArray { result, .. }
+                | O::EstablishScalarCase { result, .. }
                 | O::EstablishAffineScalarRecord { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {

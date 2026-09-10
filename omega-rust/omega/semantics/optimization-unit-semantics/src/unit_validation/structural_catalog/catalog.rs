@@ -40,11 +40,6 @@ pub(super) fn index_structural_types(
                     OptimizationUnitValidationError::InvalidStructuralTypeIdentity(declaration.id),
                 );
             }
-            terminal_psi::StructuralTypeShape::FixedArray { length: 0, .. } => {
-                return Err(
-                    OptimizationUnitValidationError::InvalidStructuralArrayLength(declaration.id),
-                );
-            }
             terminal_psi::StructuralTypeShape::FixedArray { .. } => {}
             terminal_psi::StructuralTypeShape::Record { fields } => {
                 validate_structural_fields(unit, declaration.id, None, fields, true)?;
@@ -94,6 +89,20 @@ pub(super) fn index_structural_types(
         }
     }
     validate_structural_type_graph(&types)?;
+    // Empty primitive arrays retain their complete type below the zero extent.
+    // Resolve references and cycles first; zero bytes cannot hide invalid types.
+    for declaration in &unit.structural_types {
+        if matches!(
+            declaration.shape,
+            terminal_psi::StructuralTypeShape::FixedArray { length: 0, .. }
+        ) && terminal_semantics::scalar_array_leaf_shape(types.values().copied(), declaration.id)
+            .is_none()
+        {
+            return Err(
+                OptimizationUnitValidationError::InvalidStructuralArrayLength(declaration.id),
+            );
+        }
+    }
     Ok(types)
 }
 

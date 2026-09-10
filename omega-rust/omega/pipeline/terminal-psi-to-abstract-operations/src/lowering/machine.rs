@@ -26,16 +26,6 @@ pub(super) fn lower_machine(
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
 ) -> Result<AbstractFunction, LoweringError> {
-    // Arrays still lack native storage support. Keep that operation-specific
-    // boundary; the result category must not select a different body grammar.
-    if let Some(operation) = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .find(|operation| matches!(operation.kind, OperationKind::EstablishScalarArray { .. }))
-    {
-        return Err(LoweringError::UnsupportedScalarArray(operation.id));
-    }
     lower_ordinary_machine(
         machine,
         structural_types,

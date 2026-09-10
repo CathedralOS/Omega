@@ -1144,8 +1144,8 @@ Owners include
   `values/scalar/constant_array_projection.rs` only selects closed literal leaves.
   General value projection needs its complete executable representation, not
   a source rewrite that makes a constant addressable storage.
-  Array transport resume evidence (macOS AArch64, base `4388ef5d7c` plus the
-  ordered-body callee change, Cargo with `RUST_MIN_STACK=33554432`):
+  Array transport resume evidence (macOS AArch64, base `f73d4d4bc9` plus array
+  abstract-operation retention, Cargo with `RUST_MIN_STACK=33554432`):
   `cargo run -p omega -- inspect-terminal --machine transitive_computation_row tests/omega/pass/modules/module_array_constant_indices/main.omg`
   publishes verified Terminal Psi for transitive array-building scalar helpers.
   The [array production map](omega-rust/psi/compiler/terminal-production/README.md)
@@ -1157,8 +1157,17 @@ Owners include
   refinements need their complete predicate/evidence path; preserve existing
   scalar-only contract lowering while extending that route.
   Borrowed/projected payloads, state transfers, and boundary-provider array
-  results also remain unsupported. Native lowering rejects `EstablishScalarArray`,
-  including empty payloads.
+  results also remain unsupported. The focused
+  `cargo nextest run -p terminal-psi-to-abstract-operations --test scalar_array_construction --no-fail-fast`
+  admits exact constructors through ordinary/optimizer/native artifact projection
+  and independently validates current IR, including nested/empty dimensions and
+  transitive owned calls. The native fence now belongs to
+  `abstract-operations-to-target-operations/src/lowering/coordination.rs`:
+  it rejects `EstablishScalarArray` before ABI selection, including empty payloads.
+  Next acceptance is real native array construction/storage and argument/result
+  transport for this same customer. Use the existing aggregate layout owner;
+  array results and owned actuals cannot use the sum-only call/return handlers.
+  Empty values must preserve carrier/dimensions independently of zero physical bytes.
   Continue with complete value/storage paths and
   independent custody checks; do not
   substitute opaque structural identities for executable values.

@@ -380,6 +380,7 @@ fn operation_effect(
         | O::ByteSequenceWrite { .. }
         | O::StructuralScalarFieldStore { .. }
         | O::StoreDynamicDescriptor { .. }
+        | O::EstablishScalarArray { .. }
         | O::EstablishScalarCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }

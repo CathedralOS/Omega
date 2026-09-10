@@ -33,6 +33,21 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
     native_callbacks: &[crate::AdmittedNativeCallbackArgument],
 ) -> Result<target_operations::TargetOperationPlanWithNativeCallbacks, LoweringError> {
     projected_qualifications::reject_unsupported(plan)?;
+    // Abstract arrays retain complete semantic payloads. Native construction,
+    // aggregate call/result homes and empty-array ABI still need one connected
+    // implementation; reject here before signature selection can erase payloads
+    // or misclassify an array result as a sum.
+    if let Some(operation) = plan
+        .functions
+        .iter()
+        .flat_map(|function| &function.operations)
+        .find_map(|operation| match operation {
+            AbstractOperation::EstablishScalarArray { psi_operation, .. } => Some(*psi_operation),
+            _ => None,
+        })
+    {
+        return Err(LoweringError::UnsupportedScalarArray(operation));
+    }
     if !plan
         .functions
         .iter()
