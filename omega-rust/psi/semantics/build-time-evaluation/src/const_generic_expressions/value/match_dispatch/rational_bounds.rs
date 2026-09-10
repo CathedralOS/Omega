@@ -1,4 +1,4 @@
-//! All-arm nonzero evidence for anonymous arithmetic containing dispatch.
+//! All-arm numeric evidence for anonymous arithmetic containing dispatch.
 //!
 //! A union of closed rational intervals contains every result, regardless of
 //! which arm executes. Negative and positive alternatives stay separate at
@@ -10,7 +10,13 @@
 //!
 //! Joins still lose correlations and same-sign gaps. A possible zero leaves an
 //! obligation open; it is not evidence that execution actually divides by zero.
-//! This is not integer landing and proves neither integrality nor carrier fit.
+//! A rational lattice additionally contains every result as offset + stride*k
+//! for some integer k. Joins retain a common divisor of strides and offsets;
+//! arithmetic transports it without rounding intermediate fractions. Integral
+//! offset and stride prove integrality, while the intervals prove carrier fit.
+//! An integral pair of interval endpoints alone proves neither: joining 1, 1.5,
+//! and 2 must not erase the fractional interior. Nonconstant division generally
+//! loses lattice evidence, even when its rational bounds remain useful.
 //! Integer interval analysis has different division and width semantics, so only
 //! its interval laws apply here; all arithmetic uses the shared exact rationals.
 //!
@@ -21,7 +27,8 @@
 //! Both children are checked even when multiplication by zero would erase their
 //! result, since an undefined anonymous subexpression has no numeric value.
 
-use numerics::bignum::BigRational;
+use numerics::bignum::{BigInt, BigRational};
+use numerics::literals::LandedIntegerType;
 use typed_trees::{
     TypedTrees,
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode},
@@ -31,8 +38,52 @@ use validation::evaluate_anonymous_numeric_expression_with_selected_match_arms;
 pub(super) fn excludes_zero(
     program: &TypedTrees,
     root: ExpressionHandle,
-    mut builtin: impl FnMut(ExpressionHandle) -> bool,
+    builtin: impl FnMut(ExpressionHandle) -> bool,
 ) -> Result<bool, String> {
+    Ok(analyze(program, root, builtin)?.excludes_zero())
+}
+
+pub(super) fn validate_integer_landing(
+    program: &TypedTrees,
+    root: ExpressionHandle,
+    carrier: LandedIntegerType,
+    builtin: impl FnMut(ExpressionHandle) -> bool,
+) -> Result<bool, String> {
+    let bounds = analyze(program, root, builtin)?;
+    if !bounds
+        .lattice
+        .as_ref()
+        .is_some_and(RationalLattice::is_integral)
+    {
+        return Err(
+            "anonymous constant Match landing requires an all-arm integral result proof".into(),
+        );
+    }
+    let width = carrier.bit_width();
+    let (minimum, maximum) = if carrier.is_signed() {
+        let magnitude = 1i128 << (width - 1);
+        (-magnitude, magnitude - 1)
+    } else {
+        (0, (1i128 << width) - 1)
+    };
+    let minimum = BigRational::from_integer(BigInt::from_i128(minimum));
+    let maximum = BigRational::from_integer(BigInt::from_i128(maximum));
+    if !bounds.intervals().all(|interval| {
+        !interval.low.cmp_value(&minimum).is_lt() && !interval.high.cmp_value(&maximum).is_gt()
+    }) {
+        return Err(format!(
+            "anonymous constant Match landing requires every arm to fit `{}`",
+            carrier.name()
+        ));
+    }
+    Ok(bounds.fractional_history)
+}
+
+fn analyze(
+    program: &TypedTrees,
+    root: ExpressionHandle,
+    mut builtin: impl FnMut(ExpressionHandle) -> bool,
+) -> Result<RationalBounds, String> {
     enum Step {
         Enter(ExpressionHandle),
         Binary(BinaryOperator),
@@ -96,10 +147,9 @@ pub(super) fn excludes_zero(
     if values.len() != 1 {
         return Err("anonymous arithmetic did not produce one rational range".into());
     }
-    Ok(values
+    values
         .pop()
-        .ok_or("missing anonymous rational bounds")?
-        .excludes_zero())
+        .ok_or("missing anonymous rational bounds".into())
 }
 
 #[derive(Default)]
@@ -107,11 +157,20 @@ struct RationalBounds {
     negative: Option<RationalInterval>,
     positive: Option<RationalInterval>,
     containing_zero: Option<RationalInterval>,
+    lattice: Option<RationalLattice>,
+    fractional_history: bool,
 }
 
 impl RationalBounds {
     fn constant(value: BigRational) -> Self {
-        let mut bounds = Self::default();
+        let mut bounds = Self {
+            fractional_history: value.to_integer_exact().is_none(),
+            lattice: Some(RationalLattice {
+                offset: value.clone(),
+                stride: BigRational::zero(),
+            }),
+            ..Self::default()
+        };
         bounds.include_interval(RationalInterval::constant(value));
         bounds
     }
@@ -143,6 +202,12 @@ impl RationalBounds {
     }
 
     fn include(&mut self, other: Self) {
+        self.fractional_history |= other.fractional_history;
+        self.lattice = self
+            .lattice
+            .as_ref()
+            .zip(other.lattice.as_ref())
+            .and_then(|(left, right)| left.join(right));
         for interval in [other.negative, other.positive, other.containing_zero]
             .into_iter()
             .flatten()
@@ -152,7 +217,20 @@ impl RationalBounds {
     }
 
     fn apply(&self, operator: BinaryOperator, right: &Self) -> Result<Self, String> {
-        let mut result = Self::default();
+        let mut result = Self {
+            lattice: self
+                .lattice
+                .as_ref()
+                .zip(right.lattice.as_ref())
+                .and_then(|(left, right)| left.apply(operator, right)),
+            ..Self::default()
+        };
+        result.fractional_history = self.fractional_history
+            || right.fractional_history
+            || !result
+                .lattice
+                .as_ref()
+                .is_some_and(RationalLattice::is_integral);
         for left_interval in self.intervals() {
             for right_interval in right.intervals() {
                 result.include_interval(left_interval.apply(operator, right_interval)?);
@@ -163,6 +241,69 @@ impl RationalBounds {
         }
         Ok(result)
     }
+}
+
+struct RationalLattice {
+    offset: BigRational,
+    stride: BigRational,
+}
+
+impl RationalLattice {
+    fn is_integral(&self) -> bool {
+        self.offset.to_integer_exact().is_some() && self.stride.to_integer_exact().is_some()
+    }
+
+    fn join(&self, other: &Self) -> Option<Self> {
+        Some(Self {
+            offset: self.offset.clone(),
+            stride: common_divisor(
+                &common_divisor(&self.stride, &other.stride)?,
+                &self.offset.sub(&other.offset),
+            )?,
+        })
+    }
+
+    fn apply(&self, operator: BinaryOperator, right: &Self) -> Option<Self> {
+        let (offset, stride) = match operator {
+            BinaryOperator::Add | BinaryOperator::Subtract => (
+                if operator == BinaryOperator::Add {
+                    self.offset.add(&right.offset)
+                } else {
+                    self.offset.sub(&right.offset)
+                },
+                common_divisor(&self.stride, &right.stride)?,
+            ),
+            // (a + s*m)(b + t*n) = ab + sb*m + at*n + st*m*n.
+            BinaryOperator::Multiply => (
+                self.offset.mul(&right.offset),
+                common_divisor(
+                    &common_divisor(
+                        &self.stride.mul(&right.offset),
+                        &self.offset.mul(&right.stride),
+                    )?,
+                    &self.stride.mul(&right.stride),
+                )?,
+            ),
+            BinaryOperator::Divide if right.stride.is_zero() => (
+                self.offset.div(&right.offset)?,
+                self.stride.div(&right.offset)?,
+            ),
+            _ => return None,
+        };
+        Some(Self { offset, stride })
+    }
+}
+
+/// On a shared positive denominator, integer gcd gives the rational unit of
+/// which both operands are integer multiples. Zero denotes a singleton stride.
+fn common_divisor(left: &BigRational, right: &BigRational) -> Option<BigRational> {
+    let (left_numerator, left_denominator) = left.as_integer_ratio();
+    let (right_numerator, right_denominator) = right.as_integer_ratio();
+    let numerator = left_numerator
+        .mul(right_denominator)
+        .gcd(&right_numerator.mul(left_denominator));
+    let denominator = left_denominator.mul(right_denominator);
+    BigRational::from_integer(numerator).div(&BigRational::from_integer(denominator))
 }
 
 struct RationalInterval {
@@ -247,6 +388,128 @@ mod tests {
         BigRational::from_integer(BigInt::from_i64(numerator))
             .div(&BigRational::from_integer(BigInt::from_i64(denominator)))
             .expect("nonzero test denominator")
+    }
+
+    fn lattice_contains(lattice: &RationalLattice, value: &BigRational) -> bool {
+        let difference = value.sub(&lattice.offset);
+        if lattice.stride.is_zero() {
+            difference.is_zero()
+        } else {
+            difference
+                .div(&lattice.stride)
+                .is_some_and(|multiple| multiple.to_integer_exact().is_some())
+        }
+    }
+
+    #[test]
+    fn rational_lattice_operations_contain_sampled_exact_values() {
+        for left_offset in -2..=2 {
+            for right_offset in -2..=2 {
+                for left_stride in 0..=2 {
+                    for right_stride in 0..=2 {
+                        let left = RationalLattice {
+                            offset: fraction(left_offset, 2),
+                            stride: fraction(left_stride, 2),
+                        };
+                        let right = RationalLattice {
+                            offset: fraction(right_offset, 3),
+                            stride: fraction(right_stride, 3),
+                        };
+                        let joined = left.join(&right).expect("rational gcd");
+                        for operator in [
+                            BinaryOperator::Add,
+                            BinaryOperator::Subtract,
+                            BinaryOperator::Multiply,
+                            BinaryOperator::Divide,
+                        ] {
+                            let Some(result) = left.apply(operator, &right) else {
+                                assert_eq!(operator, BinaryOperator::Divide);
+                                assert!(right_stride != 0 || right_offset == 0);
+                                continue;
+                            };
+                            for left_multiple in -2..=2 {
+                                let left_value = left
+                                    .offset
+                                    .add(&left.stride.mul(&fraction(left_multiple, 1)));
+                                assert!(lattice_contains(&joined, &left_value));
+                                for right_multiple in -2..=2 {
+                                    let right_value = right
+                                        .offset
+                                        .add(&right.stride.mul(&fraction(right_multiple, 1)));
+                                    assert!(lattice_contains(&joined, &right_value));
+                                    let value = match operator {
+                                        BinaryOperator::Add => left_value.add(&right_value),
+                                        BinaryOperator::Subtract => left_value.sub(&right_value),
+                                        BinaryOperator::Multiply => left_value.mul(&right_value),
+                                        BinaryOperator::Divide => left_value
+                                            .div(&right_value)
+                                            .expect("fixed nonzero divisor"),
+                                        _ => unreachable!(),
+                                    };
+                                    assert!(
+                                        lattice_contains(&result, &value),
+                                        "{operator:?}: {value:?}"
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn integer_endpoints_do_not_prove_fractional_interiors_integral() {
+        let mut bounds = RationalBounds::constant(fraction(1, 1));
+        bounds.include(RationalBounds::constant(fraction(3, 2)));
+        bounds.include(RationalBounds::constant(fraction(2, 1)));
+        assert!(
+            bounds
+                .intervals()
+                .all(|interval| interval.low.to_integer_exact().is_some()
+                    && interval.high.to_integer_exact().is_some())
+        );
+        assert!(
+            !bounds
+                .lattice
+                .as_ref()
+                .expect("rational lattice")
+                .is_integral()
+        );
+        let doubled = bounds
+            .apply(
+                BinaryOperator::Multiply,
+                &RationalBounds::constant(fraction(2, 1)),
+            )
+            .expect("defined arithmetic");
+        assert!(
+            doubled
+                .lattice
+                .as_ref()
+                .expect("transported lattice")
+                .is_integral()
+        );
+        assert!(
+            doubled.fractional_history,
+            "cancellation cannot erase diagnostic history"
+        );
+
+        let mut divisors = RationalBounds::constant(fraction(1, 1));
+        divisors.include(RationalBounds::constant(fraction(6, 1)));
+        let quotients = RationalBounds::constant(fraction(6, 1))
+            .apply(BinaryOperator::Divide, &divisors)
+            .expect("nonzero interval");
+        assert!(
+            quotients
+                .intervals()
+                .all(|interval| interval.low.to_integer_exact().is_some()
+                    && interval.high.to_integer_exact().is_some())
+        );
+        assert!(
+            quotients.lattice.is_none(),
+            "6/4 is fractional inside integer extrema 1..6"
+        );
     }
 
     #[test]

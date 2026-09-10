@@ -424,6 +424,12 @@ impl BigRational {
         (self.denominator == BigInt::from_u64(1)).then(|| self.numerator.clone())
     }
 
+    /// Borrow the reduced numerator and positive denominator without rounding.
+    /// Signed zero has numerator zero; its sign remains separate metadata.
+    pub fn as_integer_ratio(&self) -> (&BigInt, &BigInt) {
+        (&self.numerator, &self.denominator)
+    }
+
     /// Truncate toward zero, matching the language's float-to-integer
     /// conversion rule.
     pub fn truncate_to_integer(&self) -> BigInt {

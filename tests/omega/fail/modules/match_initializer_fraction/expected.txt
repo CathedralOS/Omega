@@ -1,0 +1,1 @@
+all-arm integral result proof

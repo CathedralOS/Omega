@@ -16,12 +16,75 @@ fn program(body: &str) -> (TypedTrees, ExpressionHandle) {
         syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolved");
     let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("typed");
-    let expression = program
-        .expression_table
-        .iter_expressions()
-        .find_map(|(handle, node)| matches!(node, ExpressionNode::Match(_)).then_some(handle))
-        .expect("Match root");
+    let state = &program.machine_states(&program.machines()[0])[0];
+    let [typed_trees::statement::StatementNode::Expression(expression)] =
+        program.statement_table.statements(state.statement_nodes)
+    else {
+        panic!("one source expression");
+    };
+    let expression = *expression;
     (program, expression)
+}
+
+#[test]
+fn surrounding_arithmetic_warns_for_each_exact_fractional_result_path() {
+    for (body, destination, expected) in [
+        (
+            "((match true { true -> 7 / 2, false -> 9 / 2 }) * 2) + 0u8",
+            PrimitiveType::U8,
+            "7",
+        ),
+        (
+            "false && (((match (1u8 / 0 == 0) { true -> 7 / 2, false -> 9 / 2 }) * 2) == 0u8)",
+            PrimitiveType::Bool,
+            "false",
+        ),
+        (
+            "true || (((match (1u8 / 0 == 0) { true -> 7 / 2, false -> 9 / 2 }) * 2) == 0u8)",
+            PrimitiveType::Bool,
+            "true",
+        ),
+    ] {
+        let (program, expression) = program(body);
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let (value, warnings) = evaluate(&program, machine, state, expression, destination)
+            .expect("all-arm landing, no skipped subject evaluation");
+        assert_eq!(value.display, expected);
+        assert_eq!(warnings.len(), 2, "{body}: {warnings:?}");
+        for (origin, result) in [("7/2", "7"), ("9/2", "9")] {
+            assert!(
+                warnings
+                    .iter()
+                    .any(|warning| warning.message.contains(&format!("`{origin}`"))
+                        && warning.message.contains(&format!("integer `{result}`"))),
+                "{warnings:?}"
+            );
+        }
+        assert_ne!(warnings[0].source_span, warnings[1].source_span);
+    }
+}
+
+#[test]
+fn nested_fractional_result_edges_restore_each_exact_diagnostic_context() {
+    let (program, expression) = program(
+        "(match true { true -> (match false { true -> 7 / 2, false -> 9 / 2 }), false -> (match true { true -> 11 / 2, false -> 13 / 2 }) }) * 2",
+    );
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let (value, warnings) = evaluate(&program, machine, state, expression, PrimitiveType::U8)
+        .expect("nested alternatives share no stale arm selection");
+    assert_eq!(value.display, "9");
+    assert_eq!(warnings.len(), 4, "{warnings:?}");
+    for expected in [7, 9, 11, 13] {
+        assert!(
+            warnings.iter().any(
+                |warning| warning.message.contains(&format!("`{expected}/2`"))
+                    && warning.message.contains(&format!("integer `{expected}`"))
+            ),
+            "{warnings:?}"
+        );
+    }
 }
 
 #[test]
