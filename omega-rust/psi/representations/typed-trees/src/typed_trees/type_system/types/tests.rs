@@ -7,6 +7,63 @@ use crate::name::Identifier;
 use symbols::SymbolHandle;
 
 #[test]
+fn qualified_result_lookup_preserves_the_exact_predicate_target() {
+    use numerics::arithmetic::ArithmeticDomain;
+    let mut types = TypeReferenceTable::new();
+    let carrier = SymbolHandle::from_parts(1, 0);
+    let base = types.insert(TypeReferenceNode::Named {
+        symbol: carrier,
+        name: Identifier::generated("u64"),
+    });
+    let bounds = types.insert_constraints([TypeConstraintNode::Range {
+        minimum: crate::expression::ExpressionHandle::from_parts(1, 0),
+        maximum: crate::expression::ExpressionHandle::from_parts(2, 0),
+    }]);
+    let target = types.insert(TypeReferenceNode::Constrained {
+        base_type: base,
+        constraints: bounds,
+    });
+    let other_target = types.insert(TypeReferenceNode::Constrained {
+        base_type: base,
+        constraints: bounds,
+    });
+    let policy = types.insert_constraints([TypeConstraintNode::ArithmeticDomain(
+        ArithmeticDomain::Wrapping,
+    )]);
+    let result = types.insert(TypeReferenceNode::Constrained {
+        base_type: target,
+        constraints: policy,
+    });
+    assert_eq!(
+        types.find_policy_qualified_type_reference(target, ArithmeticDomain::Wrapping),
+        Some(result)
+    );
+    for missing in [base, other_target, super::TypeReferenceHandle::invalid()] {
+        assert!(
+            types
+                .find_policy_qualified_type_reference(missing, ArithmeticDomain::Wrapping)
+                .is_none()
+        );
+    }
+    assert!(
+        types
+            .find_policy_qualified_type_reference(target, ArithmeticDomain::Saturating)
+            .is_none()
+    );
+    assert!(
+        types
+            .find_arithmetic_result_type_reference(carrier, ArithmeticDomain::Wrapping)
+            .is_none()
+    );
+    assert_eq!(
+        types
+            .clone()
+            .find_policy_qualified_type_reference(target, ArithmeticDomain::Wrapping),
+        Some(result)
+    );
+}
+
+#[test]
 fn arithmetic_result_lookup_requires_exact_carrier_and_policy_only_shape() {
     use numerics::arithmetic::ArithmeticDomain;
     let mut types = TypeReferenceTable::new();

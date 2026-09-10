@@ -45,8 +45,12 @@ range predicates or relying on an incidental result annotation. Cast policy is
 retained until explicit erasure; incompatible Match result policies reject even
 before an outer cast. A typed Match arm supplies its anonymous peers' landing
 at their own result edges, even when no enclosing consumer supplies a destination.
-Semantic-domain results, policy casts with explicit result
-predicates, and selected operators without instantiated results remain unresolved.
+Policy casts retain a shell over their exact target predicates in the existing
+type table. Numeric Match joins preserve a shared exact reference, or weaken
+ranges to a common carrier and policy; they cannot export the first arm's
+predicate as a promise about another arm. An unknown result joins this numeric
+path only when its expression is genuinely anonymous numeric. Semantic-domain
+results and selected operators without instantiated results remain unresolved.
 Before such predicates may become result facts, each executing cast must prove
 its asserted ranges from the live source environment. The arithmetic validator
 owns that obligation; the expression scanner supplies selected reachability for

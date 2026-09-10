@@ -585,3 +585,76 @@ fn proved_range_qualified_casts_preserve_values_across_policy_selection() {
         }
     }
 }
+
+#[test]
+fn range_and_policy_qualified_match_arms_land_anonymous_results() {
+    for policy in ["Wrapping", "Saturating", "Trapping"] {
+        let source = format!(
+            "machine choose(subject: bool) -> u64 {{ (match subject {{ true -> 1 as u64[0..=10] in {policy}, false -> 18446744073709551616 / 18446744073709551616 }}) as u64 }}"
+        );
+        for subject in [true, false] {
+            let (_, execution) = execute(&source, &[TerminalScalarValue::Boolean(subject)]);
+            assert_eq!(
+                execution.value(),
+                TerminalExecutionResult::Scalar(unsigned(1)),
+                "{source}; subject={subject}"
+            );
+        }
+    }
+}
+
+#[test]
+fn arithmetic_drops_match_input_ranges_without_erasing_integer_policy() {
+    for (policy, computed_result) in [("Wrapping", 4), ("Saturating", 255)] {
+        let qualified = format!("250 as u8[0..=250] in {policy}");
+        for (expression, otherwise_result) in [
+            (
+                format!(
+                    "(match subject {{ true -> {qualified}, false -> 18446744073709551616 / 18446744073709551616 }}) + 10"
+                ),
+                11,
+            ),
+            (
+                format!("match subject {{ true -> ({qualified}) + 10, false -> 255 }}"),
+                255,
+            ),
+        ] {
+            // Erase policy at u8 before widening, so the outer u64 destination
+            // cannot change the addition's carrier or preserve the input range.
+            let source =
+                format!("machine choose(subject: bool) -> u64 {{ (({expression}) as u8) as u64 }}");
+            for subject in [true, false] {
+                let (_, execution) = execute(&source, &[TerminalScalarValue::Boolean(subject)]);
+                let expected = if subject {
+                    computed_result
+                } else {
+                    otherwise_result
+                };
+                assert_eq!(
+                    execution.value(),
+                    TerminalExecutionResult::Scalar(unsigned(expected)),
+                    "{source}; subject={subject}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn match_numeric_range_weakening_preserves_each_arm_value() {
+    for policy in ["", " in Wrapping", " in Saturating", " in Trapping"] {
+        for alternative in ["11".to_owned(), format!("11 as u64[0..=20]{policy}")] {
+            let source = format!(
+                "machine choose(subject: bool) -> u64 {{ (match subject {{ true -> 1 as u64[0..=10]{policy}, false -> {alternative} }}) as u64 }}"
+            );
+            for (subject, expected) in [(true, 1), (false, 11)] {
+                let (_, execution) = execute(&source, &[TerminalScalarValue::Boolean(subject)]);
+                assert_eq!(
+                    execution.value(),
+                    TerminalExecutionResult::Scalar(unsigned(expected)),
+                    "{source}; subject={subject}"
+                );
+            }
+        }
+    }
+}

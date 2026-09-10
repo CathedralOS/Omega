@@ -2,7 +2,10 @@
 //! Authored declarations keep their original references and predicates. Later
 //! read-only result queries can name a builtin operation's carrier and policy
 //! without depending on an incidental return annotation or exporting an input
-//! range as a result fact. This retention does not select an operation.
+//! range as a result fact. Casts additionally retain a policy shell over their
+//! exact authored target: their asserted predicates are obligations checked by
+//! validation, unlike the input ranges discarded by builtin arithmetic. Neither
+//! retention selects an operation or establishes predicate membership.
 
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::BuiltinTypeAtom;
@@ -72,6 +75,28 @@ pub(crate) fn retain_arithmetic_result_type(
         )
     ) {
         return;
+    }
+    if let Some(cast_policy) = cast_domain
+        && cast_policy != ArithmeticDomain::Exact
+        && domain.is_none()
+        && reference != current
+        && program
+            .type_reference_table
+            .find_policy_qualified_type_reference(reference, cast_policy)
+            .is_none()
+    {
+        // Preserve the authored target's range handles, not a copied predicate
+        // list or a replacement target. Keeping the cast target unchanged also
+        // keeps its membership proof separate from this result qualification.
+        let constraints = program
+            .type_reference_table
+            .insert_constraints([TypeConstraintNode::ArithmeticDomain(cast_policy)]);
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::Constrained {
+                base_type: reference,
+                constraints,
+            });
     }
     let domain = cast_domain.unwrap_or(domain.unwrap_or(ArithmeticDomain::Exact));
     if program

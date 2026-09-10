@@ -1,0 +1,168 @@
+use super::expression_result_type_reference;
+use numerics::arithmetic::ArithmeticDomain;
+use source_files_to_tokens::Lexer;
+use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees::TypedTrees;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::statement::StatementNode;
+use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+
+fn typed(arms: &str) -> TypedTrees {
+    let source = format!("machine run(flag: bool) -> u64 {{ (match flag {{ {arms} }}) as u64 }}");
+    let tokens = Lexer::new(&source).tokenize().expect("tokens");
+    let syntax = parse_syntax_trees(&tokens).expect("syntax");
+    let resolved = lower_syntax_trees(&syntax).expect("resolution");
+    lower_symbol_resolved_trees(&resolved).expect("typing")
+}
+
+fn dispatch_handle(program: &TypedTrees) -> ExpressionHandle {
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let [StatementNode::Expression(result)] =
+        program.statement_table.statements(state.statement_nodes)
+    else {
+        panic!("outer result expression");
+    };
+    let ExpressionNode::Cast(cast) = program.expression_table.expression(*result) else {
+        panic!("outer cast");
+    };
+    assert!(matches!(
+        program.expression_table.expression(cast.value),
+        ExpressionNode::Match(_)
+    ));
+    cast.value
+}
+
+fn query(program: &TypedTrees, expression: ExpressionHandle) -> TypeReferenceHandle {
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    expression_result_type_reference(program, machine, state, expression)
+        .expect("retained result reference")
+}
+
+fn assert_policy_only(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    policy: ArithmeticDomain,
+) {
+    let table = &program.type_reference_table;
+    let carrier_reference = if policy == ArithmeticDomain::Exact {
+        reference
+    } else {
+        let TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } = table.type_reference(reference)
+        else {
+            panic!("policy-only constrained result");
+        };
+        assert!(matches!(table.constraint_span(*constraints),
+            Some([TypeConstraintNode::ArithmeticDomain(actual)]) if *actual == policy));
+        *base_type
+    };
+    let TypeReferenceNode::Named { symbol, .. } = table.type_reference(carrier_reference) else {
+        panic!("bare carrier, without inherited range");
+    };
+    assert_eq!(
+        program.symbols.builtin_type_atom(*symbol),
+        Some(symbols::BuiltinTypeAtom::U64)
+    );
+    assert_eq!(
+        table.find_arithmetic_result_type_reference(*symbol, policy),
+        Some(reference)
+    );
+}
+
+#[test]
+fn match_joins_drop_predicates_not_shared_by_every_result() {
+    for (suffix, policy) in [
+        ("", ArithmeticDomain::Exact),
+        (" in Wrapping", ArithmeticDomain::Wrapping),
+        (" in Saturating", ArithmeticDomain::Saturating),
+        (" in Trapping", ArithmeticDomain::Trapping),
+    ] {
+        for peer in ["11".to_owned(), format!("11 as u64 [0..=20]{suffix}")] {
+            let cast = format!("1 as u64 [0..=10]{suffix}");
+            for arms in [
+                format!("true -> {cast}, false -> {peer}"),
+                format!("true -> {peer}, false -> {cast}"),
+            ] {
+                let program = typed(&arms);
+                assert_policy_only(&program, query(&program, dispatch_handle(&program)), policy);
+            }
+        }
+    }
+}
+
+#[test]
+fn direct_cast_retains_its_exact_authored_target_and_policy() {
+    for (suffix, policy) in [
+        ("", ArithmeticDomain::Exact),
+        (" in Wrapping", ArithmeticDomain::Wrapping),
+        (" in Saturating", ArithmeticDomain::Saturating),
+        (" in Trapping", ArithmeticDomain::Trapping),
+    ] {
+        let program = typed(&format!("true -> 1 as u64 [0..=10]{suffix}, false -> 11"));
+        let ExpressionNode::Match(dispatch) = program
+            .expression_table
+            .expression(dispatch_handle(&program))
+        else {
+            panic!("match");
+        };
+        let value = program.expression_table.match_arms(dispatch.arms)[0].value;
+        let ExpressionNode::Cast(cast) = program.expression_table.expression(value) else {
+            panic!("ranged cast");
+        };
+        let actual = query(&program, value);
+        let table = &program.type_reference_table;
+        let TypeReferenceNode::Constrained { constraints, .. } =
+            table.type_reference(cast.target_type)
+        else {
+            panic!("authored range target");
+        };
+        assert!(matches!(
+            table.constraint_span(*constraints),
+            Some([TypeConstraintNode::Range { .. }])
+        ));
+        if policy == ArithmeticDomain::Exact {
+            assert_eq!(actual, cast.target_type);
+        } else {
+            let TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } = table.type_reference(actual)
+            else {
+                panic!("qualified cast result");
+            };
+            assert_eq!(*base_type, cast.target_type);
+            assert!(matches!(table.constraint_span(*constraints),
+                Some([TypeConstraintNode::ArithmeticDomain(actual)]) if *actual == policy));
+            assert_eq!(
+                table.find_policy_qualified_type_reference(cast.target_type, policy),
+                Some(actual)
+            );
+        }
+    }
+}
+
+#[test]
+fn shared_exact_result_reference_preserves_its_predicates_at_join() {
+    for suffix in ["", " in Wrapping"] {
+        let mut program = typed(&format!("true -> 1 as u64 [0..=10]{suffix}, false -> 11"));
+        let root = dispatch_handle(&program);
+        let ExpressionNode::Match(dispatch) = program.expression_table.expression(root) else {
+            panic!("match");
+        };
+        let mut arms = program.expression_table.match_arms(dispatch.arms).to_vec();
+        let retained = query(&program, arms[0].value);
+        arms[1].value = arms[0].value;
+        let arms = program.expression_table.insert_match_arms(arms);
+        let ExpressionNode::Match(dispatch) = program.expression_table.expression_mut(root) else {
+            panic!("match");
+        };
+        dispatch.arms = arms;
+        assert_eq!(query(&program, root), retained);
+    }
+}
