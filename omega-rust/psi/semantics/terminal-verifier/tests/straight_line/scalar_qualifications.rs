@@ -68,6 +68,90 @@ fn scalar_membership_introduction_and_return_verify_under_every_policy() {
     terminal_verifier::validate_module_representation(&module).unwrap();
 }
 
+fn erasure_module() -> TerminalModule {
+    let mut module = module();
+    module.machines[0].parameters[0].qualifications = ScalarQualificationSetId::new(1);
+    module.machines[0].blocks[1].parameters[0].qualifications = ScalarQualificationSetId::ZERO;
+    module.machines[0]
+        .result
+        .scalar_mut()
+        .unwrap()
+        .qualifications = ScalarQualificationSetId::ZERO;
+    module
+}
+
+#[test]
+fn scalar_membership_explicit_erasure_verifies_under_every_policy() {
+    let module = erasure_module();
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .unwrap();
+    terminal_verifier::validate_module_for_interpretation(&module).unwrap();
+    terminal_verifier::validate_module_for_optimization(&module).unwrap();
+    terminal_verifier::validate_module_representation(&module).unwrap();
+}
+
+#[test]
+fn scalar_membership_erasure_rejects_implicit_stale_equal_and_orphan_edges() {
+    let changes: &[fn(&mut TerminalModule)] = &[
+        |module| module.scalar_qualifications.coercions.clear(),
+        |module| {
+            module
+                .scalar_qualifications
+                .coercions
+                .push(module.scalar_qualifications.coercions[0])
+        },
+        |module| module.scalar_qualifications.coercions[0].edge = EdgeId::new(2).unwrap(),
+        |module| module.scalar_qualifications.coercions[0].argument_ordinal = 1,
+        |module| module.scalar_qualifications.coercions[0].source = value(2, 0).id,
+        |module| module.scalar_qualifications.coercions[0].destination = value(4, 0).id,
+        |module| module.scalar_qualifications.coercions[0].machine = MachineId::new(999).unwrap(),
+        |module| module.machines[0].parameters[0].qualifications = ScalarQualificationSetId::ZERO,
+        |module| module.machines[0].parameters[0].scalar_type = ScalarType::Boolean,
+    ];
+    for (index, change) in changes.iter().enumerate() {
+        let mut module = erasure_module();
+        change(&mut module);
+        assert!(
+            validate_module(&module).is_err(),
+            "erasure mutation {index}"
+        );
+    }
+}
+
+#[test]
+fn scalar_membership_partial_erasure_preserves_remaining_atoms_and_rejects_replacement() {
+    let mut module = module();
+    let mut second = module.scalar_qualifications.domains[0].clone();
+    second.id = ScalarDomainId::new(2).unwrap();
+    second.semantic_domain = DomainSemanticId::new(2).unwrap();
+    second.identity = "test::Other<u64>".into();
+    module.scalar_qualifications.domains.push(second);
+    module
+        .scalar_qualifications
+        .sets
+        .push(ScalarQualificationSet {
+            id: ScalarQualificationSetId::new(2),
+            domains: vec![
+                ScalarDomainId::new(1).unwrap(),
+                ScalarDomainId::new(2).unwrap(),
+            ],
+        });
+    module.machines[0].parameters[0].qualifications = ScalarQualificationSetId::new(2);
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .unwrap();
+    // Replacing Other by Km is neither strict addition nor strict removal.
+    module.scalar_qualifications.sets[1].domains.remove(0);
+    assert!(validate_module(&module).is_err());
+}
+
 #[test]
 fn observing_a_qualified_boolean_preserves_its_membership() {
     let mut module = module();

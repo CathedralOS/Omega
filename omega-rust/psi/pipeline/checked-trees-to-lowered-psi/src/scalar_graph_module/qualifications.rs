@@ -1,6 +1,7 @@
 //! Qualification creates a new SSA binding on an ordinary no-code edge.
 //! The old source declaration remains unchanged, including when it is still
-//! carried in the prefix. The final destination alone receives added tags.
+//! carried in the prefix. The final destination alone receives added or erased
+//! tags; explicit source-cast replay owns permission for that change.
 
 use super::*;
 
@@ -64,21 +65,30 @@ pub(super) fn emit(
                         "scalar qualification input set is absent",
                     ))?
             };
-            let destination_domains = catalog
-                .sets
-                .iter()
-                .find(|set| set.id == destination.qualifications)
-                .map(|set| set.domains.as_slice())
-                .ok_or(LoweringError::Unsupported(
-                    "scalar qualification output set is absent",
-                ))?;
-            if source.id == destination.id
-                || source_domains.len() >= destination_domains.len()
-                || source_domains
+            let destination_domains = if destination.qualifications.is_empty() {
+                &[][..]
+            } else {
+                catalog
+                    .sets
                     .iter()
-                    .any(|domain| destination_domains.binary_search(domain).is_err())
-            {
-                return unsupported("scalar qualification must add membership on a fresh value");
+                    .find(|set| set.id == destination.qualifications)
+                    .map(|set| set.domains.as_slice())
+                    .ok_or(LoweringError::Unsupported(
+                        "scalar qualification output set is absent",
+                    ))?
+            };
+            let introduction = source_domains.len() < destination_domains.len()
+                && source_domains
+                    .iter()
+                    .all(|domain| destination_domains.binary_search(domain).is_ok());
+            let erasure = destination_domains.len() < source_domains.len()
+                && destination_domains
+                    .iter()
+                    .all(|domain| source_domains.binary_search(domain).is_ok());
+            if source.id == destination.id || !(introduction || erasure) {
+                return unsupported(
+                    "scalar qualification must add or erase membership on a fresh value",
+                );
             }
             catalog
                 .coercions

@@ -55,16 +55,37 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
     ) -> Option<IntegerOperand> {
-        if let Some((value, domain)) = lower_scalar_expression(
-            self.program,
-            self.operators,
-            expression,
-            self.parameters,
-            self.authored_parameters,
-            self.parameter_types,
-            self.locals,
-            self.exact_integer_casts,
-        ) {
+        if let ExpressionNode::Cast(cast) = self.program.expression_table.expression(expression)
+            && (!cast.semantic_domain.is_empty()
+                || semantic_casts::result_type(self.program, self.state, cast.value).is_some_and(
+                    |reference| semantic_casts::has_declared_domains(self.program, reference),
+                ))
+        {
+            let result_type = semantic_casts::result_type(self.program, self.state, expression)?;
+            let primitive_type = self.program.primitive_type_reference(result_type)?;
+            if !is_integer(primitive_type) {
+                return None;
+            }
+            let computation = self.expression(expression, primitive_type)?;
+            return Some(IntegerOperand {
+                value: parameter(0, primitive_type),
+                value_source: ExpressionHandle::invalid(),
+                domain: ArithmeticDomain::Exact,
+                computation,
+            });
+        }
+        if !semantic_casts::requires_custody(self.program, self.state, expression)
+            && let Some((value, domain)) = lower_scalar_expression(
+                self.program,
+                self.operators,
+                expression,
+                self.parameters,
+                self.authored_parameters,
+                self.parameter_types,
+                self.locals,
+                self.exact_integer_casts,
+            )
+        {
             return Some(IntegerOperand {
                 value,
                 value_source: expression,

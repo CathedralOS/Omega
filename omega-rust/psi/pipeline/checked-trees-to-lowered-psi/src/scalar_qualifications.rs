@@ -290,7 +290,7 @@ impl PreparedScalarQualifications {
     }
 }
 
-fn type_atoms(
+pub(crate) fn type_atoms(
     checked: &CheckedTrees,
     reference: TypeReferenceHandle,
 ) -> Result<(PrimitiveType, Vec<(SymbolHandle, SemanticDomainId)>), LoweringError> {

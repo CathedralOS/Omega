@@ -8,6 +8,45 @@
 use super::*;
 use checked_trees::expression::BinaryOperator;
 
+/// Payload-only reconstruction cannot consume an explicit semantic transfer.
+/// Resolve the operand in the exact source scope, never by a matching name in
+/// another machine. Unknown non-anonymous results are not evidence of bareness.
+pub(super) fn cast_requires_custody(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    cast: &checked_trees::expression::TableCastExpression,
+) -> Result<bool, LoweringError> {
+    if !cast.semantic_domain.is_empty() {
+        return Ok(true);
+    }
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|candidate| candidate.symbol == machine)
+        .ok_or(LoweringError::Unsupported(
+            "scalar cast lost its source machine",
+        ))?;
+    let state = checked
+        .machine_states(machine)
+        .iter()
+        .find(|candidate| candidate.symbol == state)
+        .ok_or(LoweringError::Unsupported(
+            "scalar cast lost its source state",
+        ))?;
+    let Some(reference) =
+        validation::expression_result_type_reference(checked, machine, state, cast.value)
+    else {
+        return if validation::has_anonymous_numeric_results(checked, cast.value) {
+            Ok(false)
+        } else {
+            unsupported("scalar cast has no reconstructed operand type")
+        };
+    };
+    let (_, atoms) = crate::scalar_qualifications::type_atoms(checked, reference)?;
+    Ok(!atoms.is_empty())
+}
+
 pub(super) fn anonymous_match_value(
     checked: &CheckedTrees,
     source: ExpressionHandle,
@@ -71,6 +110,8 @@ pub(super) fn value(
 
 pub(super) fn application(
     checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
     mut source: ExpressionHandle,
     arity: usize,
 ) -> Result<Vec<ExpressionHandle>, LoweringError> {
@@ -81,7 +122,7 @@ pub(super) fn application(
         }
         visited.push(source);
         match checked.expression_table.expression(source) {
-            ExpressionNode::Cast(cast) if !cast.semantic_domain.is_empty() => {
+            ExpressionNode::Cast(cast) if cast_requires_custody(checked, machine, state, cast)? => {
                 return unsupported("computed application cannot erase a semantic qualification");
             }
             ExpressionNode::Binary(binary)

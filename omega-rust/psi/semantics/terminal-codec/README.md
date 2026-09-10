@@ -10,14 +10,14 @@ artifact envelope/manifest, debug map, installation payload, optimization
 execution, obligation ledger, and observation profile have distinct owners.
 Do not infer one section's identity from another section's current version.
 
-Current implementation markers are semantic format/vocabulary `87/95`, proof
+Current implementation markers are semantic format/vocabulary `87/96`, proof
 format `31`, artifact envelope `2`, and manifest `3`. The image-emission owner
 maintains the separately encoded installation payload (currently `93`).
 These are current codec facts, not a chronology or a promise of older acceptance.
 
 Scalar declarations encode their exact qualification-set identity. The semantic
 module encodes the predicate-/route-free domain catalog, canonical nonempty sets,
-and exact introduction-edge coordinates. Zero names the bare set, not an omitted
+and exact introduction/erasure-edge coordinates. Zero names the bare set, not an omitted
 historical field. Changing any definition, value set or coercion changes semantic
 identity; decoding never infers membership from the scalar payload.
 

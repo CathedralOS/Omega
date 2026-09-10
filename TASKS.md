@@ -1091,8 +1091,8 @@ Owners include
   exact static-argument substitution where quotient fact matching currently
   rejects unapplied bindings; canonical package-review membership records also
   need application arguments before indexed proof clauses can be exported.
-  Explicit semantic erasure, predicate/routed membership evidence, and shared
-  scalar/structural qualification transport also need their own custody.
+  Predicate/routed membership and erasure, plus shared scalar/structural
+  qualification transport, still need their own custody.
   Native callable-entry records still need catalog-bound qualified signatures;
   `native-artifact/src/callable_entry` rejects qualified entry parameters/results
   rather than projecting them to its current payload-only interface.

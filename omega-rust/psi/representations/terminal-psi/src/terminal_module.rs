@@ -30,7 +30,7 @@ use semantic_vocabulary::MachineId;
 pub struct TerminalModule {
     pub vocabulary_marker: VocabularyMarker,
     pub entry: MachineId,
-    /// Canonical scalar membership vocabulary and explicit successor-edge additions.
+    /// Canonical scalar membership vocabulary and explicit successor-edge coercions.
     pub scalar_qualifications: ScalarQualificationCatalog,
     /// Concrete target-neutral instantiated type shapes, ordered by `id`.
     /// Native layout is deliberately absent and is selected by Omega.

@@ -6,6 +6,8 @@ use checked_trees::{CheckedScalarDispatchArm, CheckedScalarDispatchPattern};
 
 pub(super) fn source_scope(
     checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
     mut scope: ExpressionHandle,
     source: ExpressionHandle,
     result_type: PrimitiveType,
@@ -20,7 +22,7 @@ pub(super) fn source_scope(
             continue;
         }
         if let ExpressionNode::Cast(cast) = checked.expression_table.expression(scope)
-            && cast.semantic_domain.is_empty()
+            && !operand_scopes::cast_requires_custody(checked, machine, state, cast)?
             && checked.primitive_type_reference(cast.target_type) == Some(result_type)
         {
             scope = cast.value;
@@ -133,6 +135,77 @@ pub(super) fn operands(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn source_scope_rejects_deleted_erasure_before_same_tag_reintroduction() {
+        let source = "domain i64::Km;
+            machine identity(value: i64 in Km) -> i64 in Km { value }
+            machine choose(value: i64 in Km) -> i64 in Km {
+                (identity(value) as i64) as i64 in Km
+            }";
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+        let typed =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let mut checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
+        let root = checked
+            .facts
+            .values
+            .scalar_computations
+            .roots
+            .iter()
+            .next()
+            .unwrap()
+            .1
+            .clone();
+        let authored = checked
+            .facts
+            .values
+            .scalar_computations
+            .nodes
+            .get(root.root)
+            .authored_root;
+        let replay = |checked: &CheckedTrees| {
+            validate_computation_calls(
+                checked,
+                root.machine,
+                root.state,
+                root.statement_ordinal,
+                root.root,
+                authored,
+            )
+        };
+        replay(&checked).expect("explicit erase then reintroduce");
+        let plans = &mut checked.facts.values.scalar_computations;
+        let CheckedScalarComputationKind::Qualification {
+            operand: erasure, ..
+        } = plans.nodes.get(root.root).kind
+        else {
+            panic!("outer introduction");
+        };
+        let CheckedScalarComputationKind::Qualification { operand: call, .. } =
+            plans.nodes.get(erasure).kind
+        else {
+            panic!("explicit inner erasure");
+        };
+        assert!(matches!(
+            plans.nodes.get(call).kind,
+            CheckedScalarComputationKind::Call { .. }
+        ));
+        let CheckedScalarComputationKind::Qualification { operand, .. } =
+            &mut plans.nodes.get_mut(root.root).kind
+        else {
+            unreachable!();
+        };
+        *operand = call;
+        assert!(
+            replay(&checked).is_err(),
+            "equal final tags cannot hide a deleted authored erasure"
+        );
+    }
 
     #[test]
     fn folded_dispatch_rejects_operations_from_an_unselected_arm() {

@@ -1,4 +1,4 @@
-//! Rejoin an explicit scalar qualification to its authored selection and evidence.
+//! Rejoin an explicit scalar qualification change to its authored cast and evidence.
 //!
 //! Equal payload carriers do not make two semantic domains interchangeable.
 //! The checked node must preserve the cast occurrence and its normalized result;
@@ -32,7 +32,6 @@ pub(super) fn operand(
     let table = &checked.type_reference_table;
     let nodes = &checked.facts.values.scalar_computations.nodes;
     if cast.form.is_recast()
-        || cast.semantic_domain.is_empty()
         || cast.domain != ArithmeticDomain::Exact
         || !table.contains_type_reference(result_type)
         || result_type != cast.result_type
@@ -45,6 +44,48 @@ pub(super) fn operand(
         || nodes.get(operand).primitive_type != primitive
     {
         return unsupported("scalar qualification changed its cast, result, or operand carrier");
+    }
+    if cast.semantic_domain.is_empty() {
+        // Erasure is a source operation, not an inference from the destination.
+        // Reconstruct the operand's full declared type; the catalog owner rejects
+        // routed, predicate-bearing, reference-carried, or owned qualifications.
+        // A bare target needs no membership introduction receipt, but cannot
+        // borrow one to disguise an unrecorded cast or a different carrier.
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|candidate| candidate.symbol == machine)
+            .ok_or(LoweringError::Unsupported(
+                "scalar erasure lost its machine",
+            ))?;
+        let state = checked
+            .machine_states(machine)
+            .iter()
+            .find(|candidate| candidate.symbol == state)
+            .ok_or(LoweringError::Unsupported("scalar erasure lost its state"))?;
+        let source_type =
+            validation::expression_result_type_reference(checked, machine, state, cast.value)
+                .ok_or(LoweringError::Unsupported(
+                    "scalar erasure lost its operand type",
+                ))?;
+        let (source_primitive, source_atoms) =
+            crate::scalar_qualifications::type_atoms(checked, source_type)?;
+        let (result_primitive, result_atoms) =
+            crate::scalar_qualifications::type_atoms(checked, result_type)?;
+        if cast.semantic_domain_symbol.is_valid()
+            || cast.semantic_domain_id.is_valid()
+            || !cast.semantic_domain_arguments.is_empty()
+            || result_type != cast.target_type
+            || source_primitive != primitive
+            || result_primitive != primitive
+            || source_atoms.is_empty()
+            || !result_atoms.is_empty()
+        {
+            return unsupported(
+                "scalar erasure changed its explicit bare target or source membership",
+            );
+        }
+        return Ok(cast.value);
     }
     let mut selections = checked
         .expression_table

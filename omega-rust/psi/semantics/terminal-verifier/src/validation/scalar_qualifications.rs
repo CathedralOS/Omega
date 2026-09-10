@@ -1,8 +1,8 @@
 //! Reconstruct scalar membership at every definition and transport boundary.
 //!
 //! Declarations carry locally defined, obligation-free tags. Ordinary values
-//! cannot gain or lose them: only a catalogued successor binding introduces
-//! membership, and that binding creates a distinct SSA value without an opcode.
+//! cannot implicitly gain or lose them: only a catalogued successor binding
+//! introduces or erases membership, creating a distinct SSA value without an opcode.
 
 use super::*;
 use semantic_vocabulary::{ScalarDomainId, ScalarQualificationSetId};
@@ -263,21 +263,30 @@ fn validate_coercion(
             .copied()
             .ok_or_else(|| invalid("unknown coercion input set"))?
     };
-    let destination_members = sets
-        .get(&destination.qualifications)
-        .copied()
-        .ok_or_else(|| invalid("unknown coercion output set"))?;
+    let destination_members = if destination.qualifications.is_empty() {
+        &[][..]
+    } else {
+        sets.get(&destination.qualifications)
+            .copied()
+            .ok_or_else(|| invalid("unknown coercion output set"))?
+    };
+    // A single edge cannot replace unrelated meaning. Source must explicitly
+    // erase and then introduce it through two independently checked bindings.
+    let strict_subset = |smaller: &[ScalarDomainId], larger: &[ScalarDomainId]| {
+        smaller.len() < larger.len()
+            && smaller
+                .iter()
+                .all(|member| larger.binary_search(member).is_ok())
+    };
     if coercion.source != source.id
         || coercion.destination != destination.id
         || source.id == destination.id
         || source.scalar_type != destination.scalar_type
-        || source_members.len() >= destination_members.len()
-        || source_members
-            .iter()
-            .any(|member| destination_members.binary_search(member).is_err())
+        || !(strict_subset(source_members, destination_members)
+            || strict_subset(destination_members, source_members))
     {
         return Err(invalid(
-            "scalar coercion is not an exact fresh same-carrier introduction",
+            "scalar coercion is not an exact fresh same-carrier introduction or erasure",
         ));
     }
     Ok(())

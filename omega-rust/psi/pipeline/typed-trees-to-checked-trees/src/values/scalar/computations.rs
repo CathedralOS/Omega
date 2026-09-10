@@ -548,6 +548,41 @@ impl Builder<'_, '_> {
     ) -> Option<CheckedScalarComputationHandle> {
         if let ExpressionNode::Cast(cast) =
             self.program.expression_table.expression(expression).clone()
+            && cast.semantic_domain.is_empty()
+            && let Some(source_type) =
+                semantic_casts::result_type(self.program, self.state, cast.value)
+            && semantic_casts::has_declared_domains(self.program, source_type)
+        {
+            if cast.form.is_recast()
+                || cast.domain != ArithmeticDomain::Exact
+                || !matches!(
+                    self.program
+                        .type_reference_table
+                        .type_reference(cast.target_type),
+                    TypeReferenceNode::Named { .. }
+                )
+                || !semantic_casts::has_only_vacuous_tags(self.program, source_type)
+                || self.program.primitive_type_reference(source_type) != Some(expected_type)
+                || self.program.primitive_type_reference(cast.target_type) != Some(expected_type)
+            {
+                return None;
+            }
+            let result_type = semantic_casts::result_type(self.program, self.state, expression)?;
+            if semantic_casts::has_declared_domains(self.program, result_type) {
+                return None;
+            }
+            let operand = self.expression(cast.value, expected_type)?;
+            return Some(self.insert(
+                expected_type,
+                CheckedScalarComputationKind::Qualification {
+                    source_expression: expression,
+                    operand,
+                    result_type,
+                },
+            ));
+        }
+        if let ExpressionNode::Cast(cast) =
+            self.program.expression_table.expression(expression).clone()
             && !cast.semantic_domain.is_empty()
         {
             // Qualification changes semantic custody, not payload. It cannot
@@ -589,17 +624,19 @@ impl Builder<'_, '_> {
         {
             return self.dispatch(expression, &dispatch, expected_type);
         }
-        if let Some(value) = lower_return_expression(
-            self.program,
-            self.operators,
-            expression,
-            self.parameters,
-            self.authored_parameters,
-            self.parameter_types,
-            self.locals,
-            expected_type,
-            self.exact_integer_casts,
-        ) {
+        if !semantic_casts::requires_custody(self.program, self.state, expression)
+            && let Some(value) = lower_return_expression(
+                self.program,
+                self.operators,
+                expression,
+                self.parameters,
+                self.authored_parameters,
+                self.parameter_types,
+                self.locals,
+                expected_type,
+                self.exact_integer_casts,
+            )
+        {
             let computation =
                 self.insert(expected_type, CheckedScalarComputationKind::Value(value));
             self.plans.nodes.get_mut(computation).value_source = expression;

@@ -1,8 +1,9 @@
 //! Source-free scalar membership vocabulary and exact edge coercions.
 //!
 //! This closed catalog carries predicate-free, route-free scalar tags only.
-//! An edge coercion adds strict same-carrier membership; it does not change
-//! payload bits, erase meaning, execute an operation, or prove a predicate.
+//! An explicit edge coercion adds or removes strict same-carrier membership.
+//! Removal visibly erases non-owning meaning; neither direction changes
+//! payload bits, executes an operation, or proves a predicate.
 
 use semantic_vocabulary::{
     DomainSemanticId, EdgeId, MachineId, ScalarDomainId, ScalarQualificationSetId, ScalarType,
