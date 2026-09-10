@@ -225,10 +225,22 @@ fn lower_item_with_exposure(
         // substitutes the initializer. A detached resolved root remains for
         // later resolution continuations, not as runtime constant storage.
         syntax::item::Item::Const(definition) => {
-            crate::constant::validate_const_definition(syntax_trees, definition)?;
+            let pending = lowerer.const_resolution_mode
+                == crate::lowerer::ConstResolutionMode::InitializerSelection
+                && crate::constant::requires_scalar_const_initializer_evaluation(
+                    syntax_trees,
+                    definition,
+                );
+            if !pending {
+                crate::constant::validate_const_definition(syntax_trees, definition)?;
+            }
             let initializer =
                 crate::constant::retain_const_initializer(lowerer, syntax_trees, definition)?;
-            let canonical_value_encoding = if definition.is_public {
+            let canonical_value_encoding = if pending {
+                // Preparation retains a real unevaluated expression, never a
+                // placeholder value or manufactured public declaration identity.
+                None
+            } else if definition.is_public {
                 Some(
                     crate::constant::public_declaration_value_encoding(
                         syntax_trees,

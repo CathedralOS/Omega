@@ -36,9 +36,12 @@
 //! turning canonical index encodings into constructor authority.
 //!
 //! Remaining boundaries, enforced loudly:
-//! - LITERAL-ONLY initializers (scalars, negated scalars -- already folded by
-//!   the parser -- payloadless cases, and struct/array literals of those).
-//!   Richer const expressions are the build-time-evaluation arc.
+//! - Complete resolution consumes literal materializations (scalars, payloadless
+//!   cases, and struct/array literals). Call-free integer/Boolean computations
+//!   reach that form through build-time evaluation, retaining declaration-owned
+//!   original syntax and selection receipts. Initializer preparation is a
+//!   separate non-executing mode: pending expressions acquire no value identity.
+//!   Calls, computed aggregates and floating computations still need evaluation.
 //! - A const may not collide with a case of its scope type: `Type::NAME` must
 //!   stay unambiguous against case-constructor paths, which substitution
 //!   would otherwise shadow.
@@ -57,6 +60,31 @@ use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{ConstDefinition, DataMember, Item};
 
 mod carrier;
+pub(crate) mod initializer_normalization;
+
+/// Route unfinished scalar initializers to semantic preparation. Spelling only
+/// chooses this route: preparation independently checks the resolved builtin
+/// carrier before returning evidence. Literal validation remains unconditional.
+pub fn requires_scalar_const_initializer_evaluation(
+    syntax: &SyntaxTrees,
+    definition: &ConstDefinition,
+) -> bool {
+    let syntax_trees::types::TypeReferenceNode::Named(name) = syntax
+        .type_references
+        .type_reference(definition.type_reference)
+    else {
+        return false;
+    };
+    matches!(
+        name.as_str(),
+        "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "bool"
+    ) && !matches!(
+        syntax.expressions.expression(definition.value),
+        syntax_trees::expression::ExpressionNode::Integer(_)
+            | syntax_trees::expression::ExpressionNode::Boolean(_)
+            | syntax_trees::expression::ExpressionNode::String(_)
+    )
+}
 
 /// Public declaration identity includes floating scalars with determined bits, independently
 /// of the narrower structural values eligible for generic and domain indices.
@@ -200,7 +228,10 @@ pub(crate) fn retain_const_initializer(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
 ) -> Result<ExpressionHandle, Diagnostic> {
-    if !has_scalar_initializer(syntax, definition) {
+    let pending = lowerer.const_resolution_mode
+        == crate::lowerer::ConstResolutionMode::InitializerSelection
+        && requires_scalar_const_initializer_evaluation(syntax, definition);
+    if !pending && !has_scalar_initializer(syntax, definition) {
         if crate::module_normalization::module_literal_constant(syntax, definition) {
             // Unused private arrays still owe declaration shape and landing.
             crate::generic_data::canonicalize_declared_const_definition(syntax, definition)
@@ -218,6 +249,7 @@ pub(crate) fn retain_const_initializer(
     let initializer =
         crate::expression::lower_expression_into_table(lowerer, syntax, definition.value)?;
     lowerer.pending_const_values.push(initializer);
+    initializer_normalization::retain(lowerer, syntax, definition, initializer)?;
     Ok(initializer)
 }
 

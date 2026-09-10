@@ -66,6 +66,15 @@ struct RequirementInstance {
 
 pub fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
     crate::module_normalization::validate_module_normalization(syntax)?;
+    synthesize_trait_defaults_after_module_validation(syntax)
+}
+
+/// Resolution has already checked the complete namespace frontier in its
+/// current mode. Rechecking in complete-value mode would reject the deliberately
+/// unevaluated scalar declarations used only for initializer selection evidence.
+pub(crate) fn synthesize_trait_defaults_after_module_validation(
+    syntax: &mut SyntaxTrees,
+) -> Result<(), Vec<Diagnostic>> {
     let data_names = syntax
         .root_items()
         .filter_map(|item| match item {

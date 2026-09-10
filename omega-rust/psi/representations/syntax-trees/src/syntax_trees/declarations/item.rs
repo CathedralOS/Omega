@@ -27,27 +27,37 @@ pub enum Item {
     WireData(WireDataDefinition),
 }
 
-/// A named compile-time pure value (wiki/spec/language/constants.md). Type-scoped:
+/// A named compile-time pure value (wiki/spec/language/constants.md), either
+/// package/module-scoped or type-scoped:
 /// `const EfiStatus::SUCCESS: EfiStatus = EfiStatus { code: 0 };` — declared
 /// like a machine (`Type::NAME`), never a `data` member, so never in `sizeof`.
-/// v0 initializers are LITERAL-ONLY (scalars, negated scalars, struct/array
-/// literals of literals — build-time evaluation of richer expressions is its
-/// own arc). Const value semantics exist only until symbol resolution: every
+/// Semantic evaluation may normalize an initializer before resolution while
+/// retaining its authored expression and selected origins. Every
 /// use substitutes a fresh copy of the initializer, so typed trees and
 /// everything downstream never see a const value. Resolution retains only a
 /// declaration-provenance symbol for authored-selection/package custody.
-/// (Free-floating `const NAME: T = ...;` parses but is rejected until the
-/// local-shadowing walk lands: a bare-name substitution could silently win
-/// over a like-named local; a `Type::NAME` path cannot.)
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ConstDefinition {
-    /// The type scope (`EfiStatus` in `EfiStatus::SUCCESS`); EMPTY text for
-    /// the not-yet-accepted free-floating form.
+    /// The type scope (`EfiStatus` in `EfiStatus::SUCCESS`); empty text for
+    /// a package/module-scoped declaration.
     pub scope: Identifier,
     pub name: Identifier,
     pub is_public: bool,
     pub type_reference: crate::types::TypeReferenceHandle,
     pub value: crate::expression::ExpressionHandle,
+    /// Present when semantic evaluation has replaced the authored initializer.
+    pub normalization: Option<ConstInitializerNormalization>,
+}
+
+/// Authored syntax and exact source custody retained when a constant initializer
+/// becomes a canonical literal. Source coordinates remain unchanged on copying;
+/// the authored expression is remapped into the destination syntax arena.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ConstInitializerNormalization {
+    pub authored_expression: crate::expression::ExpressionHandle,
+    pub canonical_result_encoding: String,
+    pub selections: Vec<crate::types::ConstArgumentOrigin>,
+    pub builtin_operators: Vec<source::SourceSpan>,
 }
 
 /// Transitional bootstrap representation for the former magic

@@ -36,6 +36,18 @@ pub(crate) fn validate_with_selection(
     syntax: &SyntaxTrees,
     selection: &crate::generic_data::constant_selection::ConstantSelection,
 ) -> Result<(), Vec<Diagnostic>> {
+    validate_with_const_resolution_mode(
+        syntax,
+        selection,
+        crate::lowerer::ConstResolutionMode::Complete,
+    )
+}
+
+pub(crate) fn validate_with_const_resolution_mode(
+    syntax: &SyntaxTrees,
+    selection: &crate::generic_data::constant_selection::ConstantSelection,
+    mode: crate::lowerer::ConstResolutionMode,
+) -> Result<(), Vec<Diagnostic>> {
     let module_sources = syntax
         .root_items()
         .filter_map(|item| {
@@ -86,7 +98,13 @@ pub(crate) fn validate_with_selection(
             Item::Const(constant)
                 if module_sources.contains(&constant.name.source_span().source_id) =>
             {
-                if module_literal_constant(syntax, constant) {
+                if mode == crate::lowerer::ConstResolutionMode::InitializerSelection
+                    && crate::constant::requires_scalar_const_initializer_evaluation(syntax, constant)
+                {
+                    // Only value admission is deferred. Ordinary resolution
+                    // still validates the declaration's namespace and carrier.
+                    None
+                } else if module_literal_constant(syntax, constant) {
                     if matches!(
                         syntax.type_references.type_reference(constant.type_reference),
                         TypeReferenceNode::FixedArray { .. }

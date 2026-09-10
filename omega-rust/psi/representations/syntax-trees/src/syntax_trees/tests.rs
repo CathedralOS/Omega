@@ -15,6 +15,120 @@ use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use arena::HandleSpan;
 
 #[test]
+fn constant_initializer_normalization_survives_copy_and_clone() {
+    let span =
+        |start| source::SourceSpan::new(source::SourceId(3), source::Span::new(start, start + 4));
+    let mut source = SyntaxTrees::new(Default::default());
+    let operand = source.expressions.insert(ExpressionNode::Boolean(false));
+    source.expressions.set_source_span(operand, span(24));
+    let authored_expression = source.expressions.insert(ExpressionNode::Unary(
+        crate::expression::TableUnaryExpression {
+            operator: crate::expression::UnaryOperator::LogicalNot,
+            operand,
+        },
+    ));
+    source
+        .expressions
+        .set_source_span(authored_expression, span(20));
+    let value = source.expressions.insert(ExpressionNode::Boolean(true));
+    source.expressions.set_source_span(value, span(20));
+    let normalization = crate::item::ConstInitializerNormalization {
+        authored_expression,
+        canonical_result_encoding: "boolean4:true".to_owned(),
+        selections: vec![crate::types::ConstArgumentOrigin {
+            reference: span(24),
+            declaration: span(4),
+            initializer: span(12),
+            canonical_value_encoding: "boolean5:false".to_owned(),
+        }],
+        builtin_operators: vec![span(20)],
+    };
+    let constant = Item::Const(crate::item::ConstDefinition {
+        name: Identifier::generated("ENABLED"),
+        value,
+        normalization: Some(normalization.clone()),
+        ..Default::default()
+    });
+    source.push_root_item(constant.clone());
+    let mut cloned = source.clone();
+    assert_eq!(cloned, source);
+    cloned
+        .expressions
+        .replace_expression(operand, ExpressionNode::Boolean(true));
+    assert_eq!(
+        source.expressions.expression(operand),
+        &ExpressionNode::Boolean(false)
+    );
+
+    let mut destination = SyntaxTrees::new(Default::default());
+    for _ in 0..8 {
+        destination
+            .expressions
+            .insert(ExpressionNode::Boolean(false));
+    }
+    let first = destination.copy_item_from(&source, &constant);
+    destination.extend_from(&source);
+    let second = destination
+        .root_items()
+        .next()
+        .expect("extended constant")
+        .clone();
+    let mut copied_operands = Vec::new();
+    for copied in [first, second] {
+        let Item::Const(copied) = copied else {
+            panic!("copied constant");
+        };
+        let receipt = copied.normalization.expect("retained normalization");
+        assert_eq!(
+            receipt.canonical_result_encoding,
+            normalization.canonical_result_encoding
+        );
+        assert_eq!(receipt.selections, normalization.selections);
+        assert_eq!(receipt.builtin_operators, normalization.builtin_operators);
+        assert_ne!(copied.value, value);
+        assert_ne!(receipt.authored_expression, authored_expression);
+        assert_ne!(receipt.authored_expression, copied.value);
+        assert_eq!(
+            destination.expressions.expression(copied.value),
+            &ExpressionNode::Boolean(true)
+        );
+        assert_eq!(destination.expressions.source_span(copied.value), span(20));
+        assert_eq!(
+            destination
+                .expressions
+                .source_span(receipt.authored_expression),
+            span(20)
+        );
+        let ExpressionNode::Unary(unary) = destination
+            .expressions
+            .expression(receipt.authored_expression)
+        else {
+            panic!("retained authored unary expression");
+        };
+        assert_eq!(unary.operator, crate::expression::UnaryOperator::LogicalNot);
+        assert_ne!(unary.operand, operand);
+        assert_eq!(
+            destination.expressions.expression(unary.operand),
+            &ExpressionNode::Boolean(false)
+        );
+        assert_eq!(destination.expressions.source_span(unary.operand), span(24));
+        copied_operands.push(unary.operand);
+    }
+    assert_ne!(copied_operands[0], copied_operands[1]);
+    destination
+        .expressions
+        .replace_expression(copied_operands[0], ExpressionNode::Boolean(true));
+    assert_eq!(
+        destination.expressions.expression(copied_operands[1]),
+        &ExpressionNode::Boolean(false)
+    );
+    assert_eq!(
+        source.expressions.expression(operand),
+        &ExpressionNode::Boolean(false)
+    );
+}
+
+#[test]
 fn normalized_structural_expression_copy_remaps_children_and_preserves_source() {
     let mut source = SyntaxTrees::new(Default::default());
     let child = source.expressions.insert(ExpressionNode::Boolean(true));

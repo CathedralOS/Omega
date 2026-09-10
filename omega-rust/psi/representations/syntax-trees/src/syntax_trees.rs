@@ -102,6 +102,27 @@ impl SyntaxTrees {
         self.roots.items.len()
     }
 
+    /// Whether a folded declaration owns this original selection occurrence.
+    /// Copying its value into an index must not promote implementation custody
+    /// to the consuming signature's public exposure.
+    pub fn constant_initializer_owns_selection(&self, reference: source::SourceSpan) -> bool {
+        self.root_items().any(|item| {
+            let Item::Const(definition) = item else {
+                return false;
+            };
+            definition
+                .normalization
+                .as_ref()
+                .is_some_and(|normalization| {
+                    normalization
+                        .selections
+                        .iter()
+                        .any(|origin| origin.reference == reference)
+                        || normalization.builtin_operators.contains(&reference)
+                })
+        })
+    }
+
     pub fn extend_from(&mut self, other: &SyntaxTrees) {
         for handle in other.root_item_handles() {
             self.push_copied_root_item(other, *handle);
@@ -288,6 +309,15 @@ impl SyntaxTrees {
                 is_public: constant.is_public,
                 type_reference: self.copy_type_reference_handle(other, constant.type_reference),
                 value: self.copy_expression_handle(other, constant.value),
+                normalization: constant.normalization.as_ref().map(|normalization| {
+                    crate::item::ConstInitializerNormalization {
+                        authored_expression: self
+                            .copy_expression_handle(other, normalization.authored_expression),
+                        canonical_result_encoding: normalization.canonical_result_encoding.clone(),
+                        selections: normalization.selections.clone(),
+                        builtin_operators: normalization.builtin_operators.clone(),
+                    }
+                }),
             }),
             Item::Data(data) => Item::Data(self.copy_data_definition(other, data)),
             Item::Domain(domain) => Item::Domain(DomainDefinition {

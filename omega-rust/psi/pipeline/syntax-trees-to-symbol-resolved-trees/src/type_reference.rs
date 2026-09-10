@@ -42,14 +42,23 @@ pub(crate) fn lower_type_reference_handle(
             .const_argument_origins(normalization.selections)
         {
             if !lowerer.derived_const_argument_origins.contains(origin) {
+                // Transitive declaration implementation does not become a new
+                // public index occurrence merely because its value is copied.
+                let authored_here =
+                    !syntax_trees.constant_initializer_owns_selection(origin.reference);
+                let exposure = if authored_here {
+                    lowerer.current_authored_expression_exposure.unwrap_or(
+                        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                    )
+                } else {
+                    language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
+                };
                 lowerer.pending_const_argument_selections.push(
-            crate::lowerer::PendingConstArgumentSelection {
-                origin: origin.clone(),
-                exposure: lowerer.current_authored_expression_exposure.unwrap_or(
-                    language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
-                ),
-            },
-            );
+                    crate::lowerer::PendingConstArgumentSelection {
+                        origin: origin.clone(),
+                        exposure,
+                    },
+                );
             }
         }
         for reference in syntax_trees
@@ -68,13 +77,18 @@ pub(crate) fn lower_type_reference_handle(
                 AuthoredDeclarationSelectionKind as Kind,
                 AuthoredDeclarationSelectionLateBinding as LateBinding,
             };
+            let exposure = if syntax_trees.constant_initializer_owns_selection(*reference) {
+                Exposure::PrivateImplementation
+            } else {
+                lowerer
+                    .current_authored_expression_exposure
+                    .unwrap_or(Exposure::PrivateImplementation)
+            };
             let occurrence = lowerer
                 .symbol_resolved_trees
                 .record_late_bound_authored_declaration_selection(
                     *reference,
-                    lowerer
-                        .current_authored_expression_exposure
-                        .unwrap_or(Exposure::PrivateImplementation),
+                    exposure,
                     Kind::Operator,
                     LateBinding::CheckedOperator,
                 )
