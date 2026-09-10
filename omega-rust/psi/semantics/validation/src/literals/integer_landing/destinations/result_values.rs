@@ -170,6 +170,8 @@ fn has_scalar_array_element_shape(
 /// children remain exclusion roots even when their enclosing value is admitted.
 pub(super) fn admit_result_values(
     program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
     destination: TypeReferenceHandle,
     expression: ExpressionHandle,
     admitted: &mut impl FnMut(TypeReferenceHandle, ExpressionHandle) -> bool,
@@ -177,6 +179,8 @@ pub(super) fn admit_result_values(
 ) -> bool {
     admit_result_values_inner(
         program,
+        machine,
+        state,
         destination,
         expression,
         admitted,
@@ -187,6 +191,8 @@ pub(super) fn admit_result_values(
 
 fn admit_result_values_inner(
     program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
     destination: TypeReferenceHandle,
     expression: ExpressionHandle,
     admitted: &mut impl FnMut(TypeReferenceHandle, ExpressionHandle) -> bool,
@@ -198,6 +204,26 @@ fn admit_result_values_inner(
         return false;
     }
     if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
+        // A typed arm fixes the common result before any outer cast. Only an
+        // entirely anonymous result inherits that cast/consumer's destination.
+        let destination = match crate::expression_types::declared_dispatch_value_type(
+            program, machine, state, expression,
+        ) {
+            Some(retained) => retained,
+            // Array shape owns its element destinations below. It is not a
+            // numeric cast and does not require the whole aggregate to fold.
+            None if matches!(
+                program.type_reference_table.type_reference(destination),
+                TypeReferenceNode::FixedArray { .. }
+            ) =>
+            {
+                destination
+            }
+            None if crate::literals::has_anonymous_numeric_results(program, expression) => {
+                destination
+            }
+            None => return false,
+        };
         let arms = program.expression_table.match_arms(dispatch.arms);
         if arms.is_empty() {
             return false;
@@ -206,6 +232,8 @@ fn admit_result_values_inner(
         for arm in arms {
             if !admit_result_values_inner(
                 program,
+                machine,
+                state,
                 destination,
                 arm.value,
                 admitted,
@@ -235,6 +263,8 @@ fn admit_result_values_inner(
         for element in elements {
             if !admit_result_values_inner(
                 program,
+                machine,
+                state,
                 *element_type,
                 *element,
                 admitted,

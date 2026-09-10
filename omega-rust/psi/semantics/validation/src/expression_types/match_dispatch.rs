@@ -161,6 +161,17 @@ pub(crate) fn validate_match_dispatch(
         .find(|arm| declared_value_type(program, machine, state, arm.value).is_some())
         .unwrap_or(&arms[0])
         .value;
+    if let Some(destination) = declared_value_type(program, machine, state, peer) {
+        for arm in arms {
+            crate::arithmetic_domains::validate_anonymous_integer_range(
+                program,
+                destination,
+                arm.value,
+                "typed match result",
+                diagnostics,
+            );
+        }
+    }
     for arm in arms {
         if selected_expression_transfers_owned(program, machine, state, arm.value)
             || matches!(arm.pattern, MatchPattern::Value(pattern)
@@ -312,33 +323,55 @@ fn selected_expression_transfers_owned(
     false
 }
 
-fn declared_value_type(
+/// Read a retained result declaration before an enclosing destination requests
+/// anonymous landing. This does not infer a carrier for untyped arithmetic.
+pub(crate) fn declared_value_type(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Call(call) => crate::calls::resolved_call_result_type(program, call)
-            .or_else(|| {
-                typed_trees::operator::resolve_named_expression_call(program, call)
-                    .map(|operator| operator.return_type)
-            }),
-        ExpressionNode::StructLiteral(literal) => program
-            .type_reference_table
-            .find_named_type_reference(literal.type_symbol),
-        ExpressionNode::Cast(cast) => Some(cast.target_type),
-        ExpressionNode::ZeroValue(reference) => Some(*reference),
-        ExpressionNode::Integer(_) => {
-            crate::operators::landed_integer_literal_type_reference(program, expression)
+    let mut pending = vec![expression];
+    let mut visited = Vec::new();
+    while let Some(expression) = pending.pop() {
+        if !program.expression_table.expression_is_valid(expression)
+            || visited.contains(&expression)
+        {
+            continue;
         }
-        ExpressionNode::Match(dispatch) => program
-            .expression_table
-            .match_arms(dispatch.arms)
-            .iter()
-            .find_map(|arm| declared_value_type(program, machine, state, arm.value)),
-        _ => crate::places::declared_place_type_raw(program, machine, Some(state), expression),
+        visited.push(expression);
+        if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
+            pending.extend(
+                program
+                    .expression_table
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .rev()
+                    .map(|arm| arm.value),
+            );
+            continue;
+        }
+        let declared = match program.expression_table.expression(expression) {
+            ExpressionNode::Call(call) => crate::calls::resolved_call_result_type(program, call)
+                .or_else(|| {
+                    typed_trees::operator::resolve_named_expression_call(program, call)
+                        .map(|operator| operator.return_type)
+                }),
+            ExpressionNode::StructLiteral(literal) => program
+                .type_reference_table
+                .find_named_type_reference(literal.type_symbol),
+            ExpressionNode::Cast(cast) => Some(cast.target_type),
+            ExpressionNode::ZeroValue(reference) => Some(*reference),
+            ExpressionNode::Integer(_) => {
+                crate::operators::landed_integer_literal_type_reference(program, expression)
+            }
+            _ => crate::places::declared_place_type_raw(program, machine, Some(state), expression),
+        };
+        if declared.is_some() {
+            return declared;
+        }
     }
+    None
 }
 
 fn check_compatible_values(

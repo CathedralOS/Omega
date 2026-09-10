@@ -1,4 +1,8 @@
 //! Width-gate custody for anonymous expressions with checked scalar consumers.
+//! Width grants and fractional-origin warnings share destination discovery so
+//! neither can silently omit an operand/cast boundary handled by the other.
+//! Grants belong to immediate child occurrences, not merely shared handles;
+//! result joins forward destinations without owning dispatch inputs.
 
 use super::*;
 use crate::literals::expression_children::children;
@@ -21,56 +25,6 @@ pub(crate) fn anonymous_integer_landing_warnings(program: &TypedTrees) -> Vec<Di
         }
         false
     });
-    for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            let mut visited = Vec::new();
-            let mut pending = Vec::new();
-            for statement in program.statement_table.statements(state.statement_nodes) {
-                pending.extend(crate::calls::statement_value_expression_roots(
-                    program, statement,
-                ));
-            }
-            while let Some(expression) = pending.pop() {
-                if !program.expression_table.expression_is_valid(expression)
-                    || visited.contains(&expression)
-                {
-                    continue;
-                }
-                visited.push(expression);
-                let node = program.expression_table.expression(expression);
-                match node {
-                    ExpressionNode::Cast(cast)
-                        if !cast.form.is_recast() && cast.semantic_domain.is_empty() =>
-                    {
-                        if let Some(primitive) = program.primitive_type_reference(cast.target_type) {
-                            append_landing_warning(program, primitive, cast.value, &mut warned, &mut warnings);
-                        }
-                    }
-                    ExpressionNode::Binary(binary)
-                        if !matches!(binary.operator, BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight)
-                            && crate::bound_expression_meaning::has_builtin_bound_expression_meaning(
-                                program, machine, Some(state), expression,
-                            ) =>
-                    {
-                        for (operand, peer) in [(binary.left, binary.right), (binary.right, binary.left)] {
-                            let peer_type = match program.expression_table.expression(peer) {
-                                ExpressionNode::Integer(_) => crate::operators::landed_integer_literal_type_reference(program, peer),
-                                ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) | ExpressionNode::Call(_) => {
-                                    crate::places::declared_place_type_raw(program, machine, Some(state), peer)
-                                }
-                                _ => None,
-                            };
-                            if let Some(primitive) = peer_type.and_then(|reference| program.primitive_type_reference(reference)) {
-                                append_landing_warning(program, primitive, operand, &mut warned, &mut warnings);
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-                children(program, node, |child| pending.push(child));
-            }
-        }
-    }
     for (expression, node) in program.expression_table.iter_expressions() {
         let ExpressionNode::Binary(binary) = node else {
             continue;
@@ -146,8 +100,7 @@ pub(in crate::literals) fn append_destination_literals(
     let DestinationTrees {
         owned,
         other_roots,
-        call_arguments,
-        construction_fields,
+        admitted_edges,
     } = collect_destination_trees(program, admitted);
     if owned.is_empty() {
         return;
@@ -180,39 +133,13 @@ pub(in crate::literals) fn append_destination_literals(
         if owned.contains(&parent) {
             continue;
         }
-        let mut exclude = |child| {
-            if owned.contains(&child) {
+        let mut child_ordinal = 0;
+        children(program, node, |child| {
+            if !admitted_edges.contains(&(parent, child_ordinal)) && owned.contains(&child) {
                 append_tree(program, child, &mut excluded);
             }
-        };
-        if let ExpressionNode::Call(call) = node {
-            // The receiver is never an explicit argument. Even a shared
-            // receiver/argument handle must retain its receiver width gate.
-            exclude(call.receiver);
-            for (ordinal, argument) in program
-                .expression_table
-                .expression_handles(call.arguments)
-                .iter()
-                .enumerate()
-            {
-                if !call_arguments.contains(&(parent, ordinal)) {
-                    exclude(*argument);
-                }
-            }
-        } else if let ExpressionNode::StructLiteral(literal) = node {
-            for (ordinal, field) in program
-                .expression_table
-                .struct_fields(literal.fields)
-                .iter()
-                .enumerate()
-            {
-                if !construction_fields.contains(&(parent, ordinal)) {
-                    exclude(field.value);
-                }
-            }
-        } else {
-            children(program, node, exclude);
-        }
+            child_ordinal += 1;
+        });
     }
     for expression in owned {
         if !excluded.contains(&expression)
@@ -227,10 +154,10 @@ pub(in crate::literals) fn append_destination_literals(
 struct DestinationTrees {
     owned: Vec<ExpressionHandle>,
     other_roots: Vec<ExpressionHandle>,
-    /// Exact admitted parent edges, not permission for the whole call tree.
-    call_arguments: Vec<(ExpressionHandle, usize)>,
-    /// Exact constructed-field edges whose declarations request scalar landing.
-    construction_fields: Vec<(ExpressionHandle, usize)>,
+    /// Exact immediate-child positions in `expression_children::children` order.
+    /// Call receiver is position zero even when invalid; explicit arguments
+    /// start at one. Shared handles cannot transfer an edge's landing permission.
+    admitted_edges: Vec<(ExpressionHandle, usize)>,
 }
 
 fn collect_destination_trees(
@@ -239,23 +166,24 @@ fn collect_destination_trees(
 ) -> DestinationTrees {
     let mut trees = DestinationTrees::default();
     let mut other_elements = Vec::new();
-    let mut admitted = |destination, expression| {
-        admit_result_values(
-            program,
-            destination,
-            expression,
-            &mut admitted,
-            &mut other_elements,
-        )
-    };
     let DestinationTrees {
         owned,
         other_roots,
-        call_arguments,
-        construction_fields,
+        admitted_edges,
     } = &mut trees;
     for machine in program.machines() {
         for state in program.machine_states(machine) {
+            let mut admitted = |destination, expression| {
+                admit_result_values(
+                    program,
+                    machine,
+                    state,
+                    destination,
+                    expression,
+                    &mut admitted,
+                    &mut other_elements,
+                )
+            };
             for statement in program.statement_table.statements(state.statement_nodes) {
                 match statement {
                     StatementNode::Expression(expression) => {
@@ -401,7 +329,7 @@ fn collect_destination_trees(
                         if destination.is_some_and(|destination| admitted(destination, field.value))
                         {
                             append_tree(program, field.value, owned);
-                            construction_fields.push((expression, ordinal));
+                            admitted_edges.push((expression, ordinal));
                         } else {
                             other_roots.push(field.value);
                         }
@@ -424,11 +352,43 @@ fn collect_destination_trees(
                             .is_some_and(|destinations| admitted(destinations[ordinal], *argument))
                         {
                             append_tree(program, *argument, owned);
-                            call_arguments.push((expression, ordinal));
+                            admitted_edges.push((expression, ordinal + 1));
                         } else {
                             other_roots.push(*argument);
                         }
                     }
+                }
+                // The selected operand or cast target supplies this destination;
+                // the surrounding result type cannot choose intermediate math.
+                let mut admit_edge = |ordinal, destination, value| {
+                    if admitted(destination, value) {
+                        append_tree(program, value, owned);
+                        admitted_edges.push((expression, ordinal));
+                    } else {
+                        other_roots.push(value);
+                    }
+                };
+                match node {
+                    ExpressionNode::Cast(cast)
+                        if !cast.form.is_recast() && cast.semantic_domain.is_empty() =>
+                    {
+                        admit_edge(0, cast.target_type, cast.value);
+                    }
+                    ExpressionNode::Binary(binary)
+                        if !matches!(binary.operator, BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight)
+                            && crate::bound_expression_meaning::has_builtin_binary_expression_meaning(
+                                program, machine, Some(state), expression,
+                            ) =>
+                    {
+                        for (ordinal, (operand, peer)) in [(binary.left, binary.right), (binary.right, binary.left)].into_iter().enumerate() {
+                            let destination = crate::expression_types::declared_dispatch_value_type(program, machine, state, peer)
+                                .and_then(|reference| crate::places::unwrapped_type_reference(program, reference));
+                            if let Some(destination) = destination {
+                                admit_edge(ordinal, destination, operand);
+                            }
+                        }
+                    }
+                    _ => {}
                 }
                 children(program, node, |child| pending.push(child));
             }
@@ -560,6 +520,7 @@ mod tests {
 
     mod arrays;
     mod match_results;
+    mod operand_edges;
     mod windows;
 
     fn typed(source_text: &str) -> TypedTrees {
