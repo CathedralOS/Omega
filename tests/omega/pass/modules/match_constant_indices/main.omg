@@ -14,3 +14,7 @@ machine selective(value: Flag<(match ENABLED { true -> true, false -> (1u64 / 0 
 machine ordered(value: Buffer<(match 3u64 { 3 -> 7, 3 -> (1u64 / 0), _ -> 9 })>) -> Buffer<7> {
     value
 }
+
+machine divided(value: Flag<(1 / ((match true { true -> 1, false -> 2 }) + 1) == 0.5)>) -> Flag<true> {
+    value
+}

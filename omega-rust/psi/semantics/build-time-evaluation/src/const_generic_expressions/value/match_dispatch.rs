@@ -1,5 +1,7 @@
 //! Scalar Match joins and anonymous-result landing before selective execution.
 
+mod rational_bounds;
+
 use super::{Shape, Value, land_anonymous, primitive};
 use diagnostics::Diagnostic;
 use numerics::bignum::BigRational;
@@ -354,7 +356,20 @@ fn validate_nonzero_divisor(
             );
         } else {
             if contains_match(program, expression) {
-                return Err("anonymous constant division through Match arithmetic requires a nonzero divisor proof".into());
+                // Direct dispatch above keeps disjoint nonzero arms, including
+                // opposite signs. Surrounding arithmetic instead composes a
+                // conservative rational range without running its subjects.
+                if !rational_bounds::excludes_zero(program, expression, |operand| {
+                    validation::has_builtin_binary_expression_meaning(
+                        program,
+                        machine,
+                        Some(state),
+                        operand,
+                    )
+                })? {
+                    return Err("anonymous constant division through Match arithmetic requires a nonzero divisor proof; its rational bounds include zero".into());
+                }
+                continue;
             }
             if !validation::evaluate_anonymous_numeric_expression_with_selected_match_arms(
                 program,

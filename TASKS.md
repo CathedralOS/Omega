@@ -1178,9 +1178,11 @@ Owners include
   constructs typed index probes: the existing declaration still fails literal
   validation inside that probe. Changing only public value encoding cannot
   establish this path.
-  Scalar Match index evaluation still needs general all-arm bounds and nonzero
-  proofs for anonymous arithmetic containing nested dispatch. The explicit
-  obligation boundaries are in
+  Scalar Match index evaluation still needs general all-arm integer bounds and
+  integrality proofs for anonymous arithmetic containing nested dispatch.
+  Nonzero proofs also need disjoint or correlated result facts when a convex
+  rational range includes zero despite every executable divisor being nonzero.
+  The explicit obligation boundaries are in
   `build-time-evaluation/src/const_generic_expressions/value/match_dispatch.rs`.
   Extend those proofs without enumerating independent arm combinations or
   executing skipped landed subjects; preserve canonical identity and the full
