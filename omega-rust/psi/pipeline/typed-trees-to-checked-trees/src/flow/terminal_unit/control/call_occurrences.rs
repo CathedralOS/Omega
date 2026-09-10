@@ -487,6 +487,17 @@ fn collect(
     }
     active.push(handle);
     match &plans.nodes.get(handle).kind {
+        CheckedScalarComputationKind::Qualification { operand, .. } => {
+            collect(
+                facts,
+                statement,
+                *operand,
+                calls,
+                minimum_call_ordinal,
+                active,
+                consumed,
+            )?;
+        }
         CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
             collect(
                 facts,

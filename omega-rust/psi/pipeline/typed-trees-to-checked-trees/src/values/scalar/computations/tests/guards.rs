@@ -67,6 +67,7 @@ fn guard_nodes(checked: &checked_trees::CheckedTrees) -> Vec<&CheckedScalarCompu
                 pending.extend(plans.operands.span_or_empty(*operands));
             }
             CheckedScalarComputationKind::Value(_) => {}
+            CheckedScalarComputationKind::Qualification { operand, .. } => pending.push(*operand),
             CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
                 pending.push(*subject);
                 for arm in plans.dispatch_arms.span_or_empty(*arms) {

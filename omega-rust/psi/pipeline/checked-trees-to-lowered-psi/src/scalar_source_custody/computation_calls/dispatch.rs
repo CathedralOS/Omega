@@ -20,6 +20,7 @@ pub(super) fn source_scope(
             continue;
         }
         if let ExpressionNode::Cast(cast) = checked.expression_table.expression(scope)
+            && cast.semantic_domain.is_empty()
             && checked.primitive_type_reference(cast.target_type) == Some(result_type)
         {
             scope = cast.value;

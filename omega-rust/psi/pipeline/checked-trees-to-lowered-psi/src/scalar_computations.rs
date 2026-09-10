@@ -476,6 +476,12 @@ impl<'a> Expansion<'a> {
         let plans = &self.checked.facts.values.scalar_computations;
         let node = plans.nodes.get(*handle).clone();
         let entry = match node.kind {
+            // Qualification is retained and source-replayed in the checked graph,
+            // but these continuations still describe payload types only. Passing
+            // its operand through would silently erase the semantic interface.
+            CheckedScalarComputationKind::Qualification { .. } => {
+                return unsupported("scalar qualification requires Terminal membership transport");
+            }
             CheckedScalarComputationKind::Dispatch { subject, arms, .. } => self.dispatch(
                 subject,
                 arms,
@@ -693,6 +699,9 @@ pub(crate) fn reachable_nodes(
         }
         visited.push(handle);
         match &plans.nodes.get(handle).kind {
+            CheckedScalarComputationKind::Qualification { operand, .. } => {
+                pending.push(*operand);
+            }
             CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
                 pending.push(*subject);
                 for arm in plans

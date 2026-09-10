@@ -114,6 +114,14 @@ impl Default for CheckedScalarComputation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedScalarComputationKind {
+    /// Representation-identical semantic qualification at one authored cast.
+    /// The full result reference retains domain instances; this node does not
+    /// establish membership or authorize erasing the qualification at publication.
+    Qualification {
+        source_expression: typed_trees::expression::ExpressionHandle,
+        operand: CheckedScalarComputationHandle,
+        result_type: typed_trees::types::TypeReferenceHandle,
+    },
     /// Pure source expression in the enclosing state's scalar namespace.
     Value(CheckedScalarExpression),
     /// Save the subject once, then test arms in order and evaluate one result.

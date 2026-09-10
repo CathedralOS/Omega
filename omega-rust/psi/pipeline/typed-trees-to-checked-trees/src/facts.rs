@@ -1965,48 +1965,44 @@ fn encode_type_spelling(text: &str, binders: &[(String, String)], output: &mut V
     output.push(0);
 }
 
-/// STR4 checked plans, slice 2 (decision 19): collect each machine's
-/// semantic-domain COMMITMENTS -- v1 walks its statements' expressions for
-/// arithmetic-policy casts (`x as u8 in Saturating`; the compiler-blessed
-/// closed semantic-facet subset) and normalizes the policy to its FIXED
-/// SemanticDomainTable identity. Sorted + deduped; cast-free machines carry
-/// no entry.
+/// The same declaration rule governs retained qualification uses and scalar
+/// computation eligibility. Alias atoms must all be predicate- and route-free.
+pub(crate) fn domain_is_vacuous(
+    program: &TypedTrees,
+    domain_symbol: SymbolHandle,
+    stack: &mut Vec<SymbolHandle>,
+) -> bool {
+    if !domain_symbol.is_valid() || stack.contains(&domain_symbol) {
+        return false;
+    }
+    let Some(domain) = program
+        .domain_definitions()
+        .iter()
+        .find(|candidate| candidate.symbol == domain_symbol)
+    else {
+        return false;
+    };
+    if let Some(alias) = domain.alias.as_ref() {
+        if alias.constituents.is_empty() {
+            return false;
+        }
+        stack.push(domain_symbol);
+        let vacuous = alias
+            .constituents
+            .iter()
+            .all(|constituent| domain_is_vacuous(program, constituent.domain_symbol, stack));
+        stack.pop();
+        return vacuous;
+    }
+    !domain.predicate_body.is_present() && domain.establishment_routes.is_empty()
+}
+
 fn build_qualification_facts(program: &TypedTrees) -> checked_trees::QualificationFacts {
     use checked_trees::VacuousQualificationUse;
     use language_semantics::SemanticDomainTable;
     use std::collections::HashSet;
     use symbols::SymbolHandle;
     use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-
-    fn domain_is_vacuous(
-        program: &TypedTrees,
-        domain_symbol: SymbolHandle,
-        stack: &mut Vec<SymbolHandle>,
-    ) -> bool {
-        if !domain_symbol.is_valid() || stack.contains(&domain_symbol) {
-            return false;
-        }
-        let Some(domain) = program
-            .domain_definitions()
-            .iter()
-            .find(|candidate| candidate.symbol == domain_symbol)
-        else {
-            return false;
-        };
-        if let Some(alias) = domain.alias.as_ref() {
-            if alias.constituents.is_empty() {
-                return false;
-            }
-            stack.push(domain_symbol);
-            let vacuous = alias
-                .constituents
-                .iter()
-                .all(|constituent| domain_is_vacuous(program, constituent.domain_symbol, stack));
-            stack.pop();
-            return vacuous;
-        }
-        !domain.predicate_body.is_present() && domain.establishment_routes.is_empty()
-    }
 
     fn collect_casts(
         program: &TypedTrees,

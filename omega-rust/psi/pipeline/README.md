@@ -69,9 +69,16 @@ Raw dependent range predicates are not merged by rendered spelling.
 `cargo run -p omega -- --check --target macos_arm64 tests/omega/pass/expressions/match_domain_results/main.omg`
 checks same-domain result selection. The corresponding negative
 `tests/omega/fail/expressions/match_mixed_result_domains/main.omg` must reject
-kilometres joined with miles before an outer bare-carrier cast. This is source
-checking coverage; semantic qualification execution still needs its retained
-membership and scalar computation lowering.
+kilometres joined with miles before an outer bare-carrier cast. Predicate- and
+route-free scalar casts now retain explicit `Qualification` computation nodes,
+including their exact operands and normalized result types. Source replay checks
+the authored selection, unique checked membership use, declaration obligations,
+alias expansion and canonical indices; a pure payload node cannot replace the
+cast. This is checked-custody coverage, not executable Terminal support.
+`cargo run -p omega -- inspect-terminal --machine choose --target macos_arm64 tests/omega/pass/expressions/match_domain_results/main.omg`
+still rejects: scalar qualifications need membership transport through Terminal
+values, joins, signatures and calls. Preserve that meaning before enabling
+publication; a same-carrier cast is not permission to erase it.
 
 `cargo run -p omega -- --check tests/omega/pass/expressions/declared_operator_match_result/main.omg`
 checks a wider declared operator result joined with an anonymous numeric arm.

@@ -9,6 +9,7 @@ mod mixed_arguments;
 mod operand_scopes;
 mod owned_arguments;
 pub(crate) mod primitive_arguments;
+mod qualifications;
 
 pub(crate) use mixed_arguments::access_occurrences::rejoin as rejoin_call_accesses;
 pub(crate) use mixed_arguments::{RejoinedComputationArgument, rejoin_computation_call_arguments};
@@ -59,6 +60,29 @@ pub(crate) fn validate_computation_calls(
         let node = plans.nodes.get(handle);
         let authored_scope = operand_scopes::folded_match_scope(checked, authored_scope)?;
         match &node.kind {
+            CheckedScalarComputationKind::Qualification {
+                source_expression,
+                operand,
+                result_type,
+            } => {
+                dispatch::source_scope(
+                    checked,
+                    authored_scope,
+                    *source_expression,
+                    node.primitive_type,
+                )?;
+                let source = qualifications::operand(
+                    checked,
+                    machine,
+                    state,
+                    statement,
+                    *source_expression,
+                    *operand,
+                    *result_type,
+                    node.primitive_type,
+                )?;
+                pending.push((*operand, false, source));
+            }
             CheckedScalarComputationKind::Dispatch {
                 source_expression,
                 subject,
@@ -87,6 +111,15 @@ pub(crate) fn validate_computation_calls(
             CheckedScalarComputationKind::Value(value) => {
                 let authored_scope =
                     operand_scopes::value(checked, authored_scope, node.value_source)?;
+                if expression_membership(checked, authored_scope, true)?
+                    .iter()
+                    .any(|source| {
+                        matches!(checked.expression_table.expression(*source),
+                        ExpressionNode::Cast(cast) if !cast.semantic_domain.is_empty())
+                    })
+                {
+                    return unsupported("pure computation cannot erase a semantic qualification");
+                }
                 crate::scalar_source_custody::validate_storage_read_expression(
                     checked,
                     state,

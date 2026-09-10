@@ -546,6 +546,44 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected_type: PrimitiveType,
     ) -> Option<CheckedScalarComputationHandle> {
+        if let ExpressionNode::Cast(cast) =
+            self.program.expression_table.expression(expression).clone()
+            && !cast.semantic_domain.is_empty()
+        {
+            // Qualification changes semantic custody, not payload. It cannot
+            // become a pure expression whose source marker erases the cast.
+            // Final checked qualification facts are built after this graph;
+            // share their declaration rule and let the consumer rejoin the
+            // completed exact use fact before any publication.
+            if cast.form.is_recast()
+                || !matches!(
+                    self.program
+                        .type_reference_table
+                        .type_reference(cast.target_type),
+                    typed_trees::types::TypeReferenceNode::Named { .. }
+                )
+                || cast.domain != ArithmeticDomain::Exact
+                || !cast.semantic_domain_id.is_valid()
+                || !crate::facts::domain_is_vacuous(
+                    self.program,
+                    cast.semantic_domain_symbol,
+                    &mut Vec::new(),
+                )
+                || self.program.primitive_type_reference(cast.target_type) != Some(expected_type)
+                || self.program.primitive_type_reference(cast.result_type) != Some(expected_type)
+            {
+                return None;
+            }
+            let operand = self.expression(cast.value, expected_type)?;
+            return Some(self.insert(
+                expected_type,
+                CheckedScalarComputationKind::Qualification {
+                    source_expression: expression,
+                    operand,
+                    result_type: cast.result_type,
+                },
+            ));
+        }
         if let ExpressionNode::Match(dispatch) =
             self.program.expression_table.expression(expression).clone()
         {
