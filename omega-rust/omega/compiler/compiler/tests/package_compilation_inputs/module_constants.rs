@@ -269,6 +269,11 @@ fn public_float_constants_retain_landed_identity_and_exact_import_owner() {
         pub const ONE: f32 = 1.0;
         pub const POSITIVE_ZERO: f32 = 0.0;
         pub const NEGATIVE_ZERO: f32 = -0.0;
+        pub const POSITIVE_INFINITY: f32 = 1e40;
+        pub const SAME_INFINITY: f32 = 1e9999;
+        pub const NEGATIVE_INFINITY: f32 = -1e40;
+        pub const WIDE_POSITIVE_INFINITY: f64 = 1e9999;
+        pub const WIDE_NEGATIVE_INFINITY: f64 = -1e9999;
     "#,
     );
     TempTree::write(
@@ -278,6 +283,8 @@ fn public_float_constants_retain_landed_identity_and_exact_import_owner() {
         machine narrow() -> f32 { SCALE }
         machine qualified() -> f32 { dep::settings::SCALE }
         machine rounded() -> f32 { dep::settings::ROUNDED }
+        machine infinite() -> f32 { dep::settings::POSITIVE_INFINITY }
+        machine negative_infinite() -> f64 { dep::settings::WIDE_NEGATIVE_INFINITY }
     "#,
     );
     let inputs = PackageCompilationInputs::new_package(
@@ -294,7 +301,7 @@ fn public_float_constants_retain_landed_identity_and_exact_import_owner() {
     )
     .expect("one direct dependency");
     let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect("public finite floating constants retain declaration identity without becoming generic atoms");
+        .expect("public floating constants retain exact declaration identity without becoming generic atoms");
     let encoding = |name: &str| {
         let declaration = checked
             .const_declarations()
@@ -326,7 +333,24 @@ fn public_float_constants_retain_landed_identity_and_exact_import_owner() {
     assert_eq!(encoding("ABOVE_MIDPOINT"), encoding("NEXT"));
     assert_ne!(encoding("ABOVE_MIDPOINT"), encoding("ONE"));
     assert_ne!(encoding("POSITIVE_ZERO"), encoding("NEGATIVE_ZERO"));
-    for (name, expected) in [("narrow", 1.5), ("qualified", 1.5), ("rounded", 16777216.0)] {
+    assert_eq!(encoding("POSITIVE_INFINITY"), "float:f32:7f800000");
+    assert_eq!(encoding("POSITIVE_INFINITY"), encoding("SAME_INFINITY"));
+    assert_eq!(encoding("NEGATIVE_INFINITY"), "float:f32:ff800000");
+    assert_eq!(
+        encoding("WIDE_POSITIVE_INFINITY"),
+        "float:f64:7ff0000000000000"
+    );
+    assert_eq!(
+        encoding("WIDE_NEGATIVE_INFINITY"),
+        "float:f64:fff0000000000000"
+    );
+    for (name, expected) in [
+        ("narrow", 1.5),
+        ("qualified", 1.5),
+        ("rounded", 16777216.0),
+        ("infinite", f64::INFINITY),
+        ("negative_infinite", f64::NEG_INFINITY),
+    ] {
         let machine = checked
             .machines()
             .iter()
@@ -354,9 +378,9 @@ fn public_float_declarations_do_not_admit_floating_generic_indices() {
     let root = tree.package("root");
     TempTree::write(
         root.join("settings.omg"),
-        "module settings; pub const SCALE: f32 = 1.5;",
+        "module settings; pub const SCALE: f32 = 1.5; pub const INFINITY: f32 = 1e40;",
     );
-    for argument in ["settings::SCALE", "1.5f32"] {
+    for argument in ["settings::SCALE", "1.5f32", "settings::INFINITY", "1e40f32"] {
         TempTree::write(
             root.join("main.omg"),
             &format!(
@@ -386,7 +410,7 @@ fn public_float_declarations_do_not_admit_machine_or_domain_indices() {
     let root = tree.package("root");
     TempTree::write(
         root.join("settings.omg"),
-        "module settings; pub const SCALE: f32 = 1.5;",
+        "module settings; pub const SCALE: f32 = 1e40;",
     );
     for source in [
         "use settings; machine choose<const V: f32>() -> u64 { 7 } machine main() -> u64 { choose<settings::SCALE>() }",
@@ -410,11 +434,11 @@ fn public_float_declarations_do_not_admit_machine_or_domain_indices() {
 }
 
 #[test]
-fn public_float_identity_requires_finite_literals_with_matching_landings() {
+fn public_float_identity_requires_literals_with_matching_landings() {
     let tree = TempTree::new();
     let root = tree.package("root");
     for (initializer, diagnostic) in [
-        ("1e9999", "requires a finite landed value"),
+        ("1e9999f64", "conflicts with declared floating carrier"),
         ("1.5f64", "conflicts with declared floating carrier"),
         ("1.0 + 0.5", "conflicts with declared floating carrier"),
     ] {

@@ -123,13 +123,29 @@ fn public_float_identity_retains_format_bits_and_exact_package_owner() {
     };
     let original_row = row(&original);
     assert_eq!(original_row, row(&project_float("f32", "1.500")));
-    for changed in [project_float("f32", "2.5"), project_float("f64", "1.5")] {
+    assert_eq!(
+        row(&project_float("f32", "1e40")),
+        row(&project_float("f32", "1e9999"))
+    );
+    for changed in [
+        project_float("f32", "2.5"),
+        project_float("f64", "1.5"),
+        project_float("f32", "1e9999"),
+        project_float("f32", "-1e9999"),
+        project_float("f64", "1e9999"),
+        project_float("f64", "-1e9999"),
+    ] {
         let changed_row = row(&changed);
         assert_eq!(original_row.key_bytes(), changed_row.key_bytes());
         assert_ne!(
             original_row.canonical_bytes(),
             changed_row.canonical_bytes()
         );
+        let encoded = encode_package_review_canonical_row(&changed_row)
+            .expect("encode changed float declaration");
+        let decoded = decode_package_review_canonical_row(&encoded)
+            .expect("recover changed float declaration");
+        assert_eq!(decoded.canonical_bytes(), changed_row.canonical_bytes());
     }
     let encoded =
         encode_package_review_canonical_row(&original_row).expect("encode float declaration");

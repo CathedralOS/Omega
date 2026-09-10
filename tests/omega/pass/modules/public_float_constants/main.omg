@@ -3,3 +3,5 @@ use settings::SCALE;
 machine imported() -> f32 { SCALE }
 machine qualified() -> f32 { settings::SCALE }
 machine wide() -> f64 { settings::WIDE }
+machine infinite() -> f32 { settings::POSITIVE_INFINITY }
+machine negative_infinite() -> f64 { settings::NEGATIVE_INFINITY }

@@ -56,7 +56,7 @@ use syntax_trees::item::{ConstDefinition, DataMember, Item};
 
 mod carrier;
 
-/// Public declaration identity includes finite floating scalars, independently
+/// Public declaration identity includes floating scalars with determined bits, independently
 /// of the narrower structural values eligible for generic and domain indices.
 pub(crate) fn public_declaration_value_encoding(
     syntax: &SyntaxTrees,
@@ -82,19 +82,23 @@ pub(crate) fn public_declaration_value_encoding(
         .ok_or("floating declaration identity requires a scalar literal")?;
         // Read the declared format directly from exact source meaning. Going
         // through f64 for f32 would introduce a second rounding at midpoints.
+        // Signed infinity has one exact encoding per format. Payloadless NaN
+        // meaning cannot choose representation bits for a public declaration.
         return if carrier.as_str() == "f32" {
             let value = literal.value_f32();
-            if !value.is_finite() {
+            if value.is_nan() {
                 return Err(
-                    "floating declaration identity requires a finite landed value".to_owned(),
+                    "floating declaration identity requires explicit NaN representation bits"
+                        .to_owned(),
                 );
             }
             Ok(format!("float:f32:{:08x}", value.to_bits()))
         } else {
             let value = literal.value_f64();
-            if !value.is_finite() {
+            if value.is_nan() {
                 return Err(
-                    "floating declaration identity requires a finite landed value".to_owned(),
+                    "floating declaration identity requires explicit NaN representation bits"
+                        .to_owned(),
                 );
             }
             Ok(format!("float:f64:{:016x}", value.to_bits()))
@@ -917,6 +921,38 @@ mod module_tests {
                 .expect("parse module constants");
         }
         crate::lower_syntax_trees(&syntax)
+    }
+
+    #[test]
+    fn public_float_identity_rejects_payloadless_nan() {
+        for carrier in ["f32", "f64"] {
+            let source = format!("pub const VALUE: {carrier} = 1.0;");
+            let tokens = Lexer::new(&source)
+                .tokenize()
+                .expect("tokenize float constant");
+            let mut syntax = SyntaxTrees::default();
+            parse_syntax_trees_into_with_id(&mut syntax, SourceId(0), &tokens)
+                .expect("parse float constant");
+            let Item::Const(definition) =
+                syntax.root_items().next().expect("one declaration").clone()
+            else {
+                panic!("expected one constant declaration");
+            };
+            // Evaluator-produced NaN meaning carries no selected payload bits.
+            syntax.expressions.replace_expression(
+                definition.value,
+                syntax_trees::expression::ExpressionNode::Float(source::SourceText::new(
+                    "NaN",
+                    definition.name.source_span(),
+                )),
+            );
+            let error = public_declaration_value_encoding(&syntax, &definition, None)
+                .expect_err("payloadless NaN cannot acquire public representation identity");
+            assert!(
+                error.contains("explicit NaN representation bits"),
+                "{error}"
+            );
+        }
     }
 
     #[test]
