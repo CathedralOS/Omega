@@ -40,7 +40,8 @@ pub(super) fn validate(
                     return Err(invalid());
                 }
                 let (kind, key, operands, values) = match returned.value {
-                    LegalizedScalarReturnValue::Structural { .. } => {
+                    LegalizedScalarReturnValue::Structural { .. }
+                    | LegalizedScalarReturnValue::StructuralParameter { .. } => {
                         return super::aggregate_return::validate(
                             source,
                             block,

@@ -139,22 +139,63 @@ pub(super) fn validate(
                     && returned_claims.is_empty()
                     && trivial_affine_locals.is_empty()
                     && trivial_affine_discards.is_empty()
-                    && super::super::scalar_sums::result_home(optimized, *expected_source, plan)
-                        .is_ok_and(|expected| expected == *source)
-                    && graph.blocks.iter().any(|producer| {
-                        (producer.block == block.block
-                            || sources::dominates(optimized, producer.block, block.block))
-                            && producer.operations.iter().any(|operation| match operation {
-                                TargetUnitOperation::EstablishScalarCase {
-                                    result_home, ..
-                                }
-                                | TargetUnitOperation::StructuralResultCall {
-                                    result_home: Some(result_home),
-                                    ..
-                                } => result_home == source,
-                                _ => false,
-                            })
-                    })
+                    && match source {
+                        target_operations::TargetStructuralReturnSource::Parameter(parameter) => {
+                            optimized.structural_parameters.iter().any(|semantic| {
+                                semantic.place == *expected_source
+                                    && semantic.access == terminal_psi::StructuralAccess::Owned
+                                    && semantic.multiplicity
+                                        == terminal_psi::StructuralMultiplicity::Affine
+                                    && !semantic.is_self
+                                    && semantic.qualifications.is_empty()
+                                    && semantic.projected_qualifications.is_empty()
+                                    && optimized.result.structural().is_some_and(|result| {
+                                        result.structural_type == semantic.structural_type
+                                            && result.multiplicity == semantic.multiplicity
+                                            && result.qualifications.is_empty()
+                                            && result.projected_qualifications.is_empty()
+                                    })
+                            }) && parameter.place == *expected_source
+                                && graph
+                                    .parameters
+                                    .iter()
+                                    .any(|expected| expected == parameter)
+                                && graph
+                                    .call_plan
+                                    .result
+                                    .as_ref()
+                                    .is_some_and(|result| result.shape == parameter.shape)
+                        }
+                        target_operations::TargetStructuralReturnSource::Home(source) => {
+                            super::super::scalar_sums::result_home(
+                                optimized,
+                                *expected_source,
+                                plan,
+                            )
+                            .is_ok_and(|expected| expected == *source)
+                                && graph.blocks.iter().any(|producer| {
+                                    (producer.block == block.block
+                                        || sources::dominates(
+                                            optimized,
+                                            producer.block,
+                                            block.block,
+                                        ))
+                                        && producer.operations.iter().any(|operation| {
+                                            match operation {
+                                                TargetUnitOperation::EstablishScalarCase {
+                                                    result_home,
+                                                    ..
+                                                }
+                                                | TargetUnitOperation::StructuralResultCall {
+                                                    result_home: Some(result_home),
+                                                    ..
+                                                } => result_home == source,
+                                                _ => false,
+                                            }
+                                        })
+                                })
+                        }
+                    }
             }
             (
                 TargetControlTerminator::ReturnScalar {

@@ -8,14 +8,23 @@ pub(super) fn project(
         AbstractOperation::ReturnStructural {
             psi_edge, source, ..
         } => {
-            let (defining_operation, result) =
-                scalar_graph_input::structural_case::source_result(function, *source)?;
-            Ok(LegalizedScalarTerminator::Return(LegalizedScalarReturn {
-                edge: *psi_edge,
-                value: LegalizedScalarReturnValue::Structural {
+            let value = if function
+                .structural_parameters
+                .iter()
+                .any(|parameter| parameter.place == *source)
+            {
+                LegalizedScalarReturnValue::StructuralParameter { place: *source }
+            } else {
+                let (defining_operation, result) =
+                    scalar_graph_input::structural_case::source_result(function, *source)?;
+                LegalizedScalarReturnValue::Structural {
                     defining_operation,
                     result: result.clone(),
-                },
+                }
+            };
+            Ok(LegalizedScalarTerminator::Return(LegalizedScalarReturn {
+                edge: *psi_edge,
+                value,
                 fuel: node.fuel.clone(),
                 effect: node.effect,
                 ownership: node.ownership.clone(),

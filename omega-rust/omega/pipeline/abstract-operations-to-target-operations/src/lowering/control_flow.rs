@@ -60,10 +60,13 @@ pub(super) fn lower(
             | AbstractFunctionResult::Structural(_)
     ) || (!unobserved_owned
         && !function.structural_parameters.iter().all(|parameter| {
-            parameter.access != StructuralAccess::Owned
-                && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                && parameter.qualifications.is_empty()
+            parameter.qualifications.is_empty()
                 && parameter.projected_qualifications.is_empty()
+                && ((parameter.access != StructuralAccess::Owned
+                    && parameter.multiplicity == StructuralMultiplicity::Unrestricted)
+                    || (parameter.access == StructuralAccess::Owned
+                        && parameter.multiplicity == StructuralMultiplicity::Affine
+                        && !parameter.is_self))
         }))
         || !function.entry_claims.is_empty()
     {

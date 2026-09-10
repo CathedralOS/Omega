@@ -23,7 +23,8 @@ pub(super) fn build(
         }
         LegalizedScalarTerminator::Return(returned) => {
             let (kind, key, operands, values) = match returned.value {
-                LegalizedScalarReturnValue::Structural { .. } => {
+                LegalizedScalarReturnValue::Structural { .. }
+                | LegalizedScalarReturnValue::StructuralParameter { .. } => {
                     return super::aggregate_return::build(
                         source,
                         block,

@@ -97,6 +97,41 @@ pub(crate) fn shape(
     shape_inner(root, declarations, &mut Vec::new())
 }
 
+/// Reconstruct parameter storage from its access, independently of body order.
+pub(crate) fn parameter_shape(
+    parameter: &terminal_psi::StructuralParameterDeclaration,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<ValueShape> {
+    use terminal_psi::{StructuralAccess, StructuralMultiplicity};
+    if !parameter.qualifications.is_empty() || !parameter.projected_qualifications.is_empty() {
+        return None;
+    }
+    if parameter.is_self
+        && declarations.iter().any(|declaration| {
+            declaration.id == parameter.structural_type
+                && matches!(declaration.shape, StructuralTypeShape::ByteSequence(_))
+        })
+    {
+        return None;
+    }
+    let referent = shape(parameter.structural_type, declarations)?;
+    match (parameter.access, parameter.multiplicity) {
+        (StructuralAccess::Owned, StructuralMultiplicity::Affine) if !parameter.is_self => {
+            Some(referent)
+        }
+        (
+            StructuralAccess::SharedBorrow
+            | StructuralAccess::MutableBorrow
+            | StructuralAccess::WriteOnlyBorrow,
+            StructuralMultiplicity::Unrestricted,
+        ) => Some(ValueShape::borrowed_reference(
+            referent.byte_size,
+            referent.alignment,
+        )),
+        _ => None,
+    }
+}
+
 /// Reconstruct an initialized fixed-array loan, not an existing slice descriptor.
 pub(crate) fn fixed_byte_array_view(
     source: &terminal_psi::StructuralParameterDeclaration,

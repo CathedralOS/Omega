@@ -36,6 +36,50 @@ pub(super) fn lower_terminator(
             trivial_affine_discards,
         } => {
             let result = function.result.structural().ok_or_else(invalid)?;
+            if let Some(parameter) = function
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == *source)
+            {
+                let actual = prepared
+                    .parameters
+                    .iter()
+                    .find(|parameter| parameter.place == *source)
+                    .ok_or_else(invalid)?;
+                let placement = prepared.call_plan.result.as_ref().ok_or_else(invalid)?;
+                if parameter.access != StructuralAccess::Owned
+                    || parameter.multiplicity != StructuralMultiplicity::Affine
+                    || parameter.is_self
+                    || parameter.structural_type != result.structural_type
+                    || parameter.multiplicity != result.multiplicity
+                    || !parameter.qualifications.is_empty()
+                    || !parameter.projected_qualifications.is_empty()
+                    || !result.qualifications.is_empty()
+                    || !result.projected_qualifications.is_empty()
+                    || !returned_claims.is_empty()
+                    || !trivial_affine_locals.is_empty()
+                    || !trivial_affine_discards.is_empty()
+                    || actual.shape != placement.shape
+                {
+                    return Err(invalid());
+                }
+                super::super::structural::require_direct_structural_fragments(
+                    function.machine,
+                    &actual.placement,
+                )?;
+                super::super::structural::require_direct_structural_fragments(
+                    function.machine,
+                    placement,
+                )?;
+                provenance.edges.push(*psi_edge);
+                return Ok(TargetControlTerminator::ReturnStructural {
+                    psi_edge: *psi_edge,
+                    source: target_operations::TargetStructuralReturnSource::Parameter(
+                        actual.clone(),
+                    ),
+                    cleanup_actions: Vec::new(),
+                });
+            }
             let home = live.structural_homes.get(source).ok_or_else(invalid)?;
             if result.structural_type != home.result.structural_type
                 || result.multiplicity != home.result.multiplicity
@@ -50,7 +94,7 @@ pub(super) fn lower_terminator(
             provenance.edges.push(*psi_edge);
             Ok(TargetControlTerminator::ReturnStructural {
                 psi_edge: *psi_edge,
-                source: home.clone(),
+                source: target_operations::TargetStructuralReturnSource::Home(home.clone()),
                 cleanup_actions: Vec::new(),
             })
         }

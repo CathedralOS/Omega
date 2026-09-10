@@ -22,6 +22,17 @@ pub(super) fn validate(
             }
             match (&returned.value, source) {
                 (
+                    LegalizedScalarReturnValue::StructuralParameter { place },
+                    AbstractOperation::ReturnStructural {
+                        psi_edge, source, ..
+                    },
+                ) if returned.edge == *psi_edge
+                    && place == source
+                    && function
+                        .structural_parameters
+                        .iter()
+                        .any(|parameter| parameter.place == *source) => {}
+                (
                     LegalizedScalarReturnValue::Structural {
                         defining_operation,
                         result,

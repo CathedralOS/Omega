@@ -368,6 +368,10 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
             bytes.extend_from_slice(&returned.edge.get().to_le_bytes());
             match &returned.value {
                 LegalizedScalarReturnValue::Unit => bytes.push(0),
+                LegalizedScalarReturnValue::StructuralParameter { place } => {
+                    bytes.push(3);
+                    bytes.extend_from_slice(&place.get().to_le_bytes());
+                }
                 LegalizedScalarReturnValue::Structural {
                     defining_operation,
                     result,

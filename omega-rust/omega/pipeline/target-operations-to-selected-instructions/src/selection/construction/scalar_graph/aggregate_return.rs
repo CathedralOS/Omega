@@ -1,4 +1,4 @@
-//! Return the exact direct ABI fragments from the established aggregate home.
+//! Return exact ABI fragments from an incoming value or established aggregate home.
 use super::*;
 use selected_instructions::{FrameStorageSlotId, SelectedMemoryAccessRole};
 
@@ -10,94 +10,152 @@ pub(super) fn build(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<SelectedTerminator, SelectedInstructionError> {
     let invalid = || SelectedInstructionError::SourceCustodyMismatch;
-    let (slot, placement) = crate::selection::scalar_case_input::returned(source, &returned.value)
-        .ok_or_else(invalid)?;
-    let place = slot.structural_place().ok_or_else(invalid)?;
-    if builder
-        .transport
-        .local_slots
-        .iter()
-        .filter(|home| {
-            home.id == slot
-                && home.byte_size == u32::from(placement.shape.byte_size)
-                && home.alignment == placement.shape.alignment
-        })
-        .count()
-        != 1
+    let (place, placement, slot) = if let Some((parameter, placement)) =
+        crate::selection::scalar_case_input::returned_parameter(source, &returned.value)
     {
+        (parameter.semantic.place, placement, None)
+    } else {
+        let (slot, placement) =
+            crate::selection::scalar_case_input::returned(source, &returned.value)
+                .ok_or_else(invalid)?;
+        (
+            slot.structural_place().ok_or_else(invalid)?,
+            placement,
+            Some(slot),
+        )
+    };
+    if slot.is_some_and(|slot| {
+        builder
+            .transport
+            .local_slots
+            .iter()
+            .filter(|home| {
+                home.id == slot
+                    && home.byte_size == u32::from(placement.shape.byte_size)
+                    && home.alignment == placement.shape.alignment
+            })
+            .count()
+            != 1
+    }) {
         return Err(invalid());
     }
-    let key = builder.constraints.keys.return_aggregate.iter().find(|key| {
+    let scalar_return = builder.constraints.keys.return_aggregate.is_empty()
+        && matches!(
+            placement.locations.as_slice(),
+            [ValueLocation::Register {
+                value_byte_offset: 0,
+                byte_size: 8,
+                ..
+            }]
+        )
+        && placement.shape == calling_conventions::ValueShape::integer(8, 8);
+    let keys = if scalar_return {
+        std::slice::from_ref(&builder.constraints.keys.return_i64)
+    } else {
+        &builder.constraints.keys.return_aggregate
+    };
+    let key = keys.iter().find(|key| {
         row(builder.catalog, **key).is_ok_and(|row| row.operands.len() == placement.locations.len()
             && row.operands.iter().zip(&placement.locations).all(|(operand, location)| {
                 matches!(location, ValueLocation::Register { register, .. }
                     if operand.fixed_view.is_some() && operand.fixed_view == environment.fixed_register_view(*register))
             }))
     }).copied().ok_or_else(invalid)?;
-    let pointer = super::structural_case::register(builder, place, 0, 64, false)?;
-    super::structural_case::memory(
-        builder,
-        block.id,
-        place,
-        0,
-        u32::from(placement.shape.byte_size),
-        SelectedMemoryAccessRole::AddressLocal { slot },
-    )?;
-    builder.emit(
-        SelectedInstructionKind::FrameAddress {
-            slot: FrameStorageSlotId::Local(slot),
-            byte_offset: 0,
-        },
-        builder.constraints.keys.frame_address.ok_or_else(invalid)?,
-        &[pointer],
-        Default::default(),
-    )?;
     let mut registers = Vec::new();
-    for location in &placement.locations {
-        let ValueLocation::Register {
-            value_byte_offset,
-            byte_size,
-            ..
-        } = location
-        else {
-            return Err(invalid());
-        };
-        let offset = u32::from(*value_byte_offset);
-        let register = super::structural_case::register(builder, place, offset, 64, false)?;
+    if let Some(slot) = slot {
+        let pointer = super::structural_case::register(builder, place, 0, 64, false)?;
         super::structural_case::memory(
             builder,
             block.id,
             place,
-            offset,
-            u32::from(*byte_size),
-            SelectedMemoryAccessRole::ReadPlace,
+            0,
+            u32::from(placement.shape.byte_size),
+            SelectedMemoryAccessRole::AddressLocal { slot },
         )?;
-        let (load, constraint) = if *byte_size == 8 {
-            (
-                SelectedInstructionKind::Load64 {
-                    byte_offset: offset,
-                },
-                builder.constraints.keys.load64,
-            )
-        } else {
-            (
-                SelectedInstructionKind::Load32 {
-                    byte_offset: offset,
-                },
-                builder.constraints.keys.load32,
-            )
-        };
         builder.emit(
-            load,
-            constraint.ok_or_else(invalid)?,
-            &[pointer, register],
+            SelectedInstructionKind::FrameAddress {
+                slot: FrameStorageSlotId::Local(slot),
+                byte_offset: 0,
+            },
+            builder.constraints.keys.frame_address.ok_or_else(invalid)?,
+            &[pointer],
             Default::default(),
         )?;
-        registers.push(register);
+        for location in &placement.locations {
+            let ValueLocation::Register {
+                value_byte_offset,
+                byte_size,
+                ..
+            } = location
+            else {
+                return Err(invalid());
+            };
+            let offset = u32::from(*value_byte_offset);
+            let register = super::structural_case::register(builder, place, offset, 64, false)?;
+            super::structural_case::memory(
+                builder,
+                block.id,
+                place,
+                offset,
+                u32::from(*byte_size),
+                SelectedMemoryAccessRole::ReadPlace,
+            )?;
+            let (load, constraint) = if *byte_size == 8 {
+                (
+                    SelectedInstructionKind::Load64 {
+                        byte_offset: offset,
+                    },
+                    builder.constraints.keys.load64,
+                )
+            } else {
+                (
+                    SelectedInstructionKind::Load32 {
+                        byte_offset: offset,
+                    },
+                    builder.constraints.keys.load32,
+                )
+            };
+            builder.emit(
+                load,
+                constraint.ok_or_else(invalid)?,
+                &[pointer, register],
+                Default::default(),
+            )?;
+            registers.push(register);
+        }
+    } else {
+        for location in &placement.locations {
+            let ValueLocation::Register {
+                value_byte_offset, ..
+            } = location
+            else {
+                return Err(invalid());
+            };
+            let offset = u32::from(*value_byte_offset);
+            let input = builder
+                .transport
+                .fragments
+                .iter()
+                .find(|(owner, position, _)| *owner == place && *position == offset)
+                .map(|(_, _, register)| *register)
+                .ok_or_else(invalid)?;
+            let output = super::structural::transport_register(builder, place, offset)?;
+            builder.emit(
+                SelectedInstructionKind::CopyI64,
+                builder.constraints.keys.copy_i64,
+                &[input, output],
+                Default::default(),
+            )?;
+            registers.push(output);
+        }
     }
     builder.emit(
-        SelectedInstructionKind::ReturnAggregate {
-            fragment_count: registers.len() as u8,
+        if scalar_return {
+            SelectedInstructionKind::ReturnI64
+        } else {
+            SelectedInstructionKind::ReturnAggregate {
+                fragment_count: registers.len() as u8,
+            }
         },
         key,
         &registers,

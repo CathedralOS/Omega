@@ -45,10 +45,12 @@ until aggregate storage, argument/result transport, and empty-value ABI are conn
 
 Verified branches, calls, and crash exits retain the same operation identities
 and ownership transfers regardless of result category. Local establishments are
-ordinary operations, not hidden inside a structural return. The legacy no-code
-physical return collects their provenance only when selecting that native form.
-This removes a source-body admission fence; general owned-record graph return
-storage and claim-bearing native control flow still require downstream support.
+ordinary operations, not hidden inside a structural return. The legacy linear,
+claim-bearing no-code physical return collects their provenance only when
+selecting that native form. Plain affine incoming parameters can return through
+the ordinary native graph with direct ABI fragments preserved across writes and
+calls. Source production of mixed owned-return bodies and claim-bearing native
+control flow still require support.
 
 The [ownership contract](../../../../wiki/spec/terminal-psi/ownership.md) requires
 replay of actual moves and maximal residual subtrees, independently of producer

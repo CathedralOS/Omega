@@ -324,6 +324,11 @@ impl LegalizedScalarArgument {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarReturnValue {
     Unit,
+    /// The exact incoming place; its semantic declaration and ABI placement
+    /// remain in the function's structural contract.
+    StructuralParameter {
+        place: semantic_vocabulary::PlaceId,
+    },
     Structural {
         defining_operation: OperationId,
         result: terminal_psi::StructuralOperationResult,

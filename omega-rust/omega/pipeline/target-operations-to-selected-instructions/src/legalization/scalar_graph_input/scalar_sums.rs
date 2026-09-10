@@ -4,17 +4,18 @@ use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::{StructuralMultiplicity, StructuralOperationResult, StructuralTypeShape};
 
 pub(super) fn uses(function: &PsiOptimizationFunction) -> bool {
-    function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .any(|node| {
-            matches!(
-                node.operation,
-                AbstractOperation::EstablishScalarCase { .. }
-                    | AbstractOperation::CallStructural { .. }
-            )
-        })
+    function.result.structural().is_some()
+        || function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .any(|node| {
+                matches!(
+                    node.operation,
+                    AbstractOperation::EstablishScalarCase { .. }
+                        | AbstractOperation::CallStructural { .. }
+                )
+            })
 }
 
 pub(in crate::legalization) fn layout(
@@ -156,18 +157,35 @@ pub(super) fn header(
     let result = match &abstracted.result {
         AbstractFunctionResult::Unit => None,
         AbstractFunctionResult::Structural(result) => Some(
-            layout(
-                &StructuralOperationResult {
-                    place: result.place,
-                    structural_type: result.structural_type,
-                    multiplicity: result.multiplicity,
-                    qualifications: result.qualifications.clone(),
-                    projected_qualifications: result.projected_qualifications.clone(),
-                    claims: Vec::new(),
-                },
-                plan,
-            )?
-            .shape,
+            if plan.structural_types.iter().any(|declaration| {
+                declaration.id == result.structural_type
+                    && matches!(declaration.shape, StructuralTypeShape::Sum { .. })
+            }) {
+                layout(
+                    &StructuralOperationResult {
+                        place: result.place,
+                        structural_type: result.structural_type,
+                        multiplicity: result.multiplicity,
+                        qualifications: result.qualifications.clone(),
+                        projected_qualifications: result.projected_qualifications.clone(),
+                        claims: Vec::new(),
+                    },
+                    plan,
+                )?
+                .shape
+            } else {
+                if result.multiplicity == StructuralMultiplicity::Linear
+                    || !result.qualifications.is_empty()
+                    || !result.projected_qualifications.is_empty()
+                {
+                    return Err(invalid);
+                }
+                crate::structural_reference_input::shape(
+                    result.structural_type,
+                    &plan.structural_types,
+                )
+                .ok_or(invalid.clone())?
+            },
         ),
         _ => return Err(invalid),
     };
@@ -177,10 +195,10 @@ pub(super) fn header(
         .map(|parameter| scalar_shape(parameter.scalar_type).ok_or(invalid.clone()))
         .collect::<Result<Vec<_>, _>>()?;
     for parameter in &abstracted.structural_parameters {
-        if !byte_parameter(parameter, plan) {
-            return Err(invalid);
-        }
-        shapes.push(ValueShape::borrowed_reference(16, 8));
+        shapes.push(
+            crate::structural_reference_input::parameter_shape(parameter, &plan.structural_types)
+                .ok_or(invalid.clone())?,
+        );
     }
     let expected = evaluate_call_plan(
         CallingPolicy::native_for_target(native),
@@ -222,7 +240,7 @@ pub(super) fn header(
             || retained.access != declared.access
             || retained.multiplicity != declared.multiplicity
             || !retained.projected_qualifications.is_empty()
-            || retained.shape != ValueShape::borrowed_reference(16, 8)
+            || retained.shape != expected.parameters[abstracted.parameters.len() + position].shape
             || retained.placement != expected.parameters[abstracted.parameters.len() + position]
         {
             return Err(invalid);
