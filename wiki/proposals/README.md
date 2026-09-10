@@ -9,7 +9,7 @@ Acceptance updates the specification; this directory does not define current rul
 Use `NNNN_short_descriptive_name.md`, beginning with `0000`. The number is a stable
 proposal ID, not priority or acceptance order. Do not routinely renumber or reuse
 IDs; an explicit owner-directed reassignment updates every reference in the same sweep.
-The next available ID is **0008**; advance this counter when adding a proposal,
+The next available ID is **0009**; advance this counter when adding a proposal,
 including after accepted or withdrawn files have been removed.
 
 Each proposal names its status, affected spec owners, concrete problem, proposed
@@ -40,7 +40,11 @@ separate review system or historical decision ledger.
 - [0003: Proof-search caching](0003_proof_search_cache.md): untrusted derivation reuse;
   persistence, keys, and granularity remain unselected.
 - [0007: Checked boundary topology](0007_checked_boundary_topology.md): explicit
-  service-instance wiring in build code, ordinary checked routing policies, and
-  separate artifact/composition/installation enforcement. No nested reach syntax.
+  service-instance wiring, routing policies, codec, and installer in an ordinary
+  package; depends on 0008 for build-only imports and generic staged publication.
+  Component evidence and runtime confinement remain independently required.
+- [0008: Build dependency scopes and isolated inputs](0008_build_dependency_scopes.md):
+  build-only imports, host/product context separation, snapshot/staging defaults,
+  explicit host grants, and generic required artifact publication.
 
 Temporary working notes belong in [drafts/](../drafts/README.md).
