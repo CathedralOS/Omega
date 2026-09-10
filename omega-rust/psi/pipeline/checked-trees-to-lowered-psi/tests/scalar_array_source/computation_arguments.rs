@@ -1,5 +1,8 @@
 //! Computation-owned array actuals keep exact custody and selected execution.
 
+#[path = "operation_body_callees.rs"]
+mod operation_body_callees;
+
 use super::*;
 use checked_trees::{CheckedScalarComputationKind, CheckedScalarComputationStructuralArgument};
 use terminal_fuel::TerminalFuelMeter;

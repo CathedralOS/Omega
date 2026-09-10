@@ -102,6 +102,7 @@ fn mixed_scalar_graph_retains_authored_positions_and_unit_call_custody() {
     assert!(is_available(
         &checked.typed,
         &checked.facts,
+        &checked.facts.flow.terminal_unit_effects.machines,
         observer,
         operation
     ));
@@ -263,4 +264,102 @@ fn scalar_only_graph_keeps_dense_rows_and_mutable_parameter_storage() {
         .unwrap();
     assert_eq!(storage.len(), 1);
     assert_eq!(storage[0].parameter_ordinal, 0);
+}
+
+#[test]
+fn ordered_scalar_targets_retain_exact_signatures_across_candidate_order() {
+    let checked = checked(
+        "machine touch() {}
+         machine answer(row: [u8; 2], value: u8) -> u8 { value }
+         machine leaf(value: u8) -> u8 {
+             touch();
+             let row: [u8; 2] = [7u8, 9u8];
+             answer(row, value)
+         }
+         machine middle(value: u8) -> u8 {
+             let result: u8 = leaf(value);
+             let row: [u8; 2] = [7u8, 9u8];
+             answer(row, result)
+         }",
+    );
+    let leaf = machine_symbol(&checked, "leaf");
+    let middle = machine_symbol(&checked, "middle");
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .for_machine(leaf)
+            .is_none()
+    );
+    let caller = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(middle)
+        .expect("scalar caller survives pruning with its real ordered callee");
+    let operation = caller.operations.iter().find(|operation| matches!(operation,
+        CheckedUnitEffectOperationPlan::ScalarCall { target_machine, .. } if *target_machine == leaf
+    )).expect("ordinary scalar call to the operation body");
+    let mut candidates = checked.facts.flow.terminal_unit_effects.machines.clone();
+    for _ in 0..2 {
+        assert!(is_available(
+            &checked.typed,
+            &checked.facts,
+            &candidates,
+            caller,
+            operation
+        ));
+        candidates.reverse();
+    }
+    for mutation in [
+        "missing",
+        "duplicate",
+        "state",
+        "result",
+        "parameter",
+        "missing parameter",
+        "fingerprint",
+        "commitment",
+    ] {
+        let mut candidates = candidates.clone();
+        let position = candidates
+            .iter()
+            .position(|plan| plan.machine == leaf)
+            .unwrap();
+        match mutation {
+            "missing" => {
+                candidates.remove(position);
+            }
+            "duplicate" => candidates.push(candidates[position].clone()),
+            "state" => candidates[position].state = SymbolHandle::invalid(),
+            "result" => {
+                candidates[position]
+                    .scalar_result
+                    .as_mut()
+                    .unwrap()
+                    .primitive_type = PrimitiveType::Bool
+            }
+            "parameter" => candidates[position].scalar_parameters[0].source_position = u32::MAX,
+            "missing parameter" => {
+                candidates[position].scalar_parameters.clear();
+            }
+            "fingerprint" => candidates[position].contract_report_fingerprint = 0,
+            "commitment" => {
+                candidates[position].contract_commitment =
+                    checked_trees::MachineContractCommitment::from_digest([0; 32])
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            !is_available(
+                &checked.typed,
+                &checked.facts,
+                &candidates,
+                caller,
+                operation
+            ),
+            "{mutation}"
+        );
+    }
 }

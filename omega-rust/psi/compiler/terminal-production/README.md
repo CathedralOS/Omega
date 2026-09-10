@@ -272,8 +272,20 @@ decoded execution returns `[42u8, 9u8]` for input `42u8`. The
 [`computation argument tests`](../../pipeline/checked-trees-to-lowered-psi/tests/scalar_array_source/computation_arguments.rs)
 exercise nested/empty arrays, mixed formal effects, selective construction,
 source substitutions, and fuel suspension without replay.
-Transitive scalar callees whose bodies require
-this ordered structural operation sequence also need scalar-callee catalog support.
+Transitive scalar callees retain this same ordered operation sequence. The
+producer prunes callers against a stable roster of complete body candidates;
+`checked-trees-to-lowered-psi/src/attached_unit/call_catalog.rs` then closes
+operation, scalar-helper and provider dependencies before assigning identities,
+including Unit statements retained inside scalar graphs.
+Each operation body uses the existing ordered emitter once. A helper's local
+storage requires the structural call frame even with a scalar-only signature;
+the module entry names the selected source, not whichever helper was allocated
+first. The companion probe is
+`cargo run -p omega -- inspect-terminal --machine transitive_computation_row tests/omega/pass/modules/module_array_constant_indices/main.omg`.
+The decoded regression fixtures return `[42u8, 9u8]` for input `42u8`. The
+[`operation-body callee tests`](../../pipeline/checked-trees-to-lowered-psi/tests/scalar_array_source/operation_body_callees.rs)
+retain scalar/Unit/array entries, mixed helper dependencies, empty arrays,
+local write order, one-unit fuel resumption, and exact source/contract rejection.
 Array state transfers, borrowed/projected payloads, boundary-provider array
 payloads, and native construction still need their complete value/storage paths.
 General slice-backed `.len` operands require retained view formation and bounds

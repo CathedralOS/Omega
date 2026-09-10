@@ -56,6 +56,71 @@ machine enter(left: Flags, marker: bool, right: Flags, other: bool) -> bool {
 "#;
 
 #[test]
+fn source_debug_follows_selected_entry_after_ordered_helpers() {
+    let source = "machine answer(row: [u8; 2], value: u8) -> u8 { value }
+        machine helper(value: u8) -> u8 {
+            let row: [u8; 2] = [7u8, 9u8];
+            answer(row, value)
+        }
+        machine selected(input: u8) -> u8 { helper(input) }";
+    let (checked, _, _, _) = support::publish(source, "selected");
+    let selected = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "selected")
+        .unwrap();
+    let parameter = &checked.state_parameters(&checked.machine_states(selected)[0])[0];
+    let machine_span = checked
+        .typed
+        .symbols
+        .symbol_source_span(selected.symbol)
+        .unwrap();
+    let parameter_span = checked
+        .typed
+        .symbols
+        .symbol_source_span(parameter.symbol)
+        .unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "selected").unwrap();
+    let module = &lowered.semantic_module;
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    assert_ne!(
+        module.machines[0].id, entry.id,
+        "ordered helper precedes selected entry"
+    );
+    let debug = lowered.debug_map.as_ref().unwrap();
+    for (subject, expected) in [
+        (terminal_psi::DebugSubject::Machine(entry.id), machine_span),
+        (
+            terminal_psi::DebugSubject::Value(entry.parameters[0].id),
+            parameter_span,
+        ),
+        (
+            terminal_psi::DebugSubject::Value(entry.result.scalar().unwrap().id),
+            machine_span,
+        ),
+    ] {
+        let site = debug
+            .sites
+            .iter()
+            .find(|site| site.subject == subject)
+            .unwrap_or_else(|| panic!("selected source subject missing: {subject:?}"));
+        assert_eq!(site.span.start, expected.span.start as u64, "{subject:?}");
+        assert_eq!(site.span.end, expected.span.end as u64, "{subject:?}");
+    }
+    assert!(
+        !debug
+            .sites
+            .iter()
+            .any(|site| site.subject == terminal_psi::DebugSubject::Machine(module.machines[0].id)),
+        "selected entry source must not be attributed to its helper"
+    );
+}
+
+#[test]
 fn source_debug_parameters_follow_scalar_positions_among_owned_inputs() {
     for entry in ["inspect", "enter"] {
         let (checked, _, _, _) = support::publish(ORDERED, entry);

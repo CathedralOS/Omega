@@ -6,12 +6,20 @@ pub(super) fn build_debug_map(
     plan: &CheckedTerminalMachineDebugPlan,
     module: &TerminalModule,
 ) -> Result<TerminalDebugMap, LoweringError> {
+    // Shared assembly may emit ordered helpers before the selected scalar root.
+    // The source plan belongs to the entry identity, not the first emitted body.
     let terminal_machine = module
         .machines
         .iter()
         .find(|machine| machine.id == module.entry)
         .ok_or(LoweringError::Unsupported(
             "the selected entry machine is absent from its terminal call closure",
+        ))?;
+    let result = terminal_machine
+        .result
+        .scalar()
+        .ok_or(LoweringError::Unsupported(
+            "scalar debug source entry has no scalar result",
         ))?;
     let source_states = &plan.states;
     let has_source_file = |span: source::SourceSpan| {
@@ -98,16 +106,7 @@ pub(super) fn build_debug_map(
             }
         }
     }
-    push(
-        DebugSubject::Value(
-            terminal_machine
-                .result
-                .scalar()
-                .expect("the checked scalar producer emits a scalar result")
-                .id,
-        ),
-        plan.machine_span,
-    );
+    push(DebugSubject::Value(result.id), plan.machine_span);
 
     subjects.sort_by_key(|(subject, _)| *subject);
     subjects.dedup_by_key(|(subject, _)| *subject);
