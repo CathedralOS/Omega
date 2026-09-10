@@ -7,6 +7,11 @@ use optimization_unit::{PsiOptimizationUnit, recompute_psi_optimization_unit_ide
 
 use super::{AnalysisProduct, analysis_dependencies, compute_analysis};
 
+#[cfg(test)]
+thread_local! {
+    pub(super) static CONTENT_IDENTITY_CHECKS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AnalysisManagerError {
     StaleUnitIdentity {
@@ -47,6 +52,27 @@ pub struct AnalysisManager {
 }
 
 impl AnalysisManager {
+    /// Validate once and keep both the unit and cache borrowed until this
+    /// revision's requests finish. The unit cannot change beneath cached reads.
+    pub fn bind_revision<'a>(
+        &'a mut self,
+        unit: &'a PsiOptimizationUnit,
+    ) -> Result<super::AnalysisRevision<'a>, AnalysisManagerError> {
+        self.require_revision(unit)?;
+        Ok(super::AnalysisRevision::new(unit, self))
+    }
+
+    pub(super) fn require_view(
+        &mut self,
+        unit: &PsiOptimizationUnit,
+        requested: AnalysisSet,
+    ) -> Result<crate::RuleAnalysisView<'_>, AnalysisManagerError> {
+        for kind in requested.iter() {
+            self.compute_with_dependencies(unit, kind)?;
+        }
+        Ok(crate::RuleAnalysisView::from_cache(&self.cache, requested))
+    }
+
     pub fn new(unit: &PsiOptimizationUnit) -> Self {
         Self {
             revision: unit.identity,
@@ -188,6 +214,8 @@ impl AnalysisManager {
 }
 
 fn validate_content_identity(unit: &PsiOptimizationUnit) -> Result<(), AnalysisManagerError> {
+    #[cfg(test)]
+    CONTENT_IDENTITY_CHECKS.with(|checks| checks.set(checks.get() + 1));
     let recomputed = recompute_psi_optimization_unit_identity(unit);
     if unit.identity != recomputed {
         return Err(AnalysisManagerError::StaleUnitIdentity {

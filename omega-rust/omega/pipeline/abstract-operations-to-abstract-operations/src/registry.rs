@@ -1,9 +1,12 @@
-use std::{collections::BTreeSet, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 use optimization::PsiOptimization;
 use optimization_core::{
-    AnalysisKind, OptimizationPassIdentity, OptimizationRuleContract, OptimizationRuleIdentity,
-    OptimizationRuleSetIdentity,
+    AnalysisKind, AnalysisSet, OptimizationPassIdentity, OptimizationRuleContract,
+    OptimizationRuleIdentity, OptimizationRuleSetIdentity,
 };
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, PsiRewriteCandidateError};
 use semantic_vocabulary::{MachineId, ObligationId, OperationId};
@@ -12,16 +15,50 @@ use crate::AnalysisProduct;
 
 #[derive(Debug, Clone, Copy)]
 pub struct RuleAnalysisView<'a> {
-    products: &'a [AnalysisProduct],
+    products: RuleAnalysisProducts<'a>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum RuleAnalysisProducts<'a> {
+    Slice(&'a [AnalysisProduct]),
+    Cache {
+        products: &'a BTreeMap<AnalysisKind, AnalysisProduct>,
+        requested: AnalysisSet,
+    },
 }
 
 impl<'a> RuleAnalysisView<'a> {
     pub const fn new(products: &'a [AnalysisProduct]) -> Self {
-        Self { products }
+        Self {
+            products: RuleAnalysisProducts::Slice(products),
+        }
+    }
+
+    pub(crate) const fn from_cache(
+        products: &'a BTreeMap<AnalysisKind, AnalysisProduct>,
+        requested: AnalysisSet,
+    ) -> Self {
+        Self {
+            products: RuleAnalysisProducts::Cache {
+                products,
+                requested,
+            },
+        }
     }
 
     pub fn get(self, kind: AnalysisKind) -> Option<&'a AnalysisProduct> {
-        self.products.iter().find(|product| product.kind() == kind)
+        match self.products {
+            RuleAnalysisProducts::Slice(products) => {
+                products.iter().find(|product| product.kind() == kind)
+            }
+            RuleAnalysisProducts::Cache {
+                products,
+                requested,
+            } => requested
+                .contains(kind)
+                .then(|| products.get(&kind))
+                .flatten(),
+        }
     }
 }
 

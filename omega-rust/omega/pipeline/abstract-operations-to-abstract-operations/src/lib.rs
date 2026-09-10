@@ -20,8 +20,8 @@ pub use publication::{
 };
 
 pub use analyses::{
-    AnalysisManager, AnalysisManagerError, AnalysisProduct, AnalysisRevisionCommit,
-    BlockControlFlow, CallGraphAnalysis, ControlFlowAnalysis,
+    AnalysisManager, AnalysisManagerError, AnalysisProduct, AnalysisRevision,
+    AnalysisRevisionCommit, BlockControlFlow, CallGraphAnalysis, ControlFlowAnalysis,
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantAnalysisSnapshot,
     CountdownInvariantConstantConsumer, CountdownInvariantConstantDestination,
     CountdownInvariantConstantPlacement, CountdownInvariantConstantPlacementAnalysisError,
