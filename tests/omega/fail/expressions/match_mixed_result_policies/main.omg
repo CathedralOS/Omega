@@ -1,0 +1,8 @@
+machine choose(flag: bool) -> u64 {
+    (match flag {
+        true -> (1 as u64 in Wrapping) + 1
+        false -> (2 as u64 in Saturating) + 1
+    }) as u64
+}
+
+machine main() -> u64 { choose(true) }

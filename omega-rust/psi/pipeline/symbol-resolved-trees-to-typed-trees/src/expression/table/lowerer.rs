@@ -259,6 +259,14 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     .target_trees
                     .type_reference_table
                     .insert_type_reference_handles(semantic_domain_arguments);
+                if semantic_domain.is_empty() && !cast.form.is_recast() {
+                    crate::type_reference::retain_arithmetic_result_type(
+                        &program.symbols,
+                        self.target_trees,
+                        target_type,
+                        Some(cast.domain),
+                    );
+                }
                 Ok(self
                     .target()
                     .insert(typed::expression::ExpressionNode::Cast(

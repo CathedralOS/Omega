@@ -7,6 +7,67 @@ use crate::name::Identifier;
 use symbols::SymbolHandle;
 
 #[test]
+fn arithmetic_result_lookup_requires_exact_carrier_and_policy_only_shape() {
+    use numerics::arithmetic::ArithmeticDomain;
+    let mut types = TypeReferenceTable::new();
+    let carrier = SymbolHandle::from_parts(1, 0);
+    let base = types.insert(TypeReferenceNode::Named {
+        symbol: carrier,
+        name: Identifier::generated("u64"),
+    });
+    let constraints = types.insert_constraints([
+        TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Wrapping),
+        TypeConstraintNode::Range {
+            minimum: crate::expression::ExpressionHandle::invalid(),
+            maximum: crate::expression::ExpressionHandle::invalid(),
+        },
+    ]);
+    types.insert(TypeReferenceNode::Constrained {
+        base_type: base,
+        constraints,
+    });
+    assert_eq!(
+        types.find_arithmetic_result_type_reference(carrier, ArithmeticDomain::Exact),
+        Some(base)
+    );
+    assert!(
+        types
+            .find_arithmetic_result_type_reference(carrier, ArithmeticDomain::Wrapping)
+            .is_none()
+    );
+    let constraints = types.insert_constraints([TypeConstraintNode::ArithmeticDomain(
+        ArithmeticDomain::Wrapping,
+    )]);
+    let result = types.insert(TypeReferenceNode::Constrained {
+        base_type: base,
+        constraints,
+    });
+    assert_eq!(
+        types.find_arithmetic_result_type_reference(carrier, ArithmeticDomain::Wrapping),
+        Some(result)
+    );
+    assert!(
+        types
+            .find_arithmetic_result_type_reference(carrier, ArithmeticDomain::Saturating)
+            .is_none()
+    );
+    assert!(
+        types
+            .find_arithmetic_result_type_reference(
+                SymbolHandle::from_parts(2, 0),
+                ArithmeticDomain::Wrapping
+            )
+            .is_none()
+    );
+    assert_eq!(
+        types
+            .clone()
+            .find_arithmetic_result_type_reference(carrier, ArithmeticDomain::Wrapping),
+        Some(result)
+    );
+}
+
+#[test]
 fn type_reference_table_stores_nested_typed_references_as_handles() {
     let mut types = TypeReferenceTable::new();
     let usize_reference = types.insert(TypeReferenceNode::Named {

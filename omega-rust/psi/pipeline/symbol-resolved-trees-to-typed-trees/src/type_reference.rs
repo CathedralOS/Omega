@@ -3,9 +3,12 @@ use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
 
+mod arithmetic_results;
 mod constraints;
 mod direct;
 mod table;
+
+pub(crate) use arithmetic_results::retain_arithmetic_result_type;
 
 pub(crate) use constraints::lower_element_applicable_constraints;
 use direct::lower_type_reference_handle_with_context;

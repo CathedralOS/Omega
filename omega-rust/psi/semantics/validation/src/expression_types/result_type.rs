@@ -7,6 +7,7 @@
 //! operand shells are selection inputs, not computed-result evidence.
 
 use language_core::OperatorSpelling;
+use numerics::arithmetic::ArithmeticDomain;
 use symbols::BuiltinTypeAtom;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{
@@ -14,12 +15,15 @@ use typed_trees::expression::{
 };
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{
+    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 
 /// Return an existing result reference, never an expected-type guess. An
-/// unresolved result does not establish anonymous numeric meaning. Qualified
-/// computed results and selected declarations lacking an instantiated result
-/// remain unresolved rather than losing policy or acquiring input predicates.
+/// unresolved result does not establish anonymous numeric meaning. Builtin
+/// computed results retain their carrier and policy, not input predicates.
+/// Semantic-domain results and selected declarations lacking an instantiated
+/// result remain unresolved rather than losing their selected meaning.
 pub(crate) fn expression_result_type_reference(
     program: &TypedTrees,
     machine: &Machine,
@@ -57,11 +61,23 @@ fn result_type(
         ExpressionNode::Cast(cast) => {
             // Cast policy and semantic-domain suffixes live outside target_type.
             // Returning that bare target would erase the result qualification
-            // before a surrounding operator selects its meaning. Retain plain
-            // Exact conversions; qualified results need their own exact reference.
-            (cast.domain == numerics::arithmetic::ArithmeticDomain::Exact
-                && cast.semantic_domain.is_empty())
-            .then_some(cast.target_type)
+            // before a surrounding operator selects its meaning.
+            if !cast.semantic_domain.is_empty() {
+                None
+            } else if cast.domain == ArithmeticDomain::Exact {
+                Some(cast.target_type)
+            } else if let TypeReferenceNode::Named { symbol, .. } = program
+                .type_reference_table
+                .type_reference(cast.target_type)
+            {
+                program.symbols.builtin_type_atom(*symbol).and_then(|_| {
+                    program
+                        .type_reference_table
+                        .find_arithmetic_result_type_reference(*symbol, cast.domain)
+                })
+            } else {
+                None
+            }
         }
         ExpressionNode::ZeroValue(reference) => Some(*reference),
         // Place lookup strips a Borrow to its target. A value-type query must
@@ -89,12 +105,12 @@ fn result_type(
         ExpressionNode::Unary(unary) => {
             let operand = result_type(program, machine, state, unary.operand, active);
             match unary.operator {
-                UnaryOperator::BitwiseNot => {
-                    operand.filter(|reference| plain_integer(program, *reference))
-                }
-                UnaryOperator::LogicalNot => operand.filter(|reference| {
-                    plain_primitive(program, *reference) == Some(PrimitiveType::Bool)
-                }),
+                UnaryOperator::BitwiseNot => operand
+                    .and_then(|reference| arithmetic_result(program, reference))
+                    .filter(|reference| integer(program, *reference)),
+                UnaryOperator::LogicalNot => operand
+                    .filter(|reference| primitive(program, *reference) == Some(PrimitiveType::Bool))
+                    .and_then(|_| builtin_reference(program, BuiltinTypeAtom::Bool)),
             }
         }
         _ => crate::places::declared_place_type_raw(program, machine, Some(state), expression),
@@ -146,15 +162,15 @@ fn builtin_binary_result(
         And | Or => operands
             .into_iter()
             .all(|reference| {
-                reference.and_then(|reference| plain_primitive(program, reference))
+                reference.and_then(|reference| primitive(program, reference))
                     == Some(PrimitiveType::Bool)
             })
             .then(|| builtin_reference(program, BuiltinTypeAtom::Bool))
             .flatten(),
         Equal | NotEqual | Less | LessOrEqual | Greater | GreaterOrEqual => {
             let compatible = if let Some(carrier) = operands.into_iter().flatten().next() {
-                let primitive = plain_primitive(program, carrier)?;
-                let supported = plain_integer(program, carrier)
+                let primitive = primitive(program, carrier)?;
+                let supported = integer(program, carrier)
                     || matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
                     || (matches!(binary.operator, Equal | NotEqual)
                         && primitive == PrimitiveType::Bool);
@@ -169,27 +185,28 @@ fn builtin_binary_result(
                 .flatten()
         }
         ShiftLeft | ShiftRight => {
-            let left = operands[0].filter(|reference| plain_integer(program, *reference))?;
+            let left = operands[0]
+                .and_then(|reference| arithmetic_result(program, reference))
+                .filter(|reference| integer(program, *reference))?;
             let count = operands[1].map_or_else(
                 || crate::literals::has_anonymous_numeric_results(program, binary.right),
-                |reference| plain_integer(program, reference),
+                |reference| integer(program, reference),
             );
             count.then_some(left)
         }
         Add | Subtract | Multiply | Divide => {
-            let carrier = operands.into_iter().flatten().next()?;
-            let numeric = plain_integer(program, carrier)
+            let carrier = arithmetic_result(program, operands.into_iter().flatten().next()?)?;
+            let numeric = integer(program, carrier)
                 || matches!(
-                    plain_primitive(program, carrier),
+                    primitive(program, carrier),
                     Some(PrimitiveType::F32 | PrimitiveType::F64)
                 );
             (numeric && compatible_operands(program, binary, operands, carrier)).then_some(carrier)
         }
         Modulo | BitwiseAnd | BitwiseOr | BitwiseXor => {
-            let carrier = operands.into_iter().flatten().next()?;
-            (plain_integer(program, carrier)
-                && compatible_operands(program, binary, operands, carrier))
-            .then_some(carrier)
+            let carrier = arithmetic_result(program, operands.into_iter().flatten().next()?)?;
+            (integer(program, carrier) && compatible_operands(program, binary, operands, carrier))
+                .then_some(carrier)
         }
     }
 }
@@ -207,29 +224,20 @@ fn compatible_operands(
             reference.map_or_else(
                 || crate::literals::has_anonymous_numeric_results(program, expression),
                 |reference| {
-                    program.normalized_type_identity(reference)
-                        == program.normalized_type_identity(carrier)
+                    arithmetic_carrier(program, reference) == arithmetic_carrier(program, carrier)
                 },
             )
         })
 }
 
-fn plain_primitive(program: &TypedTrees, reference: TypeReferenceHandle) -> Option<PrimitiveType> {
-    // A builtin operation does not return its operand's refinement predicates,
-    // reference shell, or arbitrary policy. Until an exact qualified result
-    // reference is retained, those computed forms remain explicitly unresolved.
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(reference)
-    else {
-        return None;
-    };
-    program.symbols.builtin_type_atom(*symbol)?;
+fn primitive(program: &TypedTrees, reference: TypeReferenceHandle) -> Option<PrimitiveType> {
+    arithmetic_carrier(program, reference)?;
     program.primitive_type_reference(reference)
 }
 
-fn plain_integer(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+fn integer(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
     matches!(
-        plain_primitive(program, reference),
+        primitive(program, reference),
         Some(
             PrimitiveType::I8
                 | PrimitiveType::I16
@@ -241,6 +249,64 @@ fn plain_integer(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
                 | PrimitiveType::U64
         )
     )
+}
+
+// Raw operand references reach overload selection above. Only after builtin
+// selection may range predicates be forgotten: an operation on [0..=10] can
+// produce 11. Arithmetic policy is different: it governs this result's next
+// operation and must survive. Unknown domain and reference shells are not
+// predicate-only qualifications and cannot use this projection.
+fn arithmetic_carrier(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+) -> Option<(symbols::SymbolHandle, ArithmeticDomain)> {
+    let mut policy = None;
+    let mut visited = Vec::new();
+    while program
+        .type_reference_table
+        .contains_type_reference(reference)
+        && !visited.contains(&reference)
+    {
+        visited.push(reference);
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Named { symbol, .. } => {
+                program.symbols.builtin_type_atom(*symbol)?;
+                return Some((*symbol, policy.unwrap_or(ArithmeticDomain::Exact)));
+            }
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                for constraint in program.type_reference_table.constraint_span(*constraints)? {
+                    match constraint {
+                        TypeConstraintNode::Range { .. } => {}
+                        TypeConstraintNode::ArithmeticDomain(domain) => {
+                            if policy.is_some() {
+                                return None;
+                            }
+                            policy = Some(*domain);
+                        }
+                        TypeConstraintNode::Named(_) | TypeConstraintNode::Domain(_) => {
+                            return None;
+                        }
+                    }
+                }
+                reference = *base_type;
+            }
+            _ => return None,
+        }
+    }
+    None
+}
+
+fn arithmetic_result(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    let (carrier, policy) = arithmetic_carrier(program, reference)?;
+    program
+        .type_reference_table
+        .find_arithmetic_result_type_reference(carrier, policy)
 }
 
 fn builtin_reference(program: &TypedTrees, atom: BuiltinTypeAtom) -> Option<TypeReferenceHandle> {

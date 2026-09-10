@@ -39,9 +39,15 @@ fixes the result before an outer cast; otherwise a numeric result must be proven
 anonymous before inheriting the cast destination. The shared result-type query
 reads declarations, nested Match joins and builtin operation signatures after
 checking selected meaning. Comparisons produce Boolean results, and shifts keep
-their left operand's carrier. Qualified or selected-operator results without an
-exact retained result reference remain unresolved; operand refinements are not
-result facts. Matching full-width suffixed integer leaves retain their own
+their left operand's carrier. Typing retains policy-only builtin references so
+computed arithmetic keeps Wrapping/Saturating/Trapping without inheriting input
+range predicates or relying on an incidental result annotation. Cast policy is
+retained until explicit erasure; incompatible Match result policies reject even
+before an outer cast. A typed Match arm supplies its anonymous peers' landing
+at their own result edges, even when no enclosing consumer supplies a destination.
+Semantic-domain results, policy casts with explicit result
+predicates, and selected operators without instantiated results remain unresolved.
+Matching full-width suffixed integer leaves retain their own
 carrier through the same consumer-edge custody, including bitwise complement.
 
 [Lexing](source-files-to-tokens/src/lexer.rs) consumes loaded source records,
