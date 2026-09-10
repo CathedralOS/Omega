@@ -27,8 +27,10 @@ Prioritize the executable path to Omega and reductions in its human audit burden
 Proof-checker experimentation is secondary in scheduling; this does not remove
 the required evidence for final chain closure. Retained rung features serve their
 actual next compiler/evaluator customer, not general-purpose language completeness
-beyond the selected contracts. Language or topology changes still require the
-owner decision and whole-chain comparison below.
+beyond the selected contracts. Language and topology experiments follow
+whole-chain minimization without an owner-approval prerequisite. Adoption must
+reconcile contracts and evidence; proposed weakening of required assurances
+still requires owner escalation.
 
 ## Selection and stopping rules
 
@@ -50,9 +52,10 @@ owner decision and whole-chain comparison below.
   Report evidence and alternatives before extending a faulty premise. Changes
   to ratified language/trust contracts follow [owner escalation](AGENTS.md#workflow);
   engineering review does not authorize silently weakening the proof claim.
-- Surface a compelling case for a new language, replacement rung, or alternate
-  dialect in `OWNER_QUESTIONS.md` before implementing it, even experimentally;
-  follow the [scope checkpoint](AGENTS.md#scope-checkpoints) and await the decision.
+- Keep language-facility and implementation comparisons on this board under
+  [whole-chain minimization](bootstrap/MINIMIZATION.md). Experiments remain
+  non-authoritative and do not need an owner ruling. Escalate proposed weakening
+  of trust, observation, identity, or fail-closed guarantees before relying on it.
 
 ## Dependencies
 
@@ -80,10 +83,9 @@ prerequisite to every lower-rung milestone.
   tradeoff within the selected rungs. Customers are the Gamma-written Delta
   checker and its generated runtime, not language-feature completeness. Next
   comparisons are checked named products and ordinary runtime source. The
-  [product guarantees](OWNER_QUESTIONS.md#gamma-product-checking) and
+  [product comparison](#gamma-product-checking) below owns the exploratory work;
   [artifact composition](OWNER_QUESTIONS.md#bootstrap-runtime-source-composition)
-  questions carry exact probe results and unresolved adoption contracts;
-  they do not block non-authoritative experiments under whole-chain minimization.
+  records the runtime adoption boundary, not a prerequisite to experimentation.
   Do not repeat independent per-field accessor wrappers as the product solution.
   A source-only direct-recursion rewrite of
   [conditional checking](bootstrap/3_delta/implementation/checking/types/branches.gamma)
@@ -100,6 +102,30 @@ prerequisite to every lower-rung milestone.
   Preserve exact frontend diagnostics, complete Epsilon closure reconstruction,
   and required malformed/resource controls. Byte counts alone and an isolated
   source sketch do not establish human auditability. No rung removal is presumed.
+
+<a id="gamma-product-checking"></a>
+
+- **GAMMA-PRODUCT-COMPARISON.** Compare ordinary pairs, dynamically checked named
+  products, and static nominal typing for the seven-field continuation in
+  [Delta argument checking](bootstrap/3_delta/implementation/checking/types/calls.gamma).
+  This is exploratory engineering, not owner-blocked work or accepted syntax.
+  The current producer and consumer manually agree on nested-pair layout;
+  grouped bindings expose the decoding but do not check that agreement.
+  At `355ea00d55` on macOS, ordinary constructor/accessor wrappers preserved six
+  compiler results but grew the module from 4,731 to 5,542 bytes and four to
+  twelve definitions, traversing 21 tail links instead of six. They added no
+  layout guarantee and were not retained; do not repeat them as the solution.
+  Start by comparing one field declaration, construction, and one destructuring
+  operation with checked constructor identity and arity against the existing
+  pair implementation. Static typing is a separate candidate with additional
+  declaration and call judgments, not an assumed feature bundle. Neither
+  candidate has measured evaluator cost or human defect-localization evidence.
+  Acceptance: compare the Beta implementation, representation, validation,
+  resources, tests, and proof obligations against the customer code and manual
+  layout obligations removed. Check construction order, scope, tail behavior,
+  forged identities, arity, and failure mapping. Keep experiments separate from
+  the selected language; adoption requires reconciled contracts and evidence,
+  not a ruling merely to explore the alternatives.
 
 - **BOOTSTRAP-COMPLEXITY-REVIEW.** Finish the decisions identified by the
   [measured cost review](wiki/drafts/bootstrap_cost_review.md) before
