@@ -988,19 +988,6 @@ Owners include
   borrowed copies. Do not claim copy equivalence merely because a
   following callee sees the staged write.
 
-  Compose Boolean local borrows with scalar-returning control. A scalar-result
-  `observe(initial: bool, replacement: bool) -> u64` that initializes `scratch`,
-  invokes `replace(&mut scratch, replacement)`, then uses
-  `transition scratch { true -> 1 false -> 0 }` needs ordinary Unit-call source
-  production and Boolean-local branch legalization. A Unit helper currently
-  rejects at checked-to-lowered scalar-plan admission; a scalar-returning helper
-  gets through Terminal but still rejects in target-to-selected legalization.
-  Acceptance: both helper signatures preserve the same authored call, fresh
-  Boolean read and chosen result through canonical replay, four-target publication
-  and matching-host execution. Extend the
-  [primitive-local regressions](tests/native-differential/tests/primitive_locals.rs);
-  do not substitute one helper signature for the other.
-
 - **BORROW-PROOF-CONVERGENCE.** Make ordinary borrow checking proof-producing
   under the [loan contract](wiki/spec/terminal-psi/loans.md), without allowing
   proofs to create or amplify authority. Extend symbolic

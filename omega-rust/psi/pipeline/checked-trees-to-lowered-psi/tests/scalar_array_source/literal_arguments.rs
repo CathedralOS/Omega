@@ -126,13 +126,11 @@ fn literal_array_scalar_graph_rejects_result_drift_without_closure_fallback() {
 
 #[test]
 fn literal_array_scalar_completion_rejects_forged_result_metadata() {
-    // A standalone scalar call now uses its scalar graph. Keep a real Unit
-    // call here so this test still exercises operation-body completion and
-    // all of its result metadata, rather than mutating an unselected plan.
+    // A whole array local belongs to the structural operation body. Retain
+    // that semantic owner while corrupting its scalar completion metadata.
     let original = checked_source(
-        "machine touch() {}
-         machine answer(row: [u8; 2], value: u8) -> u8 { value }
-         machine selected() -> u8 { touch(); answer([7, 9], 42u8) }",
+        "machine answer(row: [u8; 2], value: u8) -> u8 { value }
+         machine selected() -> u8 { let row: [u8; 2] = [7, 9]; answer(row, 42u8) }",
     );
     let selected = checked_trees_to_lowered_psi::select_terminal_machine(&original, "selected")
         .unwrap()
@@ -901,4 +899,15 @@ fn literal_array_leaf_roots_reject_reassigned_call_formal_and_element_custody() 
         }
         reject(&changed, mutation);
     }
+}
+
+#[test]
+fn scalar_completion_retains_unit_value_requirements() {
+    let source = "machine touch(value: u8) requires value == value {}
+        machine answer(row: [u8; 2], value: u8) -> u8 { value }
+        machine selected() -> u8 { touch(42u8); answer([7, 9], 42u8) }";
+    assert_eq!(
+        execute(source, &[]),
+        TerminalExecutionResult::Scalar(byte(42))
+    );
 }

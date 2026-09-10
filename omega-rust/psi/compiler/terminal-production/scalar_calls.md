@@ -184,7 +184,12 @@ Argument evaluation retains prior snapshots, finishes nested scalar operands in
 order, and lends the actual primitive local or reference. Source replay rejoins
 the full statement roster, callee, arguments, and borrow occurrence before
 emission. Scalar and Unit callees share one reachable catalog, so a transitive
-scalar caller retains its helper's Unit calls too.
+scalar caller retains its helper's Unit calls too. This graph lane admits plain
+scalar parameters and whole primitive borrows, with empty value and crash
+contracts, empty service reach, and no claim transfers. Producer eligibility
+leaves operations requiring contract substitution with the existing ordinary
+Unit body owner; the graph receiver independently rejoins retained source and
+contract custody and rejects mutations without selecting a fallback plan.
 [`scalar_unit_calls.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/scalar_unit_calls.rs)
 exercises this composition and rejects omitted, duplicated, reordered, and
 substituted call custody under canonical replay and one-unit fuel suspension.
