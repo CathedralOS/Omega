@@ -229,7 +229,7 @@ The ordinary effect sequence retains immutable array locals and structural retur
 alongside scalar stores and calls. Source replay checks the declaration, selected
 constant indices, contextual numeric landings, and exact returned binding. The
 decoded interpreter returns the actual payload and preserves it across suspended
-calls. Integer/Boolean leaves use the existing pure scalar and computation owners,
+calls. Primitive leaves use the existing pure scalar and computation owners,
 including ordered calls and selective Boolean evaluation. Completed leaves survive
 later control joins in private scalar slots; they never enter the authored local
 namespace. Source replay checks literal and selected operation meaning in addition
@@ -302,8 +302,18 @@ transport through those shared homes; the native differential
 target artifacts and executes on matching supported hosts. Ordinary array result
 locals retain the regular free-machine signature even without scalar parameters;
 their presence does not imply a selected-operator affine signature.
-Floating array source still lacks its checked execution plan; native
-layout support alone does not establish source production.
+Floating literals, parameters, locals, and ordinary calls retain binary32/binary64
+format and payload through the same array path. Closed constant-row projections
+check every sibling's format before selecting leaves; source replay rejects changed
+bits or formats. Floating arithmetic still requires its own selected execution.
+The native array ABI transports integer aggregate fragments, not foreign C
+homogeneous-floating aggregates; scalar floating parameters retain their float-bank
+placement. The `scalar_array_results` regressions observe raw bits, including
+signed zero, subnormals, infinities, and NaN payloads, through owned-array calls.
+Calls combining scalar floating arguments with an array result still need native
+mixed-bank aggregate-call constraints. Direct float-input construction entries and
+owned-array-only forwarding already use the existing transport; their combined
+`selected` caller remains an explicit regression in `scalar_array_results/floating.rs`.
 General slice-backed `.len` operands require retained view formation and bounds
 evidence; endpoint subtraction alone cannot justify eliminating the view operation.
 

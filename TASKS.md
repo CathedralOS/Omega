@@ -1214,10 +1214,17 @@ Owners include
   Empty/odd ABI fragments, stack/indirect owned arguments, and hidden-pointer
   results remain explicit limits; the selected owner is
   `target-operations-to-selected-instructions/src/selection/aggregate_result_input.rs`.
-  The `source_float_array_still_needs_checked_execution_plan` control separately
-  witnesses `[f32; 2]` source failing before Terminal production; extend the
-  existing checked scalar execution path before claiming floating-array native
-  coverage. No new language decision is required for these implementation gaps.
+  Calls combining IEEE scalar arguments with an array result still need mixed-bank
+  aggregate-call constraint rows. The unchanged `selected` caller in
+  `tests/native-differential/tests/scalar_array_results/floating.rs` reaches verified
+  Terminal and target operations, then fails native selection; the
+  `ieee_scalar_arguments_with_array_results_require_mixed_call_constraints` test
+  retains that boundary on all four targets. Extend the existing aggregate-call
+  catalogs and their independent readers in the ISA register-model owners, reusing
+  mixed Unit-call argument placement and preserving integer aggregate result
+  fragments. Acceptance is full publication and matching-host bit preservation
+  for that caller, not just its separately working `make` and `forward` entries.
+  No new language decision is required for these implementation gaps.
   Empty values must preserve carrier/dimensions independently of zero physical bytes.
   Continue with complete value/storage paths and
   independent custody checks; do not

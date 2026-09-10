@@ -9,6 +9,8 @@ use semantic_vocabulary::{
 use target_operations::{TargetOperation, TargetStructuralHomeLayout, TargetUnitOperation};
 use terminal_psi::{StructuralMultiplicity, StructuralTypeShape};
 
+mod floating_parameters;
+
 fn fixture(
     length: u64,
 ) -> (
