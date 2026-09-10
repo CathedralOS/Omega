@@ -7,6 +7,13 @@ records evidence for the realization. Receiving policy separately checks the
 dangerous authority exercised by selected physical mechanisms. None of these
 axes substitutes for another.
 
+[Build-level exclusions](behavior_exclusions.md) may independently forbid exact
+abstract services or physical terminal classes. Physical exclusions consume the
+classified selected-mechanism closure below; missing classification is failure,
+not evidence of absence. A class exclusion is additional to the ordinary
+`exercised subset-of permitted` check and grants no authority. An empty physical
+class set cannot satisfy an abstract service exclusion if that service is invoked.
+
 ## Two-axis containment
 
 Package review can examine nominal reach before provider selection. Installed

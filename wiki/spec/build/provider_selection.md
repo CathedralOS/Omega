@@ -47,6 +47,14 @@ Missing, private, ambiguous, foreign, and duplicate candidates reject. A selecte
 operation's identity remains independent of its reach row; equal service sets
 cannot correlate providers. Selection never permits mutation of derived plans.
 
+After selection, [behavior exclusions](behavior_exclusions.md) may require stronger
+absence properties of the complete selected product than its ordinary callable
+contracts promise. A no-op body can contribute evidence for that independent
+check, not a rewritten requirement or hidden service invocation. A remaining
+forbidden behavior or insufficient evidence rejects the product. Dynamic
+replacement must preserve the exclusions through its installation envelope;
+selecting one benign provider now does not certify every later binding.
+
 ## Derivation and retained evidence
 
 Candidate derivation follows explicit satisfaction edges and computes the complete

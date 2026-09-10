@@ -142,6 +142,47 @@ See [build execution](../spec/build/execution.md),
 [observations](../spec/build/observations.md), and
 [semantic evaluation](../spec/language/evaluation.md).
 
+### Build-level behavior exclusions
+
+A library can keep conservative `crashes Trap` contracts while the build requires
+its selected executable to have no possible Trap. Source contract checking and
+this product check are independent: the build neither removes handwritten clauses
+nor permits a callee to violate an intermediate contract.
+
+For example, use the same library source and public crash allowances with two
+ordinary assertion implementations:
+
+| Build selection | Additional requirement | Result |
+| --- | --- | --- |
+| Checking implementation | No added crash exclusion | May Trap where its ordinary contracts permit. |
+| Checking implementation | Exclude Trap | Reject if an assertion can fail. |
+| No-op implementation | Exclude Trap | Pass only if the entire selected product excludes Trap. |
+
+These are configuration choices, not built-in debug/release modes. No special
+assertion macro or diagnostic crash cause is needed. Exact Build API spellings
+and implementation coverage are tracked by
+[the implementation tasks](../../TASKS.md#build-level-behavior-exclusions).
+
+The no-op does not skip eager argument evaluation. A predicate that can Trap
+still prevents a no-Trap result; logging, mutation, divergence and resource
+disposition are not erased because an assertion ignores their result. A shared
+checking/no-op contract also cannot establish the asserted condition on return.
+Validation needed for safe subsequent operations must remain enabled. General
+optimization can remove redundant pure work, but optional optimization switches
+must not decide whether the product satisfies its exclusions.
+
+Service exclusions work similarly, but abstract services and physical mechanisms
+remain distinct. An ordinary silent logger can exclude Console when its verified
+implementation never invokes it. A call to Console still counts even with a silent
+Console provider. Excluding the physical process-output class is a separate choice.
+
+The compiler needs complete selected-code evidence, including dependencies,
+generated code, callbacks and cleanup. An opaque dependency promising only that
+it may Trap cannot certify absence. A verified no-Trap product does not turn its
+public may-Trap functions into no-Trap callables for unrelated consumers. Its
+guarantee binds the exact composition and must survive installation/replacement
+checks. See [behavior exclusions](../spec/build/behavior_exclusions.md).
+
 ## Path separator: `::` for names, `.` for values
 
 Use `::` to resolve a static name: a package, module, type, or associated

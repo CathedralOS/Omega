@@ -447,8 +447,13 @@ justified calling and observation guarantees, then validate it explicitly.
 Successful validation establishes the property for that result. It does not
 prove the provider always complies or repair effects already performed.
 The [admission and diagnostics rules](../spec/proofs/contracts.md#admission-and-runtime-diagnostics)
-remain independent of the unapproved
-[assertion proposal](../proposals/0002_assertions_and_build_diagnostics.md).
+remain independent of
+[build-level behavior exclusions](../spec/build/behavior_exclusions.md).
+Those let the same library source retain broad crash allowances while a selected
+no-op assertion composition proves it cannot Trap. The property belongs to the
+selected product, not a rewritten API or a successful test execution. See
+[the build example](chapter_15_modules_imports_visibility.md#build-level-behavior-exclusions)
+for eager arguments, logging, and the difference between allowances and exclusions.
 
 Admitting a false statement can invalidate downstream safety proofs. It does
 not waive the independently checked reach ceiling or establish runtime authority

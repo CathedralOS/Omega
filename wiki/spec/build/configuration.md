@@ -37,8 +37,8 @@ directory.
 ## Durable result
 
 Normalized Build carries pipeline-consumed target, dependency, root, provider,
-optimization, and output selections. It does not serialize source/staging roots,
-handles, or admitted host-service authority. Image/application facts remain
+behavior-exclusion, optimization, and output selections. It does not serialize
+source/staging roots, handles, or admitted host-service authority. Image/application facts remain
 build-owned; signing-affecting versus publication-only metadata follows
 [application publication](macos_application.md).
 
@@ -55,6 +55,21 @@ resource supply belong to the selected target profile, not duplicated mutable
 Build flags. Project role, roots, dependencies, outputs, image intent, and
 provider selection remain build facts. Target-qualified bindings select facts;
 they do not redefine target policy.
+
+## Behavior exclusions
+
+The root may require the selected product to exclude exact crash causes, abstract
+boundary services, or existing physical authority classes. These are additional
+admission requirements, empty by default, independent of provider permission and
+ordinary callable contracts. Repeated exclusions combine monotonically by union.
+They are evaluated product selections, not dependency-discovery declarations.
+
+[Behavior exclusions](behavior_exclusions.md) defines the complete execution scope,
+evidence, failure outcomes, and installation obligations. A verified selected
+composition can satisfy a stronger exclusion than its broad public declarations
+promise without changing those declarations or making them satisfy narrower
+callable requirements. Source checking still enforces every ordinary contract.
+No debug/release mode, assertion primitive, or new crash cause is implied.
 
 ## Exact target requests
 

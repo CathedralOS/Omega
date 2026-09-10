@@ -34,9 +34,6 @@ separate review system or historical decision ledger.
   and full anonymous contracts before accepting a scope.
 - [0001: Named proof-formula syntax](0001_proof_formula_syntax.md): unproven ergonomic
   alternatives to ordinary contracts and named witness/law bundles.
-- [0002: Author-invoked assertions and build diagnostics](0002_assertions_and_build_diagnostics.md):
-  unapproved library, provider, and diagnostic-build alternatives; admissions
-  require no runtime checking independently of this design.
 - [0003: Proof-search caching](0003_proof_search_cache.md): untrusted derivation reuse;
   persistence, keys, and granularity remain unselected.
 Temporary working notes belong in [drafts/](../drafts/README.md).

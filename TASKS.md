@@ -208,6 +208,55 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   hosts. Measure retained input/output state and compare the separate-tool route;
   do not infer confinement or usability from parser tests.
 
+## Build-level behavior exclusions
+
+Implement [the accepted exclusion contract](wiki/spec/build/behavior_exclusions.md)
+for one source library whose checking/no-op assertion selection changes product
+crash behavior without edits to public ceilings. Assertions remain ordinary calls;
+there is no special Assert cause or global permission to violate callable contracts.
+These tasks use existing build selection, portable semantics, provider and
+artifact-verification owners, not an assertion-specific interpreter or duplicate IR.
+
+- **BUILD-SEMANTIC-EXCLUSIONS.** In `omega-rust/omega/build/`, define exact typed
+  configuration and canonical union of crash/service exclusions. Psi checking and
+  Terminal evidence own possible semantic operations, closed calls and guard
+  proofs; Omega selection and product admission join exact selected implementations
+  under the complete entry/dependency closure. Reuse existing evidence rather than
+  copy public summaries into a purported actual-behavior verdict. Keep ordinary
+  declarations unchanged, forbid effect masking, and reject incomplete or opaque
+  evidence conservatively. Depends on the selected-call/entry evidence exercised
+  by the customer; missing coverage must remain an explicit implementation limit.
+
+  Acceptance: compile identical library source/public Trap ceilings with checking
+  and no-op implementations; under a Trap exclusion only the no-op composition
+  passes, with optional optimizations disabled and enabled. Eager predicate traps,
+  unrelated traps, callbacks, cleanup and generated entries remain accounted.
+  A silent ordinary logger can pass no-Console; a silent provider for an actual
+  Console invocation cannot. A build permitting Trap never bypasses a no-crash
+  intermediate interface. Independently consume retained evidence and reject
+  substituted entries, providers, scopes, targets, policies and missing summaries.
+  Report prohibited possible behavior separately from insufficient evidence.
+
+- **BUILD-EXCLUSION-REALIZATION.** Extend the existing receiving-policy and native
+  admission route in `omega-rust/omega/build/`, `omega-rust/omega/semantics/` and
+  target backends to enforce excluded physical terminal classes without inventing
+  a second classifier. Join semantic exclusions from the preceding task through
+  final realization and the component installation/replacement envelope. Reuse
+  `COMPONENT-SUBSTRATE` and `WIRE-RUNTIME-AND-INSTALLATION` for actual custody and
+  lifecycle; no build-time callback may inspect its own unfinished executable.
+
+  Acceptance: distinguish no-Console from no physical process output, reject
+  unknown/changed mechanism classifications and failed final checks without
+  successful publication, and preserve exact policy/evidence identity through
+  source-free consumption. Rebinding or replacing code with an excluded behavior
+  must fail the existing envelope even when the old provider was benign. Keep
+  target children and build-host activity scoped separately. Exercise physical
+  provider and installation controls on each available supported host, explicitly
+  reporting unavailable Windows/macOS coverage; a semantic-only pass establishes
+  no physical absence claim. Specify versioned source/protocol fields before
+  claiming compatibility. Any unresolved semantic or trust change goes through
+  [owner questions](OWNER_QUESTIONS.md), not a weakened implementation verdict.
+
 ## Checked boundary topology
 
 Implement the [reference-package contract](wiki/spec/packages/topology.md), not

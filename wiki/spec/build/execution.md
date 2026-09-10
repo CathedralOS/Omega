@@ -12,13 +12,19 @@ The order is:
 2. Resolve the purpose-specific immutable closures and capture inputs under resolver/sponsor custody.
 3. Check the host build entry and helpers; freeze the authored product-selection frontier.
 4. Admit the complete build contract, then execute its prepared projection.
-5. Incorporate generated source and finish all requested product checks.
+5. Incorporate generated source, resolve final selections, and finish all requested product checks, including behavior exclusions.
 6. Check required-output completion and commit one immutable result set.
 
 [Scoped execution](scoped_execution.md) defines the execution-profile/product-target
 distinction, deterministic snapshot and staging protocol, and linear output
 lifecycle. No current activation can inspect its own final component or select
 its generated entries; those customers require separately staged compilation.
+
+[Behavior exclusions](behavior_exclusions.md) are checked against the product's
+complete selected execution scope before its successful publication. They do not
+authorize a build-time query of that unfinished product or change the build
+entry's own admission. Physical exclusions additionally require complete selected
+mechanism classification before realized-product admission.
 
 Before step 4, pre-resolution evaluation, target filtering, symbol/type
 resolution, semantic prechecks, and exact dynamic-call binding are complete.
