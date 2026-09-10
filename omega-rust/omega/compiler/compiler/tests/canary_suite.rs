@@ -762,6 +762,8 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
 ];
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
+    "constants/unused_scalar_constant_range",
+    "modules/unused_scalar_constant_range",
     "expressions/cast_result_range",
     "expressions/match_typed_result_before_cast",
     "expressions/match_fractional_result",

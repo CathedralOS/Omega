@@ -18,6 +18,9 @@
 //! the ordinary visibility/selection ledger; the structural value encoder alone
 //! cannot establish attachment ownership. Seeded declarations keep their existing
 //! selections rather than inventing a new scope occurrence from a display name.
+//! Numeric and Boolean initializers owe their declared landing even when private
+//! and unused. Check declarations before substitution, reusing the same validator
+//! during module normalization so public identity construction cannot bypass it.
 //!
 //! Remaining boundaries, enforced loudly:
 //! - LITERAL-ONLY initializers (scalars, negated scalars -- already folded by
@@ -43,12 +46,85 @@ use syntax_trees::item::{ConstDefinition, DataMember, Item};
 
 mod carrier;
 
+pub(crate) fn validate_scalar_initializer(
+    syntax: &SyntaxTrees,
+    constant: &syntax_trees::item::ConstDefinition,
+) -> Result<(), String> {
+    use numerics::literals::{FloatFormat, FloatLiteral};
+    use syntax_trees::expression::ExpressionNode;
+    use syntax_trees::types::TypeReferenceNode;
+
+    // Unused private declarations never reach substitution or public identity
+    // checks. Their numeric and Boolean landing obligations still apply.
+    // Floating values need no const-index encoding to check their carrier.
+    let TypeReferenceNode::Named(carrier) = syntax
+        .type_references
+        .type_reference(constant.type_reference)
+    else {
+        return Ok(());
+    };
+    if !matches!(
+        carrier.as_str(),
+        "bool"
+            | "i8"
+            | "i16"
+            | "i32"
+            | "i64"
+            | "u8"
+            | "u16"
+            | "u32"
+            | "u64"
+            | "addr"
+            | "f32"
+            | "f64"
+    ) {
+        return Ok(());
+    }
+    let initializer = syntax.expressions.expression(constant.value);
+    match carrier.as_str() {
+        "f32" | "f64" => {
+            let format = if carrier.as_str() == "f32" {
+                FloatFormat::F32
+            } else {
+                FloatFormat::F64
+            };
+            let compatible = match initializer {
+                ExpressionNode::Float(text) => {
+                    FloatLiteral::parse(text.as_str()).is_some_and(|literal| {
+                        literal.landing().is_none_or(|landing| landing == format)
+                    })
+                }
+                ExpressionNode::Integer(literal) => {
+                    literal.landing().is_none() && literal.value_bignum().is_some()
+                }
+                _ => false,
+            };
+            if compatible {
+                Ok(())
+            } else {
+                Err(format!(
+                    "initializer conflicts with declared floating carrier `{carrier}`"
+                ))
+            }
+        }
+        _ => crate::generic_data::canonicalize_declared_const_definition(syntax, constant)
+            .map(|_| ()),
+    }
+}
+
 /// Declaration-site checks, run when item lowering reaches the const.
 pub(crate) fn validate_const_definition(
     lowerer: &crate::lowerer::Lowerer,
     syntax_trees: &SyntaxTrees,
     definition: &ConstDefinition,
 ) -> Result<(), Diagnostic> {
+    validate_scalar_initializer(syntax_trees, definition).map_err(|reason| {
+        Diagnostic::error(format!(
+            "scalar constant `{}` is invalid: {reason}",
+            definition.name.as_str()
+        ))
+        .with_source_span(definition.name.source_span())
+    })?;
     if lowerer.defer_const_substitution {
         // Namespace and lexical identities are available in the shared symbol
         // table after lowering, not in a whole-forest spelling collision walk.
@@ -967,6 +1043,29 @@ mod module_tests {
                 .expect("parse module constants");
         }
         crate::lower_syntax_trees(&syntax)
+    }
+
+    #[test]
+    fn unused_scalar_declarations_check_landing_before_substitution() {
+        for namespace in ["", "module settings;"] {
+            for (carrier, value, accepted) in [
+                ("u8", "256", false),
+                ("u8", "1u64", false),
+                ("bool", "1", false),
+                ("u64", "true", false),
+                ("f32", "1.0f64", false),
+                ("f32", "1u32", false),
+                ("u8", "255", true),
+                ("i8", "-128", true),
+                ("bool", "true", true),
+                ("f32", "1.0f32", true),
+                ("f64", "1", true),
+            ] {
+                let source = format!("{namespace} const VALUE: {carrier} = {value};");
+                let result = resolve(&[&source]);
+                assert_eq!(result.is_ok(), accepted, "{source}: {result:?}");
+            }
+        }
     }
 
     fn local_value(

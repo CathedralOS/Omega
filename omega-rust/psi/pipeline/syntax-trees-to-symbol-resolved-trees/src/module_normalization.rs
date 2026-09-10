@@ -84,8 +84,8 @@ pub(crate) fn validate_module_normalization(syntax: &SyntaxTrees) -> Result<(), 
                                     constant.name.as_str()
                                 )).with_source_span(constant.name.source_span())]
                             })?;
-                    } else if !constant.scope.as_str().is_empty() {
-                        validate_scoped_scalar_initializer(syntax, constant).map_err(|reason| {
+                    } else {
+                        crate::constant::validate_scalar_initializer(syntax, constant).map_err(|reason| {
                             vec![Diagnostic::error(format!(
                                 "module scalar constant `{}` is invalid: {reason}",
                                 constant.name.as_str()
@@ -237,55 +237,6 @@ fn scalar_literal_tree(
     }
 }
 
-fn validate_scoped_scalar_initializer(
-    syntax: &SyntaxTrees,
-    constant: &syntax_trees::item::ConstDefinition,
-) -> Result<(), String> {
-    use numerics::literals::{FloatFormat, FloatLiteral};
-    use syntax_trees::expression::ExpressionNode;
-
-    // Private declarations do not require a canonical public identity, and an
-    // unused initializer never reaches substitution's numeric landing check.
-    // Validate each newly admitted declaration here, independently of uses.
-    // Floating values need no const-index encoding to check their carrier.
-    let TypeReferenceNode::Named(carrier) = syntax
-        .type_references
-        .type_reference(constant.type_reference)
-    else {
-        return Err("expected an unconstrained scalar carrier".to_owned());
-    };
-    let initializer = syntax.expressions.expression(constant.value);
-    match carrier.as_str() {
-        "f32" | "f64" => {
-            let format = if carrier.as_str() == "f32" {
-                FloatFormat::F32
-            } else {
-                FloatFormat::F64
-            };
-            let compatible = match initializer {
-                ExpressionNode::Float(text) => {
-                    FloatLiteral::parse(text.as_str()).is_some_and(|literal| {
-                        literal.landing().is_none_or(|landing| landing == format)
-                    })
-                }
-                ExpressionNode::Integer(literal) => {
-                    literal.landing().is_none() && literal.value_bignum().is_some()
-                }
-                _ => false,
-            };
-            if compatible {
-                Ok(())
-            } else {
-                Err(format!(
-                    "initializer conflicts with declared floating carrier `{carrier}`"
-                ))
-            }
-        }
-        _ => crate::generic_data::canonicalize_declared_const_definition(syntax, constant)
-            .map(|_| ()),
-    }
-}
-
 fn nominal_argument_has_module_collision(
     syntax: &SyntaxTrees,
     module_sources: &[SourceId],
@@ -332,6 +283,23 @@ mod tests {
         ]);
         crate::normalize_generic_data(syntax.clone()).expect("body substitution follows symbols");
         crate::lower_syntax_trees(&syntax).expect("exact module constant identities");
+    }
+
+    #[test]
+    fn unused_module_scalar_initializers_obey_their_declared_carriers() {
+        for (carrier, value) in [
+            ("u8", "256"),
+            ("u8", "1u64"),
+            ("bool", "1"),
+            ("u64", "true"),
+            ("f32", "1.0f64"),
+        ] {
+            let source = format!("module settings; const VALUE: {carrier} = {value};");
+            assert!(
+                crate::normalize_generic_data(parse(&[&source])).is_err(),
+                "invalid unused declaration accepted: {source}"
+            );
+        }
     }
 
     #[test]
