@@ -511,12 +511,14 @@ or when the user's explicit restriction prevents proceeding. An unavailable
 operational prerequisite may also require a stop with evidence. A pause does not
 authorize deletion, abandoning required proofs, or rewriting settled decisions.
 
-A compelling case for a new bootstrap language, replacement rung, or alternate
-dialect must be surfaced in `OWNER_QUESTIONS.md` before implementation, including
-an experimental implementation. Name the concrete compiler customer or required
-proof obligation, why the selected languages or a simpler refactor cannot serve
-it adequately, and the expected whole-chain audit cost and displaced machinery.
-Investigate and present the case; wait for the owner's decision before building it.
+Bootstrap design exploration, including non-authoritative experimental
+implementations, is delegated under [whole-chain minimization](bootstrap/MINIMIZATION.md).
+Name the next compiler/checker customer, compare simpler alternatives, and count
+the complete audit cost and displaced machinery. Do not seek approval merely
+to run that comparison or preserve a general-purpose rung for hypothetical use.
+Experiments do not change the accepted chain or discharge its proofs. Escalate
+changes to the trust boundary or required assurances before relying on them;
+experimental success alone is not authority to weaken either.
 
 ### Agent delegation
 

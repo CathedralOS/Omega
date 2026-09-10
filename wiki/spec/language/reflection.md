@@ -245,7 +245,7 @@ generic value atoms is introduced.
 Every generated call retains ordinary preconditions, post-state, effects,
 suspension/blocking acknowledgements, failures, crashes, and custody. A finite
 field set does not prove callback termination. Fixed callback ceilings work
-without variable [callback contract forwarding](../../../OWNER_QUESTIONS.md#q2--callback-contract-forwarding),
+without variable [callback contract forwarding](../../../OWNER_QUESTIONS.md#callback-contract-forwarding),
 which remains a general owner question rather than a reflection-specific rule.
 
 Recursive derivation is keyed by the exact type/application, selected operation

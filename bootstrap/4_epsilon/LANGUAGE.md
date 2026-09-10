@@ -752,46 +752,26 @@ storage. Exhausting any execution-profile or private budget yields outer
 detected evaluator contradiction yields outer `InternalFailure`. Neither is an
 Epsilon rejection, trap, divergence verdict, or partial successful observation.
 
-The proposed replacement of expanded-storage admission for interpreted execution
-is [undetermined pending owner review](../../OWNER_QUESTIONS.md#epsilon-static-storage-policy).
-The following requirements remain in force unless explicitly revised; sparse
-runtime storage alone does not discharge them.
+Interpreted Epsilon has no separate admission limit on hypothetical fully
+expanded storage. Declared array extents constrain valid indexes and values;
+they do not require a dense allocation or a logical byte-layout analysis.
+Sparse zero homes, immutable sharing, and updates must preserve those exact
+source semantics, including independence of copied values and view identity.
 
-The language and resource contracts separate valid fixed storage from one selected realization. After
-`CheckEpsilon` succeeds, the compiler expands only the storage roots actually
-reachable in the selected application. An unused large type consumes no
-application storage. If one reachable expanded array occurrence alone exceeds
-the selected static-storage extent, the compiler reports
-`ApplicationStaticStorageBytes` with that length literal's Epsilon-source
-coordinate. Among nested individually excessive occurrences the outermost
-occurrence wins; among disjoint candidates the smallest packed source
-coordinate wins. The result remains anchored at that winning occurrence's own
-length literal, never at the multiplication that happened to cross a private
-accumulator bound. Record-field composition, sum layout, repeated roots, and
-cross-declaration totals that exceed only through composition report the same
-resource with coordinate space `none`.
+The selected execution profile accounts for the storage its implementation
+actually consumes, including retained snapshots, temporary construction, and
+cumulative allocation where the lower evaluator cannot reclaim storage.
+A small logical array does not bound repeated-update allocation, and a large
+logical array does not imply that its untouched cells were allocated.
+Resource counters, address calculations, and storage accesses must be checked
+before operations that could overflow or exceed backing storage. Exhaustion
+must reach the outer failure boundary above, not unchecked access or a partial
+successful artifact. The profile specifies its counters and deterministic
+refusal witnesses; diagnostic execution alone does not establish containment.
 
-The selected application-static-storage limit must lie below `INT64_MAX`.
-For this resource, `requested` is the canonical exceeded-demand witness
-`min(exact_demand, INT64_MAX)`: it is exact when the complete mathematical
-demand fits nonnegative Delta `Int`, and is `INT64_MAX` for every larger
-demand. Exact `INT64_MAX` and a larger demand are intentionally
-observationally equivalent because both exceed every admissible selected
-limit and produce the same coordinate and no-publication result. Thus both
-attributed and aggregate forms require `requested > limit`, but this witness does not
-claim that every refusal carries the arbitrary-precision total.
-
-The Delta implementation computes in the closed private domain
-`Exact(nonnegative Int) | Overflowed`. Before adding `a + b`, it tests
-`a > INT64_MAX - b`. Before multiplying `a * b`, it handles either zero factor
-as exact zero, then tests `a > INT64_MAX / b` before executing the
-multiplication. The zero guard precedes division and is semantic: zero-field
-records can contribute zero-sized components, and a division-by-zero trap
-would misclassify valid capacity analysis as `InternalFailure`. Addition with
-`Overflowed`, and multiplication with `Overflowed` and no exact-zero factor,
-remain `Overflowed`; a known zero factor still produces exact zero. Traversal
-prefixes, trapping arithmetic, and undocumented private saturation never
-define the public outcome.
+These bounds do not substitute for independent evaluator refinement or the
+lower chain's memory-safety obligations. No new source rejection, Epsilon trap,
+or general-purpose storage facility follows from a private representation.
 
 Epsilon v1 imposes no small semantic maximum such as 128 declarations, 64
 locals, four parameters, three case fields, or 1,024 states. A compiler may

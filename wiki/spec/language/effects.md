@@ -243,6 +243,6 @@ base requirement; it does not create another installation-row declaration form.
 manifest and lineage requirements; equal rows never establish protocol identity.
 
 General callback-contract projections and conditional call acknowledgements are
-unresolved under [callback contract forwarding](../../../OWNER_QUESTIONS.md#q2--callback-contract-forwarding).
+unresolved under [callback contract forwarding](../../../OWNER_QUESTIONS.md#callback-contract-forwarding).
 Named callbacks with fixed authored ceilings use the existing rules.
 No anonymous-machine or lambda surface is accepted.
