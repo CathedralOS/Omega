@@ -14,6 +14,9 @@ use std::path::{Path, PathBuf};
 #[path = "build_config_granted/generated_invocations.rs"]
 mod generated_invocations;
 
+#[path = "build_config_granted/generated_constants.rs"]
+mod generated_constants;
+
 struct Project {
     root: PathBuf,
 }

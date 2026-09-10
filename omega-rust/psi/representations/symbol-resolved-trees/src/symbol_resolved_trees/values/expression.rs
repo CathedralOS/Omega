@@ -688,6 +688,11 @@ impl ExpressionTable {
         self.nodes.expressions.get(handle)
     }
 
+    /// Check arena membership and generation before indexing expression side tables.
+    pub fn expression_is_valid(&self, handle: ExpressionHandle) -> bool {
+        self.nodes.expressions.is_valid(handle)
+    }
+
     pub fn expression_mut(&mut self, handle: ExpressionHandle) -> &mut ExpressionNode {
         self.nodes.expressions.get_mut(handle)
     }

@@ -317,8 +317,9 @@ pub(crate) struct Lowerer {
     pub(crate) pending_const_argument_expressions: Vec<ExpressionHandle>,
     pub(crate) derived_const_argument_builtin_operators: Vec<source::SourceSpan>,
     pub(crate) pending_const_selections: Vec<PendingConstSelection>,
-    /// Scalar initializer handles retained only until namespace-aware substitution.
-    pub(crate) pending_const_values: Vec<(usize, ExpressionHandle)>,
+    /// Newly authored initializer roots awaiting declaration-side resolution.
+    /// Retained base roots are already resolved and must not enter this list.
+    pub(crate) pending_const_values: Vec<ExpressionHandle>,
     pub(crate) retain_const_argument_selection: bool,
     /// Outcome paths are validated against the declared result sum during
     /// lowering, then stamped with exact declaration symbols after the shared
@@ -684,28 +685,22 @@ impl Lowerer {
             &mut self.symbol_resolved_trees,
             self.pending_const_values
                 .iter()
-                .map(|(_, expression)| *expression)
+                .copied()
                 .chain(self.pending_const_argument_expressions.iter().copied()),
         );
         crate::authored_selections::finalize_constant_expression_selections(
             &mut self.symbol_resolved_trees,
             self.pending_const_values
                 .iter()
-                .map(|(_, expression)| *expression)
+                .copied()
                 .chain(self.pending_const_argument_expressions.iter().copied()),
         )
         .map_err(|diagnostic| vec![diagnostic])?;
         {
-            let retained_const_count = match &finish_mode {
-                FinishMode::Complete => 0,
-                FinishMode::Seeded { roots, .. } => roots.const_declarations,
-            };
             crate::constant::substitute_resolved_constants(
                 &mut self.symbol_resolved_trees,
-                &self.pending_const_values,
                 &self.pending_authored_expressions,
                 &mut self.pending_const_selections,
-                retained_const_count,
                 self.retain_const_argument_selection,
             )
             .map_err(|diagnostic| vec![diagnostic])?;

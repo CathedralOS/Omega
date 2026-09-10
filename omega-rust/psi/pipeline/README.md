@@ -217,6 +217,11 @@ the selected declaration at the original use. This is not completion of the
 foreign/generic constant attachments and template normalization, trait defaults,
 operator homes, remaining qualified constructor forms,
 and the remaining declaration forms still need exact namespace-aware resolution.
+Later source extensions reuse the selected declaration's detached resolved
+initializer. This keeps constructor selection in the declaring source and
+deep-copies aggregate children at each use without re-reading the base source;
+the [generated-source continuation](../../omega/compiler/compiler/generated_source.md)
+retains its exercising compiler command.
 Unsupported scoped constants, module-owned generic templates,
 traits, conformances, domains, and operators
 currently reject before their bare-name transforms; so do generic
@@ -357,9 +362,7 @@ and module-owned domain families remain outside this probe.
 Domain indices retain the declared family's identity; equal results share canonical
 type identity without discarding the original constant or operator occurrences.
 Unrelated root constants and literal or binder-only
-applications remain available. Later
-syntax extensions cannot yet consume a retained base constant whose initializer
-was discarded at the previous resolution boundary.
+applications remain available.
 Import loading still uses source-path candidates, including enclosing prefixes
 for a module's declarations; it does
 not scan or parse a package-wide source inventory to discover arbitrary files.

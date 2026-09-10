@@ -29,6 +29,7 @@ limits, not a different generated-source language.
 | --- | --- |
 | Data | Plain/lifetime-bearing declarations, local/base applications, bounded constrained arguments, scalar and validated structured const provenance. |
 | Monomorphic machines | Ordinary bodies and attached methods; exact `attached_data_symbol` selects the retained or generated owner. |
+| Retained constant body uses | Exact selected base declaration, declaration-resolved initializer copied per use, and unchanged visibility/type/custody checking. |
 | Generic machines | Authored-order erased lifetimes followed by machine-parented Type or scalar/validated structured const binders. |
 | Type binders | Full authored multiplicity and four-axis carry-property bounds. |
 | Structured const occurrences | Exact binder symbol/name and template slot with the same checked carrier. |
@@ -57,6 +58,13 @@ declarations are mutable during this process.
 There is no combined-syntax rebuild switch, second frontend reconstruction, or
 source-span/name recovery of the admitted entry. New cohorts must extend the
 transactional continuation rather than restore one of those routes.
+
+Constant initializers remain detached roots in the resolved base, not runtime
+constant storage or decoded review strings. Only newly authored initializers
+undergo name resolution; later imports cannot reinterpret retained constructors.
+Typing discards the initializer link while keeping declaration/use custody.
+The exercising build continuation and independent Terminal execution command is
+`cargo nextest run -p compiler --test build_config_granted generated_bodies_use_retained_module_constants_after_build_execution --no-fail-fast`.
 
 Integration controls live in [generated invocations](tests/build_config_granted/generated_invocations.rs)
 and [package inputs](tests/package_compilation_inputs.rs). They are the places

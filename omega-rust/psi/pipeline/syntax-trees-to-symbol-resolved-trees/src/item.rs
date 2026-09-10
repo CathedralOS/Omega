@@ -222,11 +222,12 @@ fn lower_item_with_exposure(
                 .push(data_definition);
         }
         // Const values exist only until symbol resolution: every use
-        // substitutes the initializer. Retain only a provenance symbol for
-        // authored-selection and package-authority custody.
+        // substitutes the initializer. A detached resolved root remains for
+        // later resolution continuations, not as runtime constant storage.
         syntax::item::Item::Const(definition) => {
             crate::constant::validate_const_definition(syntax_trees, definition)?;
-            crate::constant::retain_const_initializer(lowerer, syntax_trees, definition)?;
+            let initializer =
+                crate::constant::retain_const_initializer(lowerer, syntax_trees, definition)?;
             let canonical_value_encoding = if definition.is_public {
                 Some(
                     crate::constant::public_declaration_value_encoding(
@@ -261,6 +262,7 @@ fn lower_item_with_exposure(
                     symbol: symbols::SymbolHandle::invalid(),
                     is_public: definition.is_public,
                     declared_type,
+                    initializer,
                     initializer_source_span: syntax_trees.expressions.source_span(definition.value),
                     canonical_value_encoding,
                 },

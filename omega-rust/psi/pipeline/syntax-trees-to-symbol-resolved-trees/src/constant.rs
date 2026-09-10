@@ -3,12 +3,14 @@
 //! Const VALUE semantics exist only until symbol resolution:
 //! A constant declares a named pure value; each selected expression path gets
 //! a fresh copy of its initializer before resolution publishes its result.
-//! Symbol-resolved trees, typed trees,
-//! validation, proofs, backends, and the interpreter never grow a const-value
-//! concept -- each use IS the literal, which is exactly the copied-at-each-use
+//! Typed trees, validation, proofs, backends, and the interpreter never grow a
+//! const-value concept -- each use IS the literal, which is exactly the copied-at-each-use
 //! semantics the contract specifies (and why interior mutability can never hide in
-//! one). The symbol table retains only declaration provenance so authored-
-//! selection and package-authority checks cannot be erased by substitution.
+//! one). Resolved declarations keep a detached initializer handle so later
+//! source extensions can use the same substitution without reparsing or
+//! decoding review encodings. Only newly authored roots resolve names: retained
+//! roots keep their declaration-side selections. The symbol table preserves
+//! declaration provenance for authored-selection and package-authority checks.
 //!
 //! Scalar and closed aggregate literals substitute
 //! only after the shared resolver has selected their namespace and lexical
@@ -197,7 +199,7 @@ pub(crate) fn retain_const_initializer(
     lowerer: &mut crate::lowerer::Lowerer,
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
-) -> Result<(), Diagnostic> {
+) -> Result<ExpressionHandle, Diagnostic> {
     if !has_scalar_initializer(syntax, definition) {
         if crate::module_normalization::module_literal_constant(syntax, definition) {
             // Unused private arrays still owe declaration shape and landing.
@@ -215,10 +217,8 @@ pub(crate) fn retain_const_initializer(
     }
     let initializer =
         crate::expression::lower_expression_into_table(lowerer, syntax, definition.value)?;
-    lowerer
-        .pending_const_values
-        .push((lowerer.pending_const_declarations.len(), initializer));
-    Ok(())
+    lowerer.pending_const_values.push(initializer);
+    Ok(initializer)
 }
 
 fn has_scalar_initializer(syntax: &SyntaxTrees, definition: &ConstDefinition) -> bool {
@@ -234,10 +234,8 @@ fn has_scalar_initializer(syntax: &SyntaxTrees, definition: &ConstDefinition) ->
 
 pub(crate) fn substitute_resolved_constants(
     program: &mut SymbolResolvedTrees,
-    initializers: &[(usize, ExpressionHandle)],
     authored: &[crate::lowerer::PendingAuthoredExpression],
     selections: &mut Vec<crate::lowerer::PendingConstSelection>,
-    retained_const_count: usize,
     retain_selection_only: bool,
 ) -> Result<(), Diagnostic> {
     use symbol_resolved_trees::expression::ExpressionNode;
@@ -423,22 +421,26 @@ pub(crate) fn substitute_resolved_constants(
             });
             continue;
         }
-        let Some((_, initializer)) = initializers
-            .iter()
-            .find(|(ordinal, _)| *ordinal == declaration_ordinal)
-        else {
-            let message = if declaration_ordinal < retained_const_count {
-                "seeded constant references require retained initializer substitution"
-            } else {
-                "constant substitution lost its retained declaration initializer"
-            };
-            return Err(Diagnostic::error(message).with_source_span(reference));
-        };
+        let declaration = &program.roots.const_declarations[declaration_ordinal];
+        let initializer = declaration.initializer;
+        if !program
+            .tables
+            .bodies
+            .expressions
+            .expression_is_valid(initializer)
+            || program.tables.bodies.expressions.source_span(initializer)
+                != declaration.initializer_source_span
+        {
+            return Err(Diagnostic::error(
+                "constant substitution lost its exact declaration initializer",
+            )
+            .with_source_span(reference));
+        }
         // Every aggregate child belongs to this use. Constructor and field
         // symbols were selected in the declaring source before this deep copy;
         // consumer spelling and later numeric landing cannot reinterpret them.
         if matches!(
-            program.tables.bodies.expressions.expression(*initializer),
+            program.tables.bodies.expressions.expression(initializer),
             ExpressionNode::ArrayLiteral(_)
         ) && unsupported_array_projection_sources.contains(&occurrence.expression)
         {
@@ -447,7 +449,7 @@ pub(crate) fn substitute_resolved_constants(
             ).with_source_span(reference));
         }
         let initializer = if matches!(
-            program.tables.bodies.expressions.expression(*initializer),
+            program.tables.bodies.expressions.expression(initializer),
             ExpressionNode::ArrayLiteral(_)
                 | ExpressionNode::StructLiteral(_)
                 | ExpressionNode::Name(_)
@@ -456,9 +458,9 @@ pub(crate) fn substitute_resolved_constants(
                 .tables
                 .bodies
                 .expressions
-                .copy_from_self(*initializer)
+                .copy_from_self(initializer)
         } else {
-            *initializer
+            initializer
         };
         let initializer_selections = program
             .tables
@@ -1593,9 +1595,20 @@ mod module_tests {
     fn resolve_seeded(
         extension: &str,
     ) -> Result<crate::lowerer::SeededSymbolResolvedTrees, Vec<Diagnostic>> {
+        resolve_seeded_with_base(
+            "module combat; pub const DAMAGE: u64 = 7;",
+            extension,
+            |_| {},
+        )
+    }
+
+    fn resolve_seeded_with_base(
+        base_text: &str,
+        extension: &str,
+        change_base: impl FnOnce(&mut SymbolResolvedTrees),
+    ) -> Result<crate::lowerer::SeededSymbolResolvedTrees, Vec<Diagnostic>> {
         use std::{path::PathBuf, sync::Arc};
         let mut sources = source::SourceMap::default();
-        let base_text = "module combat; pub const DAMAGE: u64 = 7;";
         let base_source = sources
             .add(PathBuf::from("combat.omg"), base_text.to_owned())
             .source_id;
@@ -1605,8 +1618,9 @@ mod module_tests {
         let mut syntax = SyntaxTrees::default();
         parse_syntax_trees_into_with_id(&mut syntax, base_source, &tokens)
             .expect("parse retained constant");
-        let base = crate::lower_syntax_trees_with_sources(&syntax, Arc::new(sources.clone()))
+        let mut base = crate::lower_syntax_trees_with_sources(&syntax, Arc::new(sources.clone()))
             .expect("resolve retained constant");
+        change_base(&mut base);
         let extension_source = sources
             .add(PathBuf::from("extension.omg"), extension.to_owned())
             .source_id;
@@ -1625,16 +1639,51 @@ mod module_tests {
     }
 
     #[test]
-    fn seeded_module_constant_references_identify_missing_retained_value() {
-        let errors = resolve_seeded(
+    fn seeded_module_constant_references_copy_the_retained_value() {
+        let extension = resolve_seeded(
             "machine read() -> u64 { let observed: u64 = combat::DAMAGE; observed }",
         )
-        .expect_err("retained base has no value initializer");
-        assert!(errors.iter().any(|error| {
-            error
-                .message
-                .contains("seeded constant references require retained initializer substitution")
-        }));
+        .expect("extension copies the exact retained base constant");
+        let ExpressionNode::Integer(value) = extension
+            .trees()
+            .tables
+            .bodies
+            .expressions
+            .expression(local_value(extension.trees(), "read", "observed"))
+        else {
+            panic!("retained scalar initializer");
+        };
+        assert_eq!(value.value_u64(), Some(7));
+    }
+
+    #[test]
+    fn seeded_constant_initializer_requires_live_exact_declaration_root() {
+        for mutation in ["missing", "stale", "out of bounds", "other declaration"] {
+            let errors = resolve_seeded_with_base(
+                "module combat; pub const DAMAGE: u64 = 7; pub const OTHER: u64 = 9;",
+                "machine read() -> u64 { combat::DAMAGE }",
+                |base| {
+                    let initializer = base.roots.const_declarations[0].initializer;
+                    base.roots.const_declarations[0].initializer = match mutation {
+                        "missing" => ExpressionHandle::invalid(),
+                        "stale" => ExpressionHandle::from_parts(
+                            initializer.arena_index(),
+                            initializer.generation() + 1,
+                        ),
+                        "out of bounds" => ExpressionHandle::from_arena_index(u32::MAX),
+                        "other declaration" => base.roots.const_declarations[1].initializer,
+                        _ => unreachable!(),
+                    };
+                },
+            )
+            .expect_err("invalid initializer custody must diagnose before arena side-table access");
+            assert!(
+                errors.iter().any(|error| error
+                    .message
+                    .contains("constant substitution lost its exact declaration initializer")),
+                "{mutation}: {errors:?}"
+            );
+        }
     }
 
     #[test]
