@@ -38,44 +38,7 @@ the next compiler/checker customer and compare complete audit cost. Experiments
 remain non-authoritative; changes to the trust boundary or required assurances
 must be surfaced before relying on them.
 
-## Q1. Gamma product checking
-
-<a id="gamma-product-checking"></a>
-
-For Gamma-written compiler data, should named products retain Gamma's current
-dynamic value checking, introduce static nominal typing, or remain ordinary
-pairs? This concerns a small addition within the selected rung, not replacing
-Gamma with Delta or removing a rung.
-
-The concrete customer is the seven-field argument continuation in
-[Delta argument checking](bootstrap/3_delta/implementation/checking/types/calls.gamma).
-Its producer and consumer manually agree on a nested-pair layout. Sequential
-binding groups expose the decoding steps but do not check that agreement.
-A disposable ordinary-Gamma constructor/accessor experiment against `355ea00d55`
-on macOS preserved six exact compiler results. It increased the owning module
-from 4,731 to 5,542 bytes and from four to twelve definitions. Independent field
-accessors traverse 21 tail links instead of the existing shared decoding's six.
-It provided names but no new layout guarantee; it was not retained. This result
-does not establish the cost or benefit of a language-level product facility.
-
-Recommended next comparison: one field declaration, a constructor, and one
-destructuring operation, with opaque constructor identity and arity checked at
-runtime. Ordinary pairs or matching integer bits must not forge that identity.
-Field values could retain the current scalar/pair conventions rather than
-requiring a whole-program nominal type checker. Construction order, lexical
-scope, tail position, private allocation bounds, and failure mapping remain
-explicit obligations. This is an unimplemented candidate, not accepted syntax.
-Compare its Beta implementation, tests, and refinement obligations against the
-pair-layout machinery removed from actual compiler consumers before retention.
-
-Static nominal typing could instead reject more mistakes before execution, but
-requires declared field types and judgments for construction, calls, and
-destructuring. Do not introduce it implicitly as part of a readability change.
-No product evaluator size, resource demand, or human defect-localization result
-has been measured. The choice of guarantees needs a ruling; ordinary instruction
-selection and storage design within an approved comparison do not.
-
-## Q2. Runtime source in compiler artifacts
+## Q1. Runtime source in compiler artifacts
 
 <a id="bootstrap-runtime-source-composition"></a>
 
@@ -112,7 +75,7 @@ general module language, or intermediate rung is implied. Canonical artifact
 adoption requires the boundary contract; non-authoritative comparisons may
 proceed. Proof and complete runtime conformance remain required.
 
-## Q3. Nonboundary direct operator executable supply
+## Q2. Nonboundary direct operator executable supply
 
 <a id="direct-operator-executable-supply"></a>
 
