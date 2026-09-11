@@ -10,7 +10,7 @@ pub(super) fn lower(
     function: &AbstractFunction,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    types: &StructuralTypeLookup<'_>,
     prepared: &PreparedFunctionSignature,
     live: &mut LiveDefinitions,
     operations: &mut Vec<TargetUnitOperation>,

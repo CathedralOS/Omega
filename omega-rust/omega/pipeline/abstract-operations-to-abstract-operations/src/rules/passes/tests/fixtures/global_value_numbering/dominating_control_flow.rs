@@ -91,7 +91,7 @@ pub(crate) fn scalar_dominator_gvn_unit(proof_certified: bool) -> PsiOptimizatio
                 program_fingerprint: SemanticFingerprint::from_bytes([42; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -198,7 +198,7 @@ pub(crate) fn diamond_dominator_gvn_unit() -> PsiOptimizationUnit {
                 program_fingerprint: SemanticFingerprint::from_bytes([43; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -339,7 +339,7 @@ pub(crate) fn sibling_only_gvn_unit() -> PsiOptimizationUnit {
                 program_fingerprint: SemanticFingerprint::from_bytes([44; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {

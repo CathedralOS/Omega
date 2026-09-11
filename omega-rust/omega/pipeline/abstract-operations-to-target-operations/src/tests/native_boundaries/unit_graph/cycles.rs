@@ -83,6 +83,7 @@ fn descriptor_cycle() -> AbstractOperationPlan {
     let current = PlaceId::new(61).unwrap();
     let suffix = PlaceId::new(62).unwrap();
     plan.structural_types
+        .make_mut()
         .push(terminal_psi::StructuralTypeDeclaration {
             id: structural_type,
             identity: "cycle::Bytes".into(),

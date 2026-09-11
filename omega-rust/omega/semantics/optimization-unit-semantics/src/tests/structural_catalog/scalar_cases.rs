@@ -25,7 +25,8 @@ fn scalar_case_unit() -> PsiOptimizationUnit {
                 }],
             }],
         },
-    }];
+    }]
+    .into();
     candidate.functions[0]
         .structural_places
         .push(terminal_psi::StructuralPlaceDeclaration {

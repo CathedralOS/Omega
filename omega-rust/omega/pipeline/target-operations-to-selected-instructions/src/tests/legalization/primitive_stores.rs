@@ -50,11 +50,14 @@ fn fixture(
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
     };
-    source.structural_types.push(StructuralTypeDeclaration {
-        id: structural_type,
-        identity: "Primitive".into(),
-        shape: StructuralTypeShape::PrimitiveScalar(scalar),
-    });
+    source
+        .structural_types
+        .make_mut()
+        .push(StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "Primitive".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(scalar),
+        });
     source.functions[0]
         .structural_parameters
         .push(destination.clone());

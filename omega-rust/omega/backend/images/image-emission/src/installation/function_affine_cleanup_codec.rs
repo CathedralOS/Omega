@@ -164,7 +164,7 @@ pub(super) fn decode_unit_affine_cleanup(
         });
     }
     Ok(UnitAffineCleanupRecord {
-        structural_types,
+        structural_types: structural_types.into(),
         psi_edge,
         locals,
         actions,

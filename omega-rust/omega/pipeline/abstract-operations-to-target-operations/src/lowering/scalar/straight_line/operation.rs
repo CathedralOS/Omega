@@ -7,7 +7,7 @@ pub(super) fn lower_operation(
     function: &AbstractFunction,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     values: &mut BTreeMap<ValueId, KnownScalar>,
     function_result: AbstractResult,
     call_plan: &CallPlan,

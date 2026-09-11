@@ -126,7 +126,8 @@ fn call_aware_unit_identity_binds_semantic_and_target_custody() {
                 .structural
                 .as_mut()
                 .unwrap()
-                .structural_types[0]
+                .structural_types
+                .make_mut()[0]
                 .identity
                 .push_str("::drift"),
             2 => changed.scalar_functions[0].call_plan.shadow_bytes += 8,

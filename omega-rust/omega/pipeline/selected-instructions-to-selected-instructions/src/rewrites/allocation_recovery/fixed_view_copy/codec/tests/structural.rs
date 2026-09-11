@@ -52,7 +52,7 @@ fn structural_function() -> SelectedFunction {
     function.virtual_registers.push(pointer);
     function.structural = Some(LegalizedStructuralContract {
         result: None,
-        structural_types: Vec::new(),
+        structural_types: Vec::new().into(),
         parameters: Vec::new(),
         structural_places: Vec::new(),
         entry_claims: Vec::new(),

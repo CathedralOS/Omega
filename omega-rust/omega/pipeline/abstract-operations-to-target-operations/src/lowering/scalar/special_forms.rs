@@ -7,7 +7,7 @@ pub(super) fn lower_special_form(
     function_result: AbstractResult,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
     prepared: &PreparedScalarLowering,
 ) -> Result<Option<TargetFunction>, LoweringError> {

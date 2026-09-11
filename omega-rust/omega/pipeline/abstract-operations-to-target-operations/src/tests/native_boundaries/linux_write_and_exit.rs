@@ -31,7 +31,7 @@ fn linux_write_line_and_exit_compose_in_one_shared_unit_body() {
     let plan = AbstractOperationPlan {
         psi: identity(),
         entry: machine,
-        structural_types: vec![byte_declaration.clone()],
+        structural_types: vec![byte_declaration.clone()].into(),
         boundary_machines: vec![
             BoundaryMachineDeclaration {
                 id: write_boundary,

@@ -127,7 +127,7 @@ pub(super) fn unit(
         },
         fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
         entry: functions[0].machine,
-        structural_types: Vec::new(),
+        structural_types: Vec::new().into(),
         structural_domains: Vec::new().into(),
         services: Vec::new().into(),
         root_service_reach: Default::default(),

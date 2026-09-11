@@ -30,7 +30,8 @@ fn subslice_row_rejoins_exact_producer_place_and_obligation() {
             id: structural_type,
             identity: "view".into(),
             shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
-        }],
+        }]
+        .into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {

@@ -22,6 +22,12 @@ is a genuinely different resolution level with chosen machine alternatives and
 physical operands. Neither representation embeds a chain of transformation
 objects. Replay evidence is not another executable program.
 
+Unchanged structural declarations live in one shared
+[type catalog](abstract-operations/src/abstract_operations/structural_type_catalog.rs).
+Function records and later native representations retain that catalog instead of
+deep-copying its declarations. Editing a revision uses explicit copy-on-write;
+replay and encoded identity still compare contents, never allocation identity.
+
 Keep addressing compositional: operations consume places and value sources,
 not a Cartesian family of source/destination-specific opcodes.
 [Target structural values](target-operations/src/target_operations/values/structural.rs)

@@ -178,6 +178,7 @@ fn process_exit_retains_provider_specialization_and_service_custody_without_stor
     let service = ServiceId::new(1).unwrap();
     source
         .structural_types
+        .make_mut()
         .push(terminal_psi::StructuralTypeDeclaration {
             id: attachment,
             identity: "exit::Owner".into(),

@@ -59,7 +59,7 @@ pub(super) fn literal_plan(functions: Vec<AbstractFunction>) -> AbstractOperatio
             program_fingerprint: SemanticFingerprint::from_bytes([0x5a; 32]),
         },
         entry: functions[0].machine,
-        structural_types: Vec::new(),
+        structural_types: Vec::new().into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions,

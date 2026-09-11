@@ -12,7 +12,7 @@ use terminal_psi::{StructuralMultiplicity, StructuralTypeShape};
 
 fn unrestricted(mut unit: PsiOptimizationUnit) -> PsiOptimizationUnit {
     let result_case = id(20_001, StructuralCaseId::new);
-    unit.structural_types[0].shape = StructuralTypeShape::Sum {
+    unit.structural_types.make_mut()[0].shape = StructuralTypeShape::Sum {
         cases: vec![terminal_psi::StructuralCaseDeclaration {
             id: result_case,
             identity: "Ready".into(),

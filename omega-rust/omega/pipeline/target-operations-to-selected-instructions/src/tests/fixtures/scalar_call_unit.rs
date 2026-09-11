@@ -117,7 +117,8 @@ pub(in crate::tests) fn scalar_call_unit_fixture() -> (
             id: attachment,
             identity: "test::ScalarCallUnitAttachment".into(),
             shape: StructuralTypeShape::Record { fields: Vec::new() },
-        }],
+        }]
+        .into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![

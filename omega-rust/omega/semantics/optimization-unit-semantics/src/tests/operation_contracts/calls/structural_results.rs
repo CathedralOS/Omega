@@ -15,6 +15,7 @@ fn rejects_structural_call_result_signature_and_claim_interface_corruption() {
     let alternate = id(360, semantic_vocabulary::StructuralTypeId::new);
     wrong_type
         .structural_types
+        .make_mut()
         .push(terminal_psi::StructuralTypeDeclaration {
             id: alternate,
             identity: "validation::alternate-call-result".into(),

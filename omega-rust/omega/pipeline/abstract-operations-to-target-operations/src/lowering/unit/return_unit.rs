@@ -13,7 +13,7 @@ pub(super) fn lower_unit_return(
     function: &AbstractFunction,
     parameters: &[TargetStructuralParameter],
     operations: &mut Vec<TargetUnitOperation>,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     nonreturning_boundary: bool,
     provenance: &mut TerminalPsiProvenance,

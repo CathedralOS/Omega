@@ -15,7 +15,7 @@ pub(crate) fn dead_scalar_literals_unit() -> PsiOptimizationUnit {
                 program_fingerprint: SemanticFingerprint::from_bytes([39; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -71,7 +71,7 @@ pub(crate) fn dead_wrapping_add_unit() -> PsiOptimizationUnit {
                 program_fingerprint: SemanticFingerprint::from_bytes([40; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {

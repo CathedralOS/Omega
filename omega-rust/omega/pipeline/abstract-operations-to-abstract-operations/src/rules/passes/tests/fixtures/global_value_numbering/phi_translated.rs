@@ -155,7 +155,7 @@ pub(crate) fn phi_translated_gvn_fixture(
                 program_fingerprint: SemanticFingerprint::from_bytes([47; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {

@@ -73,7 +73,8 @@ pub(in crate::tests) fn structural_call_fixture() -> (
                     },
                 ],
             },
-        }],
+        }]
+        .into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![

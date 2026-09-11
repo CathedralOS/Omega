@@ -37,7 +37,8 @@ fn transfer_unit() -> PsiOptimizationUnit {
             id: structural_type,
             identity: "test::transferred-view".into(),
             shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
-        }],
+        }]
+        .into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {

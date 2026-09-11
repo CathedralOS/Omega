@@ -3,7 +3,7 @@ use super::shared::*;
 pub(super) fn derive_mixed_structural_scalar_function_abi(
     function: &AbstractFunction,
     target: NativeTarget,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
 ) -> Result<Option<MixedStructuralScalarFunctionAbi>, LoweringError> {
     if function.structural_parameters.is_empty()
         || !function.published_service_ceiling.is_empty()
@@ -361,7 +361,8 @@ mod tests {
                 }],
             },
         };
-        let declarations = BTreeMap::from([(structural_type, &declaration)]);
+        let catalog = vec![declaration].into();
+        let declarations = StructuralTypeLookup::new(&catalog);
 
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
             let abi = derive_mixed_structural_scalar_function_abi(&mixed, target, &declarations)
@@ -412,7 +413,8 @@ mod tests {
                 terminal_psi::ByteSequenceCarrier::BorrowedView,
             ),
         };
-        let declarations = BTreeMap::from([(structural_type, &declaration)]);
+        let catalog = vec![declaration].into();
+        let declarations = StructuralTypeLookup::new(&catalog);
         for target in [
             NativeTarget::linux_x64(),
             NativeTarget::linux_arm64(),
@@ -474,7 +476,8 @@ mod tests {
                 }],
             },
         };
-        let declarations = BTreeMap::from([(structural_type, &declaration)]);
+        let catalog = vec![declaration].into();
+        let declarations = StructuralTypeLookup::new(&catalog);
 
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
             let abi = derive_mixed_structural_scalar_function_abi(

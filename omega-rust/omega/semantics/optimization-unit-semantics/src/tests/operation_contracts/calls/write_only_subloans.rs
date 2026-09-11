@@ -32,7 +32,7 @@ fn arguments(unit: &mut PsiOptimizationUnit) -> &mut Vec<StructuralArgument> {
 fn subloan(path: Vec<StructuralPathSegment>, access: StructuralAccess) -> PsiOptimizationUnit {
     let mut unit = structural_call_unit();
     let leaf = unit.structural_types[0].id;
-    unit.structural_types[0].shape = StructuralTypeShape::Record {
+    unit.structural_types.make_mut()[0].shape = StructuralTypeShape::Record {
         fields: vec![StructuralFieldDeclaration {
             id: id(7_000, StructuralFieldId::new),
             identity: "value".into(),
@@ -59,11 +59,13 @@ fn subloan(path: Vec<StructuralPathSegment>, access: StructuralAccess) -> PsiOpt
                 length: 2,
             },
         };
-        unit.structural_types.push(StructuralTypeDeclaration {
-            id: structural_type,
-            identity: format!("validation::subloan::{position}"),
-            shape,
-        });
+        unit.structural_types
+            .make_mut()
+            .push(StructuralTypeDeclaration {
+                id: structural_type,
+                identity: format!("validation::subloan::{position}"),
+                shape,
+            });
         child = structural_type;
     }
     unit.functions[0].structural_parameters[0].structural_type = child;
@@ -213,7 +215,8 @@ fn indexed_write_only_paths_cannot_fall_back_to_linear_multiplicity() {
         let mut reference = baseline;
         reference.functions[1].structural_parameters[0].multiplicity =
             StructuralMultiplicity::Linear;
-        let StructuralTypeShape::Record { fields } = &mut reference.structural_types[0].shape
+        let StructuralTypeShape::Record { fields } =
+            &mut reference.structural_types.make_mut()[0].shape
         else {
             panic!("leaf is a record")
         };
@@ -253,7 +256,9 @@ fn indexed_subloan_requires_a_material_root_and_scalar_or_record_leaf() {
         StructuralAccess::WriteOnlyBorrow,
     );
     let mut reference = baseline.clone();
-    let StructuralTypeShape::Record { fields } = &mut reference.structural_types[0].shape else {
+    let StructuralTypeShape::Record { fields } =
+        &mut reference.structural_types.make_mut()[0].shape
+    else {
         panic!("leaf is a record")
     };
     fields[0].field_type =
@@ -261,12 +266,15 @@ fn indexed_subloan_requires_a_material_root_and_scalar_or_record_leaf() {
     rejects_contract(reference);
     let mut array_leaf = baseline;
     let primitive = id(9_001, StructuralTypeId::new);
-    array_leaf.structural_types.push(StructuralTypeDeclaration {
-        id: primitive,
-        identity: "validation::array-leaf-element".into(),
-        shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
-    });
-    array_leaf.structural_types[0].shape = StructuralTypeShape::FixedArray {
+    array_leaf
+        .structural_types
+        .make_mut()
+        .push(StructuralTypeDeclaration {
+            id: primitive,
+            identity: "validation::array-leaf-element".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+        });
+    array_leaf.structural_types.make_mut()[0].shape = StructuralTypeShape::FixedArray {
         element: primitive,
         length: 2,
     };

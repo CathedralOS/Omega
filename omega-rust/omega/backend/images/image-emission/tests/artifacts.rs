@@ -585,7 +585,7 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
             unit_continuations: Vec::new(),
             unit_affine_cleanup: Some(UnitAffineCleanupRecord {
                 psi_edge: return_edge,
-                structural_types: vec![structural_type.clone()],
+                structural_types: vec![structural_type.clone()].into(),
                 locals: Vec::new(),
                 actions: Vec::new(),
                 code_offset: return_offset,
@@ -3164,7 +3164,7 @@ fn scalar_three_leaf_cleanup_plan() -> MachineCodePlan {
     let leaf = |edge: u64, cleanup_start: usize, end: usize| ScalarControlAffineCleanupRecord {
         cleanup: UnitAffineCleanupRecord {
             psi_edge: edge_id(edge),
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             locals: Vec::new(),
             actions: vec![TerminalAffineCleanupAction::DiscardRoot(
                 PlaceId::new(1).unwrap(),
@@ -3940,7 +3940,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
         stack_alignment: 16,
     });
     let empty_return = |edge| UnitAffineCleanupRecord {
-        structural_types: Vec::new(),
+        structural_types: Vec::new().into(),
         psi_edge: edge,
         locals: Vec::new(),
         actions: Vec::new(),
@@ -4082,7 +4082,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 internal_unit_calls: Vec::new(),
                 unit_continuations: Vec::new(),
                 unit_affine_cleanup: Some(UnitAffineCleanupRecord {
-                    structural_types: Vec::new(),
+                    structural_types: Vec::new().into(),
                     code_offset: 0,
                     byte_count: 1,
                     ..empty_return(edge_id(2))
@@ -4181,7 +4181,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 }],
                 unit_continuations: Vec::new(),
                 unit_affine_cleanup: Some(UnitAffineCleanupRecord {
-                    structural_types: Vec::new(),
+                    structural_types: Vec::new().into(),
                     psi_edge: edge_id(3),
                     locals: Vec::new(),
                     actions: vec![TerminalAffineCleanupAction::InvokeNominal(
@@ -4315,7 +4315,7 @@ fn add_empty_unit_cleanup(function: &mut MachineCodeFunction) {
     };
     let code_offset = function.bytes.len() - byte_count;
     function.unit_affine_cleanup = Some(UnitAffineCleanupRecord {
-        structural_types: Vec::new(),
+        structural_types: Vec::new().into(),
         psi_edge: function.provenance.edges[0],
         locals: Vec::new(),
         actions: Vec::new(),

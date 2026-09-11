@@ -37,7 +37,8 @@ fn fixture(
             identity: "test::boolean".into(),
             shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
         },
-    ];
+    ]
+    .into();
     let value = ValueId::new(1).unwrap();
     let other = ValueId::new(2).unwrap();
     let place = PlaceId::new(1).unwrap();
@@ -287,7 +288,8 @@ fn array_legalized_replay_rejects_leaf_order_shape_and_result_substitution() {
 #[test]
 fn incoming_array_identity_rejects_substituted_parameter_storage() {
     let (mut source, _, _) = fixture(0);
-    let StructuralTypeShape::FixedArray { length, .. } = &mut source.structural_types[0].shape
+    let StructuralTypeShape::FixedArray { length, .. } =
+        &mut source.structural_types.make_mut()[0].shape
     else {
         panic!("array")
     };

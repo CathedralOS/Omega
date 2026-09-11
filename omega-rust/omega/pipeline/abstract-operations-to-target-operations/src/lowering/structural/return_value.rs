@@ -6,7 +6,7 @@ pub(in crate::lowering) fn lower_structural_return_function(
     function: &AbstractFunction,
     result: &terminal_psi::StructuralResultDeclaration,
     target: NativeTarget,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetFunction, LoweringError> {
     if function.structural_parameters.is_empty() {
         return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
@@ -251,7 +251,7 @@ pub(in crate::lowering) fn exact_fully_consumed_affine_root(
     function: &AbstractFunction,
     parameters: &[TargetStructuralParameter],
     operations: &[TargetUnitOperation],
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
 ) -> Option<PlaceId> {
     let ([source_parameter], [parameter]) = (function.structural_parameters.as_slice(), parameters)

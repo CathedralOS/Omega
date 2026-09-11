@@ -13,7 +13,7 @@ pub(in crate::lowering) fn prepare_scalar_lowering(
     function: &AbstractFunction,
     function_result: AbstractResult,
     target: NativeTarget,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
 ) -> Result<PreparedScalarLowering, LoweringError> {
     let mut values = BTreeMap::new();
     let scalar_parameter_shapes = function

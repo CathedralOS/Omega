@@ -74,7 +74,8 @@ fn fixed_array_call(
                     identity: "view".into(),
                     shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
                 },
-            ],
+            ]
+            .into(),
             parameters: vec![LegalizedCallUnitParameter {
                 semantic: StructuralParameterDeclaration {
                     place,

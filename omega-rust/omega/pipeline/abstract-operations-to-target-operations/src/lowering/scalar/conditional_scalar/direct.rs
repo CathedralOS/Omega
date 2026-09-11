@@ -9,7 +9,7 @@ pub(super) fn try_lower_direct_scalar(
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     structural_parameters: &[TargetStructuralParameter],
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
 ) -> Result<bool, LoweringError> {
     if let AbstractOperation::CallStructuralScalar {
         psi_operation,

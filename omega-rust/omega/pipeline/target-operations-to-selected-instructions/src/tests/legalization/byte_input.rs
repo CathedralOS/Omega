@@ -26,6 +26,7 @@ pub(crate) fn fixture(
     let place = PlaceId::new(1).unwrap();
     source
         .structural_types
+        .make_mut()
         .push(terminal_psi::StructuralTypeDeclaration {
             id: structural_type,
             identity: "test::ByteRead".into(),
@@ -327,7 +328,8 @@ fn read_byte_target_replay_rejects_home_and_builtin_substitution() {
 fn read_byte_rejects_same_width_unsigned_payload() {
     let native = NativeTarget::linux_x64();
     let (mut source, _, _) = fixture(native);
-    let terminal_psi::StructuralTypeShape::Sum { cases } = &mut source.structural_types[0].shape
+    let terminal_psi::StructuralTypeShape::Sum { cases } =
+        &mut source.structural_types.make_mut()[0].shape
     else {
         unreachable!()
     };
@@ -358,7 +360,7 @@ fn read_byte_requires_produced_octets_to_fit_retained_bounds_at_each_native_gate
         let native = NativeTarget::macos_arm64();
         let (mut source, original_target, _) = fixture(native);
         let terminal_psi::StructuralTypeShape::Sum { cases } =
-            &mut source.structural_types[0].shape
+            &mut source.structural_types.make_mut()[0].shape
         else {
             unreachable!()
         };

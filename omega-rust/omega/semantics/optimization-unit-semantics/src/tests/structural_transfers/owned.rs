@@ -3,7 +3,8 @@ use terminal_psi::TerminalAffineCleanupAction;
 
 pub(super) fn owned_unit() -> PsiOptimizationUnit {
     let mut candidate = transfer_unit();
-    candidate.structural_types[0].shape = StructuralTypeShape::Record { fields: Vec::new() };
+    candidate.structural_types.make_mut()[0].shape =
+        StructuralTypeShape::Record { fields: Vec::new() };
     let function = &mut candidate.functions[0];
     for parameter in function.structural_parameters.iter_mut().chain(
         function

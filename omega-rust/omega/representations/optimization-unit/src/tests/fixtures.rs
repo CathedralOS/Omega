@@ -28,7 +28,7 @@ pub(super) fn plan() -> AbstractOperationPlan {
             program_fingerprint: SemanticFingerprint::from_bytes([7; 32]),
         },
         entry: machine,
-        structural_types: Vec::new(),
+        structural_types: Vec::new().into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {
@@ -99,7 +99,8 @@ pub(super) fn write_only_store_plan() -> AbstractOperationPlan {
             id: structural_type,
             identity: "test::i32".into(),
             shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
-        }],
+        }]
+        .into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {
@@ -158,7 +159,7 @@ pub(super) fn structural_scalar_fields_plan() -> AbstractOperationPlan {
             program_fingerprint: SemanticFingerprint::from_bytes([80; 32]),
         },
         entry: machine,
-        structural_types: Vec::new(),
+        structural_types: Vec::new().into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {

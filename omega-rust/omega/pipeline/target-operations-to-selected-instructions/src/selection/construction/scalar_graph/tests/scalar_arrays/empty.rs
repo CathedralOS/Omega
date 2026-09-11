@@ -171,16 +171,22 @@ fn empty_nested_array_replay_preserves_carrier_and_inner_dimensions() {
     let target = target::NativeTarget::linux_arm64();
     let mut source = array_fixture(target, 0);
     let inner = StructuralTypeId::new(3).unwrap();
-    source.structural.as_mut().unwrap().structural_types[0].shape =
-        StructuralTypeShape::FixedArray {
-            element: inner,
-            length: 0,
-        };
     source
         .structural
         .as_mut()
         .unwrap()
         .structural_types
+        .make_mut()[0]
+        .shape = StructuralTypeShape::FixedArray {
+        element: inner,
+        length: 0,
+    };
+    source
+        .structural
+        .as_mut()
+        .unwrap()
+        .structural_types
+        .make_mut()
         .push(StructuralTypeDeclaration {
             id: inner,
             identity: "inner".into(),
@@ -222,15 +228,18 @@ fn empty_nested_array_replay_preserves_carrier_and_inner_dimensions() {
         let mut changed = selected.clone();
         let types = &mut changed.structural.as_mut().unwrap().structural_types;
         match mutation {
-            0 => types[1].shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+            0 => {
+                types.make_mut()[1].shape =
+                    StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)
+            }
             1 => {
-                types[2].shape = StructuralTypeShape::FixedArray {
+                types.make_mut()[2].shape = StructuralTypeShape::FixedArray {
                     element: StructuralTypeId::new(2).unwrap(),
                     length: 8,
                 }
             }
             _ => {
-                types[0].shape = StructuralTypeShape::FixedArray {
+                types.make_mut()[0].shape = StructuralTypeShape::FixedArray {
                     element: StructuralTypeId::new(2).unwrap(),
                     length: 0,
                 }

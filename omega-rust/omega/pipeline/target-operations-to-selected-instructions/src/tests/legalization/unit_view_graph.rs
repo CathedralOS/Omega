@@ -32,11 +32,14 @@ fn fixture(
     let scalar_type = ScalarType::Integer(integer);
     let place = PlaceId::new(10).unwrap();
     let structural_type = StructuralTypeId::new(10).unwrap();
-    source.structural_types.push(StructuralTypeDeclaration {
-        id: structural_type,
-        identity: "shared-view".into(),
-        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
-    });
+    source
+        .structural_types
+        .make_mut()
+        .push(StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "shared-view".into(),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+        });
     let caller = &mut source.functions[0];
     caller.parameters = vec![AbstractParameter {
         value: ValueId::new(100).unwrap(),

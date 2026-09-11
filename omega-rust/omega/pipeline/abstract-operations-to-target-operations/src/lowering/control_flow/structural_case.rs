@@ -10,7 +10,7 @@ pub(super) fn lower(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     live: &LiveDefinitions,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<TargetControlTerminator, LoweringError> {
     let invalid = || LoweringError::UnsupportedControlFlow(function.machine);

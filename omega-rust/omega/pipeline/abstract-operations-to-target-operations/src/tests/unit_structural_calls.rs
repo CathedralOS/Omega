@@ -75,7 +75,7 @@ fn unit_fixed_array_call_selects_exact_forty_byte_native_placements() {
     let plan = AbstractOperationPlan {
         psi: identity(),
         entry: root,
-        structural_types,
+        structural_types: structural_types.into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![

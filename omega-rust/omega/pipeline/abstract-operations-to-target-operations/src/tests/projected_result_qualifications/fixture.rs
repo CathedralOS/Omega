@@ -79,7 +79,8 @@ pub(super) fn projected_structural_call_return_plan() -> AbstractOperationPlan {
                 },
             },
             leaf(left, "ProjectedLeft".into()),
-        ],
+        ]
+        .into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![

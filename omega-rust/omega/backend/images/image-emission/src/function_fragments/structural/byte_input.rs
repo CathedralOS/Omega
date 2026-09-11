@@ -393,7 +393,8 @@ mod tests {
                             },
                         ],
                     },
-                }],
+                }]
+                .into(),
                 parameters: vec![],
                 structural_places: vec![],
                 entry_claims: vec![],
@@ -485,8 +486,13 @@ mod tests {
             let mut actions = actions.clone();
             match mutation {
                 0 => {
-                    selected.structural.as_mut().unwrap().structural_types[0].shape =
-                        StructuralTypeShape::Record { fields: vec![] }
+                    selected
+                        .structural
+                        .as_mut()
+                        .unwrap()
+                        .structural_types
+                        .make_mut()[0]
+                        .shape = StructuralTypeShape::Record { fields: vec![] }
                 }
                 1 => {
                     selected.boundary_settlements.pop();

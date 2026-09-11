@@ -15,13 +15,12 @@ use terminal_psi::ProviderCandidateConformance;
 use terminal_psi::StructuralArgument;
 use terminal_psi::StructuralParameterDeclaration;
 use terminal_psi::StructuralPlaceDeclaration;
-use terminal_psi::StructuralTypeDeclaration;
 
 /// Current structural signature and ownership declarations, without executable rows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedStructuralContract {
     pub result: Option<terminal_psi::StructuralResultDeclaration>,
-    pub structural_types: Vec<StructuralTypeDeclaration>,
+    pub structural_types: abstract_operations::StructuralTypeCatalog,
     pub parameters: Vec<LegalizedCallUnitParameter>,
     pub structural_places: Vec<StructuralPlaceDeclaration>,
     pub entry_claims: Vec<EntryClaim>,

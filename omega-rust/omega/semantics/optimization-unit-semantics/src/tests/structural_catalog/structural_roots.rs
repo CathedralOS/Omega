@@ -131,7 +131,7 @@ fn boolean_structural_field_replays_terminal_root_and_cleanup_contract() {
 
     let mut non_boolean_field = baseline.clone();
     let terminal_psi::StructuralTypeShape::Record { fields } =
-        &mut non_boolean_field.structural_types[0].shape
+        &mut non_boolean_field.structural_types.make_mut()[0].shape
     else {
         unreachable!()
     };
@@ -156,7 +156,7 @@ fn boolean_structural_field_replays_terminal_root_and_cleanup_contract() {
     *result = id(4_715, ValueId::new);
     *field = second_field;
     let terminal_psi::StructuralTypeShape::Record { fields } =
-        &mut differing_observation.structural_types[0].shape
+        &mut differing_observation.structural_types.make_mut()[0].shape
     else {
         unreachable!()
     };
@@ -319,7 +319,7 @@ fn direct_realization_boolean_structural_field_rejects_multiplicity_corruption()
 fn direct_realization_boolean_structural_field_rejects_type_corruption() {
     let mut non_boolean = direct_realization_boolean_structural_field_unit();
     let terminal_psi::StructuralTypeShape::Record { fields } =
-        &mut non_boolean.structural_types[0].shape
+        &mut non_boolean.structural_types.make_mut()[0].shape
     else {
         panic!("direct realization carrier is a record")
     };
@@ -378,7 +378,10 @@ fn structural_returns_reject_non_source_roots_and_signature_drift() {
             structural_type: literal_type.id,
         },
     };
-    literal_root.structural_types.push(literal_type.clone());
+    literal_root
+        .structural_types
+        .make_mut()
+        .push(literal_type.clone());
     literal_root.functions[1].structural_places.push(literal);
     let establishment_node = literal_root.functions[1].blocks[0].nodes[0].clone();
     literal_root.functions[1].blocks[0]

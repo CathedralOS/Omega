@@ -30,6 +30,7 @@ fn structural_signatures_replay_attachment_and_unique_self_legality() {
     let alternate = id(4_710, StructuralTypeId::new);
     mismatched_self
         .structural_types
+        .make_mut()
         .push(terminal_psi::StructuralTypeDeclaration {
             id: alternate,
             identity: "validation::alternate-attachment".into(),

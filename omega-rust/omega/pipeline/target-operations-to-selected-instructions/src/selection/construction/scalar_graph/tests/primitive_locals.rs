@@ -23,7 +23,8 @@ fn local_fixture(target: target::NativeTarget, unit_call: bool) -> LegalizedScal
             id: identity,
             identity: "u64".into(),
             shape: StructuralTypeShape::PrimitiveScalar(scalar),
-        }],
+        }]
+        .into(),
         parameters: Vec::new(),
         entry_claims: Vec::new(),
         published_service_ceiling: Vec::new(),

@@ -14,12 +14,12 @@ fn incoming_stack_array_replay_rejects_transport_and_charge_substitution() {
         for array_length in [3, 11] {
             let (mut source, _, _) = fixture(0);
             let StructuralTypeShape::FixedArray { length, .. } =
-                &mut source.structural_types[0].shape
+                &mut source.structural_types.make_mut()[0].shape
             else {
                 panic!("array");
             };
             *length = array_length;
-            source.structural_types[1].shape =
+            source.structural_types.make_mut()[1].shape =
                 StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
                     semantic_vocabulary::IntegerType::new(
                         semantic_vocabulary::IntegerSign::Unsigned,

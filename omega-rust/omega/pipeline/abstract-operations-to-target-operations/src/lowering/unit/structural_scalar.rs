@@ -21,7 +21,7 @@ pub(super) use dynamic_arguments::{
 pub(in crate::lowering) fn lower_field_store(
     operation: &AbstractOperation,
     function: &AbstractFunction,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
     boolean_constants: &BTreeMap<ValueId, (OperationId, bool)>,
@@ -251,7 +251,7 @@ pub(super) fn lower_structural_scalar_call(
     function: &AbstractFunction,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,

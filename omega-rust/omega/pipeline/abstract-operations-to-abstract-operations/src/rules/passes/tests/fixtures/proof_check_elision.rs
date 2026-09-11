@@ -220,7 +220,7 @@ pub(crate) fn live_exact_self_subtract_unit(integer: IntegerType) -> PsiOptimiza
                 program_fingerprint: SemanticFingerprint::from_bytes([33; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -320,7 +320,7 @@ pub(crate) fn live_self_remainder_unit(
                 program_fingerprint: SemanticFingerprint::from_bytes([34; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -413,7 +413,7 @@ pub(crate) fn live_self_divide_unit(
                 program_fingerprint: SemanticFingerprint::from_bytes([35; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -489,7 +489,7 @@ pub(crate) fn live_proof_binary_identity_unit(
                 program_fingerprint: SemanticFingerprint::from_bytes([31; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -596,7 +596,7 @@ pub(crate) fn exact_chain_unit(include_multiply: bool) -> PsiOptimizationUnit {
                 program_fingerprint: SemanticFingerprint::from_bytes([13; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {

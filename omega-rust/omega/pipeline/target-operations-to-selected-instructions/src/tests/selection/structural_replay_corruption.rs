@@ -115,7 +115,9 @@ fn selected_structural_replay_rejects_abi_constraint_and_semantic_custody_mutati
     assert!(select_instructions(&linux_legalized, &constraints, &physical, &catalog).is_err());
 
     let mut wrong_shape = abstract_plan.clone();
-    let StructuralTypeShape::Record { fields } = &mut wrong_shape.structural_types[0].shape else {
+    let StructuralTypeShape::Record { fields } =
+        &mut wrong_shape.structural_types.make_mut()[0].shape
+    else {
         unreachable!()
     };
     fields[1].field_type = StructuralFieldType::Scalar(ScalarType::Integer(

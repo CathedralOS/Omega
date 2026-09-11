@@ -6,11 +6,14 @@ fn fixture(scalar: ScalarType) -> AbstractOperationPlan {
     let (mut source, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
     let identity = StructuralTypeId::new(1).unwrap();
     let place = PlaceId::new(1).unwrap();
-    source.structural_types.push(StructuralTypeDeclaration {
-        id: identity,
-        identity: "primitive".into(),
-        shape: StructuralTypeShape::PrimitiveScalar(scalar),
-    });
+    source
+        .structural_types
+        .make_mut()
+        .push(StructuralTypeDeclaration {
+            id: identity,
+            identity: "primitive".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(scalar),
+        });
     let returned = source.functions[0].operations.pop().unwrap();
     source.functions[0].operations = vec![
         if scalar == ScalarType::Boolean {

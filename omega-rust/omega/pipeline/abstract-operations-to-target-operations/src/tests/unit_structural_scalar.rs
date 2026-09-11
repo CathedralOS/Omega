@@ -67,7 +67,8 @@ fn direct_projected_integer_plan() -> AbstractOperationPlan {
                     }],
                 },
             },
-        ],
+        ]
+        .into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![

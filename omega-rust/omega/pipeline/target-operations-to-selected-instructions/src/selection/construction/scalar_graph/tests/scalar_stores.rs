@@ -85,7 +85,8 @@ fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
                                 }],
                             }
                         },
-                    }],
+                    }]
+                    .into(),
                     parameters: vec![legalized_operations::LegalizedCallUnitParameter {
                         semantic: destination.clone(),
                         target: target_operations::TargetStructuralParameter {
@@ -188,8 +189,13 @@ fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
                                 }
                             }
                             _ => {
-                                changed.structural.as_mut().unwrap().structural_types[0].shape =
-                                    StructuralTypeShape::Record { fields: Vec::new() }
+                                changed
+                                    .structural
+                                    .as_mut()
+                                    .unwrap()
+                                    .structural_types
+                                    .make_mut()[0]
+                                    .shape = StructuralTypeShape::Record { fields: Vec::new() }
                             }
                         }
                         assert!(

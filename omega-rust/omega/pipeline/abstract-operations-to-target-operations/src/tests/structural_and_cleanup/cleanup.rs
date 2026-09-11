@@ -73,7 +73,8 @@ fn bounded_boolean_cleanup_plan() -> AbstractOperationPlan {
                 identity: "Helper".into(),
                 shape: StructuralTypeShape::Record { fields: Vec::new() },
             },
-        ],
+        ]
+        .into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![
@@ -456,7 +457,8 @@ fn two_nominal_cleanups_admit_zero_one_distinct_or_shared_bounded_executable_bod
                 identity: "Helper".into(),
                 shape: StructuralTypeShape::Record { fields: Vec::new() },
             },
-        ],
+        ]
+        .into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![
@@ -576,7 +578,7 @@ fn refuses_a_return_whose_value_was_never_materialized() {
     let plan = AbstractOperationPlan {
         psi: identity(),
         entry: machine,
-        structural_types: Vec::new(),
+        structural_types: Vec::new().into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {

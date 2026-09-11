@@ -34,7 +34,7 @@ pub(crate) fn redundant_block_parameter_unit(redundant: bool) -> PsiOptimization
                 program_fingerprint: SemanticFingerprint::from_bytes([22; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {

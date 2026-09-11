@@ -39,7 +39,7 @@ pub(super) fn lower(
     function: &AbstractFunction,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
     installed_calls: &BTreeMap<
@@ -368,10 +368,7 @@ pub(super) fn lower(
         mixed_structural_scalar_abi: None,
         provenance,
         operation: TargetOperation::ControlGraph(TargetControlGraph {
-            structural_types: structural_types
-                .values()
-                .map(|declaration| (*declaration).clone())
-                .collect(),
+            structural_types: structural_types.catalog().clone(),
             call_plan: prepared.call_plan,
             scalar_parameters: prepared.scalar_parameters,
             parameters: prepared.parameters,

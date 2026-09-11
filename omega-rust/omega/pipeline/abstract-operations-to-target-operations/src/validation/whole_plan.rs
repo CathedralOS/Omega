@@ -72,14 +72,22 @@ pub fn validate_abstract_to_target_translation_with_ieee_float_fma_settlements(
     validate_fma_settlement_roster(source, ieee_float_fma)?;
     let structural_call_return = catalog::validate_plan(source, target)?;
 
-    let canonical_structural_types = source
+    let canonical_structural_types = if source
         .structural_types
-        .iter()
-        .map(|declaration| (declaration.id, declaration))
-        .collect::<BTreeMap<_, _>>()
-        .into_values()
-        .cloned()
-        .collect::<Vec<_>>();
+        .windows(2)
+        .all(|pair| pair[0].id < pair[1].id)
+    {
+        source.structural_types.clone()
+    } else {
+        source
+            .structural_types
+            .iter()
+            .map(|declaration| (declaration.id, declaration))
+            .collect::<BTreeMap<_, _>>()
+            .into_values()
+            .cloned()
+            .collect::<abstract_operations::StructuralTypeCatalog>()
+    };
     let mut function_roster = Vec::with_capacity(source.functions.len());
     for (position, (source_function, target_function)) in
         source.functions.iter().zip(&target.functions).enumerate()

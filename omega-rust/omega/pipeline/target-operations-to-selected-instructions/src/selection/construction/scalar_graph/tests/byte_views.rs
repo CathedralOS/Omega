@@ -47,7 +47,8 @@ fn indexed_byte_read_replay_binds_dynamic_subject_and_proof() {
                 shape: terminal_psi::StructuralTypeShape::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BorrowedView,
                 ),
-            }],
+            }]
+            .into(),
             parameters: vec![legalized_operations::LegalizedCallUnitParameter {
                 semantic: terminal_psi::StructuralParameterDeclaration {
                     place,
@@ -230,7 +231,8 @@ fn byte_view_length_uses_descriptor_read_and_rejects_changed_projection() {
                 shape: terminal_psi::StructuralTypeShape::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BorrowedView,
                 ),
-            }],
+            }]
+            .into(),
             parameters: vec![legalized_operations::LegalizedCallUnitParameter {
                 semantic: terminal_psi::StructuralParameterDeclaration {
                     place,

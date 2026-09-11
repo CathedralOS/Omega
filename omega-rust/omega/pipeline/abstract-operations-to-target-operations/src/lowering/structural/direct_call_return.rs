@@ -2,16 +2,17 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::lowering::shared::StructuralTypeLookup;
 use crate::lowering::structural_signature::StructuralCallSignature;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueClass;
-use semantic_vocabulary::{MachineId, StructuralTypeId};
+use semantic_vocabulary::MachineId;
 use target::NativeTarget;
 use target_operations::{
     TargetFunction, TargetOperation, TargetStructuralArgument, TargetStructuralParameter,
     TerminalPsiProvenance,
 };
-use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeDeclaration};
+use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 
 use super::require_direct_structural_fragments;
 use crate::LoweringError;
@@ -21,7 +22,7 @@ pub(in crate::lowering) fn lower_direct_return(
     function: &AbstractFunction,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
 ) -> Result<Option<TargetFunction>, LoweringError> {
     let Some(function_result) = function.result.structural() else {
         return Ok(None);
@@ -233,10 +234,7 @@ pub(in crate::lowering) fn lower_direct_return(
             operation_result: operation_result.clone(),
             result: function_result.clone(),
             callee: *callee,
-            structural_types: structural_types
-                .values()
-                .map(|value| (*value).clone())
-                .collect(),
+            structural_types: structural_types.catalog().clone(),
             call_plan: caller_plan,
             callee_call_plan: callee_plan,
             structural_parameters: vec![target_parameter],

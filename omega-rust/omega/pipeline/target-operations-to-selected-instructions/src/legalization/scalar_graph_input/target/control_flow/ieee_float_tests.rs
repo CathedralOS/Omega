@@ -123,7 +123,7 @@ fn fixture(
             program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([73; 32]),
         },
         entry: caller.machine,
-        structural_types: Vec::new(),
+        structural_types: Vec::new().into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![caller, identity],

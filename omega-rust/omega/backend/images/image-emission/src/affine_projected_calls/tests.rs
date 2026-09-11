@@ -410,7 +410,8 @@ fn function_closure_checks_calls_and_partition_even_when_cleanup_is_empty() {
                     length: 5,
                 },
             ),
-        ],
+        ]
+        .into(),
         locals: Vec::new(),
         actions: Vec::new(),
         code_offset: 20,

@@ -13,7 +13,7 @@ mod tests;
 pub(super) fn lower(
     operation: &AbstractOperation,
     function: &AbstractFunction,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     prepared: &super::super::function_signature::PreparedFunctionSignature,
     live: &mut LiveDefinitions,
     operations: &mut Vec<TargetUnitOperation>,

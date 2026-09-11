@@ -51,7 +51,8 @@ fn array_fixture(target: target::NativeTarget, length: u16) -> LegalizedScalarFu
                 identity: "u8".into(),
                 shape: StructuralTypeShape::PrimitiveScalar(scalar),
             },
-        ],
+        ]
+        .into(),
         parameters: Vec::new(),
         entry_claims: Vec::new(),
         published_service_ceiling: Vec::new(),
@@ -279,26 +280,32 @@ fn empty_nested_array_shape_survives_earlier_dimension_overflow() {
     let leaf = StructuralTypeId::new(2).unwrap();
     let middle = StructuralTypeId::new(3).unwrap();
     let inner = StructuralTypeId::new(4).unwrap();
-    signature.structural_types[0].shape = StructuralTypeShape::FixedArray {
+    signature.structural_types.make_mut()[0].shape = StructuralTypeShape::FixedArray {
         element: middle,
         length: u64::MAX,
     };
-    signature.structural_types.push(StructuralTypeDeclaration {
-        id: middle,
-        identity: "middle".into(),
-        shape: StructuralTypeShape::FixedArray {
-            element: inner,
-            length: u64::MAX,
-        },
-    });
-    signature.structural_types.push(StructuralTypeDeclaration {
-        id: inner,
-        identity: "inner".into(),
-        shape: StructuralTypeShape::FixedArray {
-            element: leaf,
-            length: 0,
-        },
-    });
+    signature
+        .structural_types
+        .make_mut()
+        .push(StructuralTypeDeclaration {
+            id: middle,
+            identity: "middle".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: inner,
+                length: u64::MAX,
+            },
+        });
+    signature
+        .structural_types
+        .make_mut()
+        .push(StructuralTypeDeclaration {
+            id: inner,
+            identity: "inner".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: leaf,
+                length: 0,
+            },
+        });
     assert_eq!(
         crate::selection::scalar_array_input::shape(&source, outer)
             .unwrap()
@@ -310,6 +317,7 @@ fn empty_nested_array_shape_survives_earlier_dimension_overflow() {
         .as_mut()
         .unwrap()
         .structural_types
+        .make_mut()
         .last_mut()
         .unwrap()
         .shape = StructuralTypeShape::FixedArray {

@@ -6,7 +6,7 @@ use target_operations::TargetByteView;
 pub(in crate::lowering) fn block_source(
     function: &AbstractFunction,
     place: PlaceId,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
 ) -> Option<(
     target_operations::TargetStructuralArgumentSource,
     StructuralTypeId,
@@ -29,7 +29,7 @@ pub(in crate::lowering) fn block_source(
 
 pub(in crate::lowering) fn is_immutable_byte_parameter(
     parameter: &terminal_psi::StructuralParameterDeclaration,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
 ) -> bool {
     parameter.access == StructuralAccess::SharedBorrow
         && is_byte_parameter(parameter, structural_types)
@@ -37,7 +37,7 @@ pub(in crate::lowering) fn is_immutable_byte_parameter(
 
 pub(in crate::lowering) fn is_byte_parameter(
     parameter: &terminal_psi::StructuralParameterDeclaration,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
 ) -> bool {
     !parameter.is_self
         && matches!(
@@ -62,7 +62,7 @@ pub(in crate::lowering) fn is_byte_parameter(
 /// Mutable views are only whole machine or block parameters, never subslices.
 pub(in crate::lowering) fn mutable_parameter_view(
     function: &AbstractFunction,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     parameters: &[TargetStructuralParameter],
     place: PlaceId,
 ) -> Result<(terminal_psi::StructuralParameterDeclaration, TargetByteView), LoweringError> {
@@ -120,7 +120,7 @@ pub(in crate::lowering) fn mutable_parameter_view(
 pub(super) fn lower_byte_observation(
     operation: &AbstractOperation,
     function: &AbstractFunction,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     parameters: &[TargetStructuralParameter],
     values: &mut BTreeMap<ValueId, KnownScalar>,
     provenance: &mut Vec<OperationId>,
@@ -142,7 +142,7 @@ pub(super) fn lower_byte_observation(
 pub(in crate::lowering) fn lower_byte_observation_with_lengths(
     operation: &AbstractOperation,
     function: &AbstractFunction,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     parameters: &[TargetStructuralParameter],
     values: &mut BTreeMap<ValueId, KnownScalar>,
     lengths: &BTreeMap<ValueId, PlaceId>,
@@ -262,7 +262,7 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
 #[allow(clippy::too_many_arguments)]
 pub(in crate::lowering) fn view_for_place(
     function: &AbstractFunction,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     parameters: &[TargetStructuralParameter],
     values: &BTreeMap<ValueId, KnownScalar>,
     lengths: &BTreeMap<ValueId, PlaceId>,

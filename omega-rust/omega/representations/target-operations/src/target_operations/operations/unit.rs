@@ -29,7 +29,7 @@ use terminal_psi::{
 pub struct TargetUnitBody {
     /// Canonical verifier-owned structural declaration closure used to replay
     /// projected-layout and partial-cleanup partitions at artifact boundaries.
-    pub structural_types: Vec<StructuralTypeDeclaration>,
+    pub structural_types: abstract_operations::StructuralTypeCatalog,
     pub call_plan: CallPlan,
     /// Ordered scalar parameters and their exact incoming ABI placements.
     /// The bounded lane currently admits fixed integers and canonical

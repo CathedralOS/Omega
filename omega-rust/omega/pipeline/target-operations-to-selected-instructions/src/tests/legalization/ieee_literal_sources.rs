@@ -40,18 +40,21 @@ fn fixture(
     }];
     let structural_type = StructuralTypeId::new(1).unwrap();
     let field = StructuralFieldId::new(1).unwrap();
-    source.structural_types.push(StructuralTypeDeclaration {
-        id: structural_type,
-        identity: "FloatField".into(),
-        shape: StructuralTypeShape::Record {
-            fields: vec![StructuralFieldDeclaration {
-                id: field,
-                identity: "value".into(),
-                relevance: BindingRelevance::Relevant,
-                field_type: StructuralFieldType::IeeeFloat(literal.format()),
-            }],
-        },
-    });
+    source
+        .structural_types
+        .make_mut()
+        .push(StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "FloatField".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: field,
+                    identity: "value".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::IeeeFloat(literal.format()),
+                }],
+            },
+        });
     let destination = StructuralParameterDeclaration {
         place: PlaceId::new(1).unwrap(),
         position: 0,

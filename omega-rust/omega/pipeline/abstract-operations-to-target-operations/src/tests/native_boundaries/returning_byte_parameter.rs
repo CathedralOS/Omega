@@ -48,7 +48,7 @@ pub(super) fn fixture() -> AbstractOperationPlan {
     AbstractOperationPlan {
         psi: identity(),
         entry: machine,
-        structural_types: Vec::new(),
+        structural_types: Vec::new().into(),
         provider_candidates: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary,

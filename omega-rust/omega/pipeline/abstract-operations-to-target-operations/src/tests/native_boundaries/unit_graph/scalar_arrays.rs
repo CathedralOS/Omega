@@ -25,7 +25,8 @@ fn fixture() -> AbstractOperationPlan {
                 length: 2,
             },
         },
-    ];
+    ]
+    .into();
     let declaration = terminal_psi::StructuralResultDeclaration {
         place: PlaceId::new(99).unwrap(),
         structural_type: array,

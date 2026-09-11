@@ -11,7 +11,7 @@ pub(super) fn lower(
     argument: &StructuralArgument,
     callee_parameter: &StructuralParameterDeclaration,
     destination: &ValuePlacement,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,

@@ -21,7 +21,7 @@ pub(super) fn lower_straight_line(
     function: &AbstractFunction,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     mut values: BTreeMap<ValueId, KnownScalar>,
     function_result: AbstractResult,
     call_plan: CallPlan,
@@ -75,10 +75,7 @@ pub(super) fn lower_straight_line(
         operation = TargetOperation::ScalarReturnAfterStructuralScalarFieldStores {
             stores: structural_scalar_field_stores,
             scalar: Box::new(operation),
-            structural_types: structural_types
-                .values()
-                .map(|declaration| (*declaration).clone())
-                .collect(),
+            structural_types: structural_types.catalog().clone(),
             call_plan: call_plan.clone(),
             structural_parameters: target_structural_parameters.clone(),
         };

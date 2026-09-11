@@ -16,20 +16,22 @@ fn owned_fixture(
     let (mut plan, _, _) = fixture(native);
     let identity = semantic_vocabulary::StructuralTypeId::new(1).unwrap();
     let place = |ordinal| semantic_vocabulary::PlaceId::new(ordinal).unwrap();
-    plan.structural_types.push(StructuralTypeDeclaration {
-        id: identity,
-        identity: "test::Payload".into(),
-        shape: StructuralTypeShape::Record {
-            fields: (1..=2)
-                .map(|ordinal| StructuralFieldDeclaration {
-                    id: semantic_vocabulary::StructuralFieldId::new(ordinal).unwrap(),
-                    identity: format!("test::Payload::field{ordinal}"),
-                    relevance: BindingRelevance::Relevant,
-                    field_type: StructuralFieldType::Scalar(ScalarType::Integer(u64_type())),
-                })
-                .collect(),
-        },
-    });
+    plan.structural_types
+        .make_mut()
+        .push(StructuralTypeDeclaration {
+            id: identity,
+            identity: "test::Payload".into(),
+            shape: StructuralTypeShape::Record {
+                fields: (1..=2)
+                    .map(|ordinal| StructuralFieldDeclaration {
+                        id: semantic_vocabulary::StructuralFieldId::new(ordinal).unwrap(),
+                        identity: format!("test::Payload::field{ordinal}"),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(ScalarType::Integer(u64_type())),
+                    })
+                    .collect(),
+            },
+        });
     let declaration = |ordinal| StructuralParameterDeclaration {
         place: place(ordinal),
         position: 0,

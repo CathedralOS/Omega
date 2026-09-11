@@ -84,7 +84,7 @@ fn fixture() -> (AbstractFunction, TargetFunction, SelectedFunction) {
             },
         }),
         operation: TargetOperation::ControlGraph(TargetControlGraph {
-            structural_types: vec![],
+            structural_types: vec![].into(),
             call_plan,
             scalar_parameters: vec![],
             parameters: vec![target_parameter.clone()],
@@ -115,7 +115,7 @@ fn fixture() -> (AbstractFunction, TargetFunction, SelectedFunction) {
         ranked: None,
         structural: Some(legalized_operations::LegalizedStructuralContract {
             result: None,
-            structural_types: vec![],
+            structural_types: vec![].into(),
             parameters: vec![legalized_operations::LegalizedCallUnitParameter {
                 semantic: parameter,
                 target: target_parameter,

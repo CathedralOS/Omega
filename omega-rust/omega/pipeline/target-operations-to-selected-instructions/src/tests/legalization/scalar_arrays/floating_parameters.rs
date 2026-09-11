@@ -8,12 +8,14 @@ fn floating_array_parameters_replay_exact_scalar_type_and_distinct_aggregate_abi
     for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
         let scalar_type = ScalarType::IeeeFloat(format);
         let (mut source, _, _) = fixture(0);
-        let StructuralTypeShape::FixedArray { length, .. } = &mut source.structural_types[0].shape
+        let StructuralTypeShape::FixedArray { length, .. } =
+            &mut source.structural_types.make_mut()[0].shape
         else {
             unreachable!();
         };
         *length = 1;
-        source.structural_types[1].shape = StructuralTypeShape::PrimitiveScalar(scalar_type);
+        source.structural_types.make_mut()[1].shape =
+            StructuralTypeShape::PrimitiveScalar(scalar_type);
         let incoming = ValueId::new(10).unwrap();
         let function = &mut source.functions[0];
         function.parameters = vec![AbstractParameter {

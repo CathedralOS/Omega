@@ -38,7 +38,7 @@ pub(crate) fn boolean_constant_unit(
                 program_fingerprint: SemanticFingerprint::from_bytes([16; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -140,7 +140,7 @@ pub(crate) fn integer_comparison_constant_unit(
                 program_fingerprint: SemanticFingerprint::from_bytes([17; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {

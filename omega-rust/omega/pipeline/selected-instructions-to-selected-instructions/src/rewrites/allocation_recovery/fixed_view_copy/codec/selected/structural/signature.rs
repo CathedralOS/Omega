@@ -83,7 +83,7 @@ pub(super) fn decode_signature(
         entry_claims.push(decode_entry_claim(cursor)?);
     }
     Ok(LegalizedStructuralContract {
-        structural_types,
+        structural_types: structural_types.into(),
         parameters,
         result,
         structural_places,

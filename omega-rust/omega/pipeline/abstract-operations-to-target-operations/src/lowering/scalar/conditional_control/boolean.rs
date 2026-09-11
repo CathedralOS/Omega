@@ -17,7 +17,7 @@ pub(in crate::lowering::scalar) fn lower_boolean_conditional(
         target,
         functions,
         &[],
-        &BTreeMap::new(),
+        &StructuralTypeLookup::new(&Default::default()),
     )?;
     Ok(TargetFunction {
         machine: function.machine,
@@ -43,7 +43,7 @@ fn lower_boolean_arm(
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     structural_parameters: &[TargetStructuralParameter],
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
 ) -> Result<LoweredBooleanArm, LoweringError> {
     // Verified trivial-affine root discards carry no target operation; their
     // ownership effect was discharged before this physical projection.
@@ -85,7 +85,7 @@ pub(in crate::lowering::scalar) fn lower_boolean_block(
     native_target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     structural_parameters: &[TargetStructuralParameter],
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
 ) -> Result<LoweredBooleanControl, LoweringError> {
     if !visited.insert(block) {
         return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(

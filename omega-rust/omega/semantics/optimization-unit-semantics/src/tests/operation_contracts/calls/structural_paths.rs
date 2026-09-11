@@ -30,6 +30,7 @@ fn rejects_structural_call_path_type_multiplicity_and_qualification_corruption()
     let alternate = id(342, semantic_vocabulary::StructuralTypeId::new);
     wrong_type
         .structural_types
+        .make_mut()
         .push(terminal_psi::StructuralTypeDeclaration {
             id: alternate,
             identity: "validation::alternate-structural-call-argument".into(),

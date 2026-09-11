@@ -95,7 +95,7 @@ pub(crate) fn compressed_trivial_affine_return_unit_with_prefix(
             program_fingerprint: SemanticFingerprint::from_bytes([18; 32]),
         },
         entry: machine,
-        structural_types: vec![local_type.clone()],
+        structural_types: vec![local_type.clone()].into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {
@@ -177,7 +177,7 @@ pub(crate) fn explicit_trivial_affine_return_unit() -> PsiOptimizationUnit {
                 program_fingerprint: SemanticFingerprint::from_bytes([19; 32]),
             },
             entry: machine,
-            structural_types: vec![structural_type_declaration.clone()],
+            structural_types: vec![structural_type_declaration.clone()].into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {

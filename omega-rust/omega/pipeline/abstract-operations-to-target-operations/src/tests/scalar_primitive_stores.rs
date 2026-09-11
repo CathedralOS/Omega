@@ -61,7 +61,8 @@ fn fixture(runtime: bool) -> AbstractOperationPlan {
             id: destination.structural_type,
             identity: "u64".into(),
             shape: StructuralTypeShape::PrimitiveScalar(scalar),
-        }],
+        }]
+        .into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {
@@ -184,7 +185,7 @@ fn scalar_primitive_store_rejects_unsupported_access_types_order_and_exits() {
                 *destination = parameter.clone();
             }
             "referent" => {
-                source.structural_types[0].shape =
+                source.structural_types.make_mut()[0].shape =
                     StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)
             }
             "store value" => {
@@ -269,8 +270,9 @@ fn effect_free_primitive_borrow_scalar_return_remains_unsupported() {
 #[test]
 fn boolean_primitive_store_publishes_exact_borrow_and_scalar_return_abi() {
     let mut source = fixture(true);
-    source.structural_types[0].identity = "bool".into();
-    source.structural_types[0].shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean);
+    source.structural_types.make_mut()[0].identity = "bool".into();
+    source.structural_types.make_mut()[0].shape =
+        StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean);
     source.functions[0].parameters[0].scalar_type = ScalarType::Boolean;
     let AbstractOperation::WriteOnlyPrimitiveStore { value, .. } =
         &mut source.functions[0].operations[0]

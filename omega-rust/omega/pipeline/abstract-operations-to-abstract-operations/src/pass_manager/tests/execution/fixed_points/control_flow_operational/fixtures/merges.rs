@@ -92,7 +92,7 @@ fn seed(
                 program_fingerprint: SemanticFingerprint::from_bytes(fingerprint),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {

@@ -11,7 +11,7 @@ pub(super) fn lower_function(
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
     installed_calls: &BTreeMap<

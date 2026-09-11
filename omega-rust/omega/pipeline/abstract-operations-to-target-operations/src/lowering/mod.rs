@@ -16,6 +16,7 @@ mod shared;
 mod structural;
 pub(super) mod structural_layout;
 pub(crate) mod structural_signature;
+mod structural_type_lookup;
 mod unit;
 mod unobserved_owned;
 
@@ -36,16 +37,16 @@ pub use compatibility::{
 };
 
 #[cfg(test)]
-pub(crate) use coordination::lower_to_target_operations_with_settlements as lower_with_settlements_for_tests;
-#[cfg(test)]
-pub(crate) use coordination::{
-    bind_native_callback_arguments as bind_native_callback_arguments_for_tests,
-    validate_native_callback_target_rows as validate_native_callback_target_rows_for_tests,
+pub(crate) use {
+    coordination::{
+        bind_native_callback_arguments as bind_native_callback_arguments_for_tests,
+        lower_to_target_operations_with_settlements as lower_with_settlements_for_tests,
+        validate_native_callback_target_rows as validate_native_callback_target_rows_for_tests,
+    },
+    scalar::lower_scalar_function as lower_scalar_function_for_tests,
+    structural_layout::structural_shape as structural_shape_for_tests,
+    structural_type_lookup::StructuralTypeLookup as StructuralTypeLookupForTests,
 };
-#[cfg(test)]
-pub(crate) use scalar::lower_scalar_function as lower_scalar_function_for_tests;
-#[cfg(test)]
-pub(crate) use structural_layout::structural_shape as structural_shape_for_tests;
 
 pub fn lower_to_target_operations(
     plan: &AbstractOperationPlan,
@@ -54,8 +55,7 @@ pub fn lower_to_target_operations(
     lower_to_target_operations_with_settlements(plan, target, &[])
 }
 
-/// Lower the separately admitted exact native-ranked countdown without
-/// widening the ordinary Unit or acyclic conditional-control families.
+/// Lower the separately admitted ranked countdown without widening ordinary lowering.
 pub fn lower_ranked_to_target_operations(
     ranked: &abstract_operations::RankedNativeAbstractOperationPlan,
     target: NativeTarget,

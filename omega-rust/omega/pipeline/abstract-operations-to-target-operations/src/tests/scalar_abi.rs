@@ -28,7 +28,7 @@ fn mixed_fixed_integer_plan() -> (
         AbstractOperationPlan {
             psi: identity(),
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -145,7 +145,7 @@ fn unit_and_unsupported_width_functions_publish_no_scalar_abi() {
     let unsupported = AbstractOperationPlan {
         psi: identity(),
         entry: machine,
-        structural_types: Vec::new(),
+        structural_types: Vec::new().into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {

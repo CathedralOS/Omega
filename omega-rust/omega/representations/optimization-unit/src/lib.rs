@@ -27,8 +27,8 @@ use terminal_psi::{
     BoundaryMachineDeclaration, ContentEntryClaim, EntryClaim, EvidenceContractLane,
     MachineContract, ProviderCandidateConformance, ServiceDeclaration, StructuralDomainDeclaration,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
-    TerminalPsiIdentity, TerminalRootServiceReach,
+    StructuralPlaceDeclaration, TerminalAffineCleanupAction, TerminalPsiIdentity,
+    TerminalRootServiceReach,
 };
 
 mod evidence;

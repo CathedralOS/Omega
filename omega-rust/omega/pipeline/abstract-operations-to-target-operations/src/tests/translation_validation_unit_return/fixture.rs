@@ -30,7 +30,8 @@ pub(super) fn base_plan() -> AbstractOperationPlan {
                 identity: "test::unit_roster_bool".into(),
                 shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
             },
-        ],
+        ]
+        .into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {

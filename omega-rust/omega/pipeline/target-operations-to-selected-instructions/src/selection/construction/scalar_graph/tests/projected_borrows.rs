@@ -357,24 +357,27 @@ pub(super) fn projected_call(target: target::NativeTarget) -> LegalizedScalarFun
     )
     .unwrap();
     let signature = source.structural.as_mut().unwrap();
-    signature.structural_types[0].shape = StructuralTypeShape::FixedArray {
+    signature.structural_types.make_mut()[0].shape = StructuralTypeShape::FixedArray {
         element: record,
         length: 2,
     };
-    signature.structural_types.push(StructuralTypeDeclaration {
-        id: record,
-        identity: "Record".into(),
-        shape: StructuralTypeShape::Record {
-            fields: vec![StructuralFieldDeclaration {
-                id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
-                identity: "value".into(),
-                relevance: terminal_psi::BindingRelevance::Relevant,
-                field_type: StructuralFieldType::Scalar(ScalarType::Integer(
-                    IntegerType::new(IntegerSign::Unsigned, 16).unwrap(),
-                )),
-            }],
-        },
-    });
+    signature
+        .structural_types
+        .make_mut()
+        .push(StructuralTypeDeclaration {
+            id: record,
+            identity: "Record".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+                    identity: "value".into(),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 16).unwrap(),
+                    )),
+                }],
+            },
+        });
     let parameter = &mut signature.parameters[0];
     parameter.semantic.access = StructuralAccess::WriteOnlyBorrow;
     parameter.target.access = StructuralAccess::WriteOnlyBorrow;

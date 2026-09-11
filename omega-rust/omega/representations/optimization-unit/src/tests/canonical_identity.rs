@@ -409,11 +409,13 @@ fn canonical_identity_binds_every_retained_field_class() {
     let structural_type = id(105, StructuralTypeId::new);
     let boundary = id(106, BoundaryMachineId::new);
     let mut unit = baseline.clone();
-    unit.structural_types.push(StructuralTypeDeclaration {
-        id: structural_type,
-        identity: "identity-test-structural-type".into(),
-        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
-    });
+    unit.structural_types
+        .make_mut()
+        .push(StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "identity-test-structural-type".into(),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+        });
     mutations.push(("module structural type", unit));
     let mut unit = baseline.clone();
     unit.structural_domains = Arc::from(vec![terminal_psi::StructuralDomainDeclaration {

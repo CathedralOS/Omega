@@ -48,7 +48,8 @@ pub(crate) fn structural_result_call_unit() -> PsiOptimizationUnit {
             shape: terminal_psi::StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BorrowedView,
             ),
-        }],
+        }]
+        .into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![

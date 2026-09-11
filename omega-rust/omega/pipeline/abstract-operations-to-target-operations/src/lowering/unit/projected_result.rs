@@ -70,7 +70,7 @@ pub(super) fn validate_cleanup(
     function: &AbstractFunction,
     parameters: &[TargetStructuralParameter],
     operations: &[TargetUnitOperation],
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     cleanup: &[TerminalAffineCleanupAction],
 ) -> Option<()> {
@@ -154,7 +154,7 @@ pub(super) fn validate_parameter_cleanup(
     function: &AbstractFunction,
     parameters: &[TargetStructuralParameter],
     operations: &[TargetUnitOperation],
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     cleanup: &[TerminalAffineCleanupAction],
 ) -> Option<()> {
@@ -202,7 +202,7 @@ fn validate_consumers(
     placement: &ValuePlacement,
     supplied_shape: ValueShape,
     consumers: &[TargetUnitOperation],
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     cleanup: &[TerminalAffineCleanupAction],
 ) -> Option<()> {

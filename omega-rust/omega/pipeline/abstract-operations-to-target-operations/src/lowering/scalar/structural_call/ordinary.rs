@@ -9,7 +9,7 @@ pub(in crate::lowering::scalar) fn lower(
     machine: MachineId,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     structural_parameters: &[TargetStructuralParameter],
     values: &BTreeMap<ValueId, KnownScalar>,
 ) -> Result<KnownScalar, LoweringError> {
@@ -205,7 +205,7 @@ fn established_view(
     caller: &AbstractFunction,
     call: semantic_vocabulary::OperationId,
     place: semantic_vocabulary::PlaceId,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
 ) -> Option<(semantic_vocabulary::OperationId, StructuralTypeId)> {
     caller.operations.iter().enumerate().find_map(|(producer_position, operation)| match operation {
         AbstractOperation::EstablishByteSequenceLiteral {

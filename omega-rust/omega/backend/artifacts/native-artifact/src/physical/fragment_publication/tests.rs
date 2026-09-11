@@ -18,7 +18,7 @@ fn construction_rejects_detached_final_plan_and_object_terminal() {
     let retained = abstract_operations::AbstractOperationPlan {
         psi,
         entry: semantic_vocabulary::MachineId::new(1).unwrap(),
-        structural_types: Vec::new(),
+        structural_types: Vec::new().into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: Vec::new(),
@@ -100,7 +100,7 @@ fn plan(machine_raw: u64) -> MachineCodePlan {
             unit_continuations: Vec::new(),
             unit_affine_cleanup: Some(UnitAffineCleanupRecord {
                 psi_edge: return_edge,
-                structural_types: Vec::new(),
+                structural_types: Vec::new().into(),
                 locals: Vec::new(),
                 actions: Vec::new(),
                 code_offset: 0,

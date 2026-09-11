@@ -9,7 +9,7 @@ pub(in crate::lowering::scalar) fn lower_integer_conditional(
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     structural_parameters: &[TargetStructuralParameter],
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetFunction, LoweringError> {
     let function_result = scalar_function_result(function)?;
     let ScalarType::Integer(result_type) = function_result.scalar_type else {
@@ -53,7 +53,7 @@ fn lower_conditional_arm(
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     structural_parameters: &[TargetStructuralParameter],
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
 ) -> Result<LoweredConditionalArm, LoweringError> {
     // See `lower_boolean_arm`: this is an explicit verified no-code erasure.
     let _ = &successor.trivial_affine_discards;
@@ -97,7 +97,7 @@ fn lower_conditional_block(
     native_target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     structural_parameters: &[TargetStructuralParameter],
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
 ) -> Result<LoweredIntegerControl, LoweringError> {
     if !visited.insert(block) {
         return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(

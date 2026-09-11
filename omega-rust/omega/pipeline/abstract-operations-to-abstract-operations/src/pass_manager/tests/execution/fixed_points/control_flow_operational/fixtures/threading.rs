@@ -23,7 +23,7 @@ pub(crate) fn linear_shared_target_unit() -> PsiOptimizationUnit {
         &AbstractOperationPlan {
             psi: identity([82; 32]),
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -84,7 +84,7 @@ pub(crate) fn path_qualified_direct_edges_unit() -> PsiOptimizationUnit {
         &AbstractOperationPlan {
             psi: identity([83; 32]),
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {

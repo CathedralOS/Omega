@@ -12,7 +12,7 @@ pub(super) fn lower_structural_result_call(
     function: &AbstractFunction,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,

@@ -81,7 +81,8 @@ fn structural_type_graph_accepts_dag_shared_descendants_and_disconnected_compone
                 terminal_psi::ByteSequenceCarrier::BorrowedView,
             ),
         ),
-    ];
+    ]
+    .into();
     refresh_identity(&mut candidate);
 
     validate_psi_optimization_unit(&candidate)
@@ -122,7 +123,7 @@ fn structural_type_graph_rejects_cycles_through_every_structural_edge_shape() {
 
     for shape in shapes {
         let mut candidate = unit();
-        candidate.structural_types = vec![structural_type(410, shape)];
+        candidate.structural_types = vec![structural_type(410, shape)].into();
         refresh_identity(&mut candidate);
         assert_eq!(
             validate_psi_optimization_unit(&candidate),
@@ -158,7 +159,8 @@ fn structural_type_graph_rejects_an_unused_disconnected_cycle() {
                 length: 1,
             },
         ),
-    ];
+    ]
+    .into();
     refresh_identity(&mut candidate);
 
     assert_eq!(
@@ -182,7 +184,8 @@ fn structural_type_graph_reports_unknown_targets_before_recursion() {
                 structural_field(31, unknown),
             ],
         },
-    )];
+    )]
+    .into();
     refresh_identity(&mut candidate);
 
     assert_eq!(

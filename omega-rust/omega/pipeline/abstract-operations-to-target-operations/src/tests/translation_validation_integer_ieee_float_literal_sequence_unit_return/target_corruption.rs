@@ -169,7 +169,7 @@ fn target_return_and_whole_structural_roster_corruption_fails_closed() {
     let TargetOperation::UnitBody(body) = &mut candidate.functions[0].operation else {
         unreachable!()
     };
-    body.structural_types[0].identity = "test::substituted_mixed_sequence".into();
+    body.structural_types.make_mut()[0].identity = "test::substituted_mixed_sequence".into();
     assert_eq!(
         validate_abstract_to_target_translation(&source, target_profile, &candidate),
         Err(
