@@ -7,6 +7,19 @@ See the [product](product.md), [encoding](encoding.md), and
 Runtime cycles and grouped recursive certificates follow
 [control flow and ranking](control_flow.md).
 
+## General proof integration status
+
+The responsibilities below are specified; the general mathematical calculus
+and its checking bridge are not. [General proof authority](../../../OWNER_QUESTIONS.md#general-proof-pcc-authority)
+owns that decision, depending on the [proof foundations](../proofs/contracts.md#undetermined-foundations).
+The current product checker implements bounded rules, while the Gamma bootstrap
+checker implements finite ground equality. Neither establishes the general
+kernel or the universal schema-soundness proofs required below.
+
+Existing obligation reconstruction and bounded certificate work can continue.
+General theorem evidence must not acquire artifact authority merely because it
+uses an existing certificate envelope or was accepted by source automation.
+
 ## Responsibilities
 
 | Component | Responsibility | Cannot choose |

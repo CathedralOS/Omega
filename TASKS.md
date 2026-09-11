@@ -582,13 +582,14 @@ Owners include
 - **PROOF-CONTRACT-MIGRATION.** Migrate the proof surface to
   [ordinary machine contracts and trait bundles](wiki/spec/proofs/contracts.md#machines-and-bundles).
   Owners: Psi syntax/resolution/typing, contract proof semantics, Terminal
-  evidence/codec/replay, and core mathematical traits. First specify the missing
-  logical binders, arbitrary mathematical function/predicate parameters, and
-  proof-only noncomputable values with worked proofs; do not substitute
-  executable declaration enumeration or an optional-returning decider. Audit
-  universe/equality commitments and selectable-axiom provenance explicitly;
-  multiple-foundation compatibility remains a design dependency, not an assumed
-  property of the current checker.
+  evidence/codec/replay, and core mathematical traits. General foundations and
+  elaboration are **OWNER-BLOCKED** on the [calculus](OWNER_QUESTIONS.md#proof-foundation-calculus)
+  and [mathematical-binder](OWNER_QUESTIONS.md#mathematical-binders) decisions;
+  their general certificate integration depends on the
+  [PCC authority bridge](OWNER_QUESTIONS.md#general-proof-pcc-authority).
+  Existing specified contract/bundle migration can proceed where independent
+  of those decisions; do not substitute executable declaration enumeration or
+  an optional-returning decider for general mathematical quantification.
 
   Replace the dedicated formula-declaration and hidden-witness call machinery
   with ordinary contracts and named witness/law bundles, preserving exact
@@ -625,6 +626,11 @@ Owners include
   owner. Missing or stale evidence cannot silently discharge an obligation or
   inherit a producer's admission decision.
 
+  Bounded current-rule production remains actionable. The general-calculus
+  extension is **OWNER-BLOCKED** on the [PCC authority bridge](OWNER_QUESTIONS.md#general-proof-pcc-authority),
+  including its foundation dependency; do not invent a kernel while wiring
+  source evidence into the existing certificate format.
+
 - **SUBJECT-QUALIFIED-ARTIFACT-PROOFS.** Bind every proof to an exact semantic
   subject and observation profile through ledgers, artifact seals, deployment,
   replay, and reports. Producers may not choose the verifier's root subject.
@@ -639,6 +645,10 @@ Owners include
   Bootstrap discharge remains open under
   `BETA-DERIVATION-CHECKER` in `TASKS_BOOTSTRAP.md`; no current artifact may
   claim rooted-checker acceptance.
+  General calculus/operational interpretation is **OWNER-BLOCKED** on the
+  [PCC authority bridge](OWNER_QUESTIONS.md#general-proof-pcc-authority).
+  Current fixed-rule reconstruction and the existing Beta proof customer remain
+  actionable; completing either does not close the general foundation gap.
 
 - **IRFUEL.** Keep fuel as analysis/evaluator evidence, never inserted runtime
   semantics. Complete installed-code correspondence for ordinary admitted loops
@@ -652,10 +662,16 @@ Owners include
   semantic/proof identity but contribute no runtime storage, tags, ABI
   transfer, or execution. Runtime use and any layout-dependent erasure reject.
 
-- **EFFECTFUL-TYPED-COMPUTATION.** Specify the value/computation judgments that
-  connect effectful machines to the future typed proof calculus. This is
-  semantic design work, not a prerequisite for extending unrelated Terminal
-  operations.
+- **EFFECTFUL-TYPED-COMPUTATION.** Implement value/computation elaboration into
+  the selected proof calculus. Its judgments are **OWNER-BLOCKED** on the
+  [calculus](OWNER_QUESTIONS.md#proof-foundation-calculus) and
+  [mathematical-binder](OWNER_QUESTIONS.md#mathematical-binders) decisions.
+  Preserve the existing distinction between admitted total logical terms and
+  effectful calls described by outcome contracts; runtime effects in logical
+  conversion are not an open option. Acceptance: a pure total invocation is
+  usable denotationally, an effectful invocation exposes only its authorized
+  outcome facts, and evidence replay preserves the distinction. This does not
+  block extending unrelated Terminal operations.
 
 ## P4 - ABI, borrowing, and callbacks
 

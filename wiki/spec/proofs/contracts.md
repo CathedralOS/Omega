@@ -304,19 +304,27 @@ roles, constructor relations, executable observers, and published correspondence
 
 ## Undetermined foundations
 
-The following are required design work, not implicit choices made by current
-syntax or the Rust checker:
+The following remain undetermined pending explicit owner decisions, not implicit
+choices made by current syntax or the Rust checker. The linked questions contain
+proposals, not additional ratified rules.
 
-- General logical-binder, predicate-abstraction/passing, and noncomputable-value
-  source forms.
-- The full dependent-function, universe, equality, computation, induction,
-  quotient, and proof-irrelevance rules supporting general mathematics.
-- Foundation identity and cross-foundation compatibility. Changing axioms within
-  one calculus does not establish compatibility between different calculi.
-- General derivation-record/small-kernel formats, any tactic-machine API, and the
-  remaining Real/approximation library surface.
+| Design gap | Decision owner |
+| --- | --- |
+| Dependent functions, universes, equality/conversion, induction, quotient foundations and proof irrelevance | [Canonical mathematical calculus](../../../OWNER_QUESTIONS.md#proof-foundation-calculus) |
+| General logical binders, predicate abstraction/passing, noncomputable values and their source elaboration | [Mathematical binders](../../../OWNER_QUESTIONS.md#mathematical-binders) |
+| General derivation checking, foundation identity, checked cross-foundation interpretation and the PCC authority bridge | [General proof authority](../../../OWNER_QUESTIONS.md#general-proof-pcc-authority) |
 
-These open requirements do not authorize an arbitrary checker-plugin mechanism.
+Changing axioms within one calculus does not establish compatibility between
+different calculi. These questions do not reopen the specified evaluation,
+erasure, assumption-tracking or verifier-obligation rules, and do not block
+implementation of the current bounded checking rules. They authorize neither
+an arbitrary checker-plugin mechanism nor retired formula-naming syntax.
+
+Certificate byte layouts, a tactic-machine API, and the remaining
+Real/approximation library are separate engineering or deferred surface work;
+they are not substitutes for choosing the foundation. Promote any new semantic
+or trust choice they expose to the owner queue before relying on it.
+
 `PROOF-CONTRACT-MIGRATION` on the [execution board](../../../TASKS.md) owns worked
 proofs and migration through source, serialization, and replay. Neither a
 mechanical rewrite nor a few successful proofs establishes mathematical
