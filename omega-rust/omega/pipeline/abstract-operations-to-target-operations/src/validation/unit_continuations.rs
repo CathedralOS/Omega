@@ -9,37 +9,6 @@ use terminal_psi::{
     TerminalAffineCleanupAction,
 };
 
-/// Select this source family without trusting the supplied target carrier.
-/// Other Unit control families retain their own validators.
-pub(super) fn is_candidate(source: &AbstractFunction) -> bool {
-    source.result == AbstractFunctionResult::Unit
-        && source
-            .parameters
-            .iter()
-            .all(|parameter| super::unit_continuation_scalars::supported(parameter.scalar_type))
-        && source.block_entries.len() > 1
-        && source.block_entries.iter().all(|entry| {
-            entry
-                .parameters
-                .iter()
-                .all(|parameter| super::unit_continuation_scalars::supported(parameter.scalar_type))
-        })
-        && source
-            .operations
-            .iter()
-            .any(|operation| matches!(operation, AbstractOperation::Jump { .. }))
-        && source.operations.iter().all(|operation| match operation {
-            AbstractOperation::CallUnit { .. } => true,
-            AbstractOperation::CallStructural { arguments, .. } => arguments.is_empty(),
-            AbstractOperation::Jump {
-                trivial_affine_discards,
-                ..
-            } => trivial_affine_discards.is_empty(),
-            AbstractOperation::ReturnUnit { .. } => true,
-            _ => false,
-        })
-}
-
 pub(super) fn validate(
     source: &AbstractFunction,
     target: &TargetFunction,
