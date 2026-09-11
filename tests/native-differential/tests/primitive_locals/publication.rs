@@ -50,9 +50,7 @@ fn publish(
         .iter()
         .find(|function| function.machine == module.entry)
         .unwrap();
-    let target_operations::TargetOperation::ControlGraph(graph) = &entry.operation else {
-        panic!("primitive locals require the ordinary control graph");
-    };
+    let graph = &entry.graph;
     assert!(
         graph
             .blocks

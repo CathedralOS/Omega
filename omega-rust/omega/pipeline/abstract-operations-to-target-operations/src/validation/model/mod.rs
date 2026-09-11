@@ -1,8 +1,6 @@
 //! Optimizer module role: stage group.
+//! Custody receipt and failure types.
 mod error;
-mod family;
 mod receipt;
-
 pub use error::*;
-pub use family::{AbstractToTargetPlanTranslationFamily, AbstractToTargetTranslationFamily};
 pub use receipt::*;

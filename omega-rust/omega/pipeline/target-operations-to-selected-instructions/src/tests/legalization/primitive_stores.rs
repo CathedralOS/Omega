@@ -10,8 +10,7 @@ use semantic_vocabulary::{
 };
 use target::NativeTarget;
 use target_operations::{
-    TargetOperation, TargetOperationPlan, TargetUnitOperation,
-    TargetUnitWriteOnlyPrimitiveStoreSource,
+    TargetOperationPlan, TargetUnitOperation, TargetUnitWriteOnlyPrimitiveStoreSource,
 };
 use terminal_psi::{
     BindingRelevance, StructuralAccess, StructuralFieldDeclaration, StructuralFieldType,
@@ -115,10 +114,9 @@ fn fixture(
 }
 
 fn target_store(target: &mut TargetOperationPlan) -> &mut TargetUnitOperation {
-    let TargetOperation::UnitBody(body) = &mut target.functions[0].operation else {
-        panic!("Unit store body");
-    };
-    body.operations
+    let body = &mut target.functions[0].graph;
+    body.blocks[0]
+        .operations
         .iter_mut()
         .find(|operation| {
             matches!(

@@ -98,7 +98,6 @@ fn fixture(target: target::NativeTarget, count: usize) -> LegalizedScalarFunctio
     }
     LegalizedScalarFunction {
         structural: None,
-        ranked: None,
         machine: MachineId::new(1).unwrap(),
         attachment: Some(StructuralTypeId::new(1).unwrap()),
         provenance: target_operations::TerminalPsiProvenance {
@@ -143,7 +142,6 @@ fn register_call_arities_preserve_occurrences_and_reject_changed_projection() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         for count in 0..=maximum {
@@ -258,7 +256,6 @@ fn scalar_returns_and_entry_parameters_keep_short_abi_transport() {
             let fixed_view = environment.fixed_register_view(*register).unwrap();
             let constraints = SelectedSelectionConstraints {
                 keys: environment.selected_keys(),
-                projected_structural_call: None,
                 fixed_inputs: vec![SelectedFixedInputConstraint {
                     machine: source.machine,
                     source_value: parameter,
@@ -385,7 +382,6 @@ fn exact_binary_graph_rows_retain_proof_operands_and_occurrence_custody() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         for with_calls in [false, true] {
@@ -549,7 +545,6 @@ fn widening_copy_keeps_distinct_typed_value_and_conversion_custody() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         let mut source = fixture(target, 0);

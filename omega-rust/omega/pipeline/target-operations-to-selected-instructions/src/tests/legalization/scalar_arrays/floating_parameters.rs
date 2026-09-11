@@ -39,9 +39,7 @@ fn floating_array_parameters_replay_exact_scalar_type_and_distinct_aggregate_abi
         optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
         let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
         validate_legalized_operations(&target, &source, &unit, legalized.plan().clone()).unwrap();
-        let TargetOperation::ControlGraph(graph) = &target.functions[0].operation else {
-            unreachable!();
-        };
+        let graph = &target.functions[0].graph;
         assert_eq!(
             graph.call_plan.parameters[0].shape.class,
             calling_conventions::ValueClass::Float
@@ -52,9 +50,7 @@ fn floating_array_parameters_replay_exact_scalar_type_and_distinct_aggregate_abi
         );
         for mutation in 0..4 {
             let mut changed = target.clone();
-            let TargetOperation::ControlGraph(graph) = &mut changed.functions[0].operation else {
-                unreachable!();
-            };
+            let graph = &mut changed.functions[0].graph;
             if mutation == 0 {
                 graph.call_plan.parameters[0].shape.class =
                     calling_conventions::ValueClass::Integer;

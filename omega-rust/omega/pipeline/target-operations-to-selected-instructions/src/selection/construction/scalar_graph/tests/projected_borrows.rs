@@ -84,7 +84,6 @@ fn borrowed_unit_calls_preserve_fixed_integer_and_boolean_parameter_types() {
             };
             let constraints = SelectedSelectionConstraints {
                 keys: environment.selected_keys(),
-                projected_structural_call: None,
                 fixed_inputs: vec![SelectedFixedInputConstraint {
                     machine: source.machine,
                     source_value: value,
@@ -135,7 +134,6 @@ fn outgoing_projected_pointer_stack_slot_replays_exact_bits_and_call_registers()
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         let mut source = projected_call(target);
@@ -425,7 +423,6 @@ fn projected_write_only_call_replays_original_pointer_offset_and_contract() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         let source = projected_call(target);

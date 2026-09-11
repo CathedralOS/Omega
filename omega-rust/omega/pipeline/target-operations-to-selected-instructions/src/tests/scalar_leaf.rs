@@ -14,7 +14,7 @@ use legalized_operations::{LegalizedScalarInstructionKind, LegalizedScalarReturn
 use semantic_vocabulary::{
     EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId,
 };
-use target_operations::{TargetOperation, TargetOperationPlan};
+use target_operations::TargetOperationPlan;
 
 fn fixture(
     immediate: Option<u64>,
@@ -215,42 +215,6 @@ fn scalar_graph_preserves_unused_stack_parameters_without_loading_them() {
 }
 
 #[test]
-fn retired_scalar_return_cannot_reenter_through_native_publication_or_replay() {
-    let (abstracted, target, unit) = fixture(Some(7), target::NativeTarget::linux_x64());
-    let accepted = legalize_target_operations(&target, &abstracted, &unit).unwrap();
-    let mut retired = target.clone();
-    let target_operations::TargetOperation::ControlGraph(graph) = &target.functions[0].operation
-    else {
-        panic!("ordinary scalar graph");
-    };
-    let target_operations::TargetControlTerminator::ReturnScalar {
-        psi_edge,
-        source_value,
-        expression: target_operations::TargetScalarExpression::Integer { scalar_type, .. },
-        ..
-    } = &graph.blocks[0].terminator
-    else {
-        panic!("integer scalar return");
-    };
-    retired.functions[0].operation = TargetOperation::ReturnIntegerImmediate {
-        psi_edge: *psi_edge,
-        source_value: *source_value,
-        scalar_type: *scalar_type,
-        value: IntegerValue::Unsigned(7),
-    };
-    assert!(!crate::legalization::accepts_fragment_publication_input(
-        &retired,
-        &abstracted,
-        &unit
-    ));
-    assert!(legalize_target_operations(&retired, &abstracted, &unit).is_err());
-    assert!(
-        validate_legalized_operations(&retired, &abstracted, &unit, accepted.plan().clone())
-            .is_err()
-    );
-}
-
-#[test]
 fn scalar_leaf_constants_and_parameters_select_without_fabricated_control() {
     for native_target in [
         target::NativeTarget::windows_x64(),
@@ -367,10 +331,7 @@ fn scalar_leaf_legalization_rejects_changed_literal_abi_and_return_register() {
     }
     for corruption in 0..3 {
         let mut corrupted_target = target.clone();
-        let TargetOperation::ControlGraph(graph) = &mut corrupted_target.functions[0].operation
-        else {
-            panic!("block-owned scalar graph");
-        };
+        let graph = &mut corrupted_target.functions[0].graph;
         if corruption != 1 {
             let target_operations::TargetUnitOperation::IntegerConstant { value, .. } =
                 &mut graph.blocks[0].operations[0]

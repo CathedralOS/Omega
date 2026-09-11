@@ -40,7 +40,6 @@ fn fixed_array_call(
     let source = LegalizedScalarFunction {
         machine: MachineId::new(1).unwrap(),
         attachment: None,
-        ranked: None,
         provenance: target_operations::TerminalPsiProvenance {
             operations: Vec::new(),
             edges: Vec::new(),

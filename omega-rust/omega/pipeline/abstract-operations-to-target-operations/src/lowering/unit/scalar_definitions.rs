@@ -116,34 +116,6 @@ pub(in crate::lowering) fn lower_integer_widen(
     Ok(())
 }
 
-pub(in crate::lowering) fn validate_unit_scalar_definitions(
-    function: &AbstractFunction,
-) -> Result<(), LoweringError> {
-    let has_ieee_float_fma = function.operations.iter().any(|operation| {
-        matches!(
-            operation,
-            AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. }
-        )
-    });
-    if has_ieee_float_fma
-        && function.operations.iter().any(|operation| {
-            !matches!(
-                operation,
-                AbstractOperation::IeeeFloatConstant { .. }
-                    | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. }
-                    | AbstractOperation::CallUnit { .. }
-                    | AbstractOperation::BoundaryCall { .. }
-                    | AbstractOperation::ReturnUnit { .. }
-            )
-        })
-    {
-        return Err(LoweringError::UnsupportedOperationInUnitFunction(
-            function.machine,
-        ));
-    }
-    Ok(())
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(in crate::lowering) fn lower_integer_constant(
     machine: MachineId,
@@ -238,54 +210,6 @@ pub(in crate::lowering) fn lower_ieee_float_constant(
         psi_operation,
         result,
         value,
-    });
-    provenance.operations.push(psi_operation);
-    Ok(())
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(in crate::lowering) fn lower_ieee_float_fma(
-    machine: MachineId,
-    psi_operation: OperationId,
-    result: ValueId,
-    format: IeeeFloatFormat,
-    left: ValueId,
-    right: ValueId,
-    addend: ValueId,
-    nonreturning_boundary: bool,
-    ieee_float_constants: &BTreeMap<ValueId, (OperationId, semantic_vocabulary::IeeeFloatValue)>,
-    ieee_float_fma: &BTreeMap<OperationId, TargetX86ScalarFmaSettlement>,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
-) -> Result<(), LoweringError> {
-    if nonreturning_boundary {
-        return Err(LoweringError::UnsupportedOperationInUnitFunction(machine));
-    }
-    let operand = |source: ValueId| {
-        let Some((defining_operation, value)) = ieee_float_constants.get(&source).copied() else {
-            return Err(LoweringError::IeeeFloatFmaOperandMismatch(source));
-        };
-        if value.format() != format {
-            return Err(LoweringError::IeeeFloatFmaOperandMismatch(source));
-        }
-        Ok(TargetIeeeFloatFmaOperand {
-            defining_operation,
-            source_value: source,
-            value,
-        })
-    };
-    let settlement = ieee_float_fma
-        .get(&psi_operation)
-        .copied()
-        .ok_or(LoweringError::MissingIeeeFloatFmaSettlement(psi_operation))?;
-    operations.push(TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd {
-        psi_operation,
-        result,
-        format,
-        left: operand(left)?,
-        right: operand(right)?,
-        addend: operand(addend)?,
-        settlement,
     });
     provenance.operations.push(psi_operation);
     Ok(())

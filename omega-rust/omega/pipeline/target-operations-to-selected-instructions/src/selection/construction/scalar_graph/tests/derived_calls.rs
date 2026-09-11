@@ -143,7 +143,6 @@ fn derived_call_requires_actual_descriptor_definition_to_dominate_call_block() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         for sibling in [false, true] {
@@ -193,7 +192,6 @@ fn derived_call_descriptor_replay_rejects_storage_address_and_fuel_substitution(
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         for empty in [false, true] {

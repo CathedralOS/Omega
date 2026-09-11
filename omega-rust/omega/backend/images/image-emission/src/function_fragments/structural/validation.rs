@@ -17,16 +17,10 @@ pub(in crate::function_fragments) fn validate_function(
     let fragment = fragment(source, function.machine)?;
     let (abstracted, targeted) = source::function(source, function.machine)?;
     let unused_owned = source::unobserved_owned_arrivals(abstracted, targeted, selected);
-    // Ranked referents are retained semantic ownership, not materialized homes.
-    // Complete source admission rejects executable accesses to those referents.
-    let parameters = if selected.ranked.is_some() {
-        &[][..]
-    } else {
-        selected
-            .structural
-            .as_ref()
-            .map_or(&[][..], |contract| contract.parameters.as_slice())
-    };
+    let parameters = selected
+        .structural
+        .as_ref()
+        .map_or(&[][..], |contract| contract.parameters.as_slice());
     let (records, homes, unused_records, unused_homes) =
         if function.mixed_structural_scalar_abi.is_some() {
             (

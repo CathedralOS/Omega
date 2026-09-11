@@ -5,8 +5,7 @@ use proof_admission::{AdmissionProfile, EvidenceRoute, PrimitiveJudgment};
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_psi::{OperationKind, TerminalRankedScc};
 use terminal_psi_to_abstract_operations::{
-    ArtifactLoweringError, NativeArtifactOperationPlan,
-    lower_artifact_sections_for_native_realization,
+    ArtifactLoweringError, lower_artifact_sections_for_native_realization,
 };
 
 #[path = "scalar_control_cycles/publication.rs"]
@@ -116,17 +115,16 @@ fn produce_for_entry(source: &str, entry_name: &str, ranked: bool) -> CanonicalT
         verified.accepted_control_cycles().len(),
         usize::from(ranked)
     );
-    assert!(
-        matches!(
-            lower_artifact_sections_for_native_realization(
-                artifact.semantic_bytes(),
-                artifact.proof_bytes(),
-                &AdmissionProfile::default(),
-            )
-            .expect("ordinary cycle passes the native entrance"),
-            NativeArtifactOperationPlan::Ordinary(_)
-        ),
-        "Natural and unranked cycles use ordinary native authority"
+    let abstracted = lower_artifact_sections_for_native_realization(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &AdmissionProfile::default(),
+    )
+    .expect("Natural and unranked cycles use the same verified native entrance");
+    assert_eq!(
+        abstracted.functions.len(),
+        module.machines.len(),
+        "native lowering retains the verified function roster"
     );
     artifact
 }

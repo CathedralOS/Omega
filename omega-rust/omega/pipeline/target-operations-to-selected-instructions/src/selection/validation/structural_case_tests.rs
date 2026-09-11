@@ -19,7 +19,6 @@ fn case_payload_selection_replays_only_the_selected_edge_and_rejects_substitutio
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
-            projected_structural_call: None,
         };
         let selected = crate::select_instructions(
             &legal,

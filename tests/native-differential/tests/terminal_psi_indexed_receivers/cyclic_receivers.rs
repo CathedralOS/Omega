@@ -147,7 +147,7 @@ fn cyclic_record_field_store_replay_rejects_type_access_and_source_substitution(
     for mutation in 0..5 {
         let mut candidate = target.clone();
         let store = candidate.functions.iter_mut().find_map(|function| {
-            let target_operations::TargetOperation::ControlGraph(graph) = &mut function.operation else { return None; };
+            let graph = &mut function.graph;
             graph.blocks.iter_mut().flat_map(|block| &mut block.operations)
                 .find(|operation| matches!(operation, target_operations::TargetUnitOperation::StructuralScalarFieldStore { .. }))
         }).unwrap();

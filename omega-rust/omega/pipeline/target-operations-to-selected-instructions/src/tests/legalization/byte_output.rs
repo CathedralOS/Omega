@@ -10,8 +10,7 @@ use semantic_vocabulary::{
 };
 use target::NativeTarget;
 use target_operations::{
-    BoundaryExecutionBinding, BoundaryRealization, CompilerBuiltinExecution, TargetOperation,
-    TargetUnitOperation,
+    BoundaryExecutionBinding, BoundaryRealization, CompilerBuiltinExecution, TargetUnitOperation,
 };
 
 #[test]
@@ -126,16 +125,14 @@ fn byte_output_replays_exact_builtin_argument_and_occurrence() {
         }
         for mutation in 0..5 {
             let mut changed = target.clone();
-            let TargetOperation::UnitBody(body) = &mut changed.functions[0].operation else {
-                panic!("Unit body");
-            };
+            let body = &mut changed.functions[0].graph;
             let TargetUnitOperation::BoundarySettlement {
                 execution,
                 realization,
                 runtime_scalar_arguments,
                 boundary,
                 ..
-            } = &mut body.operations[0]
+            } = &mut body.blocks[0].operations[0]
             else {
                 panic!("byte output");
             };
@@ -221,10 +218,7 @@ fn scalar_return_cannot_hide_an_unwitnessed_byte_output_boundary() {
             Err(error) => error,
             Ok(_) => panic!("scalar target invented a Linux write without a builtin witness"),
         };
-        assert_eq!(
-            error,
-            crate::LegalizationError::UnsupportedSourceShape { function: 0 }
-        );
+        assert_eq!(error, crate::LegalizationError::SourceCustodyMismatch);
     }
 }
 
@@ -244,10 +238,9 @@ fn provider_byte_output_retains_execution_custody_and_normal_return() {
             75,
         )
         .unwrap();
-        let TargetOperation::UnitBody(body) = &mut target.functions[0].operation else {
-            panic!("Unit body")
-        };
-        let TargetUnitOperation::BoundarySettlement { execution, .. } = &mut body.operations[0]
+        let body = &mut target.functions[0].graph;
+        let TargetUnitOperation::BoundarySettlement { execution, .. } =
+            &mut body.blocks[0].operations[0]
         else {
             panic!("output settlement")
         };
@@ -256,15 +249,13 @@ fn provider_byte_output_retains_execution_custody_and_normal_return() {
         validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
         for mutation in 0..3 {
             let mut changed = target.clone();
-            let TargetOperation::UnitBody(body) = &mut changed.functions[0].operation else {
-                unreachable!()
-            };
+            let body = &mut changed.functions[0].graph;
             let TargetUnitOperation::BoundarySettlement {
                 execution,
                 realization,
                 runtime_scalar_arguments,
                 ..
-            } = &mut body.operations[0]
+            } = &mut body.blocks[0].operations[0]
             else {
                 unreachable!()
             };

@@ -1,9 +1,6 @@
 //! Scalar call arguments, source identities and boundary result roles.
 
-use crate::{
-    ScalarParameterLocation, TargetScalarExpression, TargetStructuralHomeRequirement,
-    TargetUnitScalarHomeRequirement,
-};
+use crate::{TargetStructuralHomeRequirement, TargetUnitScalarHomeRequirement};
 use calling_conventions::ValuePlacement;
 use semantic_vocabulary::{
     IeeeFloatValue, IntegerType, IntegerValue, OperationId, ScalarType, ValueId,
@@ -30,7 +27,7 @@ pub enum TargetUnitScalarArgumentSource {
     /// A destination-owned scalar block parameter, not an incoming ABI slot.
     BlockParameter(crate::TargetScalarBlockValue),
     /// One incoming Unit-function scalar parameter. The surrounding
-    /// `TargetUnitBody::scalar_parameters` roster owns its exact physical
+    /// `TargetControlGraph::scalar_parameters` roster owns its exact physical
     /// placement; this occurrence retains the nominal parameter join.
     Parameter {
         parameter_index: u32,
@@ -100,11 +97,4 @@ impl TargetUnitScalarCallArgument {
     pub const fn scalar_type(&self) -> ScalarType {
         self.source.scalar_type()
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TargetCallArgument {
-    pub scalar_type: ScalarType,
-    pub location: ScalarParameterLocation,
-    pub expression: TargetScalarExpression,
 }

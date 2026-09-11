@@ -380,7 +380,6 @@ fn hosted_exit_process_object_validation_replays_exact_scalar_and_trap_bytes() {
                     scalar_control_affine_cleanups: Vec::new(),
                     scalar_structural_parameters: Vec::new(),
                     scalar_structural_parameter_homes: Vec::new(),
-                    ranked_u32_countdown: None,
                     structural_return: None,
                 }],
             };
@@ -679,7 +678,6 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
             scalar_control_affine_cleanups: Vec::new(),
             scalar_structural_parameters: Vec::new(),
             scalar_structural_parameter_homes: Vec::new(),
-            ranked_u32_countdown: None,
             structural_return: None,
         }],
     };
@@ -2308,7 +2306,6 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
                 scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
-                ranked_u32_countdown: None,
                 structural_return: None,
             }],
         };
@@ -2703,7 +2700,6 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
             scalar_control_affine_cleanups: Vec::new(),
             scalar_structural_parameters: Vec::new(),
             scalar_structural_parameter_homes: Vec::new(),
-            ranked_u32_countdown: None,
             structural_return: None,
         }],
     };
@@ -2852,7 +2848,6 @@ fn two_function_plan() -> MachineCodePlan {
                 scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
-                ranked_u32_countdown: None,
                 structural_return: None,
             },
             MachineCodeFunction {
@@ -2899,7 +2894,6 @@ fn two_function_plan() -> MachineCodePlan {
                 scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
-                ranked_u32_countdown: None,
                 structural_return: None,
             },
         ],
@@ -3021,7 +3015,6 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
                 scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
-                ranked_u32_countdown: None,
                 structural_return: None,
             },
             MachineCodeFunction {
@@ -3074,7 +3067,6 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
                 scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
-                ranked_u32_countdown: None,
                 structural_return: None,
             },
         ],
@@ -4042,7 +4034,6 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
-                ranked_u32_countdown: None,
                 structural_return: None,
             },
             MachineCodeFunction {
@@ -4099,7 +4090,6 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
-                ranked_u32_countdown: None,
                 structural_return: None,
             },
             MachineCodeFunction {
@@ -4208,7 +4198,6 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
-                ranked_u32_countdown: None,
                 structural_return: None,
             },
         ],

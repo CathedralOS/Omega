@@ -6,7 +6,7 @@
 pub use abstract_operations::{
     AbstractDynamicDescriptorArgument, AbstractDynamicDescriptorSource,
     AbstractReboundDynamicDispatch, AbstractResult, AbstractStoredDynamicDescriptor,
-    AbstractStoredDynamicDispatch, CompletionClaimSource, RankedU32CountdownCustody,
+    AbstractStoredDynamicDispatch, CompletionClaimSource,
 };
 pub use calling_conventions::MachineRegister;
 use semantic_vocabulary::MachineId;

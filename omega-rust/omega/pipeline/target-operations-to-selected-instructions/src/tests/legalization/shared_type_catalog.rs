@@ -3,7 +3,6 @@ use abstract_operations::{AbstractOperation, StructuralTypeCatalog};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, MachineId, ScalarType, StructuralTypeId,
 };
-use target_operations::TargetOperation;
 use terminal_psi::{StructuralTypeDeclaration, StructuralTypeShape};
 
 #[test]
@@ -47,9 +46,7 @@ fn module_type_catalog_is_shared_across_functions_and_native_stages() {
             .shares_storage_with(&unit.structural_types)
     );
     for function in &target.functions {
-        let TargetOperation::UnitBody(body) = &function.operation else {
-            panic!("Unit body");
-        };
+        let body = &function.graph;
         assert!(
             source
                 .structural_types
@@ -108,23 +105,4 @@ fn module_type_catalog_is_shared_across_functions_and_native_stages() {
         )
     );
     assert!(crate::validate_legalized_operations(&target, &source, &unit, corrupt).is_err());
-}
-
-#[test]
-fn structural_call_return_retains_the_module_catalog() {
-    let (source, target, _) =
-        crate::tests::fixtures::projected_structural_call_return::projected_fixture(
-            target::NativeTarget::linux_x64(),
-        );
-    let TargetOperation::ReturnStructuralCall {
-        structural_types, ..
-    } = &target.functions[0].operation
-    else {
-        panic!("structural call return");
-    };
-    assert!(
-        source
-            .structural_types
-            .shares_storage_with(structural_types)
-    );
 }

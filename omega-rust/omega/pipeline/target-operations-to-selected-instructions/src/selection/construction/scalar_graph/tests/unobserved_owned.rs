@@ -120,7 +120,6 @@ fn unused_owned_bindings_select_and_replay_without_homes_or_copies() {
             register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         let selected = build(

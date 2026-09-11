@@ -29,8 +29,7 @@ pub(super) fn validate_replay_custody(
         || proposed.fuel_schedule != unit.fuel_schedule
         || proposed.target != target.target
         || proposed.entry != target.entry
-        || proposed.scalar_functions.len() + proposed.projected_structural_call_returns.len() * 2
-            != target.functions.len()
+        || proposed.scalar_functions.len() != target.functions.len()
     {
         return Err(Error::NonCanonicalLegalizedPlan);
     }

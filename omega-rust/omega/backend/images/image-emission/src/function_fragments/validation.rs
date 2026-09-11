@@ -76,18 +76,6 @@ pub fn validate_function_fragment_object_artifact(
             .find(|fragment| fragment.machine == placed.machine)
             .ok_or(Error::Mismatch("missing current fragment"))?;
         let (attachment, provenance) = source::fragment_metadata(source, placed.machine)?;
-        let ranked_matches = match (&targeted.operation, &function.ranked_u32_countdown) {
-            (target_operations::TargetOperation::RankedU32Countdown(expected), Some(actual)) => {
-                actual.custody == expected.custody
-                    && actual.call_plan == expected.call_plan
-                    && actual.structural_types == expected.structural_types
-                    && actual.structural_parameters == expected.structural_parameters
-                    && actual.cleanup_actions == expected.cleanup_actions
-            }
-            (target_operations::TargetOperation::RankedU32Countdown(_), None) => false,
-            (_, None) => true,
-            (_, Some(_)) => false,
-        };
         let offset = host(placed.section_offset)?;
         let length = host(placed.byte_count)?;
         let entry = placed.machine == text.semantic_entry;
@@ -109,7 +97,6 @@ pub fn validate_function_fragment_object_artifact(
             || function.scalar_abi != targeted.scalar_abi
             || function.mixed_structural_scalar_abi != targeted.mixed_structural_scalar_abi
             || !unit_abi_matches
-            || !ranked_matches
             || function.text_offset != offset
             || function.byte_count != length
             || function.symbol != symbol_handle

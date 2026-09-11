@@ -4,4 +4,3 @@
 //! virtual registers for structural values.
 
 pub mod ordinary;
-pub mod projected_return;

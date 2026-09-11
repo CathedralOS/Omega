@@ -12,7 +12,7 @@ use semantic_vocabulary::{
 };
 use target::NativeTarget;
 use target_operations::{
-    TargetBooleanExpression, TargetControlTerminator, TargetIntegerExpression, TargetOperation,
+    TargetBooleanExpression, TargetControlTerminator, TargetIntegerExpression,
     TargetScalarExpression, TargetUnitOperation,
 };
 use terminal_psi::{
@@ -166,9 +166,7 @@ fn shared_unit_graph_observations_and_boolean_homes_replay_on_all_hosted_targets
         assert!(selected.plan().functions[0].local_storage_slots.is_empty());
         for mutation in 0..11 {
             let mut changed = target.clone();
-            let TargetOperation::ControlGraph(graph) = &mut changed.functions[0].operation else {
-                panic!("Unit graph");
-            };
+            let graph = &mut changed.functions[0].graph;
             match mutation {
                 0 => graph.parameters[0].access = StructuralAccess::Owned,
                 1 => {

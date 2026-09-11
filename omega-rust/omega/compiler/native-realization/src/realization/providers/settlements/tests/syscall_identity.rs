@@ -21,7 +21,7 @@ fn abstract_plan() -> abstract_operations::AbstractOperationPlan {
             program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([0x85; 32]),
         },
         entry: machine,
-        structural_types: Vec::new(),
+        structural_types: Vec::new().into(),
         boundary_machines: vec![terminal_psi::BoundaryMachineDeclaration {
             id: boundary,
             identity: REQUIREMENT.into(),
@@ -73,6 +73,7 @@ fn add_unqualified_structural_parameter(plan: &mut abstract_operations::Abstract
     let structural_type = semantic_vocabulary::StructuralTypeId::new(851).unwrap();
     let place = semantic_vocabulary::PlaceId::new(851).unwrap();
     plan.structural_types
+        .make_mut()
         .push(terminal_psi::StructuralTypeDeclaration {
             id: structural_type,
             identity: "omega::test::Payload".into(),

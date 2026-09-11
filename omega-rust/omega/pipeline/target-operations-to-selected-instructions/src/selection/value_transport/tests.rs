@@ -169,7 +169,6 @@ fn function(
         call_plan: plan,
         parameters,
         structural: None,
-        ranked: None,
         entry_block: blocks[0].id,
         blocks,
     }

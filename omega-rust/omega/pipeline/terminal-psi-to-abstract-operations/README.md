@@ -44,74 +44,32 @@ result fragments use the downstream ordinary aggregate graph; its
 [instruction-selection owner](../target-operations-to-selected-instructions/README.md#ordinary-selected-control-flow)
 retains the remaining owned-argument, empty-value and indirect-result limits.
 
-Verified branches, calls, and crash exits retain the same operation identities
-and ownership transfers regardless of result category. Local establishments are
-ordinary operations, not hidden inside a structural return. The legacy linear,
-claim-bearing no-code physical return collects their provenance only when
-selecting that native form. Plain affine incoming parameters can return through
-the ordinary native graph with direct ABI fragments preserved across writes and
-calls. Source production of mixed owned-return bodies and claim-bearing native
-control flow still require support.
-
-The [ownership contract](../../../../wiki/spec/terminal-psi/ownership.md) requires
-replay of actual moves and maximal residual subtrees, independently of producer
+Verified branches, calls, and crash exits retain operation identities and
+ownership transfers regardless of result category. Local establishments are
+ordinary operations, not hidden inside a structural return. The
+[ownership contract](../../../../wiki/spec/terminal-psi/ownership.md) requires
+replay of actual moves and maximal residual subtrees independently of producer
 rows. Parameter/result sources and unrelated live roots remain distinct.
-Current native continuation support is an adjacent acyclic Unit chain; broader
-cycles, computed scalar bindings, projected boundary results, and mixed cleanup
-schedules need complete downstream support rather than erased edges.
 
-Ordinary identity-result producers and projected disposers retain separate result
-homes under the admitted direct integer-class aggregate ABI. Split register
-fragments preserve order, register, offset, and exact width; Microsoft x64's
-indirect structural-return form remains outside this lane. Odd-sized fragments
-cannot read or write alignment padding. Eight-byte home alignment does not
-increase logical extent. Staging, copying, and result stores must preserve
-source registers and indirect bases, and independently replay all intervals.
+This stage retaining an operation does not establish its native implementation.
+The next stages accept Unit, scalar, and structural functions through one graph.
+Executable cleanup, claim-bearing continuations, projected qualifications,
+installed-provider calls, and descriptor forwarding require their complete
+ordinary operation and proof joins; missing support rejects. No flat
+whole-function or no-code structural-return alternative supplies that support.
 
-Continuations retain real edges and ordered cleanup, including a zero-byte record
-for an empty complement. Final-return records contain only owners still live
-there. Entry-origin scalar homes must survive calls and staging; source-to-target
-validation rejoins authored bindings, while later byte replay cannot recover an
-unretained authored alias or block map. Object/image/installation replay checks
-the retained source/result, call/edge sequence, layout, homes, and partition.
+## Native calls and storage
 
-Root length/stride metadata belongs to array roots, not record roots whose paths
-happen to traverse arrays. ABI copies materialize only the owned subtree being
-transferred; this is not a borrowed-referent copy. No-code residual cleanup emits
-neither instructions nor liveness-dependent loops.
+Each callee has its own ABI. Native argument transport must preserve source
+values before filling register or outgoing-stack destinations. Physical replay
+checks the outgoing area, alignment, return-link preservation, source places,
+field widths, calls, and relocations. An aggregate's padding is not observable
+payload, and a borrowed referent must not become a private value copy.
 
-## Scalar call realization
-
-Each callee selects its own ABI. Evaluate arguments into disjoint durable homes
-before filling register or outgoing-stack destinations. Emission includes the
-complete outgoing area (including Microsoft x64 shadow space), x86 alignment,
-and AArch64 link preservation. Typed relocations bind exact Psi operations and
-callees; conditional emission preserves live inputs and rebases independently
-encoded arm/condition relocations into final function order.
-
-Selected-operator Unit continuations currently have narrower admission than the
-call vocabulary: fixed-native integer results and supported ordinary scalar
-closures, with exact selected-plan/adapter identity replay. The structural-operand
-subset consumes a permutation of whole claim-free affine roots with separate
-scalar operands; its hosted empty-record path has Linux x86-64/AArch64 native
-coverage. Nontrivial layouts, claims, services, projections, borrowed operands,
-and wider control do not follow from that case. Artifact replay is consistency
-evidence, not a claim that a human audited the emitted program.
-
-## Scalar cleanup tails
-
-Native scalar-return lowering preserves the result across executable cleanup and,
-on AArch64, preserves the return link. Physical replay checks the exact frame,
-stores, loads, calls, stack ceiling, and result lifetime on every path. No-code
-cleanup positions remain semantically ordered without inventing target calls.
-
-A shared Boolean convergence tail retains source-ordered decisions, joins from
-nonfinal leaves, final-leaf fallthrough, and one physical cleanup tail. A direct
-field read binds the source place and field identity to its native interval;
-replay reconstructs field type/offset, source home, live stack depth, and exact
-load/normalization bytes. Opaque field identity is not layout authority.
-Admission of a comparison or field leaf is not general nested structural access
-or arbitrary cleanup composition.
+The [target stage](../abstract-operations-to-target-operations/README.md) and
+[instruction-selection stage](../target-operations-to-selected-instructions/README.md)
+own their actual operation coverage. Admission here, source production, and
+successful optimization are not native-publication claims.
 
 ## Ranked native admission
 
@@ -150,39 +108,17 @@ a progress claim. Scalar cycles proceed through the shared
 and native physical pipeline. Exact verified-source custody, not the presence
 of ranking metadata, authorizes downstream cyclic safety checking.
 
-Only the legacy unsigned-countdown carrier selects
-[ranked_native.rs](src/artifact/ranked_native.rs). This specialized entrance admits
-the entry machine's exact unsigned countdown and ceiling. Native and fixed-fuel
-verification run independently. Unsupported countdowns still reject rather than
-falling back to ordinary admission. This is not admission of an ordinary call to
-a countdown-ranked callee.
+The older unsigned-countdown native custody is unsupported. Admission rejects
+it explicitly rather than erasing its proof requirements or falling back to
+ordinary verification. There is no dedicated countdown target, selected, or
+machine-code carrier. Natural ranking and its grouped certificates remain
+checked on the ordinary path.
+
 The [projected-receiver contract](../../../../wiki/spec/language/termination.md#ranked-callees-on-projected-receivers)
-needs composed argument references, call/return, cleanup, callee measure checking,
-and resource evidence; removing an entry guard or widening parameter count is
-not that implementation.
-
-The bounded structural frontier has one affine-owned place or a persistent
-mutable receiver. Borrowed receivers preserve their original referent, reference
-multiplicity, empty owned frontier, and `BorrowedReference` ABI shape. Primitive
-arrays retain exact lengths/element types rather than synthetic record leaves.
-Assignment and replay derive shape and target pointer placement from declarations;
-only the target-prescribed rank register is admitted.
-
-`EstablishPrimitiveLocal` and `PrimitiveScalarRead` have verified interpreter
-semantics but no native storage realization yet. Ordinary operation routing
-rejects both with operation-specific errors; it cannot replace a borrowed
-referent with an SSA snapshot. Native local allocation, lifetime, load/store,
-and call-observation controls remain required.
-
-The retained countdown projection contains canonical semantics/proof bytes,
-fixed-fuel fields, header/backedge frontiers, graph, ABI, and type closure. Object
-replay decodes the proof again, reconstructs graph/frontiers and physical body,
-and rejoins coordinates to the verified module. Coherent substitutions and
-stripped records reject. The specialized Linux x86-64/AArch64 body retains exact
-four-operation/five-edge work attribution; it does not insert runtime accounting.
-Ordinary selected-instruction support, provider installation, and mixed work do
-not follow from this specialized route. It must not become a second architectural
-pipeline as broader ranked lowering is implemented.
+still requires composed argument references, call/return, cleanup, callee measure
+checking, and resource evidence. A graph representation alone does not establish
+those guarantees; unsupported transfers reject until their ordinary operation
+and proof joins are implemented.
 
 ## Dynamic dispatch
 
@@ -192,23 +128,7 @@ starts in [dynamic_dispatch.rs](src/lowering/machine/operation/calls/dynamic_dis
 Retain whole closed applications, not just the selected callable. Changing an
 unselected row must still change identity and fail stale replay.
 
-Source/native support remains bounded around direct selections, a rebound
-descriptor, and a transparent parameter hop. The immutable-table native route
-does not establish arbitrary multi-block continuations, mutable initialized
-data, or BSS. Unit and scalar forwarding retain different result storage needs.
-
-The mutation-bearing source subset admits bounded ordered literal primitive-field
-stores through a mutable receiver before an independent field return. Direct
-and finite named-record paths are distinct from general indexed/case paths,
-computed values, repeated destinations, and arbitrary body reorderings. Its
-native integer/Boolean stores and scalar results do not imply general IEEE or
-aggregate support. Recheck the relevant producer and receiving admission before
-extending a shape; successful descriptor transport alone is not executable
-reference preservation.
-
-Whole mutable byte-view `ByteSequenceWrite` is a distinct Terminal operation,
-not an owned primitive-field store. Projection retains its exact destination,
-index, byte, current length and bounds obligation. Whole mutable-view state
-bindings retain exclusive transfer, not a second usable name. The ordinary
-native graph realizes fixed-extent writes and Unit helper calls; this does not
-admit bounded-owner field replacement or complete the line-input provider.
+Descriptor transport and checked selection do not establish native indirect-call
+execution. Immutable-table calls still require the exact descriptor, table, slot,
+relocation, call/return, and resource joins on the common graph. Missing joins
+reject; there is no direct-selection or transparent-hop native fallback.

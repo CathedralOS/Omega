@@ -18,7 +18,6 @@ fn empty_array_constructor_retains_charge_without_physical_storage() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         let selected = build(
@@ -120,7 +119,6 @@ fn consecutive_empty_constructor_charges_precede_the_next_ordinary_operation() {
     let environment = register_environment::baseline_target_register_environment(target).unwrap();
     let constraints = SelectedSelectionConstraints {
         keys: environment.selected_keys(),
-        projected_structural_call: None,
         fixed_inputs: Vec::new(),
     };
     let selected = build(
@@ -198,7 +196,6 @@ fn empty_nested_array_replay_preserves_carrier_and_inner_dimensions() {
     let environment = register_environment::baseline_target_register_environment(target).unwrap();
     let constraints = SelectedSelectionConstraints {
         keys: environment.selected_keys(),
-        projected_structural_call: None,
         fixed_inputs: Vec::new(),
     };
     let selected = build(
@@ -290,7 +287,6 @@ fn empty_constructor_provenance_settles_on_jump_before_successor_return() {
     let environment = register_environment::baseline_target_register_environment(target).unwrap();
     let constraints = SelectedSelectionConstraints {
         keys: environment.selected_keys(),
-        projected_structural_call: None,
         fixed_inputs: Vec::new(),
     };
     let selected = build(

@@ -9,7 +9,7 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, call: &LegalizedScalarCall) {
         None => bytes.push(0),
         Some(result) => {
             bytes.push(1);
-            super::projected_structural_call_return::encode_operation_result(bytes, result);
+            super::structural_result::encode_operation_result(bytes, result);
         }
     }
     encode_call_source(bytes, &call.source);

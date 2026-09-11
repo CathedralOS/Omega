@@ -10,7 +10,6 @@ pub struct SelectedFunction {
     pub machine: MachineId,
     pub attachment: Option<semantic_vocabulary::StructuralTypeId>,
     pub provenance: TerminalPsiProvenance,
-    pub ranked: Option<abstract_operations::RankedU32CountdownCustody>,
     pub structural: Option<legalized_operations::LegalizedStructuralContract>,
     pub local_storage_slots: Vec<super::SelectedLocalStorageSlot>,
     pub outgoing_arguments: Vec<super::SelectedOutgoingArgumentSlot>,

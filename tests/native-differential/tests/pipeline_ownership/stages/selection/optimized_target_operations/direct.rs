@@ -21,14 +21,8 @@ fn optimized_scalar_parameters_use_only_the_common_graph() {
                 .unwrap();
                 let target =
                     lower_optimized_to_target_operations(optimized, target_profile).unwrap();
-                assert!(matches!(
-                    target.translation_validation().function_roster()[0].translation(),
-                    AbstractToTargetFunctionTranslationDisposition::Uncovered
-                ));
                 let function = &target.target_operations().functions[0];
-                let TargetOperation::ControlGraph(graph) = &function.operation else {
-                    panic!("scalar body must remain block-owned");
-                };
+                let graph = &function.graph;
                 let abi = function.scalar_abi.as_ref().unwrap();
                 assert_eq!(graph.call_plan, abi.call_plan);
                 assert_eq!(graph.scalar_parameters, abi.parameters);

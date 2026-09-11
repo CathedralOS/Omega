@@ -1,11 +1,8 @@
 //! Boolean expressions with their retained semantic operations.
 
-use crate::{ScalarParameterLocation, TargetCallArgument, TargetIntegerExpression};
+use crate::{ScalarParameterLocation, TargetIntegerExpression};
 use calling_conventions::ValuePlacement;
-use semantic_vocabulary::{
-    IntegerType, MachineId, OperationId, PlaceId, StructuralFieldId, ValueId,
-};
-use terminal_psi::CrashRouteBucket;
+use semantic_vocabulary::{IntegerType, OperationId, PlaceId, StructuralFieldId, ValueId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetBooleanExpression {
@@ -13,14 +10,6 @@ pub enum TargetBooleanExpression {
     BlockParameter(crate::TargetScalarBlockValue),
     /// Read an already executed scalar definition; physical residence is downstream.
     ScalarHome(crate::TargetUnitScalarHomeRequirement),
-    Call {
-        psi_operation: OperationId,
-        source_value: ValueId,
-        callee: MachineId,
-        arguments: Vec<TargetCallArgument>,
-        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
-    },
     Immediate {
         source_value: ValueId,
         value: bool,

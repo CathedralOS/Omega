@@ -75,7 +75,8 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
 - **TRANSLATION-VALIDATION.** Complete independent source-to-target replay for
   admitted operations and transfers on the common graph. Scalar expression-family
-  planners, their catalog and compatibility fixtures are retired: do not restore
+  planners, Unit/structural whole-function templates, their catalogs and
+  compatibility fixtures are retired: do not restore
   them to recover arithmetic, crash, cleanup or borrowed-call coverage. Extend
   ordinary graph operations and their receiving checks instead. Remaining native
   operations and publication routes fail closed until target applicability,
@@ -115,10 +116,12 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
 ## Psi optimization and loops
 
-- **GENERAL-CYCLIC-EXECUTION.** Generalize the exact unsigned-countdown carrier
-  to ordinary cyclic Terminal Psi with authenticated SCCs, dominance and
+- **GENERAL-CYCLIC-EXECUTION.** Complete ordinary cyclic Terminal Psi execution
+  with authenticated SCCs, dominance and
   frontiers, optional well-founded ranking, productive unranked components,
-  and structured finite-work failures.
+  and structured finite-work failures. The dedicated unsigned-countdown native
+  carrier is removed; its old custody rejects. Extend the common graph and
+  ordinary ranking evidence rather than restoring a second native route.
 
   First bounded call-composition milestone: implement the
   [ranked callee on a projected receiver](wiki/spec/language/termination.md#ranked-callees-on-projected-receivers),

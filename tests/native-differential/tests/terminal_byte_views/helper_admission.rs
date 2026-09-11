@@ -2,7 +2,6 @@
 use super::*;
 use calling_conventions::ValueShape;
 use legalized_operations::{LegalizedScalarArgument, LegalizedScalarInstructionKind};
-use target_operations::TargetOperation;
 use target_operations_to_selected_instructions::{
     legalize_target_operations, validate_legalized_operations,
 };
@@ -76,41 +75,5 @@ fn helper_replay_rejects_substituted_argument_custody() {
                 "substitution {corruption}"
             );
         }
-    }
-}
-
-#[test]
-fn helper_receiving_entrance_rejects_substituted_target_arguments() {
-    let compiled = byte_view_target(
-        &fixtures::byte_view_length_helper_module(),
-        &ProofBundle::default(),
-        NativeTarget::host(),
-    );
-    for corruption in 0..4 {
-        let mut native = compiled.target_operations().clone();
-        let caller = native
-            .functions
-            .iter_mut()
-            .find(|function| function.machine == native.entry)
-            .unwrap();
-        let TargetOperation::ReturnStructuralScalarCall { arguments, .. } = &mut caller.operation
-        else {
-            panic!("helper target")
-        };
-        match corruption {
-            0 => arguments[0].access = StructuralAccess::WriteOnlyBorrow,
-            1 => arguments[0].source_byte_offset = 8,
-            2 => arguments[0].place = PlaceId::new(3).unwrap(),
-            3 => arguments[0].destination.shape = ValueShape::integer(16, 8),
-            _ => unreachable!(),
-        }
-        assert!(
-            legalize_target_operations(
-                &native,
-                compiled.optimized().plan(),
-                compiled.optimized().unit()
-            )
-            .is_err()
-        );
     }
 }

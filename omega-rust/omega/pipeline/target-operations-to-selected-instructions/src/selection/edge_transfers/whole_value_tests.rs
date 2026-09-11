@@ -14,7 +14,6 @@ fn whole_values_snapshot_before_parallel_replacement_and_replay_exact_extents() 
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         for width in [1u16, 2, 4, 8, 12, 16] {

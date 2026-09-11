@@ -1,59 +1,10 @@
 use super::*;
 use target_operations::{
-    ScalarAbiValue, TargetStructuralParameter, TargetUnitBody,
-    TargetUnitScalarArgumentSource as Source,
+    ScalarAbiValue, TargetStructuralParameter, TargetUnitScalarArgumentSource as Source,
 };
 mod aggregate_results;
 mod ieee_float;
 mod primitive_store;
-pub(super) fn validate(
-    function: &TargetFunction,
-    body: &TargetUnitBody,
-    abstracted: &AbstractFunction,
-    optimized: &PsiOptimizationFunction,
-    native: &TargetOperationPlan,
-    plan: &AbstractOperationPlan,
-    unit: &PsiOptimizationUnit,
-) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
-    if body.structural_types != plan.structural_types
-        || body.structural_types != unit.structural_types
-        || body.operations.len() != abstracted.operations.len()
-    {
-        return Err(invalid);
-    }
-    let mut sources = optimized
-        .parameters
-        .iter()
-        .enumerate()
-        .map(|(index, parameter)| {
-            (
-                parameter.value,
-                Source::Parameter {
-                    parameter_index: index as u32,
-                    source_value: parameter.value,
-                    scalar_type: parameter.scalar_type,
-                },
-            )
-        })
-        .collect::<Vec<_>>();
-    for (target, abstracted) in body.operations.iter().zip(&abstracted.operations) {
-        validate_operation(
-            function,
-            target,
-            abstracted,
-            &body.scalar_parameters,
-            &body.parameters,
-            &mut sources,
-            optimized,
-            native,
-            plan,
-            unit,
-        )?;
-    }
-    Ok(())
-}
-
 /// Replay one ordered Unit operation with only the SSA sources available here.
 pub(super) fn validate_operation(
     function: &TargetFunction,

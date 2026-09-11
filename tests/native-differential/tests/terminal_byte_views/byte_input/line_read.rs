@@ -17,12 +17,19 @@ fn concrete_byte_leaf_line_reader_preserves_source_custody_and_native_outcomes()
     ];
     for target in targets {
         let lowered = lower_reader(&source, "read_line");
-        let (image, entry) = publish_reader(target, lowered);
+        let (image, _entry_offset) = publish_reader(target, lowered);
         assert!(!image.output().final_text_bytes.is_empty());
+        #[cfg(any(
+            all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", target_arch = "aarch64"),
+        ))]
         if target == NativeTarget::host() {
             native_function::assert_c_text(
                 &image.output().final_text_bytes,
-                entry,
+                _entry_offset,
                 include_str!("../read_line.c"),
             );
         }

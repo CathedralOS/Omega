@@ -55,17 +55,14 @@ fn field_and_unit_call_literals_retain_exact_ieee_sources_on_four_targets() {
                 NativeTarget::macos_arm64(),
             ] {
                 let lowered = lower_to_target_operations(&source, target).unwrap();
-                let TargetOperation::UnitBody(body) = &lowered.functions.last().unwrap().operation
-                else {
-                    panic!("literal uses ordinary Unit body")
-                };
+                let body = &lowered.functions.last().unwrap().graph;
                 assert!(
-                    matches!(body.operations[0], TargetUnitOperation::IeeeFloatConstant {
+                    matches!(body.blocks[0].operations[0], TargetUnitOperation::IeeeFloatConstant {
                     psi_operation, result, value: actual
                 } if psi_operation == OperationId::new(3).unwrap()
                     && result == ValueId::new(1).unwrap() && actual == value)
                 );
-                let literal = match &body.operations[1] {
+                let literal = match &body.blocks[0].operations[1] {
                     TargetUnitOperation::Call {
                         scalar_arguments,
                         call_plan,
@@ -179,10 +176,7 @@ fn graph_unit_call_retains_dominating_ieee_literal_source() {
             NativeTarget::windows_x64(),
         ] {
             let lowered = lower_to_target_operations(&source, native).unwrap();
-            let TargetOperation::ControlGraph(graph) = &lowered.functions.last().unwrap().operation
-            else {
-                panic!("ordinary Unit graph")
-            };
+            let graph = &lowered.functions.last().unwrap().graph;
             let TargetUnitOperation::Call {
                 scalar_arguments, ..
             } = &graph.blocks[1].operations[0]

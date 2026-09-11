@@ -23,18 +23,6 @@ pub(in crate::selection) fn entry(
             Err(replay.invalid())
         };
     }
-    // Ranked structural state is retained ownership custody, not a physical read.
-    // Its exact signature and cleanup are independently checked at legalization.
-    if source.ranked.is_some()
-        && source.blocks.iter().all(|block| {
-            block
-                .instructions
-                .iter()
-                .all(|row| !matches!(row.kind, LegalizedScalarInstructionKind::Call(_)))
-        })
-    {
-        return Ok(());
-    }
     let parameters = signature
         .parameters
         .iter()

@@ -1,11 +1,10 @@
 //! Integer expression vocabulary and exact proof-bearing arithmetic.
 
-use crate::{ScalarParameterLocation, TargetByteView, TargetCallArgument};
+use crate::{ScalarParameterLocation, TargetByteView};
 use calling_conventions::ValuePlacement;
 use semantic_vocabulary::{
-    IntegerType, IntegerValue, MachineId, OperationId, PlaceId, StructuralFieldId, ValueId,
+    IntegerType, IntegerValue, OperationId, PlaceId, StructuralFieldId, ValueId,
 };
-use terminal_psi::CrashRouteBucket;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetIntegerExpression {
@@ -13,17 +12,6 @@ pub enum TargetIntegerExpression {
     BlockParameter(crate::TargetScalarBlockValue),
     /// Read one exact earlier scalar definition without repeating its producer.
     ScalarHome(crate::TargetUnitScalarHomeRequirement),
-    StructuralCall {
-        psi_operation: OperationId,
-        source_value: ValueId,
-        callee: MachineId,
-        arguments: Vec<TargetCallArgument>,
-        structural_arguments: Vec<crate::TargetStructuralArgument>,
-        call_plan: calling_conventions::CallPlan,
-        claim_transfers: Vec<terminal_psi::ClaimTransfer>,
-        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
-    },
     /// Exact `u8` observation. The view retains its parameter placement or
     /// checked derivation. The index expression retains its Terminal
     /// identity; length and obligation retain proof custody, not a new check.
@@ -42,14 +30,6 @@ pub enum TargetIntegerExpression {
         source: PlaceId,
         view: Box<TargetByteView>,
         length_byte_offset: u32,
-    },
-    Call {
-        psi_operation: OperationId,
-        source_value: ValueId,
-        callee: MachineId,
-        arguments: Vec<TargetCallArgument>,
-        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
     },
     Immediate {
         source_value: ValueId,

@@ -87,7 +87,6 @@ fn owned_array_arguments_replay_exact_home_type_and_fragments() {
                 register_environment::baseline_target_register_environment(target).unwrap();
             let constraints = SelectedSelectionConstraints {
                 keys: environment.selected_keys(),
-                projected_structural_call: None,
                 fixed_inputs: Vec::new(),
             };
             let selected = build(

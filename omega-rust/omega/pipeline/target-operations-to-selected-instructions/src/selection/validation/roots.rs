@@ -17,10 +17,7 @@ pub(super) fn validate_initial_roots(
     {
         return Err(SelectedInstructionError::TargetRegisterArchitectureMismatch);
     }
-    if target.scalar_functions.len() != plan.functions.len()
-        || target.projected_structural_call_returns.len()
-            != plan.projected_structural_call_returns.len()
-    {
+    if target.scalar_functions.len() != plan.functions.len() {
         return Err(SelectedInstructionError::SourceCustodyMismatch);
     }
     let mut expected_machines = target

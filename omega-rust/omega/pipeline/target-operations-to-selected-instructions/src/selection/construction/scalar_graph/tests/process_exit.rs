@@ -38,7 +38,6 @@ fn process_exit_retains_boundary_but_does_not_execute_nominal_return() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         let selected = build(

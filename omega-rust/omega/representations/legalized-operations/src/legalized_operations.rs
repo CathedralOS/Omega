@@ -19,9 +19,6 @@ pub struct LegalizedOperationPlan {
     pub entry: MachineId,
     /// Ordinary ordered scalar and Unit graphs with explicit ABI transport.
     pub scalar_functions: Vec<LegalizedScalarFunction>,
-    /// Atomic result-bearing structural call/return closures. Instruction
-    /// selection intentionally has no consumer for this roster yet.
-    pub projected_structural_call_returns: Vec<LegalizedProjectedStructuralCallReturn>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

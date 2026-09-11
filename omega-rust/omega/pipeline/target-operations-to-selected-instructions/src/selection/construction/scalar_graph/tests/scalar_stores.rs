@@ -141,7 +141,6 @@ fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
                 };
                 let constraints = SelectedSelectionConstraints {
                     keys: environment.selected_keys(),
-                    projected_structural_call: None,
                     fixed_inputs: Vec::new(),
                 };
                 let selected = build(

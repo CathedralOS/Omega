@@ -27,16 +27,8 @@ fn structural_unit_return_selects_without_materializing_unused_owned_input() {
         )
         .expect("selection must retain independently checked source and target custody");
 
-        let [function] = selected.selected().plan().functions.as_slice() else {
-            panic!("one ordinary selected function");
-        };
-        assert!(
-            selected
-                .selected()
-                .plan()
-                .projected_structural_call_returns
-                .is_empty()
-        );
+        assert_eq!(selected.selected().plan().functions.len(), 1);
+        let function = &selected.selected().plan().functions[0];
         let contract = function
             .structural
             .as_ref()

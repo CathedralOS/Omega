@@ -107,9 +107,7 @@ fn scalar_primitive_store_preserves_mixed_abi_order_and_return_on_four_targets()
             let function = &target.functions[0];
             assert!(function.scalar_abi.is_none());
             let abi = function.mixed_structural_scalar_abi.as_ref().unwrap();
-            let TargetOperation::ControlGraph(graph) = &function.operation else {
-                panic!("ordinary graph")
-            };
+            let graph = &function.graph;
             assert_eq!(graph.call_plan, abi.call_plan);
             assert_eq!(graph.scalar_parameters, abi.scalar_parameters);
             assert_eq!(graph.parameters, abi.structural_parameters);
@@ -241,9 +239,7 @@ fn scalar_graph_header_replay_rejects_coherent_value_abi_substitution() {
     .unwrap();
     abi.structural_parameters[0].shape = shape;
     abi.structural_parameters[0].placement = abi.call_plan.parameters[1].clone();
-    let TargetOperation::ControlGraph(graph) = &mut function.operation else {
-        panic!("graph")
-    };
+    let graph = &mut function.graph;
     graph.call_plan = abi.call_plan.clone();
     graph.parameters = abi.structural_parameters.clone();
     assert!(crate::validate_abstract_to_target_translation(&source, native, &target).is_err());
@@ -260,10 +256,7 @@ fn effect_free_primitive_borrow_scalar_return_uses_the_common_graph() {
         NativeTarget::windows_x64(),
     ] {
         let target = lower_to_target_operations(&source, native).unwrap();
-        assert!(matches!(
-            target.functions[0].operation,
-            TargetOperation::ControlGraph(_)
-        ));
+        assert_eq!(target.functions[0].graph.blocks.len(), 1);
         crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
     }
 }
@@ -291,9 +284,7 @@ fn boolean_primitive_store_publishes_exact_borrow_and_scalar_return_abi() {
         crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
         let function = &target.functions[0];
         let abi = function.mixed_structural_scalar_abi.as_ref().unwrap();
-        let TargetOperation::ControlGraph(graph) = &function.operation else {
-            panic!("ordinary store graph");
-        };
+        let graph = &function.graph;
         assert_eq!(graph.call_plan, abi.call_plan);
         assert_eq!(graph.scalar_parameters, abi.scalar_parameters);
         assert_eq!(graph.parameters, abi.structural_parameters);

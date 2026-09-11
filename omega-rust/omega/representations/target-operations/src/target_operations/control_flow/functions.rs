@@ -1,7 +1,7 @@
 //! Target functions and their declared ABI and semantic provenance.
 
 use crate::{
-    MixedStructuralScalarFunctionAbi, ScalarFunctionAbi, TargetOperation, TerminalPsiProvenance,
+    MixedStructuralScalarFunctionAbi, ScalarFunctionAbi, TargetControlGraph, TerminalPsiProvenance,
 };
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 
@@ -19,5 +19,5 @@ pub struct TargetFunction {
     /// fixed integer or Boolean.
     pub mixed_structural_scalar_abi: Option<MixedStructuralScalarFunctionAbi>,
     pub provenance: TerminalPsiProvenance,
-    pub operation: TargetOperation,
+    pub graph: TargetControlGraph,
 }

@@ -121,7 +121,6 @@ fn mixed_incoming_primitive_references_and_local_reject_swapped_output_pointers(
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: source
                 .parameters
                 .iter()

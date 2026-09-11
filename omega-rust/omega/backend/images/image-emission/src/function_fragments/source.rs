@@ -143,25 +143,6 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 "function declaration metadata differs from canonical source",
             ));
         }
-        let ranked = match &targeted.operation {
-            target_operations::TargetOperation::RankedU32Countdown(ranked) => Some(ranked),
-            _ => None,
-        };
-        if selected.ranked.as_ref() != ranked.map(|ranked| &ranked.custody) {
-            return Err(Error::Mismatch(
-                "ranked selected custody differs from current target",
-            ));
-        }
-        if ranked.is_some()
-            && (!selected.calls.is_empty()
-                || !selected.memory_accesses.is_empty()
-                || !selected.outgoing_arguments.is_empty()
-                || !selected.boundary_settlements.is_empty())
-        {
-            return Err(Error::Mismatch(
-                "ranked unused referents acquired executable accesses",
-            ));
-        }
         if abstracted.attachment != fragment.attachment
             || targeted.provenance != fragment.provenance
             || (!abstracted.structural_parameters.is_empty() && structural.is_none())
@@ -187,9 +168,8 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         if let Some(abi) = &targeted.mixed_structural_scalar_abi {
             super::mixed_scalar_abi::admit(abstracted, targeted, selected, abi)?;
         }
-        if (unit && (!abstracted.parameters.is_empty() || parameter_abi(targeted).is_some())
-            || graph_result)
-            && ranked.is_none()
+        if unit && (!abstracted.parameters.is_empty() || parameter_abi(targeted).is_some())
+            || graph_result
         {
             let (call_plan, scalar_parameters, structural_parameters) = parameter_abi(targeted)
                 .ok_or(Error::Mismatch(
@@ -267,14 +247,8 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 AbstractOperation::IntegerConstant { .. }
                 | AbstractOperation::BooleanConstant { .. } => true,
                 AbstractOperation::IeeeFloatConstant { .. } => {
-                    match &targeted.operation {
-                        target_operations::TargetOperation::UnitBody(body) =>
-                            ieee_literal_retained(operation, &body.operations),
-                        target_operations::TargetOperation::ControlGraph(graph) =>
-                            ieee_literal_retained(operation, graph.blocks.iter()
-                                .flat_map(|block| &block.operations)),
-                        _ => false,
-                    }
+                    ieee_literal_retained(operation, targeted.graph.blocks.iter()
+                        .flat_map(|block| &block.operations))
                 }
                 AbstractOperation::EstablishByteSequenceLiteral {
                     psi_operation, place, structural_type, bytes,
@@ -282,14 +256,13 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     // The mandatory object/source replay above checks storage and
                     // byte initialization. Account for the exact retained literal,
                     // not just a place declaration or a matching payload length.
-                    matches!(&targeted.operation, target_operations::TargetOperation::UnitBody(body)
-                        if body.operations.iter().filter(|operation| matches!(operation,
+                    targeted.graph.blocks.iter().flat_map(|block| &block.operations).filter(|operation| matches!(operation,
                             target_operations::TargetUnitOperation::EstablishByteSequenceLiteral {
                                 psi_operation: actual_operation, place: actual_place,
                                 structural_type: actual_type, bytes: actual_bytes,
                             } if actual_operation == psi_operation && actual_place == place
                                 && actual_type == structural_type && actual_bytes == bytes
-                        )).count() == 1)
+                        )).count() == 1
                 }
                 AbstractOperation::ByteSequenceLength { .. }
                 | AbstractOperation::ByteSequenceWrite { .. }
@@ -328,19 +301,13 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     || selected.calls.iter().any(|row| row.operation == *psi_operation && matches!(row.call.source, legalized_operations::LegalizedCallUnitSource::InstalledProvider { .. })),
                 AbstractOperation::Return {
                     cleanup_actions, ..
-                } => match ranked {
-                    Some(ranked) => cleanup_actions == &ranked.cleanup_actions,
-                    None => cleanup_actions.is_empty()
+                } => cleanup_actions.is_empty()
                         || (unobserved_owned_arrivals(abstracted, targeted, selected)
                             && scalar_cleanup_retained(operation, targeted)),
-                },
                 AbstractOperation::ReturnUnit {
                     cleanup_actions, ..
-                } => match ranked {
-                    Some(ranked) => cleanup_actions == &ranked.cleanup_actions,
-                    None => cleanup_actions.is_empty()
+                } => cleanup_actions.is_empty()
                         || super::structural::read_result_cleanup_actions_match(abstracted, selected, cleanup_actions),
-                },
                 AbstractOperation::BooleanEqual { .. }
                 // Like the other pure comparisons, source/selection replay
                 // above checks every operand and the complete realization.
@@ -420,12 +387,9 @@ fn byte_operation_retained(
     target: &target_operations::TargetFunction,
 ) -> bool {
     use target_operations::{
-        TargetByteView, TargetIntegerExpression, TargetOperation, TargetScalarExpression,
-        TargetUnitOperation,
+        TargetByteView, TargetIntegerExpression, TargetScalarExpression, TargetUnitOperation,
     };
-    let TargetOperation::ControlGraph(graph) = &target.operation else {
-        return false;
-    };
+    let graph = &target.graph;
     graph
         .blocks
         .iter()
@@ -485,22 +449,6 @@ fn byte_operation_retained(
         == 1
 }
 
-/// Copy retained ranked metadata; admission remains with the complete source replay.
-pub(super) fn ranked_record(
-    function: &target_operations::TargetFunction,
-) -> Option<machine_code::RankedU32CountdownMachineCodeRecord> {
-    let target_operations::TargetOperation::RankedU32Countdown(ranked) = &function.operation else {
-        return None;
-    };
-    Some(machine_code::RankedU32CountdownMachineCodeRecord {
-        custody: ranked.custody.clone(),
-        call_plan: ranked.call_plan.clone(),
-        structural_types: ranked.structural_types.clone(),
-        structural_parameters: ranked.structural_parameters.clone(),
-        cleanup_actions: ranked.cleanup_actions.clone(),
-    })
-}
-
 /// Borrow already validated target ABI facts; this does not construct an ABI plan.
 pub(super) fn parameter_abi(
     function: &target_operations::TargetFunction,
@@ -509,29 +457,25 @@ pub(super) fn parameter_abi(
     &[target_operations::ScalarAbiValue],
     &[target_operations::TargetStructuralParameter],
 )> {
-    match &function.operation {
-        target_operations::TargetOperation::UnitBody(body)
-            if !body.scalar_parameters.is_empty() =>
-        {
-            Some((&body.call_plan, &body.scalar_parameters, &body.parameters))
-        }
-        target_operations::TargetOperation::ControlGraph(graph)
-            // Inline owned values have no legacy pointer-home ABI. Retain the
-            // actual call plan even for Unit functions with no scalar parameters.
-            if graph.call_plan.result.is_none() && (!graph.scalar_parameters.is_empty()
-                || graph.parameters.iter().any(|parameter|
-                    super::structural::inline_owned_placement(parameter.access, &parameter.placement)))
-                || graph.call_plan.result.is_some()
-                    && function.scalar_abi.is_none()
-                    && function.mixed_structural_scalar_abi.is_none() =>
-        {
-            Some((
-                &graph.call_plan,
-                &graph.scalar_parameters,
-                &graph.parameters,
-            ))
-        }
-        _ => None,
+    let graph = &function.graph;
+    // Inline owned values have no pointer-home ABI. Retain the actual call
+    // plan for those Unit functions even without scalar parameters.
+    if graph.call_plan.result.is_none()
+        && (!graph.scalar_parameters.is_empty()
+            || graph.parameters.iter().any(|parameter| {
+                super::structural::inline_owned_placement(parameter.access, &parameter.placement)
+            }))
+        || graph.call_plan.result.is_some()
+            && function.scalar_abi.is_none()
+            && function.mixed_structural_scalar_abi.is_none()
+    {
+        Some((
+            &graph.call_plan,
+            &graph.scalar_parameters,
+            &graph.parameters,
+        ))
+    } else {
+        None
     }
 }
 

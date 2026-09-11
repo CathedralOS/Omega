@@ -3,11 +3,11 @@
 mod calling;
 mod canonical;
 mod plan;
-mod projected_structural_call_return;
 mod scalar;
 mod scalar_graph;
 mod shared;
 mod structural;
+mod structural_result;
 mod structural_types;
 
 use shared::*;

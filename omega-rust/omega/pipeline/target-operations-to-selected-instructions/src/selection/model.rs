@@ -35,7 +35,6 @@ pub struct SelectedInstructionValidationReceipt {
     pub(super) block_count: usize,
     pub(super) virtual_register_count: usize,
     pub(super) instruction_count: usize,
-    pub(super) projected_structural_call_return_count: usize,
 }
 
 impl SelectedInstructionValidationReceipt {
@@ -74,22 +73,10 @@ impl SelectedInstructionValidationReceipt {
     pub const fn instruction_count(self) -> usize {
         self.instruction_count
     }
-
-    pub const fn projected_structural_call_return_count(self) -> usize {
-        self.projected_structural_call_return_count
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelectedInstructionError {
-    UnsupportedProjectedStructuralShape,
-    ProjectedStructuralRosterMismatch,
-    ProjectedStructuralCustodyMismatch,
-    ProjectedStructuralConstraintMismatch {
-        site: selected_instructions::SelectedStructuralFragmentSite,
-    },
-    MissingProjectedStructuralCallConstraint,
-    ProjectedStructuralCatalogMismatch,
     SourceCustodyMismatch,
     TargetRegisterArchitectureMismatch,
     UnsupportedSourceShape {

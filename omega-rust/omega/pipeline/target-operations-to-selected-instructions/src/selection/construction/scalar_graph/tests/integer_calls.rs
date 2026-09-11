@@ -11,7 +11,6 @@ fn admitted_exact_casts_normalize_the_destination_integer_type() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         for (sign, bits, expected) in [
@@ -97,7 +96,6 @@ fn narrow_integer_call_results_preserve_comparison_types_and_reject_normalizatio
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         for (sign, bits, expected, wrong_sign) in [

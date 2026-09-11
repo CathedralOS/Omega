@@ -83,33 +83,6 @@ pub fn lower_validated_abstract_to_target_operations(
     })
 }
 
-/// Join independently admitted ranked semantics to the ordinary target-stage
-/// product. Ranking is retained in the target function, not a physical route.
-/// The ordinary translation roster remains explicit about uncovered families;
-/// ranked legalization and publication replay its semantic and fixed-fuel
-/// evidence independently before accepting executable code.
-pub fn lower_validated_ranked_to_target_operations(
-    optimized: ValidatedOptimizedAbstractPlan,
-    ranked: &abstract_operations::RankedNativeAbstractOperationPlan,
-    target: NativeTarget,
-) -> Result<ValidatedOptimizedTargetOperations, LoweringError> {
-    if optimized.plan() != &ranked.plan {
-        return Err(LoweringError::InvalidRankedCountdown(ranked.plan.entry));
-    }
-    let plan = crate::lower_ranked_to_target_operations(ranked, target)?;
-    let translation_validation =
-        crate::validate_abstract_to_target_translation(optimized.plan(), target, &plan)?;
-    Ok(ValidatedOptimizedTargetOperations {
-        optimized,
-        current_program: Arc::new(TargetOperationPlanWithNativeCallbacks {
-            plan,
-            native_callback_arguments: Vec::new(),
-        }),
-        translation_validation,
-        provider_installation: None,
-    })
-}
-
 // Compatibility entrances delegate to the same authority-aware transform.
 pub fn lower_optimized_to_target_operations(
     optimized: ValidatedOptimizedAbstractPlan,

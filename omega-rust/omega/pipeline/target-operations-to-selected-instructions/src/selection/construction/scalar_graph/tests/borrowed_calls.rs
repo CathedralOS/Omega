@@ -131,7 +131,6 @@ fn mixed_borrowed_calls_preserve_separate_scalar_and_pointer_placements() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         for scalar_count in 1..=maximum_scalars {
@@ -282,7 +281,6 @@ fn borrowed_descriptor_call_forwards_pointer_and_replays_custody() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         let source = borrowed_call(target);

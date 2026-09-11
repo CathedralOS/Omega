@@ -83,59 +83,6 @@ pub(in crate::lowering) fn insert_known_unit_integer(
     Ok(())
 }
 
-pub(super) fn unit_argument_source(
-    value: ValueId,
-    function: &AbstractFunction,
-    scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
-    boolean_constants: &BTreeMap<ValueId, (OperationId, bool)>,
-    ieee_float_constants: &BTreeMap<ValueId, (OperationId, semantic_vocabulary::IeeeFloatValue)>,
-    operations: &[TargetUnitOperation],
-) -> Result<TargetUnitScalarArgumentSource, LoweringError> {
-    if let Some(known) = scalar_values.get(&value) {
-        return Ok(known.into_target_source(value));
-    }
-    if let Some((operation, literal)) = boolean_constants.get(&value) {
-        return Ok(TargetUnitScalarArgumentSource::BooleanImmediate {
-            defining_operation: *operation,
-            source_value: value,
-            value: *literal,
-        });
-    }
-    if let Some((operation, literal)) = ieee_float_constants.get(&value) {
-        return Ok(TargetUnitScalarArgumentSource::IeeeFloatImmediate {
-            defining_operation: *operation,
-            source_value: value,
-            value: *literal,
-        });
-    }
-    // The ordered row owns prior scalar call results; no parallel home index is needed.
-    if let Some(home) = operations
-        .iter()
-        .rev()
-        .find_map(|operation| match operation {
-            TargetUnitOperation::ScalarCall { result_home, .. }
-                if result_home.source_value == value =>
-            {
-                Some(*result_home)
-            }
-            _ => None,
-        })
-    {
-        return Ok(TargetUnitScalarArgumentSource::Home(home));
-    }
-    let (position, parameter) = function
-        .parameters
-        .iter()
-        .enumerate()
-        .find(|(_, parameter)| parameter.value == value)
-        .ok_or(LoweringError::UnknownValue(value))?;
-    Ok(TargetUnitScalarArgumentSource::Parameter {
-        parameter_index: u32::try_from(position).map_err(|_| LoweringError::UnknownValue(value))?,
-        source_value: value,
-        scalar_type: parameter.scalar_type,
-    })
-}
-
 pub(in crate::lowering) fn lower_scalar_call(
     operation: &AbstractOperation,
     target: NativeTarget,

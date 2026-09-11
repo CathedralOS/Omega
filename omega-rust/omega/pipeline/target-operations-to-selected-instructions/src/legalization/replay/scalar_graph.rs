@@ -20,13 +20,6 @@ pub(super) fn replay(
         scalar_graph_input::match_input(target, abstracted, optimized, native, plan, unit)?;
     if proposed.structural
         != scalar_graph_input::structural_contract(target, abstracted, optimized, plan)
-        || proposed.ranked.as_ref()
-            != match &target.operation {
-                target_operations::TargetOperation::RankedU32Countdown(ranked) => {
-                    Some(&ranked.custody)
-                }
-                _ => None,
-            }
     {
         return Err(Error::NonCanonicalLegalizedPlan);
     }

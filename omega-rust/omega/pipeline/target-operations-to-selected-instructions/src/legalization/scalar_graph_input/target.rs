@@ -53,16 +53,15 @@ pub(super) fn validate_target(
     if target.provenance.operations != operations || target_edges != edges {
         return Err(invalid);
     }
-    if let TargetOperation::UnitBody(body) = &target.operation {
-        if optimized.blocks.len() != 1 {
-            return Err(invalid);
-        }
-        return unit::validate(target, body, abstracted, optimized, native, plan, unit);
-    }
-    if let TargetOperation::ControlGraph(graph) = &target.operation {
-        return control_flow::validate(target, graph, abstracted, optimized, native, plan, unit);
-    }
-    Err(invalid)
+    control_flow::validate(
+        target,
+        &target.graph,
+        abstracted,
+        optimized,
+        native,
+        plan,
+        unit,
+    )
 }
 
 struct Checker<'a> {

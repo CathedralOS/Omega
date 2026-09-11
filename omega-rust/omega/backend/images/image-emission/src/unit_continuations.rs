@@ -396,7 +396,6 @@ pub(crate) fn validate_function(
         || function.scalar_stack.is_some()
         || function.scalar_abi.is_some()
         || function.structural_return.is_some()
-        || function.ranked_u32_countdown.is_some()
         || function.scalar_affine_cleanup.is_some()
         || !function.scalar_control_affine_cleanups.is_empty()
         || function.structural_call_scalar_return.is_some()

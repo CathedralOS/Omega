@@ -4,7 +4,7 @@ use native_realization::{compiler_baseline_request_v1, optimize_artifact_section
 use optimization_core::OptimizationSelections;
 use proof_admission::AdmissionProfile;
 use target::NativeTarget;
-use target_operations::{TargetControlTerminator, TargetOperation};
+use target_operations::TargetControlTerminator;
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_psi::OperationKind;
 
@@ -14,7 +14,7 @@ fn publish(
     expected_calls: usize,
 ) -> (image_emission::ExecutableImage, usize) {
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
-    let authored_calls = module
+    let mut authored_calls = module
         .machines
         .iter()
         .flat_map(|machine| {
@@ -23,7 +23,8 @@ fn publish(
                     .operations
                     .iter()
                     .filter_map(move |operation| match operation.kind {
-                        OperationKind::Call { callee, .. } => {
+                        OperationKind::Call { callee, .. }
+                        | OperationKind::CallUnit { callee, .. } => {
                             Some((machine.id, operation.id, callee))
                         }
                         _ => None,
@@ -57,9 +58,7 @@ fn publish(
         .iter()
         .find(|function| function.machine == module.entry)
         .unwrap();
-    let TargetOperation::ControlGraph(graph) = &entry.operation else {
-        panic!("ordinary scalar cycle requires TargetControlGraph on {target:?}");
-    };
+    let graph = &entry.graph;
     assert!(
         graph.blocks.iter().any(|block| matches!(
             block.terminator,
@@ -80,15 +79,19 @@ fn publish(
     let text = machine_emission::stage_optimized_fixed_frame_text_section(framed).unwrap();
     machine_emission::validate_optimized_fixed_frame_text_section(&text)
         .expect("independently replay complete scalar-cycle text");
-    let resolved_calls = text
+    let mut resolved_calls = text
         .text_section()
         .resolved_internal_machine_calls
         .iter()
         .map(|call| (call.caller, call.operation, call.callee))
         .collect::<Vec<_>>();
+    // Physical block layout need not follow the serialized source block roster.
+    // Compare complete occurrence multisets; graph replay checks control order.
+    authored_calls.sort_unstable();
+    resolved_calls.sort_unstable();
     assert_eq!(
         resolved_calls, authored_calls,
-        "exact selected scalar call survives native placement on {target:?}"
+        "exact selected call roster survives native placement on {target:?}"
     );
     assert_eq!(text.text_section().functions.len(), module.machines.len());
     let source =
@@ -187,6 +190,24 @@ fn publish(
     )
     .unwrap();
     image_emission::validate_installation_record(&decoded, &image).unwrap();
+    if decoded.internal_unit_calls().len() >= 2 {
+        let mut reordered = decoded.clone();
+        reordered.internal_unit_calls_mut_for_test().swap(0, 1);
+        assert!(
+            image_emission::encode_installation_record(&reordered).is_err(),
+            "installation call rows must retain physical image order"
+        );
+        assert!(image_emission::validate_installation_record(&reordered, &image).is_err());
+
+        let mut stale_ordinal = decoded.clone();
+        let first = &mut stale_ordinal.internal_unit_calls_mut_for_test()[0];
+        first.custody.operation_ordinal = usize::MAX;
+        assert!(
+            image_emission::encode_installation_record(&stale_ordinal).is_err(),
+            "physical ordering cannot replace the exact semantic operation ordinal"
+        );
+        assert!(image_emission::validate_installation_record(&stale_ordinal, &image).is_err());
+    }
     assert_eq!(
         image_emission::derive_stack_demand(&object, module.entry).unwrap(),
         image_emission::derive_installation_stack_demand(&decoded, &image, module.entry).unwrap(),

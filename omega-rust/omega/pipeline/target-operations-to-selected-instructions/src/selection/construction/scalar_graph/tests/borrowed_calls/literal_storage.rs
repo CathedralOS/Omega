@@ -77,7 +77,6 @@ fn literal_storage_replays_raw_bytes_descriptor_geometry_and_single_fuel() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         for bytes in [

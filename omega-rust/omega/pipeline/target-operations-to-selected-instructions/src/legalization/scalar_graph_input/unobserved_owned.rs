@@ -133,9 +133,7 @@ pub(super) fn validate(
     plan: &AbstractOperationPlan,
 ) -> Result<CallPlan, LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
-    let TargetOperation::ControlGraph(graph) = &target.operation else {
-        return Err(invalid);
-    };
+    let graph = &target.graph;
     if !body(function)
         || target.machine != abstracted.machine
         || target.machine != function.machine

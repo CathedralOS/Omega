@@ -104,10 +104,12 @@ fn source_payloadless_producer_retains_ordinary_and_optimizer_custody() {
             .expect("optimizer-only lowering retains the exact producer");
     let targeted = lower_to_target_operations(optimizer_input.plan(), NativeTarget::linux_x64())
         .expect("payloadless results use the same ordinary aggregate path");
-    assert!(targeted.functions.iter().all(|function| matches!(
-        function.operation,
-        target_operations::TargetOperation::ControlGraph(_)
-    )));
+    assert!(
+        targeted
+            .functions
+            .iter()
+            .all(|function| !function.graph.blocks.is_empty())
+    );
 
     let verified = optimizer_unit(&lowered);
     validate_verified_psi_optimization_unit(&verified)

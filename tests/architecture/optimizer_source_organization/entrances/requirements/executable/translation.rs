@@ -54,51 +54,23 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn lower_to_target_operations_with_provider_executions_and_installation",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/mod.rs",
+        path: "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/whole_plan.rs",
         coordination_marker: "pub fn validate_abstract_to_target_translation",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/catalog/mod.rs",
-        coordination_marker: "enabled_families::ENABLED_TRANSLATION_FAMILIES",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/catalog/mod.rs",
-        coordination_marker: "selection::validate",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/catalog/selection.rs",
-        coordination_marker: "pub(super) fn validate",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering/coordination/projected_qualifications/mod.rs",
         coordination_marker: "pub(super) fn reject_unsupported",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/structural_call_return/mod.rs",
-        coordination_marker: "pub(crate) fn validate",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/structural_call_return/local/caller/mod.rs",
-        coordination_marker: "pub(crate) fn validate",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/structural_call_return/local/callee.rs",
-        coordination_marker: "pub(crate) fn validate",
-    },
-    RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/model/error/mod.rs",
-        coordination_marker: "AbstractToTargetTranslationFamilyError",
+        coordination_marker: "AbstractToTargetTranslationValidationError",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/model/receipt/mod.rs",
-        coordination_marker: "AbstractToTargetFunctionTranslationReceipt",
+        coordination_marker: "AbstractToTargetFunctionRosterReceipt",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering/function/mod.rs",
         coordination_marker: "pub(super) fn lower_function",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering/structural/mod.rs",
-        coordination_marker: "pub(super) fn lower_structural_function",
     },
 ];

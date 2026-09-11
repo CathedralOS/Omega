@@ -70,24 +70,8 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(super) fn replay",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/source/structural/mod.rs",
-        coordination_marker: "pub(super) fn derive_source_structural_unit_function",
-    },
-    RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/replay/mod.rs",
         coordination_marker: "pub(crate) fn replay_terminal_legalized_plan",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/replay/structural/mod.rs",
-        coordination_marker: "pub(super) fn replay_structural_unit_function",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/projected_structural_call_return/source/mod.rs",
-        coordination_marker: "pub(in crate::legalization) fn derive",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/projected_structural_call_return/replay/mod.rs",
-        coordination_marker: "pub(in crate::legalization) fn replay",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/mod.rs",
@@ -100,14 +84,6 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/construction/scalar_graph.rs",
         coordination_marker: "pub(super) fn build",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/construction/projected_structural_call_return/mod.rs",
-        coordination_marker: "let call = constraints::call(&fragments, selection, physical, catalog)?",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/validation/projected_structural_call_return/mod.rs",
-        coordination_marker: "target::replay(selected, constraints, physical, catalog)",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/validation/scalar_graph.rs",

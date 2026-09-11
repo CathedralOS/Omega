@@ -19,42 +19,30 @@ pub(super) fn validate(
         return super::unobserved_owned::validate(target, abstracted, optimized, native, plan);
     }
     let invalid = LegalizationError::SourceCustodyMismatch;
-    let (call_plan, scalar_parameters, structural_parameters) = match (
-        &abstracted.result,
-        &target.operation,
-        &target.mixed_structural_scalar_abi,
-    ) {
-        (AbstractFunctionResult::Unit, TargetOperation::UnitBody(body), None)
-            if optimized.blocks.len() == 1 && body.call_plan.result.is_none() =>
-        {
-            (&body.call_plan, &body.scalar_parameters, &body.parameters)
-        }
-        (AbstractFunctionResult::Unit, TargetOperation::ControlGraph(graph), None)
-            if graph.call_plan.result.is_none() =>
-        {
-            (
-                &graph.call_plan,
-                &graph.scalar_parameters,
-                &graph.parameters,
-            )
-        }
-        (AbstractFunctionResult::Scalar(result), _, Some(abi))
-            if matches!(
-                result.scalar_type,
-                ScalarType::Boolean | ScalarType::Integer(_)
-            ) && scalar_shape(result.scalar_type) == Some(abi.result.placement.shape)
-                && abi.result.value == result.value
-                && abi.result.scalar_type == result.scalar_type
-                && Some(&abi.result.placement) == abi.call_plan.result.as_ref() =>
-        {
-            (
-                &abi.call_plan,
-                &abi.scalar_parameters,
-                &abi.structural_parameters,
-            )
-        }
-        _ => return Err(invalid),
-    };
+    let (call_plan, scalar_parameters, structural_parameters) =
+        match (&abstracted.result, &target.mixed_structural_scalar_abi) {
+            (AbstractFunctionResult::Unit, None) if target.graph.call_plan.result.is_none() => (
+                &target.graph.call_plan,
+                &target.graph.scalar_parameters,
+                &target.graph.parameters,
+            ),
+            (AbstractFunctionResult::Scalar(result), Some(abi))
+                if matches!(
+                    result.scalar_type,
+                    ScalarType::Boolean | ScalarType::Integer(_)
+                ) && scalar_shape(result.scalar_type) == Some(abi.result.placement.shape)
+                    && abi.result.value == result.value
+                    && abi.result.scalar_type == result.scalar_type
+                    && Some(&abi.result.placement) == abi.call_plan.result.as_ref() =>
+            {
+                (
+                    &abi.call_plan,
+                    &abi.scalar_parameters,
+                    &abi.structural_parameters,
+                )
+            }
+            _ => return Err(invalid),
+        };
     let parameters = abstracted
         .structural_parameters
         .iter()
@@ -66,17 +54,15 @@ pub(super) fn validate(
         || target.attachment != abstracted.attachment
         || target.attachment != optimized.attachment
         || target.scalar_abi.is_some()
-        || (matches!(target.operation, TargetOperation::ControlGraph(_))
-            && !crate::structural_unit_input::accepts_borrowed_view(
-                call_plan,
-                &parameters,
-                &plan.structural_types,
-            )
-            && !crate::structural_unit_input::accepts_write_borrow(
-                call_plan,
-                &parameters,
-                &plan.structural_types,
-            ))
+        || (!crate::structural_unit_input::accepts_borrowed_view(
+            call_plan,
+            &parameters,
+            &plan.structural_types,
+        ) && !crate::structural_unit_input::accepts_write_borrow(
+            call_plan,
+            &parameters,
+            &plan.structural_types,
+        ))
         || abstracted.parameters.len() != optimized.parameters.len()
         || scalar_parameters.len() != abstracted.parameters.len()
         || call_plan.parameters.len()

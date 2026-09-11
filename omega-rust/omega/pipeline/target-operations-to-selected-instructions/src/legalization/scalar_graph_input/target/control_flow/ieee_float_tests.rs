@@ -200,9 +200,7 @@ fn ieee_comparison_replay_rejects_changed_operands_format_relation_and_arrival()
     );
     for mutation in 0..5 {
         let mut changed = target.clone();
-        let TargetOperation::ControlGraph(graph) = &mut changed.functions[0].operation else {
-            panic!("ordinary graph")
-        };
+        let graph = &mut changed.functions[0].graph;
         if mutation == 4 {
             graph.blocks[1].parameters[0].scalar_type =
                 ScalarType::IeeeFloat(IeeeFloatFormat::Binary64);

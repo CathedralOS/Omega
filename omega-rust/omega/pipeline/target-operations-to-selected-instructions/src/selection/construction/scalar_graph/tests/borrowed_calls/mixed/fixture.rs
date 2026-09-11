@@ -186,7 +186,6 @@ pub(super) fn constraints(
 ) -> SelectedSelectionConstraints {
     SelectedSelectionConstraints {
         keys: environment.selected_keys(),
-        projected_structural_call: None,
         fixed_inputs: source
             .parameters
             .iter()

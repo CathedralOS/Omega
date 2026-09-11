@@ -346,9 +346,6 @@ pub struct ObjectFunction {
     pub scalar_control_affine_cleanups: Vec<ScalarControlAffineCleanupRecord>,
     pub scalar_structural_parameters: Vec<machine_code::UnitParameterRecord>,
     pub scalar_structural_parameter_homes: Vec<machine_code::UnitParameterHomeRecord>,
-    /// Independently replayed proof, rank, ABI, frontier, and fuel custody for
-    /// the exact unmetered ranked-`u32` object body.
-    pub ranked_u32_countdown: Option<machine_code::RankedU32CountdownMachineCodeRecord>,
     /// Byte-validated structural custody returned by this function, when the
     /// complete one-fragment slice applies.
     pub structural_return: Option<StructuralReturnRecord>,
@@ -764,15 +761,6 @@ fn build_object_artifact_with_x86_feature_profile(
         validate_forwarded_dynamic_descriptors(plan.target, &plan.functions)?;
     validate_forwarded_dynamic_parameter_calls(plan.target, &plan.functions)?;
     let validated_private_functions = validate_private_functions(plan.target, private_functions)?;
-    // Ranked bodies require the independently replayed common physical source.
-    // Raw machine-code metadata cannot supply that authority.
-    if let Some(function) = plan
-        .functions
-        .iter()
-        .find(|function| function.ranked_u32_countdown.is_some())
-    {
-        return Err(ObjectError::InvalidRankedCountdown(function.machine));
-    }
     let mut previous = None;
     let mut saw_entry = false;
     let mut text_size = 0usize;
@@ -2409,7 +2397,6 @@ fn build_object_artifact_with_x86_feature_profile(
             scalar_control_affine_cleanups: function.scalar_control_affine_cleanups.clone(),
             scalar_structural_parameters: function.scalar_structural_parameters.clone(),
             scalar_structural_parameter_homes: function.scalar_structural_parameter_homes.clone(),
-            ranked_u32_countdown: function.ranked_u32_countdown.clone(),
             structural_return: function.structural_return.clone(),
         });
     }
@@ -3175,7 +3162,6 @@ fn validate_private_functions<'plan>(
             || private.function.x86_floating_control.is_some()
             || !private.function.port_effects.is_empty()
             || !private.function.boundary_settlements.is_empty()
-            || private.function.ranked_u32_countdown.is_some()
             || private.function.structural_return.is_some()
         {
             return Err(ObjectError::UnsupportedPrivateFunctionBody);
@@ -4187,7 +4173,6 @@ pub enum ObjectError {
         machine: MachineId,
         offset: usize,
     },
-    InvalidRankedCountdown(MachineId),
     NonCanonicalInternalCallOrder(MachineId),
     NonCanonicalForeignCallOrder(MachineId),
     NonCanonicalSemanticCodeAttributionOrder(MachineId),

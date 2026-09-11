@@ -120,16 +120,6 @@ pub(crate) fn validate(artifact: &crate::ObjectArtifact) -> Result<(), diagnosti
         ));
     }
     if artifact.fragment_replay.is_none()
-        && artifact
-            .functions()
-            .iter()
-            .any(|function| function.ranked_u32_countdown.is_some())
-    {
-        return Err(diagnostics::Diagnostic::error(
-            "ranked body requires common-pipeline replay evidence",
-        ));
-    }
-    if artifact.fragment_replay.is_none()
         && artifact.boundary_settlements().iter().any(|row| {
             row.settlement
             .runtime_scalar_arguments

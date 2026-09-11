@@ -215,9 +215,7 @@ fn scalar_cycle_returns_replay_arithmetic_calls_and_result_abi() {
     ] {
         let (plan, target, unit) = fixture(native);
         check(&plan, &target, &unit).unwrap();
-        let TargetOperation::ControlGraph(graph) = &target.functions[0].operation else {
-            panic!("control graph");
-        };
+        let graph = &target.functions[0].graph;
         assert!(matches!(
             graph.blocks[2].operations.as_slice(),
             [
@@ -253,9 +251,7 @@ fn scalar_cycle_rejects_changed_control_returns_and_abi() {
     ] {
         let mut changed = target.clone();
         let function = &mut changed.functions[0];
-        let TargetOperation::ControlGraph(graph) = &mut function.operation else {
-            panic!("graph");
-        };
+        let graph = &mut function.graph;
         match mutation {
             "target" | "binding" | "binding type" => {
                 let TargetControlTerminator::Jump { successor } = &mut graph.blocks[2].terminator
@@ -327,9 +323,7 @@ fn scalar_cycle_rejects_changed_control_returns_and_abi() {
 #[test]
 fn scalar_return_rejects_a_coherently_substituted_nondominating_home() {
     let (mut plan, mut target, mut unit) = fixture(::target::NativeTarget::macos_arm64());
-    let TargetOperation::ControlGraph(graph) = &mut target.functions[0].operation else {
-        panic!("graph");
-    };
+    let graph = &mut target.functions[0].graph;
     let TargetUnitOperation::ScalarDefinition { result_home, .. } = &graph.blocks[2].operations[2]
     else {
         panic!("body result");
@@ -383,9 +377,7 @@ fn scalar_return_rejects_changed_source_result_identity_and_unit_exit() {
             }
         }
         if unit_exit {
-            let TargetOperation::ControlGraph(graph) = &mut target.functions[0].operation else {
-                panic!("graph");
-            };
+            let graph = &mut target.functions[0].graph;
             graph.blocks[3].terminator = TargetControlTerminator::Return {
                 psi_edge: edge(5),
                 cleanup_actions: Vec::new(),
@@ -399,10 +391,7 @@ fn scalar_return_rejects_changed_source_result_identity_and_unit_exit() {
 fn scalar_cycle_producer_rejects_mismatched_return_result_and_unit_exit() {
     let native = ::target::NativeTarget::macos_arm64();
     let (plan, target, _) = fixture(native);
-    assert!(matches!(
-        target.functions[0].operation,
-        TargetOperation::ControlGraph(_)
-    ));
+    assert!(!target.functions[0].graph.blocks.is_empty());
     for mutation in ["result identity", "result type", "Unit return"] {
         let mut changed = plan.clone();
         let returned = &mut changed.functions[0].operations[9];
@@ -448,9 +437,7 @@ fn scalar_cycle_rejects_changed_arithmetic_and_call_rows() {
         "call ABI",
     ] {
         let mut changed = target.clone();
-        let TargetOperation::ControlGraph(graph) = &mut changed.functions[0].operation else {
-            panic!("graph");
-        };
+        let graph = &mut changed.functions[0].graph;
         if mutation.starts_with("arithmetic") {
             let TargetUnitOperation::ScalarDefinition {
                 result_home,

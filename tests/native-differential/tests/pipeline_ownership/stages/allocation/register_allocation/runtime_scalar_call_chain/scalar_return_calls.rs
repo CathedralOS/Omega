@@ -413,68 +413,6 @@ fn publish_scalar_artifacts_with_arguments(
     }
 }
 
-#[test]
-fn scalar_returning_calls_reject_changed_result_callee_and_provenance() {
-    let (semantic, proof) = preserving_artifact(37);
-    let selections = OptimizationSelections::new([]).unwrap();
-    let optimized = optimize_artifact_sections(
-        &semantic,
-        &proof,
-        &AdmissionProfile::default(),
-        compiler_baseline_request_v1(&selections),
-    )
-    .unwrap();
-    let staged = stage_optimized_instruction_selection(
-        lower_optimized_to_target_operations(optimized, NativeTarget::windows_x64()).unwrap(),
-    )
-    .unwrap();
-    let original = staged.selected().plan();
-    let middle = original
-        .functions
-        .iter()
-        .position(|function| function.machine.get() == 28_101)
-        .unwrap();
-    let first_call = original.functions[middle].blocks[0]
-        .instructions
-        .iter()
-        .position(|instruction| matches!(instruction.kind, SelectedInstructionKind::CallI64 { .. }))
-        .unwrap();
-
-    let mut changed = original.clone();
-    changed.functions[middle].blocks[0].instructions[first_call].kind =
-        SelectedInstructionKind::CallI64 {
-            callee: MachineId::new(28_001).unwrap(),
-        };
-    assert!(validate_raw_selection(&staged, changed).is_err());
-
-    let mut changed = original.clone();
-    changed.functions[middle].blocks[0].instructions[first_call]
-        .provenance
-        .operations = vec![OperationId::new(28_022).unwrap()];
-    assert!(validate_raw_selection(&staged, changed).is_err());
-
-    let mut changed = original.clone();
-    let original_parameter = changed.functions[middle]
-        .virtual_registers
-        .iter()
-        .find(|register| {
-            matches!(
-                register.origin,
-                VirtualRegisterOrigin::EntryParameter { .. }
-            )
-        })
-        .unwrap()
-        .id;
-    let SelectedTerminator::Return { instruction, .. } =
-        &mut changed.functions[middle].blocks[0].terminator
-    else {
-        unreachable!()
-    };
-    assert_ne!(instruction.operands[0].virtual_register, original_parameter);
-    instruction.operands[0].virtual_register = original_parameter;
-    assert!(validate_raw_selection(&staged, changed).is_err());
-}
-
 // Independent Terminal authoring; every exact-operation certificate must be
 // produced by the real checked arithmetic prover, never a fallback assumption.
 fn mixed_arithmetic_artifact() -> (Vec<u8>, Vec<u8>) {

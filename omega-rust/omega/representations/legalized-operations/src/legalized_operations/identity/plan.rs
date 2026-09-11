@@ -9,7 +9,7 @@ pub(super) fn encode_structural_contract(
         None => bytes.push(0),
         Some(result) => {
             bytes.push(1);
-            super::projected_structural_call_return::encode_result(bytes, result);
+            super::structural_result::encode_result(bytes, result);
         }
     }
     encode_len(bytes, function.structural_types.len());

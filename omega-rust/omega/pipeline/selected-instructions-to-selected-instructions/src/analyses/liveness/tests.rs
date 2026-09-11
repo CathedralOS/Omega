@@ -128,7 +128,6 @@ fn integer_less_than_successors_retain_semantic_polarity_order() {
             }
         };
         let function = SelectedFunction {
-            ranked: None,
             machine: MachineId::new(1).unwrap(),
             attachment: None,
             provenance: Default::default(),
@@ -207,7 +206,6 @@ pub(crate) fn function_with_operand(access: RegisterOperandAccess) -> SelectedFu
         provenance: SelectedInstructionProvenance::default(),
     };
     SelectedFunction {
-        ranked: None,
         machine: MachineId::new(1).unwrap(),
         attachment: None,
         provenance: Default::default(),

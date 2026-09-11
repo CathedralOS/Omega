@@ -1,9 +1,8 @@
 //! Structural places, projected arguments, and field replacement facts.
 
-use crate::TargetScalarImmediate;
 use calling_conventions::{ValuePlacement, ValueShape};
-use semantic_vocabulary::{OperationId, PlaceId, StructuralFieldId, StructuralTypeId, ValueId};
-use terminal_psi::{StructuralParameterDeclaration, StructuralPathSegment};
+use semantic_vocabulary::{OperationId, PlaceId, StructuralTypeId};
+use terminal_psi::StructuralPathSegment;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetStructuralParameter {
@@ -71,22 +70,4 @@ impl From<ValuePlacement> for TargetStructuralArgumentSource {
     fn from(placement: ValuePlacement) -> Self {
         Self::Placement(placement)
     }
-}
-
-/// One exact immediate scalar replacement performed before a scalar return.
-///
-/// This carrier is deliberately separate from [`crate::TargetUnitOperation`]: a
-/// scalar function borrows its structural receiver through the ordinary scalar
-/// ABI and does not materialize an attached-Unit parameter frame.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TargetScalarStructuralFieldStore {
-    pub psi_operation: OperationId,
-    pub destination: StructuralParameterDeclaration,
-    pub path: Vec<StructuralPathSegment>,
-    pub field: StructuralFieldId,
-    pub destination_placement: ValuePlacement,
-    pub field_byte_offset: u32,
-    pub defining_operation: OperationId,
-    pub source_value: ValueId,
-    pub immediate: TargetScalarImmediate,
 }

@@ -2,7 +2,8 @@
 use super::*;
 use legalized_operations::LegalizedScalarInstructionKind;
 use target_operations::{
-    TargetByteView, TargetIntegerControl, TargetIntegerExpression, TargetOperation,
+    TargetByteView, TargetControlGraph, TargetIntegerExpression, TargetScalarExpression,
+    TargetUnitOperation,
 };
 use target_operations_to_selected_instructions::{
     legalize_target_operations, validate_legalized_operations,
@@ -73,18 +74,23 @@ fn subslice_replay_rejects_substituted_derivation() {
     }
 }
 
-fn derived_view(control: &mut TargetIntegerControl) -> &mut TargetByteView {
-    match control {
-        TargetIntegerControl::Return {
-            expression: TargetIntegerExpression::ByteSequenceLength { view, .. },
-            ..
-        } => view,
-        TargetIntegerControl::Conditional { when_true, .. }
-        | TargetIntegerControl::ConditionalExpression { when_true, .. } => {
-            derived_view(&mut when_true.control)
-        }
-        _ => panic!("suffix target has a derived length return"),
-    }
+fn derived_view(graph: &mut TargetControlGraph) -> &mut TargetByteView {
+    graph
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+        .find_map(|operation| match operation {
+            TargetUnitOperation::ScalarDefinition {
+                expression:
+                    TargetScalarExpression::Integer {
+                        expression: TargetIntegerExpression::ByteSequenceLength { view, .. },
+                        ..
+                    },
+                ..
+            } if matches!(view.as_ref(), TargetByteView::Subslice { .. }) => Some(view.as_mut()),
+            _ => None,
+        })
+        .expect("suffix graph retains its derived length observation")
 }
 
 #[test]
@@ -97,11 +103,6 @@ fn subslice_receiving_entrance_rejects_substituted_target_view() {
     );
     for corruption in 0..6 {
         let mut native = compiled.target_operations().clone();
-        let TargetOperation::ReturnIntegerExpressionConditionalControl { when_true, .. } =
-            &mut native.functions[0].operation
-        else {
-            panic!("guarded suffix")
-        };
         let TargetByteView::Subslice {
             psi_operation,
             place,
@@ -110,7 +111,7 @@ fn subslice_receiving_entrance_rejects_substituted_target_view() {
             end,
             length,
             obligation,
-        } = derived_view(&mut when_true.control)
+        } = derived_view(&mut native.functions[0].graph)
         else {
             panic!("derived view")
         };

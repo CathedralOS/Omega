@@ -1,28 +1,10 @@
 //! Native artifact authority routing after canonical decode.
 
-use abstract_operations::{AbstractOperationPlan, RankedNativeAbstractOperationPlan};
+use abstract_operations::AbstractOperationPlan;
 
 use crate::lowering::lower_decoded_verified_module;
 
-use super::{ArtifactLoweringError, ranked_native};
-
-/// Ordinary verified graphs (including natural-ranked cycles) and the legacy
-/// countdown's specialized native custody. Dispatch is decided from the decoded
-/// Terminal module; callers cannot reinterpret one carrier as the other.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum NativeArtifactOperationPlan {
-    Ordinary(AbstractOperationPlan),
-    RankedU32Countdown(RankedNativeAbstractOperationPlan),
-}
-
-impl NativeArtifactOperationPlan {
-    pub const fn plan(&self) -> &AbstractOperationPlan {
-        match self {
-            Self::Ordinary(plan) => plan,
-            Self::RankedU32Countdown(ranked) => &ranked.plan,
-        }
-    }
-}
+use super::ArtifactLoweringError;
 
 /// Decode one canonical artifact and select its only valid unoptimized native
 /// authority path. Legacy countdown input never falls back to ordinary
@@ -32,7 +14,7 @@ pub fn lower_artifact_sections_for_native_realization(
     semantic_bytes: &[u8],
     proof_bytes: &[u8],
     profile: &proof_admission::AdmissionProfile,
-) -> Result<NativeArtifactOperationPlan, ArtifactLoweringError> {
+) -> Result<AbstractOperationPlan, ArtifactLoweringError> {
     let module = terminal_codec::decode_module(semantic_bytes)
         .map_err(ArtifactLoweringError::SemanticDecode)?;
     let proof = terminal_codec::decode_proof_bundle(proof_bytes)
@@ -46,11 +28,9 @@ pub fn lower_artifact_sections_for_native_realization(
             .as_ref()
             .is_some_and(|ranking| ranking.as_unsigned_countdown().is_some())
     }) {
-        ranked_native::lower_decoded_native_ranked_countdown(&module, &proof, profile)
-            .map(NativeArtifactOperationPlan::RankedU32Countdown)
+        Err(ArtifactLoweringError::UnsupportedUnsignedCountdownNativeCustody)
     } else {
         lower_decoded_ordinary_module(&module, &proof, profile)
-            .map(NativeArtifactOperationPlan::Ordinary)
     }
 }
 

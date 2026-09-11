@@ -52,7 +52,6 @@ fn ieee_call_results_feed_later_calls_with_exact_register_bank() {
             };
             let constraints = SelectedSelectionConstraints {
                 keys: environment.selected_keys(),
-                projected_structural_call: None,
                 fixed_inputs: Vec::new(),
             };
             let selected = build(
@@ -146,7 +145,6 @@ fn ieee_stack_parameter_returns_through_exact_float_register_bank() {
             };
             let constraints = SelectedSelectionConstraints {
                 keys: environment.selected_keys(),
-                projected_structural_call: None,
                 fixed_inputs: Vec::new(),
             };
             let selected = build(
@@ -237,7 +235,6 @@ fn unused_stack_parameters_keep_abi_without_inventing_entry_transport() {
         };
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: vec![SelectedFixedInputConstraint {
                 machine: source.machine,
                 source_value: used.value,
@@ -418,7 +415,6 @@ fn narrow_integer_entry_snapshot_normalizes_bits_and_replay_rejects_substitution
             };
             let constraints = SelectedSelectionConstraints {
                 keys: environment.selected_keys(),
-                projected_structural_call: None,
                 fixed_inputs: vec![SelectedFixedInputConstraint {
                     machine: source.machine,
                     source_value: input,
@@ -489,7 +485,6 @@ fn raw_boolean_constants_reject_unsigned_two_before_selection() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         let mut source = fixture(target, 0);

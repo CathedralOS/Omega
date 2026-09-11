@@ -3,7 +3,5 @@
 //! These modules own related program facts at this representation boundary.
 //! Transformation and independent source-to-target replay remain in pipeline.
 
-mod projected_returns;
-pub use projected_returns::*;
 mod structural;
 pub use structural::*;

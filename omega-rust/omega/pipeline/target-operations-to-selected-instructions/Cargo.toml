@@ -28,7 +28,6 @@ terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 
 terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
 terminal-verifier = { path = "../../../psi/semantics/terminal-verifier" }
-terminal-fixed-fuel = { path = "../../../psi/semantics/terminal-fixed-fuel" }
 proof-admission = { path = "../../../psi/semantics/proof-admission" }
 
 [dev-dependencies]

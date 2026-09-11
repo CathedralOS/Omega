@@ -4,21 +4,15 @@ use semantic_vocabulary::{MachineId, StructuralTypeId};
 use target::NativeTarget;
 use terminal_psi::TerminalPsiIdentity;
 
-use super::AbstractToTargetFunctionTranslationReceipt;
-use crate::validation::StructuralCallReturnProjectedQualificationReceipt;
-
 /// Independent source-to-target validation retained at the lowering boundary.
 ///
-/// Root and function-roster custody cover the complete plan. Every function
-/// row carries exactly one validated family receipt or an explicit uncovered
-/// disposition, so parallel family rosters cannot drift apart.
+/// The receipt covers roots, declarations, and ABI headers, not executable bodies.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbstractToTargetTranslationValidationReceipt {
     psi: TerminalPsiIdentity,
     target: NativeTarget,
     entry: MachineId,
     function_roster: Vec<AbstractToTargetFunctionRosterReceipt>,
-    structural_call_return: Option<StructuralCallReturnProjectedQualificationReceipt>,
 }
 
 impl AbstractToTargetTranslationValidationReceipt {
@@ -27,14 +21,12 @@ impl AbstractToTargetTranslationValidationReceipt {
         target: NativeTarget,
         entry: MachineId,
         function_roster: Vec<AbstractToTargetFunctionRosterReceipt>,
-        structural_call_return: Option<StructuralCallReturnProjectedQualificationReceipt>,
     ) -> Self {
         Self {
             psi,
             target,
             entry,
             function_roster,
-            structural_call_return,
         }
     }
 
@@ -57,31 +49,22 @@ impl AbstractToTargetTranslationValidationReceipt {
     pub fn function_roster(&self) -> &[AbstractToTargetFunctionRosterReceipt] {
         &self.function_roster
     }
-
-    pub const fn structural_call_return(
-        &self,
-    ) -> Option<&StructuralCallReturnProjectedQualificationReceipt> {
-        self.structural_call_return.as_ref()
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbstractToTargetFunctionRosterReceipt {
     machine: MachineId,
     attachment: Option<StructuralTypeId>,
-    translation: AbstractToTargetFunctionTranslationDisposition,
 }
 
 impl AbstractToTargetFunctionRosterReceipt {
     pub(in crate::validation) const fn new(
         machine: MachineId,
         attachment: Option<StructuralTypeId>,
-        translation: AbstractToTargetFunctionTranslationDisposition,
     ) -> Self {
         Self {
             machine,
             attachment,
-            translation,
         }
     }
 
@@ -91,24 +74,5 @@ impl AbstractToTargetFunctionRosterReceipt {
 
     pub const fn attachment(&self) -> Option<StructuralTypeId> {
         self.attachment
-    }
-
-    pub const fn translation(&self) -> &AbstractToTargetFunctionTranslationDisposition {
-        &self.translation
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AbstractToTargetFunctionTranslationDisposition {
-    Uncovered,
-    Validated(AbstractToTargetFunctionTranslationReceipt),
-}
-
-impl AbstractToTargetFunctionTranslationDisposition {
-    pub const fn validated(&self) -> Option<&AbstractToTargetFunctionTranslationReceipt> {
-        match self {
-            Self::Uncovered => None,
-            Self::Validated(receipt) => Some(receipt),
-        }
     }
 }

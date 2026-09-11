@@ -5,7 +5,7 @@ use semantic_vocabulary::{
     ScalarType, ValueId,
 };
 use target::NativeTarget;
-use target_operations::{TargetOperation, TargetUnitOperation, TargetUnitScalarArgumentSource};
+use target_operations::{TargetUnitOperation, TargetUnitScalarArgumentSource};
 
 use crate::{
     legalize_target_operations, select_instructions, validate_legalized_operations,
@@ -173,11 +173,9 @@ fn scalar_unit_call_target_and_legalized_replay_reject_transport_substitution() 
         let legal = legalize_target_operations(&target, &source, &unit).unwrap();
         for mutation in 0..9 {
             let mut changed = target.clone();
-            let TargetOperation::UnitBody(body) = &mut changed.functions[0].operation else {
-                panic!("Unit body");
-            };
+            let body = &mut changed.functions[0].graph;
             if mutation == 8 {
-                body.operations.swap(0, 1);
+                body.blocks[0].operations.clear();
             } else {
                 let TargetUnitOperation::Call {
                     psi_operation,
@@ -185,7 +183,7 @@ fn scalar_unit_call_target_and_legalized_replay_reject_transport_substitution() 
                     call_plan,
                     scalar_arguments,
                     ..
-                } = &mut body.operations[0]
+                } = &mut body.blocks[0].operations[0]
                 else {
                     panic!("Unit call");
                 };

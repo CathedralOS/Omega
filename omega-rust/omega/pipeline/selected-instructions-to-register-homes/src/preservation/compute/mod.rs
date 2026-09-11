@@ -41,9 +41,6 @@ pub(super) fn derive(
     }
     let preservation = selected_abi_preservation(environment)
         .map_err(|_| AllocatedCalleeSavedRequirementError::UnsupportedTargetConvention)?;
-    if !selected.plan().projected_structural_call_returns.is_empty() {
-        return Err(AllocatedCalleeSavedRequirementError::FunctionRosterMismatch);
-    }
     let callee_saved = preservation
         .convention
         .callee_saved

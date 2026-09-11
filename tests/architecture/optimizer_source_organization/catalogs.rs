@@ -7,11 +7,6 @@ use crate::Audit;
 
 use super::inventory::{RULE_STAGES, collect_rust_files, repository_relative_path};
 
-struct RequiredRuleCatalog {
-    path: &'static str,
-    order_marker: &'static str,
-}
-
 struct RequiredExactRuleFolder {
     directory: &'static str,
     rule_marker: &'static str,
@@ -51,13 +46,6 @@ const REQUIRED_EXACT_RULE_FOLDERS: &[RequiredExactRuleFolder] = &[
         rule_marker: "pub struct BitwiseAbsorbingLiteralIdentityRule",
     },
 ];
-
-/// Additional construction catalogs that are not source-visible optimization
-/// stages but still own one closed ordered family inventory.
-const REQUIRED_RULE_CATALOGS: &[RequiredRuleCatalog] = &[RequiredRuleCatalog {
-    path: "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/catalog/enabled_families.rs",
-    order_marker: "ENABLED_TRANSLATION_FAMILIES",
-}];
 
 #[derive(Debug)]
 struct ConstantDeclaration {
@@ -205,24 +193,6 @@ pub(crate) fn check(audit: &mut Audit) {
                 violations.insert(format!(
                     "missing rule-stage catalog {}: {error}",
                     stage.catalog
-                ));
-            }
-        }
-    }
-
-    for catalog in REQUIRED_RULE_CATALOGS {
-        match fs::read_to_string(repository.join(catalog.path)) {
-            Ok(contents) if contents.contains(catalog.order_marker) => {}
-            Ok(_) => {
-                violations.insert(format!(
-                    "rule catalog lacks ordered marker `{}`: {}",
-                    catalog.order_marker, catalog.path
-                ));
-            }
-            Err(error) => {
-                violations.insert(format!(
-                    "missing required rule catalog {}: {error}",
-                    catalog.path
                 ));
             }
         }

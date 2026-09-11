@@ -46,7 +46,6 @@ pub(in crate::selection) fn validate_with_environment(
         || selected.attachment != source.attachment
         || selected.provenance != source.provenance
         || selected.structural != source.structural
-        || selected.ranked != source.ranked
         || selected.entry_block != SelectedBlockId(0)
     {
         return Err(invalid());

@@ -3,9 +3,8 @@
 use crate::{
     BoundaryByteSequenceArgument, BoundaryExecutionBinding, BoundaryRealization,
     BoundaryScalarArgument, NormalizedForeignCallBinding, NormalizedForeignScalarArgument,
-    ProviderExecutionBinding, ScalarAbiValue, TargetBoundaryResult,
-    TargetDynamicDescriptorArgument, TargetIeeeFloatFmaOperand, TargetStructuralArgument,
-    TargetStructuralHomeRequirement, TargetStructuralParameter, TargetUnitConditionalSuccessor,
+    ProviderExecutionBinding, TargetBoundaryResult, TargetDynamicDescriptorArgument,
+    TargetIeeeFloatFmaOperand, TargetStructuralArgument, TargetStructuralHomeRequirement,
     TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
     TargetUnitWriteOnlyPrimitiveStoreSource, TargetX86ScalarFmaSettlement,
 };
@@ -24,20 +23,6 @@ use terminal_psi::{
     StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultClaimTransfer,
     StructuralResultDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
 };
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TargetUnitBody {
-    /// Canonical verifier-owned structural declaration closure used to replay
-    /// projected-layout and partial-cleanup partitions at artifact boundaries.
-    pub structural_types: abstract_operations::StructuralTypeCatalog,
-    pub call_plan: CallPlan,
-    /// Ordered scalar parameters and their exact incoming ABI placements.
-    /// The bounded lane currently admits fixed integers and canonical
-    /// Booleans; both remain distinct from zero-payload structural custody.
-    pub scalar_parameters: Vec<ScalarAbiValue>,
-    pub parameters: Vec<TargetStructuralParameter>,
-    pub operations: Vec<TargetUnitOperation>,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetUnitOperation {
@@ -304,42 +289,6 @@ pub enum TargetUnitOperation {
         requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
-    /// One bounded equality decision after a durable Unit scalar result.
-    /// The true arm is laid out first and both arms must end in admitted
-    /// nonreturning boundary settlements. This is deliberately not a general
-    /// Unit CFG carrier.
-    ConditionalIntegerEqual {
-        psi_operation: OperationId,
-        result: ValueId,
-        scalar_type: IntegerType,
-        left: TargetUnitScalarArgumentSource,
-        right: TargetUnitScalarArgumentSource,
-        when_true: TargetUnitConditionalSuccessor,
-        when_false: TargetUnitConditionalSuccessor,
-    },
-    /// One bounded truth decision over an exact durable Boolean result home.
-    ConditionalBoolean {
-        condition: TargetUnitScalarHomeRequirement,
-        when_true: TargetUnitConditionalSuccessor,
-        when_false: TargetUnitConditionalSuccessor,
-    },
-    /// Branch on one canonical Boolean supplied directly by the caller.
-    /// Keeping the complete incoming placement here lets assignment prove
-    /// that control consumes the declared Unit ABI parameter rather than a
-    /// coincidentally equal transient home.
-    ConditionalBooleanParameter {
-        condition: ScalarAbiValue,
-        when_true: TargetUnitConditionalSuccessor,
-        when_false: TargetUnitConditionalSuccessor,
-    },
-    /// Zero-code ordinal marker for the source conditional operation that
-    /// consumes the preceding equality. The true edge owns the fallthrough
-    /// site; the paired false edge remains in the equality carrier.
-    ConditionalDispatch { fallthrough_edge: EdgeId },
-    /// Zero-code semantic tail after an admitted nonreturning boundary. The
-    /// edge remains independently attributable even when another conditional
-    /// arm follows physically in the same function.
-    NonreturningTail { psi_edge: EdgeId },
     /// One bodyless boundary occurrence projected through an opaque admitted
     /// installation into an exact checked Unit provider call. The original
     /// receipt evidence remains alongside its call-transfer interpretation so

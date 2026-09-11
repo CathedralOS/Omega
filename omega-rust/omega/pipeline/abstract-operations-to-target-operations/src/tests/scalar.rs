@@ -6,6 +6,73 @@ mod straight_line_blocks;
 use fixtures::{direct_call_plan, parameter_return_plan};
 
 #[test]
+fn unit_functions_require_explicit_graph_blocks() {
+    let mut source = parameter_return_plan(1);
+    let function = &mut source.functions[0];
+    function.parameters.clear();
+    function.result = AbstractFunctionResult::Unit;
+    function.operations = vec![AbstractOperation::ReturnUnit {
+        psi_edge: EdgeId::new(10).unwrap(),
+        cleanup_actions: Vec::new(),
+    }];
+    let target = NativeTarget::linux_x64();
+    let lowered = lower_to_target_operations(&source, target).unwrap();
+    assert_eq!(lowered.functions[0].graph.blocks.len(), 1);
+    crate::validate_abstract_to_target_translation(&source, target, &lowered).unwrap();
+    source.functions[0].block_entries.clear();
+    assert!(matches!(
+        lower_to_target_operations(&source, target),
+        Err(LoweringError::UnsupportedControlFlow(_))
+    ));
+}
+
+#[test]
+fn common_graph_cannot_bypass_fma_occurrence_settlement() {
+    let mut source = parameter_return_plan(1);
+    let function = &mut source.functions[0];
+    function.parameters.clear();
+    function.result = AbstractFunctionResult::Unit;
+    function.operations = vec![AbstractOperation::ReturnUnit {
+        psi_edge: EdgeId::new(10).unwrap(),
+        cleanup_actions: Vec::new(),
+    }];
+    let target = NativeTarget::linux_x64();
+    let lowered = lower_to_target_operations(&source, target).unwrap();
+    let value = ValueId::new(1).unwrap();
+    let operation = OperationId::new(2).unwrap();
+    source.functions[0].operations.splice(
+        0..0,
+        [
+            AbstractOperation::IeeeFloatConstant {
+                psi_operation: OperationId::new(1).unwrap(),
+                result: value,
+                value: semantic_vocabulary::IeeeFloatValue::Binary32(0),
+            },
+            AbstractOperation::NearestIeeeFloatFusedMultiplyAdd {
+                psi_operation: operation,
+                result: ValueId::new(2).unwrap(),
+                format: semantic_vocabulary::IeeeFloatFormat::Binary32,
+                left: value,
+                right: value,
+                addend: value,
+            },
+        ],
+    );
+    assert_eq!(
+        lower_to_target_operations(&source, target),
+        Err(LoweringError::MissingIeeeFloatFmaSettlement(operation))
+    );
+    assert_eq!(
+        crate::validate_abstract_to_target_translation(&source, target, &lowered),
+        Err(
+            crate::AbstractToTargetTranslationValidationError::MissingIeeeFloatFmaSettlement(
+                operation
+            )
+        )
+    );
+}
+
+#[test]
 fn scalar_graph_retains_incoming_register_and_stack_abi() {
     for target in [
         NativeTarget::linux_x64(),
@@ -15,9 +82,7 @@ fn scalar_graph_retains_incoming_register_and_stack_abi() {
         for count in [1, 9] {
             let source = parameter_return_plan(count);
             let lowered = lower_to_target_operations(&source, target).unwrap();
-            let TargetOperation::ControlGraph(graph) = &lowered.functions[0].operation else {
-                panic!("scalar parameters use the ordinary graph");
-            };
+            let graph = &lowered.functions[0].graph;
             assert_eq!(graph.scalar_parameters.len(), count);
             assert_eq!(
                 graph.scalar_parameters[count - 1].placement,
@@ -61,9 +126,7 @@ fn scalar_graph_call_keeps_callee_abi_and_effect_custody() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let source = direct_call_plan(9);
         let lowered = lower_to_target_operations(&source, target).unwrap();
-        let TargetOperation::ControlGraph(graph) = &lowered.functions[0].operation else {
-            panic!("ordinary caller graph")
-        };
+        let graph = &lowered.functions[0].graph;
         let [
             TargetUnitOperation::ScalarCall {
                 arguments,

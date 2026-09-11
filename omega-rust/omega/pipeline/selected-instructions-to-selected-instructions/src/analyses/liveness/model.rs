@@ -81,7 +81,6 @@ impl ValidatedLiveness {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LivenessError {
-    ProjectedStructuralCallReturnUnsupported,
     RootMismatch,
     UnsupportedUseDef {
         function: usize,

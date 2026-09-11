@@ -5,13 +5,5 @@
 
 mod functions;
 pub use functions::*;
-mod edges;
-pub use edges::*;
-mod ranking;
-pub use ranking::*;
-mod boolean;
-pub use boolean::*;
-mod integer;
-pub use integer::*;
 mod graph;
 pub use graph::*;

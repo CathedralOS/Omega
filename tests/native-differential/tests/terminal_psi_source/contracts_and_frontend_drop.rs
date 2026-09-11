@@ -180,7 +180,7 @@ fn checked_source_survives_frontend_drop_as_verified_psi() {
         AbstractOperationPlan {
             psi: original_identity,
             entry: MachineId::new(1).expect("machine"),
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {

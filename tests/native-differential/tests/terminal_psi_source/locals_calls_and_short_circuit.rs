@@ -228,51 +228,6 @@ fn checked_source_direct_call_emits_its_reachable_terminal_closure() {
 }
 
 #[test]
-fn checked_trait_operator_structural_call_reaches_target_custody() {
-    let checked = compile_to_checked(
-        &terminal_source_canary(fixture_roster::STRUCTURAL_SCALAR_TRAIT_OPERATOR),
-        None,
-    )
-    .expect("the fixed trait-operator source canary should compile");
-    let plan = checked
-        .facts
-        .flow
-        .terminal_structural_scalar_returns
-        .trait_operator_machines
-        .first()
-        .expect("one exact trait-operator structural call plan");
-    let name = checked
-        .facts
-        .flow
-        .terminal_machines
-        .machines
-        .iter()
-        .find(|selection| selection.machine == plan.machine)
-        .expect("selected specialized caller")
-        .name
-        .clone();
-    let lowered = lower_machine(&checked, &name)
-        .expect("the fixed trait-operator call should lower to terminal Psi");
-    let verified = verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &AdmissionProfile::default(),
-    )
-    .expect("the structural scalar call closure should verify");
-    let abstract_operations = lower_verified_artifact(&verified)
-        .expect("the structural scalar call should cross the Omega boundary");
-
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("the structural scalar call should select a native calling plan");
-        assert!(matches!(
-            target_operations.functions[0].operation,
-            TargetOperation::ReturnStructuralScalarCall { .. }
-        ));
-    }
-}
-
-#[test]
 fn checked_source_short_circuit_call_argument_is_staged_before_the_call() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("the short-circuit call source canary should compile");

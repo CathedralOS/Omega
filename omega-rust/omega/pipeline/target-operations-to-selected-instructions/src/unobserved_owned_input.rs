@@ -62,7 +62,6 @@ pub(crate) fn accepts(function: &LegalizedScalarFunction) -> bool {
     !contract.parameters.is_empty()
         && contract.entry_claims.is_empty()
         && contract.published_service_ceiling.is_empty()
-        && function.ranked.is_none()
         && function.attachment.is_none()
         && !function.blocks.iter().any(|block| matches!(&block.terminator,
             legalized_operations::LegalizedScalarTerminator::Return(returned)

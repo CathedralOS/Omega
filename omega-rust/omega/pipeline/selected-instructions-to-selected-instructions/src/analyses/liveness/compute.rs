@@ -25,9 +25,6 @@ pub(crate) fn compute_terminal_liveness(
     selected: &impl crate::ValidatedSelectedAnalysis,
 ) -> Result<LivenessPlan, LivenessError> {
     let plan = selected.selected_plan();
-    if !plan.projected_structural_call_returns.is_empty() {
-        return Err(LivenessError::ProjectedStructuralCallReturnUnsupported);
-    }
     let functions = plan
         .functions
         .iter()
@@ -49,9 +46,6 @@ pub(crate) fn compute_terminal_liveness_reusing(
     selected: &impl crate::ValidatedSelectedAnalysis,
 ) -> Result<LivenessPlan, LivenessError> {
     let plan = selected.selected_plan();
-    if !plan.projected_structural_call_returns.is_empty() {
-        return Err(LivenessError::ProjectedStructuralCallReturnUnsupported);
-    }
     let prior = previous_liveness.plan();
     let compatible = prior.selected == previous.selected_identity()
         && prior.optimization_unit == previous.optimization_unit_identity()
@@ -60,11 +54,7 @@ pub(crate) fn compute_terminal_liveness_reusing(
         && prior.optimization_unit == selected.optimization_unit_identity()
         && prior.fuel_schedule == selected.fuel_schedule_identity()
         && prior.target == plan.target
-        && prior.functions.len() == previous.selected_plan().functions.len()
-        && previous
-            .selected_plan()
-            .projected_structural_call_returns
-            .is_empty();
+        && prior.functions.len() == previous.selected_plan().functions.len();
     let functions = plan
         .functions
         .iter()

@@ -77,7 +77,6 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
         target: NativeTarget::from_omega_target_name(Some("uefi_x86_64")).expect("UEFI target"),
         entry: id(1),
         scalar_functions: vec![LegalizedScalarFunction {
-            ranked: None,
             machine: id(1),
             attachment: None,
             provenance: TerminalPsiProvenance {
@@ -206,7 +205,6 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                 }),
             }],
         }],
-        projected_structural_call_returns: Vec::new(),
     }
 }
 
@@ -350,7 +348,6 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
     };
     plan.scalar_functions.push(LegalizedScalarFunction {
         structural: None,
-        ranked: None,
         machine,
         attachment: Some(attachment),
         provenance: TerminalPsiProvenance {

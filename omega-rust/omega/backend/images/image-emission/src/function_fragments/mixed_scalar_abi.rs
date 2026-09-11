@@ -3,7 +3,7 @@
 use super::Error;
 use abstract_operations::AbstractFunction;
 use selected_instructions::SelectedFunction;
-use target_operations::{MixedStructuralScalarFunctionAbi, TargetFunction, TargetOperation};
+use target_operations::{MixedStructuralScalarFunctionAbi, TargetFunction};
 
 pub(super) fn admit(
     abstracted: &AbstractFunction,
@@ -14,11 +14,7 @@ pub(super) fn admit(
     let invalid = || Error::Mismatch("mixed scalar ABI differs from current function");
     let result = abstracted.result.scalar().ok_or_else(invalid)?;
     let contract = selected.structural.as_ref().ok_or_else(invalid)?;
-    let TargetOperation::ControlGraph(graph) = &targeted.operation else {
-        return Err(Error::Unsupported(
-            "mixed scalar publication requires an ordinary control graph",
-        ));
-    };
+    let graph = &targeted.graph;
     if abi.structural_parameters.is_empty()
         || abi.scalar_parameters.len() != abstracted.parameters.len()
         || abi.structural_parameters.len() != abstracted.structural_parameters.len()

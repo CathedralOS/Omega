@@ -85,7 +85,6 @@ fn fixture() -> (AbstractFunction, SelectedFunction) {
         machine: function.machine,
         attachment: None,
         provenance: Default::default(),
-        ranked: None,
         structural: Some(legalized_operations::LegalizedStructuralContract {
             result: None,
             structural_types: vec![terminal_psi::StructuralTypeDeclaration {

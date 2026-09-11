@@ -2,53 +2,7 @@ use std::collections::BTreeSet;
 
 use crate::tests::*;
 
-use super::fixture::{caller_machine, staged_homes, staged_legality, staged_liveness};
-
-#[test]
-fn first_result_is_live_across_the_second_calls_exact_clobbers() {
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let staged = staged_liveness(target);
-        let selected_function = staged
-            .selected_stage()
-            .selected()
-            .plan()
-            .functions
-            .iter()
-            .find(|function| function.machine == caller_machine())
-            .unwrap();
-        let call2 = &selected_function.blocks[0].instructions[8];
-        assert!(matches!(
-            call2.kind,
-            SelectedInstructionKind::CallI64 { .. }
-        ));
-        let function = staged
-            .liveness()
-            .plan()
-            .functions
-            .iter()
-            .find(|function| function.machine == caller_machine())
-            .unwrap();
-        let call2_liveness = function.blocks[0]
-            .instructions
-            .iter()
-            .find(|instruction| instruction.instruction == call2.id)
-            .unwrap();
-        assert!(
-            call2_liveness
-                .virtual_live_in
-                .contains(&VirtualRegisterId(5))
-        );
-        assert!(
-            call2_liveness
-                .virtual_live_out
-                .contains(&VirtualRegisterId(5))
-        );
-        assert_eq!(call2_liveness.unit_clobbers, call2.clobbers);
-        assert!(!call2_liveness.unit_clobbers.is_empty());
-        assert_eq!(call2_liveness.unit_uses, call2.implicit_uses);
-        assert_eq!(call2_liveness.unit_defs, call2.implicit_defs);
-    }
-}
+use super::fixture::{caller_machine, staged_homes, staged_legality};
 
 #[test]
 fn call_clobbers_remove_every_aliasing_home_at_the_live_across_call_point() {

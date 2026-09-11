@@ -59,15 +59,14 @@ fn checked_scalar_call_and_literal_exit_compose_in_one_shared_unit_body() {
             std::slice::from_ref(&settlement),
         )
         .expect("checked scalar call before literal exit lowers as a validated Unit body");
-        let TargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
-            panic!("checked call and exit must remain one Unit body")
-        };
+        let body = &lowered.functions[0].graph;
         assert!(
-            body.operations
+            body.blocks[0]
+                .operations
                 .iter()
                 .any(|operation| matches!(operation, TargetUnitOperation::ScalarCall { .. }))
         );
-        assert!(body.operations.iter().any(|operation| matches!(
+        assert!(body.blocks[0].operations.iter().any(|operation| matches!(
             operation,
             TargetUnitOperation::BoundarySettlement {
                 realization: target_operations::BoundaryRealization::HostedExitProcessI32(_),

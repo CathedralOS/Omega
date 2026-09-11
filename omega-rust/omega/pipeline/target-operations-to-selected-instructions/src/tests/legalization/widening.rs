@@ -9,8 +9,8 @@ use semantic_vocabulary::{
 };
 use target::NativeTarget;
 use target_operations::{
-    CompilerBuiltinExecution, TargetIntegerExpression, TargetOperation, TargetOperationPlan,
-    TargetScalarExpression, TargetUnitOperation,
+    CompilerBuiltinExecution, TargetIntegerExpression, TargetOperationPlan, TargetScalarExpression,
+    TargetUnitOperation,
 };
 
 use crate::{
@@ -144,18 +144,16 @@ fn target_widening_rejects_home_type_identity_and_definition_order_substitution(
         let (source, target, unit) = fixture(native);
         for mutation in 0..10 {
             let mut changed = target.clone();
-            let TargetOperation::UnitBody(body) = &mut changed.functions[0].operation else {
-                panic!("Unit body");
-            };
+            let body = &mut changed.functions[0].graph;
             if mutation == 8 {
-                body.operations.remove(0);
+                body.blocks[0].operations.remove(0);
             } else if mutation == 9 {
-                body.operations.swap(0, 1);
+                body.blocks[0].operations.swap(0, 1);
             } else {
                 let TargetUnitOperation::ScalarDefinition {
                     result_home,
                     expression,
-                } = &mut body.operations[0]
+                } = &mut body.blocks[0].operations[0]
                 else {
                     panic!("scalar definition");
                 };

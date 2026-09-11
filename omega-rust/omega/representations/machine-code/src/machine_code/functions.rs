@@ -8,11 +8,11 @@ use crate::{
     ForwardedDynamicDescriptorCallRecord, ForwardedDynamicParameterCallRecord,
     InstalledProviderUnitScalarCallRecord, InternalCallRelocation, InternalUnitCallRecord,
     InternalUnitScalarCallRecord, MachineCodePlan, ParameterFunctionAbiRecord, PortEffectRecord,
-    RankedU32CountdownMachineCodeRecord, ScalarControlAffineCleanupRecord, ScalarStackEvidence,
-    ScalarStructuralScalarFieldStoreRecord, SemanticCodeAttribution, StoredDynamicCallRecord,
-    StructuralCallScalarReturnEvidence, StructuralReturnRecord, UnitAffineCleanupRecord,
-    UnitAffineScalarRecordEstablishmentRecord, UnitContinuationRecord, UnitIntegerConstantRecord,
-    UnitParameterHomeRecord, UnitParameterRecord, UnitScalarHomeRecord, UnitStackEvidence,
+    ScalarControlAffineCleanupRecord, ScalarStackEvidence, ScalarStructuralScalarFieldStoreRecord,
+    SemanticCodeAttribution, StoredDynamicCallRecord, StructuralCallScalarReturnEvidence,
+    StructuralReturnRecord, UnitAffineCleanupRecord, UnitAffineScalarRecordEstablishmentRecord,
+    UnitContinuationRecord, UnitIntegerConstantRecord, UnitParameterHomeRecord,
+    UnitParameterRecord, UnitScalarHomeRecord, UnitStackEvidence,
     UnitStructuralScalarFieldStoreRecord, UnitWriteOnlyPrimitiveStoreRecord,
     X86FloatingControlRecord, X86ScalarFmaFragment, X86ScalarFmaOccurrenceRecord,
 };
@@ -167,10 +167,6 @@ pub struct MachineCodeFunction {
     pub scalar_control_affine_cleanups: Vec<ScalarControlAffineCleanupRecord>,
     pub scalar_structural_parameters: Vec<UnitParameterRecord>,
     pub scalar_structural_parameter_homes: Vec<UnitParameterHomeRecord>,
-    /// Exact first-slice ranked countdown custody and its target byte layout.
-    /// Object construction remains fail-closed until it independently replays
-    /// this record; ordinary scalar/control evidence cannot stand in for it.
-    pub ranked_u32_countdown: Option<RankedU32CountdownMachineCodeRecord>,
     /// Exact semantic operation/edge ownership of emitted byte intervals.
     pub semantic_code_attribution: Vec<SemanticCodeAttribution>,
     /// Privileged effects retained with their exact semantic service and byte

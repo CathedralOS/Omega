@@ -100,9 +100,7 @@ fn hosted_exit_process_i32_retains_runtime_source_abi_and_nonreturning_tail() {
             )
             .unwrap()
         );
-        let TargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
-            panic!("ordinary Unit body");
-        };
+        let body = &lowered.functions[0].graph;
         let [
             TargetUnitOperation::IntegerConstant { .. },
             TargetUnitOperation::BoundarySettlement {
@@ -114,8 +112,7 @@ fn hosted_exit_process_i32_retains_runtime_source_abi_and_nonreturning_tail() {
                 runtime_scalar_arguments,
                 ..
             },
-            TargetUnitOperation::Return { psi_edge, .. },
-        ] = body.operations.as_slice()
+        ] = body.blocks[0].operations.as_slice()
         else {
             panic!("ordered constant, exit, nominal return");
         };
@@ -126,7 +123,9 @@ fn hosted_exit_process_i32_retains_runtime_source_abi_and_nonreturning_tail() {
             *realization,
             target_operations::BoundaryRealization::HostedExitProcessI32(Default::default())
         );
-        assert_eq!(*psi_edge, return_edge);
+        assert!(
+            matches!(body.blocks[0].terminator, target_operations::TargetControlTerminator::Return { psi_edge, .. } if psi_edge == return_edge)
+        );
         assert!(scalar_arguments.is_empty());
         let [argument] = runtime_scalar_arguments.as_slice() else {
             panic!("one i32 source");

@@ -1,14 +1,12 @@
 //! Optimizer module role: executable entrance. Stage entrance: bind admitted settlements, validate the complete roster, and lower each function.
 
 mod boundary_settlements;
-mod cleanup;
 mod compatibility;
 mod control_flow;
 mod coordination;
 mod function;
 mod function_signature;
 mod provider_evidence;
-mod ranked_countdown;
 mod scalar;
 mod scalar_abi;
 mod shared;
@@ -36,13 +34,10 @@ pub use compatibility::{
 };
 
 #[cfg(test)]
-pub(crate) use {
-    coordination::{
-        bind_native_callback_arguments as bind_native_callback_arguments_for_tests,
-        lower_to_target_operations_with_settlements as lower_with_settlements_for_tests,
-        validate_native_callback_target_rows as validate_native_callback_target_rows_for_tests,
-    },
-    structural_layout::structural_shape as structural_shape_for_tests,
+pub(crate) use coordination::{
+    bind_native_callback_arguments as bind_native_callback_arguments_for_tests,
+    lower_to_target_operations_with_settlements as lower_with_settlements_for_tests,
+    validate_native_callback_target_rows as validate_native_callback_target_rows_for_tests,
 };
 
 pub fn lower_to_target_operations(
@@ -50,14 +45,6 @@ pub fn lower_to_target_operations(
     target: NativeTarget,
 ) -> Result<TargetOperationPlan, LoweringError> {
     lower_to_target_operations_with_settlements(plan, target, &[])
-}
-
-/// Lower the separately admitted ranked countdown without widening ordinary lowering.
-pub fn lower_ranked_to_target_operations(
-    ranked: &abstract_operations::RankedNativeAbstractOperationPlan,
-    target: NativeTarget,
-) -> Result<TargetOperationPlan, LoweringError> {
-    ranked_countdown::lower(ranked, target)
 }
 
 /// Lower with checked-provider installation evidence and any remaining

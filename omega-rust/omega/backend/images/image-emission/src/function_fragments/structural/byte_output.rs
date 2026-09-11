@@ -240,7 +240,7 @@ fn target_settlement(
     Error,
 > {
     use target_operations::{
-        BoundaryExecutionBinding, BoundaryRealization, CompilerBuiltinExecution, TargetOperation,
+        BoundaryExecutionBinding, BoundaryRealization, CompilerBuiltinExecution,
         TargetUnitOperation,
     };
     let (_, target) = source::function(container, machine)?;
@@ -276,20 +276,10 @@ fn target_settlement(
         }
         Ok(())
     };
-    match &target.operation {
-        TargetOperation::UnitBody(body) => {
-            for row in &body.operations {
-                inspect(row)?;
-            }
+    for block in &target.graph.blocks {
+        for row in &block.operations {
+            inspect(row)?;
         }
-        TargetOperation::ControlGraph(graph) => {
-            for block in &graph.blocks {
-                for row in &block.operations {
-                    inspect(row)?;
-                }
-            }
-        }
-        _ => return Err(Error::Mismatch("byte output target function role")),
     }
     found.ok_or(Error::Mismatch("missing byte output target settlement"))
 }

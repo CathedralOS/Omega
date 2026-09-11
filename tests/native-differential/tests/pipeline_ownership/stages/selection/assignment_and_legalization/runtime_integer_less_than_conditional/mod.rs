@@ -2,4 +2,3 @@
 
 mod corruption;
 mod fixture;
-mod selected_graph;

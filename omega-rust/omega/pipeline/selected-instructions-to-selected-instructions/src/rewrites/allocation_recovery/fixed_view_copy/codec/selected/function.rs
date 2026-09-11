@@ -36,7 +36,6 @@ pub(super) fn encode_function(bytes: &mut Vec<u8>, function: &SelectedFunction) 
         encode_block(bytes, block);
     }
     super::structural::encode_contracts(bytes, function);
-    super::ranked::encode(bytes, function.ranked.as_ref());
 }
 
 pub(super) fn decode_function(
@@ -69,7 +68,6 @@ pub(super) fn decode_function(
         entry_block,
         virtual_registers,
         blocks,
-        ranked: None,
         structural: None,
         outgoing_arguments: Vec::new(),
         local_storage_slots: Vec::new(),
@@ -78,6 +76,5 @@ pub(super) fn decode_function(
         boundary_settlements: Vec::new(),
     };
     super::structural::decode_contracts(cursor, &mut function)?;
-    function.ranked = super::ranked::decode(cursor)?;
     Ok(function)
 }

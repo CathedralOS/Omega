@@ -3,7 +3,6 @@
 mod def_use;
 mod integrity;
 mod ordinary_roster;
-mod projected_structural_call_return;
 mod roots;
 pub(super) mod scalar_graph;
 #[cfg(test)]
@@ -43,20 +42,6 @@ pub(super) fn validate_with_environment(
     let catalog = environment.constraints();
     roots::validate_initial_roots(target, constraints, physical, catalog, &plan)?;
     ordinary_roster::validate(target, &plan.functions, constraints, environment)?;
-    for (source, selected) in target
-        .projected_structural_call_returns
-        .iter()
-        .zip(&plan.projected_structural_call_returns)
-    {
-        projected_structural_call_return::validate(
-            source,
-            legalized.receipt().identity(),
-            selected,
-            constraints,
-            physical,
-            catalog,
-        )?;
-    }
     let receipt = receipt(&plan, legalized);
     Ok(ValidatedSelectedInstructions {
         plan: plan.into(),

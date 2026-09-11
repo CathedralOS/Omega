@@ -127,9 +127,7 @@ fn unobserved_owned_arrivals_keep_value_abi_and_scalar_return_cleanup() {
             abi.structural_parameters[0].access,
             terminal_psi::StructuralAccess::Owned
         );
-        let TargetOperation::ControlGraph(graph) = &target.functions[0].operation else {
-            panic!("graph");
-        };
+        let graph = &target.functions[0].graph;
         assert_eq!(
             graph.blocks[1].structural_parameters,
             plan.functions[0].block_entries[1].structural_parameters
@@ -151,9 +149,7 @@ fn unobserved_owned_arrivals_reject_substituted_bindings_cleanup_and_abi() {
         "shape",
     ] {
         let mut changed = target.clone();
-        let TargetOperation::ControlGraph(graph) = &mut changed.functions[0].operation else {
-            panic!("graph");
-        };
+        let graph = &mut changed.functions[0].graph;
         match mutation {
             "borrow" | "missing binding" => {
                 let TargetControlTerminator::Jump { successor } = &mut graph.blocks[0].terminator

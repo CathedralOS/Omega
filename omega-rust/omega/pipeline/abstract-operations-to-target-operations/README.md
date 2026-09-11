@@ -5,12 +5,13 @@ Start at [lib.rs](src/lib.rs), then [function routing](src/lowering/function/mod
 The target representation owns the resulting control, values, storage, calls,
 and boundary data; this stage does not assign registers or frame offsets.
 
-## Scalar lowering has one route
+## Functions have one route
 
-Every ordinary scalar-result function enters
+Every function enters
 [control-flow lowering](src/lowering/control_flow.rs). It requires explicit source
 blocks and retains definitions, calls, branches, and returns in
-`TargetControlGraph`. Missing block structure rejects. There is no flat-input
+`TargetFunction.graph`. Unit, scalar, and aggregate returns are graph terminators,
+not alternative function representations. Missing block structure rejects. There is no flat-input
 compatibility adapter, expression-tree function planner, special-form fallback,
 or test-only entrypoint to one.
 
@@ -27,7 +28,7 @@ check. Supporting them means extending the ordinary operation/transfer contract,
 not restoring a whole-body recognizer. Scalar native kernel coverage can be
 narrower than target-operation coverage.
 
-The removed scalar-family tests are not a compatibility commitment. Rebuild
+Removed whole-function-family tests are not a compatibility commitment. Rebuild
 useful arithmetic, cleanup, crash, and reference cases against the common graph
 as the missing support is implemented. Do not revive retired target forms merely
 to preserve their historical test counts.
@@ -35,20 +36,22 @@ to preserve their historical test counts.
 ## Independent checking
 
 [Validation](src/validation/mod.rs) rejoins the target, semantic entry, complete
-function roster, structural signatures, and selected settlements. The remaining
-family catalog covers non-scalar forms; it is not scalar graph validation.
+function roster, structural signatures, and selected settlements. This receipt
+does not establish body correctness; there is no whole-function family catalog.
 
-Scalar graphs receive no invented family receipt: the target-to-selected
+The target-to-selected
 [receiving checker](../target-operations-to-selected-instructions/src/legalization/scalar_graph_input.rs)
-independently rejoins the graph to its source and optimized operations before
-legalized/selected graph construction. It rejects the retired scalar-return
-carriers rather than converting them back into a graph. Source order, value
+independently rejoins every graph to its source and optimized operations before
+legalized/selected graph construction. Source order, value
 identity, exact ABI, proof, call, and cleanup obligations remain checked.
 Root/roster custody alone never establishes body correctness.
 
-The separately admitted ranked-countdown route retains its existing proof and
-resource contract. Unit and structural-result lowering have separate current
-entrypoints; removing scalar fallback does not claim to consolidate those too.
+Natural-ranked and unranked cycles use the same graph and native route, with
+their respective verification obligations. The older unsigned-countdown native
+custody is unsupported and rejects at admission; it cannot be stripped or
+reinterpreted as ordinary proof. No dedicated countdown target or machine-code
+carrier remains. This is an implementation limit, not a change to termination
+or resource semantics.
 
 ## References, calls, and storage
 

@@ -91,9 +91,7 @@ fn scalar_result_boolean_transport_rejects_binding_and_predicate_substitution() 
         let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
         for mutation in 0..5 {
             let mut changed = target.clone();
-            let TargetOperation::ControlGraph(graph) = &mut changed.functions[0].operation else {
-                panic!("ordinary graph");
-            };
+            let graph = &mut changed.functions[0].graph;
             match mutation {
                 0 => {
                     let TargetControlTerminator::Jump { successor } =
