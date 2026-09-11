@@ -48,6 +48,63 @@ and payload-bearing sums select the declared synthesis/conformance required by
 [Equatable](conformances.md#core-equality-acquisition). Adding a payload requires
 that declaration rather than silently changing tag equality into field equality.
 
+## Case constraints
+
+A case may carry an ordinary `where` clause after its payload list (or its name
+when payload-free) and before its terminating semicolon:
+
+```omega
+data Value<T> {
+    case Integer(value: i32) where T == i32;
+    case Boolean(value: bool) where T == bool;
+}
+
+data Interval {
+    case Empty;
+    case Range(lo: u64, hi: u64) where lo <= hi;
+}
+```
+
+The clause uses ordinary well-formed contract propositions, including Boolean
+combinations, exact type equality, and value couplings. It may name enclosing
+generic parameters, common fields, its own payload bindings, and otherwise
+lexically available contract names; another case's payload is not in scope.
+It introduces no case-local generic or hidden existential binders. A conformance
+obligation does not select an implementation or manufacture evidence; ordinary
+[explicit selection](conformances.md) and [proof-term rules](../proofs/contracts.md)
+still apply.
+
+Case constraints are indexed by the actual active case, not predicates that can
+be satisfied by an inactive alternative. Let Common include type-wide `where`
+constraints and common-field validity, and Payload(i) and Constraint(i) describe
+case i. The complete default-domain condition is:
+
+```text
+Common AND OR over cases i (
+    active_case == i AND Payload(i) AND Constraint(i)
+)
+```
+
+An omitted case clause contributes true, not a waiver of payload validity.
+Inactive payloads have no establishment or ownership obligation. This extends
+the existing default domain rather than replacing type-wide constraints.
+
+Construction proves the selected case's complete conditions before producing an
+established value. Matching that value contributes the selected case's conditions
+through the ordinary [arm-local fact rules](patterns.md). A type equation reveals
+an equality; it does not reassign a generic parameter, reinterpret bytes, or
+insert a runtime type test. Constructing `Integer` as `Value<bool>` rejects; matching
+that combination establishes a contradiction, not a conversion.
+
+Value couplings obey the same [establishment and mutation rules](dependent_values.md)
+as type-wide invariants. Replacing a case or changing its payload invalidates
+dependent place facts as appropriate; snapshots keep their own exact subjects.
+Before observation, the active value's complete conditions must hold again.
+Zero storage and generic bodies follow the existing
+[default-domain gate](dependent_values.md#default-domains-and-zero-initialization).
+This supplies constrained-case GADT behavior without a new data species, implicit
+boxing, or general existential packaging.
+
 ## Lexical profile
 
 Source is valid UTF-8, with ASCII syntax. Identifiers match

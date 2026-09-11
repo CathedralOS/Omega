@@ -89,6 +89,13 @@ finite case coverage; arbitrary predicate-domain tests do not establish coverage
 merely because every known example matches. Prior facts can exclude impossible
 subjects, but a failed proof cannot be treated as an unreachable arm.
 
+A matched [case constraint](chapter_1_data_values_literals.md#constraints-on-individual-cases)
+supplies both type equations and payload facts to its arm. For `Value<i32>`, the
+Boolean case's `T == bool` contradicts the subject type, so a proved contradiction
+can exclude it from coverage. Harder case predicates require established proof,
+not a guess: otherwise cover the case or explicitly discharge its dead arm.
+An arm's facts do not leak into other arms or survive invalidating mutation.
+
 ## Tail Dispatch
 
 A transition ends the current straight-line segment. Its target is a state in
