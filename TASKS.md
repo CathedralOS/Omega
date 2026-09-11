@@ -1885,11 +1885,24 @@ Owners include
   NaN payloads erase only in the meaning projection and signed zeros remain
   distinct there.
 
-- **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** Materialize dynamic trait
-  descriptors for pass-through, rebound, and escaping borrows from exact
-  selected conformances. Calls may direct-devirtualize only when exact
-  selection is proven; bodyless requirements and ambiguous carrier matches do
-  not license `dyn`.
+- **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** Restore ordinary native
+  descriptor invocation and forwarding, beginning with a non-entry helper that
+  receives one borrowed two-word descriptor, forwards it once, invokes a
+  requirement, and uses its result across computations and branches. Target-only
+  consolidation is paused: two composition milestones left this native customer
+  unsupported. The missing dependency is an ordinary indirect-call operand and
+  its ABI, clobber, effect, and reach contract, not another whole-body recognizer.
+  Owners: abstract-to-target signature/graph lowering; legalized/selected call
+  representations and target-to-selected replay; ISA selected encoding/decoding
+  and post-allocation emission; native-artifact/image table and relocation custody.
+  Acceptance: a source-rooted closed-conformance native differential fixture
+  publishes and independently replays Linux x86-64/AArch64, executes on matching
+  hosts, selects distinct table implementations at runtime, and preserves the
+  original referent and surrounding calculations. Reject substituted instance,
+  table, slot, ABI, access, and code-span custody. Delete the superseded Unit/scalar
+  parameter recognizers with that closure; do not substitute raw function pointers
+  or unproved devirtualization. Receiver-backed executable entry provisioning
+  remains a separate dependency for the existing receiver-entry canary.
 
 - **TARGET-SEMANTIC-APPLICATIONS.** Complete typed target observations,
   hermetic const evaluation, and [selected realization coverage](wiki/spec/terminal-psi/boundary_calls.md#operator-applications-and-physical-children). Finish
