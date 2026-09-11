@@ -44,7 +44,7 @@ closure is tracked in [`../../TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md).
 | Retained file | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `omega_compiler.epsilon.sources` | Canonical ordered membership, byte lengths, and SHA-256 identities of Epsilon-written compiler closure `D`. | Delete only when an adjacent compiler input format carries and verifies the same source-member custody directly. |
-| `*.epsilon` | Six members of `D`, separated into representations, request/UTF-8 validation, lexical classification, lexing, parsing, and Alpha tape construction. | Replace a completed component only atomically with an equally complete final Epsilon implementation and synchronized manifest identity. |
+| `*.epsilon` | Seven members separated into representations, request/UTF-8 validation, lexical classification, lexing, parsing, Alpha tape construction, and scalar compilation. | Replace a completed component only atomically with an equally complete final Epsilon implementation and synchronized manifest identity. |
 
 Target identity is an exact immutable compiler-invocation input. `build.omg`
 under [`../../source/omega/`](../../source/omega) does not declare a support
@@ -55,11 +55,20 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `tools/bootstrap/source_closure.py` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The current six-member
-manifest materializes 13,632 lines / 466,183 bytes with SHA-256
-`52e9e9866727a83790e2ce78e0c7cf99a36fbd787a1312c94d217e0b05dc3ac0`.
-The six authoring files preserve one Epsilon translation unit and its packed
+The current seven-member
+manifest materializes 13,887 lines / 474,515 bytes with SHA-256
+`f2064048b10a3dcc12c2de4f19d553b9133e4ea84e5d2e7bd3ff50c6d57b00f3`.
+The authoring files preserve one Epsilon translation unit and its packed
 diagnostic coordinates.
+
+The [source-to-executable gate](../../tests/bootstrap/omega-executable/README.md)
+connects parsed nullary scalar machines to range checking and the shared Alpha
+encoder. It is a diagnostic invocation route over the complete compiler source,
+not the final package/Build/request interface. The compiler checks all admitted
+machine bodies, resolves an explicitly supplied entry, and refuses unsupported
+forms rather than treating them as opaque executable code. Its first result type
+is `u8` with a literal return; general scalar computations and state/call bodies
+remain implementation work.
 
 The manifested members (`D`) exist but are incomplete; both descriptive compiler
 tapes remain absent. The [standalone request contract](../../wiki/spec/build/compiler_request.md)

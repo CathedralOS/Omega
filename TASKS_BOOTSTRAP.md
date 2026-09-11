@@ -341,6 +341,15 @@ prerequisite to every lower-rung milestone.
   outcome/phase, and scalar-resource tables with C; exact/adjacent vectors,
   malformed-input rejection, bounded arithmetic, and Complete-only publication
   must agree before either implementation claims the V1 boundary.
+  Continue from the [source-to-executable gate](tests/bootstrap/omega-executable/README.md)
+  and `bootstrap/5_omega/scalar_compilation.epsilon`: extend parsed scalar
+  operations and checked call/state sequencing through the existing Alpha emitter.
+  Retain changed-source, entry-selection, invalid-body and no-partial-output
+  controls as the executable path grows; do not replace the gate with hand-built
+  tapes or shape-specific source recognizers. Its diagnostic scalar entry adapter
+  is not package/Build admission or the final ProgramEntry contract. Replace that
+  adapter through the real request and target route, preserving actual emitted-byte
+  execution as the outer acceptance check.
   Acceptance: interpreted D compiles the exact Omega C closure for its ordinary
   `alpha_bootstrap` target and produces `omega0_compiler_bytecode.tape`.
   Depends on P3 and the product-source work in `TASKS.md`.

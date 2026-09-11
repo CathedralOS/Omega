@@ -1,6 +1,7 @@
 # Complete-D parser customer
 
-This explicit slow gate checks and executes the complete six-member Epsilon D
+This explicit slow gate checks and executes the complete manifested Epsilon
+Omega compiler
 closure plus one ordinary Epsilon `Main`. It reconstructs the existing Epsilon
 execution diagnostic through the selected Gamma-authored Delta compiler, then
 uses that receipt to check the customer and call D's real `OmegaParser::parse_view`.

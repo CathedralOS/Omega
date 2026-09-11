@@ -1,0 +1,256 @@
+data OmegaScalarCompilationStatus {
+    case Pending;
+    case Complete;
+    case Reject;
+    case Incomplete;
+    case ResourceFailure;
+    case InternalFailure;
+}
+
+data OmegaScalarCompiler {
+    parser: OmegaParser;
+    tape: AlphaTapeBuffer;
+    status: OmegaScalarCompilationStatus;
+    diagnostic_offset: i32;
+    selected_machine: i32;
+    machine_values: [i32; 4096];
+    machine_labels: [i32; 4096];
+}
+
+machine OmegaScalarCompiler::span_equals(
+    &mut self, source: &[u8], start: i32, end: i32, expected: &[u8]
+) -> i32 {
+    transition end - start == expected.len {
+        true -> compare(0)
+        _ -> return 0
+    }
+
+    state compare(index: i32) {
+        transition index < expected.len {
+            true -> byte(index)
+            _ -> return 1
+        }
+    }
+
+    state byte(index: i32) {
+        transition source[start + index] == expected[index] {
+            true -> compare(index + 1)
+            _ -> return 0
+        }
+    }
+}
+
+machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
+    self.status = OmegaScalarCompilationStatus::Pending;
+    self.diagnostic_offset = 0;
+    self.selected_machine = -1;
+    self.tape.initialize();
+    self.parser.parse_view(source);
+    transition self.parser.status {
+        OmegaParserStatus::Complete -> check_roots()
+        OmegaParserStatus::LexicalFailure -> reject()
+        OmegaParserStatus::SyntaxFailure -> reject()
+        OmegaParserStatus::Incomplete -> incomplete()
+        OmegaParserStatus::ResourceFailure -> resource()
+        _ -> internal()
+    }
+
+    state check_roots() {
+        transition (self.parser.root_count == self.parser.machine_count) &&
+            (self.parser.machine_count > 0) {
+            true -> check_machine(0)
+            _ -> incomplete()
+        }
+    }
+
+    state check_machine(index: i32) {
+        transition index < self.parser.machine_count {
+            true -> machine_shape(index)
+            _ -> check_entry()
+        }
+    }
+
+    state machine_shape(index: i32) {
+        let item: OmegaMachineSyntax = self.parser.machine_items[index];
+        self.diagnostic_offset = item.start;
+        transition (item.path_member_count == 1) && (item.state_count == 1) &&
+            (item.clause_count == 0) && (item.is_bodyless == 0) &&
+            (item.has_target == 0) {
+            true -> check_duplicate(index, 0)
+            _ -> incomplete()
+        }
+    }
+
+    state check_duplicate(index: i32, previous: i32) {
+        transition previous < index {
+            true -> compare_name(index, previous)
+            _ -> check_state(index)
+        }
+    }
+
+    state compare_name(index: i32, previous: i32) {
+        let name: OmegaRelativeSpan = self.parser.members[
+            self.parser.machine_items[index].first_path_member];
+        let other: OmegaRelativeSpan = self.parser.members[
+            self.parser.machine_items[previous].first_path_member];
+        transition self.span_equals(source, name.start, name.end,
+            source[other.start..other.end]) {
+            1 -> reject()
+            _ -> check_duplicate(index, previous + 1)
+        }
+    }
+
+    state check_state(index: i32) {
+        let body: OmegaMachineStateSyntax = self.parser.machine_states[
+            self.parser.machine_items[index].first_state];
+        transition body.name_kind {
+            OmegaMachineStateNameKind::GeneratedEntry -> check_entry_body(index, body)
+            _ -> incomplete()
+        }
+    }
+
+    state check_entry_body(index: i32, body: OmegaMachineStateSyntax) {
+        transition (body.parameter_count == 0) && (body.has_return_type == 1) &&
+            (body.statement_count == 1) {
+            true -> check_type(index, body.return_type, body.first_statement)
+            _ -> incomplete()
+        }
+    }
+
+    state check_type(index: i32, type_index: i32, statement: i32) {
+        transition self.parser.type_references[type_index].kind {
+            OmegaTypeReferenceKind::Named -> type_name(index, type_index, statement)
+            _ -> incomplete()
+        }
+    }
+
+    state type_name(index: i32, type_index: i32, statement: i32) {
+        let type_value: OmegaTypeReferenceSyntax = self.parser.type_references[type_index];
+        transition self.span_equals(source, type_value.payload0, type_value.payload1, "u8") {
+            1 -> check_statement(index, statement)
+            _ -> incomplete()
+        }
+    }
+
+    state check_statement(index: i32, statement: i32) {
+        transition self.parser.statements[statement].kind {
+            OmegaStatementKind::Expression -> check_expression(index,
+                self.parser.statements[statement].item_index)
+            _ -> incomplete()
+        }
+    }
+
+    state check_expression(index: i32, expression: i32) {
+        transition self.parser.expressions[expression].kind {
+            OmegaExpressionKind::Integer -> integer(index,
+                self.parser.expressions[expression].payload0,
+                self.parser.expressions[expression].payload1, 0)
+            _ -> incomplete()
+        }
+    }
+
+    state integer(index: i32, cursor: i32, end: i32, value: i32) {
+        transition cursor < end {
+            true -> digit(index, cursor, end, value)
+            _ -> retain(index, value)
+        }
+    }
+
+    state digit(index: i32, cursor: i32, end: i32, value: i32) {
+        self.diagnostic_offset = cursor;
+        let next: i32 = source[cursor] - 48;
+        transition (next >= 0) && (next <= 9) {
+            true -> bounded_digit(index, cursor, end, value, next)
+            _ -> incomplete()
+        }
+    }
+
+    state bounded_digit(index: i32, cursor: i32, end: i32, value: i32, next: i32) {
+        transition value <= (255 - next) / 10 {
+            true -> integer(index, cursor + 1, end, value * 10 + next)
+            _ -> reject()
+        }
+    }
+
+    state retain(index: i32, value: i32) {
+        self.machine_values[index] = value;
+        let name: OmegaRelativeSpan = self.parser.members[
+            self.parser.machine_items[index].first_path_member];
+        transition self.span_equals(source, name.start, name.end, entry) {
+            1 -> select(index)
+            _ -> check_machine(index + 1)
+        }
+    }
+
+    state select(index: i32) {
+        self.selected_machine = index;
+        transition true { true -> check_machine(index + 1) }
+    }
+
+    state check_entry() {
+        transition self.selected_machine >= 0 {
+            true -> labels(0)
+            _ -> reject()
+        }
+    }
+
+    state labels(index: i32) {
+        transition index < self.parser.machine_count {
+            true -> label(index)
+            _ -> adapter()
+        }
+    }
+
+    state label(index: i32) {
+        self.machine_labels[index] = self.tape.new_label();
+        transition self.machine_labels[index] >= 0 {
+            true -> labels(index + 1)
+            _ -> emission_failure()
+        }
+    }
+
+    state adapter() {
+        transition (self.tape.emit_jump_label(19,
+            self.machine_labels[self.selected_machine]) == 1) &&
+            (self.tape.emit_r(0, 0) == 1) {
+            true -> emit_machine(0)
+            _ -> emission_failure()
+        }
+    }
+
+    state emit_machine(index: i32) {
+        transition index < self.parser.machine_count {
+            true -> emit_body(index)
+            _ -> finalize()
+        }
+    }
+
+    state emit_body(index: i32) {
+        transition (self.tape.define_label(self.machine_labels[index]) == 1) &&
+            (self.tape.emit_imm(0, self.machine_values[index], 0) == 1) &&
+            (self.tape.emit_ret() == 1) {
+            true -> emit_machine(index + 1)
+            _ -> emission_failure()
+        }
+    }
+
+    state finalize() {
+        transition self.tape.finalize() {
+            1 -> complete()
+            _ -> emission_failure()
+        }
+    }
+
+    state emission_failure() {
+        transition self.tape.status {
+            1 -> resource()
+            _ -> internal()
+        }
+    }
+
+    state complete() { self.status = OmegaScalarCompilationStatus::Complete; }
+    state reject() { self.status = OmegaScalarCompilationStatus::Reject; }
+    state incomplete() { self.status = OmegaScalarCompilationStatus::Incomplete; }
+    state resource() { self.status = OmegaScalarCompilationStatus::ResourceFailure; }
+    state internal() { self.status = OmegaScalarCompilationStatus::InternalFailure; }
+}

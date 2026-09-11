@@ -1,0 +1,114 @@
+boundary trait Console {
+    machine exit_process(return_code: i32) -> never;
+    machine write_byte(value: i32);
+    machine read_byte() -> i32;
+    machine write_line(text: &[u8]);
+}
+
+data Main {
+    console: Console;
+    compiler: OmegaScalarCompiler;
+}
+
+machine Main::main(&mut self) {
+    self.compiler.compile("machine zero() -> u8 { 0 }", "zero");
+    self.complete(22);
+    assert self.compiler.tape.bytes[13] == 0;
+
+    self.compiler.compile("// ordered declarations\nmachine spare() -> u8 { 7 }\npub machine maximum() -> u8 { 255 }", "maximum");
+    self.complete(33);
+    assert self.compiler.selected_machine == 1;
+    assert self.compiler.tape.decode_address(1) == 22;
+    assert self.compiler.tape.bytes[13] == 7;
+    assert self.compiler.tape.bytes[24] == 255;
+
+    self.compiler.compile("machine answer() -> u8 { 256 }", "answer");
+    self.rejected();
+
+    self.compiler.compile("machine answer() -> u8 { 999999999999999999999999999999 }", "answer");
+    self.rejected();
+
+    self.compiler.compile("machine answer() -> u8 { 1 } machine answer() -> u8 { 2 }", "answer");
+    self.rejected();
+
+    self.compiler.compile("machine spare() -> u8 { 7 }", "answer");
+    self.rejected();
+
+    self.compiler.compile("machine answer() -> u8 { 42 } machine spare() -> u8 { 256 }", "answer");
+    self.rejected();
+
+    self.compiler.compile("machine answer() -> u8 { missing }", "answer");
+    self.incomplete();
+
+    self.compiler.compile("machine answer() -> u32 { 42 }", "answer");
+    self.incomplete();
+
+    self.compiler.compile("machine answer() { state other() -> u8 { 42 } }", "answer");
+    self.incomplete();
+
+    self.compiler.compile("machine answer() -> u8 { 1_2 }", "answer");
+    self.incomplete();
+
+    self.compiler.compile("machine answer() -> u8 {", "answer");
+    self.rejected();
+
+    self.compiler.compile("machine answer() -> u8 { 42 }", "answer");
+    self.complete(22);
+    assert self.compiler.selected_machine == 0;
+    assert self.compiler.tape.decode_address(1) == 11;
+    assert self.compiler.tape.bytes[13] == 42;
+    self.console.write_byte(67);
+    transition true { true -> publish(0) }
+
+    state publish(index: i32) {
+        transition index < self.compiler.tape.payload_length() {
+            true -> byte(index)
+            _ -> return
+        }
+    }
+
+    state byte(index: i32) {
+        self.console.write_byte(self.compiler.tape.bytes[index]);
+        transition true { true -> publish(index + 1) }
+    }
+}
+
+machine Main::complete(&mut self, length: i32) {
+    transition self.compiler.status {
+        OmegaScalarCompilationStatus::Complete -> check()
+        _ -> self.console.exit_process(1)
+    }
+
+    state check() {
+        assert self.compiler.tape.finalized == 1;
+        assert self.compiler.tape.payload_length() == length;
+        assert self.compiler.tape.bytes[0] == 19;
+        assert self.compiler.tape.bytes[9] == 0;
+        assert self.compiler.tape.bytes[10] == 0;
+        assert self.compiler.tape.bytes[length - 1] == 20;
+    }
+}
+
+machine Main::rejected(&mut self) {
+    transition self.compiler.status {
+        OmegaScalarCompilationStatus::Reject -> check()
+        _ -> self.console.exit_process(2)
+    }
+
+    state check() {
+        assert self.compiler.tape.finalized == 0;
+        assert self.compiler.tape.payload_length() == 0;
+    }
+}
+
+machine Main::incomplete(&mut self) {
+    transition self.compiler.status {
+        OmegaScalarCompilationStatus::Incomplete -> check()
+        _ -> self.console.exit_process(3)
+    }
+
+    state check() {
+        assert self.compiler.tape.finalized == 0;
+        assert self.compiler.tape.payload_length() == 0;
+    }
+}
