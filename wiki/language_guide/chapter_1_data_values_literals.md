@@ -120,6 +120,43 @@ carrier and an explicit checked mapping to a sum, including unknown-code
 handling. Stable `#N` member numbers are schema identities, not runtime integer
 values or byte offsets.
 
+## Constraints On Individual Cases
+
+A case can have its own `where` clause:
+
+```omega
+data Value<T> {
+    case Integer(value: i32) where T == i32;
+    case Boolean(value: bool) where T == bool;
+}
+
+data Interval {
+    case Empty;
+    case Range(lo: u64, hi: u64) where lo <= hi;
+}
+```
+
+The `Integer` case belongs only to `Value<i32>`; it cannot construct `Value<bool>`.
+Matching Integer reveals `T == i32` in that arm, allowing its `i32` payload to be
+used as `T` without a cast. This is GADT-style type refinement through a case.
+
+The Range case shows the same mechanism for ordinary values. Constructing it
+must prove `lo <= hi`; matching it supplies that fact. The clause may use enclosing
+generic parameters, common fields, and its own payload, under the ordinary
+contract rules. It is not restricted to type equality and runs no implicit
+validator. Changes must re-establish the invariant before observation.
+
+Type-wide constraints still apply. Zeroed `Value<bool>` does not skip Integer to
+become Boolean: it is unestablished storage until valid construction. A generic
+body can observe zeroed storage only after proving it valid from its own
+contract and flow facts, not because one later instantiation happens to work.
+
+These clauses do not introduce hidden case-local generic types or automatic
+boxing. See the [case-constraint specification](../spec/language/data_and_literals.md#case-constraints)
+and [matching rules](chapter_6_pattern_matching_dispatch.md). The compiler work
+is tracked separately as CASE-CONSTRAINTS in [TASKS.md](../../TASKS.md);
+the examples describe the language contract, not completed implementation.
+
 ## Cases Are Domains
 
 Each case also names the domain of values inhabiting it:

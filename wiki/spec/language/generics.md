@@ -156,6 +156,13 @@ every admitted alternative; one consumer cannot authorize an otherwise invalid
 generic body. Type parameters remain static even when their admissible set has
 several alternatives. No runtime type objects or RTTI are introduced.
 
+A [case `where` clause](data_and_literals.md#case-constraints) can state the same
+type equations for that constructor. Construction proves them; a case match
+recovers them as local facts, including when checking a result against an
+enclosing generic return type. The generic parameters remain fixed. This does
+not introduce constructor-local hidden types or change ordinary specialization
+and layout requirements.
+
 Comparisons of closed static types resolve during compilation. Types containing
 runtime indices retain the corresponding exact subject/equality obligations;
 the static comparison facility cannot turn an unknown runtime endpoint into a

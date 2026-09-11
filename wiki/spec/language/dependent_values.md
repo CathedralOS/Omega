@@ -75,12 +75,25 @@ representation guarantee, not universal semantic membership or ambient write
 authority. A zeroed storage representation can be accessed as an established
 value only after its default-domain obligations hold.
 
+[Case-local `where` clauses](data_and_literals.md#case-constraints) contribute
+conditions only for the active case. Common-field and type-wide obligations
+remain conjunctive with that case's payload validity and constraints. The zero
+representation keeps the first declared case, even when its constraints fail
+for a particular specialization; there is no selection of a first possible case.
+
 If zero satisfies the default domain, the value is zero-constructible. Otherwise
 the type is gated: construction or checked qualification must establish the
 domain before observation. A literal supplies every field whose zero value
 would violate it and proves the complete coupling. Establishment is monotone as
 observed: later mutation may temporarily open an invariant window, but no
 consumption sees the value outside its required domain.
+
+Generic bodies prove establishment from their declared contracts and available
+flow facts. They may use proved zero-validity, but cannot rely on a later
+specialization to justify an otherwise unchecked observation. Zeroing storage is
+permitted independently of establishing a value. For `Value<T>` in the case-constraint
+example, `T == i32` suffices to establish the all-zero Integer value, whereas an
+unconstrained `T` does not and `Value<bool>` remains gated until valid construction.
 
 Permitting [uninhabited domain declarations](domains.md#uninhabited-domains)
 does not relax this establishment gate. An impossible qualification cannot be

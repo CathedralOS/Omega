@@ -6,8 +6,12 @@ after a branch, call, or write. None of these requires runtime type tags.
 
 A data declaration's default domain is part of its static interface. Field
 constraints describe individual fields; a data-signature `where` clause describes
-relationships such as `start <= end`. There is no separate authored `invariant`
-clause. See [dependent data](chapter_12_dependent_types.md).
+relationships such as `start <= end`. A
+[case-local `where`](chapter_1_data_values_literals.md#constraints-on-individual-cases)
+adds conditions for one active case, including payload couplings and type
+equations, without removing common constraints. Construction proves them;
+matching recovers them. There is no separate authored `invariant` clause.
+See [dependent data](chapter_12_dependent_types.md).
 
 A write may temporarily leave default-domain facts unproved. That opens an
 [invariant window](chapter_11_invariant_windows.md): code must restore the facts

@@ -1238,6 +1238,26 @@ Owners include
 
 ## Parallel language and compiler lanes
 
+- **CASE-CONSTRAINTS.** Implement [case-local `where` constraints](wiki/spec/language/data_and_literals.md#case-constraints)
+  for typed requests/IR and case-specific payload invariants. Psi owns parsing,
+  resolved case contracts, generic substitution, construction checking,
+  arm-local facts and coverage through checked/Terminal publication. Reuse
+  ordinary equality, default-domain establishment and invariant-window checking;
+  do not add a separate GADT representation family or hidden type packaging.
+  Connect to the existing case/match lowering work below rather than introduce
+  a source-shape-specific evaluator.
+
+  Acceptance: source tests establish `Value<T>::Integer where T == i32` and
+  `Boolean where T == bool`, and a generic payload-returning match checks without
+  casts; wrong-index construction rejects. `Range(lo, hi) where lo <= hi` accepts
+  proved construction and rejects reversed/unproved bounds. Exercise common
+  constraints, proved impossible-case coverage versus unknown predicates, first-case
+  zero gating for `Value<bool>`, generic establishment with and without sufficient
+  assumptions, stale facts after payload writes/case replacement, and ordinary
+  move/borrow/linear-payload controls. Valid cases must execute through ordinary
+  lowering and preserve checked facts in independent replay. No unrestricted
+  coverage search, specialization-only rescue, or conformance discovery.
+
 - **MATCH-SELECTIVE-LOWERING.** Complete the general
   [value-dispatch contract](wiki/spec/language/patterns.md) on the retained
   source and scalar computation route. Remaining work: ownership-bearing result
