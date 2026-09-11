@@ -23,7 +23,7 @@ use conditional_control::{
     lower_boolean_block, lower_boolean_conditional, lower_integer_conditional,
 };
 pub(in crate::lowering) use conditional_scalar::{
-    IntegerBinaryKind, lower_conditional_integer_binary,
+    IntegerBinaryKind, lower_conditional_integer_binary, try_lower_integer_operation,
 };
 use conditional_scalar::{
     WrappingShiftKind, lower_conditional_scalar_operation, lower_exact_shift_left,

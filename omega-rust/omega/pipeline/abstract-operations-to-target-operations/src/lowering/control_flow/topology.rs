@@ -1,10 +1,13 @@
-//! Select graph lowering from actual topology, never from a ranking annotation.
+//! Select block-owned graph lowering from represented operations and custody.
 use super::*;
 
 pub(in crate::lowering) fn requires_graph(
     function: &AbstractFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<bool, LoweringError> {
+    if ordinary_scalar_graph(function) {
+        return Ok(true);
+    }
     if (function.result.scalar().is_some()
         && function
             .parameters
@@ -66,6 +69,80 @@ pub(in crate::lowering) fn requires_graph(
             || function.operations.iter().any(|operation| {
                 matches!(operation, AbstractOperation::WriteOnlyPrimitiveStore { .. })
             })))
+}
+
+// Scalar operations compose through their source blocks and once-only homes.
+// Specialized descriptor, cleanup and boundary custody still has separate owners.
+// The legacy flat API has no block entries and retains its expression projection;
+// current source production supplies blocks and never uses that compatibility form.
+fn ordinary_scalar_graph(function: &AbstractFunction) -> bool {
+    function.result.scalar().is_some()
+        && !function.block_entries.is_empty()
+        && function.structural_parameters.is_empty()
+        && function.entry_claims.is_empty()
+        && function
+            .block_entries
+            .iter()
+            .all(|entry| entry.structural_parameters.is_empty())
+        && function.operations.iter().all(|operation| match operation {
+            AbstractOperation::IntegerConstant { .. }
+            | AbstractOperation::BooleanConstant { .. }
+            | AbstractOperation::IeeeFloatConstant { .. }
+            | AbstractOperation::IeeeFloatCompare { .. }
+            | AbstractOperation::IntegerWiden { .. }
+            | AbstractOperation::IntegerExactCast { .. }
+            | AbstractOperation::IntegerEqual { .. }
+            | AbstractOperation::IntegerLessThan { .. }
+            | AbstractOperation::IntegerLessOrEqual { .. }
+            | AbstractOperation::BooleanNot { .. }
+            | AbstractOperation::BooleanEqual { .. }
+            | AbstractOperation::ExactIntegerAdd { .. }
+            | AbstractOperation::ExactIntegerSubtract { .. }
+            | AbstractOperation::Call { .. }
+            | AbstractOperation::WrappingIntegerAdd { .. }
+            | AbstractOperation::SaturatingIntegerAdd { .. }
+            | AbstractOperation::WrappingIntegerSubtract { .. }
+            | AbstractOperation::SaturatingIntegerSubtract { .. }
+            | AbstractOperation::WrappingIntegerMultiply { .. }
+            | AbstractOperation::ExactIntegerMultiply { .. }
+            | AbstractOperation::SaturatingIntegerMultiply { .. }
+            | AbstractOperation::ExactIntegerDivide { .. }
+            | AbstractOperation::ExactIntegerRemainder { .. }
+            | AbstractOperation::WrappingIntegerDivide { .. }
+            | AbstractOperation::WrappingIntegerRemainder { .. }
+            | AbstractOperation::SaturatingIntegerDivide { .. }
+            | AbstractOperation::SaturatingIntegerRemainder { .. }
+            | AbstractOperation::IntegerBitwiseAnd { .. }
+            | AbstractOperation::IntegerBitwiseOr { .. }
+            | AbstractOperation::IntegerBitwiseXor { .. }
+            | AbstractOperation::IntegerBitwiseNot { .. }
+            | AbstractOperation::WrappingIntegerShiftLeft { .. }
+            | AbstractOperation::WrappingIntegerShiftRight { .. }
+            | AbstractOperation::ExactIntegerShiftLeft { .. }
+            | AbstractOperation::ExactIntegerShiftRight { .. } => true,
+            AbstractOperation::Return {
+                cleanup_actions, ..
+            } => cleanup_actions.is_empty(),
+            AbstractOperation::Jump {
+                structural_bindings,
+                trivial_affine_discards,
+                residual_affine_discards,
+                ..
+            } => {
+                structural_bindings.is_empty()
+                    && trivial_affine_discards.is_empty()
+                    && residual_affine_discards.is_empty()
+            }
+            AbstractOperation::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                when_true.structural_bindings.is_empty()
+                    && when_false.structural_bindings.is_empty()
+            }
+            _ => false,
+        })
 }
 
 fn has_cycle(function: &AbstractFunction) -> Result<bool, LoweringError> {

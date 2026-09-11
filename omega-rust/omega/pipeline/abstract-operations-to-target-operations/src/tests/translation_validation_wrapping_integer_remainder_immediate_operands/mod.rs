@@ -6,7 +6,8 @@ use crate::{
     AbstractToTargetTranslationFamily, AbstractToTargetTranslationFamilyError,
     AbstractToTargetTranslationValidationError,
     StraightLineWrappingIntegerRemainderImmediateOperandsTranslationError,
-    lower_to_target_operations, validate_abstract_to_target_translation,
+    tests::support::lower_legacy_scalar_fixture as lower_to_target_operations,
+    validate_abstract_to_target_translation,
 };
 
 mod fixture;

@@ -58,8 +58,18 @@ dominance, operations, terminators, and edge bindings have separate owners.
 Lowering retains dominating definitions and authored block order independently
 of traversal. Actual topology selects the cyclic scalar route, not a ranking
 annotation. Scalar bodies with primitive writes also use this graph to retain
-the store before their scalar return; other acyclic scalar functions retain
-their existing expression lowering.
+the store before their scalar return. Block-owned ordinary scalar functions,
+including acyclic computations and calls, retain each computed result once in
+a scalar home; repeated uses reference that home rather than clone a producer
+tree. The integer operation vocabulary reuses the existing arithmetic, bitwise,
+shift and conversion semantics. Target projection does not imply native support
+for each integer operation: unsupported selected kernels still reject.
+The legacy flat input API (empty block entries) retains expression projection
+for compatibility and can still expand shared computations. Current source
+production supplies block entries. Descriptor ABI, structural observations,
+effectful boundaries and cleanup custody not represented by this ordinary
+scalar route retain their existing specialized lowering; this is not a blanket
+retirement of legacy expression families.
 The common target-to-selected
 reader independently checks this graph against source before constructing the
 existing legalized/selected graph. The target-only family receipt does not claim

@@ -7,7 +7,8 @@ use super::*;
 use crate::{
     AbstractToTargetTranslationFamily, AbstractToTargetTranslationFamilyError,
     AbstractToTargetTranslationValidationError,
-    StraightLineSaturatingIntegerAddParametersTranslationError, lower_to_target_operations,
+    StraightLineSaturatingIntegerAddParametersTranslationError,
+    tests::support::lower_legacy_scalar_fixture as lower_to_target_operations,
     validate_abstract_to_target_translation,
 };
 

@@ -7,7 +7,8 @@ use super::{AbstractFunction, IntegerSign, NativeTarget};
 use crate::{
     AbstractToTargetTranslationFamily, AbstractToTargetTranslationFamilyError,
     AbstractToTargetTranslationValidationError,
-    StraightLineSaturatingIntegerDivideParametersTranslationError, lower_to_target_operations,
+    StraightLineSaturatingIntegerDivideParametersTranslationError,
+    tests::support::lower_legacy_scalar_fixture as lower_to_target_operations,
     validate_abstract_to_target_translation,
 };
 

@@ -64,14 +64,21 @@ fn straight_line_arrivals_follow_edges_independently_of_block_storage_order() {
             function.operations = vec![entry_constant, jump, exit_constant, returned];
         }
         let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
-        assert!(matches!(
-            lowered.functions[0].operation,
-            TargetOperation::ReturnIntegerParameter {
+        let TargetOperation::ControlGraph(graph) = &lowered.functions[0].operation else {
+            panic!("block-owned scalar arrivals use the ordinary graph");
+        };
+        let returned = graph
+            .blocks
+            .iter()
+            .find(|block| block.block == destination)
+            .unwrap();
+        assert!(matches!(&returned.terminator,
+            target_operations::TargetControlTerminator::ReturnScalar {
                 source_value,
-                parameter_index: 0,
-                ..
-            } if source_value == arrival
-        ));
+                expression: target_operations::TargetScalarExpression::Integer {
+                    expression: TargetIntegerExpression::BlockParameter(parameter), ..
+                }, ..
+            } if *source_value == arrival && parameter.value == arrival && parameter.block == destination));
         // Custody rosters retain source storage order even though execution
         // must bind the entry's argument before reading the return block.
         let mut expected_operations = vec![entry_operation, exit_operation];
