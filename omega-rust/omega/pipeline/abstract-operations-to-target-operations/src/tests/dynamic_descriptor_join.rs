@@ -41,6 +41,10 @@ fn joined_plan() -> abstract_operations::AbstractOperationPlan {
             transition { _ -> result }
         }
     "#;
+    source_plan(source)
+}
+
+fn source_plan(source: &str) -> abstract_operations::AbstractOperationPlan {
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
     let resolved = lower_syntax_trees(&syntax).expect("resolve source");
@@ -55,8 +59,177 @@ fn joined_plan() -> abstract_operations::AbstractOperationPlan {
 }
 
 #[test]
+fn dynamic_calls_compose_with_definitions_and_reordered_blocks() {
+    let mut source = joined_plan();
+    let caller = source
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == source.entry)
+        .unwrap();
+    let AbstractOperation::CallStructuralScalarWithDynamicArguments { result, .. } =
+        &caller.operations[1]
+    else {
+        panic!("first dynamic call");
+    };
+    let result = result.value;
+    caller.operations.insert(
+        2,
+        AbstractOperation::BooleanNot {
+            psi_operation: OperationId::new(90001).unwrap(),
+            result: ValueId::new(90001).unwrap(),
+            operand: result,
+        },
+    );
+    caller.operations.insert(
+        1,
+        AbstractOperation::BooleanConstant {
+            psi_operation: OperationId::new(90000).unwrap(),
+            result: ValueId::new(90000).unwrap(),
+            value: false,
+        },
+    );
+    caller.block_entries[2].operation_offset += 2;
+    let second_offset = caller.block_entries[2].operation_offset;
+    caller.operations[1..].rotate_left(second_offset - 1);
+    caller.block_entries.swap(1, 2);
+    caller.block_entries[1].operation_offset = 1;
+    caller.block_entries[2].operation_offset = 3;
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let lowered =
+            lower_to_target_operations(&source, target).expect("ordinary operation sequencing");
+        let caller = lowered
+            .functions
+            .iter()
+            .find(|function| function.machine == source.entry)
+            .unwrap();
+        let TargetOperation::ControlGraph(graph) = &caller.operation else {
+            panic!("ordinary graph")
+        };
+        assert_eq!(graph.blocks[2].operations.len(), 3);
+        assert!(matches!(
+            graph.blocks[2].operations[1],
+            TargetUnitOperation::StructuralScalarCallWithDynamicArguments { .. }
+        ));
+        assert!(
+            caller
+                .provenance
+                .operations
+                .contains(&OperationId::new(90001).unwrap())
+        );
+    }
+}
+
+#[test]
+fn dynamic_graph_calls_reject_wrong_custody_and_duplicate_results() {
+    for mutation in 0..4 {
+        let mut source = joined_plan();
+        let caller = source
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == source.entry)
+            .unwrap();
+        let parameter = caller.parameters[0].value;
+        let AbstractOperation::CallStructuralScalarWithDynamicArguments {
+            dynamic_arguments,
+            result,
+            ..
+        } = &mut caller.operations[1]
+        else {
+            panic!("dynamic call")
+        };
+        match mutation {
+            0 => dynamic_arguments[0].argument.operation = OperationId::new(90000).unwrap(),
+            1 => dynamic_arguments[0].target.owner = caller.machine,
+            2 => dynamic_arguments[0].argument.parameter_ordinal += 1,
+            3 => result.value = parameter,
+            _ => unreachable!(),
+        }
+        assert!(lower_to_target_operations(&source, NativeTarget::linux_x64()).is_err());
+    }
+}
+
+#[test]
+fn dynamic_unit_calls_keep_resultless_abi_in_ordinary_branches() {
+    let source = source_plan(
+        r#"
+        trait Touch { machine touch(&self); }
+        data Item [copy] { marker: bool; }
+        Implementation: Item satisfies Touch { machine touch(&self) {} }
+        data Main [copy] { first: Item; second: Item; }
+        machine Main::run(&self, choose_first: bool) {
+            transition choose_first { true -> first() _ -> second() }
+            state first(&self) {
+                let selected: &dyn Touch = &self.first as &dyn Item::Implementation;
+                finish(selected);
+            }
+            state second(&self) {
+                let selected: &dyn Touch = &self.second as &dyn Item::Implementation;
+                finish(selected);
+            }
+        }
+        machine finish(erased: &dyn Touch) { erased.touch(); }
+    "#,
+    );
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let lowered =
+            lower_to_target_operations(&source, target).expect("resultless descriptor calls");
+        let caller = lowered
+            .functions
+            .iter()
+            .find(|function| function.machine == source.entry)
+            .unwrap();
+        let TargetOperation::ControlGraph(graph) = &caller.operation else {
+            panic!("ordinary graph")
+        };
+        for branch in &graph.blocks[1..] {
+            let [
+                TargetUnitOperation::StructuralUnitCallWithDynamicArguments {
+                    call_plan,
+                    dynamic_arguments,
+                    ..
+                },
+            ] = branch.operations.as_slice()
+            else {
+                panic!("resultless dynamic call")
+            };
+            assert!(call_plan.result.is_none());
+            assert_eq!(dynamic_arguments.len(), 1);
+            assert_eq!(call_plan.parameters.len(), 2);
+        }
+    }
+}
+
+#[test]
 fn lowers_joined_descriptor_predecessors_without_a_representative_table() {
     let source = joined_plan();
+    let authored = source
+        .functions
+        .iter()
+        .find(|function| function.machine == source.entry)
+        .unwrap();
+    let expected_operations = authored
+        .operations
+        .iter()
+        .filter_map(|operation| match operation {
+            AbstractOperation::CallStructuralScalarWithDynamicArguments {
+                psi_operation, ..
+            } => Some(*psi_operation),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let expected_edges = authored
+        .operations
+        .iter()
+        .flat_map(|operation| match operation {
+            AbstractOperation::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => vec![when_true.psi_edge, when_false.psi_edge],
+            AbstractOperation::ReturnUnit { psi_edge, .. } => vec![*psi_edge],
+            _ => Vec::new(),
+        })
+        .collect::<Vec<_>>();
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let lowered = lower_to_target_operations(&source, target)
             .expect("joined descriptor control reaches target operations");
@@ -65,39 +238,56 @@ fn lowers_joined_descriptor_predecessors_without_a_representative_table() {
             .iter()
             .find(|function| function.machine == lowered.entry)
             .expect("joined entry caller");
-        let TargetOperation::UnitBody(body) = &caller.operation else {
-            panic!("joined caller must remain an attached Unit body")
+        assert_eq!(caller.provenance.operations, expected_operations);
+        assert_eq!(caller.provenance.edges, expected_edges);
+        let TargetOperation::ControlGraph(graph) = &caller.operation else {
+            panic!("joined caller uses ordinary control blocks")
         };
-        let [condition] = body.scalar_parameters.as_slice() else {
+        let [condition] = graph.scalar_parameters.as_slice() else {
             panic!("joined caller has one Boolean ABI parameter")
         };
         assert_eq!(condition.scalar_type, ScalarType::Boolean);
         assert_eq!(condition.placement.shape, ValueShape::integer(1, 1));
+        let [entry, first, second] = graph.blocks.as_slice() else {
+            panic!("three authored blocks");
+        };
+        let target_operations::TargetControlTerminator::Conditional {
+            condition_source,
+            when_true,
+            when_false,
+            ..
+        } = &entry.terminator
+        else {
+            panic!("ordinary Boolean branch");
+        };
         let [
-            TargetUnitOperation::ConditionalBooleanParameter {
-                condition: branch_condition,
-                when_true,
-                when_false,
-            },
             TargetUnitOperation::StructuralScalarCallWithDynamicArguments {
                 callee: first_callee,
                 dynamic_arguments: first_arguments,
                 ..
             },
-            TargetUnitOperation::Return { .. },
+        ] = first.operations.as_slice()
+        else {
+            panic!("first descriptor call");
+        };
+        let [
             TargetUnitOperation::StructuralScalarCallWithDynamicArguments {
                 callee: second_callee,
                 dynamic_arguments: second_arguments,
                 ..
             },
-            TargetUnitOperation::Return { .. },
-        ] = body.operations.as_slice()
+        ] = second.operations.as_slice()
         else {
-            panic!("joined caller preserves its conditional branch bodies: {body:#?}")
+            panic!("second descriptor call");
         };
-        assert_eq!(branch_condition, condition);
-        assert_eq!(when_true.operation_ordinal, 1);
-        assert_eq!(when_false.operation_ordinal, 3);
+        assert_eq!(*condition_source, condition.value);
+        assert_eq!(when_true.target, first.block);
+        assert_eq!(when_false.target, second.block);
+        for branch in [first, second] {
+            assert!(
+                matches!(branch.terminator, target_operations::TargetControlTerminator::Return { ref cleanup_actions, .. } if cleanup_actions.is_empty())
+            );
+        }
         assert_eq!(first_callee, second_callee);
         let ([first_argument], [second_argument]) =
             (first_arguments.as_slice(), second_arguments.as_slice())

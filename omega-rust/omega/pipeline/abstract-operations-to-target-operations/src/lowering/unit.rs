@@ -6,7 +6,6 @@ mod byte_literal;
 mod conditional_exit;
 pub(crate) mod continuation;
 mod dynamic;
-mod dynamic_join;
 mod dynamic_parameter;
 mod forwarded_dynamic_parameter;
 mod preflight;
@@ -19,7 +18,9 @@ pub(super) mod scalar_definitions;
 pub(super) mod structural_call;
 mod structural_result;
 mod structural_scalar;
-pub(super) use structural_scalar::lower_field_store;
+pub(super) use structural_scalar::{
+    lower_dynamic_argument_scalar_call, lower_dynamic_argument_unit_call, lower_field_store,
+};
 pub(super) mod write_only_primitive_store;
 
 use super::function_signature as setup;
@@ -52,7 +53,6 @@ pub(super) fn lower_unit_function(
         return Ok(lowered);
     }
     let bounded_conditional_exit = conditional_exit::has_bounded_shape(function);
-    let dynamic_descriptor_join = dynamic_join::has_bounded_shape(function);
     if (function.block_entries.len() > 1
         || function.operations.iter().any(|operation| {
             matches!(
@@ -64,7 +64,6 @@ pub(super) fn lower_unit_function(
             )
         }))
         && !bounded_conditional_exit
-        && !dynamic_descriptor_join
         && (function.structural_parameters.iter().all(|parameter| {
             super::scalar::byte_views::is_byte_parameter(parameter, structural_types)
         }) || !continuation::has_shape(function))
@@ -81,24 +80,13 @@ pub(super) fn lower_unit_function(
             native_callbacks,
         );
     }
-    if !bounded_conditional_exit && !dynamic_descriptor_join {
+    if !bounded_conditional_exit {
         validate_unit_function_shape(function)?;
     }
-    if !dynamic_descriptor_join {
-        validate_unit_scalar_definitions(function)?;
-    }
+    validate_unit_scalar_definitions(function)?;
 
     let prepared = prepare_function_signature(function, target, structural_types)?;
-    let lowered = if dynamic_descriptor_join {
-        dynamic_join::lower(
-            function,
-            target,
-            functions,
-            structural_types,
-            &prepared.scalar_parameters,
-            &prepared.parameters,
-        )?
-    } else if bounded_conditional_exit {
+    let lowered = if bounded_conditional_exit {
         conditional_exit::lower(
             function,
             target,

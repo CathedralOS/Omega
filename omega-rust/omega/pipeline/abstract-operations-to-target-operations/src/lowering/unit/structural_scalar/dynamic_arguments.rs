@@ -16,7 +16,7 @@ use super::{
 };
 
 #[allow(clippy::too_many_arguments)]
-pub(in crate::lowering::unit) fn lower_dynamic_argument_scalar_call(
+pub(in crate::lowering) fn lower_dynamic_argument_scalar_call(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     target: NativeTarget,
@@ -156,7 +156,7 @@ pub(in crate::lowering::unit) fn lower_dynamic_argument_scalar_call(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(in crate::lowering::unit) fn lower_dynamic_argument_unit_call(
+pub(in crate::lowering) fn lower_dynamic_argument_unit_call(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     target: NativeTarget,
