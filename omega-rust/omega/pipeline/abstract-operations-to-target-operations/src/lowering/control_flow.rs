@@ -24,6 +24,7 @@ struct LiveDefinitions {
     // Dominating definitions only. Abstract-unit validation owns edge liveness.
     structural_homes: BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
     nonreturning: bool,
+    stored_descriptors: BTreeSet<OperationId>,
     integers: BTreeMap<ValueId, KnownUnitInteger>,
     booleans: BTreeMap<ValueId, (OperationId, bool)>,
     scalar_homes: BTreeMap<ValueId, TargetUnitScalarHomeRequirement>,
@@ -64,7 +65,10 @@ pub(super) fn lower(
             parameter.qualifications.is_empty()
                 && parameter.projected_qualifications.is_empty()
                 && ((parameter.access != StructuralAccess::Owned
-                    && parameter.multiplicity == StructuralMultiplicity::Unrestricted)
+                    && matches!(
+                        parameter.multiplicity,
+                        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                    ))
                     || (parameter.access == StructuralAccess::Owned
                         && (parameter.multiplicity == StructuralMultiplicity::Affine
                             || scalar_arrays::is_owned_parameter(parameter, structural_types))
@@ -104,6 +108,8 @@ pub(super) fn lower(
             | AbstractOperation::ByteSequenceRead { result, .. }
             | AbstractOperation::PrimitiveScalarRead { result, .. }
             | AbstractOperation::CallStructuralScalar { result, .. }
+            | AbstractOperation::CallDynamicScalar { result, .. }
+            | AbstractOperation::CallStoredDynamicScalar { result, .. }
             | AbstractOperation::CallStructuralScalarWithDynamicArguments { result, .. } => {
                 Some(result.value)
             }
@@ -247,6 +253,7 @@ pub(super) fn lower(
     let initial = LiveDefinitions {
         structural_homes: BTreeMap::new(),
         nonreturning: false,
+        stored_descriptors: BTreeSet::new(),
         integers: super::function_signature::integer_parameters(
             function.machine,
             &prepared.scalar_parameters,

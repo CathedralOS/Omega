@@ -23,6 +23,7 @@ fn graph_scalar_projection_retains_boolean_sources_beside_integer_homes() {
         scalar_type: ScalarType::Boolean,
     };
     let live = LiveDefinitions {
+        stored_descriptors: BTreeSet::new(),
         structural_homes: BTreeMap::new(),
         nonreturning: false,
         integers: BTreeMap::from([(value(1), KnownUnitInteger::Home(integer_home))]),

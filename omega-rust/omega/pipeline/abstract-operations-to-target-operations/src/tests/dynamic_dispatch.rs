@@ -10,6 +10,8 @@ use typed_trees_to_checked_trees::lower_typed_trees;
 use super::prelude::*;
 use crate::{LoweringError, lower_to_target_operations};
 
+mod conditional_graph;
+
 fn abstract_plan() -> abstract_operations::AbstractOperationPlan {
     let source = r#"
         trait Measure {
