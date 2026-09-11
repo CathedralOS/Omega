@@ -198,6 +198,17 @@ homes. Distinct branches retain their own descriptor custody, without fixed
 operation offsets or representative-table substitution. The
 [descriptor-call regressions](src/tests/dynamic_descriptor_join.rs) check this
 target projection; they do not claim native descriptor selection or publication.
+Rebound and stored descriptor scalar calls use the same graph operations and
+Boolean/integer result homes. Computations and nonreturning exit arms retain
+ordinary block identities and nominal returns, without a fixed diamond template.
+Unqualified affine referents retain their original invocation borrow; admitting
+that reference does not admit owned receiver transport or a linear referent.
+A stored descriptor must dominate its call independently of authored block order;
+the existing single-store/single-call and complete descriptor-custody limits remain.
+The [conditional graph regressions](src/tests/dynamic_dispatch/conditional_graph.rs)
+exercise this target projection and its rejection controls. Mandatory selected
+input replay still rejects unsupported dynamic transports; target availability
+does not grant independent native body coverage.
 
 ## Structural ABI derivation
 

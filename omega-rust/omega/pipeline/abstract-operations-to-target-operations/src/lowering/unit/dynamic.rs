@@ -8,7 +8,7 @@ use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
 use abstract_operations::{AbstractReboundDynamicDispatch, AbstractStoredDynamicDispatch};
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn lower_stored_descriptor(
+pub(in crate::lowering) fn lower_stored_descriptor(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     target: NativeTarget,
@@ -34,28 +34,16 @@ pub(super) fn lower_stored_descriptor(
     if !stored.has_complete_custody(function.machine, *psi_operation) {
         return Err(invalid());
     }
-    let store_index = function
-        .operations
-        .iter()
-        .position(|candidate| {
-            matches!(candidate,
-                AbstractOperation::StoreDynamicDescriptor {
-                    psi_operation: candidate_operation,
-                    ..
-                } if candidate_operation == psi_operation)
-        })
-        .ok_or_else(invalid)?;
     let calls = function
         .operations
         .iter()
-        .enumerate()
-        .filter_map(|(index, candidate)| match candidate {
+        .filter_map(|candidate| match candidate {
             AbstractOperation::CallStoredDynamicScalar {
                 psi_operation,
                 dynamic_dispatch,
                 result,
                 ..
-            } if &dynamic_dispatch.stored == stored && index > store_index => {
+            } if &dynamic_dispatch.stored == stored => {
                 Some((*psi_operation, dynamic_dispatch, result))
             }
             _ => None,
@@ -88,7 +76,7 @@ pub(super) fn lower_stored_descriptor(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn lower_stored_dynamic_scalar_call(
+pub(in crate::lowering) fn lower_stored_dynamic_scalar_call(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     target: NativeTarget,
@@ -98,6 +86,7 @@ pub(super) fn lower_stored_dynamic_scalar_call(
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
     scalar_values: &mut BTreeMap<ValueId, KnownUnitInteger>,
+    store_available: bool,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<TargetUnitScalarHomeRequirement, LoweringError> {
@@ -119,21 +108,10 @@ pub(super) fn lower_stored_dynamic_scalar_call(
             result.value,
         ));
     }
-    let call_index = function
+    // The sequencing owner supplies availability: an earlier flat operation or
+    // a dominating graph definition. Authored block order is not execution order.
+    let store_count = function
         .operations
-        .iter()
-        .position(|candidate| {
-            matches!(candidate,
-                AbstractOperation::CallStoredDynamicScalar {
-                    psi_operation: candidate_operation,
-                    ..
-                } if candidate_operation == psi_operation)
-        })
-        .ok_or(LoweringError::InvalidDynamicDispatch {
-            machine: function.machine,
-            operation: *psi_operation,
-        })?;
-    let store_count = function.operations[..call_index]
         .iter()
         .filter(|candidate| {
             matches!(candidate,
@@ -141,7 +119,7 @@ pub(super) fn lower_stored_dynamic_scalar_call(
                     if stored == &dynamic_dispatch.stored)
         })
         .count();
-    if store_count != 1 {
+    if !store_available || store_count != 1 {
         return Err(LoweringError::InvalidDynamicDispatch {
             machine: function.machine,
             operation: *psi_operation,
@@ -266,7 +244,7 @@ fn lower_stored_call(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn lower_dynamic_scalar_call(
+pub(in crate::lowering) fn lower_dynamic_scalar_call(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     target: NativeTarget,

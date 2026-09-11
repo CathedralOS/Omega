@@ -364,6 +364,14 @@ pub(super) fn lower_unit_body(
                 )?;
             }
             AbstractOperation::CallStoredDynamicScalar { .. } => {
+                let store_available = operations.iter().any(|lowered| {
+                    matches!(
+                        (lowered, operation),
+                        (TargetUnitOperation::StoreDynamicDescriptor { stored, .. },
+                        AbstractOperation::CallStoredDynamicScalar { dynamic_dispatch, .. })
+                            if stored == &dynamic_dispatch.stored
+                    )
+                });
                 let _ = lower_stored_dynamic_scalar_call(
                     operation,
                     function,
@@ -374,6 +382,7 @@ pub(super) fn lower_unit_body(
                     &mut shape_cache,
                     &mut active,
                     &mut scalar_values,
+                    store_available,
                     &mut operations,
                     &mut provenance,
                 )?;

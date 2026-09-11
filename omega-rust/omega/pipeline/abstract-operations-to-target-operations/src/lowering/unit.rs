@@ -3,9 +3,8 @@
 mod body;
 pub(super) mod boundary_call;
 mod byte_literal;
-mod conditional_exit;
 pub(crate) mod continuation;
-mod dynamic;
+pub(super) mod dynamic;
 mod dynamic_parameter;
 mod forwarded_dynamic_parameter;
 mod preflight;
@@ -52,7 +51,6 @@ pub(super) fn lower_unit_function(
     if let Some(lowered) = dynamic_parameter::lower(function, target)? {
         return Ok(lowered);
     }
-    let bounded_conditional_exit = conditional_exit::has_bounded_shape(function);
     if (function.block_entries.len() > 1
         || function.operations.iter().any(|operation| {
             matches!(
@@ -63,7 +61,6 @@ pub(super) fn lower_unit_function(
                     | AbstractOperation::ByteSequenceSubslice { .. }
             )
         }))
-        && !bounded_conditional_exit
         && (function.structural_parameters.iter().all(|parameter| {
             super::scalar::byte_views::is_byte_parameter(parameter, structural_types)
         }) || !continuation::has_shape(function))
@@ -80,40 +77,24 @@ pub(super) fn lower_unit_function(
             native_callbacks,
         );
     }
-    if !bounded_conditional_exit {
-        validate_unit_function_shape(function)?;
-    }
+    validate_unit_function_shape(function)?;
     validate_unit_scalar_definitions(function)?;
 
     let prepared = prepare_function_signature(function, target, structural_types)?;
-    let lowered = if bounded_conditional_exit {
-        conditional_exit::lower(
-            function,
-            target,
-            functions,
-            structural_types,
-            boundary_machines,
-            settlements,
-            installed_calls,
-            native_callbacks,
-            &prepared.parameters,
-        )?
-    } else {
-        lower_unit_body(
-            function,
-            target,
-            functions,
-            structural_types,
-            boundary_machines,
-            settlements,
-            installed_calls,
-            scalar_abis,
-            ieee_float_fma,
-            native_callbacks,
-            &prepared.scalar_parameters,
-            &prepared.parameters,
-        )?
-    };
+    let lowered = lower_unit_body(
+        function,
+        target,
+        functions,
+        structural_types,
+        boundary_machines,
+        settlements,
+        installed_calls,
+        scalar_abis,
+        ieee_float_fma,
+        native_callbacks,
+        &prepared.scalar_parameters,
+        &prepared.parameters,
+    )?;
     validate_bounded_installed_scalar_body(function.machine, &lowered.operations)?;
 
     Ok(TargetFunction {
