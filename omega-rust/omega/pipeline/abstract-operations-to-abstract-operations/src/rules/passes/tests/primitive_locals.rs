@@ -76,7 +76,8 @@ fn local_plan(reentry: bool) -> AbstractOperationPlan {
             id: structural_type,
             identity: "test::primitive-local".into(),
             shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
-        }],
+        }]
+        .into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {

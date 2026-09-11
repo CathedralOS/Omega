@@ -4,7 +4,7 @@ use abstract_operations::RankedU32CountdownCustody;
 use calling_conventions::CallPlan;
 use semantic_vocabulary::{EdgeId, OperationId, PlaceId, StructuralFieldId};
 use target_operations::TargetStructuralParameter;
-use terminal_psi::{StructuralTypeDeclaration, TerminalAffineCleanupAction};
+use terminal_psi::TerminalAffineCleanupAction;
 
 /// Complete machine-code custody for the one admitted structural Unit / `u32`
 /// countdown. Target layout is deliberately not copied here: object replay
@@ -14,7 +14,7 @@ use terminal_psi::{StructuralTypeDeclaration, TerminalAffineCleanupAction};
 pub struct RankedU32CountdownMachineCodeRecord {
     pub custody: RankedU32CountdownCustody,
     pub call_plan: CallPlan,
-    pub structural_types: Vec<StructuralTypeDeclaration>,
+    pub structural_types: abstract_operations::StructuralTypeCatalog,
     pub structural_parameters: Vec<TargetStructuralParameter>,
     pub cleanup_actions: Vec<TerminalAffineCleanupAction>,
 }

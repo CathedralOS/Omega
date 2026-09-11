@@ -21,7 +21,7 @@ pub(in crate::lowering) fn lower_structural_unit_call(
     function: &AbstractFunction,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     local_sources_by_place: &BTreeMap<PlaceId, StructuralCallLocalSource>,
     established_views: &BTreeMap<PlaceId, (OperationId, StructuralTypeId)>,

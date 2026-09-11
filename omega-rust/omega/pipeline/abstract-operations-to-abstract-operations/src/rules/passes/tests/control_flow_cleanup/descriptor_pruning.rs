@@ -23,11 +23,13 @@ fn conditional_fold_does_not_propose_orphaning_descriptor_roots() {
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
     };
-    unit.structural_types.push(StructuralTypeDeclaration {
-        id: structural_type,
-        identity: "test::pruned-view".into(),
-        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
-    });
+    unit.structural_types
+        .make_mut()
+        .push(StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "test::pruned-view".into(),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+        });
     let function = &mut unit.functions[0];
     function.structural_parameters.push(parameter.clone());
     function.blocks[2]

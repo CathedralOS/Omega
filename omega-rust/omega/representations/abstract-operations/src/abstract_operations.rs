@@ -4,10 +4,7 @@
 //! areas own related facts; it does not contain transformation-stage objects.
 
 use semantic_vocabulary::MachineId;
-use terminal_psi::{
-    BoundaryMachineDeclaration, ProviderCandidateConformance, StructuralTypeDeclaration,
-    TerminalPsiIdentity,
-};
+use terminal_psi::{BoundaryMachineDeclaration, ProviderCandidateConformance, TerminalPsiIdentity};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbstractOperationPlan {
@@ -16,7 +13,7 @@ pub struct AbstractOperationPlan {
     /// Concrete target-neutral carrier shapes retained for Omega-owned layout
     /// and ABI selection. These rows contain no source handles or target
     /// offsets.
-    pub structural_types: Vec<StructuralTypeDeclaration>,
+    pub structural_types: StructuralTypeCatalog,
     /// Exact bodyless boundary declarations available to Unit operations.
     pub boundary_machines: Vec<BoundaryMachineDeclaration>,
     /// Complete verifier-approved checked provider catalog. Target/provider
@@ -27,7 +24,9 @@ pub struct AbstractOperationPlan {
 }
 
 pub mod ownership;
+mod structural_type_catalog;
 pub use ownership::*;
+pub use structural_type_catalog::StructuralTypeCatalog;
 pub mod calls;
 pub use calls::*;
 pub mod control_flow;

@@ -12,9 +12,9 @@ use target_operations::{
     TargetFunction, TargetOperation, TargetStructuralArgument, TargetStructuralParameter,
     TerminalPsiProvenance,
 };
-use terminal_psi::StructuralTypeDeclaration;
 
 use super::{LoweringError, scalar_shape};
+use crate::lowering::shared::StructuralTypeLookup;
 use crate::lowering::structural_signature::StructuralCallSignature;
 
 #[allow(clippy::too_many_arguments)]
@@ -23,7 +23,7 @@ pub(super) fn lower_direct_return(
     function_result: AbstractResult,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     call_plan: &CallPlan,
     target_structural_parameters: &[TargetStructuralParameter],
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
@@ -149,10 +149,7 @@ pub(super) fn lower_direct_return(
             source_value: call_result.value,
             scalar_type: call_result.scalar_type,
             callee: *callee,
-            structural_types: structural_types
-                .values()
-                .map(|declaration| (*declaration).clone())
-                .collect(),
+            structural_types: structural_types.catalog().clone(),
             call_plan: call_plan.clone(),
             structural_parameters: target_structural_parameters.to_vec(),
             arguments,

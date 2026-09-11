@@ -355,11 +355,8 @@ fn lowers_forwarded_descriptor_to_two_word_entry_and_erased_slot_call() {
             .iter()
             .map(|function| (function.machine, function))
             .collect::<std::collections::BTreeMap<_, _>>();
-        let structural_types = source
-            .structural_types
-            .iter()
-            .map(|declaration| (declaration.id, declaration))
-            .collect::<std::collections::BTreeMap<_, _>>();
+        let structural_types =
+            crate::lowering::StructuralTypeLookupForTests::new(&source.structural_types);
         let function = crate::lowering::lower_scalar_function_for_tests(
             helper,
             helper.result.scalar().expect("scalar helper result"),

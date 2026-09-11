@@ -22,7 +22,7 @@ fn parameter_dynamic_unit_dispatch_retains_two_word_result_less_abi() {
     let plan = AbstractOperationPlan {
         psi: identity(),
         entry: machine,
-        structural_types: Vec::new(),
+        structural_types: Vec::new().into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {
@@ -121,7 +121,8 @@ fn write_only_primitive_store_reaches_exact_target_custody_on_both_linux_isas() 
             id: structural_type,
             identity: "test::i32".into(),
             shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
-        }],
+        }]
+        .into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {
@@ -343,7 +344,8 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
                     length: 2,
                 },
             },
-        ],
+        ]
+        .into(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary,
             identity: "InterruptAcknowledgement::complete".into(),
@@ -632,7 +634,8 @@ fn claim_completion_only_boundary_retains_two_linear_claims_without_physical_inp
                     },
                 ],
             },
-        }],
+        }]
+        .into(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary,
             identity: "Extent::settle".into(),

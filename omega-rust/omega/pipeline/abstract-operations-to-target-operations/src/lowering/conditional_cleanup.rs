@@ -97,7 +97,7 @@ pub(super) fn uniform_conditional_cleanup(
     return_edges: &[EdgeId],
     structural_parameters: &[TargetStructuralParameter],
     functions: &BTreeMap<MachineId, &AbstractFunction>,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
 ) -> Result<Vec<terminal_psi::TerminalAffineCleanupAction>, LoweringError> {
     let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
     let mut returns = BTreeMap::new();

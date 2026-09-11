@@ -105,7 +105,7 @@ fn byte_literal_catalog_and_exact_establishment_correspondence_validate() {
     );
 
     let mut wrong_carrier = baseline.clone();
-    wrong_carrier.structural_types[0].shape =
+    wrong_carrier.structural_types.make_mut()[0].shape =
         terminal_psi::StructuralTypeShape::Record { fields: Vec::new() };
     refresh_identity(&mut wrong_carrier);
     assert_eq!(
@@ -361,9 +361,10 @@ fn trivial_affine_local_catalog_requires_dense_empty_record_declarations() {
     );
 
     let mut nonempty_carrier = compressed_trivial_affine_return_unit();
-    nonempty_carrier.structural_types[0].shape = terminal_psi::StructuralTypeShape::ByteSequence(
-        terminal_psi::ByteSequenceCarrier::BorrowedView,
-    );
+    nonempty_carrier.structural_types.make_mut()[0].shape =
+        terminal_psi::StructuralTypeShape::ByteSequence(
+            terminal_psi::ByteSequenceCarrier::BorrowedView,
+        );
     refresh_identity(&mut nonempty_carrier);
     assert_eq!(
         validate_psi_optimization_unit(&nonempty_carrier),

@@ -161,7 +161,7 @@ fn whole_plan_structural_type_roster_corruption_fails_closed() {
     let TargetOperation::UnitBody(body) = &mut candidate.functions[0].operation else {
         unreachable!()
     };
-    body.structural_types[0].identity = "test::substituted_fma_type".into();
+    body.structural_types.make_mut()[0].identity = "test::substituted_fma_type".into();
     assert_eq!(
         validate_abstract_to_target_translation_with_ieee_float_fma_settlements(
             &source,

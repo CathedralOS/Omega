@@ -10,7 +10,7 @@ use target_operations::TargetUnitWriteOnlyPrimitiveStoreSource;
 pub(in crate::lowering) fn lower_write_only_primitive_store(
     operation: &AbstractOperation,
     function: &AbstractFunction,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
     boolean_constants: &BTreeMap<ValueId, (OperationId, bool)>,

@@ -45,7 +45,8 @@ fn dead_literal_elimination_preserves_repeated_array_leaves_and_construction() {
                     length: 2,
                 },
             },
-        ],
+        ]
+        .into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {

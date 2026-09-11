@@ -20,7 +20,8 @@ pub(super) fn base_plan() -> AbstractOperationPlan {
             id: StructuralTypeId::new(63_010).unwrap(),
             identity: "test::mixed_literal_sequence_bool".into(),
             shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
-        }],
+        }]
+        .into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {

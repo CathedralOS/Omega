@@ -186,7 +186,7 @@ pub(crate) fn range_constant_comparison_unit(
                 program_fingerprint: SemanticFingerprint::from_bytes([40; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -360,7 +360,7 @@ pub(crate) fn range_pair_comparison_unit(
                 program_fingerprint: SemanticFingerprint::from_bytes([41; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {

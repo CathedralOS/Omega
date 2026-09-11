@@ -277,7 +277,7 @@ pub(crate) fn exact_cast_unit(value: u128) -> PsiOptimizationUnit {
                 program_fingerprint: SemanticFingerprint::from_bytes([14; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -363,7 +363,7 @@ pub(crate) fn goal_free_unary_unit(widen: bool) -> PsiOptimizationUnit {
                 program_fingerprint: SemanticFingerprint::from_bytes([15; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {

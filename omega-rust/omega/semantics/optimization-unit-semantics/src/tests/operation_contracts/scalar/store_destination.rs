@@ -41,9 +41,10 @@ fn validates_exact_write_only_store_destination_access_type_and_dominance() {
 
     let mut type_drift = baseline.clone();
     let structural_type = type_drift.structural_types[0].id;
-    type_drift.structural_types[0].shape = terminal_psi::StructuralTypeShape::PrimitiveScalar(
-        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 16).unwrap()),
-    );
+    type_drift.structural_types.make_mut()[0].shape =
+        terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+            IntegerType::new(IntegerSign::Signed, 16).unwrap(),
+        ));
     refresh_identity(&mut type_drift);
     assert!(
         matches!(

@@ -121,7 +121,7 @@ pub(in crate::lowering) fn shape(
 pub(super) fn establish(
     operation: &AbstractOperation,
     function: &AbstractFunction,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    types: &StructuralTypeLookup<'_>,
     live: &mut LiveDefinitions,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,

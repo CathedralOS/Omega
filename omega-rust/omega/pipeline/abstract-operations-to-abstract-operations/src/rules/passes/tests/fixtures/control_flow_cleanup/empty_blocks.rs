@@ -37,7 +37,7 @@ pub(crate) fn linear_empty_block_unit() -> PsiOptimizationUnit {
                 program_fingerprint: SemanticFingerprint::from_bytes([31; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -125,7 +125,7 @@ pub(crate) fn path_qualified_empty_block_unit() -> PsiOptimizationUnit {
                 program_fingerprint: SemanticFingerprint::from_bytes([32; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {

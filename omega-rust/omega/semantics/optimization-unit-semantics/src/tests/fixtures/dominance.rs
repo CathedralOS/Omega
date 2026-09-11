@@ -24,7 +24,7 @@ pub(crate) fn byte_literal_boundary_unit() -> PsiOptimizationUnit {
                 program_fingerprint: SemanticFingerprint::from_bytes([20; 32]),
             },
             entry: machine,
-            structural_types: vec![declaration.clone()],
+            structural_types: vec![declaration.clone()].into(),
             boundary_machines: vec![terminal_psi::BoundaryMachineDeclaration {
                 id: boundary,
                 identity: "validation::byte-literal-boundary".into(),
@@ -145,7 +145,8 @@ pub(crate) fn partial_path_qualified_boundary_unit() -> PsiOptimizationUnit {
                             .collect(),
                     },
                 },
-            ],
+            ]
+            .into(),
             boundary_machines: vec![terminal_psi::BoundaryMachineDeclaration {
                 id: boundary,
                 identity: "validation::consume-qualified-field".into(),

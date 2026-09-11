@@ -1,3 +1,4 @@
+pub(super) use super::structural_type_lookup::StructuralTypeLookup;
 pub(super) use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) use abstract_operations::{

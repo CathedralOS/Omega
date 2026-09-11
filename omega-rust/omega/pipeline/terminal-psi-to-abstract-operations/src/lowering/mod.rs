@@ -59,7 +59,7 @@ fn lower_decoded_module(module: &TerminalModule) -> Result<AbstractOperationPlan
     Ok(AbstractOperationPlan {
         psi: terminal_psi_identity(module).map_err(LoweringError::SemanticIdentity)?,
         entry: module.entry,
-        structural_types: module.structural_types.clone(),
+        structural_types: module.structural_types.clone().into(),
         boundary_machines: module.boundary_machines.clone(),
         provider_candidates: module.provider_candidates.clone(),
         functions,

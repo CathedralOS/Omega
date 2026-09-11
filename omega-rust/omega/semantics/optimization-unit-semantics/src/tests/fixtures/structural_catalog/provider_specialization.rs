@@ -57,7 +57,8 @@ pub(crate) fn provider_attachment_specialization_unit() -> PsiOptimizationUnit {
                     },
                 )],
             },
-        )],
+        )]
+        .into(),
         boundary_machines: vec![
             boundary(first_boundary, "validation::provider-first"),
             boundary(second_boundary, "validation::provider-second"),

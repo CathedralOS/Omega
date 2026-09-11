@@ -18,11 +18,13 @@ pub(in crate::tests) fn fixture(
 ) {
     let (mut plan, _, _) = super::plain_unit::plain_unit_fixture();
     let structural_type = StructuralTypeId::new(1).unwrap();
-    plan.structural_types.push(StructuralTypeDeclaration {
-        id: structural_type,
-        identity: "Bytes".into(),
-        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
-    });
+    plan.structural_types
+        .make_mut()
+        .push(StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "Bytes".into(),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+        });
     let skeleton = plan.functions[0].clone();
     plan.functions.clear();
     for machine_number in 1..=3 {

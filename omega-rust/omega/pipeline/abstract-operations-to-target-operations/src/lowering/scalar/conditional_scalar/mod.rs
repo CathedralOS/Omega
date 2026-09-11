@@ -19,7 +19,7 @@ pub(super) fn lower_conditional_scalar_operation(
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     structural_parameters: &[TargetStructuralParameter],
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
 ) -> Result<bool, LoweringError> {
     if direct::try_lower_direct_scalar(
         operation,

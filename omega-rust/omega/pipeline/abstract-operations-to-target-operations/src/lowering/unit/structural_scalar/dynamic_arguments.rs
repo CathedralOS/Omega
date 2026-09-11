@@ -2,16 +2,17 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::lowering::shared::StructuralTypeLookup;
 use abstract_operations::AbstractDynamicDescriptorArgument;
 
 use super::{
     AbstractDynamicDescriptorSource, AbstractFunction, AbstractFunctionResult, AbstractOperation,
     CallPlan, CallSignature, CallingPolicy, KnownUnitInteger, LoweringError, MachineId,
-    NativeTarget, OperationId, PlaceId, ScalarType, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeId, TargetDynamicDescriptorArgument,
-    TargetDynamicDescriptorInstanceArgument, TargetStructuralParameter, TargetUnitOperation,
-    TargetUnitScalarHomeRequirement, TerminalPsiProvenance, ValueId, ValueShape,
-    evaluate_call_plan, insert_known_unit_integer, resolve_structural_field_path, scalar_shape,
+    NativeTarget, OperationId, PlaceId, ScalarType, StructuralPathSegment, StructuralTypeId,
+    TargetDynamicDescriptorArgument, TargetDynamicDescriptorInstanceArgument,
+    TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarHomeRequirement,
+    TerminalPsiProvenance, ValueId, ValueShape, evaluate_call_plan, insert_known_unit_integer,
+    resolve_structural_field_path, scalar_shape,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -20,7 +21,7 @@ pub(in crate::lowering::unit) fn lower_dynamic_argument_scalar_call(
     function: &AbstractFunction,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
@@ -160,7 +161,7 @@ pub(in crate::lowering::unit) fn lower_dynamic_argument_unit_call(
     function: &AbstractFunction,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
@@ -272,7 +273,7 @@ fn prepare_dynamic_arguments(
     dynamic_arguments: &[AbstractDynamicDescriptorArgument],
     call_plan: &CallPlan,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<Vec<TargetDynamicDescriptorArgument>, LoweringError> {

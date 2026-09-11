@@ -37,7 +37,8 @@ pub(super) fn view_fixture(target: target::NativeTarget, empty: bool) -> Legaliz
             shape: terminal_psi::StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BorrowedView,
             ),
-        }],
+        }]
+        .into(),
         parameters: vec![legalized_operations::LegalizedCallUnitParameter {
             semantic: terminal_psi::StructuralParameterDeclaration {
                 place: original,

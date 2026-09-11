@@ -6,7 +6,7 @@ pub(super) fn lower_store(
     operation: &AbstractOperation,
     operation_index: usize,
     function: &AbstractFunction,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     target_structural_parameters: &[TargetStructuralParameter],
     values: &BTreeMap<ValueId, KnownScalar>,
     provenance: &mut TerminalPsiProvenance,
@@ -148,7 +148,7 @@ pub(super) fn lower_store(
 pub(super) fn lower(
     operation: &AbstractOperation,
     function: &AbstractFunction,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     target_structural_parameters: &[TargetStructuralParameter],
     values: &mut BTreeMap<ValueId, KnownScalar>,
     provenance: &mut TerminalPsiProvenance,

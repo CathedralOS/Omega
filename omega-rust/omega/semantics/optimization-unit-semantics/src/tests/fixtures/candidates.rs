@@ -32,7 +32,7 @@ pub(crate) fn redundant_parameter_region_fixture() -> (
                 program_fingerprint: SemanticFingerprint::from_bytes([22; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {

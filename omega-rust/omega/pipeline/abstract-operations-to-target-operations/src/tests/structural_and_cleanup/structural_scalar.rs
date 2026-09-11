@@ -39,7 +39,8 @@ fn structural_scalar_call_plan() -> AbstractOperationPlan {
                     field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
                 }],
             },
-        }],
+        }]
+        .into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![
@@ -160,7 +161,8 @@ fn unrestricted_shared_boolean_field_return_plan() -> AbstractOperationPlan {
                     field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
                 }],
             },
-        }],
+        }]
+        .into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {
@@ -240,7 +242,8 @@ fn unrestricted_shared_integer_field_return_plan() -> AbstractOperationPlan {
                     field_type: StructuralFieldType::Scalar(ScalarType::Integer(integer_type)),
                 }],
             },
-        }],
+        }]
+        .into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {
@@ -285,7 +288,8 @@ fn unrestricted_shared_integer_field_return_plan() -> AbstractOperationPlan {
 
 fn unrestricted_mutable_integer_field_stores_return_plan() -> AbstractOperationPlan {
     let mut plan = unrestricted_shared_integer_field_return_plan();
-    let StructuralTypeShape::Record { fields } = &mut plan.structural_types[0].shape else {
+    let StructuralTypeShape::Record { fields } = &mut plan.structural_types.make_mut()[0].shape
+    else {
         unreachable!()
     };
     fields.push(StructuralFieldDeclaration {

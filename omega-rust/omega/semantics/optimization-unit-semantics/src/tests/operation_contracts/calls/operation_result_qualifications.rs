@@ -39,7 +39,8 @@ fn structural_call_and_return_retain_the_exact_projected_result_roster() {
             identity: "validation::projected-result-leaf".into(),
             shape: terminal_psi::StructuralTypeShape::Record { fields: Vec::new() },
         },
-    ];
+    ]
+    .into();
     unit.structural_domains = vec![terminal_psi::StructuralDomainDeclaration {
         id: domain,
         semantic_domain: id(4_693, semantic_vocabulary::DomainSemanticId::new),

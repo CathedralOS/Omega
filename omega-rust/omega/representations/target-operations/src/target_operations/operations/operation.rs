@@ -43,7 +43,7 @@ pub enum TargetOperation {
         source_value: ValueId,
         scalar_type: ScalarType,
         callee: MachineId,
-        structural_types: Vec<StructuralTypeDeclaration>,
+        structural_types: abstract_operations::StructuralTypeCatalog,
         call_plan: CallPlan,
         structural_parameters: Vec<TargetStructuralParameter>,
         arguments: Vec<TargetStructuralArgument>,
@@ -121,7 +121,7 @@ pub enum TargetOperation {
         operation_result: StructuralOperationResult,
         result: StructuralResultDeclaration,
         callee: MachineId,
-        structural_types: Vec<StructuralTypeDeclaration>,
+        structural_types: abstract_operations::StructuralTypeCatalog,
         call_plan: CallPlan,
         callee_call_plan: CallPlan,
         structural_parameters: Vec<TargetStructuralParameter>,
@@ -136,7 +136,7 @@ pub enum TargetOperation {
     /// after result materialization and before native return teardown.
     ScalarReturnWithCleanup {
         scalar: Box<TargetOperation>,
-        structural_types: Vec<StructuralTypeDeclaration>,
+        structural_types: abstract_operations::StructuralTypeCatalog,
         call_plan: CallPlan,
         structural_parameters: Vec<TargetStructuralParameter>,
         cleanup_actions: Vec<TerminalAffineCleanupAction>,
@@ -150,7 +150,7 @@ pub enum TargetOperation {
     ScalarReturnAfterStructuralScalarFieldStores {
         stores: Vec<TargetScalarStructuralFieldStore>,
         scalar: Box<TargetOperation>,
-        structural_types: Vec<StructuralTypeDeclaration>,
+        structural_types: abstract_operations::StructuralTypeCatalog,
         call_plan: CallPlan,
         structural_parameters: Vec<TargetStructuralParameter>,
     },
@@ -177,7 +177,7 @@ pub enum TargetOperation {
     /// synthetic shared cleanup edge.
     BooleanControlWithCleanup {
         control: TargetBooleanControl,
-        structural_types: Vec<StructuralTypeDeclaration>,
+        structural_types: abstract_operations::StructuralTypeCatalog,
         call_plan: CallPlan,
         structural_parameters: Vec<TargetStructuralParameter>,
         cleanup_actions: Vec<TerminalAffineCleanupAction>,

@@ -15,7 +15,7 @@ pub(super) fn parameter_return_plan(parameter_count: usize) -> AbstractOperation
     AbstractOperationPlan {
         psi: identity(),
         entry: machine,
-        structural_types: Vec::new(),
+        structural_types: Vec::new().into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {
@@ -64,7 +64,7 @@ pub(super) fn direct_call_plan(parameter_count: usize) -> AbstractOperationPlan 
     AbstractOperationPlan {
         psi: identity(),
         entry: caller,
-        structural_types: Vec::new(),
+        structural_types: Vec::new().into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![

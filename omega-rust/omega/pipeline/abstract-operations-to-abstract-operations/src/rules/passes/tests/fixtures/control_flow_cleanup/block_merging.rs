@@ -25,7 +25,7 @@ pub(crate) fn adjacent_conditional_merge_unit() -> PsiOptimizationUnit {
                 program_fingerprint: SemanticFingerprint::from_bytes([37; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -248,7 +248,7 @@ pub(crate) fn non_adjacent_merge_unit(target_before_predecessor: bool) -> PsiOpt
                 program_fingerprint: SemanticFingerprint::from_bytes([44; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {

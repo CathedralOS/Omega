@@ -66,7 +66,7 @@ fn abstract_plan(operation: OperationId) -> AbstractOperationPlan {
     AbstractOperationPlan {
         psi: identity(),
         entry: machine,
-        structural_types: Vec::new(),
+        structural_types: Vec::new().into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {

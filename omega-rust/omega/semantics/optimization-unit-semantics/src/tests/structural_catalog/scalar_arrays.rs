@@ -8,12 +8,13 @@ fn array_unit(length: u64) -> PsiOptimizationUnit {
     let mut candidate = structural_result_call_unit();
     let primitive = id(30_001, StructuralTypeId::new);
     let structural_type = candidate.structural_types[0].id;
-    candidate.structural_types[0].shape = StructuralTypeShape::FixedArray {
+    candidate.structural_types.make_mut()[0].shape = StructuralTypeShape::FixedArray {
         element: primitive,
         length,
     };
     candidate
         .structural_types
+        .make_mut()
         .push(terminal_psi::StructuralTypeDeclaration {
             id: primitive,
             identity: "test::array-leaf".into(),
@@ -141,7 +142,7 @@ fn scalar_array_corrupt_payload_or_custody_rejects_after_metadata_refresh() {
             2 => result.multiplicity = StructuralMultiplicity::Affine,
             3 => result.place = id(30_098, PlaceId::new),
             4 => {
-                candidate.structural_types[1].shape =
+                candidate.structural_types.make_mut()[1].shape =
                     StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
                         semantic_vocabulary::IntegerType::new(
                             semantic_vocabulary::IntegerSign::Unsigned,
@@ -192,12 +193,13 @@ fn scalar_array_empty_outer_dimension_still_validates_inner_carrier() {
     let mut candidate = array_unit(0);
     let inner = id(30_010, StructuralTypeId::new);
     let primitive = candidate.structural_types[1].id;
-    candidate.structural_types[0].shape = StructuralTypeShape::FixedArray {
+    candidate.structural_types.make_mut()[0].shape = StructuralTypeShape::FixedArray {
         element: inner,
         length: 0,
     };
     candidate
         .structural_types
+        .make_mut()
         .push(terminal_psi::StructuralTypeDeclaration {
             id: inner,
             identity: "test::inner-array".into(),
@@ -210,7 +212,7 @@ fn scalar_array_empty_outer_dimension_still_validates_inner_carrier() {
     assert_eq!(validate_psi_optimization_unit(&candidate), Ok(()));
     for mutation in 0..3 {
         let mut changed = candidate.clone();
-        changed.structural_types[2].shape = match mutation {
+        changed.structural_types.make_mut()[2].shape = match mutation {
             0 => StructuralTypeShape::FixedArray {
                 element: id(30_099, StructuralTypeId::new),
                 length: 0,

@@ -115,7 +115,8 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                             },
                         ],
                     },
-                }],
+                }]
+                .into(),
                 parameters,
                 structural_places: vec![
                     StructuralPlaceDeclaration {

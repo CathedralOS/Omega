@@ -5436,7 +5436,7 @@ mod resource_tests {
     ) -> machine_code::UnitAffineCleanupRecord {
         machine_code::UnitAffineCleanupRecord {
             psi_edge: EdgeId::new(edge).expect("cleanup edge"),
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             locals: Vec::new(),
             actions: vec![terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
                 PlaceId::new(1).expect("cleanup place"),

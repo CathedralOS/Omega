@@ -303,7 +303,7 @@ fn build_unit(
                 program_fingerprint: SemanticFingerprint::from_bytes([51; 32]),
             },
             entry: caller,
-            structural_types,
+            structural_types: structural_types.into(),
             boundary_machines,
             provider_candidates: Vec::new(),
             functions,

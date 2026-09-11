@@ -5,11 +5,11 @@ use crate::{
 use abstract_operations::ValueBinding;
 use calling_conventions::CallPlan;
 use semantic_vocabulary::{BlockId, EdgeId, ScalarType, ValueId};
-use terminal_psi::{StructuralTypeDeclaration, TerminalAffineCleanupAction};
+use terminal_psi::TerminalAffineCleanupAction;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetControlGraph {
-    pub structural_types: Vec<StructuralTypeDeclaration>,
+    pub structural_types: abstract_operations::StructuralTypeCatalog,
     pub call_plan: CallPlan,
     pub scalar_parameters: Vec<ScalarAbiValue>,
     pub parameters: Vec<TargetStructuralParameter>,

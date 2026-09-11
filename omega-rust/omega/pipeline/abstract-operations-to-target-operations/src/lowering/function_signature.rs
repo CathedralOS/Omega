@@ -8,7 +8,7 @@ use super::unit::scalar_call::KnownUnitInteger;
 /// Plain primitive references need neither owned transport nor cleanup.
 pub(super) fn is_primitive_write_parameter(
     parameter: &terminal_psi::StructuralParameterDeclaration,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
 ) -> bool {
     !parameter.is_self
         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
@@ -70,7 +70,7 @@ pub(super) fn parameters_by_place(
 pub(super) fn prepare_function_signature(
     function: &AbstractFunction,
     target: NativeTarget,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
 ) -> Result<PreparedFunctionSignature, LoweringError> {
     let scalar_parameter_shapes = function
         .parameters

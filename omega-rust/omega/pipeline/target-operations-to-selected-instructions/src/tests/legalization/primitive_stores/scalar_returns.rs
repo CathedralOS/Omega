@@ -588,7 +588,7 @@ fn boolean_store_scalar_result_requires_exact_mixed_header() {
         NativeTarget::windows_x64(),
     ] {
         let (mut source, _, _) = fixture(native, true, StructuralAccess::MutableBorrow);
-        source.structural_types[0].shape =
+        source.structural_types.make_mut()[0].shape =
             StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean);
         source.functions[0].parameters[0].scalar_type = ScalarType::Boolean;
         let AbstractOperation::WriteOnlyPrimitiveStore { value, .. } =

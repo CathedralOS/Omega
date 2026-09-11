@@ -22,7 +22,7 @@ fn hosted_exit_process_i32_retains_runtime_source_abi_and_nonreturning_tail() {
     let plan = AbstractOperationPlan {
         psi: identity(),
         entry: machine,
-        structural_types: Vec::new(),
+        structural_types: Vec::new().into(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary,
             identity: "Console::exit_process(i32)->Unit".into(),

@@ -72,7 +72,8 @@ pub(in crate::tests) fn projected_fixture(
                 }],
             },
         },
-    ];
+    ]
+    .into();
     let parameter = |mut parameter: StructuralParameterDeclaration| {
         parameter.position = 0;
         parameter.multiplicity = StructuralMultiplicity::Linear;

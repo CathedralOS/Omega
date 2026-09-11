@@ -299,6 +299,7 @@ fn literal_storage_replays_raw_bytes_descriptor_geometry_and_single_fuel() {
                         .as_mut()
                         .unwrap()
                         .structural_types
+                        .make_mut()
                         .clear(),
                     _ => {
                         changed.structural.as_mut().unwrap().structural_places[0].kind =

@@ -205,7 +205,7 @@ fn provider_attachment_specialization_replays_exact_roots_calls_and_nonuse() {
 
     let mut multiple_fields = baseline;
     let terminal_psi::StructuralTypeShape::Record { fields } =
-        &mut multiple_fields.structural_types[0].shape
+        &mut multiple_fields.structural_types.make_mut()[0].shape
     else {
         panic!("provider fixture attachment record")
     };

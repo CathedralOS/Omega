@@ -92,7 +92,8 @@ fn fixture() -> (AbstractFunction, SelectedFunction) {
                 id: structural_type,
                 identity: "u64".into(),
                 shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
-            }],
+            }]
+            .into(),
             parameters: vec![],
             structural_places: vec![terminal_psi::StructuralPlaceDeclaration {
                 id: place,

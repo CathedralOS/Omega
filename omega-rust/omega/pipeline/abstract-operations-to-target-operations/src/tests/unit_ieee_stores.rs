@@ -66,7 +66,8 @@ fn plan(format: IeeeFloatFormat, field_store: bool) -> AbstractOperationPlan {
             id: structural_type,
             identity: "FloatDestination".into(),
             shape,
-        }],
+        }]
+        .into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {

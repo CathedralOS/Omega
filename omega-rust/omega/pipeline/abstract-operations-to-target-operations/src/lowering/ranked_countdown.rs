@@ -289,11 +289,7 @@ pub(super) fn lower(
         return Err(invalid());
     }
 
-    let structural_types = plan
-        .structural_types
-        .iter()
-        .map(|declaration| (declaration.id, declaration))
-        .collect::<BTreeMap<_, _>>();
+    let structural_types = StructuralTypeLookup::new(&plan.structural_types);
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
     let signature = StructuralCallSignature::derive(

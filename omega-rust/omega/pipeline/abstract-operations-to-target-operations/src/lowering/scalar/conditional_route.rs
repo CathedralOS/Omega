@@ -6,7 +6,7 @@ pub(super) fn lower_conditional(
     function_result: AbstractResult,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     prepared: &PreparedScalarLowering,
 ) -> Result<Option<TargetFunction>, LoweringError> {
     let values = prepared.values.clone();
@@ -88,10 +88,7 @@ pub(super) fn lower_conditional(
                         psi_edge: cleanup_edge,
                         control: lowered.control,
                     }),
-                    structural_types: structural_types
-                        .values()
-                        .map(|declaration| (*declaration).clone())
-                        .collect(),
+                    structural_types: structural_types.catalog().clone(),
                     call_plan,
                     structural_parameters: target_structural_parameters,
                     cleanup_actions,
@@ -117,10 +114,7 @@ pub(super) fn lower_conditional(
             provenance: source_ordered_provenance(function, lowered.operations, lowered.edges),
             operation: TargetOperation::BooleanControlWithCleanup {
                 control: lowered.control,
-                structural_types: structural_types
-                    .values()
-                    .map(|declaration| (*declaration).clone())
-                    .collect(),
+                structural_types: structural_types.catalog().clone(),
                 call_plan,
                 structural_parameters: target_structural_parameters,
                 cleanup_actions,

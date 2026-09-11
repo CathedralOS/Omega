@@ -9,7 +9,7 @@ pub(super) fn lower_exit(
     function_result: AbstractResult,
     values: &BTreeMap<ValueId, KnownScalar>,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     call_plan: &CallPlan,
     target_structural_parameters: &[TargetStructuralParameter],
     provenance: &mut TerminalPsiProvenance,
@@ -61,10 +61,7 @@ pub(super) fn lower_exit(
                 )?;
                 *returned = Some(TargetOperation::ScalarReturnWithCleanup {
                     scalar: Box::new(scalar),
-                    structural_types: structural_types
-                        .values()
-                        .map(|declaration| (*declaration).clone())
-                        .collect(),
+                    structural_types: structural_types.catalog().clone(),
                     call_plan: call_plan.clone(),
                     structural_parameters: target_structural_parameters.to_vec(),
                     cleanup_actions: cleanup_actions.clone(),

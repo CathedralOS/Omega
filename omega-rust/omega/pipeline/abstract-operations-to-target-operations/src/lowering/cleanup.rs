@@ -5,7 +5,7 @@ pub(super) fn validate_scalar_cleanup_frontier(
     cleanup_actions: &[terminal_psi::TerminalAffineCleanupAction],
     structural_parameters: &[TargetStructuralParameter],
     functions: &BTreeMap<MachineId, &AbstractFunction>,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
 ) -> Result<(), LoweringError> {
     let invalid = || LoweringError::UnsupportedOperationInScalarFunction(caller);
     if cleanup_actions.is_empty()
@@ -51,7 +51,7 @@ pub(super) fn validate_bounded_nominal_cleanup_body(
     cleanup: &terminal_psi::NominalAffineCleanup,
     cleanup_function: &AbstractFunction,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
 ) -> Result<(), LoweringError> {
     let invalid = || LoweringError::UnsupportedOperationInUnitFunction(caller);
     if cleanup.cleanup_receiver.is_some() || !cleanup.requirement_obligations.is_empty() {

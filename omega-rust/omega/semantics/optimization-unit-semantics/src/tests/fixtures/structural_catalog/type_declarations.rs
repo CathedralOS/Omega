@@ -38,7 +38,8 @@ pub(crate) fn boolean_structural_field_unit() -> PsiOptimizationUnit {
                         field_type: terminal_psi::StructuralFieldType::Scalar(ScalarType::Boolean),
                     }],
                 },
-            }],
+            }]
+            .into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![
@@ -172,7 +173,8 @@ pub(crate) fn direct_realization_integer_structural_field_unit() -> PsiOptimizat
         unreachable!()
     };
     let field = fields.first().expect("fixture field").id;
-    let terminal_psi::StructuralTypeShape::Record { fields } = &mut unit.structural_types[0].shape
+    let terminal_psi::StructuralTypeShape::Record { fields } =
+        &mut unit.structural_types.make_mut()[0].shape
     else {
         unreachable!()
     };
@@ -234,6 +236,7 @@ pub(crate) fn structural_scalar_field_store_unit() -> PsiOptimizationUnit {
     let value_field = fields.first().expect("fixture value field").id;
     let owner_type = id(4_699, StructuralTypeId::new);
     unit.structural_types
+        .make_mut()
         .push(terminal_psi::StructuralTypeDeclaration {
             id: owner_type,
             identity: "validation::store-owner".into(),
@@ -247,6 +250,7 @@ pub(crate) fn structural_scalar_field_store_unit() -> PsiOptimizationUnit {
             },
         });
     unit.structural_types
+        .make_mut()
         .sort_by_key(|declaration| declaration.id);
 
     let function = &mut unit.functions[0];
@@ -342,7 +346,7 @@ pub(crate) fn structural_catalog_unit(
     structural_types: Vec<terminal_psi::StructuralTypeDeclaration>,
 ) -> PsiOptimizationUnit {
     let mut candidate = unit();
-    candidate.structural_types = structural_types;
+    candidate.structural_types = structural_types.into();
     refresh_identity(&mut candidate);
     candidate
 }

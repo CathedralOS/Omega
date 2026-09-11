@@ -14,6 +14,7 @@ mod scalar_arrays;
 mod scalar_call_unit;
 mod scalar_transfers;
 mod scalar_unit_calls;
+mod shared_type_catalog;
 mod structural_call;
 pub(crate) mod structural_case;
 mod structural_publication;

@@ -155,7 +155,7 @@ fn unit_call_pair() -> (AbstractFunction, TargetFunction) {
                 edges: vec![return_edge],
             },
             operation: TargetOperation::UnitBody(TargetUnitBody {
-                structural_types: Vec::new(),
+                structural_types: Vec::new().into(),
                 call_plan: evaluate_call_plan(
                     CallingPolicy::native_for_target(NativeTarget::linux_x64()),
                     &CallSignature::default(),
@@ -245,7 +245,7 @@ fn byte_sequence_literal_pair() -> (AbstractFunction, TargetFunction) {
                 edges: vec![edge],
             },
             operation: TargetOperation::UnitBody(TargetUnitBody {
-                structural_types: vec![structural_type.clone()],
+                structural_types: vec![structural_type.clone()].into(),
                 call_plan: evaluate_call_plan(
                     CallingPolicy::native_for_target(NativeTarget::linux_x64()),
                     &CallSignature::default(),
@@ -317,7 +317,7 @@ fn integer_literal_unit_return_pair() -> (AbstractFunction, TargetFunction) {
                 edges: vec![edge],
             },
             operation: TargetOperation::UnitBody(TargetUnitBody {
-                structural_types: Vec::new(),
+                structural_types: Vec::new().into(),
                 call_plan: evaluate_call_plan(
                     CallingPolicy::native_for_target(NativeTarget::linux_x64()),
                     &CallSignature::default(),
@@ -387,7 +387,7 @@ fn ieee_float_literal_unit_return_pair() -> (AbstractFunction, TargetFunction) {
                 edges: vec![edge],
             },
             operation: TargetOperation::UnitBody(TargetUnitBody {
-                structural_types: Vec::new(),
+                structural_types: Vec::new().into(),
                 call_plan: evaluate_call_plan(
                     CallingPolicy::native_for_target(NativeTarget::linux_x64()),
                     &CallSignature::default(),
@@ -496,7 +496,7 @@ fn trivial_affine_local_pair() -> (AbstractFunction, TargetFunction) {
                 edges: vec![edge],
             },
             operation: TargetOperation::UnitBody(TargetUnitBody {
-                structural_types: vec![structural_type.clone()],
+                structural_types: vec![structural_type.clone()].into(),
                 call_plan: evaluate_call_plan(
                     CallingPolicy::native_for_target(NativeTarget::linux_x64()),
                     &CallSignature::default(),

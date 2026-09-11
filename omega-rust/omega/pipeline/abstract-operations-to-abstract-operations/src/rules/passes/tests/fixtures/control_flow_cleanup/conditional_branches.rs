@@ -39,7 +39,7 @@ pub(crate) fn propagated_block_parameter_unit(constant: bool) -> PsiOptimization
                 program_fingerprint: SemanticFingerprint::from_bytes([21; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -236,7 +236,7 @@ pub(crate) fn constant_conditional_same_target_unit(constant: bool) -> PsiOptimi
                 program_fingerprint: SemanticFingerprint::from_bytes([23; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {

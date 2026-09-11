@@ -49,7 +49,8 @@ fn source(native: target::NativeTarget) -> LegalizedScalarFunction {
                     })
                     .collect(),
             },
-        }],
+        }]
+        .into(),
         parameters: vec![legalized_operations::LegalizedCallUnitParameter {
             semantic: declaration(1),
             target: target_operations::TargetStructuralParameter {

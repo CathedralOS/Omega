@@ -20,11 +20,13 @@ fn mixed_case_fixture() -> (
     let native = ::target::NativeTarget::linux_x64();
     let (mut plan, _, _) = crate::tests::legalization::structural_case::fixture(native);
     let structural_type = StructuralTypeId::new(50).unwrap();
-    plan.structural_types.push(StructuralTypeDeclaration {
-        id: structural_type,
-        identity: "mutable bytes".into(),
-        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
-    });
+    plan.structural_types
+        .make_mut()
+        .push(StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "mutable bytes".into(),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+        });
     let function = &mut plan.functions[0];
     function
         .structural_parameters

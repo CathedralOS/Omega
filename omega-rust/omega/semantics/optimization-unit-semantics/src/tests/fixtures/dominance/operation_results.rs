@@ -216,7 +216,8 @@ pub(crate) fn operation_result_cfg_unit(shape: OperationResultCfgShape) -> PsiOp
             id: structural_type,
             identity: "validation::operation-result-availability".into(),
             shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
-        }],
+        }]
+        .into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![

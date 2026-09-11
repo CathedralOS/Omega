@@ -13,7 +13,7 @@ pub(super) fn boolean_plan(value: bool) -> AbstractOperationPlan {
             program_fingerprint: SemanticFingerprint::from_bytes([0xb0; 32]),
         },
         entry: machine,
-        structural_types: Vec::new(),
+        structural_types: Vec::new().into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {

@@ -570,7 +570,7 @@ pub(super) fn constant_conditional_plan(select_true: bool) -> AbstractOperationP
     AbstractOperationPlan {
         psi: identity(),
         entry: machine,
-        structural_types: Vec::new(),
+        structural_types: Vec::new().into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {

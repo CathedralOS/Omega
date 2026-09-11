@@ -105,7 +105,8 @@ fn installed_provider_plan() -> (
                     )),
                 }],
             },
-        }],
+        }]
+        .into(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary,
             identity: "ProgramEntry::enter".into(),
@@ -271,7 +272,7 @@ fn installed_scalar_provider_plan() -> (
     let plan = AbstractOperationPlan {
         psi: identity(),
         entry: caller,
-        structural_types: Vec::new(),
+        structural_types: Vec::new().into(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary,
             identity: "Ping::ping_value".into(),

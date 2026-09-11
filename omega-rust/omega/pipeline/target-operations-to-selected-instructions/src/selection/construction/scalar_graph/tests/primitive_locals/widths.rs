@@ -6,8 +6,13 @@ use semantic_vocabulary::IeeeFloatFormat;
 fn typed_fixture(target: target::NativeTarget, scalar: ScalarType) -> LegalizedScalarFunction {
     let mut source = local_fixture(target, true);
     let shape = crate::selection::scalar_call_abi::scalar_shape(scalar).unwrap();
-    source.structural.as_mut().unwrap().structural_types[0].shape =
-        StructuralTypeShape::PrimitiveScalar(scalar);
+    source
+        .structural
+        .as_mut()
+        .unwrap()
+        .structural_types
+        .make_mut()[0]
+        .shape = StructuralTypeShape::PrimitiveScalar(scalar);
     source.blocks[0].instructions[0]
         .result
         .as_mut()

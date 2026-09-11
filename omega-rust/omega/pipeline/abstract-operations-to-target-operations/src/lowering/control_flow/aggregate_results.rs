@@ -5,7 +5,7 @@ use target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirem
 
 fn sum_layout(
     structural_type: StructuralTypeId,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    types: &StructuralTypeLookup<'_>,
 ) -> Result<calling_conventions::ConventionalSumLayout, LoweringError> {
     let invalid = || LoweringError::UnsupportedStructuralSum(structural_type);
     let declaration = types.get(&structural_type).ok_or_else(invalid)?;
@@ -31,7 +31,7 @@ fn sum_layout(
 pub(super) fn block_home(
     block: semantic_vocabulary::BlockId,
     declaration: &terminal_psi::StructuralParameterDeclaration,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetStructuralHomeRequirement, LoweringError> {
     if !super::super::unobserved_owned::parameter(declaration) {
         return Err(LoweringError::UnsupportedStructuralSum(
@@ -50,7 +50,7 @@ pub(super) fn block_home(
 /// Structural result category selects its layout, not a different call graph.
 pub(in crate::lowering) fn result_home_layout(
     result: &terminal_psi::StructuralResultDeclaration,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetStructuralHomeLayout, LoweringError> {
     if matches!(
         types
@@ -87,7 +87,7 @@ pub(in crate::lowering) fn result_home_layout(
 pub(super) fn home(
     operation: OperationId,
     result: &terminal_psi::StructuralOperationResult,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetStructuralHomeRequirement, LoweringError> {
     if !result.claims.is_empty() {
         return Err(LoweringError::UnsupportedStructuralSum(
@@ -113,7 +113,7 @@ pub(super) fn home(
 pub(super) fn establish_scalar_case(
     operation: &AbstractOperation,
     function: &AbstractFunction,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    types: &StructuralTypeLookup<'_>,
     live: &mut LiveDefinitions,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
@@ -178,7 +178,7 @@ pub(super) fn call(
     function: &AbstractFunction,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    types: &StructuralTypeLookup<'_>,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     live: &mut LiveDefinitions,
     operations: &mut Vec<TargetUnitOperation>,

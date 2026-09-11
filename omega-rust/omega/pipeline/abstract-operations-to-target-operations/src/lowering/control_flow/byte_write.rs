@@ -6,7 +6,7 @@ use crate::lowering::shared::*;
 pub(super) fn lower(
     operation: &AbstractOperation,
     function: &AbstractFunction,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     live: &LiveDefinitions,
     operations: &mut Vec<TargetUnitOperation>,

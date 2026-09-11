@@ -186,20 +186,22 @@ fn whole_plan_custody_rejects_sequence_structural_type_roster_corruption() {
 
     for mutate in [
         |body: &mut target_operations::TargetUnitBody| {
-            body.structural_types.pop();
+            body.structural_types.make_mut().pop();
         },
         |body: &mut target_operations::TargetUnitBody| {
-            body.structural_types.swap(0, 1);
+            body.structural_types.make_mut().swap(0, 1);
         },
         |body: &mut target_operations::TargetUnitBody| {
-            body.structural_types[0].identity = "test::substituted_sequence".into();
+            body.structural_types.make_mut()[0].identity = "test::substituted_sequence".into();
         },
         |body: &mut target_operations::TargetUnitBody| {
-            body.structural_types.push(StructuralTypeDeclaration {
-                id: StructuralTypeId::new(60_150).unwrap(),
-                identity: "test::injected_sequence".into(),
-                shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
-            });
+            body.structural_types
+                .make_mut()
+                .push(StructuralTypeDeclaration {
+                    id: StructuralTypeId::new(60_150).unwrap(),
+                    identity: "test::injected_sequence".into(),
+                    shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+                });
         },
     ] {
         let mut candidate = lower_to_target_operations(&source, target_profile).unwrap();

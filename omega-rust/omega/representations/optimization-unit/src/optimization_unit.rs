@@ -26,7 +26,7 @@ pub struct PsiOptimizationUnit {
     pub entry: MachineId,
     /// Target-neutral module declarations needed by layout, ABI, and checked
     /// provider installation after the full Terminal module is discarded.
-    pub structural_types: Vec<StructuralTypeDeclaration>,
+    pub structural_types: abstract_operations::StructuralTypeCatalog,
     /// Exact verifier-owned qualification-domain catalog. Bare lowering seeds
     /// leave this empty; optimizer admission attaches it before rewrites run.
     pub structural_domains: Arc<[StructuralDomainDeclaration]>,

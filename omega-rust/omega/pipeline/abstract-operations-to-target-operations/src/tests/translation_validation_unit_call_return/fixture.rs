@@ -36,7 +36,7 @@ pub(super) fn base_plan() -> AbstractOperationPlan {
             program_fingerprint: SemanticFingerprint::from_bytes([0x55; 32]),
         },
         entry: caller(),
-        structural_types: Vec::new(),
+        structural_types: Vec::new().into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![

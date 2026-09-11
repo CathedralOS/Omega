@@ -10,7 +10,7 @@ pub(super) fn lower(
     function: &AbstractFunction,
     parameters: &[TargetStructuralParameter],
     operations: &mut Vec<TargetUnitOperation>,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     provenance: &mut TerminalPsiProvenance,
     scalar_aliases: &mut BTreeMap<ValueId, ValueId>,
@@ -143,7 +143,7 @@ pub(super) fn live_roots(
     function: &AbstractFunction,
     parameters: &[TargetStructuralParameter],
     operations: &[TargetUnitOperation],
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
 ) -> Option<Vec<PlaceId>> {
     let mut live = Vec::new();

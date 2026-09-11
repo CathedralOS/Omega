@@ -301,7 +301,7 @@ pub(crate) fn wrapping_neutral_identity_unit_with_value_and_identity_types_and_l
                 program_fingerprint: SemanticFingerprint::from_bytes([49; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -366,7 +366,7 @@ pub(crate) fn wrapping_multiply_literal_pair_unit(
                 program_fingerprint: SemanticFingerprint::from_bytes([50; 32]),
             },
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {

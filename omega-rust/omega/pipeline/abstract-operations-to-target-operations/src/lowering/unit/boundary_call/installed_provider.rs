@@ -5,11 +5,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use super::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, BoundaryMachineId,
     InstalledProviderCallEvidence, KnownUnitInteger, LoweringError, MachineId, NativeTarget,
-    OperationId, PlaceId, ScalarType, StructuralTypeDeclaration, StructuralTypeId,
-    TargetStructuralArgument, TargetStructuralParameter, TargetUnitOperation,
-    TargetUnitScalarCallArgument, TerminalPsiProvenance, ValueId, ValueShape,
-    fixed_native_integer_shape,
+    OperationId, PlaceId, ScalarType, StructuralTypeId, TargetStructuralArgument,
+    TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarCallArgument,
+    TerminalPsiProvenance, ValueId, ValueShape, fixed_native_integer_shape,
 };
+use crate::lowering::shared::StructuralTypeLookup;
 use crate::lowering::structural_signature::StructuralCallSignature;
 
 #[allow(clippy::too_many_arguments)]
@@ -18,7 +18,7 @@ pub(super) fn try_lower(
     function: &AbstractFunction,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &StructuralTypeLookup<'_>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     installed_calls: &BTreeMap<
         (MachineId, OperationId, BoundaryMachineId),
