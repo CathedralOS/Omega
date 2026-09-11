@@ -3,7 +3,7 @@ pub(super) use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) use abstract_operations::{
     AbstractDynamicDescriptorSource, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan, AbstractParameter, AbstractResult, CompletionClaimSource,
+    AbstractOperationPlan, AbstractParameter, CompletionClaimSource,
     RankedNativeAbstractOperationPlan,
 };
 pub(super) use calling_conventions::{
@@ -15,20 +15,18 @@ pub(super) use installation_evidence::{
     ProviderInstallationEvidence,
 };
 pub(super) use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, EdgeId, IeeeFloatFormat, IntegerSign, IntegerType, IntegerValue,
-    MachineId, OperationId, PlaceId, ScalarType, StructuralFieldId, StructuralTypeId, ValueId,
+    BlockId, BoundaryMachineId, IeeeFloatFormat, IntegerSign, IntegerType, IntegerValue, MachineId,
+    OperationId, PlaceId, ScalarType, StructuralFieldId, StructuralTypeId, ValueId,
 };
 pub(super) use target::{Architecture, NativeTarget, ObjectFormat};
 pub(super) use target_operations::{
     BoundaryByteSequenceArgument, BoundaryRealization, BoundarySettlementBinding,
     MixedStructuralScalarFunctionAbi, ScalarAbiValue, ScalarFunctionAbi, ScalarParameterLocation,
-    TargetBooleanControl, TargetBooleanExpression, TargetCallArgument, TargetConditionalBooleanArm,
-    TargetConditionalIntegerArm, TargetDynamicDescriptorArgument,
+    TargetBooleanExpression, TargetDynamicDescriptorArgument,
     TargetDynamicDescriptorInstanceArgument, TargetDynamicDescriptorParameterAbi, TargetFunction,
-    TargetIeeeFloatFmaOperand, TargetIntegerControl, TargetIntegerExpression, TargetOperation,
-    TargetOperationPlan, TargetRankedU32Countdown, TargetScalarExpression, TargetScalarImmediate,
-    TargetScalarStructuralFieldStore, TargetStructuralArgument, TargetStructuralParameter,
-    TargetUnitBody, TargetUnitOperation, TargetUnitScalarArgumentSource,
+    TargetIeeeFloatFmaOperand, TargetIntegerExpression, TargetOperation, TargetOperationPlan,
+    TargetRankedU32Countdown, TargetScalarExpression, TargetStructuralArgument,
+    TargetStructuralParameter, TargetUnitBody, TargetUnitOperation, TargetUnitScalarArgumentSource,
     TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement, TargetX86ScalarFmaSettlement,
     TerminalPsiProvenance,
 };

@@ -1,65 +1,12 @@
 //! Source and target joins for borrowed arguments in ordinary helper calls.
 use crate::LegalizationError;
-use abstract_operations::{AbstractFunction, AbstractOperation, AbstractOperationPlan};
+use abstract_operations::{AbstractOperation, AbstractOperationPlan};
 use calling_conventions::{CallPlan, ValueShape};
-use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
-use semantic_vocabulary::MachineId;
-use target_operations::{
-    TargetFunction, TargetOperation, TargetOperationPlan, TargetStructuralArgument,
-};
+use optimization_unit::PsiOptimizationFunction;
+use target_operations::{TargetOperationPlan, TargetStructuralArgument};
 use terminal_psi::{StructuralAccess, StructuralArgument};
 
 mod exclusive;
-
-pub(in crate::legalization) fn validate_argument(
-    argument: &StructuralArgument,
-    target_argument: &TargetStructuralArgument,
-    call_operation: semantic_vocabulary::OperationId,
-    caller: &PsiOptimizationFunction,
-    callee: MachineId,
-    native: &TargetOperationPlan,
-    plan: &AbstractOperationPlan,
-    unit: &PsiOptimizationUnit,
-) -> Result<CallPlan, LegalizationError> {
-    if self::argument(argument, call_operation, caller, callee, native, plan, unit)?
-        != *target_argument
-    {
-        return Err(LegalizationError::SourceCustodyMismatch);
-    }
-    super::callee_plan(callee, native, plan, unit)
-}
-
-/// Reconstruct source storage separately from the callee's incoming pointer ABI.
-pub(in crate::legalization) fn argument(
-    semantic: &StructuralArgument,
-    call_operation: semantic_vocabulary::OperationId,
-    caller: &PsiOptimizationFunction,
-    callee: MachineId,
-    native: &TargetOperationPlan,
-    plan: &AbstractOperationPlan,
-    unit: &PsiOptimizationUnit,
-) -> Result<TargetStructuralArgument, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
-    let call = super::callee_plan(callee, native, plan, unit)?;
-    let called = unit
-        .functions
-        .iter()
-        .find(|function| function.machine == callee)
-        .ok_or(invalid.clone())?;
-    if called.structural_parameters.len() != 1 {
-        return Err(invalid);
-    }
-    argument_at(
-        semantic,
-        0,
-        call_operation,
-        caller,
-        called,
-        &call,
-        native,
-        plan,
-    )
-}
 
 /// Rejoin one authored argument using its declaration ordinal and the shared call plan.
 pub(in crate::legalization) fn argument_at(
@@ -311,95 +258,4 @@ fn established_view(
             }
             _ => None,
         })
-}
-
-pub(super) fn validate_target(
-    target: &TargetFunction,
-    abstracted: &AbstractFunction,
-    optimized: &PsiOptimizationFunction,
-    native: &TargetOperationPlan,
-    plan: &AbstractOperationPlan,
-    unit: &PsiOptimizationUnit,
-) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
-    let TargetOperation::ReturnStructuralScalarCall {
-        psi_edge,
-        psi_operation,
-        source_value,
-        scalar_type,
-        callee,
-        structural_types,
-        call_plan,
-        structural_parameters,
-        arguments,
-        claim_transfers,
-        requirement_obligations,
-        crash_continuations,
-    } = &target.operation
-    else {
-        return Err(invalid);
-    };
-    let [
-        AbstractOperation::CallStructuralScalar {
-            psi_operation: operation,
-            result,
-            callee: source_callee,
-            arguments: scalars,
-            structural_arguments,
-            claim_transfers: claims,
-            requirement_obligations: requirements,
-            crash_continuations: crashes,
-        },
-        AbstractOperation::Return {
-            psi_edge: edge,
-            result: returned_result,
-            value,
-            scalar_type: returned_type,
-            cleanup_actions,
-        },
-    ] = abstracted.operations.as_slice()
-    else {
-        return Err(invalid);
-    };
-    let ([argument], [target_argument]) = (structural_arguments.as_slice(), arguments.as_slice())
-    else {
-        return Err(invalid);
-    };
-    let abi = target
-        .mixed_structural_scalar_abi
-        .as_ref()
-        .ok_or(invalid.clone())?;
-    if psi_edge != edge
-        || psi_operation != operation
-        || source_value != value
-        || result.value != *value
-        || result.scalar_type != *scalar_type
-        || returned_type != scalar_type
-        || abstracted.result.scalar().map(|result| result.value) != Some(*returned_result)
-        || callee != source_callee
-        || structural_types != &plan.structural_types
-        || call_plan != &abi.call_plan
-        || structural_parameters != &abi.structural_parameters
-        || !scalars.is_empty()
-        || !cleanup_actions.is_empty()
-        || claim_transfers != claims
-        || !claims.is_empty()
-        || requirement_obligations != requirements
-        || !requirements.is_empty()
-        || crash_continuations != crashes
-        || !crashes.is_empty()
-    {
-        return Err(invalid);
-    }
-    validate_argument(
-        argument,
-        target_argument,
-        *psi_operation,
-        optimized,
-        *callee,
-        native,
-        plan,
-        unit,
-    )?;
-    Ok(())
 }

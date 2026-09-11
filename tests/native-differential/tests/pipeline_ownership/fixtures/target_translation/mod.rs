@@ -1,30 +1,8 @@
-//! Optimizer module role: stage group. Terminal translation fixtures grouped by scalar semantic family.
+//! Optimizer module role: stage group. Direct scalar parameter fixtures for graph ABI replay.
 
 use crate::tests::*;
 
-mod arithmetic;
-mod bitwise;
-mod boolean_equal_immediate;
 mod common;
-mod comparison;
 mod direct;
-mod immediate;
-mod integer_equal_immediate;
-mod integer_less_or_equal_immediate;
-mod integer_less_than_immediate;
-mod shift;
-mod terminal;
-mod unary;
 
-pub(crate) use self::terminal::*;
-pub(crate) use arithmetic::*;
-pub(crate) use bitwise::*;
-pub(crate) use boolean_equal_immediate::*;
-pub(crate) use comparison::*;
 pub(crate) use direct::*;
-pub(crate) use immediate::*;
-pub(crate) use integer_equal_immediate::*;
-pub(crate) use integer_less_or_equal_immediate::*;
-pub(crate) use integer_less_than_immediate::*;
-pub(crate) use shift::*;
-pub(crate) use unary::*;

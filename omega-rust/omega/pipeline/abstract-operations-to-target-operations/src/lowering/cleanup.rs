@@ -1,51 +1,5 @@
 use super::shared::*;
 
-pub(super) fn validate_scalar_cleanup_frontier(
-    caller: MachineId,
-    cleanup_actions: &[terminal_psi::TerminalAffineCleanupAction],
-    structural_parameters: &[TargetStructuralParameter],
-    functions: &BTreeMap<MachineId, &AbstractFunction>,
-    structural_types: &StructuralTypeLookup<'_>,
-) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::UnsupportedOperationInScalarFunction(caller);
-    if cleanup_actions.is_empty()
-        || cleanup_actions.len() != structural_parameters.len()
-        || structural_parameters
-            .iter()
-            .rev()
-            .zip(cleanup_actions)
-            .any(|(parameter, action)| match action {
-                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => {
-                    *place != parameter.place
-                }
-                terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                    cleanup.place != parameter.place
-                        || cleanup.structural_type != parameter.structural_type
-                }
-                terminal_psi::TerminalAffineCleanupAction::DiscardResidual(_) => true,
-            })
-    {
-        return Err(invalid());
-    }
-    for action in cleanup_actions {
-        let terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) = action else {
-            continue;
-        };
-        let cleanup_function = functions
-            .get(&cleanup.cleanup_machine)
-            .copied()
-            .ok_or_else(invalid)?;
-        validate_bounded_nominal_cleanup_body(
-            caller,
-            cleanup,
-            cleanup_function,
-            functions,
-            structural_types,
-        )?;
-    }
-    Ok(())
-}
-
 pub(super) fn validate_bounded_nominal_cleanup_body(
     caller: MachineId,
     cleanup: &terminal_psi::NominalAffineCleanup,

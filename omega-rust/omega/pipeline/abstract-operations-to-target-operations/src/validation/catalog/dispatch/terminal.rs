@@ -10,9 +10,8 @@ use super::super::super::{
     straight_line_integer_ieee_float_literal_sequence_unit_return,
     straight_line_integer_literal_sequence_unit_return, straight_line_integer_literal_unit_return,
     straight_line_nearest_ieee_float_fused_multiply_add_unit_return,
-    straight_line_port_write_unit_return, straight_line_scalar_crash,
-    straight_line_trivial_affine_local_unit_return, straight_line_unit_call_return,
-    straight_line_unit_return,
+    straight_line_port_write_unit_return, straight_line_trivial_affine_local_unit_return,
+    straight_line_unit_call_return, straight_line_unit_return,
 };
 use super::super::model::TranslationFamilyDescriptor;
 use crate::AbstractToTargetTranslationFamily;
@@ -93,23 +92,6 @@ pub(in crate::validation::catalog) const TRIVIAL_AFFINE_LOCAL_UNIT_RETURN:
     straight_line_trivial_affine_local_unit_return::is_candidate,
     straight_line_trivial_affine_local_unit_return,
 );
-
-pub(in crate::validation::catalog) const SCALAR_CRASH: TranslationFamilyDescriptor =
-    TranslationFamilyDescriptor::new(
-        AbstractToTargetTranslationFamily::StraightLineScalarCrash,
-        straight_line_scalar_crash::is_candidate,
-        straight_line_scalar_crash,
-    );
-
-pub(super) fn straight_line_scalar_crash(
-    source: &AbstractFunction,
-    _expected_target: NativeTarget,
-    target: &TargetFunction,
-) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
-    straight_line_scalar_crash::validate(source, target)
-        .map(AbstractToTargetFunctionTranslationReceipt::StraightLineScalarCrash)
-        .map_err(AbstractToTargetTranslationFamilyError::StraightLineScalarCrash)
-}
 
 pub(super) fn straight_line_unit_return(
     source: &AbstractFunction,

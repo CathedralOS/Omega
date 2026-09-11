@@ -74,10 +74,12 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 ## Validation, translation, and publication
 
 - **TRANSLATION-VALIDATION.** Complete independent source-to-target replay for
-  every admitted lowering and machine-rule family. Existing scalar, Unit,
-  constant, call, and selected machine families are landed; remaining source
-  families and publication routes must fail closed until their exact grammar,
-  target applicability, result, effect, cleanup, and custody facts reconstruct.
+  admitted operations and transfers on the common graph. Scalar expression-family
+  planners, their catalog and compatibility fixtures are retired: do not restore
+  them to recover arithmetic, crash, cleanup or borrowed-call coverage. Extend
+  ordinary graph operations and their receiving checks instead. Remaining native
+  operations and publication routes fail closed until target applicability,
+  result, effect, cleanup, proof and custody facts reconstruct.
 
   Close [physical-child replay](wiki/spec/terminal-psi/boundary_calls.md#closed-application-and-physical-occurrence)
   with one source-reachable selected-lowering operation carrying

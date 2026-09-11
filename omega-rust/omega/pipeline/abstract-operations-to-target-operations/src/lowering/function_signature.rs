@@ -1,30 +1,9 @@
 //! Shared call signature and incoming parameter placement for ordinary graphs.
 
-use super::scalar_abi::{fixed_native_integer_shape, fixed_native_scalar_shape};
+use super::scalar_abi::fixed_native_integer_shape;
 use super::shared::*;
 use super::structural_signature::StructuralCallSignature;
 use super::unit::scalar_call::KnownUnitInteger;
-
-/// Plain primitive references need neither owned transport nor cleanup.
-pub(super) fn is_primitive_write_parameter(
-    parameter: &terminal_psi::StructuralParameterDeclaration,
-    structural_types: &StructuralTypeLookup<'_>,
-) -> bool {
-    !parameter.is_self
-        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-        && matches!(
-            parameter.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-        )
-        && parameter.qualifications.is_empty()
-        && parameter.projected_qualifications.is_empty()
-        && structural_types
-            .get(&parameter.structural_type)
-            .is_some_and(|declaration| {
-                matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(scalar)
-                if fixed_native_scalar_shape(scalar).is_some())
-            })
-}
 
 pub(super) fn integer_parameters(
     machine: MachineId,

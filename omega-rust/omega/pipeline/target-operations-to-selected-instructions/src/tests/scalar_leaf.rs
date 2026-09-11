@@ -1,5 +1,7 @@
 //! Straight-line scalar graph production and independent corruption controls.
 
+mod expression_custody;
+
 use crate::{
     legalize_target_operations, select_instructions, selection_constraints,
     validate_legalized_operations, validate_selected_instructions,
@@ -210,6 +212,42 @@ fn scalar_graph_preserves_unused_stack_parameters_without_loading_them() {
             .unwrap();
         }
     }
+}
+
+#[test]
+fn retired_scalar_return_cannot_reenter_through_native_publication_or_replay() {
+    let (abstracted, target, unit) = fixture(Some(7), target::NativeTarget::linux_x64());
+    let accepted = legalize_target_operations(&target, &abstracted, &unit).unwrap();
+    let mut retired = target.clone();
+    let target_operations::TargetOperation::ControlGraph(graph) = &target.functions[0].operation
+    else {
+        panic!("ordinary scalar graph");
+    };
+    let target_operations::TargetControlTerminator::ReturnScalar {
+        psi_edge,
+        source_value,
+        expression: target_operations::TargetScalarExpression::Integer { scalar_type, .. },
+        ..
+    } = &graph.blocks[0].terminator
+    else {
+        panic!("integer scalar return");
+    };
+    retired.functions[0].operation = TargetOperation::ReturnIntegerImmediate {
+        psi_edge: *psi_edge,
+        source_value: *source_value,
+        scalar_type: *scalar_type,
+        value: IntegerValue::Unsigned(7),
+    };
+    assert!(!crate::legalization::accepts_fragment_publication_input(
+        &retired,
+        &abstracted,
+        &unit
+    ));
+    assert!(legalize_target_operations(&retired, &abstracted, &unit).is_err());
+    assert!(
+        validate_legalized_operations(&retired, &abstracted, &unit, accepted.plan().clone())
+            .is_err()
+    );
 }
 
 #[test]

@@ -396,189 +396,42 @@ fn unrestricted_mutable_integer_field_stores_return_plan() -> AbstractOperationP
 }
 
 #[test]
-fn unrestricted_shared_boolean_field_lowers_as_a_straight_line_return() {
-    for target in [
-        NativeTarget::linux_x64(),
-        NativeTarget::windows_x64(),
-        NativeTarget::uefi_x64(),
-        NativeTarget::linux_arm64(),
-        NativeTarget::macos_arm64(),
-    ] {
-        let lowered =
-            lower_to_target_operations(&unrestricted_shared_boolean_field_return_plan(), target)
-                .expect("unrestricted shared Boolean field return lowers");
-        assert!(matches!(
-            &lowered.functions[0].operation,
-            TargetOperation::ReturnBooleanExpression {
-                source_value,
-                expression:
-                    TargetBooleanExpression::StructuralField {
-                        psi_operation,
-                        source,
-                        field,
-                        field_byte_offset: 0,
-                        ..
-                    },
-                ..
-            } if *source_value == ValueId::new(72).unwrap()
-                && *psi_operation == OperationId::new(72).unwrap()
-                && *source == PlaceId::new(72).unwrap()
-                && *field == StructuralFieldId::new(72).unwrap()
-        ));
-    }
-}
-
-#[test]
-fn unrestricted_shared_integer_field_lowers_as_a_straight_line_return() {
-    for target in [
-        NativeTarget::linux_x64(),
-        NativeTarget::windows_x64(),
-        NativeTarget::uefi_x64(),
-        NativeTarget::linux_arm64(),
-        NativeTarget::macos_arm64(),
-    ] {
-        let lowered =
-            lower_to_target_operations(&unrestricted_shared_integer_field_return_plan(), target)
-                .expect("unrestricted shared integer field return lowers");
-        assert!(matches!(
-            &lowered.functions[0].operation,
-            TargetOperation::ReturnIntegerExpression {
-                source_value,
-                scalar_type,
-                expression:
-                    TargetIntegerExpression::StructuralField {
-                        psi_operation,
-                        source,
-                        field,
-                        field_byte_offset: 0,
-                        ..
-                    },
-                ..
-            } if *source_value == ValueId::new(73).unwrap()
-                && *scalar_type == IntegerType::new(IntegerSign::Signed, 32).unwrap()
-                && *psi_operation == OperationId::new(73).unwrap()
-                && *source == PlaceId::new(73).unwrap()
-                && *field == StructuralFieldId::new(73).unwrap()
-        ));
-    }
-}
-
-#[test]
-fn three_unrestricted_mutable_integer_stores_wrap_the_direct_field_return() {
+fn scalar_graph_rejects_unimplemented_boolean_field_observation() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let lowered = lower_to_target_operations(
-            &unrestricted_mutable_integer_field_stores_return_plan(),
-            target,
-        )
-        .expect("direct mutable-self store and field return lower");
-        let TargetOperation::ScalarReturnAfterStructuralScalarFieldStores {
-            stores,
-            scalar,
-            structural_parameters,
-            ..
-        } = &lowered.functions[0].operation
-        else {
-            panic!("mutation-bearing return retains its dedicated target carrier")
-        };
-        let [store, second, third] = stores.as_slice() else {
-            panic!("three mutation-bearing stores expected")
-        };
-        assert_eq!(store.psi_operation, OperationId::new(75).unwrap());
-        assert_eq!(store.defining_operation, OperationId::new(74).unwrap());
-        assert_eq!(store.source_value, ValueId::new(74).unwrap());
-        assert!(matches!(
-            store.immediate,
-            target_operations::TargetScalarImmediate::Integer {
-                scalar_type,
-                value: IntegerValue::Signed(23),
-            } if scalar_type.bits() == 32
-        ));
-        assert_eq!(second.psi_operation, OperationId::new(77).unwrap());
-        assert_eq!(second.defining_operation, OperationId::new(76).unwrap());
-        assert_eq!(second.source_value, ValueId::new(75).unwrap());
-        assert_eq!(second.field_byte_offset, 4);
-        assert_eq!(third.psi_operation, OperationId::new(79).unwrap());
-        assert_eq!(third.defining_operation, OperationId::new(78).unwrap());
-        assert_eq!(third.source_value, ValueId::new(76).unwrap());
-        assert_eq!(third.field_byte_offset, 8);
-        assert!(matches!(
-            third.immediate,
-            target_operations::TargetScalarImmediate::Integer {
-                scalar_type,
-                value: IntegerValue::Signed(47),
-            } if scalar_type.bits() == 32
-        ));
-        assert!(store.path.is_empty());
-        assert_eq!(store.field_byte_offset, 0);
-        assert_eq!(
-            store.destination_placement,
-            structural_parameters[0].placement
+        assert!(
+            lower_to_target_operations(&unrestricted_shared_boolean_field_return_plan(), target)
+                .is_err()
         );
-        assert_eq!(
-            structural_parameters[0].shape.class,
-            calling_conventions::ValueClass::BorrowedReference
-        );
-        assert!(matches!(
-            structural_parameters[0].placement.locations.as_slice(),
-            [calling_conventions::ValueLocation::Indirect {
-                copy_stack_byte_offset: None,
-                ..
-            }]
-        ));
-        assert!(matches!(
-            scalar.as_ref(),
-            TargetOperation::ReturnIntegerExpression {
-                expression: TargetIntegerExpression::StructuralField {
-                    psi_operation,
-                    source,
-                    field,
-                    ..
-                },
-                ..
-            } if *psi_operation == OperationId::new(73).unwrap()
-                && *source == PlaceId::new(73).unwrap()
-                && *field == StructuralFieldId::new(73).unwrap()
-        ));
     }
 }
 
 #[test]
-fn whole_root_structural_call_retains_direct_scalar_return_abi() {
-    for target in [
-        NativeTarget::linux_x64(),
-        NativeTarget::windows_x64(),
-        NativeTarget::uefi_x64(),
-        NativeTarget::linux_arm64(),
-        NativeTarget::macos_arm64(),
-    ] {
-        let lowered = lower_to_target_operations(&structural_scalar_call_plan(), target)
-            .expect("bounded structural scalar call lowers");
-        let TargetOperation::ReturnStructuralScalarCall {
-            scalar_type,
-            callee,
-            structural_parameters,
-            arguments,
-            requirement_obligations,
-            crash_continuations,
-            ..
-        } = &lowered.functions[0].operation
-        else {
-            panic!("structural scalar call retains its dedicated target carrier")
-        };
-        assert_eq!(*scalar_type, ScalarType::Boolean);
-        assert_eq!(*callee, MachineId::new(71).unwrap());
-        assert_eq!(structural_parameters.len(), 1);
-        assert_eq!(arguments.len(), 1);
-        assert!(arguments[0].path.is_empty());
-        assert_eq!(arguments[0].source_byte_offset, 0);
-        assert_eq!(requirement_obligations, &[ObligationId::new(70).unwrap()]);
-        assert_eq!(
-            crash_continuations,
-            &[CrashRouteBucket {
-                cause: CrashCause::Trap,
-                alternatives: vec![CrashRouteGuard::Truth],
-            }]
+fn scalar_graph_rejects_unimplemented_integer_field_observation() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        assert!(
+            lower_to_target_operations(&unrestricted_shared_integer_field_return_plan(), target)
+                .is_err()
         );
+    }
+}
+
+#[test]
+fn scalar_graph_does_not_hide_unimplemented_field_reads_behind_stores() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        assert!(
+            lower_to_target_operations(
+                &unrestricted_mutable_integer_field_stores_return_plan(),
+                target
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
+fn scalar_graph_rejects_unimplemented_claim_bearing_structural_calls() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        assert!(lower_to_target_operations(&structural_scalar_call_plan(), target).is_err());
     }
 }
 

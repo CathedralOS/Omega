@@ -3,14 +3,9 @@ use super::*;
 pub(super) fn scalar_terminal_artifact(
     result_type: ScalarType,
     parameter_types: Vec<ScalarType>,
-    operation: Option<OperationKind>,
-    crash: Option<CrashCause>,
-    obligation: Option<ObligationId>,
 ) -> (Vec<u8>, Vec<u8>) {
-    assert!(operation.is_none() || crash.is_none());
     let machine = MachineId::new(30_001).unwrap();
     let entry = BlockId::new(30_002).unwrap();
-    let computed = ValueId::new(30_003).unwrap();
     let function_result = ValueId::new(30_004).unwrap();
     let edge = EdgeId::new(30_006).unwrap();
     let parameters = parameter_types
@@ -22,46 +17,15 @@ pub(super) fn scalar_terminal_artifact(
             scalar_type,
         })
         .collect::<Vec<_>>();
-    let returned = operation
-        .as_ref()
-        .map(|_| computed)
-        .or_else(|| parameters.last().map(|parameter| parameter.id));
-    let operations = operation
-        .map(|kind| Operation {
-            id: OperationId::new(30_005).unwrap(),
-            result: OperationResult::Scalar(ValueDeclaration {
-                qualifications: Default::default(),
-                id: computed,
-                scalar_type: result_type,
-            }),
-            kind,
-        })
-        .into_iter()
-        .collect();
-    let (terminator, crash_routes) = match (crash, returned) {
-        (Some(cause), None) => (
-            Terminator::Crash {
-                edge,
-                cause,
-                site_guard: Vec::new(),
-                frontier_lower_bound: Vec::new(),
-            },
-            vec![CrashRouteBucket {
-                cause,
-                alternatives: vec![CrashRouteGuard::Truth],
-            }],
-        ),
-        (None, Some(value)) => (
-            Terminator::Return {
-                edge,
-                value,
-                cleanup_actions: Vec::new(),
-            },
-            Vec::new(),
-        ),
-        _ => panic!("scalar fixture must return a value or crash"),
+    let terminator = Terminator::Return {
+        edge,
+        value: parameters
+            .last()
+            .expect("parameter fixture must be nonempty")
+            .id,
+        cleanup_actions: Vec::new(),
     };
-    let mut module = TerminalModule {
+    let module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
@@ -111,51 +75,25 @@ pub(super) fn scalar_terminal_artifact(
                 structural_parameters: Vec::new(),
                 id: entry,
                 parameters: Vec::new(),
-                operations,
+                operations: Vec::new(),
                 terminator,
             }],
             contract: MachineContract {
                 id: ContractId::new(30_007).unwrap(),
-                crash_routes,
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
                 outcome_specific_ensures: Vec::new(),
             },
         }],
     };
-    let proof = obligation.map_or_else(ProofBundle::default, |obligation| {
-        let reconstructed = reconstruct_operation_obligations(&module).unwrap();
-        assert_eq!(reconstructed.len(), 1);
-        let goal = reconstructed[0].obligation.proposition.clone();
-        module.machines[0].contract.requires.push(goal.clone());
-        ProofBundle {
-            recursive_components: Vec::new(),
-            control_cycles: Vec::new(),
-            evidence_producers: Vec::new(),
-            evidence: vec![ObligationEvidence {
-                obligation,
-                route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
-                    identity: EvidenceIdentity::new(30_008).unwrap(),
-                    proof_system_marker: ProofSystemMarker::CURRENT,
-                    proof: ProofNode {
-                        conclusion: goal,
-                        rule: ProofRule::Assumption { index: 0 },
-                    },
-                }),
-            }],
-        }
-    });
     (
         terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap(),
     )
 }
 
 pub(super) fn parameter_types(scalar_type: ScalarType, count: usize) -> Vec<ScalarType> {
     assert!(count > 0, "parameter fixture must be nonempty");
     vec![scalar_type; count]
-}
-
-pub(super) fn parameter_value(index: usize) -> ValueId {
-    ValueId::new(30_100 + index as u64).unwrap()
 }

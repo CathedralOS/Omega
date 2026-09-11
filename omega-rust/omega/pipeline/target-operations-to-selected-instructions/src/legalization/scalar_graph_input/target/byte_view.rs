@@ -102,8 +102,8 @@ impl Checker<'_> {
                                 && length == expected_length
                                 && obligation == expected_obligation
                                 && self.byte_view(original, *expected_source, aliases)
-                                && self.expression(start, *expected_start, aliases)
-                                && self.expression(end, *expected_end, aliases)
+                                && self.integer_source(start, *expected_start, aliases)
+                                && self.integer_source(end, *expected_end, aliases)
                         })
             }
         }

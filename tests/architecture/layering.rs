@@ -4128,71 +4128,12 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
     for required in [
         "ENABLED_TRANSLATION_FAMILIES",
         "source.functions.len() != target.functions.len()",
-        "straight_line_boolean_immediate::is_candidate",
-        "straight_line_boolean_immediate::validate",
-        "straight_line_boolean_not_immediate::is_candidate",
-        "straight_line_boolean_not_immediate::validate",
-        "straight_line_boolean_equal_immediate::is_candidate",
-        "straight_line_boolean_equal_immediate::validate",
-        "straight_line_integer_equal_immediate::is_candidate",
-        "straight_line_integer_equal_immediate::validate",
-        "straight_line_integer_less_than_immediate::is_candidate",
-        "straight_line_integer_less_than_immediate::validate",
-        "straight_line_integer_immediate::is_candidate",
-        "straight_line_integer_immediate::validate",
-        "straight_line_integer_widen_immediate::is_candidate",
-        "straight_line_integer_widen_immediate::validate",
-        "straight_line_integer_bitwise_not_immediate::is_candidate",
-        "straight_line_integer_bitwise_not_immediate::validate",
-        "straight_line_integer_exact_cast_immediate_operand::is_candidate",
-        "straight_line_integer_exact_cast_immediate_operand::validate",
         "straight_line_integer_literal_unit_return::is_candidate",
         "straight_line_integer_literal_unit_return::validate",
         "straight_line_ieee_float_literal_unit_return::is_candidate",
         "straight_line_ieee_float_literal_unit_return::validate",
         "straight_line_ieee_float_literal_sequence_unit_return::is_candidate",
         "straight_line_ieee_float_literal_sequence_unit_return::validate",
-        "straight_line_parameter::integer::direct::is_candidate",
-        "straight_line_parameter::integer::direct::validate",
-        "straight_line_parameter::boolean::direct::is_candidate",
-        "straight_line_parameter::boolean::direct::validate",
-        "straight_line_parameter::boolean::not::is_candidate",
-        "straight_line_parameter::boolean::not::validate",
-        "straight_line_parameter::boolean::equal::is_candidate",
-        "straight_line_parameter::boolean::equal::validate",
-        "straight_line_parameter::integer::comparison::equal::is_candidate",
-        "straight_line_parameter::integer::comparison::equal::validate",
-        "straight_line_parameter::integer::comparison::less_than::is_candidate",
-        "straight_line_parameter::integer::comparison::less_than::validate",
-        "straight_line_parameter::integer::comparison::less_or_equal::is_candidate",
-        "straight_line_parameter::integer::comparison::less_or_equal::validate",
-        "straight_line_parameter::integer::unary::bitwise_not::is_candidate",
-        "straight_line_parameter::integer::unary::bitwise_not::validate",
-        "straight_line_parameter::integer::unary::widen::is_candidate",
-        "straight_line_parameter::integer::unary::widen::validate",
-        "straight_line_parameter::integer::unary::exact_cast::is_candidate",
-        "straight_line_parameter::integer::unary::exact_cast::validate",
-        "straight_line_parameter::integer::bitwise::bitwise_and::is_candidate",
-        "straight_line_parameter::integer::bitwise::bitwise_and::validate",
-        "straight_line_parameter::integer::bitwise::bitwise_or::is_candidate",
-        "straight_line_parameter::integer::bitwise::bitwise_or::validate",
-        "straight_line_parameter::integer::bitwise::bitwise_xor::is_candidate",
-        "straight_line_parameter::integer::bitwise::bitwise_xor::validate",
-        "source::reconstruct_direct",
-        "source::reconstruct_boolean_not",
-        "source::reconstruct_boolean_equal",
-        "source::integer::comparison::reconstruct_equal",
-        "source::integer::comparison::reconstruct_less_than",
-        "source::integer::comparison::reconstruct_less_or_equal",
-        "source::integer::unary::reconstruct_bitwise_not",
-        "source::integer::unary::reconstruct_widen",
-        "source::integer::unary::reconstruct_exact_cast",
-        "source::integer::bitwise::reconstruct_bitwise_and",
-        "source::integer::bitwise::reconstruct_bitwise_or",
-        "source::integer::bitwise::reconstruct_bitwise_xor",
-        "abi::replay",
-        "straight_line_scalar_crash::is_candidate",
-        "straight_line_scalar_crash::validate",
         "CallingPolicy::native_for_target",
         "evaluate_call_plan",
         "ENABLED_PLAN_TRANSLATION_FAMILIES",
@@ -4220,321 +4161,64 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         );
     }
 
-    let parameter_validation = stage.join("validation/straight_line_parameter");
-    let source_replay = recursive_rust_source(&parameter_validation.join("source"));
-    for forbidden in ["calling_conventions", "target_operations", "TargetFunction"] {
-        assert!(
-            !source_replay.contains(forbidden),
-            "parameter source replay must not consume ABI or target mechanics; found {forbidden}",
-        );
-    }
-    let abi_replay = std::fs::read_to_string(parameter_validation.join("abi.rs"))
-        .expect("read parameter-return ABI replay");
-    for forbidden in ["TargetFunction", "AbstractOperation", "crate::lowering"] {
-        assert!(
-            !abi_replay.contains(forbidden),
-            "parameter ABI replay must not consume source operations or target candidates; found {forbidden}",
-        );
-    }
-    for leaf in [
-        "integer/direct.rs",
-        "boolean/direct.rs",
-        "boolean/not.rs",
-        "boolean/equal.rs",
-        "integer/comparison/equal.rs",
-        "integer/comparison/less_than.rs",
-        "integer/comparison/less_or_equal.rs",
-        "integer/unary/bitwise_not.rs",
-        "integer/unary/widen.rs",
-        "integer/bitwise/bitwise_and.rs",
-        "integer/bitwise/bitwise_or.rs",
-        "integer/bitwise/bitwise_xor.rs",
-    ] {
-        let typed_replay = std::fs::read_to_string(parameter_validation.join(leaf))
-            .expect("read typed parameter-return replay");
-        for forbidden in [
-            "calling_conventions",
-            "AbstractOperation::Return",
-            "evaluate_call_plan",
-        ] {
-            assert!(
-                !typed_replay.contains(forbidden),
-                "typed parameter replay must consume shared reconstruction instead of rebuilding it; {leaf} contains {forbidden}",
-            );
-        }
-    }
-    let direct_source = std::fs::read_to_string(parameter_validation.join("source/direct.rs"))
-        .expect("read direct parameter-return source replay");
-    assert!(direct_source.contains("AbstractOperation::Return"));
-    assert!(!direct_source.contains("AbstractOperation::BooleanNot"));
-    let boolean_not_source =
-        std::fs::read_to_string(parameter_validation.join("source/boolean_not.rs"))
-            .expect("read Boolean-not parameter source replay");
-    for required in ["AbstractOperation::BooleanNot", "AbstractOperation::Return"] {
-        assert!(
-            boolean_not_source.contains(required),
-            "Boolean-not source replay must visibly own {required}",
-        );
-    }
-    let boolean_equal_source =
-        std::fs::read_to_string(parameter_validation.join("source/boolean_equal.rs"))
-            .expect("read Boolean-equality parameter source replay");
-    for required in [
-        "AbstractOperation::BooleanEqual",
-        "AbstractOperation::Return",
-    ] {
-        assert!(
-            boolean_equal_source.contains(required),
-            "Boolean-equality source replay must visibly own {required}",
-        );
-    }
-    let integer_equal_source =
-        std::fs::read_to_string(parameter_validation.join("source/integer/comparison/equal.rs"))
-            .expect("read integer-equality parameter source replay");
-    for required in [
-        "AbstractOperation::IntegerEqual",
-        "AbstractOperation::Return",
-    ] {
-        assert!(
-            integer_equal_source.contains(required),
-            "integer-equality source replay must visibly own {required}",
-        );
-    }
-    let integer_less_than_source = std::fs::read_to_string(
-        parameter_validation.join("source/integer/comparison/less_than.rs"),
-    )
-    .expect("read integer-less-than parameter source replay");
-    for required in [
-        "AbstractOperation::IntegerLessThan",
-        "AbstractOperation::Return",
-    ] {
-        assert!(
-            integer_less_than_source.contains(required),
-            "integer-less-than source replay must visibly own {required}",
-        );
-    }
-    let integer_less_or_equal_source = std::fs::read_to_string(
-        parameter_validation.join("source/integer/comparison/less_or_equal.rs"),
-    )
-    .expect("read integer-less-or-equal parameter source replay");
-    for required in [
-        "AbstractOperation::IntegerLessOrEqual",
-        "AbstractOperation::Return",
-    ] {
-        assert!(
-            integer_less_or_equal_source.contains(required),
-            "integer-less-or-equal source replay must visibly own {required}",
-        );
-    }
-    let integer_bitwise_not_source =
-        std::fs::read_to_string(parameter_validation.join("source/integer/unary/bitwise_not.rs"))
-            .expect("read integer-bitwise-not parameter source replay");
-    for required in [
-        "AbstractOperation::IntegerBitwiseNot",
-        "AbstractOperation::Return",
-    ] {
-        assert!(
-            integer_bitwise_not_source.contains(required),
-            "integer-bitwise-not source replay must visibly own {required}",
-        );
-    }
-    let integer_widen_source =
-        std::fs::read_to_string(parameter_validation.join("source/integer/unary/widen.rs"))
-            .expect("read integer-widen parameter source replay");
-    for required in [
-        "AbstractOperation::IntegerWiden",
-        "source_type.can_widen_to(*target_type)",
-        "AbstractOperation::Return",
-    ] {
-        assert!(
-            integer_widen_source.contains(required),
-            "integer-widen source replay must visibly own {required}",
-        );
-    }
-    let integer_exact_cast_source =
-        std::fs::read_to_string(parameter_validation.join("source/integer/unary/exact_cast.rs"))
-            .expect("read integer exact-cast parameter source replay");
-    for required in [
-        "AbstractOperation::IntegerExactCast",
-        "source_type.can_exact_cast_to(*target_type)",
-        "source_type.can_widen_to(*target_type)",
-        "AbstractOperation::Return",
-    ] {
-        assert!(
-            integer_exact_cast_source.contains(required),
-            "integer exact-cast source replay must visibly own {required}",
-        );
-    }
-    let integer_bitwise_and_source =
-        std::fs::read_to_string(parameter_validation.join("source/integer/bitwise/bitwise_and.rs"))
-            .expect("read integer bitwise-AND parameter source replay");
-    for required in [
-        "AbstractOperation::IntegerBitwiseAnd",
-        "IntegerCarrier::Fixed",
-        "AbstractOperation::Return",
-    ] {
-        assert!(
-            integer_bitwise_and_source.contains(required),
-            "integer bitwise-AND source replay must visibly own {required}",
-        );
-    }
-    let integer_bitwise_or_source =
-        std::fs::read_to_string(parameter_validation.join("source/integer/bitwise/bitwise_or.rs"))
-            .expect("read integer bitwise-OR parameter source replay");
-    for required in [
-        "AbstractOperation::IntegerBitwiseOr",
-        "IntegerCarrier::Fixed",
-        "AbstractOperation::Return",
-    ] {
-        assert!(
-            integer_bitwise_or_source.contains(required),
-            "integer bitwise-OR source replay must visibly own {required}",
-        );
-    }
-    let integer_bitwise_xor_source =
-        std::fs::read_to_string(parameter_validation.join("source/integer/bitwise/bitwise_xor.rs"))
-            .expect("read integer bitwise-XOR parameter source replay");
-    for required in [
-        "AbstractOperation::IntegerBitwiseXor",
-        "IntegerCarrier::Fixed",
-        "AbstractOperation::Return",
-    ] {
-        assert!(
-            integer_bitwise_xor_source.contains(required),
-            "integer bitwise-XOR source replay must visibly own {required}",
-        );
-    }
-    let source_envelope = std::fs::read_to_string(parameter_validation.join("source/envelope.rs"))
-        .expect("read common parameter source envelope");
-    for required in [
-        "function.parameters.is_empty()",
-        "function.block_entries.as_slice()",
-    ] {
-        assert!(
-            source_envelope.contains(required),
-            "the common source envelope must visibly own {required}",
-        );
-    }
-    for forbidden in [
-        "AbstractOperation::BooleanNot",
-        "AbstractOperation::BooleanEqual",
-        "AbstractOperation::IntegerEqual",
-        "AbstractOperation::IntegerLessThan",
-        "AbstractOperation::IntegerLessOrEqual",
-        "AbstractOperation::IntegerBitwiseNot",
-        "AbstractOperation::IntegerWiden",
-        "AbstractOperation::IntegerExactCast",
-        "AbstractOperation::IntegerBitwiseAnd",
-        "AbstractOperation::IntegerBitwiseOr",
-        "AbstractOperation::IntegerBitwiseXor",
-    ] {
-        assert!(
-            !source_envelope.contains(forbidden),
-            "the common source envelope must not own derived grammar {forbidden}",
-        );
-    }
-    assert!(
-        !stage
-            .join("validation/straight_line_integer_parameter.rs")
-            .exists(),
-        "the retired flat integer-parameter validator must not return",
+    // Scalar bodies have one graph reader, not a per-expression catalog. Keep
+    // native ABI reconstruction independent of the target producer.
+    let graph_input = root.join(
+        "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/scalar_graph_input",
     );
-    assert!(
-        !parameter_validation.join("source.rs").exists(),
-        "the retired flat parameter source replay must not return",
-    );
+    let header = std::fs::read_to_string(graph_input.join("header.rs"))
+        .expect("read graph scalar ABI replay");
+    for required in [
+        "evaluate_call_plan(",
+        "CallingPolicy::native_for_target(native)",
+        "abi.call_plan != expected",
+        "actual.placement != *placement",
+        "abi.result.scalar_type != result.scalar_type",
+        "Some(&abi.result.placement) != expected.result.as_ref()",
+    ] {
+        assert!(
+            header.contains(required),
+            "graph ABI replay must retain {required}"
+        );
+    }
+    assert!(!header.contains("crate::lowering"));
+    let graph_replay = std::fs::read_to_string(graph_input.join("target/control_flow.rs"))
+        .expect("read current target graph replay");
+    for required in [
+        "header::function_abi",
+        "graph.call_plan != expected",
+        "graph.scalar_parameters != abi.parameters",
+        "graph.blocks.len() != optimized.blocks.len()",
+        "block.block != source.id",
+        "source.nodes.len() != block.operations.len() + 1",
+        "super::unit::validate_operation(",
+    ] {
+        assert!(
+            graph_replay.contains(required),
+            "graph replay must retain {required}"
+        );
+    }
     for retired in [
-        "source/integer_equal.rs",
-        "source/integer_less_than.rs",
-        "source/integer_less_or_equal.rs",
+        "mod straight_line_parameter",
+        "mod immediate;",
+        "StraightLineScalarCrash",
     ] {
         assert!(
-            !parameter_validation.join(retired).exists(),
-            "retired flat integer grammar leaf must not return: {retired}",
+            !validation.contains(retired),
+            "retired scalar family catalog must not return: {retired}"
         );
     }
-    assert!(
-        !parameter_validation.join("derived.rs").exists(),
-        "the retired flat derived-expression replay must not return",
-    );
-    assert!(
-        !parameter_validation.join("derived").exists(),
-        "the retired derived-expression taxonomy must not return",
-    );
+
     for retired in [
-        "boolean.rs",
-        "boolean_equal.rs",
-        "boolean_not.rs",
-        "integer.rs",
-        "integer_equal.rs",
-        "integer_less_than.rs",
-        "integer_less_or_equal.rs",
-        "integer_bitwise_not.rs",
-        "model.rs",
-        "source/integer/equal.rs",
-        "source/integer/less_than.rs",
-        "source/integer/less_or_equal.rs",
-        "source/integer/bitwise_not.rs",
-        "source/integer/bitwise_and.rs",
-        "source/integer/bitwise_or.rs",
-        "source/integer/bitwise_xor.rs",
-        "model/unary.rs",
+        "validation/model/error.rs",
+        "validation/model/receipt.rs",
+        "validation/catalog/dispatch.rs",
     ] {
         assert!(
-            !parameter_validation.join(retired).exists(),
-            "retired flat parameter-validation path must not return: {retired}",
+            !stage.join(retired).exists(),
+            "retired mixed validation entrypoint must not return: {retired}"
         );
     }
-    assert!(
-        !stage.join("validation/model/error/parameter.rs").exists(),
-        "the retired parameter error catchall must not return",
-    );
-    assert!(
-        !stage
-            .join("validation/model/error/parameter/unary.rs")
-            .exists(),
-        "the retired unary parameter error catchall must not return",
-    );
-    assert!(
-        !stage
-            .join("validation/model/error/parameter/bitwise.rs")
-            .exists(),
-        "the retired bitwise parameter error catchall must not return",
-    );
-    assert!(
-        !stage.join("validation/model/receipt/parameter.rs").exists(),
-        "the retired parameter receipt catchall must not return",
-    );
-    assert!(
-        !stage
-            .join("validation/model/receipt/parameter/unary.rs")
-            .exists(),
-        "the retired unary parameter receipt catchall must not return",
-    );
-    assert!(
-        !stage
-            .join("validation/model/receipt/parameter/bitwise.rs")
-            .exists(),
-        "the retired bitwise parameter receipt catchall must not return",
-    );
-    assert!(
-        !stage
-            .join("validation/catalog/dispatch/parameter.rs")
-            .exists(),
-        "the retired parameter dispatch catchall must not return",
-    );
-    assert!(
-        !stage.join("validation/model/error.rs").exists(),
-        "the retired mixed error-model catchall must not return",
-    );
-    assert!(
-        !stage.join("validation/model/receipt.rs").exists(),
-        "the retired mixed receipt-model catchall must not return",
-    );
-    assert!(
-        !stage.join("validation/catalog/dispatch.rs").exists(),
-        "the retired flat catalog dispatch must not return",
-    );
 
     let optimized_entrance = std::fs::read_to_string(root.join(
         "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/optimized.rs",

@@ -1,17 +1,6 @@
 //! Plain owned arrivals retain semantic custody without executable storage uses.
 use super::shared::*;
 
-pub(super) fn has_block_arrivals(
-    function: &AbstractFunction,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-) -> bool {
-    function
-        .block_entries
-        .iter()
-        .any(|block| !block.structural_parameters.is_empty())
-        && accepts(function, types)
-}
-
 pub(super) fn parameter(parameter: &terminal_psi::StructuralParameterDeclaration) -> bool {
     parameter.access == StructuralAccess::Owned
         && matches!(

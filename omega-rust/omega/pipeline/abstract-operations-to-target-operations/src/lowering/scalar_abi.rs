@@ -35,7 +35,7 @@ pub(super) fn derive_mixed_structural_scalar_function_abi(
         return Ok(None);
     }
     let Ok(prepared) =
-        super::scalar::setup::prepare_scalar_lowering(function, result, target, structural_types)
+        super::function_signature::prepare_function_signature(function, target, structural_types)
     else {
         // ABI publication is a derived claim, not a new lowering entrance.
         // The ordinary function lowerer retains authority for diagnostics.
@@ -58,7 +58,7 @@ pub(super) fn derive_mixed_structural_scalar_function_abi(
     Ok(Some(MixedStructuralScalarFunctionAbi {
         call_plan: prepared.call_plan,
         scalar_parameters,
-        structural_parameters: prepared.target_structural_parameters,
+        structural_parameters: prepared.parameters,
         result: ScalarAbiValue {
             value: result.value,
             scalar_type: result.scalar_type,
@@ -180,6 +180,7 @@ pub(super) fn fixed_native_integer_shape(scalar_type: IntegerType) -> Option<Val
 #[cfg(test)]
 mod tests {
     use super::*;
+    use abstract_operations::AbstractResult;
 
     #[test]
     fn ieee_float_signatures_keep_format_and_native_parameter_result_placement() {

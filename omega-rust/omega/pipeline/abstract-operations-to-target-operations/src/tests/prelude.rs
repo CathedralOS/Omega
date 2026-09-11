@@ -25,8 +25,7 @@ pub(super) use std::collections::{BTreeMap, BTreeSet};
 pub(super) use target::NativeTarget;
 pub(super) use target_operations::{
     BoundaryRealization, BoundarySettlementBinding, MachineRegister, ScalarParameterLocation,
-    TargetBooleanControl, TargetBooleanExpression, TargetIntegerExpression, TargetOperation,
-    TargetUnitOperation, TargetUnitScalarArgumentSource,
+    TargetIntegerExpression, TargetOperation, TargetUnitOperation, TargetUnitScalarArgumentSource,
 };
 pub(super) use terminal_psi::{
     BoundaryMachineDeclaration, CrashCause, CrashRouteBucket, CrashRouteGuard, SemanticFingerprint,

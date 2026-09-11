@@ -1,6 +1,38 @@
 //! Independent expression correspondence under source successor bindings.
 use super::*;
 impl Checker<'_> {
+    // Operation operands refer to established values; only the definition root
+    // carries an operation. Never reconstruct an already-produced expression tree.
+    pub(super) fn integer_source(
+        &self,
+        expression: &Expression,
+        value: ValueId,
+        aliases: &[(ValueId, ValueId)],
+    ) -> bool {
+        matches!(
+            expression,
+            Expression::Immediate { .. }
+                | Expression::Parameter { .. }
+                | Expression::ScalarHome(_)
+                | Expression::BlockParameter(_)
+        ) && self.expression(expression, value, aliases)
+    }
+
+    pub(super) fn boolean_source(
+        &self,
+        expression: &Boolean,
+        value: ValueId,
+        aliases: &[(ValueId, ValueId)],
+    ) -> bool {
+        matches!(
+            expression,
+            Boolean::Immediate { .. }
+                | Boolean::Parameter { .. }
+                | Boolean::ScalarHome(_)
+                | Boolean::BlockParameter(_)
+        ) && self.boolean(expression, value, aliases)
+    }
+
     fn available_block_value(&self, parameter: &target_operations::TargetScalarBlockValue) -> bool {
         let Some(sources) = self.available else {
             return false;
@@ -57,14 +89,13 @@ impl Checker<'_> {
             Expression::ScalarHome(home) => home.source_value == resolved
                 && matches!(home.scalar_type, ScalarType::Integer(_))
                 && self.available_home(home),
-            Expression::StructuralCall { .. } => self.structural_call(expression, resolved, aliases),
             Expression::ByteSequenceRead { psi_operation, source_value, source, view, index, length, obligation } => {
                 *source_value == resolved
                     && self.byte_view(view, *source, aliases)
                     && self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
                         AbstractOperation::ByteSequenceRead { psi_operation: operation, result, source: expected, index: expected_index, length: expected_length, obligation: expected_obligation }
                         if operation == psi_operation && result.value == resolved && expected == source
-                        && length == expected_length && obligation == expected_obligation && self.expression(index, *expected_index, aliases)))
+                        && length == expected_length && obligation == expected_obligation && self.integer_source(index, *expected_index, aliases)))
             }
             Expression::ByteSequenceLength { psi_operation, source_value, source, view, length_byte_offset } => {
                 *length_byte_offset == 8 && *source_value == resolved
@@ -79,10 +110,6 @@ impl Checker<'_> {
                 let Some(parameter) = self.scalar_parameters().get(*parameter_index) else {return false;};
                 *source_value == value && parameter.value == resolved && location_matches(*location,&parameter.placement)
             }
-            Expression::Call {psi_operation,source_value,callee,arguments,requirement_obligations,crash_continuations} => {
-                let Some(carrier @ ScalarType::Integer(_)) = value_type(self.optimized, resolved) else { return false; };
-                self.call(*psi_operation, *source_value, *callee, arguments, requirement_obligations, crash_continuations, resolved, carrier, aliases)
-            }
             Expression::ExactAdd {psi_operation,obligation,left,right} | Expression::ExactSubtract {psi_operation,obligation,left,right} => {
                 let Some(node) = self.optimized.blocks.iter().flat_map(|block|&block.nodes).find(|node| matches!(&node.operation,
                     AbstractOperation::ExactIntegerAdd {psi_operation:operation,..} | AbstractOperation::ExactIntegerSubtract {psi_operation:operation,..} if operation == psi_operation)) else {return false;};
@@ -91,17 +118,17 @@ impl Checker<'_> {
                     | (AbstractOperation::ExactIntegerSubtract {result,obligation,left,right,..},Expression::ExactSubtract {..}) => (*result,*obligation,*left,*right),
                     _ => return false,
                 };
-                result == resolved && source_obligation == *obligation && self.expression(left,source_left,aliases) && self.expression(right,source_right,aliases)
+                result == resolved && source_obligation == *obligation && self.integer_source(left,source_left,aliases) && self.integer_source(right,source_right,aliases)
             }
             Expression::IntegerWiden { psi_operation, source_type, operand } => {
                 self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
                     AbstractOperation::IntegerWiden { psi_operation: operation, result, source_type: actual_type, operand: source, .. }
-                    if operation == psi_operation && *result == resolved && actual_type == source_type && self.expression(operand, *source, aliases)))
+                    if operation == psi_operation && *result == resolved && actual_type == source_type && self.integer_source(operand, *source, aliases)))
             }
             Expression::IntegerExactCast { psi_operation, obligation, source_type, operand } => {
                 self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
                     AbstractOperation::IntegerExactCast { psi_operation: operation, obligation: expected_obligation, result, source_type: actual_type, operand: source, .. }
-                    if operation == psi_operation && expected_obligation == obligation && *result == resolved && actual_type == source_type && self.expression(operand, *source, aliases)))
+                    if operation == psi_operation && expected_obligation == obligation && *result == resolved && actual_type == source_type && self.integer_source(operand, *source, aliases)))
             }
             _ => false,
         }
@@ -112,27 +139,6 @@ impl Checker<'_> {
         value: ValueId,
         aliases: &[(ValueId, ValueId)],
     ) -> bool {
-        if let Boolean::Call {
-            psi_operation,
-            source_value,
-            callee,
-            arguments,
-            requirement_obligations,
-            crash_continuations,
-        } = expression
-        {
-            return self.call(
-                *psi_operation,
-                *source_value,
-                *callee,
-                arguments,
-                requirement_obligations,
-                crash_continuations,
-                resolve(value, aliases),
-                ScalarType::Boolean,
-                aliases,
-            );
-        }
         if let Boolean::BlockParameter(parameter) = expression {
             return parameter.value == resolve(value, aliases)
                 && parameter.scalar_type == ScalarType::Boolean
@@ -148,8 +154,8 @@ impl Checker<'_> {
                 matches!(&node.operation,
                     AbstractOperation::BooleanEqual { psi_operation: operation, result, left: source_left, right: source_right }
                     if operation == psi_operation && *result == resolve(value, aliases)
-                    && self.boolean(left, *source_left, aliases)
-                    && self.boolean(right, *source_right, aliases))
+                    && self.boolean_source(left, *source_left, aliases)
+                    && self.boolean_source(right, *source_right, aliases))
             });
         }
         if let Boolean::ScalarHome(home) = expression {
@@ -193,7 +199,7 @@ impl Checker<'_> {
         {
             return self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
                 AbstractOperation::BooleanNot { psi_operation: operation, result, operand: source }
-                if operation == psi_operation && *result == resolve(value, aliases) && self.boolean(operand, *source, aliases)));
+                if operation == psi_operation && *result == resolve(value, aliases) && self.boolean_source(operand, *source, aliases)));
         }
         let Some(node) = self
             .optimized
@@ -264,71 +270,7 @@ impl Checker<'_> {
             };
         operation == target_operation
             && value_type(self.optimized, source_left) == Some(ScalarType::Integer(scalar_type))
-            && self.expression(left, source_left, aliases)
-            && self.expression(right, source_right, aliases)
-    }
-    #[allow(clippy::too_many_arguments)]
-    fn call(
-        &self,
-        operation: semantic_vocabulary::OperationId,
-        source: ValueId,
-        target: MachineId,
-        arguments: &[target_operations::TargetCallArgument],
-        requirement_obligations: &[semantic_vocabulary::ObligationId],
-        crash_continuations: &[terminal_psi::CrashRouteBucket],
-        resolved: ValueId,
-        carrier: ScalarType,
-        aliases: &[(ValueId, ValueId)],
-    ) -> bool {
-        let psi_operation = &operation;
-        let source_value = &source;
-        let callee = &target;
-        let Some(node) = self.optimized.blocks.iter().flat_map(|block|&block.nodes).find(|node|matches!(&node.operation,AbstractOperation::Call {psi_operation:operation,..} if operation == psi_operation)) else {return false;};
-        let AbstractOperation::Call {
-            result,
-            callee: actual,
-            arguments: sources,
-            requirement_obligations: requirements,
-            crash_continuations: crashes,
-            ..
-        } = &node.operation
-        else {
-            return false;
-        };
-        let Ok(call) = callee_plan(*callee, self.native, self.plan, self.unit) else {
-            return false;
-        };
-        if value_type(self.optimized, resolved) != Some(carrier)
-            || *source_value != resolved
-            || *result != resolved
-            || actual != callee
-            || requirement_obligations != requirements
-            || crash_continuations != crashes
-            || arguments.len() != sources.len()
-            || arguments.len() != call.parameters.len()
-        {
-            return false;
-        }
-        arguments.iter().zip(sources).zip(&call.parameters).all(
-            |((argument, source), placement)| {
-                value_type(self.optimized, *source) == Some(argument.scalar_type)
-                    && scalar_shape(argument.scalar_type) == Some(placement.shape)
-                    && location_matches(argument.location, placement)
-                    && match &argument.expression {
-                        TargetScalarExpression::IeeeFloat(_) => false,
-                        TargetScalarExpression::Integer {
-                            scalar_type,
-                            expression,
-                        } => {
-                            argument.scalar_type == ScalarType::Integer(*scalar_type)
-                                && self.expression(expression, *source, aliases)
-                        }
-                        TargetScalarExpression::Boolean(expression) => {
-                            argument.scalar_type == ScalarType::Boolean
-                                && self.boolean(expression, *source, aliases)
-                        }
-                    }
-            },
-        )
+            && self.integer_source(left, source_left, aliases)
+            && self.integer_source(right, source_right, aliases)
     }
 }
