@@ -43,11 +43,11 @@ Indexing, for example, keeps its caller obligation visible even when the
 physical operation is compiler-provided:
 
 ```omega
-boundary operator [] Slice::index<T [copy]>(items: &[T], index: u64) -> T
+boundary machine [] Slice::index<T [copy]>(items: &[T], index: u64) -> T
 requires
     index < items.len;
 
-boundary operator [..] Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
+boundary machine [..] Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
 requires
     start <= end && end <= items.len;
 ```

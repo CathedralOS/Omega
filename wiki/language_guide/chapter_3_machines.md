@@ -7,8 +7,9 @@ function-like call is one important use of a machine, not its definition.
 
 > **Machine taxonomy.** Runtime calls, compile-time
 > evaluation, proof citation, concurrent activation, trait satisfaction, and
-> boundary provision consume the same semantic construct. Checked bodies, requirements,
-> external providers, and accepted trust declarations are supply modes, not
+> boundary provision, and operator syntax consume the same semantic construct.
+> Checked bodies, requirements, exact compiler primitives, external providers,
+> and accepted trust declarations are supply modes, not
 > separate machine species. See
 > [machines and contract refinement](../spec/language/machines.md).
 
@@ -26,6 +27,11 @@ The same machine can be called at runtime and evaluated by the compiler when
 its contract, reach, and totality make that evaluation legal. It can also be
 cited as proof, started through a task runtime, or used to satisfy a
 trait/boundary requirement.
+
+An optional fixed token binds operator notation to a named machine:
+`machine + Vec2::add(...) { ... }`. Its body and contracts remain ordinary
+machine code; [chapter 5](chapter_5_expressions_evaluation.md#operators) covers
+selection, ownership, and the bodyless requirement/primitive cases.
 Those contexts change eligibility and lowering; they do not create parallel
 `async`, `proof`, or `const` machine identities.
 

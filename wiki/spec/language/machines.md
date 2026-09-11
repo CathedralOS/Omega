@@ -9,6 +9,12 @@ Machines use named declarations. Static callbacks select those declarations
 and pass ordinary explicit context data. Anonymous machine expressions and implicit
 capture-environment construction are not part of the source language.
 
+A fixed operator token after `machine`, as in `machine + Vec2::add(...)`, binds
+expression syntax to the same named machine. This is not a separate executable
+species or an alternate contract system. [Operator declarations](expressions.md#operator-declarations)
+owns token selection and family ownership; the ordinary supply rules below own
+the body or authorized realization.
+
 Runtime calls, [semantic evaluation](evaluation.md),
 [proof citation](../proofs/contracts.md), task activation, trait satisfaction,
 and boundary import/export consume the same semantic construct. Eligibility
@@ -23,17 +29,26 @@ proof term formers are not additional executable supply modes.
 | --- | --- |
 | Checked body | An ordinary machine with a checked `{ ... }` body, including generated/default bodies after generation. |
 | Required body | A bodyless trait/component machine requirement. |
-| Top-level required body | An explicit carrier-owned `boundary requirement Carrier::operation(...);`. |
+| Top-level required body | An explicit carrier-owned `boundary requirement Carrier::operation(...);`, or a bodyless token-bearing `boundary machine + Carrier::operation(...);` (with any valid fixed token). |
 | External provider | A bodyless `boundary machine` satisfying an exact requirement under its pinned contract and admission policy. |
 | Admission-bearing declaration | A bodyless `boundary machine` publishing an unproved theorem or external-behavior guarantee for separate owner acceptance. |
+| Compiler-supplied primitive | A bodyless exact toolchain declaration with an authorized closed-catalog implementation and fixed semantic contract; not selectable by naming or user registration. |
 
 Required-body forms share one supply meaning. Checked artifacts distinguish
-required, checked, externally supplied, and admission-bearing behavior explicitly;
+required, checked, compiler-supplied, externally supplied, and admission-bearing
+behavior explicitly;
 a `boundary` Boolean cannot represent those distinctions. A claim-free bodyless
-free machine has no supply mode and rejects. Executable bodies always use braces,
-never expression-body syntax. A bodyless `ensures` is a claim, not a theorem by
+free machine outside the authorized compiler catalog has no supply mode and
+rejects. The catalog exception is automatic, not a Build provider selection.
+Executable bodies always use braces, never expression-body syntax. A bodyless
+`ensures` is a claim, not a theorem by
 virtue of its name. Accepted theorem claims use the existing boundary surface,
 not a separate fact declaration.
+
+Token-bearing machines follow these same supply distinctions. Ordinary direct
+declarations own checked bodies; trait requirements use explicit conformances;
+boundary requirements use the existing provider mechanism. `satisfies` does not
+attach an implementation to an otherwise bodyless ordinary direct declaration.
 
 `boundary` marks a crossing, not its direction. Imports and exports are
 artifact-relative; requirements and composition determine provision or demand.
