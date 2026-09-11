@@ -72,9 +72,6 @@ pub(super) fn validate_operation(
         function,
         available: Some(sources),
         optimized,
-        native,
-        plan,
-        unit,
     };
     match (target, abstracted) {
         (

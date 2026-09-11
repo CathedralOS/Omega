@@ -240,16 +240,3 @@ pub enum StraightLineTrivialAffineLocalUnitReturnTranslationError {
     TargetEstablishment,
     TargetReturn,
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StraightLineScalarCrashTranslationError {
-    SourceParameters,
-    SourceStructuralParameters,
-    SourceResult,
-    SourceEntryClaims,
-    SourcePublishedServices,
-    SourceBlockRoster,
-    SourceOperationRoster,
-    TargetProvenance,
-    TargetOperation,
-}

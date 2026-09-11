@@ -250,7 +250,7 @@ fn scalar_graph_header_replay_rejects_coherent_value_abi_substitution() {
 }
 
 #[test]
-fn effect_free_primitive_borrow_scalar_return_remains_unsupported() {
+fn effect_free_primitive_borrow_scalar_return_uses_the_common_graph() {
     let mut source = fixture(false);
     source.functions[0].operations.remove(1);
     for native in [
@@ -259,11 +259,12 @@ fn effect_free_primitive_borrow_scalar_return_remains_unsupported() {
         NativeTarget::macos_arm64(),
         NativeTarget::windows_x64(),
     ] {
+        let target = lower_to_target_operations(&source, native).unwrap();
         assert!(matches!(
-            lower_to_target_operations(&source, native),
-            Err(LoweringError::UnsupportedOperationInScalarFunction(machine))
-                if machine == source.entry
+            target.functions[0].operation,
+            TargetOperation::ControlGraph(_)
         ));
+        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
     }
 }
 

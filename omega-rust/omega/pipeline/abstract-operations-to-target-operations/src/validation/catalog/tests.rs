@@ -1,10 +1,10 @@
 use abstract_operations::{
-    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractResult,
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
 };
 use calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
 use semantic_vocabulary::{
     BlockId, EdgeId, IeeeFloatValue, IntegerSign, IntegerType, IntegerValue, MachineId,
-    ObligationId, OperationId, PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
+    OperationId, PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use target::NativeTarget;
 use target_operations::{
@@ -23,89 +23,8 @@ use crate::{
     AbstractToTargetTranslationFamily, AbstractToTargetTranslationValidationError,
 };
 
-mod boolean_equal_immediate;
-mod boolean_not_immediate;
 mod enabled_families;
-mod integer_bitwise_and_immediate;
-mod integer_bitwise_not_immediate;
-mod integer_bitwise_or_immediate;
-mod integer_bitwise_xor_immediate;
-mod integer_equal_immediate;
-mod integer_exact_cast_immediate_operand;
 mod integer_ieee_float_literal_sequence;
-mod integer_less_or_equal_immediate;
-mod integer_less_than_immediate;
-mod integer_widen_immediate;
-mod saturating_integer_add_immediate;
-mod saturating_integer_divide_immediate_operands;
-mod saturating_integer_multiply_immediate;
-mod saturating_integer_subtract_immediate;
-mod wrapping_integer_add_immediate;
-mod wrapping_integer_divide_immediate_operands;
-mod wrapping_integer_multiply_immediate;
-mod wrapping_integer_remainder_immediate_operands;
-mod wrapping_integer_shift_left_immediate;
-mod wrapping_integer_shift_right_immediate;
-mod wrapping_integer_subtract_immediate;
-
-fn boolean_literal_pair() -> (AbstractFunction, TargetFunction) {
-    let machine = MachineId::new(51_001).unwrap();
-    let entry = BlockId::new(51_002).unwrap();
-    let constant = ValueId::new(51_003).unwrap();
-    let result = ValueId::new(51_004).unwrap();
-    let constant_operation = OperationId::new(51_005).unwrap();
-    let return_edge = EdgeId::new(51_006).unwrap();
-    (
-        AbstractFunction {
-            machine,
-            attachment: None,
-            entry,
-            parameters: Vec::new(),
-            structural_parameters: Vec::new(),
-            result: AbstractFunctionResult::Scalar(AbstractResult {
-                value: result,
-                scalar_type: ScalarType::Boolean,
-            }),
-            entry_claims: Vec::new(),
-            published_service_ceiling: Vec::new(),
-            block_entries: vec![AbstractBlockEntry {
-                structural_parameters: Vec::new(),
-                block: entry,
-                parameters: Vec::new(),
-                operation_offset: 0,
-            }],
-            operations: vec![
-                AbstractOperation::BooleanConstant {
-                    psi_operation: constant_operation,
-                    result: constant,
-                    value: true,
-                },
-                AbstractOperation::Return {
-                    psi_edge: return_edge,
-                    result,
-                    value: constant,
-                    scalar_type: ScalarType::Boolean,
-                    cleanup_actions: Vec::new(),
-                },
-            ],
-        },
-        TargetFunction {
-            machine,
-            attachment: None,
-            scalar_abi: None,
-            mixed_structural_scalar_abi: None,
-            provenance: TerminalPsiProvenance {
-                operations: vec![constant_operation],
-                edges: vec![return_edge],
-            },
-            operation: TargetOperation::ReturnBooleanImmediate {
-                psi_edge: return_edge,
-                source_value: constant,
-                value: true,
-            },
-        },
-    )
-}
 
 fn unit_call_pair() -> (AbstractFunction, TargetFunction) {
     let machine = MachineId::new(52_001).unwrap();
@@ -522,7 +441,7 @@ fn trivial_affine_local_pair() -> (AbstractFunction, TargetFunction) {
 
 #[test]
 fn omission_is_uncovered_while_duplicate_or_overlap_fails_closed() {
-    let (source, target) = boolean_literal_pair();
+    let (source, target) = unit_call_pair();
     let source = &source;
     let target = &target;
     assert_eq!(
@@ -530,10 +449,10 @@ fn omission_is_uncovered_while_duplicate_or_overlap_fails_closed() {
         AbstractToTargetFunctionTranslationDisposition::Uncovered
     );
 
-    let boolean = ENABLED_TRANSLATION_FAMILIES
+    let unit_call = ENABLED_TRANSLATION_FAMILIES
         .iter()
         .find(|descriptor| {
-            descriptor.family == AbstractToTargetTranslationFamily::StraightLineBooleanImmediate
+            descriptor.family == AbstractToTargetTranslationFamily::StraightLineUnitCallReturn
         })
         .copied()
         .unwrap();
@@ -542,36 +461,36 @@ fn omission_is_uncovered_while_duplicate_or_overlap_fails_closed() {
             source,
             NativeTarget::linux_x64(),
             target,
-            &[boolean, boolean]
+            &[unit_call, unit_call]
         ),
         Err(
             AbstractToTargetTranslationValidationError::AmbiguousFunctionFamily {
-                first: AbstractToTargetTranslationFamily::StraightLineBooleanImmediate,
-                second: AbstractToTargetTranslationFamily::StraightLineBooleanImmediate,
+                first: AbstractToTargetTranslationFamily::StraightLineUnitCallReturn,
+                second: AbstractToTargetTranslationFamily::StraightLineUnitCallReturn,
                 ..
             }
         )
     ));
 
-    let TranslationFamilyValidator::Plain(boolean_validator) = boolean.validate else {
-        panic!("the boolean family must use the plain validator contract");
+    let TranslationFamilyValidator::Plain(unit_call_validator) = unit_call.validate else {
+        panic!("the Unit call family must use the plain validator contract");
     };
     let overlapping_alias = TranslationFamilyDescriptor::new(
-        AbstractToTargetTranslationFamily::StraightLineIntegerImmediate,
-        boolean.is_candidate,
-        boolean_validator,
+        AbstractToTargetTranslationFamily::StraightLineUnitReturn,
+        unit_call.is_candidate,
+        unit_call_validator,
     );
     assert!(matches!(
         selection::validate(
             source,
             NativeTarget::linux_x64(),
             target,
-            &[boolean, overlapping_alias]
+            &[unit_call, overlapping_alias]
         ),
         Err(
             AbstractToTargetTranslationValidationError::AmbiguousFunctionFamily {
-                first: AbstractToTargetTranslationFamily::StraightLineBooleanImmediate,
-                second: AbstractToTargetTranslationFamily::StraightLineIntegerImmediate,
+                first: AbstractToTargetTranslationFamily::StraightLineUnitCallReturn,
+                second: AbstractToTargetTranslationFamily::StraightLineUnitReturn,
                 ..
             }
         )

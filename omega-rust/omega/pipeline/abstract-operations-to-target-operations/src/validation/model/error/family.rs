@@ -1,47 +1,5 @@
-//! Closed tagged error carrier for one independently replayed function family.
+//! Closed error carrier for independently replayed Unit and structural families.
 
-mod arithmetic;
-mod shift;
-
-use super::immediate::{
-    StraightLineBooleanEqualImmediateTranslationError,
-    StraightLineBooleanImmediateTranslationError, StraightLineBooleanNotImmediateTranslationError,
-    StraightLineIntegerBitwiseAndImmediateTranslationError,
-    StraightLineIntegerBitwiseNotImmediateTranslationError,
-    StraightLineIntegerBitwiseOrImmediateTranslationError,
-    StraightLineIntegerBitwiseXorImmediateTranslationError,
-    StraightLineIntegerEqualImmediateTranslationError,
-    StraightLineIntegerExactCastImmediateOperandTranslationError,
-    StraightLineIntegerImmediateTranslationError,
-    StraightLineIntegerLessOrEqualImmediateTranslationError,
-    StraightLineIntegerLessThanImmediateTranslationError,
-    StraightLineIntegerWidenImmediateTranslationError,
-    StraightLineSaturatingIntegerAddImmediateTranslationError,
-    StraightLineSaturatingIntegerDivideImmediateOperandsTranslationError,
-    StraightLineSaturatingIntegerMultiplyImmediateTranslationError,
-    StraightLineSaturatingIntegerSubtractImmediateTranslationError,
-    StraightLineWrappingIntegerAddImmediateTranslationError,
-    StraightLineWrappingIntegerDivideImmediateOperandsTranslationError,
-    StraightLineWrappingIntegerMultiplyImmediateTranslationError,
-    StraightLineWrappingIntegerRemainderImmediateOperandsTranslationError,
-    StraightLineWrappingIntegerShiftLeftImmediateTranslationError,
-    StraightLineWrappingIntegerShiftRightImmediateTranslationError,
-    StraightLineWrappingIntegerSubtractImmediateTranslationError,
-};
-use super::parameter::{
-    StraightLineBooleanEqualParametersTranslationError,
-    StraightLineBooleanNotParameterTranslationError, StraightLineBooleanParameterTranslationError,
-    StraightLineIntegerBitwiseAndParametersTranslationError,
-    StraightLineIntegerBitwiseNotParameterTranslationError,
-    StraightLineIntegerBitwiseOrParametersTranslationError,
-    StraightLineIntegerBitwiseXorParametersTranslationError,
-    StraightLineIntegerEqualParametersTranslationError,
-    StraightLineIntegerExactCastParameterTranslationError,
-    StraightLineIntegerLessOrEqualParametersTranslationError,
-    StraightLineIntegerLessThanParametersTranslationError,
-    StraightLineIntegerParameterTranslationError,
-    StraightLineIntegerWidenParameterTranslationError,
-};
 use super::terminal::{
     StraightLineByteSequenceLiteralUnitReturnTranslationError,
     StraightLineIeeeFloatLiteralSequenceUnitReturnTranslationError,
@@ -50,76 +8,17 @@ use super::terminal::{
     StraightLineIntegerLiteralSequenceUnitReturnTranslationError,
     StraightLineIntegerLiteralUnitReturnTranslationError,
     StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturnTranslationError,
-    StraightLinePortWriteUnitReturnTranslationError, StraightLineScalarCrashTranslationError,
+    StraightLinePortWriteUnitReturnTranslationError,
     StraightLineTrivialAffineLocalUnitReturnTranslationError,
     StraightLineUnitCallReturnTranslationError, StraightLineUnitReturnTranslationError,
 };
 use crate::validation::StructuralCallReturnProjectedQualificationValidationError;
-use arithmetic::{
-    ExactAddError, ExactDivideError, ExactMultiplyError, ExactRemainderError, ExactSubtractError,
-    SaturatingAddError, SaturatingDivideError, SaturatingMultiplyError, SaturatingRemainderError,
-    SaturatingSubtractError, WrappingAddError, WrappingDivideError, WrappingMultiplyError,
-    WrappingRemainderError, WrappingSubtractError,
-};
-use shift::{
-    ExactShiftLeftError, ExactShiftRightError, WrappingShiftLeftError, WrappingShiftRightError,
-};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractToTargetTranslationFamilyError {
-    StraightLineIntegerImmediate(StraightLineIntegerImmediateTranslationError),
-    StraightLineIntegerWidenImmediate(StraightLineIntegerWidenImmediateTranslationError),
-    StraightLineIntegerBitwiseAndImmediate(StraightLineIntegerBitwiseAndImmediateTranslationError),
-    StraightLineIntegerBitwiseOrImmediate(StraightLineIntegerBitwiseOrImmediateTranslationError),
-    StraightLineIntegerBitwiseXorImmediate(StraightLineIntegerBitwiseXorImmediateTranslationError),
-    StraightLineSaturatingIntegerAddImmediate(
-        StraightLineSaturatingIntegerAddImmediateTranslationError,
-    ),
-    StraightLineSaturatingIntegerSubtractImmediate(
-        StraightLineSaturatingIntegerSubtractImmediateTranslationError,
-    ),
-    StraightLineSaturatingIntegerMultiplyImmediate(
-        StraightLineSaturatingIntegerMultiplyImmediateTranslationError,
-    ),
-    StraightLineWrappingIntegerAddImmediate(
-        StraightLineWrappingIntegerAddImmediateTranslationError,
-    ),
-    StraightLineWrappingIntegerDivideImmediateOperands(
-        StraightLineWrappingIntegerDivideImmediateOperandsTranslationError,
-    ),
-    StraightLineWrappingIntegerRemainderImmediateOperands(
-        StraightLineWrappingIntegerRemainderImmediateOperandsTranslationError,
-    ),
-    StraightLineSaturatingIntegerDivideImmediateOperands(
-        StraightLineSaturatingIntegerDivideImmediateOperandsTranslationError,
-    ),
-    StraightLineWrappingIntegerSubtractImmediate(
-        StraightLineWrappingIntegerSubtractImmediateTranslationError,
-    ),
-    StraightLineWrappingIntegerMultiplyImmediate(
-        StraightLineWrappingIntegerMultiplyImmediateTranslationError,
-    ),
-    StraightLineWrappingIntegerShiftLeftImmediate(
-        StraightLineWrappingIntegerShiftLeftImmediateTranslationError,
-    ),
-    StraightLineWrappingIntegerShiftRightImmediate(
-        StraightLineWrappingIntegerShiftRightImmediateTranslationError,
-    ),
-    StraightLineIntegerBitwiseNotImmediate(StraightLineIntegerBitwiseNotImmediateTranslationError),
-    StraightLineIntegerEqualImmediate(StraightLineIntegerEqualImmediateTranslationError),
-    StraightLineIntegerLessThanImmediate(StraightLineIntegerLessThanImmediateTranslationError),
-    StraightLineIntegerLessOrEqualImmediate(
-        StraightLineIntegerLessOrEqualImmediateTranslationError,
-    ),
-    StraightLineIntegerExactCastImmediateOperand(
-        StraightLineIntegerExactCastImmediateOperandTranslationError,
-    ),
-    StraightLineBooleanImmediate(StraightLineBooleanImmediateTranslationError),
-    StraightLineBooleanNotImmediate(StraightLineBooleanNotImmediateTranslationError),
-    StraightLineBooleanEqualImmediate(StraightLineBooleanEqualImmediateTranslationError),
+    StraightLineUnitCallReturn(StraightLineUnitCallReturnTranslationError),
     StraightLineUnitReturn(StraightLineUnitReturnTranslationError),
     StraightLinePortWriteUnitReturn(StraightLinePortWriteUnitReturnTranslationError),
-    StraightLineUnitCallReturn(StraightLineUnitCallReturnTranslationError),
     StraightLineByteSequenceLiteralUnitReturn(
         StraightLineByteSequenceLiteralUnitReturnTranslationError,
     ),
@@ -140,45 +39,6 @@ pub enum AbstractToTargetTranslationFamilyError {
     StraightLineTrivialAffineLocalUnitReturn(
         StraightLineTrivialAffineLocalUnitReturnTranslationError,
     ),
-    StraightLineScalarCrash(StraightLineScalarCrashTranslationError),
-    StraightLineIntegerParameter(StraightLineIntegerParameterTranslationError),
-    StraightLineBooleanParameter(StraightLineBooleanParameterTranslationError),
-    StraightLineBooleanNotParameter(StraightLineBooleanNotParameterTranslationError),
-    StraightLineIntegerBitwiseNotParameter(StraightLineIntegerBitwiseNotParameterTranslationError),
-    StraightLineBooleanEqualParameters(StraightLineBooleanEqualParametersTranslationError),
-    StraightLineIntegerEqualParameters(StraightLineIntegerEqualParametersTranslationError),
-    StraightLineIntegerLessThanParameters(StraightLineIntegerLessThanParametersTranslationError),
-    StraightLineIntegerLessOrEqualParameters(
-        StraightLineIntegerLessOrEqualParametersTranslationError,
-    ),
-    StraightLineIntegerWidenParameter(StraightLineIntegerWidenParameterTranslationError),
-    StraightLineIntegerExactCastParameter(StraightLineIntegerExactCastParameterTranslationError),
-    StraightLineIntegerBitwiseAndParameters(
-        StraightLineIntegerBitwiseAndParametersTranslationError,
-    ),
-    StraightLineIntegerBitwiseOrParameters(StraightLineIntegerBitwiseOrParametersTranslationError),
-    StraightLineIntegerBitwiseXorParameters(
-        StraightLineIntegerBitwiseXorParametersTranslationError,
-    ),
-    StraightLineWrappingIntegerShiftLeftParameters(WrappingShiftLeftError),
-    StraightLineWrappingIntegerShiftRightParameters(WrappingShiftRightError),
-    StraightLineExactIntegerShiftLeftParameters(ExactShiftLeftError),
-    StraightLineExactIntegerShiftRightParameters(ExactShiftRightError),
-    StraightLineExactIntegerAddParameters(ExactAddError),
-    StraightLineExactIntegerSubtractParameters(ExactSubtractError),
-    StraightLineExactIntegerMultiplyParameters(ExactMultiplyError),
-    StraightLineExactIntegerDivideParameters(ExactDivideError),
-    StraightLineExactIntegerRemainderParameters(ExactRemainderError),
-    StraightLineWrappingIntegerDivideParameters(WrappingDivideError),
-    StraightLineWrappingIntegerRemainderParameters(WrappingRemainderError),
-    StraightLineSaturatingIntegerDivideParameters(SaturatingDivideError),
-    StraightLineSaturatingIntegerRemainderParameters(SaturatingRemainderError),
-    StraightLineSaturatingIntegerAddParameters(SaturatingAddError),
-    StraightLineWrappingIntegerAddParameters(WrappingAddError),
-    StraightLineSaturatingIntegerSubtractParameters(SaturatingSubtractError),
-    StraightLineWrappingIntegerSubtractParameters(WrappingSubtractError),
-    StraightLineWrappingIntegerMultiplyParameters(WrappingMultiplyError),
-    StraightLineSaturatingIntegerMultiplyParameters(SaturatingMultiplyError),
     StructuralCallReturnCaller(StructuralCallReturnProjectedQualificationValidationError),
     StructuralParameterReturnCallee(StructuralCallReturnProjectedQualificationValidationError),
 }

@@ -241,9 +241,6 @@ pub(super) fn validate(
                             function,
                             available: Some(&available),
                             optimized,
-                            native,
-                            plan,
-                            unit,
                         };
                         match expression {
                             TargetScalarExpression::IeeeFloat(source) => {
@@ -261,11 +258,11 @@ pub(super) fn validate(
                                 expression,
                             } => {
                                 *expected_type == ScalarType::Integer(*scalar_type)
-                                    && checker.expression(expression, *value, &[])
+                                    && checker.integer_source(expression, *value, &[])
                             }
                             TargetScalarExpression::Boolean(expression) => {
                                 *expected_type == ScalarType::Boolean
-                                    && checker.boolean(expression, *value, &[])
+                                    && checker.boolean_source(expression, *value, &[])
                             }
                         }
                     }
@@ -341,11 +338,8 @@ pub(super) fn validate(
                         function,
                         available: Some(&available),
                         optimized,
-                        native,
-                        plan,
-                        unit,
                     })
-                    .boolean(condition, *expected, &[])
+                    .boolean_source(condition, *expected, &[])
                     && successor_matches(when_true, expected_true)
                     && successor_matches(when_false, expected_false)
             }

@@ -1,188 +1,24 @@
 //! Exact receipt-to-family identity projection.
 
-mod arithmetic;
-mod shift;
-
 use super::AbstractToTargetFunctionTranslationReceipt;
 use crate::validation::model::AbstractToTargetTranslationFamily;
 
 impl AbstractToTargetFunctionTranslationReceipt {
     pub const fn family(&self) -> AbstractToTargetTranslationFamily {
         match self {
-            Self::StraightLineIntegerImmediate(_) => {
-                AbstractToTargetTranslationFamily::StraightLineIntegerImmediate
-            }
-            Self::StraightLineIntegerWidenImmediate(_) => {
-                AbstractToTargetTranslationFamily::StraightLineIntegerWidenImmediate
-            }
-            Self::StraightLineIntegerBitwiseAndImmediate(_) => {
-                AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseAndImmediate
-            }
-            Self::StraightLineIntegerBitwiseOrImmediate(_) => {
-                AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseOrImmediate
-            }
-            Self::StraightLineIntegerBitwiseXorImmediate(_) => {
-                AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseXorImmediate
-            }
-            Self::StraightLineSaturatingIntegerAddImmediate(_) => {
-                AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerAddImmediate
-            }
-            Self::StraightLineSaturatingIntegerSubtractImmediate(_) => {
-                AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerSubtractImmediate
-            }
-            Self::StraightLineWrappingIntegerAddImmediate(_) => {
-                AbstractToTargetTranslationFamily::StraightLineWrappingIntegerAddImmediate
-            }
-            Self::StraightLineWrappingIntegerDivideImmediateOperands(_) => {
-                AbstractToTargetTranslationFamily::StraightLineWrappingIntegerDivideImmediateOperands
-            }
-            Self::StraightLineWrappingIntegerRemainderImmediateOperands(_) => {
-                AbstractToTargetTranslationFamily::StraightLineWrappingIntegerRemainderImmediateOperands
-            }
-            Self::StraightLineSaturatingIntegerDivideImmediateOperands(_) => {
-                AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerDivideImmediateOperands
-            }
-            Self::StraightLineWrappingIntegerSubtractImmediate(_) => {
-                AbstractToTargetTranslationFamily::StraightLineWrappingIntegerSubtractImmediate
-            }
-            Self::StraightLineWrappingIntegerMultiplyImmediate(_) => {
-                AbstractToTargetTranslationFamily::StraightLineWrappingIntegerMultiplyImmediate
-            }
-            Self::StraightLineSaturatingIntegerMultiplyImmediate(_) => {
-                AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerMultiplyImmediate
-            }
-            Self::StraightLineWrappingIntegerShiftLeftImmediate(_) => {
-                AbstractToTargetTranslationFamily::StraightLineWrappingIntegerShiftLeftImmediate
-            }
-            Self::StraightLineWrappingIntegerShiftRightImmediate(_) => {
-                AbstractToTargetTranslationFamily::StraightLineWrappingIntegerShiftRightImmediate
-            }
-            Self::StraightLineIntegerBitwiseNotImmediate(_) => {
-                AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseNotImmediate
-            }
-            Self::StraightLineIntegerEqualImmediate(_) => {
-                AbstractToTargetTranslationFamily::StraightLineIntegerEqualImmediate
-            }
-            Self::StraightLineIntegerLessThanImmediate(_) => {
-                AbstractToTargetTranslationFamily::StraightLineIntegerLessThanImmediate
-            }
-            Self::StraightLineIntegerLessOrEqualImmediate(_) => {
-                AbstractToTargetTranslationFamily::StraightLineIntegerLessOrEqualImmediate
-            }
-            Self::StraightLineIntegerExactCastImmediateOperand(_) => {
-                AbstractToTargetTranslationFamily::StraightLineIntegerExactCastImmediateOperand
-            }
-            Self::StraightLineBooleanImmediate(_) => {
-                AbstractToTargetTranslationFamily::StraightLineBooleanImmediate
-            }
-            Self::StraightLineBooleanNotImmediate(_) => {
-                AbstractToTargetTranslationFamily::StraightLineBooleanNotImmediate
-            }
-            Self::StraightLineBooleanEqualImmediate(_) => {
-                AbstractToTargetTranslationFamily::StraightLineBooleanEqualImmediate
-            }
-            Self::StraightLineUnitReturn(_) => {
-                AbstractToTargetTranslationFamily::StraightLineUnitReturn
-            }
-            Self::StraightLinePortWriteUnitReturn(_) => {
-                AbstractToTargetTranslationFamily::StraightLinePortWriteUnitReturn
-            }
-            Self::StraightLineUnitCallReturn(_) => {
-                AbstractToTargetTranslationFamily::StraightLineUnitCallReturn
-            }
-            Self::StraightLineByteSequenceLiteralUnitReturn(_) => {
-                AbstractToTargetTranslationFamily::StraightLineByteSequenceLiteralUnitReturn
-            }
-            Self::StraightLineIntegerLiteralUnitReturn(_) => {
-                AbstractToTargetTranslationFamily::StraightLineIntegerLiteralUnitReturn
-            }
-            Self::StraightLineIntegerLiteralSequenceUnitReturn(_) => {
-                AbstractToTargetTranslationFamily::StraightLineIntegerLiteralSequenceUnitReturn
-            }
-            Self::StraightLineIeeeFloatLiteralUnitReturn(_) => {
-                AbstractToTargetTranslationFamily::StraightLineIeeeFloatLiteralUnitReturn
-            }
-            Self::StraightLineIeeeFloatLiteralSequenceUnitReturn(_) => {
-                AbstractToTargetTranslationFamily::StraightLineIeeeFloatLiteralSequenceUnitReturn
-            }
-            Self::StraightLineIntegerIeeeFloatLiteralSequenceUnitReturn(_) => {
-                AbstractToTargetTranslationFamily::StraightLineIntegerIeeeFloatLiteralSequenceUnitReturn
-            }
-            Self::StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturn(_) => {
-                AbstractToTargetTranslationFamily::StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturn
-            }
-            Self::StraightLineTrivialAffineLocalUnitReturn(_) => {
-                AbstractToTargetTranslationFamily::StraightLineTrivialAffineLocalUnitReturn
-            }
-            Self::StraightLineScalarCrash(_) => {
-                AbstractToTargetTranslationFamily::StraightLineScalarCrash
-            }
-            Self::StraightLineIntegerParameter(_) => {
-                AbstractToTargetTranslationFamily::StraightLineIntegerParameter
-            }
-            Self::StraightLineBooleanParameter(_) => {
-                AbstractToTargetTranslationFamily::StraightLineBooleanParameter
-            }
-            Self::StraightLineBooleanNotParameter(_) => {
-                AbstractToTargetTranslationFamily::StraightLineBooleanNotParameter
-            }
-            Self::StraightLineIntegerBitwiseNotParameter(_) => {
-                AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseNotParameter
-            }
-            Self::StraightLineBooleanEqualParameters(_) => {
-                AbstractToTargetTranslationFamily::StraightLineBooleanEqualParameters
-            }
-            Self::StraightLineIntegerEqualParameters(_) => {
-                AbstractToTargetTranslationFamily::StraightLineIntegerEqualParameters
-            }
-            Self::StraightLineIntegerLessThanParameters(_) => {
-                AbstractToTargetTranslationFamily::StraightLineIntegerLessThanParameters
-            }
-            Self::StraightLineIntegerLessOrEqualParameters(_) => {
-                AbstractToTargetTranslationFamily::StraightLineIntegerLessOrEqualParameters
-            }
-            Self::StraightLineIntegerWidenParameter(_) => {
-                AbstractToTargetTranslationFamily::StraightLineIntegerWidenParameter
-            }
-            Self::StraightLineIntegerExactCastParameter(_) => {
-                AbstractToTargetTranslationFamily::StraightLineIntegerExactCastParameter
-            }
-            Self::StraightLineIntegerBitwiseAndParameters(_) => {
-                AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseAndParameters
-            }
-            Self::StraightLineIntegerBitwiseOrParameters(_) => {
-                AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseOrParameters
-            }
-            Self::StraightLineIntegerBitwiseXorParameters(_) => {
-                AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseXorParameters
-            }
-            Self::StructuralCallReturnCaller(_) => {
-                AbstractToTargetTranslationFamily::StructuralCallReturnCaller
-            }
-            Self::StructuralParameterReturnCallee(_) => {
-                AbstractToTargetTranslationFamily::StructuralParameterReturnCallee
-            }
-            receipt @ (Self::StraightLineWrappingIntegerShiftLeftParameters(_)
-            | Self::StraightLineWrappingIntegerShiftRightParameters(_)
-            | Self::StraightLineExactIntegerShiftLeftParameters(_)
-            | Self::StraightLineExactIntegerShiftRightParameters(_)) => shift::family(receipt),
-            receipt @ (Self::StraightLineExactIntegerAddParameters(_)
-            | Self::StraightLineExactIntegerSubtractParameters(_)
-            | Self::StraightLineExactIntegerMultiplyParameters(_)
-            | Self::StraightLineExactIntegerDivideParameters(_)
-            | Self::StraightLineExactIntegerRemainderParameters(_)
-            | Self::StraightLineWrappingIntegerDivideParameters(_)
-            | Self::StraightLineWrappingIntegerRemainderParameters(_)
-            | Self::StraightLineSaturatingIntegerDivideParameters(_)
-            | Self::StraightLineSaturatingIntegerRemainderParameters(_)
-            | Self::StraightLineSaturatingIntegerAddParameters(_)
-            | Self::StraightLineWrappingIntegerAddParameters(_)
-            | Self::StraightLineSaturatingIntegerSubtractParameters(_)
-            | Self::StraightLineWrappingIntegerSubtractParameters(_)
-            | Self::StraightLineWrappingIntegerMultiplyParameters(_)
-            | Self::StraightLineSaturatingIntegerMultiplyParameters(_)) => {
-                arithmetic::family(receipt)
-            }
+            Self::StraightLineUnitCallReturn(_) => AbstractToTargetTranslationFamily::StraightLineUnitCallReturn,
+            Self::StraightLineUnitReturn(_) => AbstractToTargetTranslationFamily::StraightLineUnitReturn,
+            Self::StraightLinePortWriteUnitReturn(_) => AbstractToTargetTranslationFamily::StraightLinePortWriteUnitReturn,
+            Self::StraightLineByteSequenceLiteralUnitReturn(_) => AbstractToTargetTranslationFamily::StraightLineByteSequenceLiteralUnitReturn,
+            Self::StraightLineIntegerLiteralUnitReturn(_) => AbstractToTargetTranslationFamily::StraightLineIntegerLiteralUnitReturn,
+            Self::StraightLineIntegerLiteralSequenceUnitReturn(_) => AbstractToTargetTranslationFamily::StraightLineIntegerLiteralSequenceUnitReturn,
+            Self::StraightLineIeeeFloatLiteralUnitReturn(_) => AbstractToTargetTranslationFamily::StraightLineIeeeFloatLiteralUnitReturn,
+            Self::StraightLineIeeeFloatLiteralSequenceUnitReturn(_) => AbstractToTargetTranslationFamily::StraightLineIeeeFloatLiteralSequenceUnitReturn,
+            Self::StraightLineIntegerIeeeFloatLiteralSequenceUnitReturn(_) => AbstractToTargetTranslationFamily::StraightLineIntegerIeeeFloatLiteralSequenceUnitReturn,
+            Self::StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturn(_) => AbstractToTargetTranslationFamily::StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturn,
+            Self::StraightLineTrivialAffineLocalUnitReturn(_) => AbstractToTargetTranslationFamily::StraightLineTrivialAffineLocalUnitReturn,
+            Self::StructuralCallReturnCaller(_) => AbstractToTargetTranslationFamily::StructuralCallReturnCaller,
+            Self::StructuralParameterReturnCallee(_) => AbstractToTargetTranslationFamily::StructuralParameterReturnCallee,
         }
     }
 }

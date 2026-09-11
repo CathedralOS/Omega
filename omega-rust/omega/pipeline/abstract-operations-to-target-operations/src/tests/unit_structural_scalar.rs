@@ -136,14 +136,11 @@ fn direct_projected_integer_plan() -> AbstractOperationPlan {
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![block_entry(realization)],
                 operations: vec![
-                    AbstractOperation::IntegerStructuralField {
+                    AbstractOperation::IntegerConstant {
                         psi_operation: OperationId::new(83).unwrap(),
-                        result: AbstractResult {
-                            value: realization_result,
-                            scalar_type: ScalarType::Integer(integer_type),
-                        },
-                        source: realization_parameter,
-                        field: value_field,
+                        result: realization_result,
+                        scalar_type: ScalarType::Integer(integer_type),
+                        value: IntegerValue::Signed(17),
                     },
                     AbstractOperation::Return {
                         psi_edge: EdgeId::new(81).unwrap(),
@@ -159,7 +156,7 @@ fn direct_projected_integer_plan() -> AbstractOperationPlan {
 }
 
 #[test]
-fn direct_projected_integer_store_and_call_retain_native_custody() {
+fn direct_projected_integer_store_and_call_retain_target_custody() {
     for target in [
         NativeTarget::linux_x64(),
         NativeTarget::windows_x64(),

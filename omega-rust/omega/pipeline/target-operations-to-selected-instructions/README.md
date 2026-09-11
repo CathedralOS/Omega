@@ -23,6 +23,12 @@ virtual registers, exact fixed ABI constraints and machine effects. Roster order
 is not control-flow order. Arithmetic and calls use the same ordinary graph;
 physical register homes, liveness, frame storage and emission are downstream jobs.
 
+Ordinary scalar-result input must already be a `TargetControlGraph`; this stage
+does not convert retired scalar-return or whole-function expression-tree forms.
+The shared source/replay custody check enforces that rule before specialized
+publication paths can run. The separately verified ranked-countdown contract is
+unchanged. Legalization validator identity v47 records this admission cut.
+
 Each instruction retains operation, obligation, value, definition and fuel
 provenance. Successor bindings preserve semantic identities and explicit register
 transport, with exact edge, polarity, target and taken-edge fuel. Fixed views are

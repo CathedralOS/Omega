@@ -3,7 +3,6 @@
 mod boundary_settlements;
 mod cleanup;
 mod compatibility;
-mod conditional_cleanup;
 mod control_flow;
 mod coordination;
 mod function;
@@ -43,9 +42,7 @@ pub(crate) use {
         lower_to_target_operations_with_settlements as lower_with_settlements_for_tests,
         validate_native_callback_target_rows as validate_native_callback_target_rows_for_tests,
     },
-    scalar::lower_scalar_function as lower_scalar_function_for_tests,
     structural_layout::structural_shape as structural_shape_for_tests,
-    structural_type_lookup::StructuralTypeLookup as StructuralTypeLookupForTests,
 };
 
 pub fn lower_to_target_operations(

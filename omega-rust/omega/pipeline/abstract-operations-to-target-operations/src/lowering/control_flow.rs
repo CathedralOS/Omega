@@ -51,6 +51,9 @@ pub(super) fn lower(
     native_callbacks: &BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>,
 ) -> Result<TargetFunction, LoweringError> {
     let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
+    if function.block_entries.is_empty() {
+        return Err(invalid());
+    }
     let unobserved_owned = super::unobserved_owned::accepts(function, structural_types);
     // Invocation borrows keep their original places throughout the graph.
     // Shared signature preparation owns referent layout and ABI placement;

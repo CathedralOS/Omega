@@ -1,4 +1,4 @@
-//! Immutable byte observations shared by straight-line and conditional lowering.
+//! Byte observation and view operations for common graph lowering.
 
 use super::*;
 use target_operations::TargetByteView;
@@ -115,25 +115,6 @@ pub(in crate::lowering) fn mutable_parameter_view(
             placement: parameter.placement.clone(),
         },
     ))
-}
-
-pub(super) fn lower_byte_observation(
-    operation: &AbstractOperation,
-    function: &AbstractFunction,
-    structural_types: &StructuralTypeLookup<'_>,
-    parameters: &[TargetStructuralParameter],
-    values: &mut BTreeMap<ValueId, KnownScalar>,
-    provenance: &mut Vec<OperationId>,
-) -> Result<bool, LoweringError> {
-    lower_byte_observation_with_lengths(
-        operation,
-        function,
-        structural_types,
-        parameters,
-        values,
-        &BTreeMap::new(),
-        provenance,
-    )
 }
 
 /// Unit scalar homes retain residence, while this separate live roster retains

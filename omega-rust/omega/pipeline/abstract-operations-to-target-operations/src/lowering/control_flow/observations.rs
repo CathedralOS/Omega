@@ -252,13 +252,13 @@ pub(super) fn lower(
             left,
             right,
         } => {
-            use crate::lowering::scalar::{IntegerBinaryKind, lower_conditional_integer_binary};
+            use crate::lowering::scalar::{IntegerBinaryKind, lower_integer_binary};
             let kind = if matches!(operation, AbstractOperation::ExactIntegerAdd { .. }) {
                 IntegerBinaryKind::ExactAdd(*obligation)
             } else {
                 IntegerBinaryKind::ExactSubtract(*obligation)
             };
-            let known = lower_conditional_integer_binary(
+            let known = lower_integer_binary(
                 &values,
                 *result,
                 *scalar_type,

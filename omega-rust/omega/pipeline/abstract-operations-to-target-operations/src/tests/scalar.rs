@@ -6,552 +6,125 @@ mod straight_line_blocks;
 use fixtures::{direct_call_plan, parameter_return_plan};
 
 #[test]
-fn selects_native_register_and_stack_locations_for_runtime_parameters() {
-    let register_cases = [
-        (
-            NativeTarget::linux_x64(),
-            ScalarParameterLocation::Register(MachineRegister::X86Rdi),
-        ),
-        (
-            NativeTarget::windows_x64(),
-            ScalarParameterLocation::Register(MachineRegister::X86Rcx),
-        ),
-        (
-            NativeTarget::linux_arm64(),
-            ScalarParameterLocation::Register(MachineRegister::Aarch64X(0)),
-        ),
-    ];
-    for (target, expected) in register_cases {
-        let lowered = lower_to_target_operations(&parameter_return_plan(1), target).unwrap();
-        assert!(matches!(
-            lowered.functions[0].operation,
-            TargetOperation::ReturnIntegerParameter {
-                parameter_index: 0,
-                location,
-                ..
-            } if location == expected
-        ));
-    }
-
-    let stack_cases = [
-        (
-            NativeTarget::linux_x64(),
-            ScalarParameterLocation::IncomingStack { byte_offset: 16 },
-        ),
-        (
-            NativeTarget::windows_x64(),
-            ScalarParameterLocation::IncomingStack { byte_offset: 64 },
-        ),
-        (
-            NativeTarget::linux_arm64(),
-            ScalarParameterLocation::IncomingStack { byte_offset: 0 },
-        ),
-    ];
-    for (target, expected) in stack_cases {
-        let lowered = lower_to_target_operations(&parameter_return_plan(9), target).unwrap();
-        assert!(matches!(
-            lowered.functions[0].operation,
-            TargetOperation::ReturnIntegerParameter {
-                parameter_index: 8,
-                location,
-                ..
-            } if location == expected
-        ));
-    }
-}
-
-#[test]
-fn direct_calls_retain_stack_locations_from_the_callee_call_plan() {
-    let stack_cases = [
-        (
-            NativeTarget::linux_x64(),
-            ScalarParameterLocation::IncomingStack { byte_offset: 16 },
-        ),
-        (
-            NativeTarget::windows_x64(),
-            ScalarParameterLocation::IncomingStack { byte_offset: 64 },
-        ),
-        (
-            NativeTarget::linux_arm64(),
-            ScalarParameterLocation::IncomingStack { byte_offset: 0 },
-        ),
-    ];
-    for (target, expected) in stack_cases {
-        let lowered = lower_to_target_operations(&direct_call_plan(9), target).unwrap();
-        let TargetOperation::ReturnIntegerExpression { expression, .. } =
-            &lowered.functions[0].operation
-        else {
-            panic!("caller must return its call result")
-        };
-        let TargetIntegerExpression::Call {
-            arguments,
-            requirement_obligations,
-            crash_continuations,
-            ..
-        } = expression
-        else {
-            panic!("caller result must remain a direct call")
-        };
-        assert_eq!(arguments[8].location, expected);
-        assert_eq!(requirement_obligations, &[ObligationId::new(700).unwrap()]);
-        assert_eq!(
-            crash_continuations,
-            &[CrashRouteBucket {
-                cause: CrashCause::Trap,
-                alternatives: vec![CrashRouteGuard::Truth],
-            }]
-        );
-    }
-}
-
-#[test]
-fn lowers_runtime_parameter_arithmetic_to_a_typed_target_expression() {
-    let mut plan = parameter_return_plan(2);
-    let function = &mut plan.functions[0];
-    let sum = ValueId::new(50).expect("sum");
-    let scalar_type = match scalar_result(function).scalar_type {
-        ScalarType::Integer(integer) => integer,
-        ScalarType::Boolean | ScalarType::IeeeFloat(_) => unreachable!("fixture is integer"),
-    };
-    function.operations.insert(
-        0,
-        AbstractOperation::WrappingIntegerAdd {
-            psi_operation: semantic_vocabulary::OperationId::new(50).expect("operation"),
-            result: sum,
-            scalar_type,
-            left: function.parameters[0].value,
-            right: function.parameters[1].value,
-        },
-    );
-    let AbstractOperation::Return { value, .. } = &mut function.operations[1] else {
-        unreachable!("fixture ends in return")
-    };
-    *value = sum;
-
-    let lowered = lower_to_target_operations(&plan, NativeTarget::host()).unwrap();
-    assert!(matches!(
-        &lowered.functions[0].operation,
-        TargetOperation::ReturnIntegerExpression {
-            source_value,
-            scalar_type: result_type,
-            expression: TargetIntegerExpression::WrappingAdd {
-                psi_operation,
-                left,
-                right,
-            },
-            ..
-        } if *source_value == sum
-            && *result_type == scalar_type
-            && *psi_operation == semantic_vocabulary::OperationId::new(50).expect("operation")
-            && matches!(
-                left.as_ref(),
-                TargetIntegerExpression::Parameter {
-                    parameter_index: 0,
-                    ..
-                }
-            )
-            && matches!(
-                right.as_ref(),
-                TargetIntegerExpression::Parameter {
-                    parameter_index: 1,
-                    ..
-                }
-            )
-    ));
-}
-
-#[test]
-fn folds_closed_wrapping_subtraction_at_the_declared_width() {
-    let mut plan = parameter_return_plan(1);
-    let function = &mut plan.functions[0];
-    let left = ValueId::new(50).expect("left");
-    let right = ValueId::new(51).expect("right");
-    let difference = ValueId::new(52).expect("difference");
-    let scalar_type = match scalar_result(function).scalar_type {
-        ScalarType::Integer(integer) => integer,
-        ScalarType::Boolean | ScalarType::IeeeFloat(_) => unreachable!("fixture is integer"),
-    };
-    function.operations.splice(
-        0..0,
-        [
-            AbstractOperation::IntegerConstant {
-                psi_operation: semantic_vocabulary::OperationId::new(50).expect("left operation"),
-                result: left,
-                scalar_type: ScalarType::Integer(scalar_type),
-                value: IntegerValue::Unsigned(5),
-            },
-            AbstractOperation::IntegerConstant {
-                psi_operation: semantic_vocabulary::OperationId::new(51).expect("right operation"),
-                result: right,
-                scalar_type: ScalarType::Integer(scalar_type),
-                value: IntegerValue::Unsigned(10),
-            },
-            AbstractOperation::WrappingIntegerSubtract {
-                psi_operation: semantic_vocabulary::OperationId::new(52)
-                    .expect("subtract operation"),
-                result: difference,
-                scalar_type,
-                left,
-                right,
-            },
-        ],
-    );
-    let AbstractOperation::Return { value, .. } = function.operations.last_mut().expect("return")
-    else {
-        unreachable!("fixture ends in return")
-    };
-    *value = difference;
-
-    let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
-    assert!(matches!(
-        lowered.functions[0].operation,
-        TargetOperation::ReturnIntegerImmediate {
-            source_value,
-            scalar_type: result_type,
-            value: IntegerValue::Unsigned(251),
-            ..
-        } if source_value == difference && result_type == scalar_type
-    ));
-}
-
-#[test]
-fn folds_closed_saturating_subtraction_at_zero() {
-    let mut plan = parameter_return_plan(1);
-    let function = &mut plan.functions[0];
-    let left = ValueId::new(50).expect("left");
-    let right = ValueId::new(51).expect("right");
-    let difference = ValueId::new(52).expect("difference");
-    let scalar_type = match scalar_result(function).scalar_type {
-        ScalarType::Integer(integer) => integer,
-        ScalarType::Boolean | ScalarType::IeeeFloat(_) => unreachable!("fixture is integer"),
-    };
-    function.operations.splice(
-        0..0,
-        [
-            AbstractOperation::IntegerConstant {
-                psi_operation: semantic_vocabulary::OperationId::new(50).expect("left operation"),
-                result: left,
-                scalar_type: ScalarType::Integer(scalar_type),
-                value: IntegerValue::Unsigned(5),
-            },
-            AbstractOperation::IntegerConstant {
-                psi_operation: semantic_vocabulary::OperationId::new(51).expect("right operation"),
-                result: right,
-                scalar_type: ScalarType::Integer(scalar_type),
-                value: IntegerValue::Unsigned(10),
-            },
-            AbstractOperation::SaturatingIntegerSubtract {
-                psi_operation: semantic_vocabulary::OperationId::new(52)
-                    .expect("subtract operation"),
-                result: difference,
-                scalar_type,
-                left,
-                right,
-            },
-        ],
-    );
-    let AbstractOperation::Return { value, .. } = function.operations.last_mut().expect("return")
-    else {
-        unreachable!("fixture ends in return")
-    };
-    *value = difference;
-
-    let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
-    assert!(matches!(
-        lowered.functions[0].operation,
-        TargetOperation::ReturnIntegerImmediate {
-            source_value,
-            scalar_type: result_type,
-            value: IntegerValue::Unsigned(0),
-            ..
-        } if source_value == difference && result_type == scalar_type
-    ));
-}
-
-#[test]
-fn folds_closed_wrapping_multiplication_at_the_declared_width() {
-    let mut plan = parameter_return_plan(1);
-    let function = &mut plan.functions[0];
-    let left = ValueId::new(50).expect("left");
-    let right = ValueId::new(51).expect("right");
-    let product = ValueId::new(52).expect("product");
-    let scalar_type = match scalar_result(function).scalar_type {
-        ScalarType::Integer(integer) => integer,
-        ScalarType::Boolean | ScalarType::IeeeFloat(_) => unreachable!("fixture is integer"),
-    };
-    function.operations.splice(
-        0..0,
-        [
-            AbstractOperation::IntegerConstant {
-                psi_operation: semantic_vocabulary::OperationId::new(50).expect("left operation"),
-                result: left,
-                scalar_type: ScalarType::Integer(scalar_type),
-                value: IntegerValue::Unsigned(20),
-            },
-            AbstractOperation::IntegerConstant {
-                psi_operation: semantic_vocabulary::OperationId::new(51).expect("right operation"),
-                result: right,
-                scalar_type: ScalarType::Integer(scalar_type),
-                value: IntegerValue::Unsigned(13),
-            },
-            AbstractOperation::WrappingIntegerMultiply {
-                psi_operation: semantic_vocabulary::OperationId::new(52)
-                    .expect("multiply operation"),
-                result: product,
-                scalar_type,
-                left,
-                right,
-            },
-        ],
-    );
-    let AbstractOperation::Return { value, .. } = function.operations.last_mut().expect("return")
-    else {
-        unreachable!("fixture ends in return")
-    };
-    *value = product;
-
-    let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
-    assert!(matches!(
-        lowered.functions[0].operation,
-        TargetOperation::ReturnIntegerImmediate {
-            source_value,
-            scalar_type: result_type,
-            value: IntegerValue::Unsigned(4),
-            ..
-        } if source_value == product && result_type == scalar_type
-    ));
-}
-
-#[test]
-fn folds_closed_saturating_multiplication_at_the_declared_width() {
-    let mut plan = parameter_return_plan(1);
-    let function = &mut plan.functions[0];
-    let left = ValueId::new(50).expect("left");
-    let right = ValueId::new(51).expect("right");
-    let product = ValueId::new(52).expect("product");
-    let scalar_type = match scalar_result(function).scalar_type {
-        ScalarType::Integer(integer) => integer,
-        ScalarType::Boolean | ScalarType::IeeeFloat(_) => unreachable!("fixture is integer"),
-    };
-    function.operations.splice(
-        0..0,
-        [
-            AbstractOperation::IntegerConstant {
-                psi_operation: semantic_vocabulary::OperationId::new(50).expect("left operation"),
-                result: left,
-                scalar_type: ScalarType::Integer(scalar_type),
-                value: IntegerValue::Unsigned(20),
-            },
-            AbstractOperation::IntegerConstant {
-                psi_operation: semantic_vocabulary::OperationId::new(51).expect("right operation"),
-                result: right,
-                scalar_type: ScalarType::Integer(scalar_type),
-                value: IntegerValue::Unsigned(13),
-            },
-            AbstractOperation::SaturatingIntegerMultiply {
-                psi_operation: semantic_vocabulary::OperationId::new(52)
-                    .expect("multiply operation"),
-                result: product,
-                scalar_type,
-                left,
-                right,
-            },
-        ],
-    );
-    let AbstractOperation::Return { value, .. } = function.operations.last_mut().expect("return")
-    else {
-        unreachable!("fixture ends in return")
-    };
-    *value = product;
-
-    let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
-    assert!(matches!(
-        lowered.functions[0].operation,
-        TargetOperation::ReturnIntegerImmediate {
-            source_value,
-            scalar_type: result_type,
-            value: IntegerValue::Unsigned(255),
-            ..
-        } if source_value == product && result_type == scalar_type
-    ));
-}
-
-#[test]
-fn lowers_a_boolean_runtime_parameter_with_its_selected_abi_location() {
-    let mut plan = parameter_return_plan(1);
-    let function = &mut plan.functions[0];
-    function.parameters[0].scalar_type = ScalarType::Boolean;
-    scalar_result_mut(function).scalar_type = ScalarType::Boolean;
-    let AbstractOperation::Return { scalar_type, .. } = &mut function.operations[0] else {
-        unreachable!("fixture ends in return")
-    };
-    *scalar_type = ScalarType::Boolean;
-
-    let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
-    assert!(matches!(
-        lowered.functions[0].operation,
-        TargetOperation::ReturnBooleanParameter {
-            parameter_index: 0,
-            location: ScalarParameterLocation::Register(MachineRegister::X86Rdi),
-            ..
-        }
-    ));
-}
-
-#[test]
-fn lowers_runtime_boolean_equality_to_a_target_expression() {
-    let mut plan = parameter_return_plan(2);
-    let function = &mut plan.functions[0];
-    for parameter in &mut function.parameters {
-        parameter.scalar_type = ScalarType::Boolean;
-    }
-    scalar_result_mut(function).scalar_type = ScalarType::Boolean;
-    let result = ValueId::new(50).expect("equality result");
-    function.operations.insert(
-        0,
-        AbstractOperation::BooleanEqual {
-            psi_operation: OperationId::new(50).expect("equality operation"),
-            result,
-            left: function.parameters[0].value,
-            right: function.parameters[1].value,
-        },
-    );
-    let AbstractOperation::Return {
-        value, scalar_type, ..
-    } = &mut function.operations[1]
-    else {
-        unreachable!("fixture ends in return")
-    };
-    *value = result;
-    *scalar_type = ScalarType::Boolean;
-
-    let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
-    assert!(matches!(
-        &lowered.functions[0].operation,
-        TargetOperation::ReturnBooleanExpression {
-            source_value,
-            expression: TargetBooleanExpression::Equal {
-                psi_operation,
-                left,
-                right,
-            },
-            ..
-        } if *source_value == result
-            && *psi_operation == OperationId::new(50).expect("equality operation")
-            && matches!(
-                left.as_ref(),
-                TargetBooleanExpression::Parameter { parameter_index: 0, .. }
-            )
-            && matches!(
-                right.as_ref(),
-                TargetBooleanExpression::Parameter { parameter_index: 1, .. }
-            )
-    ));
-}
-
-#[test]
-fn lowers_runtime_integer_equality_to_a_typed_target_expression() {
-    let mut plan = parameter_return_plan(2);
-    let function = &mut plan.functions[0];
-    let integer_type = match function.parameters[0].scalar_type {
-        ScalarType::Integer(integer_type) => integer_type,
-        ScalarType::Boolean | ScalarType::IeeeFloat(_) => {
-            unreachable!("fixture has integer parameters")
-        }
-    };
-    scalar_result_mut(function).scalar_type = ScalarType::Boolean;
-    let result = ValueId::new(51).expect("integer-equality result");
-    function.operations.insert(
-        0,
-        AbstractOperation::IntegerEqual {
-            psi_operation: OperationId::new(51).expect("integer-equality operation"),
-            result,
-            left: function.parameters[0].value,
-            right: function.parameters[1].value,
-        },
-    );
-    let AbstractOperation::Return {
-        value, scalar_type, ..
-    } = &mut function.operations[1]
-    else {
-        unreachable!("fixture ends in return")
-    };
-    *value = result;
-    *scalar_type = ScalarType::Boolean;
-
-    let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
-    assert!(matches!(
-        &lowered.functions[0].operation,
-        TargetOperation::ReturnBooleanExpression {
-            source_value,
-            expression: TargetBooleanExpression::IntegerEqual {
-                psi_operation,
-                scalar_type,
-                left,
-                right,
-            },
-            ..
-        } if *source_value == result
-            && *psi_operation == OperationId::new(51).expect("integer-equality operation")
-            && *scalar_type == integer_type
-            && matches!(
-                left.as_ref(),
-                TargetIntegerExpression::Parameter { parameter_index: 0, .. }
-            )
-            && matches!(
-                right.as_ref(),
-                TargetIntegerExpression::Parameter { parameter_index: 1, .. }
-            )
-    ));
-}
-
-#[test]
-fn legacy_expression_projection_folds_a_compile_known_conditional() {
-    let condition_operation =
-        semantic_vocabulary::OperationId::new(20).expect("condition operation");
-    let true_operation = semantic_vocabulary::OperationId::new(21).expect("true operation");
-    let false_operation = semantic_vocabulary::OperationId::new(22).expect("false operation");
-    let true_edge = EdgeId::new(1).expect("true edge");
-    let false_edge = EdgeId::new(2).expect("false edge");
-    let true_return = EdgeId::new(3).expect("true return");
-    let false_return = EdgeId::new(4).expect("false return");
-
-    for (select_true, selected_operation, selected_edges) in [
-        (true, true_operation, [true_edge, true_return]),
-        (false, false_operation, [false_edge, false_return]),
+fn scalar_graph_retains_incoming_register_and_stack_abi() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::linux_arm64(),
     ] {
-        let plan = constant_conditional_plan(select_true);
-        let lowered = super::support::lower_legacy_scalar_fixture(&plan, NativeTarget::linux_x64())
-            .expect("legacy expression projection");
-        let function = &lowered.functions[0];
-        assert_eq!(
-            function.provenance.operations,
-            [condition_operation, selected_operation]
-        );
-        assert_eq!(function.provenance.edges, selected_edges);
-        assert!(
-            matches!(
-                &function.operation,
-                TargetOperation::ReturnIntegerExpression {
-                    psi_edge,
-                    expression:
-                        TargetIntegerExpression::WrappingAdd { psi_operation, .. },
-                    ..
-                } if select_true && *psi_edge == true_return && *psi_operation == true_operation
-            ) || matches!(
-                &function.operation,
-                TargetOperation::ReturnIntegerExpression {
-                    psi_edge,
-                    expression:
-                        TargetIntegerExpression::SaturatingMultiply {
-                            psi_operation,
-                            ..
-                        },
-                    ..
-                } if !select_true && *psi_edge == false_return && *psi_operation == false_operation
-            )
-        );
+        for count in [1, 9] {
+            let source = parameter_return_plan(count);
+            let lowered = lower_to_target_operations(&source, target).unwrap();
+            let TargetOperation::ControlGraph(graph) = &lowered.functions[0].operation else {
+                panic!("scalar parameters use the ordinary graph");
+            };
+            assert_eq!(graph.scalar_parameters.len(), count);
+            assert_eq!(
+                graph.scalar_parameters[count - 1].placement,
+                graph.call_plan.parameters[count - 1]
+            );
+            let target_operations::TargetControlTerminator::ReturnScalar {
+                source_value,
+                expression,
+                ..
+            } = &graph.blocks[0].terminator
+            else {
+                panic!("scalar return");
+            };
+            assert_eq!(
+                *source_value,
+                source.functions[0].parameters[count - 1].value
+            );
+            let target_operations::TargetScalarExpression::Integer {
+                expression:
+                    TargetIntegerExpression::Parameter {
+                        parameter_index,
+                        location,
+                        ..
+                    },
+                ..
+            } = expression
+            else {
+                panic!("returned ABI parameter");
+            };
+            assert_eq!(*parameter_index, count - 1);
+            assert_eq!(
+                matches!(location, ScalarParameterLocation::IncomingStack { .. }),
+                count == 9
+            );
+        }
     }
+}
+
+#[test]
+fn scalar_graph_call_keeps_callee_abi_and_effect_custody() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let source = direct_call_plan(9);
+        let lowered = lower_to_target_operations(&source, target).unwrap();
+        let TargetOperation::ControlGraph(graph) = &lowered.functions[0].operation else {
+            panic!("ordinary caller graph")
+        };
+        let [
+            TargetUnitOperation::ScalarCall {
+                arguments,
+                call_plan,
+                requirement_obligations,
+                crash_continuations,
+                result_home,
+                ..
+            },
+        ] = graph.blocks[0].operations.as_slice()
+        else {
+            panic!("one scalar call")
+        };
+        assert_eq!(arguments.len(), 9);
+        for (argument, placement) in arguments.iter().zip(&call_plan.parameters) {
+            assert_eq!(&argument.placement, placement);
+        }
+        assert_eq!(requirement_obligations, &[ObligationId::new(700).unwrap()]);
+        assert_eq!(crash_continuations.len(), 1);
+        assert!(matches!(&graph.blocks[0].terminator,
+            target_operations::TargetControlTerminator::ReturnScalar {
+                expression: target_operations::TargetScalarExpression::Integer {
+                    expression: TargetIntegerExpression::ScalarHome(home), ..
+                }, ..
+            } if home == result_home));
+    }
+}
+
+#[test]
+fn scalar_graph_rejects_missing_block_ownership() {
+    let mut source = parameter_return_plan(1);
+    source.functions[0].block_entries.clear();
+    assert!(matches!(
+        lower_to_target_operations(&source, NativeTarget::linux_x64()),
+        Err(LoweringError::UnsupportedControlFlow(_))
+    ));
+}
+
+#[test]
+fn scalar_graph_rejects_undefined_returns_and_unimplemented_cleanup() {
+    let mut source = parameter_return_plan(1);
+    let unknown = ValueId::new(999).unwrap();
+    let AbstractOperation::Return { value, .. } = &mut source.functions[0].operations[0] else {
+        panic!("return")
+    };
+    *value = unknown;
+    assert_eq!(
+        lower_to_target_operations(&source, NativeTarget::linux_x64()),
+        Err(LoweringError::UnknownValue(unknown))
+    );
+    let mut source = parameter_return_plan(1);
+    let AbstractOperation::Return {
+        cleanup_actions, ..
+    } = &mut source.functions[0].operations[0]
+    else {
+        panic!("return")
+    };
+    cleanup_actions.push(TerminalAffineCleanupAction::DiscardRoot(
+        PlaceId::new(999).unwrap(),
+    ));
+    assert!(lower_to_target_operations(&source, NativeTarget::linux_x64()).is_err());
 }
 
 pub(super) fn constant_conditional_plan(select_true: bool) -> AbstractOperationPlan {
@@ -600,13 +173,19 @@ pub(super) fn constant_conditional_plan(select_true: bool) -> AbstractOperationP
                 abstract_operations::AbstractBlockEntry {
                     structural_parameters: Vec::new(),
                     block: BlockId::new(2).expect("true block"),
-                    parameters: Vec::new(),
+                    parameters: vec![AbstractParameter {
+                        value: true_parameter,
+                        scalar_type,
+                    }],
                     operation_offset: 2,
                 },
                 abstract_operations::AbstractBlockEntry {
                     structural_parameters: Vec::new(),
                     block: BlockId::new(3).expect("false block"),
-                    parameters: Vec::new(),
+                    parameters: vec![AbstractParameter {
+                        value: false_parameter,
+                        scalar_type,
+                    }],
                     operation_offset: 4,
                 },
             ],

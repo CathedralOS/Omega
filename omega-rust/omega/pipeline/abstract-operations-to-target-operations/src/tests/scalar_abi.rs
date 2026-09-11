@@ -40,7 +40,12 @@ fn mixed_fixed_integer_plan() -> (
                 result: AbstractFunctionResult::Scalar(result),
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
-                block_entries: Vec::new(),
+                block_entries: vec![AbstractBlockEntry {
+                    block: BlockId::new(701).unwrap(),
+                    parameters: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    operation_offset: 0,
+                }],
                 operations: vec![AbstractOperation::Return {
                     psi_edge: EdgeId::new(701).unwrap(),
                     result: result.value,
@@ -97,16 +102,11 @@ fn scalar_abi_binds_ordered_values_types_and_canonical_placements() {
 }
 
 #[test]
-fn address_shapes_publish_no_scalar_abi_and_boolean_parameters_keep_their_type() {
-    let assert_none = |plan: &AbstractOperationPlan| {
-        let lowered = lower_to_target_operations(plan, NativeTarget::linux_x64()).unwrap();
-        assert_eq!(lowered.functions[0].scalar_abi, None);
-    };
-
+fn address_shapes_reject_and_boolean_parameters_keep_their_type() {
     let (mut address, _, _) = mixed_fixed_integer_plan();
     let address_type = IntegerType::address(64).unwrap();
     address.functions[0].parameters[0].scalar_type = ScalarType::Integer(address_type);
-    assert_none(&address);
+    assert!(lower_to_target_operations(&address, NativeTarget::linux_x64()).is_err());
 
     let (mut boolean, _, _) = mixed_fixed_integer_plan();
     boolean.functions[0].parameters[0].scalar_type = ScalarType::Boolean;
@@ -160,7 +160,12 @@ fn unit_and_unsupported_width_functions_publish_no_scalar_abi() {
             }),
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
-            block_entries: Vec::new(),
+            block_entries: vec![AbstractBlockEntry {
+                block: BlockId::new(730).unwrap(),
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                operation_offset: 0,
+            }],
             operations: vec![
                 AbstractOperation::IntegerConstant {
                     psi_operation: OperationId::new(731).unwrap(),

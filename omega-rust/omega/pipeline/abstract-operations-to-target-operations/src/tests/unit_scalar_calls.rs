@@ -88,7 +88,12 @@ pub(super) fn attached_unit_scalar_call_plan() -> AbstractOperationPlan {
                 }),
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
-                block_entries: Vec::new(),
+                block_entries: vec![AbstractBlockEntry {
+                    block: BlockId::new(2).unwrap(),
+                    parameters: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    operation_offset: 0,
+                }],
                 operations: vec![AbstractOperation::Return {
                     psi_edge: EdgeId::new(2).expect("callee return"),
                     result: callee_result,

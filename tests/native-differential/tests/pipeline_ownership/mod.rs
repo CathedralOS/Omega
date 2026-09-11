@@ -53,12 +53,11 @@ use target_operations_to_selected_instructions::{
     validate_selected_instructions,
 };
 use terminal_psi::{
-    BindingRelevance, Block, CrashCause, CrashRouteBucket, CrashRouteGuard, MachineContract,
-    Operation, OperationKind, OperationResult, StructuralAccess, StructuralDomainDeclaration,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker,
+    BindingRelevance, Block, MachineContract, Operation, OperationKind, OperationResult,
+    StructuralAccess, StructuralDomainDeclaration, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use terminal_verifier::{ObligationEvidence, ProofBundle, reconstruct_operation_obligations};
 
