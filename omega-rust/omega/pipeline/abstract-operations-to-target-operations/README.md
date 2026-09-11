@@ -63,8 +63,9 @@ their existing expression lowering.
 The common target-to-selected
 reader independently checks this graph against source before constructing the
 existing legalized/selected graph. The target-only family receipt does not claim
-this coverage; its legacy continuation check still rejects linear graph sources
-that match that older family. Scalar block arguments retain their destination
+this coverage. Legacy continuation replay applies only to the flat `UnitBody`
+carrier; ordinary linear continuations use the same mandatory graph replay as
+branches and joins. Scalar block arguments retain their destination
 block, value identity and type, independently of function ABI parameters and
 operation-result homes. Each edge preserves the complete ordered bindings;
 joins introduce destination-owned values rather than substituting one arrival's

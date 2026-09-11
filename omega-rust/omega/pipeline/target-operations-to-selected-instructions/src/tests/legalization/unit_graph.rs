@@ -12,6 +12,7 @@ use semantic_vocabulary::{
 };
 use target::NativeTarget;
 use target_operations::{TargetControlTerminator, TargetOperation, TargetUnitOperation};
+mod continuations;
 
 fn targets() -> [NativeTarget; 4] {
     [
@@ -138,6 +139,10 @@ pub(super) fn fixture(
 fn unit_graph_calls_branch_and_rejoin_on_all_hosted_targets() {
     for native in targets() {
         let (source, target, unit) = fixture(native);
+        abstract_operations_to_target_operations::validate_abstract_to_target_translation(
+            &source, native, &target,
+        )
+        .unwrap();
         assert!(matches!(
             target.functions[0].operation,
             TargetOperation::ControlGraph(_)

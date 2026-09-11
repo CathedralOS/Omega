@@ -41,10 +41,10 @@ pub fn validate_abstract_to_target_translation_with_ieee_float_fma_settlements(
                 .operations
                 .iter()
                 .any(|operation| matches!(operation, AbstractOperation::Jump { .. }));
-        if has_continuations
-            || source_unit_jumps
-            || super::unit_continuations::is_candidate(function)
-        {
+        // This replay owns the legacy flat carrier, not every source with a
+        // jump. Ordinary graphs remain uncovered here and must pass the common
+        // graph reader before legalization can publish executable operations.
+        if has_continuations || source_unit_jumps {
             super::unit_continuations::validate(
                 function,
                 target_function,
