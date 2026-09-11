@@ -75,9 +75,16 @@ integer encodings without recanonicalizing the obligation.
 [site_truth.rs](src/validation/crash/site_truth.rs) separately checks each direct
 site against independent pre-terminator facts. The private path reconstruction
 retains raw branch polarities and bounded alternatives through joins; every path
-must prove the guard or contradiction. Its limits are 4,096 block visits and
-4,096 generated/copied facts per machine. Exhaustion rejects, never discards
-unvisited paths. Crash-only raw facts do not enter ordinary proof reconstruction.
+must prove the guard or contradiction. Acyclic joins replay identical ordered
+incoming premises only once, retaining the first traversal's order. Distinct
+premise sequences, including contradictions, remain separate. Cyclic graphs
+retain exhaustive traversal without memoization. Its limits remain 4,096 block
+visits and 4,096 generated/transported facts per machine. Join histories add at
+most 4,096 snapshot facts separately: each copies one already charged incoming
+path, so this storage cap cannot tighten the transport budget. This is bounded
+memoization, not prefix sharing; distinct states can still grow exponentially.
+Exhaustion rejects, never discards unvisited paths. Crash-only raw facts do not
+enter ordinary proof reconstruction.
 Ranked-site checking remains entry-only until invariant custody is available.
 
 Nonliteral Boolean operations retain their equation followed by both polarity

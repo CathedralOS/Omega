@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use semantic_vocabulary::{MachineId, Proposition};
+use semantic_vocabulary::{BlockId, MachineId, Proposition};
 use terminal_psi::{TerminalMachine, TerminalModule};
 
 use crate::ModuleError;
@@ -21,6 +21,7 @@ const MAXIMUM_FACT_COPIES: usize = 4096;
 struct Budget {
     block_visits: usize,
     fact_copies: usize,
+    join_snapshot_facts: usize,
 }
 
 impl Budget {
@@ -41,6 +42,35 @@ impl Budget {
             .ok_or(ModuleError::CrashSiteReconstructionLimitExceeded(machine))?;
         Ok(())
     }
+
+    fn snapshot(&mut self, facts: usize, machine: MachineId) -> Result<(), ModuleError> {
+        self.join_snapshot_facts = self
+            .join_snapshot_facts
+            .checked_add(facts)
+            .filter(|count| *count <= MAXIMUM_FACT_COPIES)
+            .ok_or(ModuleError::CrashSiteReconstructionLimitExceeded(machine))?;
+        Ok(())
+    }
+}
+
+/// Only reconvergence can repeat work in an acyclic graph. Keep the exact
+/// ordered premises: neither set equality nor a hash establishes identity.
+fn join_histories(machine: &TerminalMachine) -> BTreeMap<BlockId, BTreeSet<Vec<Proposition>>> {
+    // Repeated loop states are not an invariant proof. Preserve the existing
+    // exhaustive, fail-closed walk for cyclic guarded-crash machines.
+    if !crate::control_graph::feedback_edges(machine).is_empty() {
+        return BTreeMap::new();
+    }
+    let mut arrivals = BTreeSet::new();
+    let mut joins = BTreeMap::new();
+    for successors in crate::control_graph::successors(machine).values() {
+        for (_, target) in successors {
+            if !arrivals.insert(*target) {
+                joins.entry(*target).or_default();
+            }
+        }
+    }
+    joins
 }
 
 pub(super) fn reconstruct(
@@ -53,15 +83,29 @@ pub(super) fn reconstruct(
     let mut pending = vec![(machine.entry, Vec::<Proposition>::new())];
     let mut sites = Vec::new();
     let mut budget = Budget::default();
+    let mut histories = join_histories(machine);
     let ignored_backedges = BTreeSet::new();
     while let Some((current, mut axioms)) = pending.pop() {
-        budget.visit(machine.id)?;
         let block = context
             .blocks
             .get(&current)
             .expect("validated successor names an exact block");
         axioms
             .retain(|proposition| crash_field_origins::retains_entry_meaning(proposition, machine));
+        if let Some(history) = histories.get_mut(&current) {
+            if history.contains(&axioms) {
+                // The same block and ordered premises deterministically
+                // produce the same successors and crash questions. The first
+                // DFS visit covers them; no distinct alternative is omitted.
+                continue;
+            }
+            // Each snapshot is a subset of one already charged incoming path.
+            // Its separate storage cap therefore cannot tighten the transport
+            // budget, but bounds the additional retained copies to 4,096 facts.
+            budget.snapshot(axioms.len(), machine.id)?;
+            history.insert(axioms.clone());
+        }
+        budget.visit(machine.id)?;
         // These obligations are not accepted or exported here. Final ordinary
         // proof reconstruction independently checks every operation and call.
         let mut operation_obligations = Vec::new();
@@ -141,5 +185,12 @@ mod tests {
             Err(ModuleError::CrashSiteReconstructionLimitExceeded(owner)) if owner == machine));
         let mut budget = Budget::default();
         assert!(budget.retain(usize::MAX, machine).is_err());
+        let mut budget = Budget::default();
+        budget.retain(MAXIMUM_FACT_COPIES, machine).unwrap();
+        budget.snapshot(MAXIMUM_FACT_COPIES, machine).unwrap();
+        assert_eq!(budget.fact_copies, MAXIMUM_FACT_COPIES);
+        assert!(budget.snapshot(1, machine).is_err());
+        let mut budget = Budget::default();
+        assert!(budget.snapshot(usize::MAX, machine).is_err());
     }
 }
