@@ -3,13 +3,11 @@
 
 mod error;
 mod native;
-mod ranked_native;
 mod replay;
 mod retention;
 
 pub use error::ArtifactLoweringError;
-pub use native::{NativeArtifactOperationPlan, lower_artifact_sections_for_native_realization};
-pub use ranked_native::lower_artifact_sections_for_native_ranked_countdown;
+pub use native::lower_artifact_sections_for_native_realization;
 pub use replay::{lower_replay_artifact_sections, lower_replay_artifact_sections_for_optimization};
 
 use crate::optimization::VerifiedPsiOptimizationInput;

@@ -526,7 +526,7 @@ fn text_publication_records_and_codec_belong_to_the_representation() {
         assert!(data.contains(declaration));
     }
     let codec = rust_source(&representation.with_extension(""));
-    assert!(codec.contains("const MANIFEST_VERSION: u32 = 15;"));
+    assert!(codec.contains("const MANIFEST_VERSION: u32 = 16;"));
     assert!(!data.contains("pub enum FunctionFragmentTextSectionSourceCustody"));
     assert!(!data.contains("source_kind:"));
     for forbidden in [
@@ -1206,8 +1206,8 @@ fn fragment_publication_data_and_codec_do_not_depend_on_admission() {
         );
     }
     let codec = rust_source(&representation.with_extension(""));
-    assert!(codec.contains("omega.function-fragment-emission-manifest.v14"));
-    assert!(!coordinator.contains("omega.function-fragment-emission-manifest.v14"));
+    assert!(codec.contains("omega.function-fragment-emission-manifest.v15"));
+    assert!(!coordinator.contains("omega.function-fragment-emission-manifest.v15"));
     assert!(!pipeline.join("manifest.rs").exists());
     assert!(!pipeline.join("statistics.rs").exists());
     for forbidden in [

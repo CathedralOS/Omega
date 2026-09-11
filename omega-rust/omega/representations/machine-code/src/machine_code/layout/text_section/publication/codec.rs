@@ -22,11 +22,11 @@ use super::{
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGTSP\0\0";
-const MANIFEST_VERSION: u32 = 15;
+const MANIFEST_VERSION: u32 = 16;
 
 impl FunctionFragmentTextSectionManifest {
     pub fn recomputed_identity(&self) -> FunctionFragmentTextSectionManifestIdentity {
-        let mut canonical = b"omega.function-fragment-text-section-manifest.v15\0".to_vec();
+        let mut canonical = b"omega.function-fragment-text-section-manifest.v16\0".to_vec();
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionFragmentTextSectionManifestIdentity::from_canonical_bytes(&canonical)
     }

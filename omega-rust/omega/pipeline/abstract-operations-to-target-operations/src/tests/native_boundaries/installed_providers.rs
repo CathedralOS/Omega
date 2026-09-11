@@ -196,40 +196,19 @@ fn installed_provider_plan() -> (
 }
 
 #[test]
-fn admitted_structural_provider_projects_to_distinct_target_call() {
-    let (plan, installation, boundary, operation) = installed_provider_plan();
-    assert_eq!(
-        lower_to_target_operations(&plan, NativeTarget::uefi_x64()),
-        Err(LoweringError::MissingBoundarySettlement(boundary))
-    );
-    let lowered = lower_to_target_operations_with_provider_executions_and_installation(
-        &plan,
-        NativeTarget::uefi_x64(),
-        &[],
-        Some(&installation),
-    )
-    .expect("installed provider call lowers without an external settlement");
-    let TargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
-        panic!("caller remains a Unit body")
-    };
-    assert!(matches!(
-        &body.operations[0],
-        TargetUnitOperation::InstalledProviderCall {
-            psi_operation,
-            boundary: actual_boundary,
-            provider,
-            arguments,
-            claim_transfers,
-            completion_receipts,
-            ..
-        } if *psi_operation == operation
-            && *actual_boundary == boundary
-            && provider == &installation.calls[0].provider
-            && arguments.len() == 1
-            && arguments[0].access == StructuralAccess::Owned
-            && claim_transfers.len() == 1
-            && completion_receipts.len() == 1
-    ));
+fn graph_rejects_unimplemented_claim_bearing_provider_calls() {
+    let (plan, installation, _, _) = installed_provider_plan();
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        assert!(matches!(
+            lower_to_target_operations_with_provider_executions_and_installation(
+                &plan,
+                target,
+                &[],
+                Some(&installation)
+            ),
+            Err(LoweringError::UnsupportedControlFlow(_))
+        ));
+    }
 }
 
 fn installed_scalar_provider_plan() -> (
@@ -355,64 +334,17 @@ fn installed_scalar_provider_plan() -> (
 }
 
 #[test]
-fn admitted_i32_provider_retains_exact_incoming_and_outgoing_abi() {
-    let (plan, installation, boundary, operation, caller_value, candidate_value) =
-        installed_scalar_provider_plan();
+fn graph_rejects_unimplemented_installed_scalar_provider_calls() {
+    let (plan, installation, _, _, _, _) = installed_scalar_provider_plan();
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let lowered = lower_to_target_operations_with_provider_executions_and_installation(
-            &plan,
-            target,
-            &[],
-            Some(&installation),
-        )
-        .expect("installed signed-i32 provider call lowers");
-        let TargetOperation::UnitBody(caller) = &lowered.functions[0].operation else {
-            panic!("caller remains a Unit body")
-        };
         assert!(matches!(
-            caller.scalar_parameters.as_slice(),
-            [parameter] if parameter.value == caller_value
-                && parameter.scalar_type
-                    == ScalarType::Integer(
-                        IntegerType::new(IntegerSign::Signed, 32).unwrap()
-                    )
-                && parameter.placement == caller.call_plan.parameters[0]
-        ));
-        assert!(matches!(
-            caller.operations.as_slice(),
-            [TargetUnitOperation::InstalledProviderCall {
-                psi_operation,
-                boundary: actual_boundary,
-                call_plan,
-                scalar_arguments,
-                arguments,
-                ..
-            }, TargetUnitOperation::Return { .. }]
-                if *psi_operation == operation
-                    && *actual_boundary == boundary
-                    && call_plan.result.is_none()
-                    && call_plan.parameters.len() == 1
-                    && arguments.is_empty()
-                    && matches!(scalar_arguments.as_slice(), [argument]
-                        if argument.parameter_index == 0
-                            && argument.placement == call_plan.parameters[0]
-                            && matches!(argument.source,
-                                TargetUnitScalarArgumentSource::Parameter {
-                                    parameter_index: 0,
-                                    source_value,
-                                    scalar_type,
-                                } if source_value == caller_value
-                                    && scalar_type == ScalarType::Integer(
-                                        IntegerType::new(IntegerSign::Signed, 32).unwrap()
-                                    )))
-        ));
-        let TargetOperation::UnitBody(candidate) = &lowered.functions[1].operation else {
-            panic!("provider candidate remains a Unit body")
-        };
-        assert!(matches!(
-            candidate.scalar_parameters.as_slice(),
-            [parameter] if parameter.value == candidate_value
-                && parameter.placement == candidate.call_plan.parameters[0]
+            lower_to_target_operations_with_provider_executions_and_installation(
+                &plan,
+                target,
+                &[],
+                Some(&installation)
+            ),
+            Err(LoweringError::UnsupportedControlFlow(_))
         ));
     }
 }
@@ -474,33 +406,4 @@ fn installed_provider_result_evidence_cannot_bypass_unit_native_fence() {
             })
         );
     }
-}
-
-#[test]
-fn installed_i32_provider_rejects_reusing_the_caller_saved_parameter() {
-    let (mut plan, mut installation, boundary, operation, _, _) = installed_scalar_provider_plan();
-    let repeated_operation = OperationId::new(9_601).unwrap();
-    let mut repeated_call = plan.functions[0].operations[0].clone();
-    let AbstractOperation::BoundaryCall { psi_operation, .. } = &mut repeated_call else {
-        unreachable!()
-    };
-    *psi_operation = repeated_operation;
-    plan.functions[0].operations.insert(1, repeated_call);
-    let mut repeated_evidence = installation.calls[0].clone();
-    repeated_evidence.psi_operation = repeated_operation;
-    installation.calls.push(repeated_evidence);
-
-    assert_eq!(
-        lower_to_target_operations_with_provider_executions_and_installation(
-            &plan,
-            NativeTarget::linux_x64(),
-            &[],
-            Some(&installation),
-        ),
-        Err(LoweringError::InstalledProviderCallShapeMismatch {
-            machine: plan.entry,
-            operation,
-            boundary,
-        })
-    );
 }

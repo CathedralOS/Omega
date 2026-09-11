@@ -27,12 +27,11 @@ fn fixed_array_target_rejects_changed_backing_extent_and_access() {
                 .iter_mut()
                 .find(|function| function.machine == lowered.semantic_module.entry)
                 .unwrap();
-            let target_operations::TargetOperation::UnitBody(body) = &mut caller.operation else {
-                panic!("array caller body")
-            };
+            let body = &mut caller.graph;
             let argument = body
-                .operations
+                .blocks
                 .iter_mut()
+                .flat_map(|block| &mut block.operations)
                 .find_map(|operation| {
                     if let target_operations::TargetUnitOperation::Call { arguments, .. } =
                         operation

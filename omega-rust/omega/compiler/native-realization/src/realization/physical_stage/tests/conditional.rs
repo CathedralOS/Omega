@@ -381,13 +381,26 @@ fn substituted_conditional_inputs_reject_at_legalization() {
     std::mem::swap(&mut when_true.target, &mut when_false.target);
     assert!(!admitted(&wrong_order, native));
     let mut repeated_parameter = native.clone();
-    let target_operations::TargetOperation::ReturnIntegerExpressionConditionalControl {
-        condition: target_operations::TargetBooleanExpression::IntegerEqual { left, right, .. },
-        ..
-    } = &mut repeated_parameter.functions[0].operation
-    else {
-        unreachable!()
-    };
+    let (left, right) = repeated_parameter.functions[0]
+        .graph
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+        .find_map(|operation| match operation {
+            target_operations::TargetUnitOperation::ScalarDefinition {
+                expression:
+                    target_operations::TargetScalarExpression::Boolean(
+                        target_operations::TargetBooleanExpression::IntegerEqual {
+                            left,
+                            right,
+                            ..
+                        },
+                    ),
+                ..
+            } => Some((left, right)),
+            _ => None,
+        })
+        .expect("the graph retains its equality operation before branching");
     *right = left.clone();
     assert!(!admitted(plan, &repeated_parameter));
 }

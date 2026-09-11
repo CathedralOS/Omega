@@ -58,7 +58,6 @@ pub(super) fn entry(
             continue;
         };
         if !accepts_stack_parameters
-            || source.ranked.is_some()
             || scalar_shape(parameter.scalar_type) != Some(parameter.placement.shape)
             || source.call_plan.parameters.get(parameter_index) != Some(&parameter.placement)
         {

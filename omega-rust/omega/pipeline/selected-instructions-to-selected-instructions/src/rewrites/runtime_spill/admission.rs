@@ -51,9 +51,6 @@ pub(super) fn admit<'source>(
         .functions
         .get(function_index)
         .ok_or(RuntimeSpillError::SourceMismatch)?;
-    if function.ranked.is_some() {
-        return Err(RuntimeSpillError::UnsupportedControlFlow);
-    }
     let victim = function
         .virtual_registers
         .iter()

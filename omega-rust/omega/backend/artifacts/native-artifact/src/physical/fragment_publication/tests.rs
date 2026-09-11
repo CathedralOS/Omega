@@ -110,7 +110,6 @@ fn plan(machine_raw: u64) -> MachineCodePlan {
             scalar_control_affine_cleanups: Vec::new(),
             scalar_structural_parameters: Vec::new(),
             scalar_structural_parameter_homes: Vec::new(),
-            ranked_u32_countdown: None,
             semantic_code_attribution: vec![SemanticCodeAttribution {
                 site: SemanticCodeSite::Edge(return_edge),
                 operation_ordinal: 0,

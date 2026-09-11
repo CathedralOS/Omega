@@ -8,7 +8,8 @@ use terminal_psi::{
     ByteSequenceCarrier, StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
-use super::StructuralCallReturnProjectedQualificationValidationError as Error;
+#[derive(Debug, PartialEq, Eq)]
+pub(super) struct InvalidStructuralShape;
 
 #[cfg(test)]
 mod tests;
@@ -16,13 +17,13 @@ mod tests;
 pub(super) fn reconstruct(
     root: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
-) -> Result<ValueShape, Error> {
+) -> Result<ValueShape, InvalidStructuralShape> {
     let indexed = declarations
         .iter()
         .map(|declaration| (declaration.id, declaration))
         .collect::<BTreeMap<_, _>>();
     if indexed.len() != declarations.len() {
-        return Err(Error::SourceShape);
+        return Err(InvalidStructuralShape);
     }
     shape(root, &indexed, &mut BTreeMap::new(), &mut BTreeSet::new())
 }
@@ -32,16 +33,16 @@ fn shape(
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
-) -> Result<ValueShape, Error> {
+) -> Result<ValueShape, InvalidStructuralShape> {
     if let Some(shape) = cache.get(&structural_type) {
         return Ok(*shape);
     }
     if !active.insert(structural_type) {
-        return Err(Error::SourceShape);
+        return Err(InvalidStructuralShape);
     }
     let declaration = declarations
         .get(&structural_type)
-        .ok_or(Error::SourceShape)?;
+        .ok_or(InvalidStructuralShape)?;
     let result = match &declaration.shape {
         StructuralTypeShape::PrimitiveScalar(scalar) => scalar_shape(*scalar),
         StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView) => {
@@ -56,11 +57,11 @@ fn shape(
                 byte_size = align(byte_size, u32::from(field_shape.alignment))?;
                 byte_size = byte_size
                     .checked_add(u32::from(field_shape.byte_size))
-                    .ok_or(Error::SourceShape)?;
+                    .ok_or(InvalidStructuralShape)?;
             }
             byte_size = align(byte_size, u32::from(alignment))?;
             ValueShape::integer(
-                u16::try_from(byte_size).map_err(|_| Error::SourceShape)?,
+                u16::try_from(byte_size).map_err(|_| InvalidStructuralShape)?,
                 alignment,
             )
         }
@@ -76,7 +77,7 @@ fn shape(
             let bytes = u64::from(stride)
                 .checked_mul(*length)
                 .and_then(|value| u16::try_from(value).ok())
-                .ok_or(Error::SourceShape)?;
+                .ok_or(InvalidStructuralShape)?;
             ValueShape::integer(bytes, element.alignment)
         }
         StructuralTypeShape::Sum { cases } if !cases.is_empty() => {
@@ -85,7 +86,7 @@ fn shape(
         StructuralTypeShape::Mixed { fields, cases } if !cases.is_empty() => {
             conventional_sum_shape(fields, cases, declarations, cache, active)?
         }
-        _ => return Err(Error::SourceShape),
+        _ => return Err(InvalidStructuralShape),
     };
     active.remove(&structural_type);
     cache.insert(structural_type, result);
@@ -95,10 +96,14 @@ fn shape(
 fn validate_empty_primitive_array(
     root: StructuralTypeId,
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-) -> Result<(), Error> {
+) -> Result<(), InvalidStructuralShape> {
     let mut current = root;
     for _ in 0..declarations.len() {
-        match declarations.get(&current).ok_or(Error::SourceShape)?.shape {
+        match declarations
+            .get(&current)
+            .ok_or(InvalidStructuralShape)?
+            .shape
+        {
             StructuralTypeShape::FixedArray { element, .. } => current = element,
             StructuralTypeShape::PrimitiveScalar(scalar) => {
                 return match scalar {
@@ -109,13 +114,13 @@ fn validate_empty_primitive_array(
                     {
                         Ok(())
                     }
-                    _ => Err(Error::SourceShape),
+                    _ => Err(InvalidStructuralShape),
                 };
             }
-            _ => return Err(Error::SourceShape),
+            _ => return Err(InvalidStructuralShape),
         }
     }
-    Err(Error::SourceShape)
+    Err(InvalidStructuralShape)
 }
 
 fn conventional_sum_shape(
@@ -124,7 +129,7 @@ fn conventional_sum_shape(
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
-) -> Result<ValueShape, Error> {
+) -> Result<ValueShape, InvalidStructuralShape> {
     let common = common_fields
         .iter()
         .filter(|field| !field.relevance.is_erased())
@@ -142,7 +147,7 @@ fn conventional_sum_shape(
         .collect::<Result<Vec<_>, _>>()?;
     calling_conventions::evaluate_conventional_sum_layout(&common, &payloads)
         .map(|layout| layout.shape)
-        .map_err(|_| Error::SourceShape)
+        .map_err(|_| InvalidStructuralShape)
 }
 
 fn field_shape(
@@ -150,7 +155,7 @@ fn field_shape(
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
-) -> Result<ValueShape, Error> {
+) -> Result<ValueShape, InvalidStructuralShape> {
     match field {
         StructuralFieldType::Scalar(ScalarType::Boolean) => Ok(ValueShape::integer(1, 1)),
         StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
@@ -177,21 +182,21 @@ fn field_shape(
             Ok(ValueShape::integer(16, 8))
         }
         StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) => {
-            let bytes = capacity.checked_add(8).ok_or(Error::SourceShape)?;
+            let bytes = capacity.checked_add(8).ok_or(InvalidStructuralShape)?;
             Ok(ValueShape::integer(
-                u16::try_from(bytes).map_err(|_| Error::SourceShape)?,
+                u16::try_from(bytes).map_err(|_| InvalidStructuralShape)?,
                 8,
             ))
         }
-        StructuralFieldType::Erased { .. } => Err(Error::SourceShape),
+        StructuralFieldType::Erased { .. } => Err(InvalidStructuralShape),
     }
 }
 
-fn align(value: u32, alignment: u32) -> Result<u32, Error> {
+fn align(value: u32, alignment: u32) -> Result<u32, InvalidStructuralShape> {
     value
         .checked_add(alignment - 1)
         .map(|value| value / alignment * alignment)
-        .ok_or(Error::SourceShape)
+        .ok_or(InvalidStructuralShape)
 }
 
 pub(super) fn scalar_shape(scalar: ScalarType) -> ValueShape {

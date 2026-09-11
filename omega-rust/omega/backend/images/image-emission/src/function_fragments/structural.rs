@@ -283,9 +283,7 @@ pub(super) fn populate(
     let fragment = fragment(source, function.machine)?;
     let (abstracted, targeted) = source::function(source, function.machine)?;
     let unused_owned = source::unobserved_owned_arrivals(abstracted, targeted, selected);
-    if let Some(contract) = &selected.structural
-        && selected.ranked.is_none()
-    {
+    if let Some(contract) = &selected.structural {
         let (parameters, homes) = if function.mixed_structural_scalar_abi.is_some() {
             (
                 &mut function.scalar_structural_parameters,

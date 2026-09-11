@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn prior_wire_versions_with_route_taxonomy_reject() {
     let encoded = record().encode();
-    for version in 0..14_u32 {
+    for version in 0..15_u32 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(
@@ -63,7 +63,7 @@ fn publication_roundtrips_without_route_taxonomy() {
     let record = record();
     let bytes = record.encode();
     assert_eq!(&bytes[..8], b"OMGFFE\0\0");
-    assert_eq!(&bytes[8..12], &14_u32.to_le_bytes());
+    assert_eq!(&bytes[8..12], &15_u32.to_le_bytes());
     assert_eq!(bytes.len(), 459);
     assert_eq!(FunctionFragmentEmissionManifest::decode(&bytes), Ok(record));
 }

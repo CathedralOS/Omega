@@ -12,7 +12,7 @@ use semantic_vocabulary::{
 };
 use target::NativeTarget;
 use target_operations::{
-    TargetBooleanExpression, TargetControlTerminator, TargetOperation, TargetUnitOperation,
+    TargetBooleanExpression, TargetControlTerminator, TargetUnitOperation,
     TargetUnitScalarArgumentSource,
 };
 
@@ -263,9 +263,7 @@ fn typed_unit_transfers_reject_owner_type_and_edge_substitution() {
     let legal = legalize_target_operations(&target, &source, &unit).unwrap();
     for mutation in 0..8 {
         let mut changed = target.clone();
-        let TargetOperation::ControlGraph(graph) = &mut changed.functions[0].operation else {
-            panic!("graph");
-        };
+        let graph = &mut changed.functions[0].graph;
         match mutation {
             0 | 1 => {
                 let TargetUnitOperation::Call {

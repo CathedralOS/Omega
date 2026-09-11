@@ -12,7 +12,6 @@ pub(super) fn function_is_exact(
     target: target::NativeTarget,
 ) -> bool {
     if function.unit_body
-        || function.ranked_u32_countdown
         || function.unit_affine_cleanup.is_some()
         || function.scalar_affine_cleanup.is_some()
         || !function.unit_continuations.is_empty()

@@ -4,7 +4,6 @@ pub(super) fn validate(
     node: &OptimizationNode,
     _body: &[OptimizationNode],
     function: &PsiOptimizationFunction,
-    ranked: bool,
     plan: &AbstractOperationPlan,
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
@@ -76,7 +75,7 @@ pub(super) fn validate(
                     == [optimization_unit::OwnershipEvent::Cleanup(
                         cleanup_actions.clone(),
                     )])
-            || ((ranked || super::unobserved_owned::body(function))
+            || (super::unobserved_owned::body(function)
                 && node.ownership
                     == [optimization_unit::OwnershipEvent::Cleanup(
                         cleanup_actions.clone(),

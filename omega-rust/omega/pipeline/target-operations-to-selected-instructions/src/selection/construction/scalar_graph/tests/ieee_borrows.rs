@@ -78,7 +78,6 @@ fn ieee_borrowed_calls_reject_substituted_sources_transfer_widths_and_fixed_view
                 register_environment::baseline_target_register_environment(target).unwrap();
             let constraints = SelectedSelectionConstraints {
                 keys: environment.selected_keys(),
-                projected_structural_call: None,
                 fixed_inputs: source
                     .parameters
                     .iter()

@@ -134,7 +134,6 @@ fn every_ieee_relation_uses_existing_integer_forms_and_replays_both_formats() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
@@ -261,7 +260,6 @@ fn comparison_replay_rejects_relation_carrier_operands_constants_and_boolean_rul
     let environment = register_environment::baseline_target_register_environment(target).unwrap();
     let constraints = SelectedSelectionConstraints {
         keys: environment.selected_keys(),
-        projected_structural_call: None,
         fixed_inputs: Vec::new(),
     };
     let source = comparison_source(

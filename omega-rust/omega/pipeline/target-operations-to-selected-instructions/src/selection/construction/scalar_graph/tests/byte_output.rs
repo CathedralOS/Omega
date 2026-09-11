@@ -31,7 +31,6 @@ fn byte_output_replay_binds_scalar_scratch_effect_and_boundary() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         let selected = build(

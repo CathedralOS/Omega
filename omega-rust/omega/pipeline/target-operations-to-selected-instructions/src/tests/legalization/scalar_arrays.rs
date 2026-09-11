@@ -6,7 +6,7 @@ use legalized_operations::LegalizedScalarInstructionKind as K;
 use semantic_vocabulary::{
     EdgeId, FuelScheduleIdentity, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
 };
-use target_operations::{TargetOperation, TargetStructuralHomeLayout, TargetUnitOperation};
+use target_operations::{TargetStructuralHomeLayout, TargetUnitOperation};
 use terminal_psi::{StructuralMultiplicity, StructuralTypeShape};
 
 mod floating_parameters;
@@ -151,9 +151,7 @@ fn scalar_array_graph_returns_replay_exact_abi_without_optional_mirrors() {
     validate_legalized_operations(&target, &source, &unit, legalized.plan().clone()).unwrap();
     for mutation in 0..4 {
         let mut changed = target.clone();
-        let TargetOperation::ControlGraph(graph) = &mut changed.functions[0].operation else {
-            panic!("array scalar graph");
-        };
+        let graph = &mut changed.functions[0].graph;
         match mutation {
             0 => graph.call_plan.result.as_mut().unwrap().shape = ValueShape::integer(4, 4),
             1 => {
@@ -209,9 +207,7 @@ fn array_target_replay_rejects_leaf_storage_and_producer_substitution() {
     legalize_target_operations(&target, &source, &unit).unwrap();
     for mutation in 0..5 {
         let mut changed = target.clone();
-        let TargetOperation::ControlGraph(graph) = &mut changed.functions[0].operation else {
-            panic!("graph")
-        };
+        let graph = &mut changed.functions[0].graph;
         let TargetUnitOperation::EstablishScalarArray {
             psi_operation,
             result_home,
@@ -323,9 +319,7 @@ fn incoming_array_identity_rejects_substituted_parameter_storage() {
     validate_legalized_operations(&target, &source, &unit, legalized.plan().clone()).unwrap();
     for mutation in 0..5 {
         let mut changed = target.clone();
-        let TargetOperation::ControlGraph(graph) = &mut changed.functions[0].operation else {
-            panic!("graph")
-        };
+        let graph = &mut changed.functions[0].graph;
         let target_operations::TargetControlTerminator::ReturnStructural {
             source: target_operations::TargetStructuralReturnSource::Parameter(parameter),
             ..

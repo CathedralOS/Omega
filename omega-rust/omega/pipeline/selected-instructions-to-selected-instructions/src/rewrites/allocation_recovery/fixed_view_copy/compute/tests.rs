@@ -87,7 +87,6 @@ pub(crate) fn fixture() -> (
         vec![use_operand(1, class, Some(to))],
     );
     let function = SelectedFunction {
-        ranked: None,
         machine,
         attachment: None,
         provenance: Default::default(),

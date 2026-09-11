@@ -94,9 +94,9 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
             _ => None,
         })
         .collect::<BTreeMap<_, _>>();
-    let mut ieee_float_fma_by_operation = BTreeMap::new();
+    let mut settled_ieee_float_fma = BTreeSet::new();
     for settlement in ieee_float_fma {
-        if ieee_float_fma_by_operation.contains_key(&settlement.terminal_operation) {
+        if settled_ieee_float_fma.contains(&settlement.terminal_operation) {
             return Err(LoweringError::DuplicateIeeeFloatFmaSettlement(
                 settlement.terminal_operation,
             ));
@@ -129,21 +129,11 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
                 settlement.terminal_operation,
             ));
         }
-        ieee_float_fma_by_operation.insert(
-            settlement.terminal_operation,
-            target_operations::TargetX86ScalarFmaSettlement {
-                terminal_operation: settlement.terminal_operation,
-                provider_plan_report_identity: plan.report_fingerprint(),
-                provider_plan_digest: *plan.identity_digest().as_bytes(),
-                format: settlement.format,
-                slot: settlement.slot,
-                provider,
-            },
-        );
+        settled_ieee_float_fma.insert(settlement.terminal_operation);
     }
     if let Some(missing) = abstract_fma
         .keys()
-        .find(|operation| !ieee_float_fma_by_operation.contains_key(operation))
+        .find(|operation| !settled_ieee_float_fma.contains(operation))
     {
         return Err(LoweringError::MissingIeeeFloatFmaSettlement(*missing));
     }
@@ -288,7 +278,6 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
                     &boundary_machines,
                     &settlements_by_boundary,
                     &installed_by_call,
-                    &ieee_float_fma_by_operation,
                     &native_callbacks_by_operation,
                 )?;
                 lowered.scalar_abi = scalar_abis.get(&function.machine).cloned();
@@ -441,11 +430,8 @@ pub(crate) fn validate_native_callback_target_rows(
         let matches = plan
             .functions
             .iter()
-            .filter_map(|function| match &function.operation {
-                TargetOperation::UnitBody(body) => Some(body),
-                _ => None,
-            })
-            .flat_map(|body| &body.operations)
+            .flat_map(|function| &function.graph.blocks)
+            .flat_map(|block| &block.operations)
             .filter(|candidate| {
                 matches!(candidate,
                     TargetUnitOperation::NormalizedForeignCall { psi_operation, binding, .. }

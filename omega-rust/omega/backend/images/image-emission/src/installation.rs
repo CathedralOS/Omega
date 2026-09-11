@@ -104,7 +104,7 @@ use structural_scalar_codec::{
 use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joins;
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 94;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 95;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -530,10 +530,6 @@ pub struct InstalledFunction {
     /// executable image before stack composition may consume it.
     pub foreign_call_stacks: Vec<InstalledForeignCallStack>,
     pub unit_body: bool,
-    /// The exact function remains governed by the independently replayed
-    /// ranked-`u32` object/image carrier. This closed body tag prevents
-    /// canonical installation encoding from shedding that disjoint custody.
-    pub ranked_u32_countdown: bool,
     pub unit_parameters: Vec<machine_code::UnitParameterRecord>,
     pub unit_parameter_homes: Vec<machine_code::UnitParameterHomeRecord>,
     pub unit_scalar_homes: Vec<machine_code::UnitScalarHomeRecord>,
@@ -778,7 +774,6 @@ where
                 scalar_call_stacks: function.scalar_call_stacks.clone(),
                 foreign_call_stacks: installed_foreign_call_stacks(image, function.machine),
                 unit_body: function.unit_affine_cleanup.is_some(),
-                ranked_u32_countdown: function.ranked_u32_countdown.is_some(),
                 unit_parameters: function.unit_parameters.clone(),
                 unit_parameter_homes: function.unit_parameter_homes.clone(),
                 unit_scalar_homes: function.unit_scalar_homes.clone(),
@@ -1277,7 +1272,6 @@ pub fn validate_installation_record(
                     || installed.foreign_call_stacks
                         != installed_foreign_call_stacks(image, emitted.machine)
                     || installed.unit_body != emitted.unit_affine_cleanup.is_some()
-                    || installed.ranked_u32_countdown != emitted.ranked_u32_countdown.is_some()
                     || installed.unit_parameters != emitted.unit_parameters
                     || installed.unit_parameter_homes != emitted.unit_parameter_homes
                     || installed.unit_scalar_homes != emitted.unit_scalar_homes
@@ -1961,7 +1955,6 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             && (!function.unit_body
                 || function.scalar_stack.is_some()
                 || function.scalar_abi.is_some()
-                || function.ranked_u32_countdown
                 || function.scalar_affine_cleanup.is_some()
                 || !function.scalar_control_affine_cleanups.is_empty()
                 || function.structural_call_scalar_return.is_some()
@@ -2031,41 +2024,6 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             || has_scalar_boundary_custody
             || function.mixed_structural_scalar_abi.is_some()
             || !function.scalar_structural_scalar_field_stores.is_empty();
-        let ranked_body_is_exclusive = !function.ranked_u32_countdown
-            || (record.functions.len() == 1
-                && function.attachment.is_some()
-                && function.unit_stack.is_some()
-                && function.scalar_stack.is_none()
-                && function.unit_call_stacks.is_empty()
-                && function.scalar_call_stacks.is_empty()
-                && function.foreign_call_stacks.is_empty()
-                && !function.unit_body
-                && function.unit_parameters.is_empty()
-                && function.unit_parameter_homes.is_empty()
-                && function.unit_affine_cleanup.is_none()
-                && function.scalar_affine_cleanup.is_none()
-                && function.scalar_control_affine_cleanups.is_empty()
-                && function.scalar_structural_parameters.is_empty()
-                && function.scalar_structural_parameter_homes.is_empty()
-                && function.scalar_abi.is_none()
-                && function.unit_scalar_homes.is_empty()
-                && function.unit_integer_constants.is_empty()
-                && function.unit_structural_scalar_field_stores.is_empty()
-                && function.unit_write_only_primitive_stores.is_empty()
-                && function.scalar_structural_scalar_field_stores.is_empty()
-                && record.structural_returns.is_empty()
-                && record.internal_unit_calls.is_empty()
-                && record.internal_unit_scalar_calls.is_empty()
-                && record.dynamic_conformance_tables.is_empty()
-                && record.dynamic_calls.is_empty()
-                && record.stored_dynamic_calls.is_empty()
-                && record.port_effects.is_empty()
-                && record.boundary_settlements.is_empty()
-                && record.semantic_code_attribution.len() == 9
-                && record
-                    .semantic_code_attribution
-                    .iter()
-                    .all(|row| row.machine == function.machine));
         let structural_call_scalar_result_is_exact = function
             .structural_call_scalar_return
             .is_none_or(|returned| {
@@ -2162,7 +2120,6 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             });
         if !installed_stack_facts_are_canonical(function, &attachments)
             || !installed_function_scalar_transport_is_canonical(function, record.target)
-            || !ranked_body_is_exclusive
             || !structural_call_scalar_result_is_exact
             || !mixed_structural_roster_is_exact
             || (!direct_structural_roster
@@ -2892,8 +2849,8 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
         }) {
             let key = (
                 installed.machine,
-                custody.operation_ordinal,
                 custody.code_offset,
+                custody.operation_ordinal,
             );
             if previous_call.is_some_and(|previous| previous >= key)
                 || !borrowed_structural::call_is_exact(record, function, installed)
@@ -3072,10 +3029,13 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             },
         )
         .map_err(|_| InstallationError::InvalidInternalUnitCall(installed.machine))?;
+        // The image retains physical call order. Semantic operation ordinals
+        // follow the source block roster and need not increase in that order;
+        // owner_valid separately binds each ordinal to its exact source span.
         let key = (
             installed.machine,
-            custody.operation_ordinal,
             custody.code_offset,
+            custody.operation_ordinal,
         );
         let projected_argument_indexes = custody
             .arguments
@@ -5268,7 +5228,6 @@ mod resource_tests {
                 contribution_alignment: 16,
             }],
             unit_body: false,
-            ranked_u32_countdown: false,
             unit_parameters: Vec::new(),
             unit_parameter_homes: Vec::new(),
             unit_scalar_homes: Vec::new(),

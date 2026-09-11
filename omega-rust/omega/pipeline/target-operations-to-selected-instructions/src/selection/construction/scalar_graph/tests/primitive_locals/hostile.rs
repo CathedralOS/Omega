@@ -67,7 +67,6 @@ fn repeated_local_borrows_pass_the_original_pointer_in_exact_outgoing_stack_slot
                     register_environment::baseline_target_register_environment(target).unwrap();
                 let constraints = SelectedSelectionConstraints {
                     keys: environment.selected_keys(),
-                    projected_structural_call: None,
                     fixed_inputs: Vec::new(),
                 };
                 let selected = build(
@@ -319,7 +318,6 @@ fn local_reads_and_scalar_results_survive_a_second_borrowed_call_without_substit
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         let selected = build(

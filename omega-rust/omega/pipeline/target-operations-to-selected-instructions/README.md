@@ -23,11 +23,12 @@ virtual registers, exact fixed ABI constraints and machine effects. Roster order
 is not control-flow order. Arithmetic and calls use the same ordinary graph;
 physical register homes, liveness, frame storage and emission are downstream jobs.
 
-Ordinary scalar-result input must already be a `TargetControlGraph`; this stage
-does not convert retired scalar-return or whole-function expression-tree forms.
-The shared source/replay custody check enforces that rule before specialized
-publication paths can run. The separately verified ranked-countdown contract is
-unchanged. Legalization validator identity v47 records this admission cut.
+Every target function contains its `TargetControlGraph` directly. This stage
+does not convert flat bodies or whole-function expression trees. Unit, scalar,
+and aggregate results share construction and independent replay; projected
+structural returns have no second function roster. Natural-ranked cycles retain
+their ordinary proof obligations on that same route. Older unsigned-countdown
+native custody rejects rather than bypassing verification.
 
 Each instruction retains operation, obligation, value, definition and fuel
 provenance. Successor bindings preserve semantic identities and explicit register
@@ -380,19 +381,6 @@ derive separate projections. Replay checks the complete selected content against
 the semantic/optimized input, target plan and register catalog, including exact
 instruction order, ABI copies, call slots, memory accesses and zero-instruction
 settlements. Producer success is not its own validation.
-
-## Non-executable retained selection family
-
-The `projected_structural_call_returns` plan retains a bounded owned-linear
-projected call/return closure separately from ordinary selected functions. It
-records exact fragment placements, fixed constraints, implicit effects and
-required transfers without ordinary scalar registers/instructions. On differing
-x86 views the copy uses the complete target copy constraint; AArch64 same-view
-transport remains an explicit no-copy fact. Both
-[liveness](../selected-instructions-to-selected-instructions/src/analyses/liveness/compute.rs)
-and [machine-effect analysis](../selected-instructions-to-selected-instructions/src/analyses/machine_effects/facts/compute.rs)
-reject a nonempty retained family. Its existence is not physical or publication
-support and must not become an alternate executable pipeline.
 
 Broader supported behavior must enter the common graph with exact ABI, memory,
 ownership, proof and frame replay. Unsupported shapes reject at their owner;

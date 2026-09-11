@@ -60,10 +60,6 @@ pub(super) fn derive(
     }
     postorder.reverse();
     let mut order = vec![entry];
-    if source.ranked.is_some() {
-        order.extend((0..source.blocks.len()).filter(|index| *index != entry));
-        return Ok(order);
-    }
     while order.len() < source.blocks.len() {
         // Keep the established layout for acyclic inputs. At a cycle, use the
         // next reverse-postorder block instead of waiting for its own backedge.

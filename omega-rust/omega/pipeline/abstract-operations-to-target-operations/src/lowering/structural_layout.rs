@@ -5,10 +5,6 @@ pub(super) use scalar_fields::{
     direct_boolean_field_offset, direct_integer_field_offset, direct_scalar_field_offset,
 };
 
-pub(super) use crate::affine_cleanup_partition::{
-    expected_maximal_residual_subtrees, is_partial_cleanup_path,
-};
-
 /// Existing copy metadata describes the root array, not the final index in a
 /// nested path. Record-root projections have no root array metadata.
 pub(super) fn root_array_projection_metadata(

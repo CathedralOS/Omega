@@ -1,21 +1,14 @@
-//! Ordinary graphs and exact structural calls outside an atomic plan family.
+//! Project every function through the common graph validator.
 
 use super::*;
 
 pub(super) fn derive_remaining(
     rosters: &mut SourceFunctionRosters,
-    projected: Option<&legalized_operations::LegalizedProjectedStructuralCallReturn>,
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
-    for (index, target_function) in target.functions.iter().enumerate() {
-        if projected.is_some_and(|closure| {
-            target_function.machine == closure.caller.machine
-                || target_function.machine == closure.callee.machine
-        }) {
-            continue;
-        }
+    for target_function in &target.functions {
         let abstract_matches = abstract_plan
             .functions
             .iter()
@@ -31,42 +24,14 @@ pub(super) fn derive_remaining(
         else {
             return Err(Error::SourceCustodyMismatch);
         };
-        if crate::legalization::scalar_graph_input::match_input(
+        rosters.scalar_functions.push(super::scalar_graph::derive(
             target_function,
             abstracted,
             optimized,
             target,
             abstract_plan,
             unit,
-        )
-        .is_ok()
-        {
-            rosters.scalar_functions.push(super::scalar_graph::derive(
-                target_function,
-                abstracted,
-                optimized,
-                target,
-                abstract_plan,
-                unit,
-            )?);
-        } else if matches!(target_function.operation, TargetOperation::UnitBody(_)) {
-            let matched = match_structural_unit_form(target_function, abstracted, optimized)
-                .ok_or(Error::UnsupportedSourceShape { function: index })?;
-            rosters
-                .scalar_functions
-                .push(derive_source_structural_unit_function(
-                    index,
-                    target_function,
-                    abstracted,
-                    optimized,
-                    target,
-                    abstract_plan,
-                    unit,
-                    matched,
-                )?);
-        } else {
-            return Err(Error::UnsupportedSourceShape { function: index });
-        }
+        )?);
     }
     Ok(())
 }

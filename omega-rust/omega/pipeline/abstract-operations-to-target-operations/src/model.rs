@@ -73,7 +73,6 @@ pub enum LoweringError {
     /// prephysical optimizer boundary but have no target-operation carrier yet.
     UnsupportedProjectedStructuralQualifications,
     PlacedViewInput(PlacedViewInputTranslationError),
-    InvalidRankedCountdown(MachineId),
     EntryFunctionMissing(MachineId),
     ProviderInstallationIdentityMismatch,
     DuplicateInstalledProviderCall {

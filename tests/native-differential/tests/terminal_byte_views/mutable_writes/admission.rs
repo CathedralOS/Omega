@@ -82,11 +82,7 @@ fn mutable_write_legalization_rejects_substituted_custody() {
         );
         for mutation in 0..6 {
             let mut proposed = native.clone();
-            let target_operations::TargetOperation::ControlGraph(graph) =
-                &mut proposed.functions[0].operation
-            else {
-                panic!("fill control graph")
-            };
+            let graph = &mut proposed.functions[0].graph;
             let operation = graph
                 .blocks
                 .iter_mut()

@@ -120,9 +120,7 @@ fn subslice_row_rejoins_exact_producer_place_and_obligation() {
     };
     check(&target.functions[0]).unwrap();
     let mut invented = target.functions[0].clone();
-    let TargetOperation::ControlGraph(graph) = &mut invented.operation else {
-        panic!("graph");
-    };
+    let graph = &mut invented.graph;
     let TargetUnitOperation::ByteSequenceSubslice { view, .. } = &mut graph.blocks[0].operations[1]
     else {
         panic!("subslice");
@@ -141,9 +139,7 @@ fn subslice_row_rejoins_exact_producer_place_and_obligation() {
     );
     for mutation in 0..5 {
         let mut changed = target.functions[0].clone();
-        let TargetOperation::ControlGraph(graph) = &mut changed.operation else {
-            panic!("graph");
-        };
+        let graph = &mut changed.graph;
         let TargetUnitOperation::ByteSequenceSubslice { result, view } =
             &mut graph.blocks[0].operations[1]
         else {

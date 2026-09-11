@@ -7,8 +7,6 @@ name = "abstract-operations"
 version = "0.1.0"
 dependencies = [
  "semantic-vocabulary",
- "sha2",
- "terminal-codec",
  "terminal-psi",
 ]
 
@@ -2049,7 +2047,6 @@ dependencies = [
  "target",
  "target-operations",
  "terminal-codec",
- "terminal-fixed-fuel",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "terminal-verifier",
@@ -2156,7 +2153,6 @@ dependencies = [
  "syntax-trees-to-symbol-resolved-trees",
  "target",
  "terminal-codec",
- "terminal-fixed-fuel",
  "terminal-fuel",
  "terminal-interpreter",
  "terminal-psi",

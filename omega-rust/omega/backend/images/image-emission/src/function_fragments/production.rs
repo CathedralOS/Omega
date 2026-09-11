@@ -145,7 +145,6 @@ pub fn build_function_fragment_object_artifact(
             scalar_control_affine_cleanups: Vec::new(),
             scalar_structural_parameters: Vec::new(),
             scalar_structural_parameter_homes: Vec::new(),
-            ranked_u32_countdown: source::ranked_record(targeted),
             structural_return: None,
         });
         let fragment = fragments

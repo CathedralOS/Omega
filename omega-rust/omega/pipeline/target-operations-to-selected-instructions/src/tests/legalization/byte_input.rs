@@ -10,7 +10,7 @@ use semantic_vocabulary::{
     ScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId,
 };
 use target::NativeTarget;
-use target_operations::{CompilerBuiltinExecution, TargetOperation, TargetUnitOperation};
+use target_operations::{CompilerBuiltinExecution, TargetUnitOperation};
 use terminal_psi::{StructuralMultiplicity, TerminalAffineCleanupAction};
 
 pub(crate) fn fixture(
@@ -255,15 +255,13 @@ fn read_byte_target_replay_rejects_home_and_builtin_substitution() {
     let (source, target, unit) = fixture(NativeTarget::linux_x64());
     for mutation in 0..8 {
         let mut changed = target.clone();
-        let TargetOperation::UnitBody(body) = &mut changed.functions[0].operation else {
-            unreachable!()
-        };
+        let body = &mut changed.functions[0].graph;
         let TargetUnitOperation::BoundarySettlement {
             execution,
             realization,
             result,
             ..
-        } = &mut body.operations[0]
+        } = &mut body.blocks[0].operations[0]
         else {
             unreachable!()
         };
@@ -297,9 +295,9 @@ fn read_byte_target_replay_rejects_home_and_builtin_substitution() {
             }
             5 => changed.target = NativeTarget::macos_arm64(),
             6 => {
-                let TargetUnitOperation::Return {
+                let target_operations::TargetControlTerminator::Return {
                     cleanup_actions, ..
-                } = &mut body.operations[1]
+                } = &mut body.blocks[0].terminator
                 else {
                     unreachable!()
                 };

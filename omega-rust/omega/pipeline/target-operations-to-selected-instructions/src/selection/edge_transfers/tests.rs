@@ -14,7 +14,6 @@ fn cyclic_swap_snapshots_both_inputs_before_destination_copies() {
             register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         let class =
@@ -68,7 +67,6 @@ fn cyclic_swap_snapshots_both_inputs_before_destination_copies() {
                 operations: Vec::new(),
                 edges: vec![edge],
             },
-            ranked: None,
             structural: None,
             local_storage_slots: Vec::new(),
             outgoing_arguments: Vec::new(),

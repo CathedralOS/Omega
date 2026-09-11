@@ -168,7 +168,6 @@ pub(super) fn function_is_exact(record: &InstallationRecord, function: &Installe
         || !function.unit_continuations.is_empty()
         || function.scalar_affine_cleanup.is_some()
         || !function.scalar_control_affine_cleanups.is_empty()
-        || function.ranked_u32_countdown
         || function.scalar_abi.is_some()
         || function.mixed_structural_scalar_abi.is_some()
         || function.structural_call_scalar_return.is_some()

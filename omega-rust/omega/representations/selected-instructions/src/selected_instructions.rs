@@ -32,13 +32,6 @@ pub mod structural_case;
 pub mod values;
 
 pub use calls::ordinary::*;
-pub use calls::projected_return::{
-    SelectedProjectedStructuralCallReturn, SelectedProjectedStructuralCallReturnRecipe,
-    SelectedStructuralCallConstraint, SelectedStructuralCopyConstraint,
-    SelectedStructuralCopyOperand, SelectedStructuralFixedOperand,
-    SelectedStructuralFragmentConstraint, SelectedStructuralFragmentSite,
-    SelectedStructuralReturnConstraint, SelectedStructuralTransfer,
-};
 pub use constraints::{
     SelectedConstraintKeys, SelectedFixedInputConstraint, SelectedSelectionConstraints,
 };
@@ -82,7 +75,4 @@ pub struct SelectedInstructionPlan {
     pub target: NativeTarget,
     pub entry: MachineId,
     pub functions: SelectedFunctions,
-    /// Atomic result-bearing structural selections retain their own semantic
-    /// and ABI roster. They intentionally create no scalar virtual register.
-    pub projected_structural_call_returns: Vec<SelectedProjectedStructuralCallReturn>,
 }

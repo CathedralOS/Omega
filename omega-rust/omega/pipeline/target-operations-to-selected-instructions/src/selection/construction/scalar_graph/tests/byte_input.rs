@@ -31,7 +31,6 @@ fn repeated_byte_input_preserves_distinct_owned_homes_and_reverse_cleanup() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         let selected = build(
@@ -112,7 +111,6 @@ fn byte_input_selection_rejects_result_home_and_occurrence_substitution() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         let selected = build(

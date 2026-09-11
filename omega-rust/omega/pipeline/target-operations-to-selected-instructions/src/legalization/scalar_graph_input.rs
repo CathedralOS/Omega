@@ -12,7 +12,7 @@ use optimization_unit::{
     ValueDefinitionSite,
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType, ValueId};
-use target_operations::{TargetFunction, TargetOperation, TargetOperationPlan};
+use target_operations::{TargetFunction, TargetOperationPlan};
 mod control;
 mod custody;
 pub(super) use custody::validate_unit_custody;
@@ -27,19 +27,14 @@ mod unobserved_owned;
 pub(super) use hosted_scalar::hosted_realization;
 mod literals;
 mod primitive_locals;
-mod ranked;
 pub(super) mod structural_call;
 fn structural_parameters(
     target: &TargetFunction,
 ) -> Option<&[target_operations::TargetStructuralParameter]> {
     if let Some(abi) = &target.mixed_structural_scalar_abi {
         Some(&abi.structural_parameters)
-    } else if let TargetOperation::UnitBody(body) = &target.operation {
-        (!body.parameters.is_empty()).then_some(body.parameters.as_slice())
-    } else if let TargetOperation::ControlGraph(graph) = &target.operation {
-        (!graph.parameters.is_empty()).then_some(graph.parameters.as_slice())
     } else {
-        None
+        (!target.graph.parameters.is_empty()).then_some(target.graph.parameters.as_slice())
     }
 }
 pub(super) fn structural_contract(
@@ -48,7 +43,7 @@ pub(super) fn structural_contract(
     optimized: &PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
 ) -> Option<legalized_operations::LegalizedStructuralContract> {
-    // A matching place roster alone must not replace ranked parameter custody
+    // A matching place roster alone must not replace parameter custody
     // with an empty local-only signature; the sum fallback needs an actual producer.
     if let Some(parameters) = structural_parameters(target).or_else(|| {
         (!optimized.structural_places.is_empty()
@@ -78,7 +73,7 @@ pub(super) fn structural_contract(
             result: abstracted.result.structural().cloned(),
         });
     }
-    ranked::structural_contract(target, abstracted, optimized)
+    None
 }
 mod nodes;
 mod target;
@@ -142,10 +137,7 @@ pub(super) fn match_input(
 ) -> Result<CallPlan, LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
     primitive_locals::validate(optimized, &unit.structural_types)?;
-    let ranked = matches!(target.operation, TargetOperation::RankedU32Countdown(_));
-    let call_plan = if ranked {
-        ranked::validate(target, abstracted, optimized, native, plan, unit)?
-    } else if aggregate_results::uses(optimized, plan) {
+    let call_plan = if aggregate_results::uses(optimized, plan) {
         aggregate_results::header(target, abstracted, optimized, native.target, plan)?
     } else if structural_parameters(target).is_some() {
         byte_views::validate(target, abstracted, optimized, native.target, plan)?
@@ -159,11 +151,8 @@ pub(super) fn match_input(
         .iter()
         .flat_map(|block| &block.nodes)
         .any(|node| matches!(node.operation, AbstractOperation::BoundaryCall { .. }))
-        && (!matches!(
-            target.operation,
-            TargetOperation::UnitBody(_) | TargetOperation::ControlGraph(_)
-        ) || !(abstracted.result == AbstractFunctionResult::Unit
-            || abstracted.result.structural().is_some()))
+        && !(abstracted.result == AbstractFunctionResult::Unit
+            || abstracted.result.structural().is_some())
     {
         return Err(invalid);
     }
@@ -206,7 +195,7 @@ pub(super) fn match_input(
         {
             return Err(invalid);
         }
-        nodes::validate(block, optimized, ranked, plan)?;
+        nodes::validate(block, optimized, plan)?;
     }
     let entry = optimized
         .blocks
@@ -226,12 +215,9 @@ pub(super) fn match_input(
                 .iter()
                 .flat_map(|block| &block.nodes)
                 .any(|node| node.uses.iter().any(|used| used.value == parameter.value))
-                && !(Some(placement.shape) == (if ranked && parameter.scalar_type == ScalarType::Integer(u32_type()) { Some(ValueShape::integer(4, 4)) } else { scalar_shape(parameter.scalar_type) })
+                && !(Some(placement.shape) == scalar_shape(parameter.scalar_type)
                     && (matches!(placement.locations.as_slice(), [ValueLocation::Register {value_byte_offset:0,byte_size,..}] if *byte_size == placement.shape.byte_size)
-                        || !ranked
-                            && (matches!(abstracted.result, AbstractFunctionResult::Unit | AbstractFunctionResult::Structural(_))
-                                || matches!(target.operation, TargetOperation::ControlGraph(_)))
-                            && scalar_stack(placement)))
+                        || scalar_stack(placement)))
         })
     {
         return Err(invalid);
@@ -348,9 +334,7 @@ pub(super) fn match_input(
     }
     // Complete-unit custody admits cycles only after independent source proof
     // replay. Per-function matching below retains every executable edge.
-    if !ranked {
-        validate_target(target, abstracted, optimized, native, plan, unit)?;
-    }
+    validate_target(target, abstracted, optimized, native, plan, unit)?;
     Ok(call_plan)
 }
 pub(super) fn callee_plan(

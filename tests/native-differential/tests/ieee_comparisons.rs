@@ -86,10 +86,7 @@ fn text(
             .target_operations()
             .functions
             .iter()
-            .all(|function| matches!(
-                function.operation,
-                target_operations::TargetOperation::ControlGraph(_)
-            ))
+            .all(|function| !function.graph.blocks.is_empty())
     );
     let physical = native_realization::stage_optimized_verified_physical_pipeline(
         target_operations,

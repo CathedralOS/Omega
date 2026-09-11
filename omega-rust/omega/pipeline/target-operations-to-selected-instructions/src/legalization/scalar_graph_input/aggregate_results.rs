@@ -172,9 +172,7 @@ pub(super) fn header(
     plan: &AbstractOperationPlan,
 ) -> Result<CallPlan, LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
-    let TargetOperation::ControlGraph(graph) = &target.operation else {
-        return Err(invalid);
-    };
+    let graph = &target.graph;
     if target.machine != abstracted.machine
         || target.machine != optimized.machine
         || target.attachment != abstracted.attachment

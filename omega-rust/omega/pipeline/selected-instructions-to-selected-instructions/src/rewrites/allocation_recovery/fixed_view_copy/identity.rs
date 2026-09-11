@@ -223,7 +223,6 @@ mod tests {
                 target: target::NativeTarget::linux_x64(),
                 entry: MachineId::new(1).unwrap(),
                 functions: Default::default(),
-                projected_structural_call_returns: Vec::new(),
             }
             .into(),
         }

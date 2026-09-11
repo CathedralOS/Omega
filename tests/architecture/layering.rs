@@ -79,10 +79,6 @@ const KNOWN_EDGE_EXCEPTIONS: &[(&str, &str)] = &[
     // exact crate edge; it does not authorize a representations-to-semantics
     // layer pair.
     ("legalized-operations", "terminal-codec"),
-    // Ranked raw custody retains canonical Terminal module and proposition
-    // bytes. This representation edge uses their existing codec, not semantic
-    // verification or a second representation-local wire format.
-    ("abstract-operations", "terminal-codec"),
     // This target-neutral semantic service owns the pre-resolution/pre-check
     // conveyors; target/provider realization remains a later Omega concern.
     // Its probe evaluations deliberately invoke these three Psi frontend passes
@@ -453,9 +449,6 @@ fn workspace_layering_is_respected() {
 
 #[test]
 fn compilation_report_excludes_speculative_runtime_owners() {
-    // Ranked native object replay now deliberately re-derives its fixed-fuel
-    // theorem. `terminal-fixed-fuel` is semantic validation on that live
-    // path, not one of the quarantined installation/runtime owners below.
     let forbidden = [
         "component-candidate",
         "component-deployment",
@@ -2137,9 +2130,9 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && post_terminal_selection.contains("pub struct PostTerminalOptimizationSelections")
             && post_terminal_selection.contains("OptimizationExecutionPhase::CheckedTrees")
             && post_terminal_selection.contains("OptimizationExecutionPhase::Psi")
-            && model.contains("enum NativeRealizationAuthority")
+            && !model.contains("enum NativeRealizationAuthority")
             && !model.contains("PostTerminalOptimizationContinuation")
-            && model.contains("optimization_input.plan() != native.plan()")
+            && model.contains("optimization_input.plan() != &native")
             && model.contains("self.optimization_input.plan()")
             && !model.contains(
                 "optimization: Option<terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput>",
@@ -2182,10 +2175,9 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
                 == 1
             && optimization_stage
                 .contains("empty selection changed the ordinary abstract-operation plan")
-            && optimization_stage
-                .contains("optimization changed the exact admitted ranked abstract-operation plan")
-            && optimization_stage.contains("NativeRealizationAuthority::RankedU32Countdown(_)")
-            && target_stage.contains("match authority {")
+            && optimization_stage.contains("input.into_optimization_input()")
+            && !optimization_stage.contains("NativeRealizationAuthority")
+            && !target_stage.contains("match authority {")
             && !target_stage.contains("optimize_verified_abstract_input(")
             && !target_stage.contains("PostTerminalOptimizationContinuation")
             && target_stage.contains("lower_validated_abstract_to_target_operations")
@@ -2194,7 +2186,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && physical_stage.contains("struct NativePhysicalStageResult")
             && !physical_stage.contains("NativeTargetStageEvidence")
             && !target_output.contains("enum NativeTargetStageEvidence")
-            && target_stage.contains("lower_validated_ranked_to_target_operations(")
+            && !target_stage.contains("lower_validated_ranked_to_target_operations(")
             && !physical_stage.contains("Assigned(")
             && !root.join("omega-rust/omega/pipeline/target-operations-to-assigned-target-operations").exists()
             && !physical_stage.contains("IdentityRanked")
@@ -2241,16 +2233,10 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && !model.contains("NativeRealizationInput::ExplicitOptimization"),
         "optimization presence must not select the Terminal-to-abstract native authority entrance, and identity execution must retain verified stage input"
     );
-    let (_, target_conveyor) = target_stage
-        .split_once("match authority {")
-        .expect("target realization consumes the completed optimization stage");
-    let (ranked_target_conveyor, ordinary_target_conveyor) = target_conveyor
-        .split_once("NativeRealizationAuthority::Ordinary =>")
-        .expect("target realization distinguishes native authority, not optimization history");
-    let ordinary_target_stage = ordinary_target_conveyor
+    let ordinary_target_stage = target_stage
         .find("lower_validated_abstract_to_target_operations(")
         .expect("identity and selected execution use one target producer");
-    let ordinary_target_result = ordinary_target_conveyor
+    let ordinary_target_result = target_stage
         .find("Ok(NativeTargetStageResult::new(target))")
         .expect("the target stage retains the validated current program");
     let optimization_stage_entrance = machine_code
@@ -2274,8 +2260,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let transitional_assignment =
         "target_operations_to_assigned_target_operations::assign_registers";
     assert!(
-        !ranked_target_conveyor.contains(transitional_assignment)
-            && !ordinary_target_conveyor.contains(transitional_assignment)
+        !target_stage.contains(transitional_assignment)
             && !target_stage.contains("if psi_only {")
             && !physical_stage.contains(transitional_assignment)
             && !machine_code.contains(transitional_assignment)
@@ -3046,24 +3031,11 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
         .parent()
         .expect("replay has legalization parent")
         .join("projected_structural_call_return");
-    let projected_replay = recursive_rust_source(&projected_legalization.join("replay"));
-    for forbidden in [
-        "projected_structural_call_return::source",
-        "source::derive",
-        "lower_to_target_operations",
-    ] {
-        assert!(
-            !projected_replay.contains(forbidden),
-            "projected legalization replay must not consume producer mechanics; found {forbidden}",
-        );
-    }
-    let projected_source = recursive_rust_source(&projected_legalization.join("source"));
-    for forbidden in ["replay::", "validate_legalized_operations"] {
-        assert!(
-            !projected_source.contains(forbidden),
-            "projected legalization producer must not consume replay mechanics; found {forbidden}",
-        );
-    }
+    assert!(
+        !projected_legalization.exists()
+            || recursive_rust_source(&projected_legalization).is_empty(),
+        "structural calls must remain on the common graph"
+    );
     let legalization_root = legalization_replay.parent().expect("legalization owner");
     assert!(
         !legalization_root.join("catalog.rs").exists(),
@@ -4113,168 +4085,69 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
     for forbidden in [
         "crate::lowering",
         "lower_to_target_operations",
-        "lower_scalar_return",
         "KnownScalar",
         "KnownInteger",
-        "insert_value",
-        "prepare_scalar_lowering",
-        "scalar_parameter_location",
-    ] {
-        assert!(
-            !validation.contains(forbidden),
-            "independent abstract-to-target translation validation must not consume producer mechanics; found {forbidden}",
-        );
-    }
-    for required in [
         "ENABLED_TRANSLATION_FAMILIES",
-        "source.functions.len() != target.functions.len()",
-        "straight_line_integer_literal_unit_return::is_candidate",
-        "straight_line_integer_literal_unit_return::validate",
-        "straight_line_ieee_float_literal_unit_return::is_candidate",
-        "straight_line_ieee_float_literal_unit_return::validate",
-        "straight_line_ieee_float_literal_sequence_unit_return::is_candidate",
-        "straight_line_ieee_float_literal_sequence_unit_return::validate",
-        "CallingPolicy::native_for_target",
-        "evaluate_call_plan",
-        "ENABLED_PLAN_TRANSLATION_FAMILIES",
-        "structural_call_return::is_candidate",
-        "structural_call_return::validate",
-        "source::reconstruct(source)?",
-        "target::replay(&closure, target)?",
         "AmbiguousFunctionFamily",
     ] {
         assert!(
-            validation.contains(required),
-            "abstract-to-target validation must visibly own independent `{required}` reconstruction",
+            !validation.contains(forbidden),
+            "independent graph custody retains {forbidden}"
         );
     }
-
-    let structural_replay = recursive_rust_source(&stage.join("validation/structural_call_return"));
-    for forbidden in [
-        "crate::lowering",
-        "structural_layout",
-        "lower_direct_return",
+    for required in [
+        "source.functions.len() != target.functions.len()",
+        "validate_fma_settlement_roster",
+        "structural_signatures::validate",
+        "FunctionMachineMismatch",
+        "FunctionAttachmentMismatch",
     ] {
         assert!(
-            !structural_replay.contains(forbidden),
-            "projected structural-call replay must not consume producer mechanics; found {forbidden}",
+            validation.contains(required),
+            "root/roster custody must retain {required}"
         );
     }
-
-    // Scalar bodies have one graph reader, not a per-expression catalog. Keep
-    // native ABI reconstruction independent of the target producer.
-    let graph_input = root.join(
-        "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/scalar_graph_input",
-    );
-    let header = std::fs::read_to_string(graph_input.join("header.rs"))
-        .expect("read graph scalar ABI replay");
+    let graph_input = root.join("omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/scalar_graph_input");
+    let header = std::fs::read_to_string(graph_input.join("header.rs")).unwrap();
     for required in [
         "evaluate_call_plan(",
         "CallingPolicy::native_for_target(native)",
         "abi.call_plan != expected",
         "actual.placement != *placement",
-        "abi.result.scalar_type != result.scalar_type",
-        "Some(&abi.result.placement) != expected.result.as_ref()",
     ] {
         assert!(
             header.contains(required),
-            "graph ABI replay must retain {required}"
+            "independent graph ABI must retain {required}"
         );
     }
-    assert!(!header.contains("crate::lowering"));
-    let graph_replay = std::fs::read_to_string(graph_input.join("target/control_flow.rs"))
-        .expect("read current target graph replay");
+    let replay = recursive_rust_source(&graph_input.join("target"));
     for required in [
-        "header::function_abi",
-        "graph.call_plan != expected",
-        "graph.scalar_parameters != abi.parameters",
         "graph.blocks.len() != optimized.blocks.len()",
         "block.block != source.id",
         "source.nodes.len() != block.operations.len() + 1",
         "super::unit::validate_operation(",
     ] {
         assert!(
-            graph_replay.contains(required),
-            "graph replay must retain {required}"
+            replay.contains(required),
+            "independent graph replay must retain {required}"
         );
     }
-    for retired in [
-        "mod straight_line_parameter",
-        "mod immediate;",
-        "StraightLineScalarCrash",
-    ] {
-        assert!(
-            !validation.contains(retired),
-            "retired scalar family catalog must not return: {retired}"
-        );
-    }
-
-    for retired in [
-        "validation/model/error.rs",
-        "validation/model/receipt.rs",
-        "validation/catalog/dispatch.rs",
-    ] {
-        assert!(
-            !stage.join(retired).exists(),
-            "retired mixed validation entrypoint must not return: {retired}"
-        );
-    }
-
-    let optimized_entrance = std::fs::read_to_string(root.join(
-        "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/optimized.rs",
-    ))
-    .expect("read optimized target-operation entrance");
-    assert!(
-        optimized_entrance
-            .contains("validate_abstract_to_target_translation_with_ieee_float_fma_settlements(")
-            && optimized_entrance.contains("&program.plan,")
-            && optimized_entrance
-                .matches("let translation_validation =")
-                .count()
-                == 2
-            && optimized_entrance
-                .matches("Ok(ValidatedOptimizedTargetOperations {")
-                .count()
-                == 2,
-        "the optimized target-operation entrance must join lowering to independent translation validation before carrier construction",
+    assert!(!header.contains("crate::lowering"));
+    assert!(!replay.contains("crate::lowering"));
+    let entrance = std::fs::read_to_string(stage.join("optimized.rs")).unwrap();
+    assert_eq!(
+        entrance
+            .matches("Ok(ValidatedOptimizedTargetOperations {")
+            .count(),
+        1
     );
-    for (entrance, validator) in [
-        (
-            "pub fn lower_validated_abstract_to_target_operations(",
-            "validate_abstract_to_target_translation_with_ieee_float_fma_settlements(",
-        ),
-        (
-            "pub fn lower_validated_ranked_to_target_operations(",
-            "crate::validate_abstract_to_target_translation(",
-        ),
-    ] {
-        let body = optimized_entrance
-            .split_once(entrance)
-            .expect("typed target entrance")
-            .1
-            .split("\npub fn ")
-            .next()
-            .unwrap();
-        assert!(
-            body.find(validator)
-                .expect("independent translation validation")
-                < body
-                    .find("Ok(ValidatedOptimizedTargetOperations {")
-                    .expect("sealed target construction"),
-            "each native-authority entrance must validate before sealing: {entrance}"
-        );
-    }
-    let ranked = optimized_entrance
-        .split_once("pub fn lower_validated_ranked_to_target_operations(")
-        .expect("ranked target entrance")
-        .1
-        .split("\npub fn ")
-        .next()
-        .unwrap();
     assert!(
-        ranked.contains("optimized.plan() != &ranked.plan")
-            && ranked.contains("return Err(LoweringError::InvalidRankedCountdown"),
-        "ranked authority must bind exact current abstract data before target lowering"
+        entrance
+            .find("validate_abstract_to_target_translation_with_ieee_float_fma_settlements(")
+            .unwrap()
+            < entrance
+                .find("Ok(ValidatedOptimizedTargetOperations {")
+                .unwrap()
     );
 }
 
@@ -4328,36 +4201,29 @@ fn ordinary_structural_transport_validation_cannot_reenter_its_producer() {
 }
 
 #[test]
-fn projected_structural_selection_replay_is_independent_and_downstream_is_fenced() {
+fn target_functions_and_selected_rosters_have_one_graph_shape() {
     let root = workspace_root();
-    let selection = root
-        .join("omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection");
-    let replay =
-        recursive_rust_source(&selection.join("validation/projected_structural_call_return"));
-    for forbidden in [
-        "selection::construction",
-        "construction::projected_structural_call_return",
-        "super::super::construction",
+    let target =
+        recursive_rust_source(&root.join("omega-rust/omega/representations/target-operations/src"));
+    assert!(target.contains("pub graph: TargetControlGraph"));
+    for retired in [
+        "pub enum TargetOperation {",
+        "ScalarReturnWithCleanup",
+        "TargetConditionalIntegerArm",
+        "TargetRankedU32Countdown",
     ] {
         assert!(
-            !replay.contains(forbidden),
-            "projected structural replay must not call producer code; found {forbidden}",
+            !target.contains(retired),
+            "retired function shape remains: {retired}"
         );
     }
-    for (path, fence) in [
-        (
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/liveness/compute.rs",
-            "ProjectedStructuralCallReturnUnsupported",
-        ),
-        (
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/machine_effects/facts/compute.rs",
-            "ProjectedStructuralCallReturnUnsupported",
-        ),
-    ] {
-        let source = std::fs::read_to_string(root.join(path)).expect("read downstream fence");
+    for owner in ["legalized-operations", "selected-instructions"] {
+        let representation = recursive_rust_source(
+            &root.join(format!("omega-rust/omega/representations/{owner}/src")),
+        );
         assert!(
-            source.contains(fence),
-            "missing explicit downstream fence in {path}"
+            !representation.contains("projected_structural_call_returns"),
+            "parallel function roster in {owner}"
         );
     }
 }
@@ -4429,108 +4295,45 @@ fn selected_construction_uses_one_ordinary_instruction_graph() {
 }
 
 #[test]
-fn ranked_publication_uses_common_replay_and_rejects_raw_machine_authority() {
+fn native_publication_has_no_countdown_execution_fork() {
     let root = workspace_root();
-    let image_root = root.join("omega-rust/omega/backend/images/image-emission");
-    let manifest = std::fs::read_to_string(image_root.join("Cargo.toml"))
-        .expect("read image-emission manifest");
-    let production_dependencies = manifest
-        .split("[dev-dependencies]")
-        .next()
-        .expect("manifest has a production prefix");
+    let native = std::fs::read_to_string(root.join(
+        "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/artifact/native.rs",
+    ))
+    .unwrap();
+    assert!(native.contains("UnsupportedUnsignedCountdownNativeCustody"));
+    assert!(native.contains("terminal_verifier::verify_module("));
+    assert!(!native.contains("NativeArtifactOperationPlan"));
+    let image = root.join("omega-rust/omega/backend/images/image-emission");
+    let manifest = std::fs::read_to_string(image.join("Cargo.toml")).unwrap();
     assert!(
-        !production_dependencies
+        !manifest
+            .split("[dev-dependencies]")
+            .next()
+            .unwrap()
             .lines()
-            .any(|line| line.trim_start().starts_with("machine-emission")),
-        "ranked object replay must not acquire a production dependency on its machine-code producer",
+            .any(|line| line.trim_start().starts_with("machine-emission"))
     );
-
-    assert!(
-        !image_root.join("src/ranked_u32_countdown").exists(),
-        "ranked publication must not retain a parallel final-image validator"
-    );
-    let replay = recursive_rust_source(&image_root.join("src/function_fragments"));
+    let replay = recursive_rust_source(&image.join("src/function_fragments"));
     for forbidden in [
         "machine_emission",
         "emit_machine_code",
-        "encode_ranked_u32_countdown_in_edi",
-        "encode_ranked_u32_countdown_in_w0",
-        "X86_64_RANKED_U32_",
-        "AARCH64_RANKED_U32_",
+        "RankedU32CountdownMachineCodeRecord",
+        "source::ranked_record(",
     ] {
         assert!(
             !replay.contains(forbidden),
-            "ranked object replay must consume decoded target evidence, not producer mechanics; found {forbidden}",
+            "native publication retains {forbidden}"
         );
     }
-    let image_entrance = std::fs::read_to_string(image_root.join("src/lib.rs"))
-        .expect("read image-emission entrance");
-    assert!(
-        image_entrance.contains("function.ranked_u32_countdown.is_some()")
-            && image_entrance
-                .contains("return Err(ObjectError::InvalidRankedCountdown(function.machine))"),
-        "legacy object construction must reject ranked bodies without common replay",
-    );
-    assert!(
-        image_entrance.contains(
-            "pub ranked_u32_countdown: Option<machine_code::RankedU32CountdownMachineCodeRecord>",
-        ),
-        "object functions must retain independently replayed ranked custody",
-    );
-
-    let common_replay =
-        std::fs::read_to_string(image_root.join("src/function_fragments/replay.rs"))
-            .expect("read retained common replay");
-    assert!(
-        common_replay.contains("Arc<StagedOptimizedRelocationFreeObjectContainer>")
-            && common_replay.contains("artifact.fragment_replay.is_none()")
-            && common_replay.contains("function.ranked_u32_countdown.is_some()")
-            && common_replay.contains("ranked body requires common-pipeline replay evidence")
-            && common_replay
-                .contains("validate_function_fragment_object_artifact(&replay.0, artifact)")
-            && image_entrance
-                .contains("fragment_replay: Option<function_fragments::replay::FragmentReplay>"),
-        "final-image replay must retain the complete common source, not a hash-only admission"
-    );
-    let current_validation =
-        std::fs::read_to_string(image_root.join("src/function_fragments/validation.rs"))
-            .expect("read common independent object validation");
-    assert!(
-        current_validation.contains("source::admit(source)?")
-            && current_validation.contains("actual.custody == expected.custody")
-            && current_validation.contains("actual.cleanup_actions == expected.cleanup_actions")
-            && !current_validation.contains("source::ranked_record("),
-        "ranked object fields must be independently compared, not certified by their producer"
-    );
-    let ranked_input = recursive_rust_source(&root.join(
-        "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/scalar_graph_input/ranked"));
-    let ranked_header = std::fs::read_to_string(root.join(
-        "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/scalar_graph_input/ranked.rs")).unwrap();
-    for required in [
-        "verify_module_for_native_ranked_countdown",
-        "verify_module_for_fixed_fuel",
-        "validate_ranked_countdown_entry_fuel",
-        "replay_ranked_graph_matches",
-        "frontier_matches",
-    ] {
-        assert!(
-            ranked_input.contains(required),
-            "ranked source admission must retain {required}"
-        );
-    }
-    assert!(
-        ranked_header.contains("target.attachment.is_none()"),
-        "the existing attached ranked publication scope must remain explicit"
-    );
+    let common = std::fs::read_to_string(image.join("src/function_fragments/replay.rs")).unwrap();
+    assert!(common.contains("validate_function_fragment_object_artifact(&replay.0, artifact)"));
     for path in [
-        "omega-rust/omega/backend/instruction_set_architectures/isa-x86_64/src/ranked_u32_countdown.rs",
-        "omega-rust/omega/backend/instruction_set_architectures/isa-aarch64/src/ranked_u32_countdown.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering/ranked_countdown.rs",
+        "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/scalar_graph_input/ranked.rs",
         "omega-rust/omega/backend/machine-emission/src/ranked_countdown.rs",
     ] {
-        assert!(
-            !root.join(path).exists(),
-            "dedicated ranked physical template must be deleted: {path}"
-        );
+        assert!(!root.join(path).exists(), "retired countdown route: {path}");
     }
 }
 

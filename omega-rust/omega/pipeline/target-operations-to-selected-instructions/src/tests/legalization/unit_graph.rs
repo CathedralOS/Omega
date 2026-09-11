@@ -11,7 +11,7 @@ use semantic_vocabulary::{
     OperationId, ScalarType, ValueId,
 };
 use target::NativeTarget;
-use target_operations::{TargetControlTerminator, TargetOperation, TargetUnitOperation};
+use target_operations::{TargetControlTerminator, TargetUnitOperation};
 mod continuations;
 
 fn targets() -> [NativeTarget; 4] {
@@ -143,10 +143,7 @@ fn unit_graph_calls_branch_and_rejoin_on_all_hosted_targets() {
             &source, native, &target,
         )
         .unwrap();
-        assert!(matches!(
-            target.functions[0].operation,
-            TargetOperation::ControlGraph(_)
-        ));
+        assert!(!target.functions[0].graph.blocks.is_empty());
         let legal = legalize_target_operations(&target, &source, &unit).unwrap();
         validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
         let caller = &legal.plan().scalar_functions[0];
@@ -219,9 +216,7 @@ fn unit_graph_replay_rejects_cfg_and_source_substitution() {
         let legal = legalize_target_operations(&target, &source, &unit).unwrap();
         for mutation in 0..12 {
             let mut changed = target.clone();
-            let TargetOperation::ControlGraph(graph) = &mut changed.functions[0].operation else {
-                panic!("graph");
-            };
+            let graph = &mut changed.functions[0].graph;
             match mutation {
                 0 => graph.entry = block(2),
                 1 => graph.blocks.swap(1, 2),

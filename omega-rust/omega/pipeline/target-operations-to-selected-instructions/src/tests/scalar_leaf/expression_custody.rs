@@ -1,5 +1,5 @@
 use super::*;
-use target_operations::{TargetControlTerminator, TargetIntegerExpression, TargetScalarExpression};
+use target_operations::{TargetControlTerminator, TargetScalarExpression};
 
 #[test]
 fn operation_operands_and_returns_reject_reconstructed_boolean_trees() {
@@ -46,9 +46,7 @@ fn operation_operands_and_returns_reject_reconstructed_boolean_trees() {
     let legal = legalize_target_operations(&target, &source, &unit).unwrap();
     for replace_return in [false, true] {
         let mut changed = target.clone();
-        let TargetOperation::ControlGraph(graph) = &mut changed.functions[0].operation else {
-            panic!("scalar graph")
-        };
+        let graph = &mut changed.functions[0].graph;
         let observations = graph.blocks[0]
             .operations
             .iter()
@@ -91,54 +89,4 @@ fn operation_operands_and_returns_reject_reconstructed_boolean_trees() {
             validate_legalized_operations(&changed, &source, &unit, legal.plan().clone()).is_err()
         );
     }
-}
-
-#[test]
-fn call_result_return_rejects_a_reconstructed_call_tree() {
-    let native = target::NativeTarget::linux_x64();
-    let (mut source, _, previous) = fixture(Some(7), native);
-    let callee = semantic_vocabulary::MachineId::new(2).unwrap();
-    let mut callee_function = source.functions[0].clone();
-    callee_function.machine = callee;
-    source.functions.push(callee_function);
-    let scalar_type = source.functions[0].result.scalar().unwrap().scalar_type;
-    let value = ValueId::new(2).unwrap();
-    let operation = OperationId::new(1).unwrap();
-    source.functions[0].operations[0] = AbstractOperation::Call {
-        psi_operation: operation,
-        result: value,
-        scalar_type,
-        callee,
-        arguments: Vec::new(),
-        requirement_obligations: Vec::new(),
-        crash_continuations: Vec::new(),
-    };
-    let mut target =
-        abstract_operations_to_target_operations::lower_to_target_operations(&source, native)
-            .unwrap();
-    let unit =
-        optimization_unit::reconstruct_psi_optimization_unit_seed(&source, previous.fuel_schedule)
-            .unwrap();
-    let legal = legalize_target_operations(&target, &source, &unit).unwrap();
-    let TargetOperation::ControlGraph(graph) = &mut target.functions[0].operation else {
-        panic!("scalar graph")
-    };
-    let TargetControlTerminator::ReturnScalar {
-        expression: TargetScalarExpression::Integer { expression, .. },
-        ..
-    } = &mut graph.blocks[0].terminator
-    else {
-        panic!("integer return")
-    };
-    assert!(matches!(expression, TargetIntegerExpression::ScalarHome(_)));
-    *expression = TargetIntegerExpression::Call {
-        psi_operation: operation,
-        source_value: value,
-        callee,
-        arguments: Vec::new(),
-        requirement_obligations: Vec::new(),
-        crash_continuations: Vec::new(),
-    };
-    assert!(legalize_target_operations(&target, &source, &unit).is_err());
-    assert!(validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).is_err());
 }

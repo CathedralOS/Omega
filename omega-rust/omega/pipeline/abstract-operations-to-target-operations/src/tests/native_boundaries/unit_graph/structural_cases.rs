@@ -193,9 +193,7 @@ fn lower(
 fn structural_case_graph_preserves_reordered_blocks_and_ordinary_continuation() {
     let plan = fixture();
     let lowered = lower(&plan).unwrap();
-    let TargetOperation::ControlGraph(graph) = &lowered.functions[0].operation else {
-        panic!("ordinary graph")
-    };
+    let graph = &lowered.functions[0].graph;
     assert_eq!(
         graph
             .blocks
@@ -245,9 +243,7 @@ fn structural_case_graph_retains_nominal_return_after_exit_and_rejects_later_wor
     *boundary = exit.id;
     plan.boundary_machines.push(exit);
     let lowered = lower(&plan).unwrap();
-    let TargetOperation::ControlGraph(graph) = &lowered.functions[0].operation else {
-        panic!("graph")
-    };
+    let graph = &lowered.functions[0].graph;
     assert!(
         matches!(graph.blocks[3].terminator, target_operations::TargetControlTerminator::Return { psi_edge, .. } if psi_edge == edge(6))
     );
@@ -310,9 +306,7 @@ fn structural_case_graph_retains_source_until_later_dispatch_cleanup() {
         });
     }
     let lowered = lower(&plan).unwrap();
-    let TargetOperation::ControlGraph(graph) = &lowered.functions[0].operation else {
-        panic!("graph")
-    };
+    let graph = &lowered.functions[0].graph;
     for (position, expected_count) in [(0, 0), (3, 1)] {
         let target_operations::TargetControlTerminator::StructuralCase { cases, .. } =
             &graph.blocks[position].terminator
@@ -464,9 +458,7 @@ fn owned_sum_arrival_uses_its_actual_block_declaration_and_complete_layout() {
     let source = owned_arrival_fixture();
     let lowered =
         lower_owned(&source).expect("owned result transfers into an observed sum parameter");
-    let TargetOperation::ControlGraph(graph) = &lowered.functions[0].operation else {
-        panic!("graph");
-    };
+    let graph = &lowered.functions[0].graph;
     let target_operations::TargetControlTerminator::StructuralCase { source: home, .. } =
         &graph.blocks[1].terminator
     else {
@@ -612,9 +604,7 @@ fn owned_sum_diamond_retains_destination_identity_and_rejects_sibling_sources() 
     );
     let lowered =
         lower_owned(&source).expect("two independently established values join one owned home");
-    let TargetOperation::ControlGraph(graph) = &lowered.functions[0].operation else {
-        panic!("graph");
-    };
+    let graph = &lowered.functions[0].graph;
     let target_operations::TargetControlTerminator::StructuralCase { source: home, .. } =
         &graph.blocks[3].terminator
     else {

@@ -34,61 +34,33 @@ builtin_native_realization_conversion!(target_operations::HostedExitProcessI32Re
 builtin_native_realization_conversion!(target_operations::HostedReadByteRealization);
 builtin_native_realization_conversion!(target_operations::ClaimCompletionOnlyRealization);
 
-/// Native authority is independent of optimization selection.
-/// The ranked role retains its checked countdown evidence; ordinary authority
-/// does not duplicate the current abstract-operation plan.
-#[derive(Debug, Clone)]
-pub(crate) enum NativeRealizationAuthority {
-    Ordinary,
-    RankedU32Countdown(abstract_operations::RankedNativeAbstractOperationPlan),
-}
-
-/// One current verified abstract input and its separately admitted native role.
+/// One current verified abstract input, independently joined to native admission.
 #[derive(Debug, Clone)]
 pub(crate) struct NativeRealizationInput {
-    authority: NativeRealizationAuthority,
     optimization_input: terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
 }
 
 impl NativeRealizationInput {
     pub(crate) fn new(
-        native: terminal_psi_to_abstract_operations::NativeArtifactOperationPlan,
+        native: abstract_operations::AbstractOperationPlan,
         optimization_input: terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
     ) -> Result<Self, &'static str> {
-        if optimization_input.plan() != native.plan() {
+        if optimization_input.plan() != &native {
             return Err(
                 "native authority and abstract-optimization context disagree on the complete abstract program",
             );
         }
-        let authority = match native {
-            terminal_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(_) => {
-                NativeRealizationAuthority::Ordinary
-            }
-            terminal_psi_to_abstract_operations::NativeArtifactOperationPlan::RankedU32Countdown(ranked) => {
-                NativeRealizationAuthority::RankedU32Countdown(ranked)
-            }
-        };
-        Ok(Self {
-            authority,
-            optimization_input,
-        })
+        Ok(Self { optimization_input })
     }
 
     pub(crate) fn plan(&self) -> &abstract_operations::AbstractOperationPlan {
         self.optimization_input.plan()
     }
 
-    pub(crate) const fn authority(&self) -> &NativeRealizationAuthority {
-        &self.authority
-    }
-
-    pub(crate) fn into_parts(
+    pub(crate) fn into_optimization_input(
         self,
-    ) -> (
-        NativeRealizationAuthority,
-        terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
-    ) {
-        (self.authority, self.optimization_input)
+    ) -> terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput {
+        self.optimization_input
     }
 }
 

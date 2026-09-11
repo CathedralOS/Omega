@@ -119,9 +119,7 @@ fn returning_byte_output_accepts_canonical_empty_or_declared_entry_parameters() 
             )
         };
         let expected = lower(&plan).unwrap();
-        let TargetOperation::UnitBody(body) = &expected.functions[0].operation else {
-            panic!("real Unit body");
-        };
+        let body = &expected.functions[0].graph;
         assert_eq!(
             body.scalar_parameters[0].value,
             plan.functions[0].parameters[0].value
@@ -129,7 +127,7 @@ fn returning_byte_output_accepts_canonical_empty_or_declared_entry_parameters() 
         let TargetUnitOperation::BoundarySettlement {
             runtime_scalar_arguments,
             ..
-        } = &body.operations[0]
+        } = &body.blocks[0].operations[0]
         else {
             panic!("returning byte boundary");
         };
@@ -138,13 +136,21 @@ fn returning_byte_output_accepts_canonical_empty_or_declared_entry_parameters() 
             plan.functions[0].parameters[0].value
         );
         assert!(matches!(
-            body.operations.last(),
-            Some(TargetUnitOperation::Return { .. })
+            body.blocks[0].terminator,
+            target_operations::TargetControlTerminator::Return { .. }
         ));
         let mut declared = plan.clone();
         declared.functions[0].block_entries[0].parameters =
             declared.functions[0].parameters.clone();
-        assert_eq!(lower(&declared).unwrap(), expected);
+        let declared_target = lower(&declared).unwrap();
+        let graph = &declared_target.functions[0].graph;
+        assert_eq!(graph.call_plan, body.call_plan);
+        assert_eq!(graph.blocks[0].operations, body.blocks[0].operations);
+        assert_eq!(graph.blocks[0].parameters.len(), 1);
+        assert_eq!(
+            graph.blocks[0].parameters[0].value,
+            declared.functions[0].parameters[0].value
+        );
 
         let mut unused = plan.clone();
         unused.functions[0].parameters.push(AbstractParameter {

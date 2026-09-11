@@ -87,9 +87,7 @@ fn structural_case_graph_rejects_substituted_target_custody() {
         "arm producer",
     ] {
         let mut changed = target.clone();
-        let TargetOperation::ControlGraph(graph) = &mut changed.functions[0].operation else {
-            panic!("graph")
-        };
+        let graph = &mut changed.functions[0].graph;
         let join = graph.blocks[2].block;
         let TargetControlTerminator::StructuralCase { source, cases } =
             &mut graph.blocks[0].terminator

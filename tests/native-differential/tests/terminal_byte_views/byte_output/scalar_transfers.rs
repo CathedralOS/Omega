@@ -238,10 +238,7 @@ fn scalar_transfer_unit_output_rejects_target_binding_substitution() {
                 .iter_mut()
                 .find(|function| function.machine == module.entry)
                 .unwrap();
-            let target_operations::TargetOperation::ControlGraph(graph) = &mut caller.operation
-            else {
-                panic!("ordinary Unit graph")
-            };
+            let graph = &mut caller.graph;
             let entry = graph
                 .blocks
                 .iter_mut()

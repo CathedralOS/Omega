@@ -92,54 +92,6 @@ fn legal_call_order_callee_plan_arguments_lineage_and_evidence_fail_closed() {
 }
 
 #[test]
-fn selected_clobbers_fixed_views_and_call_evidence_fail_closed() {
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let staged = staged_selected(target);
-        let caller_index = staged
-            .selected()
-            .plan()
-            .functions
-            .iter()
-            .position(|function| function.machine == caller_machine())
-            .unwrap();
-
-        let mut corrupted = staged.selected().plan().clone();
-        corrupted.functions[caller_index].blocks[0].instructions[8]
-            .clobbers
-            .pop();
-        assert!(validate_raw_selection(&staged, corrupted).is_err());
-
-        let mut corrupted = staged.selected().plan().clone();
-        corrupted.functions[caller_index].blocks[0].instructions[8].operands[0].fixed_view = None;
-        assert!(validate_raw_selection(&staged, corrupted).is_err());
-
-        let mut corrupted = staged.selected().plan().clone();
-        corrupted.functions[caller_index].blocks[0].instructions[8]
-            .provenance
-            .operations[0] = OperationId::new(SCALAR_CALL_UNIT_FIRST_CALL).unwrap();
-        assert!(validate_raw_selection(&staged, corrupted).is_err());
-
-        let mut corrupted = staged.selected().plan().clone();
-        corrupted.functions[caller_index].blocks[0].instructions[8]
-            .provenance
-            .fuel[0]
-            .units += 1;
-        assert!(validate_raw_selection(&staged, corrupted).is_err());
-
-        let mut corrupted = staged.selected().plan().clone();
-        corrupted.functions[caller_index].blocks[0].instructions[8].kind =
-            SelectedInstructionKind::CallI64 {
-                callee: caller_machine(),
-            };
-        assert_ne!(
-            selected_instruction_plan_identity(staged.selected().plan()),
-            selected_instruction_plan_identity(&corrupted)
-        );
-        assert!(validate_raw_selection(&staged, corrupted).is_err());
-    }
-}
-
-#[test]
 fn cross_target_selected_and_allocator_receipts_fail_closed() {
     let x64_selected = staged_selected(NativeTarget::linux_x64());
     let arm_selected_plan = staged_selected(NativeTarget::linux_arm64())

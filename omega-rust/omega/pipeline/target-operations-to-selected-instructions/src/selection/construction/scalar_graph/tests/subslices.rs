@@ -183,7 +183,6 @@ fn subslice_value_homes_replay_original_empty_and_nested_views() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         for empty in [false, true] {

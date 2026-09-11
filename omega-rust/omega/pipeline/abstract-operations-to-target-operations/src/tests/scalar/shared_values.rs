@@ -13,9 +13,7 @@ fn scalar_graph_retains_distinct_branch_definitions_and_arrivals() {
             }];
         }
         let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
-        let TargetOperation::ControlGraph(graph) = &lowered.functions[0].operation else {
-            panic!("branch definitions retain the source graph");
-        };
+        let graph = &lowered.functions[0].graph;
         assert_eq!(graph.blocks.len(), 3);
         for block in graph.blocks.iter().skip(1) {
             let [
@@ -110,13 +108,8 @@ fn scalar_graph_retains_repeated_value_definitions_once() {
         let receipt =
             validate_abstract_to_target_translation(&plan, NativeTarget::linux_x64(), &lowered)
                 .expect("ordinary graphs do not enter legacy expression validators");
-        assert!(receipt.function_roster().iter().all(|function| matches!(
-            function.translation(),
-            AbstractToTargetFunctionTranslationDisposition::Uncovered
-        )));
-        let TargetOperation::ControlGraph(graph) = &lowered.functions[0].operation else {
-            panic!("computed scalars must retain the source graph");
-        };
+        assert_eq!(receipt.function_count(), plan.functions.len());
+        let graph = &lowered.functions[0].graph;
         let definitions = graph
             .blocks
             .iter()

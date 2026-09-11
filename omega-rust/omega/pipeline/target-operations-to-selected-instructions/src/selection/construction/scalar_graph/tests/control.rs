@@ -172,7 +172,6 @@ fn boolean_not_branch_suffix_preserves_each_operation_and_polarity() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         for count in 1..=2 {
@@ -278,7 +277,6 @@ fn boolean_entry_is_snapshotted_before_calls_and_tested_at_its_branch() {
         };
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: vec![SelectedFixedInputConstraint {
                 machine: source.machine,
                 source_value: value,
@@ -354,7 +352,6 @@ fn scalar_control_keeps_blocks_branches_calls_and_parallel_bindings() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         for signed in [false, true] {
@@ -479,7 +476,6 @@ fn graph_zero_equality_retains_fuel_and_does_not_elide_shared_zero() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         for shared in [false, true] {
@@ -606,7 +602,6 @@ fn edge_transport_names_durable_call_result_not_abi_temporary() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         let mut source = graph(target, Comparison::LessThan, false);

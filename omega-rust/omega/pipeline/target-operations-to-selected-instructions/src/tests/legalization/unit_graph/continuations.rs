@@ -1,6 +1,5 @@
 //! Continuations cross the public target-stage gate and ordinary graph replay.
 use super::*;
-use abstract_operations_to_target_operations::AbstractToTargetFunctionTranslationDisposition;
 
 fn continuation_source(native: NativeTarget) -> abstract_operations::AbstractOperationPlan {
     let (mut source, _, _) = fixture(native);
@@ -62,10 +61,10 @@ fn linear_unit_continuations_cross_translation_and_selected_replay() {
                 &source, native, &target,
             )
             .unwrap();
-        assert!(matches!(
-            receipt.function_roster()[0].translation(),
-            AbstractToTargetFunctionTranslationDisposition::Uncovered
-        ));
+        assert_eq!(
+            receipt.function_roster()[0].machine(),
+            source.functions[0].machine
+        );
         let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),
@@ -124,9 +123,7 @@ fn linear_continuation_corruption_cannot_bypass_mandatory_graph_replay() {
         for mutation in 0..9 {
             let mut changed = target.clone();
             let function = &mut changed.functions[0];
-            let TargetOperation::ControlGraph(graph) = &mut function.operation else {
-                panic!("graph");
-            };
+            let graph = &mut function.graph;
             match mutation {
                 0 => {
                     let TargetUnitOperation::Call { callee, .. } =

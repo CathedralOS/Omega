@@ -43,10 +43,6 @@ use semantic_vocabulary::{
     StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use target::NativeTarget;
-use target_operations::{
-    TargetIntegerControl, TargetIntegerExpression, TargetOperation, TargetUnitOperation,
-    TargetUnitScalarArgumentSource,
-};
 use target_operations_to_selected_instructions::{
     LegalizationError, SelectedInstructionError, legalize_target_operations,
     selected_instruction_plan_identity, validate_legalized_operations,

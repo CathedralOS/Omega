@@ -17,7 +17,6 @@ fn case_payload_bridge_snapshots_each_used_field_before_destination_binding() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         let class = crate::selection::constraints::row(

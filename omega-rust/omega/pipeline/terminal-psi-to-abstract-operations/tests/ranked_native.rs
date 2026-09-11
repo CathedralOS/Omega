@@ -1,11 +1,10 @@
+#[path = "ranked_native/legacy_fixture.rs"]
+mod legacy_fixture;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_psi::{OperationKind, TerminalRankedGuard, Terminator};
 use terminal_psi_to_abstract_operations::{
-    ArtifactLoweringError, NativeArtifactOperationPlan, lower_artifact_sections,
-    lower_artifact_sections_for_native_ranked_countdown,
-    lower_artifact_sections_for_native_realization,
+    ArtifactLoweringError, lower_artifact_sections, lower_artifact_sections_for_native_realization,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
@@ -41,226 +40,31 @@ fn artifact(source: &str) -> (Vec<u8>, Vec<u8>, terminal_psi::TerminalModule) {
 }
 
 #[test]
-fn explicit_ranked_admission_retains_exact_fuel_graph_and_frontier_custody() {
-    let (semantic, proof, module) = artifact(COUNTDOWN_SOURCE);
+fn unsigned_countdown_tag_is_explicitly_rejected_at_native_entrance() {
+    let module = legacy_fixture::legacy_countdown();
+    let proof = terminal_codec::encode_proof_bundle(&terminal_psi::ProofBundle::default()).unwrap();
+    let semantic = terminal_codec::encode_module(&module).unwrap();
     let profile = proof_admission::AdmissionProfile::default();
-
     assert!(matches!(
-        lower_artifact_sections(&semantic, &proof, &profile),
-        Err(ArtifactLoweringError::Verification(
-            terminal_verifier::VerificationError::Module(
-                terminal_verifier::ModuleError::NonExecutableRankedScc(machine)
-            )
-        )) if machine == module.entry
+        lower_artifact_sections_for_native_realization(&semantic, &proof, &profile),
+        Err(ArtifactLoweringError::UnsupportedUnsignedCountdownNativeCustody)
     ));
-
-    let admitted = lower_artifact_sections_for_native_ranked_countdown(&semantic, &proof, &profile)
-        .expect("the exact structural Unit u32 countdown has native custody");
-    let selected = lower_artifact_sections_for_native_realization(&semantic, &proof, &profile)
-        .expect("native entrance selects the ranked authority");
-    assert!(matches!(
-        selected,
-        NativeArtifactOperationPlan::RankedU32Countdown(ref selected)
-            if selected == &admitted
-    ));
-    let machine = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == module.entry)
-        .expect("entry machine");
-    let ranked = machine
-        .ranked_scc
-        .as_ref()
-        .and_then(|ranked| ranked.as_unsigned_countdown())
-        .expect("countdown ranked SCC");
-    let [covered] = ranked.covered_cyclic_edges.as_slice() else {
-        panic!("one covered backedge")
-    };
-    let graph = &admitted.countdown.graph;
-
-    assert_eq!(admitted.plan.entry, module.entry);
-    assert_eq!(
-        admitted.plan.psi,
-        admitted.countdown.fixed_fuel.terminal_psi()
-    );
-    assert_eq!(admitted.countdown.fixed_fuel.entry(), module.entry);
-    assert_eq!(
-        admitted.countdown.fixed_fuel.schedule(),
-        terminal_fuel::TerminalFuelSchedule::CURRENT.identity()
-    );
-    assert!(
-        admitted
-            .countdown
-            .fixed_fuel
-            .relevant_preconditions()
-            .is_empty()
-    );
-    assert_eq!(
-        admitted.countdown.fixed_fuel.ceiling_units(),
-        25_769_803_775
-    );
-    assert_eq!(admitted.countdown.ranked_scc, *ranked);
-    assert_eq!(graph.entry, machine.entry);
-    assert_eq!(
-        admitted
-            .countdown
-            .structural_frontiers
-            .block_entry(ranked.header),
-        admitted
-            .countdown
-            .structural_frontiers
-            .edge_exit(covered.edge)
-    );
-    assert!(
-        admitted
-            .countdown
-            .structural_frontiers
-            .block_entry(ranked.header)
-            .expect("ranked header frontier")
-            .owned_places()
-            .iter()
-            .any(|owned| owned.place == machine.structural_parameters[0].place)
-    );
-
-    let entry = machine
-        .blocks
-        .iter()
-        .find(|block| block.id == graph.entry)
-        .expect("preheader");
-    let Terminator::Jump {
-        edge, arguments, ..
-    } = &entry.terminator
-    else {
-        panic!("entry jump")
-    };
-    assert_eq!(*edge, graph.preheader_edge);
-    assert!(arguments.contains(&graph.initial_value));
-
-    let header = machine
-        .blocks
-        .iter()
-        .find(|block| block.id == ranked.header)
-        .expect("header");
-    assert_eq!(header.operations[0].id, graph.zero_operation);
-    assert_eq!(header.operations[1].id, graph.compare_operation);
-    assert!(matches!(
-        &header.operations[1].kind,
-        OperationKind::IntegerLessThan { left, right }
-            if *left == graph.zero_value && *right == ranked.rank_parameter
-    ));
-    let TerminalRankedGuard::UnsignedParameterPositive { condition, .. } = covered.guard;
-    let Terminator::Conditional { when_false, .. } = &header.terminator else {
-        panic!("header conditional")
-    };
-    assert_eq!(when_false.edge, graph.false_exit_edge);
-    assert_eq!(when_false.target, graph.done_block);
-    assert_eq!(
-        header.operations[1].result.scalar().expect("condition").id,
-        condition
-    );
-
-    let decrement = machine
-        .blocks
-        .iter()
-        .find(|block| block.id == covered.source)
-        .expect("decrement block");
-    assert_eq!(decrement.operations[0].id, graph.one_operation);
-    assert_eq!(decrement.operations[1].id, graph.subtract_operation);
-    assert!(matches!(
-        &decrement.operations[1].kind,
-        OperationKind::ExactIntegerSubtract { right, obligation, .. }
-            if *right == graph.one_value && *obligation == graph.subtract_obligation
-    ));
-    let done = machine
-        .blocks
-        .iter()
-        .find(|block| block.id == graph.done_block)
-        .expect("done block");
-    assert!(matches!(
-        done.terminator,
-        Terminator::ReturnUnit { edge, .. } if edge == graph.return_edge
-    ));
+    assert!(lower_artifact_sections(&semantic, &proof, &profile).is_err());
 }
 
 #[test]
-fn explicit_ranked_admission_rejects_a_wider_rank_carrier() {
-    let wider = COUNTDOWN_SOURCE.replace("remaining: u32", "remaining: u64");
-    let (semantic, proof, module) = artifact(&wider);
-
-    assert!(matches!(
-        lower_artifact_sections_for_native_ranked_countdown(
-            &semantic,
-            &proof,
-            &proof_admission::AdmissionProfile::default(),
-        ),
-        Err(ArtifactLoweringError::Verification(
-            terminal_verifier::VerificationError::Module(
-                terminal_verifier::ModuleError::NonExecutableRankedScc(machine)
-            )
-        )) if machine == module.entry
-    ));
-    assert!(matches!(
+fn deleting_countdown_metadata_cannot_convert_a_cycle_to_ordinary_custody() {
+    let (_, proof, mut module) = artifact(COUNTDOWN_SOURCE);
+    for machine in &mut module.machines {
+        machine.ranked_scc = None;
+    }
+    let semantic = terminal_codec::encode_module(&module).unwrap();
+    assert!(
         lower_artifact_sections_for_native_realization(
             &semantic,
             &proof,
             &proof_admission::AdmissionProfile::default(),
-        ),
-        Err(ArtifactLoweringError::Verification(
-            terminal_verifier::VerificationError::Module(
-                terminal_verifier::ModuleError::NonExecutableRankedScc(machine)
-            )
-        )) if machine == module.entry
-    ));
-}
-
-#[test]
-fn explicit_ranked_admission_rejects_an_extra_structural_token() {
-    let extra_token = r#"
-        data Token { value: i32; }
-        data Root {}
-
-        machine Root::countdown(first: Token, second: Token, remaining: u32)
-        terminates by remaining -> Nat::Descending;
-        {
-            transition remaining > 0 {
-                true -> countdown(first, second, remaining - 1)
-                _ -> done(first, second)
-            }
-            state done(first: Token, second: Token) {}
-        }
-    "#;
-
-    let (semantic, proof, module) = artifact(extra_token);
-    assert!(matches!(
-        lower_artifact_sections_for_native_ranked_countdown(
-            &semantic,
-            &proof,
-            &proof_admission::AdmissionProfile::default(),
-        ),
-        Err(ArtifactLoweringError::Verification(
-            terminal_verifier::VerificationError::Module(
-                terminal_verifier::ModuleError::NonExecutableRankedScc(machine)
-            )
-        )) if machine == module.entry
-    ));
-}
-
-#[test]
-fn explicit_ranked_admission_requires_the_independently_checked_proof() {
-    let (semantic, _, module) = artifact(COUNTDOWN_SOURCE);
-    let empty_proof =
-        terminal_codec::encode_proof_bundle(&terminal_verifier::ProofBundle::default())
-            .expect("encode empty proof");
-
-    assert!(matches!(
-        lower_artifact_sections_for_native_ranked_countdown(
-            &semantic,
-            &empty_proof,
-            &proof_admission::AdmissionProfile::default(),
-        ),
-        Err(ArtifactLoweringError::Verification(
-            terminal_verifier::VerificationError::MissingEvidence(_)
-        ))
-    ));
-    assert!(module.machines[0].ranked_scc.is_some());
+        )
+        .is_err()
+    );
 }

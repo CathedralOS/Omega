@@ -86,7 +86,6 @@ fn primitive_read_width_and_definition_substitutions_reject_on_every_target() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         for scalar in &scalars {

@@ -87,9 +87,7 @@ fn local_establishment_store_and_read_reject_target_and_legalized_corruption() {
         validate_legalized_operations(&target, &source, &unit, legalized.plan().clone()).unwrap();
         for mutation in 0..5 {
             let mut changed = target.clone();
-            let TargetOperation::ControlGraph(graph) = &mut changed.functions[0].operation else {
-                panic!("common graph");
-            };
+            let graph = &mut changed.functions[0].graph;
             match mutation {
                 0 => {
                     let TargetUnitOperation::EstablishPrimitiveLocal { shape, .. } =
@@ -211,9 +209,7 @@ fn boolean_branch_replay_rejects_substituted_or_unavailable_read_homes() {
         let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
         for mutation in 0..5 {
             let mut changed = target.clone();
-            let TargetOperation::ControlGraph(graph) = &mut changed.functions[0].operation else {
-                panic!("ordinary local graph");
-            };
+            let graph = &mut changed.functions[0].graph;
             let TargetControlTerminator::Conditional {
                 condition_source,
                 condition: TargetBooleanExpression::ScalarHome(home),

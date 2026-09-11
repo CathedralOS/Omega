@@ -4,20 +4,17 @@
 //! account for the exact declarations and operations at the object boundary.
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use selected_instructions::{SelectedFunction, SelectedTerminator};
-use target_operations::{
-    TargetControlTerminator, TargetFunction, TargetOperation, TargetUnitOperation,
-};
+use target_operations::{TargetControlTerminator, TargetFunction, TargetUnitOperation};
 
 pub(super) fn header(
     source: &AbstractFunction,
     target: &TargetFunction,
     selected: &SelectedFunction,
 ) -> bool {
-    let (TargetOperation::ControlGraph(graph), Some(contract)) =
-        (&target.operation, &selected.structural)
-    else {
+    let Some(contract) = &selected.structural else {
         return false;
     };
+    let graph = &target.graph;
     let result_matches = match &source.result {
         abstract_operations::AbstractFunctionResult::Structural(result) => {
             contract.result.as_ref() == Some(result)
@@ -55,9 +52,7 @@ pub(super) fn operation(
     target: &TargetFunction,
     selected: &SelectedFunction,
 ) -> bool {
-    let TargetOperation::ControlGraph(graph) = &target.operation else {
-        return false;
-    };
+    let graph = &target.graph;
     match source {
         AbstractOperation::EstablishScalarArray { psi_operation, result, elements } => {
             graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,

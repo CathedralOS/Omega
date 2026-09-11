@@ -57,20 +57,10 @@ pub(in crate::legalization) fn hosted_realization(
         }
         Ok(())
     };
-    match &function.operation {
-        TargetOperation::UnitBody(body) => {
-            for row in &body.operations {
-                inspect(row)?;
-            }
+    for block in &function.graph.blocks {
+        for row in &block.operations {
+            inspect(row)?;
         }
-        TargetOperation::ControlGraph(graph) => {
-            for block in &graph.blocks {
-                for row in &block.operations {
-                    inspect(row)?;
-                }
-            }
-        }
-        _ => return Err(invalid),
     }
     result.ok_or(invalid)
 }

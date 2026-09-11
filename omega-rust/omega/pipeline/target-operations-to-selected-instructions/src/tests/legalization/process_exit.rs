@@ -9,8 +9,8 @@ use semantic_vocabulary::{
 };
 use target::NativeTarget;
 use target_operations::{
-    BoundaryExecutionBinding, BoundaryRealization, CompilerBuiltinExecution, TargetOperation,
-    TargetOperationPlan, TargetUnitOperation,
+    BoundaryExecutionBinding, BoundaryRealization, CompilerBuiltinExecution, TargetOperationPlan,
+    TargetUnitOperation,
 };
 
 fn lower(
@@ -149,14 +149,12 @@ fn exit_admission_rejects_an_operation_after_the_boundary() {
     );
     let unit = seed(&source);
     legalize_target_operations(&target, &source, &unit).unwrap();
-    let TargetOperation::UnitBody(body) = &mut target.functions[0].operation else {
-        panic!("Unit body");
-    };
+    let body = &mut target.functions[0].graph;
     let TargetUnitOperation::BoundarySettlement {
         execution,
         realization,
         ..
-    } = &mut body.operations[0]
+    } = &mut body.blocks[0].operations[0]
     else {
         panic!("boundary");
     };

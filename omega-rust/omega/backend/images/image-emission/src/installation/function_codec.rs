@@ -70,7 +70,6 @@ pub(super) fn encode_functions(
         );
         encode_function_stack_facts(bytes, function)?;
         bytes.push(u8::from(function.unit_body));
-        bytes.push(u8::from(function.ranked_u32_countdown));
         match function.structural_call_scalar_return {
             Some(returned) => {
                 bytes.extend_from_slice(&[1, 0]);
@@ -169,7 +168,6 @@ pub(super) fn decode_functions(
         let (unit_stack, scalar_stack, unit_call_stacks, scalar_call_stacks, foreign_call_stacks) =
             decode_function_stack_facts(reader)?;
         let unit_body = decode_boolean(reader.u8()?)?;
-        let ranked_u32_countdown = decode_boolean(reader.u8()?)?;
         let has_structural_call_scalar_return = decode_boolean(reader.u8()?)?;
         if reader.u8()? != 0 {
             return Err(InstallationError::NonzeroReservedField);
@@ -230,7 +228,6 @@ pub(super) fn decode_functions(
             scalar_call_stacks,
             foreign_call_stacks,
             unit_body,
-            ranked_u32_countdown,
             unit_parameters,
             unit_parameter_homes,
             unit_scalar_homes,

@@ -5,9 +5,7 @@ use semantic_vocabulary::{
     PlaceId, ScalarType, StructuralFieldId, StructuralTypeId, ValueId,
 };
 use target::NativeTarget;
-use target_operations::{
-    TargetOperation, TargetUnitOperation, TargetUnitScalarArgumentSource as Source,
-};
+use target_operations::{TargetUnitOperation, TargetUnitScalarArgumentSource as Source};
 use terminal_psi::{
     BindingRelevance, StructuralAccess, StructuralFieldDeclaration, StructuralFieldType,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
@@ -138,21 +136,18 @@ fn ieee_literal_field_and_call_receiving_binds_definition_bits_format_and_order(
             for source_position in [1, 2] {
                 for mutation in 0..7 {
                     let mut changed = target.clone();
-                    let TargetOperation::UnitBody(body) = &mut changed.functions[0].operation
-                    else {
-                        panic!("Unit body");
-                    };
+                    let body = &mut changed.functions[0].graph;
                     if mutation == 5 {
-                        body.operations.swap(0, source_position);
+                        body.blocks[0].operations.swap(0, source_position);
                     } else if mutation == 6 {
                         let TargetUnitOperation::IeeeFloatConstant { value, .. } =
-                            &mut body.operations[0]
+                            &mut body.blocks[0].operations[0]
                         else {
                             panic!("literal");
                         };
                         *value = changed_bits(*value);
                     } else {
-                        let supplied = match &mut body.operations[source_position] {
+                        let supplied = match &mut body.blocks[0].operations[source_position] {
                             TargetUnitOperation::StructuralScalarFieldStore { source, .. } => {
                                 source
                             }

@@ -1,7 +1,7 @@
 //! Whole-plan admission fences that precede legalization construction and replay.
 
 use super::model::LegalizationError;
-use target_operations::{TargetOperation, TargetOperationPlan, TargetUnitOperation};
+use target_operations::{TargetOperationPlan, TargetUnitOperation};
 
 pub(super) fn reject_attached_unit_structural_scalar(
     target: &TargetOperationPlan,
@@ -17,15 +17,12 @@ pub(super) fn reject_attached_unit_structural_scalar(
             }
             _ => None,
         };
-        let operation = match &function.operation {
-            TargetOperation::UnitBody(body) => body.operations.iter().find_map(forbidden),
-            TargetOperation::ControlGraph(graph) => graph
-                .blocks
-                .iter()
-                .flat_map(|block| &block.operations)
-                .find_map(forbidden),
-            _ => None,
-        };
+        let operation = function
+            .graph
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find_map(forbidden);
         if let Some(operation) = operation {
             return Err(
                 LegalizationError::AttachedUnitStructuralScalarNotYetSelectable {

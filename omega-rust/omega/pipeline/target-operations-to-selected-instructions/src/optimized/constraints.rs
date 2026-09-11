@@ -37,9 +37,6 @@ pub fn selection_constraints(
     }
     SelectedSelectionConstraints {
         keys: environment.selected_keys(),
-        projected_structural_call: environment
-            .scalar_call_constraint()
-            .map(|constraint| constraint.key),
         fixed_inputs,
     }
 }

@@ -21,17 +21,6 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
         function.provenance.edges.iter().map(|value| value.get()),
     );
     encode_call_plan(bytes, &function.call_plan);
-    match &function.ranked {
-        None => bytes.push(0),
-        Some(custody) => match abstract_operations::encode_ranked_u32_countdown_custody(custody) {
-            Ok(encoded) => {
-                bytes.push(1);
-                encode_len(bytes, encoded.len());
-                bytes.extend_from_slice(&encoded);
-            }
-            Err(_) => bytes.push(2),
-        },
-    }
     match &function.structural {
         Some(signature) => {
             bytes.push(1);
@@ -99,7 +88,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     shape,
                 } => {
                     bytes.push(22);
-                    super::projected_structural_call_return::encode_operation_result(bytes, result);
+                    super::structural_result::encode_operation_result(bytes, result);
                     encode_len(bytes, elements.len());
                     for element in elements {
                         bytes.extend_from_slice(&element.get().to_le_bytes());
@@ -113,7 +102,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     layout,
                 } => {
                     bytes.push(21);
-                    super::projected_structural_call_return::encode_operation_result(bytes, result);
+                    super::structural_result::encode_operation_result(bytes, result);
                     bytes.extend_from_slice(&result_case.get().to_le_bytes());
                     encode_len(bytes, fields.len());
                     for field in fields {
@@ -132,7 +121,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     shape,
                 } => {
                     bytes.push(16);
-                    super::projected_structural_call_return::encode_operation_result(bytes, result);
+                    super::structural_result::encode_operation_result(bytes, result);
                     bytes.extend_from_slice(&value.value.get().to_le_bytes());
                     encode_scalar_type(bytes, value.scalar_type);
                     super::calling::encode_shape(bytes, *shape);
@@ -214,7 +203,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     accepted_fact,
                 } => {
                     bytes.push(9);
-                    super::projected_structural_call_return::encode_operation_result(bytes, result);
+                    super::structural_result::encode_operation_result(bytes, result);
                     for identity in [
                         source.get(),
                         start.get(),
@@ -372,7 +361,7 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
                 crate::LegalizedStructuralCaseSource::OperationResult { operation, result } => {
                     bytes.push(0);
                     bytes.extend_from_slice(&operation.get().to_le_bytes());
-                    super::projected_structural_call_return::encode_operation_result(bytes, result);
+                    super::structural_result::encode_operation_result(bytes, result);
                 }
                 crate::LegalizedStructuralCaseSource::BlockParameter { block, declaration } => {
                     bytes.push(1);
@@ -419,7 +408,7 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
                 } => {
                     bytes.push(2);
                     bytes.extend_from_slice(&defining_operation.get().to_le_bytes());
-                    super::projected_structural_call_return::encode_operation_result(bytes, result);
+                    super::structural_result::encode_operation_result(bytes, result);
                 }
                 LegalizedScalarReturnValue::Value { value, scalar_type } => {
                     bytes.push(1);

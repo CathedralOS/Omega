@@ -64,9 +64,7 @@ fn straight_line_arrivals_follow_edges_independently_of_block_storage_order() {
             function.operations = vec![entry_constant, jump, exit_constant, returned];
         }
         let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
-        let TargetOperation::ControlGraph(graph) = &lowered.functions[0].operation else {
-            panic!("block-owned scalar arrivals use the ordinary graph");
-        };
+        let graph = &lowered.functions[0].graph;
         let returned = graph
             .blocks
             .iter()

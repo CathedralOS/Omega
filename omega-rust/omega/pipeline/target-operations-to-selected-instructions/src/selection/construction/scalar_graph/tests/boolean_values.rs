@@ -14,7 +14,6 @@ fn boolean_return_materialization_replays_condition_result_and_fuel() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         for signed in [false, true] {

@@ -196,20 +196,17 @@ fn valid_literal(scalar: ScalarType, value: semantic_vocabulary::IntegerValue) -
 pub(super) fn validate(
     block: &OptimizationBlock,
     optimized: &PsiOptimizationFunction,
-    ranked: bool,
     plan: &AbstractOperationPlan,
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
     let (terminator, body) = block.nodes.split_last().ok_or(invalid.clone())?;
     for (position, parameter) in block.parameters.iter().enumerate() {
         if (integer_type(parameter.scalar_type).is_none()
-            && !(!ranked
-                && matches!(
-                    parameter.scalar_type,
-                    ScalarType::Boolean | ScalarType::IeeeFloat(_)
-                ))
-            && !(!ranked
-                && matches!(parameter.scalar_type, ScalarType::Integer(_))
+            && !(matches!(
+                parameter.scalar_type,
+                ScalarType::Boolean | ScalarType::IeeeFloat(_)
+            ))
+            && !(matches!(parameter.scalar_type, ScalarType::Integer(_))
                 && scalar_shape(parameter.scalar_type).is_some()))
             || parameter.site
                 != (ValueDefinitionSite::BlockParameter {
@@ -426,7 +423,7 @@ pub(super) fn validate(
             | AbstractOperation::IntegerLessOrEqual { left, right, .. } => {
                 let left_type = value_type(optimized, *left);
                 if (left_type.and_then(integer_type).is_none()
-                    && (ranked || left_type.and_then(integer_call_shape).is_none()))
+                    && left_type.and_then(integer_call_shape).is_none())
                     || value_type(optimized, *left) != value_type(optimized, *right)
                 {
                     return Err(invalid);
@@ -482,5 +479,5 @@ pub(super) fn validate(
             return Err(invalid);
         }
     }
-    super::control::validate(terminator, body, optimized, ranked, plan)
+    super::control::validate(terminator, body, optimized, plan)
 }

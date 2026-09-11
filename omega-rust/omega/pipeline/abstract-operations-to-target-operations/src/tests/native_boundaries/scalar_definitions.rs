@@ -53,13 +53,11 @@ fn unit_widening_has_exact_definition_and_boundary_source() {
     let plan = fixture();
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let lowered = lower(&plan, target).unwrap();
-        let TargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
-            panic!("Unit");
-        };
+        let body = &lowered.functions[0].graph;
         let TargetUnitOperation::ScalarDefinition {
             result_home,
             expression,
-        } = &body.operations[0]
+        } = &body.blocks[0].operations[0]
         else {
             panic!("definition");
         };
@@ -73,7 +71,7 @@ fn unit_widening_has_exact_definition_and_boundary_source() {
         let TargetUnitOperation::BoundarySettlement {
             runtime_scalar_arguments,
             ..
-        } = &body.operations[1]
+        } = &body.blocks[0].operations[1]
         else {
             panic!("boundary");
         };
@@ -133,10 +131,9 @@ fn successive_unit_definitions_reference_the_prior_home_once() {
     };
     arguments[0] = ValueId::new(911).unwrap();
     let lowered = lower(&plan, NativeTarget::linux_x64()).unwrap();
-    let TargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
-        panic!("Unit");
-    };
-    let TargetUnitOperation::ScalarDefinition { result_home, .. } = &body.operations[0] else {
+    let body = &lowered.functions[0].graph;
+    let TargetUnitOperation::ScalarDefinition { result_home, .. } = &body.blocks[0].operations[0]
+    else {
         panic!("first");
     };
     let TargetUnitOperation::ScalarDefinition {
@@ -146,7 +143,7 @@ fn successive_unit_definitions_reference_the_prior_home_once() {
                 ..
             },
         ..
-    } = &body.operations[1]
+    } = &body.blocks[0].operations[1]
     else {
         panic!("second");
     };

@@ -8,9 +8,8 @@ use terminal_psi::{
     Terminator,
 };
 use terminal_psi_to_abstract_operations::{
-    ArtifactLoweringError, NativeArtifactOperationPlan, lower_artifact_sections,
-    lower_artifact_sections_for_native_ranked_countdown,
-    lower_artifact_sections_for_native_realization, lower_artifact_sections_for_optimization,
+    ArtifactLoweringError, lower_artifact_sections, lower_artifact_sections_for_native_realization,
+    lower_artifact_sections_for_optimization,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
@@ -190,20 +189,7 @@ fn natural_slice_writer_uses_ordinary_native_admission_without_losing_its_cycle(
     assert_eq!(optimization.plan(), &ordinary);
     assert_eq!(optimization.context().module(), &module);
     assert_eq!(optimization.context().proof_bundle(), &proof);
-    assert_eq!(selected, NativeArtifactOperationPlan::Ordinary(ordinary));
-}
-
-#[test]
-fn explicit_countdown_entrance_does_not_admit_a_natural_slice_writer() {
-    let (module, proof) = writer();
-    assert!(matches!(
-        lower_artifact_sections_for_native_ranked_countdown(
-            &terminal_codec::encode_module(&module).unwrap(),
-            &terminal_codec::encode_proof_bundle(&proof).unwrap(),
-            &AdmissionProfile::default(),
-        ),
-        Err(ArtifactLoweringError::Verification(_))
-    ));
+    assert_eq!(selected, ordinary);
 }
 
 #[test]

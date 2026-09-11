@@ -120,19 +120,16 @@ fn zero_call_proposal_and_forward_references_reject() {
     assert!(validate_legalized_operations(&target, &abstract_plan, &unit, no_calls).is_err());
 
     let mut forward = target.clone();
-    let target_operations::TargetOperation::UnitBody(body) = &mut forward.functions[0].operation
-    else {
-        unreachable!()
-    };
+    let body = &mut forward.functions[0].graph;
     let target_operations::TargetUnitOperation::ScalarCall {
         result_home: future,
         ..
-    } = body.operations[3]
+    } = body.blocks[0].operations[3]
     else {
         unreachable!()
     };
     let target_operations::TargetUnitOperation::ScalarCall { arguments, .. } =
-        &mut body.operations[2]
+        &mut body.blocks[0].operations[2]
     else {
         unreachable!()
     };
@@ -148,12 +145,9 @@ fn zero_call_proposal_and_forward_references_reject() {
 fn substituted_register_call_plan_and_memory_effectful_callee_reject() {
     let (abstract_plan, target, unit) = scalar_call_unit_fixture();
     let mut changed = target.clone();
-    let target_operations::TargetOperation::UnitBody(body) = &mut changed.functions[0].operation
-    else {
-        unreachable!()
-    };
+    let body = &mut changed.functions[0].graph;
     let target_operations::TargetUnitOperation::ScalarCall { call_plan, .. } =
-        &mut body.operations[2]
+        &mut body.blocks[0].operations[2]
     else {
         unreachable!()
     };

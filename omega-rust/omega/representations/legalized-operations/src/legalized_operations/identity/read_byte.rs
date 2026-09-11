@@ -22,7 +22,7 @@ pub(super) fn encode_payload(
     layout: &ConventionalSumLayout,
 ) {
     bytes.extend_from_slice(&boundary.get().to_le_bytes());
-    super::projected_structural_call_return::encode_operation_result(bytes, result);
+    super::structural_result::encode_operation_result(bytes, result);
     encode_layout(bytes, layout);
 }
 

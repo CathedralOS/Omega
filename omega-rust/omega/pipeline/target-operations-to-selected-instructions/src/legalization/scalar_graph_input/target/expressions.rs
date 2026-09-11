@@ -52,11 +52,7 @@ impl Checker<'_> {
         } else if let Some(abi) = &self.function.mixed_structural_scalar_abi {
             &abi.scalar_parameters
         } else {
-            match &self.function.operation {
-                TargetOperation::UnitBody(body) => &body.scalar_parameters,
-                TargetOperation::ControlGraph(graph) => &graph.scalar_parameters,
-                _ => &[],
-            }
+            &self.function.graph.scalar_parameters
         }
     }
 

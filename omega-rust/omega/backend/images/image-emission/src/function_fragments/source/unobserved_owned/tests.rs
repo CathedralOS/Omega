@@ -83,7 +83,7 @@ fn fixture() -> (AbstractFunction, TargetFunction, SelectedFunction) {
                 placement: call_plan.result.clone().unwrap(),
             },
         }),
-        operation: TargetOperation::ControlGraph(TargetControlGraph {
+        graph: TargetControlGraph {
             structural_types: vec![].into(),
             call_plan,
             scalar_parameters: vec![],
@@ -106,13 +106,12 @@ fn fixture() -> (AbstractFunction, TargetFunction, SelectedFunction) {
                     cleanup_actions: actions,
                 },
             }],
-        }),
+        },
     };
     let selected = SelectedFunction {
         machine,
         attachment: None,
         provenance,
-        ranked: None,
         structural: Some(legalized_operations::LegalizedStructuralContract {
             result: None,
             structural_types: vec![].into(),
@@ -143,9 +142,7 @@ fn scalar_discard_requires_exact_retained_return() {
     assert!(scalar_cleanup_retained(&function.operations[0], &target));
     for mutation in 0..5 {
         let mut changed = target.clone();
-        let TargetOperation::ControlGraph(graph) = &mut changed.operation else {
-            unreachable!()
-        };
+        let graph = &mut changed.graph;
         let TargetControlTerminator::ReturnScalar {
             psi_edge,
             source_value,
@@ -206,9 +203,7 @@ fn unused_owned_projection_refuses_borrowed_linear_or_materialized_arrivals() {
     assert!(graph_header(&function, &missing_abi, &selected));
     for mutation in 0..3 {
         let mut changed = missing_abi.clone();
-        let TargetOperation::ControlGraph(graph) = &mut changed.operation else {
-            unreachable!()
-        };
+        let graph = &mut changed.graph;
         match mutation {
             0 => graph.call_plan.result = None,
             1 => graph.parameters.clear(),

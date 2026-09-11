@@ -3,7 +3,6 @@
 mod active_resident_bridge_chain;
 mod active_resident_original_victim_chain;
 mod immediate_conditional;
-mod projected_structural_call_return;
 mod runtime_integer_equal_conditional;
 mod runtime_integer_less_or_equal_conditional;
 mod runtime_integer_less_than_conditional;

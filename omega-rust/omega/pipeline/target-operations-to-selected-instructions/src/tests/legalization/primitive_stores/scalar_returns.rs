@@ -78,10 +78,7 @@ fn fixture_with_scalar(
 }
 
 fn graph(target: &mut TargetOperationPlan) -> &mut TargetControlGraph {
-    let TargetOperation::ControlGraph(graph) = &mut target.functions[0].operation else {
-        panic!("scalar store graph")
-    };
-    graph
+    &mut target.functions[0].graph
 }
 
 #[test]

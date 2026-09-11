@@ -69,10 +69,7 @@ use semantic_vocabulary::{
 };
 use std::path::{Path, PathBuf};
 use target::NativeTarget;
-use target_operations::{
-    HostedWriteByteI32Realization, TargetBooleanControl, TargetBooleanExpression,
-    TargetIntegerControl, TargetIntegerExpression, TargetOperation,
-};
+use target_operations::HostedWriteByteI32Realization;
 use terminal_codec::{
     DebugSubject, build_artifact_manifest, decode_debug_map, decode_module, decode_proof_bundle,
     encode_debug_map, encode_module, encode_proof_bundle, terminal_psi_identity,
@@ -81,15 +78,13 @@ use terminal_codec::{
 use terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 #[cfg(unix)]
 use terminal_fuel::FuelExhaustion;
-use terminal_fuel::{FuelChargeSite, TerminalFuelMeter, TerminalFuelSchedule};
+use terminal_fuel::{TerminalFuelMeter, TerminalFuelSchedule};
 use terminal_interpreter::{
     MeasuredTerminalExecution, TerminalArtifactInterpretError, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     interpret_terminal_artifact_measured,
 };
-use terminal_psi::{
-    CrashCause, CrashRouteGuard, OperationKind, TerminalModule, Terminator, VocabularyMarker,
-};
+use terminal_psi::{CrashCause, OperationKind, Terminator, VocabularyMarker};
 use terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact_sections};
 use terminal_verifier::{VerifiedTerminalModule, verify_module};
 
@@ -301,92 +296,6 @@ fn start_verified_artifact(
         &AdmissionProfile::default(),
         arguments,
     )
-}
-
-fn expected_crash(module: &TerminalModule) -> TerminalExecutionStatus {
-    let crash = module.machines[0]
-        .blocks
-        .iter()
-        .find_map(|block| match &block.terminator {
-            Terminator::Crash {
-                edge,
-                cause,
-                site_guard,
-                frontier_lower_bound,
-            } => Some(terminal_interpreter::TerminalCrash {
-                edge: *edge,
-                cause: *cause,
-                site_guard: site_guard.clone(),
-                frontier_lower_bound: frontier_lower_bound.clone(),
-            }),
-            _ => None,
-        })
-        .expect("test module should contain a crash terminator");
-    TerminalExecutionStatus::Crashed(crash)
-}
-
-fn collect_integer_crash_leaves(
-    control: &TargetIntegerControl,
-    output: &mut Vec<(EdgeId, CrashCause)>,
-) {
-    match control {
-        TargetIntegerControl::Crash {
-            psi_crash_edge,
-            cause,
-            ..
-        } => output.push((*psi_crash_edge, *cause)),
-        TargetIntegerControl::Conditional {
-            when_true,
-            when_false,
-            ..
-        }
-        | TargetIntegerControl::ConditionalExpression {
-            when_true,
-            when_false,
-            ..
-        } => {
-            collect_integer_crash_leaves(&when_true.control, output);
-            collect_integer_crash_leaves(&when_false.control, output);
-        }
-        TargetIntegerControl::Return { .. } => {}
-    }
-}
-
-fn target_integer_crash_leaves(operation: &TargetOperation) -> Vec<(EdgeId, CrashCause)> {
-    let mut output = Vec::new();
-    match operation {
-        TargetOperation::Crash {
-            psi_edge, cause, ..
-        } => output.push((*psi_edge, *cause)),
-        TargetOperation::ReturnIntegerConditionalControl {
-            when_true,
-            when_false,
-            ..
-        }
-        | TargetOperation::ReturnIntegerExpressionConditionalControl {
-            when_true,
-            when_false,
-            ..
-        } => {
-            collect_integer_crash_leaves(&when_true.control, &mut output);
-            collect_integer_crash_leaves(&when_false.control, &mut output);
-        }
-        _ => {}
-    }
-    output.sort_unstable();
-    output
-}
-
-fn assert_guarded_crash_lowers(verified: &VerifiedTerminalModule<'_>) {
-    let plan = lower_artifact_sections(
-        &encode_module(verified.module()).expect("encode verified crash module"),
-        &encode_proof_bundle(verified.proof_bundle()).expect("encode verified crash proof"),
-        &AdmissionProfile::default(),
-    )
-    .expect("lower verified crash module");
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        lower_to_target_operations(&plan, target).expect("lower crash target control");
-    }
 }
 
 #[path = "terminal_psi_source/admission_crashes_and_native.rs"]

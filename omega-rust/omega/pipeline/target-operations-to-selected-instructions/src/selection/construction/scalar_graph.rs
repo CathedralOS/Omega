@@ -436,7 +436,6 @@ pub(super) fn build_with_environment(
         attachment: source.attachment,
         provenance: source.provenance.clone(),
         structural: source.structural.clone(),
-        ranked: source.ranked.clone(),
         outgoing_arguments: builder.transport.slots,
         local_storage_slots: builder.transport.local_slots,
         calls: builder.transport.calls,

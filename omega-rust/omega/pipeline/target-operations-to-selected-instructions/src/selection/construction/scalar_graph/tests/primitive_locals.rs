@@ -99,7 +99,6 @@ fn primitive_local_call_and_read_replay_rejects_source_and_physical_substitution
                 register_environment::baseline_target_register_environment(target).unwrap();
             let constraints = SelectedSelectionConstraints {
                 keys: environment.selected_keys(),
-                projected_structural_call: None,
                 fixed_inputs: Vec::new(),
             };
             let selected = build(

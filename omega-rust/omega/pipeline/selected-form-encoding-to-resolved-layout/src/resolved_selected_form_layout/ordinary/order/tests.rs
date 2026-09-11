@@ -58,7 +58,6 @@ fn function(terminators: Vec<SelectedTerminator>) -> SelectedFunction {
         machine: MachineId::new(1).unwrap(),
         attachment: None,
         provenance: Default::default(),
-        ranked: None,
         structural: None,
         outgoing_arguments: Vec::new(),
         local_storage_slots: Vec::new(),

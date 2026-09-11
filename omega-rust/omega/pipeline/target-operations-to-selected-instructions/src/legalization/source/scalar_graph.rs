@@ -55,12 +55,6 @@ pub(super) fn derive(
         call_plan,
         parameters,
         structural: scalar_graph_input::structural_contract(target, abstracted, optimized, plan),
-        ranked: match &target.operation {
-            target_operations::TargetOperation::RankedU32Countdown(ranked) => {
-                Some(ranked.custody.clone())
-            }
-            _ => None,
-        },
         entry_block: optimized.entry,
         blocks,
     })

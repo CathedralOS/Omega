@@ -1,7 +1,5 @@
 use crate::realization::diagnostics::realization_error;
-use crate::realization::model::{
-    NativeRealizationAuthority, NativeRealizationCoreRequest, NativeRealizationInput,
-};
+use crate::realization::model::{NativeRealizationCoreRequest, NativeRealizationInput};
 use diagnostics::Diagnostic;
 use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;
 
@@ -20,14 +18,6 @@ pub(crate) fn admit_checked_provider_installation(
     let selected = project_selected_provider_adapters(request.selected_provider_plans, plan)
         .map_err(|error| realization_error("selected checked-provider projection", error))?;
     if selected.is_empty() {
-        return Ok(None);
-    }
-    if request.optimization_selections.is_empty()
-        && matches!(
-            input.authority(),
-            NativeRealizationAuthority::RankedU32Countdown(_)
-        )
-    {
         return Ok(None);
     }
     let installation = terminal_psi_to_abstract_operations::admit_provider_installation(

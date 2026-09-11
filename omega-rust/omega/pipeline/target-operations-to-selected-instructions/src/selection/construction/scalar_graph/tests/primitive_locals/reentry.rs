@@ -53,7 +53,6 @@ fn primitive_local_loop_reentry_rejects_missing_or_hoisted_initialization() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         let selected = build(

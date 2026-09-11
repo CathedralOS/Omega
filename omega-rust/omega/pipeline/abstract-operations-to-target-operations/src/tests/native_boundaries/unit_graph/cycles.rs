@@ -27,9 +27,7 @@ fn cyclic() -> AbstractOperationPlan {
 fn cyclic_unit_graph_preserves_destination_values_and_backedge_without_rank_authority() {
     let plan = cyclic();
     let lowered = lower(&plan).unwrap();
-    let TargetOperation::ControlGraph(graph) = &lowered.functions[1].operation else {
-        panic!("graph");
-    };
+    let graph = &lowered.functions[1].graph;
     assert_eq!(
         graph
             .blocks
@@ -172,9 +170,7 @@ fn descriptor_cycle() -> AbstractOperationPlan {
 fn cyclic_unit_graph_retains_fresh_descriptor_observation_and_exact_backedge() {
     let plan = descriptor_cycle();
     let lowered = lower(&plan).unwrap();
-    let TargetOperation::ControlGraph(graph) = &lowered.functions[1].operation else {
-        panic!("graph");
-    };
+    let graph = &lowered.functions[1].graph;
     assert_eq!(
         graph.blocks[1].structural_parameters[0].place,
         semantic_vocabulary::PlaceId::new(61).unwrap()

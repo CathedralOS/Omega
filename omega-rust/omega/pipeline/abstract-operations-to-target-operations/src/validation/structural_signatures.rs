@@ -1,11 +1,11 @@
 //! Reconcile retained structural ABI headers against the source declarations.
-//! Scalar contracts and executable bodies remain the responsibility of family replay.
+//! Executable bodies remain the responsibility of common graph replay.
 
 use super::structural_shapes;
 use abstract_operations::{AbstractFunction, AbstractFunctionResult};
 use calling_conventions::{CallPlan, CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
 use target::NativeTarget;
-use target_operations::{TargetFunction, TargetOperation, TargetStructuralParameter};
+use target_operations::{TargetFunction, TargetStructuralParameter};
 use terminal_psi::{StructuralAccess, StructuralTypeDeclaration};
 
 pub(super) fn validate(
@@ -14,24 +14,13 @@ pub(super) fn validate(
     native_target: NativeTarget,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<()> {
-    if let TargetOperation::UnitBody(body) = &target.operation {
-        header(
-            source,
-            &body.call_plan,
-            &body.parameters,
-            native_target,
-            declarations,
-        )?;
-    }
-    if let TargetOperation::ControlGraph(graph) = &target.operation {
-        header(
-            source,
-            &graph.call_plan,
-            &graph.parameters,
-            native_target,
-            declarations,
-        )?;
-    }
+    header(
+        source,
+        &target.graph.call_plan,
+        &target.graph.parameters,
+        native_target,
+        declarations,
+    )?;
     if let Some(abi) = &target.mixed_structural_scalar_abi {
         header(
             source,
@@ -40,47 +29,6 @@ pub(super) fn validate(
             native_target,
             declarations,
         )?;
-    }
-    match &target.operation {
-        TargetOperation::ReturnStructuralCall {
-            call_plan,
-            structural_parameters,
-            ..
-        }
-        | TargetOperation::ReturnStructuralScalarCall {
-            call_plan,
-            structural_parameters,
-            ..
-        }
-        | TargetOperation::ScalarReturnWithCleanup {
-            call_plan,
-            structural_parameters,
-            ..
-        }
-        | TargetOperation::BooleanControlWithCleanup {
-            call_plan,
-            structural_parameters,
-            ..
-        }
-        | TargetOperation::ScalarReturnAfterStructuralScalarFieldStores {
-            call_plan,
-            structural_parameters,
-            ..
-        }
-        | TargetOperation::ReturnBoundaryPortReadU8 {
-            call_plan,
-            structural_parameters,
-            ..
-        } => {
-            header(
-                source,
-                call_plan,
-                structural_parameters,
-                native_target,
-                declarations,
-            )?;
-        }
-        _ => {}
     }
     Some(())
 }

@@ -3,7 +3,6 @@
 pub(super) use crate::lowering::{
     bind_native_callback_arguments_for_tests as bind_native_callback_arguments,
     lower_with_settlements_for_tests as lower_to_target_operations_with_settlements,
-    structural_shape_for_tests as structural_shape,
     validate_native_callback_target_rows_for_tests as validate_native_callback_target_rows,
 };
 pub(super) use abstract_operations::{
@@ -21,16 +20,14 @@ pub(super) use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
     ObligationId, OperationId, PlaceId, ScalarType, StructuralFieldId, StructuralTypeId, ValueId,
 };
-pub(super) use std::collections::{BTreeMap, BTreeSet};
 pub(super) use target::NativeTarget;
 pub(super) use target_operations::{
-    BoundaryRealization, BoundarySettlementBinding, MachineRegister, ScalarParameterLocation,
-    TargetIntegerExpression, TargetOperation, TargetUnitOperation, TargetUnitScalarArgumentSource,
+    ScalarParameterLocation, TargetIntegerExpression, TargetUnitOperation,
+    TargetUnitScalarArgumentSource,
 };
 pub(super) use terminal_psi::{
     BoundaryMachineDeclaration, CrashCause, CrashRouteBucket, CrashRouteGuard, SemanticFingerprint,
     StructuralAccess, StructuralArgument, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
-    TerminalPsiIdentity, VocabularyMarker,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalAffineCleanupAction, TerminalPsiIdentity, VocabularyMarker,
 };

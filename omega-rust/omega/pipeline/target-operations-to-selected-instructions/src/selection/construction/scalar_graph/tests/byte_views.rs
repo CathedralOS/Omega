@@ -112,7 +112,6 @@ fn indexed_byte_read_replay_binds_dynamic_subject_and_proof() {
         };
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: vec![SelectedFixedInputConstraint {
                 machine: source.machine,
                 source_value: index,
@@ -266,7 +265,6 @@ fn byte_view_length_uses_descriptor_read_and_rejects_changed_projection() {
         });
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         let selected = build(

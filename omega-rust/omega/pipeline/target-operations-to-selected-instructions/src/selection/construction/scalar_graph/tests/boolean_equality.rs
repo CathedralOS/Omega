@@ -14,7 +14,6 @@ fn boolean_comparison_replay_rejects_operand_carrier_and_ordering_substitution()
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         let mut source = control::graph(target, Comparison::Equal, true);

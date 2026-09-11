@@ -1,18 +1,11 @@
 //! Optimizer module role: executable entrance. Fail-closed target-lowering admission for projected qualification custody.
 
-mod structural_call_return;
-
 use abstract_operations::{AbstractOperation, AbstractOperationPlan};
 
 use crate::LoweringError;
 
 pub(super) fn reject_unsupported(plan: &AbstractOperationPlan) -> Result<(), LoweringError> {
-    if !has_any_projected_qualifications(plan) {
-        return Ok(());
-    }
-    if external_signatures_have_projected_qualifications(plan)
-        || !structural_call_return::admits_complete_roster(plan)
-    {
+    if has_any_projected_qualifications(plan) {
         return Err(LoweringError::UnsupportedProjectedStructuralQualifications);
     }
     Ok(())
@@ -24,6 +17,12 @@ fn has_any_projected_qualifications(plan: &AbstractOperationPlan) -> bool {
             .structural_parameters
             .iter()
             .any(|parameter| !parameter.projected_qualifications.is_empty())
+            || function.block_entries.iter().any(|block| {
+                block
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| !parameter.projected_qualifications.is_empty())
+            })
             || function
                 .result
                 .structural()

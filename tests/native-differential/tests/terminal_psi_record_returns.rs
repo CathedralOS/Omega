@@ -227,10 +227,7 @@ fn incoming_record_return_replay_rejects_substituted_source_placement_and_captur
                 .iter_mut()
                 .find(|function| function.machine == entry)
                 .unwrap();
-            let target_operations::TargetOperation::ControlGraph(graph) = &mut function.operation
-            else {
-                unreachable!()
-            };
+            let graph = &mut function.graph;
             let target_operations::TargetControlTerminator::ReturnStructural {
                 source: target_operations::TargetStructuralReturnSource::Parameter(source),
                 ..

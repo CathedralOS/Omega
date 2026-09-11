@@ -109,9 +109,7 @@ fn owned_array_calls_preserve_constructed_and_returned_home_identity() {
     let plan = fixture();
     for target in [NativeTarget::macos_arm64(), NativeTarget::linux_x64()] {
         let lowered = crate::lower_to_target_operations(&plan, target).unwrap();
-        let TargetOperation::ControlGraph(graph) = &lowered.functions[0].operation else {
-            panic!("graph")
-        };
+        let graph = &lowered.functions[0].graph;
         let producers = graph.blocks[0]
             .operations
             .iter()
@@ -132,9 +130,7 @@ fn owned_array_calls_preserve_constructed_and_returned_home_identity() {
             })
             .collect::<Vec<_>>();
         assert_eq!(producers, vec![operation(2), operation(2), operation(3)]);
-        let TargetOperation::ControlGraph(identity) = &lowered.functions[1].operation else {
-            panic!("identity graph")
-        };
+        let identity = &lowered.functions[1].graph;
         assert!(
             matches!(&identity.blocks[0].terminator, target_operations::TargetControlTerminator::ReturnStructural {
             source: target_operations::TargetStructuralReturnSource::Parameter(parameter), ..

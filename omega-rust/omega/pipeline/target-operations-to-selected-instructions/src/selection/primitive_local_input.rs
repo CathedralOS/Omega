@@ -59,7 +59,6 @@ pub(super) fn accepts(source: &LegalizedScalarFunction) -> bool {
     source.structural.as_ref().is_some_and(|signature| {
         signature.parameters.is_empty()
             && signature.entry_claims.is_empty()
-            && source.ranked.is_none()
             && source.parameters.len() == source.call_plan.parameters.len()
             && source
                 .parameters

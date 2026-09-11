@@ -4,8 +4,7 @@ mod tests;
 
 use abstract_operations_to_target_operations::*;
 use machine_code::{
-    SelectedFormEncodingCounts, SelectedFormEncodingState, SelectedFormInternalMachineFixupKind,
-    SelectedFormInternalMachineFixupState, TargetFrameProtocolEncodingIdentity,
+    SelectedFormEncodingState, TargetFrameProtocolEncodingIdentity,
     TargetFrameProtocolEncodingPlan, TargetFrameProtocolEncodingPolicy,
 };
 use machine_emission::frame_layout::*;

@@ -79,7 +79,6 @@ fn ieee_stack_fragments_replay_exact_width_source_and_outgoing_slot() {
                 .collect();
             let constraints = SelectedSelectionConstraints {
                 keys: environment.selected_keys(),
-                projected_structural_call: None,
                 fixed_inputs: Vec::new(),
             };
             let selected = build(
@@ -259,7 +258,6 @@ fn incoming_stack_borrow_replay_retains_native_ordinal_pointer_load_and_fuel() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         for extra_stack_scalars in [0, 1, 3] {

@@ -99,9 +99,7 @@ pub(super) fn transferred() -> AbstractOperationPlan {
 fn scalar_block_transfers_preserve_both_parallel_edges_and_destination_values() {
     let plan = transferred();
     let lowered = lower(&plan).unwrap();
-    let TargetOperation::ControlGraph(graph) = &lowered.functions[1].operation else {
-        panic!("graph");
-    };
+    let graph = &lowered.functions[1].graph;
     let target_operations::TargetControlTerminator::Conditional {
         when_true,
         when_false,

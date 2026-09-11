@@ -1220,7 +1220,6 @@ mod tests {
             scalar_call_stacks: Vec::new(),
             foreign_call_stacks: Vec::new(),
             unit_body: true,
-            ranked_u32_countdown: false,
             unit_parameters: Vec::new(),
             unit_parameter_homes: Vec::new(),
             unit_scalar_homes: vec![home],

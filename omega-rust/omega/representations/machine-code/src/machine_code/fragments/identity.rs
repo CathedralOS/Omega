@@ -18,7 +18,7 @@ use sha2::{Digest, Sha256};
 use target::{Architecture, NativeTarget, ObjectFormat};
 use target_operations::TerminalPsiProvenance;
 
-const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v13";
+const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v14";
 
 pub fn function_fragment_emission_identity(
     plan: &FunctionFragmentEmissionPlan,

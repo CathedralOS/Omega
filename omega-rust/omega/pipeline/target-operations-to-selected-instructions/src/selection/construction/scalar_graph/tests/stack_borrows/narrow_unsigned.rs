@@ -78,7 +78,6 @@ fn narrow_unsigned_stack_fragments_preserve_payload_and_reject_substitutions() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         for bits in [8, 16] {
@@ -285,7 +284,6 @@ fn signed_stack_entry_normalizes_loaded_payload_before_outgoing_calls() {
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         for (bits, expected, wrong_sign) in [

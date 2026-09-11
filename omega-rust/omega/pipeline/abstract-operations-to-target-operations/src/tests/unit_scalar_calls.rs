@@ -115,9 +115,7 @@ fn attached_unit_calls_retain_immediates_and_prior_results_with_durable_homes() 
     ] {
         let lowered = lower_to_target_operations(&attached_unit_scalar_call_plan(), target)
             .expect("attached Unit scalar calls lower");
-        let TargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
-            panic!("attached machine must remain a Unit body")
-        };
+        let body = &lowered.functions[0].graph;
         assert_eq!(lowered.functions[0].scalar_abi, None);
         let [
             TargetUnitOperation::IntegerConstant { .. },
@@ -135,8 +133,7 @@ fn attached_unit_calls_retain_immediates_and_prior_results_with_durable_homes() 
                 arguments: second_arguments,
                 ..
             },
-            TargetUnitOperation::Return { .. },
-        ] = body.operations.as_slice()
+        ] = body.blocks[0].operations.as_slice()
         else {
             panic!("Unit body must retain both scalar calls in order")
         };
@@ -178,7 +175,8 @@ fn attached_unit_calls_retain_immediates_and_prior_results_with_durable_homes() 
             TargetUnitScalarArgumentSource::Home(*first_home)
         );
         assert_eq!(
-            body.operations
+            body.blocks[0]
+                .operations
                 .iter()
                 .filter(|operation| matches!(operation, TargetUnitOperation::ScalarCall { .. }))
                 .count(),
@@ -258,10 +256,9 @@ fn unit_float_literal_calls_retain_raw_bits_and_prior_call_results() {
             NativeTarget::windows_x64(),
         ] {
             let lowered = lower_to_target_operations(&source, native).unwrap();
-            let TargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
-                panic!("ordinary Unit body")
-            };
-            let TargetUnitOperation::ScalarCall { arguments, .. } = &body.operations[1] else {
+            let body = &lowered.functions[0].graph;
+            let TargetUnitOperation::ScalarCall { arguments, .. } = &body.blocks[0].operations[1]
+            else {
                 panic!("first call")
             };
             assert_eq!(
@@ -272,7 +269,8 @@ fn unit_float_literal_calls_retain_raw_bits_and_prior_call_results() {
                     value: literal,
                 }
             );
-            let TargetUnitOperation::ScalarCall { arguments, .. } = &body.operations[2] else {
+            let TargetUnitOperation::ScalarCall { arguments, .. } = &body.blocks[0].operations[2]
+            else {
                 panic!("second call")
             };
             assert!(
@@ -333,10 +331,8 @@ fn attached_unit_calls_retain_ordered_register_and_stack_arguments() {
         NativeTarget::linux_arm64(),
     ] {
         let lowered = lower_to_target_operations(&plan, target).expect("nine scalar arguments");
-        let TargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
-            unreachable!()
-        };
-        let calls = body
+        let body = &lowered.functions[0].graph;
+        let calls = body.blocks[0]
             .operations
             .iter()
             .filter_map(|operation| match operation {
@@ -370,11 +366,10 @@ fn unit_scalar_calls_preserve_free_callers_and_require_service_free_scalar_calle
     let lowered = lower_to_target_operations(&unattached, NativeTarget::linux_x64())
         .expect("a free caller does not need a fabricated attachment");
     assert_eq!(lowered.functions[0].attachment, None);
-    let TargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
-        panic!("ordinary effect body");
-    };
+    let body = &lowered.functions[0].graph;
     assert_eq!(
-        body.operations
+        body.blocks[0]
+            .operations
             .iter()
             .filter(|operation| matches!(operation, TargetUnitOperation::ScalarCall { .. }))
             .count(),

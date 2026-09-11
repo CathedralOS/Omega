@@ -192,10 +192,8 @@ mod tests {
             &profile,
         )
         .expect("alternate native input");
-        let native = terminal_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(
-            first.plan().clone(),
-        );
-        let (_, substituted_continuation) = alternate.into_parts();
+        let native = first.plan().clone();
+        let substituted_continuation = alternate.into_optimization_input();
 
         assert!(matches!(
             NativeRealizationInput::new(native, substituted_continuation),
@@ -227,14 +225,9 @@ mod tests {
         let original_root = (substituted.psi, substituted.entry);
         substituted.functions.clear();
         assert_eq!((substituted.psi, substituted.entry), original_root);
-        let (_, optimization_input) = input.into_parts();
+        let optimization_input = input.into_optimization_input();
         assert!(matches!(
-            NativeRealizationInput::new(
-                terminal_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(
-                    substituted
-                ),
-                optimization_input,
-            ),
+            NativeRealizationInput::new(substituted, optimization_input,),
             Err(
                 "native authority and abstract-optimization context disagree on the complete abstract program"
             )
@@ -257,12 +250,6 @@ mod tests {
         let selected_input =
             prepare_native_realization_input(&artifact, &profile, &selected).unwrap();
         assert_eq!(ordinary.input.plan(), selected_input.input.plan());
-        for prepared in [&ordinary, &selected_input] {
-            assert!(matches!(
-                prepared.input.authority(),
-                crate::realization::model::NativeRealizationAuthority::Ordinary
-            ));
-        }
         assert!(!ordinary.is_optimized());
         assert!(selected_input.is_optimized());
     }
@@ -288,10 +275,6 @@ mod tests {
         let prepared = prepare_native_realization_input(&artifact, &profile, &selected)
             .expect("prepare the unconditional native stage plus selected physical context");
 
-        assert!(matches!(
-            prepared.input.authority(),
-            crate::realization::model::NativeRealizationAuthority::Ordinary
-        ));
         assert!(prepared.is_optimized());
         assert!(prepared.matches(artifact.manifest().identity(), &profile, &selected));
         assert!(!prepared.matches(artifact.manifest().identity(), &profile, &substituted,));

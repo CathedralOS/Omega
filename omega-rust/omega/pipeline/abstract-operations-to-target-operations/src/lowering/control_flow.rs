@@ -14,10 +14,8 @@ mod structural_case;
 mod terminator;
 mod transfers;
 use operations::lower_operation;
-use terminator::lower_terminator;
-mod topology;
 use target_operations::{TargetControlBlock, TargetControlGraph, TargetScalarBlockParameter};
-pub(super) use topology::requires_graph;
+use terminator::lower_terminator;
 
 #[derive(Clone)]
 struct LiveDefinitions {
@@ -401,13 +399,13 @@ pub(super) fn lower(
         scalar_abi: None,
         mixed_structural_scalar_abi: None,
         provenance,
-        operation: TargetOperation::ControlGraph(TargetControlGraph {
+        graph: TargetControlGraph {
             structural_types: structural_types.catalog().clone(),
             call_plan: prepared.call_plan,
             scalar_parameters: prepared.scalar_parameters,
             parameters: prepared.parameters,
             entry: function.entry,
             blocks,
-        }),
+        },
     })
 }

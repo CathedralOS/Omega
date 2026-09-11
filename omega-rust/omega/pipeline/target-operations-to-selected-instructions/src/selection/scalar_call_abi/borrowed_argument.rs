@@ -130,7 +130,6 @@ pub(super) fn validate_borrowed_argument(
     // metadata; they do not add ABI arguments. The scalar-result attachment
     // family remains outside this transport contract.
     if (source.attachment.is_some() && !exclusive && source.call_plan.result.is_some())
-        || source.ranked.is_some()
         || !signature.entry_claims.is_empty()
         || (source.call_plan.result.is_some() && !signature.published_service_ceiling.is_empty())
         || (!parameters.is_empty()

@@ -2,16 +2,9 @@
 
 use semantic_vocabulary::{MachineId, OperationId};
 
-use super::super::{AbstractToTargetPlanTranslationFamily, AbstractToTargetTranslationFamily};
-use super::AbstractToTargetTranslationFamilyError;
-use crate::validation::StructuralCallReturnProjectedQualificationValidationError;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractToTargetTranslationValidationError {
     StructuralSignatureMismatch {
-        machine: MachineId,
-    },
-    UnitContinuationMismatch {
         machine: MachineId,
     },
     UnsupportedPartialAffineContinuation {
@@ -34,21 +27,6 @@ pub enum AbstractToTargetTranslationValidationError {
     DuplicateIeeeFloatFmaSettlement(OperationId),
     UnknownIeeeFloatFmaSettlement(OperationId),
     MissingIeeeFloatFmaSettlement(OperationId),
-    AmbiguousPlanFamily,
-    PlanFamily {
-        family: AbstractToTargetPlanTranslationFamily,
-        error: StructuralCallReturnProjectedQualificationValidationError,
-    },
-    AmbiguousFunctionFamily {
-        machine: MachineId,
-        first: AbstractToTargetTranslationFamily,
-        second: AbstractToTargetTranslationFamily,
-    },
-    FunctionFamily {
-        machine: MachineId,
-        family: AbstractToTargetTranslationFamily,
-        error: AbstractToTargetTranslationFamilyError,
-    },
 }
 
 impl std::fmt::Display for AbstractToTargetTranslationValidationError {

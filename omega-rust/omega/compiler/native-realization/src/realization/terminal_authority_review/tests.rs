@@ -158,7 +158,7 @@ fn abstract_plan(
             program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([41; 32]),
         },
         entry: MachineId::new(1).unwrap(),
-        structural_types: Vec::new(),
+        structural_types: Vec::new().into(),
         boundary_machines: boundaries,
         provider_candidates,
         functions,

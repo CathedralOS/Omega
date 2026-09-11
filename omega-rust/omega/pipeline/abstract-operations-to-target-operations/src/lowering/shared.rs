@@ -4,7 +4,6 @@ pub(super) use std::collections::{BTreeMap, BTreeSet};
 pub(super) use abstract_operations::{
     AbstractDynamicDescriptorSource, AbstractFunction, AbstractFunctionResult, AbstractOperation,
     AbstractOperationPlan, AbstractParameter, CompletionClaimSource,
-    RankedNativeAbstractOperationPlan,
 };
 pub(super) use calling_conventions::{
     CallPlan, CallSignature, CallingPolicy, ValueClass, ValueLocation, ValuePlacement, ValueShape,
@@ -23,17 +22,14 @@ pub(super) use target_operations::{
     BoundaryByteSequenceArgument, BoundaryRealization, BoundarySettlementBinding,
     MixedStructuralScalarFunctionAbi, ScalarAbiValue, ScalarFunctionAbi, ScalarParameterLocation,
     TargetBooleanExpression, TargetDynamicDescriptorArgument,
-    TargetDynamicDescriptorInstanceArgument, TargetDynamicDescriptorParameterAbi, TargetFunction,
-    TargetIeeeFloatFmaOperand, TargetIntegerExpression, TargetOperation, TargetOperationPlan,
-    TargetRankedU32Countdown, TargetScalarExpression, TargetStructuralArgument,
-    TargetStructuralParameter, TargetUnitBody, TargetUnitOperation, TargetUnitScalarArgumentSource,
-    TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement, TargetX86ScalarFmaSettlement,
-    TerminalPsiProvenance,
+    TargetDynamicDescriptorInstanceArgument, TargetFunction, TargetIntegerExpression,
+    TargetOperationPlan, TargetScalarExpression, TargetStructuralArgument,
+    TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarArgumentSource,
+    TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
 };
 pub(super) use terminal_psi::{
     StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
-    TerminalRankedGuard, TerminalRankedSuccessorArgument,
 };
 
 pub(super) use crate::{AdmittedBoundarySettlement, LoweringError};

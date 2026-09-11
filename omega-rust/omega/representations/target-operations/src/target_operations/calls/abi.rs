@@ -1,10 +1,10 @@
-//! Concrete function ABI and dynamic descriptor parameter shapes.
+//! Concrete function ABI and dynamic descriptor argument shapes.
 
 use crate::TargetStructuralParameter;
 use abstract_operations::AbstractDynamicDescriptorArgument;
 use calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use semantic_vocabulary::{PlaceId, ScalarType, StructuralTypeId, ValueId};
-use terminal_psi::{StructuralPathSegment, TerminalDynamicDescriptorParameter};
+use terminal_psi::StructuralPathSegment;
 
 /// One semantic scalar value joined to its canonical target call placement.
 /// Parameter rows retain declaration order in the surrounding function ABI;
@@ -40,18 +40,6 @@ pub struct MixedStructuralScalarFunctionAbi {
     pub scalar_parameters: Vec<ScalarAbiValue>,
     pub structural_parameters: Vec<TargetStructuralParameter>,
     pub result: ScalarAbiValue,
-}
-
-/// Target-owned physical ABI for one portable existential parameter.
-///
-/// Terminal Psi owns only the semantic interface. The receiving lowerer maps
-/// that interface to two ordinary pointer-shaped parameters and retains their
-/// exact placements here so assignment cannot recover them by convention.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TargetDynamicDescriptorParameterAbi {
-    pub parameter: TerminalDynamicDescriptorParameter,
-    pub instance: ValuePlacement,
-    pub table: ValuePlacement,
 }
 
 /// One concrete instance address supplied to a target-level existential

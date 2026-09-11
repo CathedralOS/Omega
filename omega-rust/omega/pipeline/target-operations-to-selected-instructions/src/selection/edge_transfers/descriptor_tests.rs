@@ -19,7 +19,6 @@ fn scalar_and_descriptor_swaps_snapshot_all_inputs_before_reentry_replacement() 
             register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
-            projected_structural_call: None,
             fixed_inputs: Vec::new(),
         };
         let block = BlockId::new(1).unwrap();
@@ -251,7 +250,6 @@ pub(super) fn swapped_function(
             operations: Vec::new(),
             edges: vec![edge],
         },
-        ranked: None,
         structural: None,
         local_storage_slots: slots
             .map(|id| SelectedLocalStorageSlot {

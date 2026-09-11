@@ -347,18 +347,10 @@ fn projected_function_and_call_results_cross_replay_abstract_and_prephysical_cus
     let lowered = abstract_operations_to_target_operations::lower_to_target_operations(
         optimized.plan(),
         target::NativeTarget::linux_x64(),
-    )
-    .expect("the exact projected structural call/return closure reaches target IR");
-    let target_operations::TargetOperation::ReturnStructuralCall {
-        structural_parameters,
-        operation_result,
-        result,
-        ..
-    } = &lowered.functions[0].operation
-    else {
-        panic!("the caller retains its exact structural call/return carrier")
-    };
-    assert_eq!(structural_parameters[0].projected_qualifications, expected);
-    assert_eq!(operation_result.projected_qualifications, expected);
-    assert_eq!(result.projected_qualifications, expected);
+    );
+    assert_eq!(
+        lowered,
+        Err(abstract_operations_to_target_operations::LoweringError::UnsupportedProjectedStructuralQualifications),
+        "qualified structural calls require common-graph custody, not the retired projected-return route"
+    );
 }

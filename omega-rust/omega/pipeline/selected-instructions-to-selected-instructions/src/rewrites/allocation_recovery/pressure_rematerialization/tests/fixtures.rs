@@ -114,7 +114,6 @@ pub(crate) fn fixture() -> (
         target: target::NativeTarget::linux_x64(),
         entry: machine,
         functions: vec![SelectedFunction {
-            ranked: None,
             machine,
             attachment: None,
             provenance: Default::default(),
@@ -137,7 +136,6 @@ pub(crate) fn fixture() -> (
             }],
         }]
         .into(),
-        projected_structural_call_returns: Vec::new(),
     };
     let ranges = LiveRangePlan {
         selected: SelectedInstructionPlanIdentity::from_bytes([2; 32]),

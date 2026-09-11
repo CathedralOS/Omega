@@ -1,7 +1,7 @@
 //! Admission over already replayed current source; this never proves an erasure.
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use selected_instructions::{SelectedFunction, SelectedStructuralTransport, SelectedTerminator};
-use target_operations::{TargetControlTerminator, TargetFunction, TargetOperation};
+use target_operations::{TargetControlTerminator, TargetFunction};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, TerminalAffineCleanupAction};
 #[cfg(test)]
 mod tests;
@@ -21,9 +21,7 @@ pub(in crate::function_fragments) fn arrivals(
         || !function.entry_claims.is_empty()
         || !function.published_service_ceiling.is_empty()
         || target.mixed_structural_scalar_abi.is_none()
-        || !matches!(target.operation, TargetOperation::ControlGraph(_))
         || selected.structural.is_none()
-        || selected.ranked.is_some()
         || selected.memory_accesses.iter().any(|access| !primitive_local(function, access.place))
         || selected.local_storage_slots.iter().any(|slot| {
             !matches!(
@@ -184,9 +182,7 @@ pub(in crate::function_fragments) fn scalar_cleanup_retained(
     else {
         return false;
     };
-    let TargetOperation::ControlGraph(graph) = &target.operation else {
-        return false;
-    };
+    let graph = &target.graph;
     if !cleanup_actions
         .iter()
         .all(|action| matches!(action, TerminalAffineCleanupAction::DiscardRoot(_)))

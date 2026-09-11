@@ -1,23 +1,6 @@
 //! Native branch topology and its source and stack-replay evidence.
 
-use abstract_operations::RankedU32CountdownCustody;
-use calling_conventions::CallPlan;
 use semantic_vocabulary::{EdgeId, OperationId, PlaceId, StructuralFieldId};
-use target_operations::TargetStructuralParameter;
-use terminal_psi::TerminalAffineCleanupAction;
-
-/// Complete machine-code custody for the one admitted structural Unit / `u32`
-/// countdown. Target layout is deliberately not copied here: object replay
-/// must derive it independently from the target's canonical encoding and bind
-/// the generic fuel rows to that result.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RankedU32CountdownMachineCodeRecord {
-    pub custody: RankedU32CountdownCustody,
-    pub call_plan: CallPlan,
-    pub structural_types: abstract_operations::StructuralTypeCatalog,
-    pub structural_parameters: Vec<TargetStructuralParameter>,
-    pub cleanup_actions: Vec<TerminalAffineCleanupAction>,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScalarControlFlowEvidence {

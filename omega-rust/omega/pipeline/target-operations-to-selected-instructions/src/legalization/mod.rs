@@ -5,7 +5,6 @@
 
 mod admission;
 mod model;
-mod projected_structural_call_return;
 mod replay;
 mod scalar_graph_input;
 mod source;
@@ -13,9 +12,7 @@ mod source_input;
 pub use source_input::LegalizationSource;
 
 pub use model::{
-    LegalizationError, LegalizationValidationReceipt,
-    ProjectedStructuralCallReturnLegalizationError,
-    ProjectedStructuralCallReturnLegalizationReceipt, ValidatedLegalizedOperations,
+    LegalizationError, LegalizationValidationReceipt, ValidatedLegalizedOperations,
     legalization_validator_identity, legalization_validator_identity_v17_legacy,
     legalization_validator_identity_v18_legacy, legalization_validator_identity_v19_legacy,
     legalization_validator_identity_v20_legacy, legalization_validator_identity_v21_legacy,
@@ -47,7 +44,6 @@ pub fn legalize_target_operations<'source>(
         target: target.target,
         entry: target.entry,
         scalar_functions: rosters.scalar_functions,
-        projected_structural_call_returns: rosters.projected_structural_call_returns,
     };
     validate_legalized_operations(target, abstract_plan, source, plan)
 }
@@ -64,18 +60,14 @@ pub fn validate_legalized_operations<'source>(
     let source = source.into();
     let unit = source.unit;
     reject_attached_unit_structural_scalar(target)?;
-    let (decomposition_count, projected_structural_call_return) =
-        replay_terminal_legalized_plan(target, abstract_plan, unit, &plan, source.verified_input)?;
+    replay_terminal_legalized_plan(target, abstract_plan, unit, &plan, source.verified_input)?;
     let receipt = LegalizationValidationReceipt {
         identity: legalized_operation_plan_identity(&plan),
         validator: legalization_validator_identity(),
         optimization_unit: unit.identity,
         fuel_schedule: unit.fuel_schedule,
         target: target.target,
-        function_count: plan.scalar_functions.len()
-            + plan.projected_structural_call_returns.len() * 2,
-        decomposition_count,
-        projected_structural_call_return,
+        function_count: plan.scalar_functions.len(),
     };
     Ok(ValidatedLegalizedOperations { plan, receipt })
 }

@@ -82,12 +82,10 @@ fn fixture(target: NativeTarget) -> ValidatedRuntimeSpill {
         fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
         target,
         entry: machine,
-        projected_structural_call_returns: Vec::new(),
         functions: vec![SelectedFunction {
             machine,
             attachment: None,
             provenance: Default::default(),
-            ranked: None,
             structural: None,
             local_storage_slots: Vec::new(),
             outgoing_arguments: Vec::new(),

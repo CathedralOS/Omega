@@ -4,7 +4,7 @@ use native_realization::{compiler_baseline_request_v1, optimize_artifact_section
 use optimization_core::OptimizationSelections;
 use proof_admission::AdmissionProfile;
 use target::NativeTarget;
-use target_operations::{TargetControlTerminator, TargetOperation, TargetUnitOperation};
+use target_operations::{TargetControlTerminator, TargetUnitOperation};
 use terminal_codec::CanonicalTerminalArtifact;
 
 fn targets() -> [NativeTarget; 4] {
@@ -41,9 +41,7 @@ fn publish(
         .iter()
         .find(|function| function.machine == module.entry)
         .unwrap();
-    let TargetOperation::ControlGraph(graph) = &entry.operation else {
-        panic!("effectful scalar return must use the ordinary target graph on {target:?}");
-    };
+    let graph = &entry.graph;
     assert_eq!(
         graph
             .blocks

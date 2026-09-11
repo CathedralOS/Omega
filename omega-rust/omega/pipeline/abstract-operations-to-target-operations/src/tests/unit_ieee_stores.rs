@@ -113,9 +113,7 @@ fn ieee_store_parameters_keep_float_abi_and_exact_source_identity() {
             ] {
                 let lowered = lower_to_target_operations(&source, target).unwrap();
                 let function = &lowered.functions[0];
-                let TargetOperation::UnitBody(body) = &function.operation else {
-                    panic!("IEEE store retains the ordinary Unit body")
-                };
+                let body = &function.graph;
                 assert_eq!(
                     body.call_plan.parameters[0].shape,
                     ValueShape::float(byte_size)
@@ -124,7 +122,7 @@ fn ieee_store_parameters_keep_float_abi_and_exact_source_identity() {
                     body.scalar_parameters[0].scalar_type,
                     ScalarType::IeeeFloat(format)
                 );
-                match &body.operations[0] {
+                match &body.blocks[0].operations[0] {
                     TargetUnitOperation::WriteOnlyPrimitiveStore { source, .. } => {
                         assert_eq!(
                             source,
@@ -193,14 +191,12 @@ fn forwarded_ieee_store_call_keeps_the_parameter_and_borrowed_pointer() {
             NativeTarget::macos_arm64(),
         ] {
             let lowered = lower_to_target_operations(&source, target).unwrap();
-            let TargetOperation::UnitBody(body) = &lowered.functions[1].operation else {
-                panic!("forwarding remains an ordinary Unit body")
-            };
+            let body = &lowered.functions[1].graph;
             let TargetUnitOperation::Call {
                 scalar_arguments,
                 arguments,
                 ..
-            } = &body.operations[0]
+            } = &body.blocks[0].operations[0]
             else {
                 panic!("ordinary Unit call")
             };

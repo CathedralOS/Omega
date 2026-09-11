@@ -3,22 +3,20 @@ use super::shared::*;
 mod contracts;
 mod ordinary;
 mod primitives;
-mod projected_structural;
 mod register;
 
-use primitives::{encode_constraint_key, encode_machine_register};
+use primitives::encode_constraint_key;
 
 pub(super) fn receipt(
     plan: &SelectedInstructionPlan,
     legalized: &ValidatedLegalizedOperations,
 ) -> SelectedInstructionValidationReceipt {
-    let function_count = plan.functions.len() + 2 * plan.projected_structural_call_returns.len();
+    let function_count = plan.functions.len();
     let block_count = plan
         .functions
         .iter()
         .map(|function| function.blocks.len())
-        .sum::<usize>()
-        + 2 * plan.projected_structural_call_returns.len();
+        .sum::<usize>();
     let virtual_register_count = plan
         .functions
         .iter()
@@ -40,14 +38,13 @@ pub(super) fn receipt(
         block_count,
         virtual_register_count,
         instruction_count,
-        projected_structural_call_return_count: plan.projected_structural_call_returns.len(),
     }
 }
 
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v36\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v37\0".as_slice();
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -108,9 +105,6 @@ pub fn selected_instruction_plan_identity(
             }
             ordinary::encode_terminator(&mut bytes, &block.terminator);
         }
-    }
-    if !plan.projected_structural_call_returns.is_empty() {
-        projected_structural::encode(&mut bytes, &plan.projected_structural_call_returns);
     }
     SelectedInstructionPlanIdentity::from_canonical_bytes(&bytes)
 }

@@ -3,7 +3,7 @@ use calling_conventions::{CallSignature, ValueShape, evaluate_call_plan};
 use legalized_operations::{LegalizedScalarArgument, LegalizedScalarInstructionKind};
 use semantic_vocabulary::{IntegerSign, IntegerType, OperationId, ScalarType, ValueId};
 use target::NativeTarget;
-use target_operations::{TargetOperation, TargetUnitOperation, TargetUnitScalarArgumentSource};
+use target_operations::{TargetUnitOperation, TargetUnitScalarArgumentSource};
 use target_operations_to_selected_instructions::{
     legalize_target_operations, validate_legalized_operations,
 };
@@ -68,11 +68,9 @@ fn unit_call_receiving_rejects_changed_boolean_result_and_pointer_contracts() {
                 .iter_mut()
                 .find(|function| function.machine == module.entry)
                 .unwrap();
-            let TargetOperation::UnitBody(body) = &mut entry.operation else {
-                panic!("true Unit body")
-            };
+            let body = &mut entry.graph;
             let operation = if corruption == 8 { 207 } else { 205 };
-            let call = body.operations.iter_mut().find(|candidate| matches!(candidate, TargetUnitOperation::Call { psi_operation, .. } if *psi_operation == OperationId::new(operation).unwrap())).unwrap();
+            let call = body.blocks.iter_mut().flat_map(|block| &mut block.operations).find(|candidate| matches!(candidate, TargetUnitOperation::Call { psi_operation, .. } if *psi_operation == OperationId::new(operation).unwrap())).unwrap();
             let TargetUnitOperation::Call {
                 scalar_arguments,
                 arguments,
