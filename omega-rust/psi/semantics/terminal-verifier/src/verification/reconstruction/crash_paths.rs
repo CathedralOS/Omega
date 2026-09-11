@@ -46,6 +46,7 @@ impl Budget {
 pub(super) fn reconstruct(
     module: &TerminalModule,
     machine: &TerminalMachine,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
 ) -> Result<Vec<ReconstructedCrashSiteFacts>, ModuleError> {
     debug_assert!(machine.ranked_scc.is_none());
     let context = MachineReconstructionContext::new(module, machine, true);
@@ -70,7 +71,7 @@ pub(super) fn reconstruct(
                 module,
                 machine,
                 operation,
-                &context.machines,
+                machines,
                 &context.value_types,
                 operation_facts::OperationFactPurpose::PrivateCrashPredicates,
                 &mut axioms,
@@ -92,7 +93,7 @@ pub(super) fn reconstruct(
             current,
             machine,
             &context.blocks,
-            &context.machines,
+            machines,
             &|id| context.value_term(id),
             context.reconstruct_path_facts,
             true,

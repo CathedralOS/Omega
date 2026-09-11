@@ -36,6 +36,29 @@ mod provider_results;
 mod scalar_array_arguments;
 
 #[test]
+fn module_reconstruction_keeps_machine_order_and_rejects_duplicate_identities() {
+    let mut module = call_module();
+    let original = reconstruct_terminal_obligations(&module).expect("original obligations");
+    module.machines.reverse();
+    let reordered = reconstruct_terminal_obligations(&module).expect("reordered machines");
+    let mut expected = original.obligations().to_vec();
+    expected.reverse();
+    assert_eq!(reordered.obligations(), expected);
+    assert_eq!(
+        reconstruct_operation_obligations(&module).expect("operation obligations"),
+        reconstruct_operation_obligations(&call_module()).expect("original operations"),
+    );
+
+    let duplicate = module.machines[0].clone();
+    let duplicate_id = duplicate.id;
+    module.machines.push(duplicate);
+    assert!(matches!(reconstruct_terminal_obligations(&module),
+        Err(ModuleError::DuplicateMachine(machine)) if machine == duplicate_id));
+    assert!(matches!(reconstruct_operation_obligations(&module),
+        Err(ModuleError::DuplicateMachine(machine)) if machine == duplicate_id));
+}
+
+#[test]
 fn scalar_call_reconstructs_requirements_and_imports_verified_guarantees() {
     let module = call_module();
     let obligations = reconstruct_operation_obligations(&module).expect("call obligations");

@@ -107,7 +107,17 @@ pub(crate) fn reconstruct_validated_control_edge_axioms(
     module: &TerminalModule,
     machine: &TerminalMachine,
 ) -> Result<BTreeMap<semantic_vocabulary::EdgeId, Vec<Proposition>>, ModuleError> {
-    Ok(reconstruct_machine_semantics(module, machine)?.edge_axioms)
+    let machines = module_machine_index(module);
+    Ok(reconstruct_machine_semantics(module, machine, &machines)?.edge_axioms)
+}
+
+// Invocation-owned lookup only: validation remains responsible for identities.
+fn module_machine_index(module: &TerminalModule) -> BTreeMap<MachineId, &TerminalMachine> {
+    module
+        .machines
+        .iter()
+        .map(|machine| (machine.id, machine))
+        .collect()
 }
 
 /// Private source-independent facts at an exact crash terminator. Asserted
@@ -127,15 +137,23 @@ pub(crate) fn reconstruct_validated_crash_site_facts(
     module: &TerminalModule,
 ) -> Result<Vec<ReconstructedCrashSiteFacts>, ModuleError> {
     let mut sites = Vec::new();
-    for machine in module.machines.iter().filter(|machine| {
+    let mut crash_machines = module.machines.iter().filter(|machine| {
         machine.blocks.iter().any(|block| {
             matches!(&block.terminator, Terminator::Crash { site_guard, .. } if !site_guard.is_empty())
         })
-    }) {
+    }).peekable();
+    if crash_machines.peek().is_none() {
+        return Ok(sites);
+    }
+    let machines = module_machine_index(module);
+    for machine in crash_machines {
         if machine.ranked_scc.is_some() {
-            sites.extend(reconstruct_machine_semantics_with_crash_facts(module, machine, true)?.crash_sites);
+            sites.extend(
+                reconstruct_machine_semantics_with_crash_facts(module, machine, &machines, true)?
+                    .crash_sites,
+            );
         } else {
-            sites.extend(crash_paths::reconstruct(module, machine)?);
+            sites.extend(crash_paths::reconstruct(module, machine, &machines)?);
         }
     }
     Ok(sites)
@@ -150,8 +168,11 @@ pub fn reconstruct_operation_obligations(
 ) -> Result<Vec<ReconstructedOperationObligation>, ModuleError> {
     validate_module(module)?;
     let mut obligations = Vec::new();
+    let machines = module_machine_index(module);
     for machine in &module.machines {
-        obligations.extend(reconstruct_machine_semantics(module, machine)?.operation_obligations);
+        obligations.extend(
+            reconstruct_machine_semantics(module, machine, &machines)?.operation_obligations,
+        );
     }
     Ok(obligations)
 }
@@ -164,8 +185,11 @@ pub fn reconstruct_interpretable_operation_obligations(
 ) -> Result<Vec<ReconstructedOperationObligation>, ModuleError> {
     let module = validated.module();
     let mut obligations = Vec::new();
+    let machines = module_machine_index(module);
     for machine in &module.machines {
-        obligations.extend(reconstruct_machine_semantics(module, machine)?.operation_obligations);
+        obligations.extend(
+            reconstruct_machine_semantics(module, machine, &machines)?.operation_obligations,
+        );
     }
     Ok(obligations)
 }
@@ -210,8 +234,9 @@ pub(super) fn reconstruct_validated_terminal_obligations(
     module: &TerminalModule,
 ) -> Result<ReconstructedTerminalObligationSet, ModuleError> {
     let mut obligations = Vec::new();
+    let machines = module_machine_index(module);
     for machine in &module.machines {
-        let semantics = reconstruct_machine_semantics(module, machine)?;
+        let semantics = reconstruct_machine_semantics(module, machine, &machines)?;
         let observations = entry_storage_observations(machine);
         let requirements = machine
             .contract
@@ -294,8 +319,9 @@ pub(super) fn reconstruct_validated_terminal_obligations(
 pub(super) fn reconstruct_machine_semantics(
     module: &TerminalModule,
     machine: &TerminalMachine,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
 ) -> Result<ReconstructedMachineSemantics, ModuleError> {
-    reconstruct_machine_semantics_with_crash_facts(module, machine, false)
+    reconstruct_machine_semantics_with_crash_facts(module, machine, machines, false)
 }
 
 fn entry_storage_observations(machine: &TerminalMachine) -> Vec<Proposition> {
@@ -337,6 +363,7 @@ fn entry_storage_observations(machine: &TerminalMachine) -> Vec<Proposition> {
 fn reconstruct_machine_semantics_with_crash_facts(
     module: &TerminalModule,
     machine: &TerminalMachine,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
     crash_facts: bool,
 ) -> Result<ReconstructedMachineSemantics, ModuleError> {
     let context = machine_context::MachineReconstructionContext::new(module, machine, crash_facts);
@@ -426,7 +453,7 @@ fn reconstruct_machine_semantics_with_crash_facts(
                 module,
                 machine,
                 operation,
-                &context.machines,
+                machines,
                 &context.value_types,
                 if crash_facts {
                     operation_facts::OperationFactPurpose::PrivateCrashPredicates
@@ -489,7 +516,7 @@ fn reconstruct_machine_semantics_with_crash_facts(
             current,
             machine,
             &context.blocks,
-            &context.machines,
+            machines,
             &|id| context.value_term(id),
             context.reconstruct_path_facts,
             crash_facts,

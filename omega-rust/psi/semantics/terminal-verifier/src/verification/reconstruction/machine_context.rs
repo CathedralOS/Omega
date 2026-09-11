@@ -2,14 +2,13 @@
 
 use std::collections::BTreeMap;
 
-use semantic_vocabulary::{BlockId, MachineId, ScalarTerm, ScalarType, ValueId};
+use semantic_vocabulary::{BlockId, ScalarTerm, ScalarType, ValueId};
 use terminal_psi::{Block, OperationKind, TerminalMachine, TerminalModule, Terminator};
 
 pub(super) struct MachineReconstructionContext<'a> {
     pub(super) reconstruct_path_facts: bool,
     pub(super) value_types: BTreeMap<ValueId, ScalarType>,
     pub(super) blocks: BTreeMap<BlockId, &'a Block>,
-    pub(super) machines: BTreeMap<MachineId, &'a TerminalMachine>,
 }
 
 impl<'a> MachineReconstructionContext<'a> {
@@ -72,16 +71,10 @@ impl<'a> MachineReconstructionContext<'a> {
             .iter()
             .map(|block| (block.id, block))
             .collect::<BTreeMap<_, _>>();
-        let machines = module
-            .machines
-            .iter()
-            .map(|machine| (machine.id, machine))
-            .collect::<BTreeMap<_, _>>();
         Self {
             reconstruct_path_facts,
             value_types,
             blocks,
-            machines,
         }
     }
 
