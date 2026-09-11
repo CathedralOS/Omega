@@ -7,6 +7,22 @@ use super::projected_argument;
 use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
 use abstract_operations::{AbstractReboundDynamicDispatch, AbstractStoredDynamicDispatch};
 
+/// A linear body can use a descriptor established in its preceding stream.
+/// Graph callers instead supply availability from their dominating definitions.
+pub(super) fn has_stored_descriptor(
+    operations: &[TargetUnitOperation],
+    operation: &AbstractOperation,
+) -> bool {
+    operations.iter().any(|lowered| {
+        matches!(
+            (lowered, operation),
+            (TargetUnitOperation::StoreDynamicDescriptor { stored, .. },
+            AbstractOperation::CallStoredDynamicScalar { dynamic_dispatch, .. })
+                if stored == &dynamic_dispatch.stored
+        )
+    })
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(in crate::lowering) fn lower_stored_descriptor(
     operation: &AbstractOperation,

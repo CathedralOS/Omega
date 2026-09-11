@@ -818,13 +818,18 @@ fn allocation_algorithms_and_staging_have_one_transform_owner() {
     assert!(!source.contains("omega_regalloc::"));
     for declaration in [
         "pub fn analyze_liveness",
+        "pub fn analyze_liveness_reusing",
         "pub fn validate_liveness",
         "pub fn stage_optimized_liveness",
         "pub fn analyze_live_ranges",
+        "pub fn analyze_live_ranges_reusing",
         "pub fn validate_live_ranges",
         "pub fn stage_optimized_live_ranges",
     ] {
-        assert_eq!(source.matches(declaration).count(), 1, "{declaration}");
+        // A suffixed API is not another definition of this function.
+        let declarations = source.matches(&format!("{declaration}(")).count()
+            + source.matches(&format!("{declaration}<")).count();
+        assert_eq!(declarations, 1, "{declaration}");
     }
     let allocation = rust_source(
         &root.join("omega-rust/omega/pipeline/selected-instructions-to-register-homes/src"),
