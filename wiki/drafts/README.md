@@ -20,6 +20,8 @@ the existing task boards, not in a second tracking system.
   ranking, and search ideas; remove when superseded by a concrete design or unused.
 - [Matching-logic interchange](matching_logic.md): research background and possible
   proof-route comparisons; remove when superseded by a concrete design or unused.
+- [Proof-search caching](proof_search_cache.md): exploratory derivation reuse;
+  replace with a measured proposal or remove when no longer useful.
 - [Test-cycle measurements](test_cycle_measurements.md): dated Windows evidence
   for future scheduling and selection comparisons.
 - [Cathedral alignment](cathedral_alignment.md): temporary cross-repository

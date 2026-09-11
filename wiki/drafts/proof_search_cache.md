@@ -1,9 +1,12 @@
-# 0003: Reusing proof search
+# Reusing proof search
 
-Status: open implementation proposal. No persistent cache format, key, storage
-location, or granularity is selected.
+Status: exploratory draft, not an accepted design or implementation task.
+No measured proof-search bottleneck, persistent cache format, key, storage
+location, or granularity is selected. These notes explore retaining derivations
+to avoid repeating search. Replace them with a concrete proposal when a measured
+workload justifies one, or delete them when no longer useful.
 
-## Problem and proposed design
+## Motivation and candidate approach
 
 An unchanged obligation may repeat expensive proof search. Retain a successful
 derivation and its complete statement/dependency context, then independently
@@ -39,4 +42,4 @@ search does not by itself supply a compact proof. Prefer compact checked
 derivations where available without imposing an unproved universal size bound.
 Measure hit rate, invalidation, total checking cost, and storage before selecting
 a persistence scheme. No compiler-authored source rewriting or new lockfile is
-required by this proposal.
+required by this approach.
