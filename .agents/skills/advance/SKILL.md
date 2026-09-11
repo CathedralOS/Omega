@@ -35,6 +35,15 @@ selection to that board; an explicitly named customer limits it to that customer
 and its useful dependencies. State the customer, missing dependencies, and bounded
 acceptance condition.
 
+When selecting language implementation work, choose a bounded capability with a
+source-to-consumer acceptance check, not merely a stage-local repair. Choose "a helper
+mutates the caller's field and the caller observes it after return," not just
+"retain borrowed arguments in target operations." Trace the remaining producer
+and consumer dependencies before choosing the first repair. A stage-local repair
+can be a useful checkpoint, but does not automatically complete that assignment.
+This does not require finishing an entire large sample in one invocation; keep
+the chosen scope bounded and the existing proof-obligation and pause rules intact.
+
 Read the owning design and [completion plan](../../../wiki/drafts/rust_compiler_completion.md).
 For bootstrap work, also read [whole-chain minimization](../../../bootstrap/MINIMIZATION.md).
 Apply [scope checkpoints](../../../AGENTS.md#scope-checkpoints) using recent
