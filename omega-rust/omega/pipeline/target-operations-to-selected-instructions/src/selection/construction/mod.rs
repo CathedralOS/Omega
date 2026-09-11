@@ -51,7 +51,7 @@ pub(super) fn build_plan(
         fuel_schedule: target.fuel_schedule,
         target: target.target,
         entry: target.entry,
-        functions,
+        functions: functions.into(),
         projected_structural_call_returns,
     })
 }

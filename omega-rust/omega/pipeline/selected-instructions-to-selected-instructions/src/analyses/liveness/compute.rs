@@ -12,6 +12,11 @@ use selected_instructions::{
 
 mod control;
 
+#[cfg(test)]
+std::thread_local! {
+    pub(crate) static FUNCTION_COMPUTATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 pub(crate) fn compute_terminal_liveness(
     selected: &impl crate::ValidatedSelectedAnalysis,
 ) -> Result<LivenessPlan, LivenessError> {
@@ -34,10 +39,63 @@ pub(crate) fn compute_terminal_liveness(
     })
 }
 
+pub(crate) fn compute_terminal_liveness_reusing(
+    previous: &impl crate::ValidatedSelectedAnalysis,
+    previous_liveness: &crate::ValidatedLiveness,
+    selected: &impl crate::ValidatedSelectedAnalysis,
+) -> Result<LivenessPlan, LivenessError> {
+    let plan = selected.selected_plan();
+    if !plan.projected_structural_call_returns.is_empty() {
+        return Err(LivenessError::ProjectedStructuralCallReturnUnsupported);
+    }
+    let prior = previous_liveness.plan();
+    let compatible = prior.selected == previous.selected_identity()
+        && prior.optimization_unit == previous.optimization_unit_identity()
+        && prior.fuel_schedule == previous.fuel_schedule_identity()
+        && prior.target == previous.selected_plan().target
+        && prior.optimization_unit == selected.optimization_unit_identity()
+        && prior.fuel_schedule == selected.fuel_schedule_identity()
+        && prior.target == plan.target
+        && prior.functions.len() == previous.selected_plan().functions.len()
+        && previous
+            .selected_plan()
+            .projected_structural_call_returns
+            .is_empty();
+    let functions = plan
+        .functions
+        .iter()
+        .enumerate()
+        .map(|(function_index, function)| {
+            // Shared immutable bodies are equal by construction; detached equal
+            // bodies remain eligible. Allocation identity never grants evidence.
+            if compatible
+                && (previous
+                    .selected_plan()
+                    .functions
+                    .shares_function_storage(&plan.functions, function_index)
+                    || previous.selected_plan().functions.get(function_index) == Some(function))
+                && let Some(facts) = prior.functions.get(function_index)
+            {
+                return Ok(facts.clone());
+            }
+            compute_function(function_index, function)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(LivenessPlan {
+        selected: selected.selected_identity(),
+        optimization_unit: selected.optimization_unit_identity(),
+        fuel_schedule: selected.fuel_schedule_identity(),
+        target: plan.target,
+        functions,
+    })
+}
+
 pub(crate) fn compute_function(
     function_index: usize,
     function: &SelectedFunction,
 ) -> Result<FunctionLiveness, LivenessError> {
+    #[cfg(test)]
+    FUNCTION_COMPUTATIONS.set(FUNCTION_COMPUTATIONS.get() + 1);
     reject_unsupported_constraints(function_index, function)?;
     super::edge_values::validate_transports(function_index, function)?;
     let mut virtual_entry = function

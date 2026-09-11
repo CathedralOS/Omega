@@ -21,6 +21,10 @@ mod liveness_custody;
 mod parameters;
 mod scalar_payloads;
 
+// Analysis reuse exercises the same selected-stage fixture as spill recovery.
+#[path = "../../analyses/liveness/reuse_tests.rs"]
+mod analysis_reuse;
+
 fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
 }
@@ -108,7 +112,8 @@ fn fixture(target: NativeTarget) -> ValidatedRuntimeSpill {
                     psi_return_edge: EdgeId::new(1).unwrap(),
                 },
             }],
-        }],
+        }]
+        .into(),
     };
     let identity = selected_instruction_plan_identity(&plan);
     ValidatedRuntimeSpill {
@@ -120,6 +125,90 @@ fn fixture(target: NativeTarget) -> ValidatedRuntimeSpill {
         },
         transformed: Arc::new(plan),
     }
+}
+
+#[test]
+fn spill_history_shares_unchanged_functions_and_replays_by_content() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let mut source = fixture(target);
+    let plan = Arc::make_mut(&mut source.transformed);
+    for ordinal in 2..=64 {
+        let mut function = plan.functions[0].clone();
+        function.machine = MachineId::new(ordinal).unwrap();
+        plan.functions.push(function);
+    }
+    let identity = selected_instruction_plan_identity(plan);
+    source.receipt.source_selected = identity;
+    source.receipt.transformed_selected = identity;
+    let first =
+        spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+            .unwrap();
+    let second =
+        spill_selected_runtime_value(&first, 1, VirtualRegisterId(1), &environment, budget())
+            .unwrap();
+    for ordinal in 0..64 {
+        assert_eq!(
+            std::ptr::eq(
+                &source.transformed().functions[ordinal],
+                &first.transformed().functions[ordinal]
+            ),
+            ordinal != 0,
+        );
+        assert_eq!(
+            std::ptr::eq(
+                &first.transformed().functions[ordinal],
+                &second.transformed().functions[ordinal]
+            ),
+            ordinal != 1,
+        );
+    }
+    assert!(
+        source.transformed().functions[0]
+            .local_storage_slots
+            .is_empty()
+    );
+    assert!(
+        first.transformed().functions[1]
+            .local_storage_slots
+            .is_empty()
+    );
+
+    // Separately allocated, byte-identical input remains valid: sharing saves
+    // storage but does not replace independent semantic replay.
+    let mut detached = first.transformed().clone();
+    detached.functions = detached.functions.iter().cloned().collect();
+    assert_eq!(
+        selected_instruction_plan_identity(&detached),
+        first.receipt().transformed_selected()
+    );
+    assert!(
+        validate_runtime_spill(
+            &source,
+            0,
+            VirtualRegisterId(1),
+            &environment,
+            budget(),
+            detached.clone()
+        )
+        .is_ok()
+    );
+    detached.functions[63].entry_block = SelectedBlockId(99);
+    assert!(
+        validate_runtime_spill(
+            &source,
+            0,
+            VirtualRegisterId(1),
+            &environment,
+            budget(),
+            detached
+        )
+        .is_err()
+    );
+    assert_ne!(
+        first.transformed().functions[63].entry_block,
+        SelectedBlockId(99)
+    );
 }
 
 #[test]

@@ -41,6 +41,9 @@ pub(super) fn assign(
 
 pub(super) fn analyze(
     source: &StagedOptimizedAllocationLegality,
+    previous: &impl ValidatedSelectedAnalysis,
+    previous_liveness: &crate::ValidatedLiveness,
+    previous_ranges: &crate::ValidatedLiveRanges,
     selected: &impl ValidatedSelectedAnalysis,
 ) -> Result<RuntimeSpillFacts, RuntimeSpillAllocationError> {
     let environment = source
@@ -48,10 +51,16 @@ pub(super) fn analyze(
         .liveness_stage()
         .selected_stage()
         .register_environment();
-    let liveness =
-        crate::analyze_liveness(selected).map_err(RuntimeSpillAllocationError::Liveness)?;
-    let ranges = crate::analyze_live_ranges(selected, &liveness)
-        .map_err(RuntimeSpillAllocationError::Ranges)?;
+    let liveness = crate::analyze_liveness_reusing(previous, previous_liveness, selected)
+        .map_err(RuntimeSpillAllocationError::Liveness)?;
+    let ranges = crate::analyze_live_ranges_reusing(
+        previous,
+        previous_liveness,
+        previous_ranges,
+        selected,
+        &liveness,
+    )
+    .map_err(RuntimeSpillAllocationError::Ranges)?;
     let legality = crate::analyze_allocation_legality(
         &ranges,
         source.allocator_availability(),
@@ -178,6 +187,11 @@ pub(crate) fn recover(
     let mut steps: Vec<RuntimeSpillStep> = Vec::new();
     let mut roster = candidates(&source);
     let mut current_ranges = source.live_range_stage().ranges().clone();
+    let mut current_liveness = source
+        .live_range_stage()
+        .liveness_stage()
+        .liveness()
+        .clone();
     while let Some(position) = candidate_position(&failure, &roster, |(function, register)| {
         overlaps_pressure(&failure, &current_ranges, *function, *register)
     }) {
@@ -197,7 +211,13 @@ pub(crate) fn recover(
             Err(error) if replay::inadmissible(&error) => continue,
             Err(error) => return Err(RuntimeSpillAllocationError::Rewrite(error)),
         };
-        let facts = analyze(&source, &rewrite)?;
+        let facts = analyze(
+            &source,
+            &selected,
+            &current_liveness,
+            &current_ranges,
+            &rewrite,
+        )?;
         let homes = assign(&source, &facts.ranges, &facts.legality);
         steps.push(RuntimeSpillStep {
             function,
@@ -227,6 +247,7 @@ pub(crate) fn recover(
             Err(error @ crate::RegisterHomeError::NoCompatibleHome { .. }) => {
                 failure = error;
                 current_ranges = facts.ranges;
+                current_liveness = facts.liveness;
             }
             Err(error) => return Err(RuntimeSpillAllocationError::Homes(error)),
         }

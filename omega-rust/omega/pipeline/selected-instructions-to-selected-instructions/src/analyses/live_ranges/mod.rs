@@ -15,6 +15,9 @@ pub use model::{LiveRangeError, LiveRangeValidationReceipt, ValidatedLiveRanges}
 pub use validate::validate_live_ranges;
 
 #[cfg(test)]
+pub(crate) use compute::REUSED_FUNCTIONS as LIVE_RANGE_REUSED_FUNCTIONS;
+
+#[cfg(test)]
 std::thread_local! {
     pub(crate) static LIVENESS_REPLAYS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
@@ -27,6 +30,26 @@ pub fn analyze_live_ranges<S: ValidatedSelectedAnalysis>(
 ) -> Result<ValidatedLiveRanges, LiveRangeError> {
     let inputs = validate::RevalidatedLiveness::new(selected, liveness)?;
     let plan = compute::compute_terminal_live_ranges(selected, liveness)?;
+    inputs.validate(plan)
+}
+
+/// Reuse function computations only for identical selected bodies and liveness.
+/// The prerequisite and complete candidate result still receive independent replay.
+pub fn analyze_live_ranges_reusing(
+    previous: &impl ValidatedSelectedAnalysis,
+    previous_liveness: &ValidatedLiveness,
+    previous_ranges: &ValidatedLiveRanges,
+    selected: &impl ValidatedSelectedAnalysis,
+    liveness: &ValidatedLiveness,
+) -> Result<ValidatedLiveRanges, LiveRangeError> {
+    let inputs = validate::RevalidatedLiveness::new(selected, liveness)?;
+    let plan = compute::compute_terminal_live_ranges_reusing(
+        previous,
+        previous_liveness,
+        previous_ranges,
+        selected,
+        liveness,
+    )?;
     inputs.validate(plan)
 }
 

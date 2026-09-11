@@ -11,10 +11,15 @@
 //!
 //! Moving or eliminating an instruction must preserve or explicitly transport
 //! those links. A register copy is not permission to duplicate a linear value.
+//! Function bodies use copy-on-write storage: a selected rewrite retains the
+//! roster and shares unchanged functions instead of duplicating their blocks,
+//! instructions and register tables. Wire identities still describe contents.
 
 pub mod calls;
 pub mod constraints;
 pub mod control_flow;
+mod functions;
+pub use functions::SelectedFunctions;
 pub mod effects;
 pub mod identity;
 pub mod instructions;
@@ -76,7 +81,7 @@ pub struct SelectedInstructionPlan {
     pub fuel_schedule: FuelScheduleIdentity,
     pub target: NativeTarget,
     pub entry: MachineId,
-    pub functions: Vec<SelectedFunction>,
+    pub functions: SelectedFunctions,
     /// Atomic result-bearing structural selections retain their own semantic
     /// and ABI roster. They intentionally create no scalar virtual register.
     pub projected_structural_call_returns: Vec<SelectedProjectedStructuralCallReturn>,

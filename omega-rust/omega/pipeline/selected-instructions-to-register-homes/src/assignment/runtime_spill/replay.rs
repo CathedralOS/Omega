@@ -31,8 +31,13 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
     let roster = candidates(source);
     let mut used = Vec::new();
     let mut current_ranges = source.live_range_stage().ranges().clone();
+    let mut current_liveness = source
+        .live_range_stage()
+        .liveness_stage()
+        .liveness()
+        .clone();
     let mut prior: Option<crate::ValidatedRuntimeSpill> = None;
-    for step in &staged.steps {
+    for (step_index, step) in staged.steps.iter().enumerate() {
         let position = roster
             .iter()
             .position(|candidate| *candidate == (step.function, step.register))
@@ -41,9 +46,22 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
             return Err(RuntimeSpillAllocationError::CandidateMismatch);
         }
         if let Some(previous) = &prior {
-            let facts = analyze(source, previous)?;
+            // Earlier steps have already been independently replayed. Their
+            // source is only an equality prerequisite for candidate fact reuse.
+            let previous_source = step_index.checked_sub(2).map_or_else(
+                || SelectedProgramRef::new(selected_stage.selected()),
+                |source_index| SelectedProgramRef::new(&staged.steps[source_index].rewrite),
+            );
+            let facts = analyze(
+                source,
+                &previous_source,
+                &current_liveness,
+                &current_ranges,
+                previous,
+            )?;
             failure = require_pressure(assign(source, &facts.ranges, &facts.legality))?;
             current_ranges = facts.ranges;
+            current_liveness = facts.liveness;
         }
         if !overlaps_pressure(&failure, &current_ranges, step.function, step.register) {
             return Err(RuntimeSpillAllocationError::CandidateMismatch);

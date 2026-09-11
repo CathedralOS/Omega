@@ -135,7 +135,8 @@ pub(crate) fn fixture() -> (
                     psi_return_edge: EdgeId::new(1).unwrap(),
                 },
             }],
-        }],
+        }]
+        .into(),
         projected_structural_call_returns: Vec::new(),
     };
     let ranges = LiveRangePlan {
