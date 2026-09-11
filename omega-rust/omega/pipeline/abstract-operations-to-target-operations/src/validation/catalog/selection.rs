@@ -32,6 +32,15 @@ pub(super) fn validate_with_ieee_float_fma(
     AbstractToTargetFunctionTranslationDisposition,
     AbstractToTargetTranslationValidationError,
 > {
+    // These families replay the legacy expression/flat carriers. A graph is
+    // checked against its source by mandatory target-to-selected input replay;
+    // this receipt must not claim that independent body coverage here.
+    if matches!(
+        target.operation,
+        target_operations::TargetOperation::ControlGraph(_)
+    ) {
+        return Ok(AbstractToTargetFunctionTranslationDisposition::Uncovered);
+    }
     let mut selected: Option<&TranslationFamilyDescriptor> = None;
     for descriptor in catalog {
         if !(descriptor.is_candidate)(source) {

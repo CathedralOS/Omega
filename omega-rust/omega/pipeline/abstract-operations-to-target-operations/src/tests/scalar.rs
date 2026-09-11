@@ -1,6 +1,7 @@
 use super::*;
 
 mod fixtures;
+mod shared_values;
 mod straight_line_blocks;
 use fixtures::{direct_call_plan, parameter_return_plan};
 
@@ -505,7 +506,7 @@ fn lowers_runtime_integer_equality_to_a_typed_target_expression() {
 }
 
 #[test]
-fn folds_a_compile_known_conditional_to_only_the_selected_arm() {
+fn legacy_expression_projection_folds_a_compile_known_conditional() {
     let condition_operation =
         semantic_vocabulary::OperationId::new(20).expect("condition operation");
     let true_operation = semantic_vocabulary::OperationId::new(21).expect("true operation");
@@ -520,7 +521,8 @@ fn folds_a_compile_known_conditional_to_only_the_selected_arm() {
         (false, false_operation, [false_edge, false_return]),
     ] {
         let plan = constant_conditional_plan(select_true);
-        let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).expect("lower");
+        let lowered = super::support::lower_legacy_scalar_fixture(&plan, NativeTarget::linux_x64())
+            .expect("legacy expression projection");
         let function = &lowered.functions[0];
         assert_eq!(
             function.provenance.operations,

@@ -1,7 +1,8 @@
 use super::{integer_type, wrapping_integer_divide_parameters_plan};
 use crate::{
     AbstractToTargetFunctionTranslationDisposition, AbstractToTargetFunctionTranslationReceipt,
-    lower_to_target_operations, validate_abstract_to_target_translation,
+    tests::support::lower_legacy_scalar_fixture as lower_to_target_operations,
+    validate_abstract_to_target_translation,
 };
 use semantic_vocabulary::{EdgeId, IntegerSign, ObligationId, OperationId, ScalarType, ValueId};
 use target::NativeTarget;

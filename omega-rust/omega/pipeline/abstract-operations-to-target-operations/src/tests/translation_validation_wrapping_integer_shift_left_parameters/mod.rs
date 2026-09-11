@@ -7,7 +7,8 @@ use super::{AbstractFunction, NativeTarget};
 use crate::{
     AbstractToTargetTranslationFamily, AbstractToTargetTranslationFamilyError,
     AbstractToTargetTranslationValidationError,
-    StraightLineWrappingIntegerShiftLeftParametersTranslationError, lower_to_target_operations,
+    StraightLineWrappingIntegerShiftLeftParametersTranslationError,
+    tests::support::lower_legacy_scalar_fixture as lower_to_target_operations,
     validate_abstract_to_target_translation,
 };
 

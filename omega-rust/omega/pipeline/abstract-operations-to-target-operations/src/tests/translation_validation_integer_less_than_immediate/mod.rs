@@ -5,7 +5,8 @@ use crate::{
     AbstractToTargetFunctionTranslationDisposition, AbstractToTargetFunctionTranslationReceipt,
     AbstractToTargetTranslationFamily, AbstractToTargetTranslationFamilyError,
     AbstractToTargetTranslationValidationError,
-    StraightLineIntegerLessThanImmediateTranslationError, lower_to_target_operations,
+    StraightLineIntegerLessThanImmediateTranslationError,
+    tests::support::lower_legacy_scalar_fixture as lower_to_target_operations,
     validate_abstract_to_target_translation,
 };
 

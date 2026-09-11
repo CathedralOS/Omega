@@ -6,7 +6,8 @@ use crate::{
     AbstractToTargetFunctionTranslationDisposition, AbstractToTargetFunctionTranslationReceipt,
     AbstractToTargetTranslationFamily, AbstractToTargetTranslationFamilyError,
     AbstractToTargetTranslationValidationError, StraightLineBooleanNotParameterTranslationError,
-    lower_to_target_operations, validate_abstract_to_target_translation,
+    tests::support::lower_legacy_scalar_fixture as lower_to_target_operations,
+    validate_abstract_to_target_translation,
 };
 use target_operations::TerminalPsiProvenance;
 

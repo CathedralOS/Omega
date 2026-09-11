@@ -102,6 +102,27 @@ pub(super) fn lower(
             | AbstractOperation::BooleanNot { result, .. }
             | AbstractOperation::BooleanEqual { result, .. } => Some(*result),
             AbstractOperation::ExactIntegerAdd { result, .. }
+            | AbstractOperation::WrappingIntegerAdd { result, .. }
+            | AbstractOperation::SaturatingIntegerAdd { result, .. }
+            | AbstractOperation::WrappingIntegerSubtract { result, .. }
+            | AbstractOperation::SaturatingIntegerSubtract { result, .. }
+            | AbstractOperation::WrappingIntegerMultiply { result, .. }
+            | AbstractOperation::ExactIntegerMultiply { result, .. }
+            | AbstractOperation::SaturatingIntegerMultiply { result, .. }
+            | AbstractOperation::ExactIntegerDivide { result, .. }
+            | AbstractOperation::ExactIntegerRemainder { result, .. }
+            | AbstractOperation::WrappingIntegerDivide { result, .. }
+            | AbstractOperation::WrappingIntegerRemainder { result, .. }
+            | AbstractOperation::SaturatingIntegerDivide { result, .. }
+            | AbstractOperation::SaturatingIntegerRemainder { result, .. }
+            | AbstractOperation::IntegerBitwiseAnd { result, .. }
+            | AbstractOperation::IntegerBitwiseOr { result, .. }
+            | AbstractOperation::IntegerBitwiseXor { result, .. }
+            | AbstractOperation::IntegerBitwiseNot { result, .. }
+            | AbstractOperation::WrappingIntegerShiftLeft { result, .. }
+            | AbstractOperation::WrappingIntegerShiftRight { result, .. }
+            | AbstractOperation::ExactIntegerShiftLeft { result, .. }
+            | AbstractOperation::ExactIntegerShiftRight { result, .. }
             | AbstractOperation::ExactIntegerSubtract { result, .. }
             | AbstractOperation::Call { result, .. } => Some(*result),
             AbstractOperation::ByteSequenceLength { result, .. }

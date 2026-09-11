@@ -195,7 +195,7 @@ fn malformed_type_error(
             ScalarType::Integer(malformed);
     }
     let target_profile = NativeTarget::linux_x64();
-    let target = crate::lower_to_target_operations(&source, target_profile).unwrap_err();
+    let target = super::lower_to_target_operations(&source, target_profile).unwrap_err();
     assert!(matches!(
         target,
         crate::LoweringError::ParameterWidthNotNativelySupported { .. }

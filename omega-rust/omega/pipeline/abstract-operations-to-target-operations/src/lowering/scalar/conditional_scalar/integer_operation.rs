@@ -1,6 +1,6 @@
 //! Exhaustive selection of integer scalar-operation semantics.
 use super::*;
-pub(super) fn try_lower_integer_operation(
+pub(in crate::lowering) fn try_lower_integer_operation(
     operation: &AbstractOperation,
     values: &mut BTreeMap<ValueId, KnownScalar>,
     provenance: &mut Vec<semantic_vocabulary::OperationId>,

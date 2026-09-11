@@ -78,6 +78,130 @@ pub(super) fn lower(
         return Ok(());
     }
     let (psi_operation, result, scalar_type, expression) = match operation {
+        AbstractOperation::WrappingIntegerAdd {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::SaturatingIntegerAdd {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::WrappingIntegerSubtract {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::SaturatingIntegerSubtract {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::WrappingIntegerMultiply {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::ExactIntegerMultiply {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::SaturatingIntegerMultiply {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::ExactIntegerDivide {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::ExactIntegerRemainder {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::WrappingIntegerDivide {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::WrappingIntegerRemainder {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::SaturatingIntegerDivide {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::SaturatingIntegerRemainder {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::IntegerBitwiseAnd {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::IntegerBitwiseOr {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::IntegerBitwiseXor {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::IntegerBitwiseNot {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::WrappingIntegerShiftLeft {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::WrappingIntegerShiftRight {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::ExactIntegerShiftLeft {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::ExactIntegerShiftRight {
+            psi_operation,
+            result,
+            ..
+        } => {
+            if !crate::lowering::scalar::try_lower_integer_operation(
+                operation,
+                &mut values,
+                &mut provenance.operations,
+            )? {
+                return Err(invalid());
+            }
+            let known = values.remove(result).ok_or_else(invalid)?;
+            let expression = known.into_expression(*result)?;
+            let TargetScalarExpression::Integer { scalar_type, .. } = &expression else {
+                return Err(invalid());
+            };
+            (
+                *psi_operation,
+                *result,
+                ScalarType::Integer(*scalar_type),
+                expression,
+            )
+        }
         AbstractOperation::IntegerExactCast {
             psi_operation,
             obligation,

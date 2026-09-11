@@ -2,6 +2,7 @@
 mod direct;
 mod integer_binary;
 mod integer_operation;
+pub(in crate::lowering) use integer_operation::try_lower_integer_operation;
 mod shift;
 use super::*;
 pub(in crate::lowering) use integer_binary::{IntegerBinaryKind, lower_conditional_integer_binary};

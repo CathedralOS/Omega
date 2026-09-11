@@ -323,6 +323,27 @@ pub(super) fn lower_operation(
         | AbstractOperation::BooleanNot { .. }
         | AbstractOperation::BooleanEqual { .. }
         | AbstractOperation::ExactIntegerAdd { .. }
+        | AbstractOperation::WrappingIntegerAdd { .. }
+        | AbstractOperation::SaturatingIntegerAdd { .. }
+        | AbstractOperation::WrappingIntegerSubtract { .. }
+        | AbstractOperation::SaturatingIntegerSubtract { .. }
+        | AbstractOperation::WrappingIntegerMultiply { .. }
+        | AbstractOperation::ExactIntegerMultiply { .. }
+        | AbstractOperation::SaturatingIntegerMultiply { .. }
+        | AbstractOperation::ExactIntegerDivide { .. }
+        | AbstractOperation::ExactIntegerRemainder { .. }
+        | AbstractOperation::WrappingIntegerDivide { .. }
+        | AbstractOperation::WrappingIntegerRemainder { .. }
+        | AbstractOperation::SaturatingIntegerDivide { .. }
+        | AbstractOperation::SaturatingIntegerRemainder { .. }
+        | AbstractOperation::IntegerBitwiseAnd { .. }
+        | AbstractOperation::IntegerBitwiseOr { .. }
+        | AbstractOperation::IntegerBitwiseXor { .. }
+        | AbstractOperation::IntegerBitwiseNot { .. }
+        | AbstractOperation::WrappingIntegerShiftLeft { .. }
+        | AbstractOperation::WrappingIntegerShiftRight { .. }
+        | AbstractOperation::ExactIntegerShiftLeft { .. }
+        | AbstractOperation::ExactIntegerShiftRight { .. }
         | AbstractOperation::ExactIntegerSubtract { .. }
         | AbstractOperation::IntegerExactCast { .. } => observations::lower(
             operation,

@@ -6,7 +6,8 @@ use super::*;
 use crate::{
     AbstractToTargetTranslationFamily, AbstractToTargetTranslationFamilyError,
     AbstractToTargetTranslationValidationError,
-    StraightLineIntegerBitwiseOrParametersTranslationError, lower_to_target_operations,
+    StraightLineIntegerBitwiseOrParametersTranslationError,
+    tests::support::lower_legacy_scalar_fixture as lower_to_target_operations,
     validate_abstract_to_target_translation,
 };
 
