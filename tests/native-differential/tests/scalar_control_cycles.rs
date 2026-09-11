@@ -18,6 +18,9 @@ mod optimization;
 #[path = "scalar_control_cycles/exact_add.rs"]
 mod exact_add;
 
+#[path = "scalar_control_cycles/value_reuse.rs"]
+mod value_reuse;
+
 #[cfg(any(
     all(
         target_os = "linux",
