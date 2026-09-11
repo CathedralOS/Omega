@@ -30,6 +30,39 @@ pub(super) fn lower_operation(
         ));
     }
     match operation {
+        AbstractOperation::CallStructuralScalarWithDynamicArguments { .. } => {
+            let home = crate::lowering::unit::lower_dynamic_argument_scalar_call(
+                operation,
+                function,
+                target,
+                functions,
+                structural_types,
+                parameters_by_place,
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+                &mut live.integers,
+                operations,
+                provenance,
+            )?;
+            if home.scalar_type == ScalarType::Boolean {
+                live.scalar_homes.insert(home.source_value, home);
+            }
+            Ok(())
+        }
+        AbstractOperation::CallUnitWithDynamicArguments { .. } => {
+            crate::lowering::unit::lower_dynamic_argument_unit_call(
+                operation,
+                function,
+                target,
+                functions,
+                structural_types,
+                parameters_by_place,
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+                operations,
+                provenance,
+            )
+        }
         AbstractOperation::IeeeFloatCompare {
             psi_operation,
             result,

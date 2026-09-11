@@ -191,6 +191,12 @@ retain each path segment and checked offset for independent physical replay.
 Object/image/installation joins must bind table, adapter, realization, relocation,
 stack and code-span custody. Historical target-family support does not establish
 current native execution; unsupported common-route transports remain fenced.
+Calls with dynamic descriptor arguments compose with ordinary definitions and
+branches in `TargetControlGraph`, including resultless calls and Boolean result
+homes. Distinct branches retain their own descriptor custody, without fixed
+operation offsets or representative-table substitution. The
+[descriptor-call regressions](src/tests/dynamic_descriptor_join.rs) check this
+target projection; they do not claim native descriptor selection or publication.
 
 ## Structural ABI derivation
 

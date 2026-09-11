@@ -13,7 +13,7 @@ use super::super::structural_layout::{
 };
 use super::super::structural_signature::StructuralCallSignature;
 use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
-pub(super) use dynamic_arguments::{
+pub(in crate::lowering) use dynamic_arguments::{
     lower_dynamic_argument_scalar_call, lower_dynamic_argument_unit_call,
 };
 

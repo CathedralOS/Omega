@@ -103,7 +103,10 @@ pub(super) fn lower(
             AbstractOperation::ByteSequenceLength { result, .. }
             | AbstractOperation::ByteSequenceRead { result, .. }
             | AbstractOperation::PrimitiveScalarRead { result, .. }
-            | AbstractOperation::CallStructuralScalar { result, .. } => Some(result.value),
+            | AbstractOperation::CallStructuralScalar { result, .. }
+            | AbstractOperation::CallStructuralScalarWithDynamicArguments { result, .. } => {
+                Some(result.value)
+            }
             _ => None,
         };
         if let Some(result) = result
