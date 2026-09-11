@@ -319,12 +319,24 @@ operation/evidence relationships, not trust a producer assertion or rediscover
 the original source idiom at each stage.
 
 When a customer exposes this pattern, identify the general operation or join that
-is missing and remove the superseded special path as that repair lands. Exercise
-supported operations before, after, and across calls/branches where semantically
-valid, including invalid ownership/effect controls. Keep the actual customer's
-command as the outer acceptance check; a passing isolated helper does not close
-an unchanged application failure. Do not expand the task board with one item per
-permutation, or treat this rule as permission for an unrelated whole-IR rewrite.
+is missing and remove the superseded special path as that repair lands. Before
+propagating a new representation or lowering mechanism across stages, choose a
+small valid variation that challenges its assumptions and a relevant invalid
+control. Check that the design supports the valid case and rejects the invalid
+one through independent checking. Implement and exercise them early, not only
+after the original fixture passes.
+For a borrowed call, surrounding computations and conflicting-access rejection
+can expose a bad design without a Cartesian matrix of source permutations.
+
+Parallel implementation of additional variants should follow one working,
+independently checked route through the new mechanism. Do not replicate an
+unproven representation across several implementations first. Independent review,
+tests, and work using established contracts can still proceed in parallel.
+
+Keep the actual customer's command as the outer acceptance check; a passing
+isolated helper does not close an unchanged application failure. Do not expand
+the task board with one item per permutation, or treat this rule as permission
+for an unrelated whole-IR rewrite.
 
 ### Source trees
 
@@ -485,8 +497,10 @@ owner permits it. Distinguish language semantics and ratified observation
 contracts from private capacities. Do not invent measurements, weaken checking,
 or change the trusted boundary to make an alternative appear cheaper.
 
-At checkpoint handoff, state what now works for that customer, what complexity
-was added or removed, and whether the remaining plan still makes sense. After
+At checkpoint handoff, state the customer's observed result before and after,
+what actually reuses the implementation, what complexity was added or removed,
+and what remains missing. Do not claim anticipated reuse as demonstrated reuse.
+Assess whether the remaining plan still makes sense. After
 two consecutive milestones that only add supporting machinery without advancing
 customer behavior, reducing human audit burden, or establishing measured
 feasibility/completion of a named proof obligation, pause implementation
