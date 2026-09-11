@@ -5,6 +5,11 @@ use selected_instructions::{
     SelectedTerminator, SelectedValueTransport, VirtualRegisterId, VirtualRegisterOrigin,
 };
 
+#[cfg(test)]
+std::thread_local! {
+    pub(crate) static INCOMING_ARGUMENT_RECONSTRUCTIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 pub(crate) fn has_edge_use(function: &SelectedFunction, register: VirtualRegisterId) -> bool {
     function.blocks.iter().any(|block| {
         let edges = match &block.terminator {
@@ -179,6 +184,8 @@ pub(crate) fn incoming_argument(
     successor: &SelectedSuccessor,
     destination: VirtualRegisterId,
 ) -> Result<VirtualRegisterId, LivenessError> {
+    #[cfg(test)]
+    INCOMING_ARGUMENT_RECONSTRUCTIONS.set(INCOMING_ARGUMENT_RECONSTRUCTIONS.get() + 1);
     let mismatch = || LivenessError::FunctionMismatch {
         function: function_index,
     };

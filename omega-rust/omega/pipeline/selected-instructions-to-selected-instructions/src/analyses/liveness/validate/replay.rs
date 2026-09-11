@@ -3,6 +3,11 @@
 use super::constraints::reject_v1_unsupported;
 use super::shared::*;
 
+#[cfg(test)]
+std::thread_local! {
+    pub(super) static BLOCK_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 pub(super) fn replay_function(
     function_index: usize,
     function: &SelectedFunction,
@@ -29,6 +34,8 @@ pub(super) fn replay_function(
     loop {
         let old = (v_in.clone(), v_out.clone(), u_in.clone(), u_out.clone());
         for block in function.blocks.iter().rev() {
+            #[cfg(test)]
+            BLOCK_VISITS.set(BLOCK_VISITS.get() + 1);
             let targets = match &block.terminator {
                 SelectedTerminator::ConditionalBranch {
                     when_nonzero,
