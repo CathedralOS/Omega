@@ -143,19 +143,17 @@ fn scalar_graph_preserves_unused_stack_parameters_without_loading_them() {
                 &abstracted,
                 &unit,
             );
-            if returned_parameter == Some(8) {
-                assert!(!eligible, "used stack parameter must remain unsupported");
-                assert!(legalize_target_operations(&targeted, &abstracted, &unit).is_err());
-                continue;
-            }
             assert!(eligible);
             let legalized = legalize_target_operations(&targeted, &abstracted, &unit).unwrap();
             let graph = &legalized.plan().scalar_functions[0];
             assert_eq!(graph.parameters.len(), 9);
-            assert!(!graph.references_value(graph.parameters[8].value));
+            assert_eq!(
+                graph.references_value(graph.parameters[8].value),
+                returned_parameter == Some(8)
+            );
             assert_eq!(
                 graph.references_value(graph.parameters[0].value),
-                returned_parameter.is_some()
+                returned_parameter == Some(0)
             );
             let environment =
                 register_environment::baseline_target_register_environment(native_target).unwrap();
@@ -173,7 +171,34 @@ fn scalar_graph_preserves_unused_stack_parameters_without_loading_them() {
                     .iter()
                     .filter(|register| register.entry_fixed_view.is_some())
                     .count(),
-                usize::from(returned_parameter.is_some())
+                usize::from(returned_parameter == Some(0))
+            );
+            let instructions = &selected.plan().functions[0].blocks[0].instructions;
+            assert_eq!(
+                instructions
+                    .iter()
+                    .filter(|instruction| matches!(
+                        instruction.kind,
+                        selected_instructions::SelectedInstructionKind::FrameAddress {
+                            slot: selected_instructions::FrameStorageSlotId::Incoming {
+                                parameter_index: 8,
+                                ..
+                            },
+                            ..
+                        }
+                    ))
+                    .count(),
+                usize::from(returned_parameter == Some(8))
+            );
+            assert_eq!(
+                instructions
+                    .iter()
+                    .filter(|instruction| matches!(
+                        instruction.kind,
+                        selected_instructions::SelectedInstructionKind::Load64 { .. }
+                    ))
+                    .count(),
+                usize::from(returned_parameter == Some(8))
             );
             validate_selected_instructions(
                 &legalized,
@@ -302,14 +327,37 @@ fn scalar_leaf_legalization_rejects_changed_literal_abi_and_return_register() {
         );
         assert!(validate_legalized_operations(&target, &abstracted, &unit, proposed).is_err());
     }
-    let mut corrupted_target = target.clone();
-    let TargetOperation::ReturnIntegerImmediate { value, .. } =
-        &mut corrupted_target.functions[0].operation
-    else {
-        unreachable!()
-    };
-    *value = IntegerValue::Unsigned(8);
-    assert!(legalize_target_operations(&corrupted_target, &abstracted, &unit).is_err());
+    for corruption in 0..3 {
+        let mut corrupted_target = target.clone();
+        let TargetOperation::ControlGraph(graph) = &mut corrupted_target.functions[0].operation
+        else {
+            panic!("block-owned scalar graph");
+        };
+        if corruption != 1 {
+            let target_operations::TargetUnitOperation::IntegerConstant { value, .. } =
+                &mut graph.blocks[0].operations[0]
+            else {
+                panic!("integer constant");
+            };
+            *value = IntegerValue::Unsigned(8);
+        }
+        if corruption != 0 {
+            let target_operations::TargetControlTerminator::ReturnScalar {
+                expression:
+                    target_operations::TargetScalarExpression::Integer {
+                        expression:
+                            target_operations::TargetIntegerExpression::Immediate { value, .. },
+                        ..
+                    },
+                ..
+            } = &mut graph.blocks[0].terminator
+            else {
+                panic!("constant scalar return");
+            };
+            *value = IntegerValue::Unsigned(8);
+        }
+        assert!(legalize_target_operations(&corrupted_target, &abstracted, &unit).is_err());
+    }
     let mut corrupted_target = target.clone();
     corrupted_target.functions[0]
         .scalar_abi
