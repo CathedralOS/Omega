@@ -14,13 +14,15 @@ pub(super) fn instruction(terminator: &SelectedTerminator) -> &SelectedInstructi
 }
 
 /// Successors retain semantic polarity order: nonzero/zero or less/not-less.
-pub(super) fn successors(terminator: &SelectedTerminator) -> Vec<&SelectedSuccessor> {
-    match terminator {
+pub(super) fn successors(
+    terminator: &SelectedTerminator,
+) -> impl DoubleEndedIterator<Item = &SelectedSuccessor> {
+    let successors = match terminator {
         SelectedTerminator::ConditionalBranch {
             when_nonzero,
             when_zero,
             ..
-        } => vec![when_nonzero, when_zero],
+        } => [Some(when_nonzero), Some(when_zero)],
         SelectedTerminator::ConditionalBranchU64LessThan {
             when_less,
             when_not_less,
@@ -30,10 +32,11 @@ pub(super) fn successors(terminator: &SelectedTerminator) -> Vec<&SelectedSucces
             when_less,
             when_not_less,
             ..
-        } => vec![when_less, when_not_less],
-        SelectedTerminator::Jump { successor, .. } => vec![successor],
+        } => [Some(when_less), Some(when_not_less)],
+        SelectedTerminator::Jump { successor, .. } => [Some(successor), None],
         SelectedTerminator::Return { .. } | SelectedTerminator::HostedExitProcess { .. } => {
-            Vec::new()
+            [None, None]
         }
-    }
+    };
+    successors.into_iter().flatten()
 }

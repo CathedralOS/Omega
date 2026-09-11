@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::analyses::liveness::model::LivenessError;
-use register_model::{RegisterOperandAccess, RegisterUnitId};
+use register_model::RegisterOperandAccess;
 use selected_instructions::{
     BlockLiveness, EntryDefinition, FunctionLiveness, InstructionLiveness, LivenessPlan,
     LivenessPosition, OperandPosition, SuccessorLiveness,
@@ -11,6 +11,10 @@ use selected_instructions::{
 };
 
 mod control;
+mod flow;
+
+#[cfg(test)]
+pub(crate) use flow::BLOCK_VISITS;
 
 #[cfg(test)]
 std::thread_local! {
@@ -98,64 +102,7 @@ pub(crate) fn compute_function(
     FUNCTION_COMPUTATIONS.set(FUNCTION_COMPUTATIONS.get() + 1);
     reject_unsupported_constraints(function_index, function)?;
     super::edge_values::validate_transports(function_index, function)?;
-    let mut virtual_entry = function
-        .blocks
-        .iter()
-        .map(|block| (block.id, BTreeSet::new()))
-        .collect::<BTreeMap<_, _>>();
-    let mut virtual_exit = virtual_entry.clone();
-    let mut unit_entry = function
-        .blocks
-        .iter()
-        .map(|block| (block.id, BTreeSet::new()))
-        .collect::<BTreeMap<_, _>>();
-    let mut unit_exit = unit_entry.clone();
-
-    loop {
-        let mut changed = false;
-        for block in function.blocks.iter().rev() {
-            let successors = control::successors(&block.terminator);
-            let next_virtual_exit = successors
-                .iter()
-                .flat_map(|successor| {
-                    virtual_entry[&successor.block].iter().map(move |register| {
-                        super::edge_values::incoming_argument(
-                            function_index,
-                            function,
-                            successor,
-                            *register,
-                        )
-                    })
-                })
-                .collect::<Result<BTreeSet<_>, _>>()?;
-            let next_unit_exit = successors
-                .iter()
-                .filter_map(|successor| unit_entry.get(&successor.block))
-                .flat_map(|set| set.iter().copied())
-                .collect::<BTreeSet<_>>();
-            let (next_virtual_entry, next_unit_entry) =
-                reverse_block_transfer(block, next_virtual_exit.clone(), next_unit_exit.clone());
-            if virtual_exit[&block.id] != next_virtual_exit {
-                virtual_exit.insert(block.id, next_virtual_exit);
-                changed = true;
-            }
-            if unit_exit[&block.id] != next_unit_exit {
-                unit_exit.insert(block.id, next_unit_exit);
-                changed = true;
-            }
-            if virtual_entry[&block.id] != next_virtual_entry {
-                virtual_entry.insert(block.id, next_virtual_entry);
-                changed = true;
-            }
-            if unit_entry[&block.id] != next_unit_entry {
-                unit_entry.insert(block.id, next_unit_entry);
-                changed = true;
-            }
-        }
-        if !changed {
-            break;
-        }
-    }
+    let flow = flow::FunctionFlow::compute(function_index, function)?;
 
     let mut next_position = 0_u32;
     let mut positions = BTreeMap::new();
@@ -212,17 +159,9 @@ pub(crate) fn compute_function(
     let blocks = function
         .blocks
         .iter()
-        .map(|block| {
-            materialize_block(
-                function_index,
-                function,
-                block,
-                &positions,
-                &virtual_entry,
-                &virtual_exit,
-                &unit_entry,
-                &unit_exit,
-            )
+        .enumerate()
+        .map(|(block_index, block)| {
+            materialize_block(function_index, block, &positions, &flow, block_index)
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(FunctionLiveness {
@@ -449,43 +388,18 @@ fn tied_component(
     }
 }
 
-fn reverse_block_transfer(
-    block: &SelectedBlock,
-    mut virtual_live: BTreeSet<VirtualRegisterId>,
-    mut unit_live: BTreeSet<RegisterUnitId>,
-) -> (BTreeSet<VirtualRegisterId>, BTreeSet<RegisterUnitId>) {
-    for instruction in block_instructions(block).into_iter().rev() {
-        let (uses, defs) = virtual_uses_defs(instruction);
-        for definition in defs {
-            virtual_live.remove(&definition);
-        }
-        virtual_live.extend(uses);
-        for killed in instruction
-            .implicit_defs
-            .iter()
-            .chain(&instruction.clobbers)
-        {
-            unit_live.remove(killed);
-        }
-        unit_live.extend(instruction.implicit_uses.iter().copied());
-    }
-    (virtual_live, unit_live)
-}
-
 fn materialize_block(
     function_index: usize,
-    function: &SelectedFunction,
     block: &SelectedBlock,
     positions: &BTreeMap<selected_instructions::SelectedInstructionId, LivenessPosition>,
-    virtual_entry: &BTreeMap<selected_instructions::SelectedBlockId, BTreeSet<VirtualRegisterId>>,
-    virtual_exit: &BTreeMap<selected_instructions::SelectedBlockId, BTreeSet<VirtualRegisterId>>,
-    unit_entry: &BTreeMap<selected_instructions::SelectedBlockId, BTreeSet<RegisterUnitId>>,
-    unit_exit: &BTreeMap<selected_instructions::SelectedBlockId, BTreeSet<RegisterUnitId>>,
+    flow: &flow::FunctionFlow,
+    block_index: usize,
 ) -> Result<BlockLiveness, LivenessError> {
-    let mut virtual_live = virtual_exit[&block.id].clone();
-    let mut unit_live = unit_exit[&block.id].clone();
-    let mut instructions = Vec::new();
-    for instruction in block_instructions(block).into_iter().rev() {
+    let state = &flow.blocks[block_index];
+    let mut virtual_live = state.virtual_exit.clone();
+    let mut unit_live = state.unit_exit.clone();
+    let mut instructions = Vec::with_capacity(block.instructions.len() + 1);
+    for instruction in block_instructions(block).rev() {
         let virtual_live_out = sorted(&virtual_live);
         let unit_live_out = sorted(&unit_live);
         let (uses, defs) = virtual_uses_defs(instruction);
@@ -518,7 +432,6 @@ fn materialize_block(
     instructions.reverse();
     let terminator = control::instruction(&block.terminator);
     let successors = control::successors(&block.terminator)
-        .into_iter()
         .enumerate()
         .map(|(ordinal, successor)| {
             Ok(SuccessorLiveness {
@@ -527,29 +440,29 @@ fn materialize_block(
                 psi_edge: successor.psi_edge,
                 target: successor.block,
                 virtual_live: sorted(
-                    &virtual_entry[&successor.block]
+                    &flow.blocks[flow.edges[block_index][ordinal].target]
+                        .virtual_entry
                         .iter()
                         .map(|register| {
-                            super::edge_values::incoming_argument(
+                            flow.incoming_argument(
                                 function_index,
-                                function,
-                                successor,
+                                &flow.edges[block_index][ordinal],
                                 *register,
                             )
                         })
                         .collect::<Result<BTreeSet<_>, _>>()?,
                 ),
-                unit_live: sorted(&unit_entry[&successor.block]),
+                unit_live: sorted(&flow.blocks[flow.edges[block_index][ordinal].target].unit_entry),
             })
         })
         .collect::<Result<Vec<_>, LivenessError>>()?;
     Ok(BlockLiveness {
         block: block.id,
         source_block: block.source_block(),
-        virtual_live_in: sorted(&virtual_entry[&block.id]),
-        virtual_live_out: sorted(&virtual_exit[&block.id]),
-        unit_live_in: sorted(&unit_entry[&block.id]),
-        unit_live_out: sorted(&unit_exit[&block.id]),
+        virtual_live_in: sorted(&state.virtual_entry),
+        virtual_live_out: sorted(&state.virtual_exit),
+        unit_live_in: sorted(&state.unit_entry),
+        unit_live_out: sorted(&state.unit_exit),
         instructions,
         successors,
     })
@@ -577,12 +490,13 @@ fn virtual_uses_defs(
     (uses, defs)
 }
 
-fn block_instructions(block: &SelectedBlock) -> Vec<&SelectedInstruction> {
+fn block_instructions(
+    block: &SelectedBlock,
+) -> impl DoubleEndedIterator<Item = &SelectedInstruction> {
     block
         .instructions
         .iter()
         .chain(std::iter::once(control::instruction(&block.terminator)))
-        .collect()
 }
 
 fn sorted<T: Copy + Ord>(values: &BTreeSet<T>) -> Vec<T> {
