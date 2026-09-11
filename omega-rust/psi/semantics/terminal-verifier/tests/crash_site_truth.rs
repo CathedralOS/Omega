@@ -445,22 +445,20 @@ fn computed_condition_join_preserves_only_feasible_entry_predicate_paths() {
     rejects_guard(&checked);
 }
 
-#[test]
-fn repeated_diamonds_fail_closed_at_the_crash_reconstruction_work_limit() {
+fn distinct_diamonds(diamonds: u64) -> TerminalModule {
     let mut checked = module(1, true);
     let machine = &mut checked.machines[0];
     machine.blocks.clear();
-    // Forty blocks encode 8192 syntactic paths. Reusing one flag keeps the
-    // graph small; the current bounded traversal does not prune infeasible
-    // prefixes, and must report exhaustion rather than trust the site guard.
-    for diamond in 0_u64..13 {
+    // Each diamond uses a different flag, so no join can reuse a state.
+    machine.parameters = (1..=diamonds).map(declaration).collect();
+    for diamond in 0..diamonds {
         let entry = diamond * 3 + 1;
         let edge = diamond * 4 + 1;
         machine.blocks.extend([
             block(
                 entry,
                 Terminator::Conditional {
-                    condition: value(1),
+                    condition: value(diamond + 1),
                     when_true: successor(edge, entry + 1, &[]),
                     when_false: successor(edge + 1, entry + 2, &[]),
                 },
@@ -469,9 +467,16 @@ fn repeated_diamonds_fail_closed_at_the_crash_reconstruction_work_limit() {
             block(entry + 2, jump(edge + 3, entry + 3, &[])),
         ]);
     }
-    machine
-        .blocks
-        .push(block(40, crash(53, vec![boolean(1, true)])));
+    machine.blocks.push(block(
+        diamonds * 3 + 1,
+        crash(diamonds * 4 + 1, vec![boolean(1, true)]),
+    ));
+    checked
+}
+
+#[test]
+fn distinct_diamonds_fail_closed_at_the_crash_reconstruction_work_limit() {
+    let checked = distinct_diamonds(13);
     let error = verify_module(
         &checked,
         &ProofBundle::default(),
@@ -480,6 +485,79 @@ fn repeated_diamonds_fail_closed_at_the_crash_reconstruction_work_limit() {
     .expect_err("bounded crash-path reconstruction must stop before accepting a guard");
     assert_eq!(
         error,
+        VerificationError::Module(ModuleError::CrashSiteReconstructionLimitExceeded(
+            MachineId::new(1).unwrap()
+        ))
+    );
+}
+
+#[test]
+fn join_snapshot_storage_does_not_tighten_existing_transport_budget() {
+    // These 128 distinct paths consume 3,972 transported facts. Charging
+    // their additional join snapshots to that same budget would reject.
+    let mut checked = distinct_diamonds(7);
+    checked.machines[0].contract.requires = vec![boolean(1, true)];
+    verify(&checked);
+}
+
+#[test]
+fn equivalent_diamonds_preserve_guard_validity_and_reject_corruption() {
+    for diamonds in [1_u64, 4, 7, 13, 32] {
+        let mut checked = module(1, true);
+        unconditional_ceiling(&mut checked);
+        let machine = &mut checked.machines[0];
+        machine.contract.requires = vec![boolean(1, true)];
+        machine.blocks.clear();
+        for diamond in 0..diamonds {
+            let entry = diamond * 3 + 1;
+            let edge = diamond * 4 + 1;
+            machine.blocks.extend([
+                block(
+                    entry,
+                    Terminator::Conditional {
+                        condition: value(1),
+                        when_true: successor(edge, entry + 1, &[]),
+                        when_false: successor(edge + 1, entry + 2, &[]),
+                    },
+                ),
+                block(entry + 1, jump(edge + 2, entry + 3, &[])),
+                block(entry + 2, jump(edge + 3, entry + 3, &[])),
+            ]);
+        }
+        machine.blocks.push(block(
+            diamonds * 3 + 1,
+            crash(diamonds * 4 + 1, vec![boolean(1, true)]),
+        ));
+        verify(&checked);
+        checked.machines[0].contract.requires.clear();
+        rejects_guard(&checked);
+    }
+}
+
+#[test]
+fn repeated_cyclic_states_do_not_gain_crash_invariant_authority() {
+    let mut checked = module(1, true);
+    unconditional_ceiling(&mut checked);
+    checked.machines[0].contract.requires = vec![boolean(1, true)];
+    checked.machines[0].blocks = vec![
+        block(
+            1,
+            Terminator::Conditional {
+                condition: value(1),
+                when_true: successor(1, 2, &[]),
+                when_false: successor(2, 3, &[]),
+            },
+        ),
+        block(2, jump(3, 1, &[])),
+        block(3, crash(4, vec![boolean(1, true)])),
+    ];
+    assert_eq!(
+        verify_module(
+            &checked,
+            &ProofBundle::default(),
+            &AdmissionProfile::default()
+        )
+        .expect_err("repeated cyclic states must retain exhaustive reconstruction"),
         VerificationError::Module(ModuleError::CrashSiteReconstructionLimitExceeded(
             MachineId::new(1).unwrap()
         ))
