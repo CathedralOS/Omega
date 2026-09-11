@@ -97,11 +97,13 @@ pattern equality uses the existing comparison and branch machinery.
 
 `cargo run -p omega -- --check tests/omega/pass/expressions/declared_operator_match_result/main.omg`
 checks a wider declared operator result joined with an anonymous numeric arm.
-Its supplied checked realization does not yet make the nested operator a scalar
-computation call: nonboundary declaration-to-body supply is undetermined under
-[the direct-operator supply question](../../../OWNER_QUESTIONS.md#direct-operator-executable-supply).
-Satisfaction alone cannot choose a body; later scalar computation and source
-replay must retain the settled association.
+This is a legacy signature-plus-satisfier fixture, not the settled direct supply
+model. [Declaration-owned machine bodies](../../../wiki/spec/language/expressions.md#executable-supply)
+are now specified; parser/corpus migration and executable association remain
+unfinished under `OPERATOR-MACHINE-SUPPLY` in `TASKS.md`. Rewrite the fixture into
+a test-owned operator family rather than retaining its unauthorized primitive
+extension. Scalar computation and source replay must retain the exact body
+association; satisfaction alone cannot choose it.
 
 Before asserted predicates may become result facts, each executing cast must prove
 its asserted ranges from the live source environment. The arithmetic validator

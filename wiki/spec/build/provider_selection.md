@@ -16,6 +16,13 @@ the compiler derives ProviderPlan; configuration selects it. Requirements do not
 select their own providers. A boundary operator has no provider clause, and there
 is no parallel top-level primitive-provider registry.
 
+A token-bearing boundary requirement is authored `boundary machine + Name(...)`
+(or another fixed token), not a separate operator declaration species. Ordinary
+nonboundary token-bearing machines own checked bodies and do not participate in
+Build provider selection. Compiler-catalog semantic primitives are automatic.
+Target defaults still supply boundary float implementations; overrides must
+satisfy the canonical arithmetic contract, not choose a different meaning for `+`.
+
 `Build::select_provider<Slot, Provider>()` is ordinary typed vocabulary. Slot
 resolves to one exact boundary trait, package-qualified same-path boundary-
 operator family, or top-level boundary requirement. Provider resolves to one

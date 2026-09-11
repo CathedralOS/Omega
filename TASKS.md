@@ -1289,27 +1289,45 @@ Owners include
   Builtin arithmetic results use
   producer-retained carrier/policy references; input range predicates are not
   result facts. Unknown lookup must not stand in for anonymous numeric meaning.
-  The concrete operator-result customer is
-  `tests/omega/pass/expressions/declared_operator_match_result/main.omg`.
-  Direct nonboundary operator execution is **OWNER-BLOCKED** on
-  [Operator executable supply](OWNER_QUESTIONS.md#direct-operator-executable-supply).
-  Its checked `u8::sum` satisfier returns `u64`, but satisfaction does not select
-  that body for the operator use. The missing source binding rule must be settled
-  before connecting nested execution to the ordinary scalar computation call path in
-  `typed-trees-to-checked-trees/src/values/scalar/computations.rs` and its
-  `computations/integers.rs` operand owner, with source-custody replay in
-  `checked-trees-to-lowered-psi/src/scalar_source_custody`.
-  On macOS AArch64, `9f112f359d` passes CLI source
-  checking; `cargo run -p omega -- inspect-terminal --machine choose --target
-  macos_arm64 tests/omega/pass/expressions/declared_operator_match_result/main.omg`
-  rejects with `scalar computation needs one checked expression and one source binding`.
-  Keep the declared result, complete operand order, exact selected application,
-  and branch-local call obligations; do not infer a unique satisfier, fabricate
-  boundary-provider selection, replace the operator with builtin addition, or
-  synthesize a source state. This blocks only direct-operator execution, not
-  result-type retention or independent Match work. After the supply decision,
-  next acceptance is independent
-  Terminal replay of `choose(true, 250u8, 10u8) = 260u64` and the false arm = 1.
+  Declared operator result execution depends on **OPERATOR-MACHINE-SUPPLY**
+  below; result-type retention and independent Match work remain actionable.
+
+- **OPERATOR-MACHINE-SUPPLY.** Implement the
+  [machine token-binding and executable-supply contract](wiki/spec/language/expressions.md#executable-supply)
+  across Psi parsing, resolution, checked body construction, evaluation,
+  lowering, Terminal codec/verifier/interpreter, and native call realization.
+  Accept an optional fixed token after `machine`; remove the separate operator
+  declaration introducer rather than retaining two permanent source forms.
+  Ordinary direct declarations own checked machine bodies. Reuse ordinary body,
+  state, contract, and call machinery instead of adding an operator evaluator
+  or searching for a unique satisfier. Bodyless requirements retain explicit
+  trait/provider supply; exact compiler primitives retain automatic catalog
+  supply and proof/runtime eligibility. Migrate core/library/canary declarations,
+  including tokenless compiler primitives to ordinary named machines and
+  tokenless boundary requirements to the existing required-body form. Preserve
+  exact semantic identities or reject stale schema artifacts explicitly; do
+  not match a compiler primitive by leaf name or legacy declaration kind.
+
+  Enforce closed-family semantic-home ownership and owner-local duplicate checks.
+  Replace the legacy `u8::sum` declaration-plus-satisfier fixture in
+  `tests/omega/pass/expressions/declared_operator_match_result/main.omg` with a
+  test-owned type/domain and a declaration-owned body returning `u64`.
+  Keep the selected-call join in
+  `typed-trees-to-checked-trees/src/values/scalar/computations.rs`,
+  `computations/integers.rs`, and
+  `checked-trees-to-lowered-psi/src/scalar_source_custody` compositional.
+
+  Acceptance: wrapped 250 + 10 yields 260u64 in the selected true Match arm,
+  the false arm yields 1 without invoking the operator, and independent Terminal
+  replay and native execution agree. Cover token and named calls, generic and
+  stateful bodies, once-only ordered operands, private helpers behind a public
+  declaration, qualifiers and ordinary contract rejection. Missing body,
+  bodyless-plus-satisfier, foreign primitive-family injection, duplicate owner
+  shapes, and forged compiler primitive identity reject. Unrelated imports
+  cannot change selection or cause a collision. Trait conformance selection,
+  target-default/overridden float provider execution, and canonical compiler
+  float-meaning evaluation retain their separate supply routes. Unsupported
+  migration/execution paths must fail closed, not fall back to builtin arithmetic.
 
 - **MODULE-NAMESPACE-RESOLUTION.** Finish the
   [module/name contract](wiki/spec/language/modules.md) for pre-resolution

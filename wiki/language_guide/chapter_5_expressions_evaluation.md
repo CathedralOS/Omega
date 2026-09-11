@@ -97,10 +97,14 @@ a continuation boundary. A separate local is still often clearer. See
 
 ## Operators
 
-An operator token selects a named declaration with a visible contract:
+An operator token selects an ordinary named machine with a visible contract.
+Write the token immediately after `machine`; there is no separate operator
+declaration keyword. For example, with `Vec2` and a checked `add_vectors` helper:
 
 ```omega
-operator + i32::add(left: i32, right: i32) -> i32;
+pub machine + Vec2::add(left: Vec2, right: Vec2) -> Vec2 {
+    add_vectors(left, right)
+}
 ```
 
 Operand types and static domains choose the meaning of `left + right`.
@@ -108,12 +112,17 @@ The token is shorthand, not a second semantic system. Multiplication, division
 and remainder bind more tightly than addition and subtraction; each of these
 binary tiers associates left. Parentheses change grouping, not evaluation order.
 
-Operators can have attached receivers or explicit operands:
+Token-bearing machines can have attached receivers or explicit operands. These
+are alternative declarations, not competing bindings to publish together:
 
 ```omega
-operator + Vec2::add(self, right: Vec2) -> Vec2;
-operator == Vec2::equals(&self, other: &Vec2) -> bool;
-operator + Float::add(left: f32, right: f32) -> f32;
+machine + Vec2::add(self, right: Vec2) -> Vec2 {
+    add_vectors(self, right)
+}
+
+machine == Vec2::equals(&self, other: &Vec2) -> bool {
+    equal_vectors(self, other)
+}
 ```
 
 The receiver occupies operand position zero with its ordinary ownership meaning.
@@ -124,7 +133,7 @@ A trait can publish an operator requirement:
 
 ```omega
 trait Ranked<T> {
-    operator < compare(left: T, right: T) -> bool;
+    machine < compare(left: T, right: T) -> bool;
 }
 ```
 
@@ -133,6 +142,42 @@ only visible candidate by accident. Use an explicit named requirement call
 when several meanings are relevant. The [operator declaration and family
 rules](../spec/language/expressions.md#operator-declarations) define visibility,
 overload identity, fixed vocabulary, and domain ownership.
+
+### Who supplies the body?
+
+| Declaration | Executable supply |
+| --- | --- |
+| Ordinary `machine + Vec2::add(...) { ... }` | Its own checked body; delegating to another machine is an ordinary call. |
+| `machine < compare(...);` inside a trait | An explicitly selected conformance. |
+| `boundary machine + Float::add(...);` | The existing admitted boundary provider. |
+| Exact compiler-owned `machine Float::meaning32(...);` | Its automatic closed-catalog implementation. |
+
+The last two cases are different:
+
+```omega
+// Canonical core declarations, not user opt-in spellings.
+pub boundary machine + Float::add(left: f32, right: f32) -> f32;
+machine Float::meaning32(value: f32) -> FloatMeaning;
+```
+
+The complete core float contracts still govern these abbreviated signatures.
+Target defaults supply float addition; `build.omg` may select another admitted
+implementation satisfying the same arithmetic contract. It does not define what
+addition means. The meaning projection is a compiler primitive and needs no
+build selection; its visibility and proof-only restrictions still apply.
+
+A bodyless ordinary direct declaration outside a requirement context or the exact
+compiler catalog rejects. Another machine writing `satisfies` does not select a
+body for it. A same-spelled declaration in another package cannot impersonate a
+compiler primitive.
+
+Closed direct families belong to their semantic-home owner. The owner checks
+duplicate participating token/operand shapes within its declaration set; foreign
+packages cannot inject another `+` into `Vec2`. They may use their own adapter
+type/domain or an explicitly selected trait conformance. Primitive families have
+toolchain-designated core owners. A package owning `Degrees` may nevertheless
+define its domain's arithmetic over `f64` without replacing bare float addition.
+Unrelated imports cannot change an existing selection or introduce a collision.
 
 ## Core Collections And Views
 
@@ -168,11 +213,11 @@ Both accesses need bounds evidence; `[0]` needs a nonempty view. Indexing and
 slicing are ordinary operators, with browsable contracts such as:
 
 ```omega
-boundary operator [] Slice::index<T>(items: &[T], index: u64) -> T
+boundary machine [] Slice::index<T>(items: &[T], index: u64) -> T
 requires
     index < items.len;
 
-boundary operator [..] Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
+boundary machine [..] Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
 requires
     start <= end && end <= items.len;
 ```

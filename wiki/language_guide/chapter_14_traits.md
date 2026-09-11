@@ -301,7 +301,7 @@ rebind that token:
 
 ```omega
 trait Ranked<T> {
-    operator < compare(left: T, right: T) -> bool;
+    machine < compare(left: T, right: T) -> bool;
 }
 ```
 
@@ -317,13 +317,14 @@ A concrete declaration may deliberately crown one selected conformance as the
 canonical token meaning for its operand signature:
 
 ```omega
-operator < Card::less_by_power(left: Card, right: Card) -> bool {
+machine < Card::less_by_power(left: Card, right: Card) -> bool {
     Ranked::compare<Card, PowerOrder>(left, right)
 }
 ```
 
 Only one direct declaration may participate for the same token and normalized
-operand/domain shape. A second wrapper for `SuitOrder` would be ambiguous, so
+operand/domain shape, checked within the family owner's declaration set. A
+second wrapper for `SuitOrder` rejects at that owner, so
 alternative orderings remain named calls with explicit conformance selection.
 Direct concrete operators such as integer addition need no conformance.
 

@@ -112,12 +112,17 @@ descriptor's runtime representation and custody.
 ## Exact requirement edges
 
 `machine ... satisfies Trait<...>::requirement` supplies only that exact
-requirement. It may serve provider selection, an operator, an establishment
-route, or proof citation without satisfying a whole-trait bound or licensing
+requirement. It may serve provider selection, a trait/boundary operator
+requirement, an establishment route, or proof citation without satisfying a whole-trait bound or licensing
 `dyn`. An optional `as Name` labels a requirement-local satisfier group; it
 creates neither an independently selectable conformance nor standalone
 visibility. In a whole-conformance selection position, `as Name` instead names
 an already-declared map. Neither use is an overload selector.
+
+An ordinary direct token-bearing machine owns its body and is not a requirement
+merely because it has an operator token. A satisfaction edge cannot provide its
+missing executable body or replace its declared implementation. See
+[operator supply](expressions.md#executable-supply).
 
 A signature-free requirement path must resolve to one exact overload, without
 consulting visible or selected satisfiers. If several overloads share that path,

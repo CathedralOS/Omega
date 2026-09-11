@@ -38,6 +38,14 @@ because their declarations say so. The two primitive-to-proof projections remain
 private compiler-sealed operations; public float contracts may cite only those
 exact checked toolchain declarations, not same-spelled authored replacements.
 
+Primitive identities are compiler-owned; the toolchain designates exact core
+owners of their canonical operator families. This permits ordinary checked
+`machine +` bodies in authorized core code but does not make every core machine
+a compiler primitive. Bodyless supply requires a separate exact closed-catalog
+entry. Ordinary packages can own domain-specific arithmetic over primitive
+carriers, not inject operations into the primitive's unqualified closed family.
+See [operator supply and ownership](../language/expressions.md#executable-supply).
+
 Current narrow roles and standalone compatibility limits live
 [beside package compilation](../../../omega-rust/omega/build/package-compilation/semantic_bindings.md).
 Removing broad standalone library provenance is tracked by

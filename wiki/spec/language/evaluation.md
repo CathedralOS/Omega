@@ -46,6 +46,11 @@ Permission to select a declaration does not establish its execution meaning.
 An unresolved authored operator cannot be evaluated using the builtin meaning
 of its token, including when reached through a helper machine.
 
+A direct token-bearing machine evaluates its declaration-owned checked body
+through the ordinary machine evaluator. Compiler-catalog semantic primitives
+retain their exact catalog execution; boundary operators retain the admitted
+selected provider contract. Token spelling alone chooses none of these routes.
+
 Admission is invocation-sensitive. A trap-capable division can evaluate at
 `divide(10, 2)` after proving the denominator nonzero. `divide(10, 0)` rejects
 before execution and identifies the undischarged route and call chain. Reaching

@@ -699,11 +699,15 @@ degrees:
 domain i32::Degrees
     requires self >= 0 && self < 360;
 
-operator + add(
+machine + Degrees::add(
     left: i32::Degrees,
     right: i32::Degrees
 ) -> sum: i32::Degrees
-    ensures degree_sum(left, right, sum) == true;
+    ensures degree_sum(left, right, sum) == true
+{
+    let raw: i32 = (left as i32) + (right as i32);
+    Degrees::normalize(raw)
+}
 ```
 
 The literal `+` in the declaration head binds the fixed token. The descriptive
@@ -715,12 +719,14 @@ as `Degrees::normalize(raw)`, which performs Euclidean reduction and
 guarantees the predicate afterward; `as` never performs that normalization.
 `normalize` is a package-authored machine. Here `degree_sum` denotes an ordinary
 pure, total Boolean helper specifying this decidable relation; its body is
-omitted. The contract explicitly requires its result to equal `true`.
+omitted. The normalize helper's checked contract must establish reduction modulo
+360, not just membership in the range, so the operator can prove `degree_sum`.
+The contract explicitly requires the relation's result to equal `true`.
 Neither name is compiler-known or a special formula declaration.
 
 The domain declaration does not synthesize `+`. The named operator publishes the
 semantic contract, including the relation between its operands and result.
-Its checked definition or selected satisfier must prove both that relation and
+Its declaration-owned checked body must prove both that relation and
 the result qualification. Merely returning some value in `[0, 360)` would not
 establish degree addition.
 
@@ -757,7 +763,7 @@ domains the operation can soundly guarantee.
 
 ## Operator Definitions And Domain Contexts
 
-A fixed operator token names an ordinary operator declaration with a signature
+A fixed operator token names an ordinary machine declaration with a signature
 and proof contract. Its qualified name or unambiguous declared-domain operands
 supply its semantic home. The selected domain does not grant establishment
 authority.
@@ -807,13 +813,17 @@ while slicing requires codepoint-boundary endpoints; mutation likewise must
 preserve or re-establish validity. The contracts belong on those operations:
 
 ```omega
-operator [] slice(s: Slice<u8>::Utf8, range: Range) -> Slice<u8>::Utf8
+machine [] slice(s: Slice<u8>::Utf8, range: Range) -> Slice<u8>::Utf8
     requires char_boundary(s, range.start) == true
-          && char_boundary(s, range.end) == true;
+          && char_boundary(s, range.end) == true
+{
+    slice_at_boundaries(s, range)
+}
 ```
 
-This is an illustrative requirement signature. A concrete checked implementation
-must prove the relation; naming `char_boundary` supplies no proof. An operation
+The named helper represents ordinary checked implementation code whose contract
+preserves the encoding under those premises; its body is omitted here. Naming
+`char_boundary` supplies no proof. An operation
 that intentionally drops the encoding can expose an unqualified byte view.
 
 ### Proving it without a byte-level tax

@@ -69,13 +69,22 @@ comparison or user operator discovery. Type/value role resolution happens before
 choosing that operation. It produces no type object or runtime metadata lookup;
 ordinary `==` on values keeps its selected value-comparison semantics.
 
-An operator is an independently named declaration, package-private unless
-declared `pub operator`. A qualified path does not inherit its namespace type's
-visibility. A fixed-token binding writes the token after `operator`:
+An operator binding is a property of an ordinary named machine declaration,
+package-private unless declared `pub machine`. A qualified path does not inherit
+its namespace type's visibility. An optional fixed token immediately after
+`machine` binds operator syntax to that declaration:
 
 ```omega
-operator + i32::add(left: i32, right: i32) -> i32;
+pub machine + Vec2::add(left: Vec2, right: Vec2) -> Vec2 {
+    add_vectors(left, right)
+}
 ```
+
+The named helper above is ordinary checked code; delegation adds no binding
+mechanism. `machine +`, `machine ==`, `machine []`, and `machine [..]` use the same
+declaration grammar with their existing fixed-token arity rules. Without a token,
+the declaration is an ordinary named machine. There is no separate `operator`
+declaration introducer or second executable identity for a token-bearing machine.
 
 The token vocabulary is closed and compiler-owned: lexical spelling, precedence,
 associativity, fixity, allowed arities, and source-position mapping are fixed.
@@ -95,7 +104,8 @@ Grouping is separate from the evaluation schedule. One declaration binds at
 most one fixed token. Distinct normalized operand/domain shapes may share a
 token; duplicate participating token/shape candidates reject. A second spelling
 needs a separate declaration, which may forward to the same implementation.
-An operator with no fixed token remains callable by name.
+A machine with no fixed token remains callable by name, including compiler-owned
+semantic operations without punctuation bindings.
 
 Overload signatures are structural. Renaming or reordering generic binders
 without changing their occurrence relationships creates no new candidate:
@@ -120,13 +130,53 @@ type may publish one canonical direct wrapper for a token/operand shape; a
 second wrapper with that shape rejects. Direct operators need no conformance
 selection.
 
-The source mechanism binding a nonboundary direct operator to its executable
-checked body is **undetermined**; see
-[the direct-operator executable-supply question](../../../OWNER_QUESTIONS.md#direct-operator-executable-supply).
-Selecting the operator declaration and checking a machine's `satisfies`
-relationship do not by themselves specify that body choice. This uncertainty
-does not change boundary-provider or explicitly selected trait-conformance
-selection.
+### Executable supply
+
+Operand-directed resolution selects a declaration. Its context fixes the supply
+mechanism; any required conformance/provider selection is explicit, never an
+implicit search among visible satisfying machines.
+
+| Declaration context | Executable supply |
+| --- | --- |
+| Ordinary direct `machine + Name(...) { ... }` | Its own checked machine body. |
+| Bodyless token-bearing requirement inside a trait | The explicitly selected conformance, under existing requirement rules. |
+| Bodyless `boundary machine + Name(...);` requirement | The existing boundary realization/provider selection mechanism. |
+| Exact compiler-owned bodyless machine, with or without a token | Its authorized closed-catalog realization. |
+
+A nonboundary direct machine outside a required-body context or the compiler
+catalog must have a checked body. Missing supply rejects at the declaration,
+not only when execution is demanded. A separate `satisfies` machine cannot supply
+that missing body; satisfaction establishes compatibility with a requirement,
+not permission to select an implementation. Do not create a direct-operator
+registry, package-level canonical-body search, or build-provider override for
+ordinary checked machine bodies.
+
+For a top-level token-bearing boundary signature, the token binding identifies
+the required operator slot; a realizing boundary machine uses the ordinary exact
+`satisfies` relationship without redeclaring the token. A named bodyless boundary
+requirement needing no token uses the existing `boundary requirement` form.
+Removing operator punctuation must not silently turn required supply into an
+admitted theorem declaration or vice versa.
+
+The body accepts ordinary machine contracts, states, and transitions and obeys
+ordinary ownership, effects, termination, evaluation, and cleanup rules. A public
+machine may delegate to private helpers without exposing those helpers for
+consumer selection. Token calls and named calls retain the same declaration/body
+association and exact static arguments. Operand order, once-only evaluation,
+conditional-arm invocation, result qualifications, and contract obligations
+survive ordinary lowering and independent Terminal replay. No separate operator
+interpreter or producer-asserted body association is permitted.
+
+Compiler ownership is exact declaration/signature/semantic-catalog identity, not
+a recognized spelling or a package opting in. One declaration has one authorized
+supply; a catalog realization and a separate source body cannot compete. A
+compiler primitive such as the canonical `Float::meaning32` is automatic and
+requires no build selection. It keeps its proof/runtime eligibility restrictions.
+Canonical `f32 + f32`, in contrast, is a boundary requirement: target defaults
+choose its implementation, with an explicit admitted override available under
+the existing provider rules. Build selection cannot redefine its arithmetic
+contract. Merely naming a declaration `Float::meaning32` grants no primitive
+implementation or proof authority.
 
 ### Operator families
 
@@ -147,6 +197,23 @@ injecting an implementation into unrelated carriers. Candidate discovery uses
 participating domains, their owning packages, and the declared family, never
 an arbitrary scan of imports. Open-family declaration syntax and dispatch-owner
 selection syntax remain unsettled; these rules do not approve a spelling.
+
+For a closed direct family, only its semantic-home owner may publish its direct
+token bindings. Validate ownership and duplicate participating token/normalized
+operand shapes against that owner's complete declaration set, independently of
+downstream imports. A declaration in an unauthorized package rejects there;
+it does not enter another package's candidate set and wait to collide at a use.
+Owning an operand is not a blanket grant to extend somebody else's closed family.
+Existing overload ambiguity checking still applies to legitimately participating
+families; declaration-owned supply removes body-choice ambiguity, not overloads.
+
+Primitive identities are compiler-owned. The toolchain designates exact core
+declaration/package owners for their canonical families, not any package named
+`core` or any authored primitive-qualified path. Declaration authority and
+compiler-supplied execution are separate: authorized core code may own an
+ordinary checked body, whereas bodyless primitive supply requires its catalog
+entry. A package owning `Degrees` may define the domain's operations over a
+foreign primitive carrier; that does not extend the carrier's unqualified family.
 
 Adding an unrelated dependency cannot change existing resolution, invalidate
 its typechecking, or introduce a collision. Resolution is a compile-time choice
