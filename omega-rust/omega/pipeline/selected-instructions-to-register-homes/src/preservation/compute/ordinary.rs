@@ -9,7 +9,7 @@ use super::{
 
 pub(super) fn derive(
     traversal: &mut DirectTraversal<'_>,
-    selected: &[selected_instructions::SelectedFunction],
+    selected: &selected_instructions::SelectedFunctions,
     homes: &[crate::FunctionRegisterHomes],
 ) -> Result<(), AllocatedCalleeSavedRequirementError> {
     if selected.len() != homes.len() {

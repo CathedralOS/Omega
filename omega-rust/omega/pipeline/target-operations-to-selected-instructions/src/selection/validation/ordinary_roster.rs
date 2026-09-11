@@ -5,7 +5,7 @@ use crate::selection::shared::*;
 
 pub(super) fn validate(
     target: &LegalizedOperationPlan,
-    functions: &[SelectedFunction],
+    functions: &selected_instructions::SelectedFunctions,
     constraints: &SelectedSelectionConstraints,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<(), SelectedInstructionError> {

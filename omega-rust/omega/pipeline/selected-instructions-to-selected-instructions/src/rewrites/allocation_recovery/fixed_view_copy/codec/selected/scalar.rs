@@ -51,7 +51,7 @@ pub(super) fn decode(
         fuel_schedule,
         target,
         entry,
-        functions,
+        functions: functions.into(),
         projected_structural_call_returns: Vec::new(),
     })
 }

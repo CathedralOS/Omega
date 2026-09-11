@@ -10,6 +10,10 @@
 //! makes that parameter dead, so fresh liveness no longer requires its edge
 //! home tie. Their destination must likewise dominate every use. Terminator
 //! operands, outgoing value transports, and cyclic functions remain unsupported.
+//!
+//! Each retained rewrite shares unchanged selected functions. Replay still
+//! restores and compares the complete source by content, so separately allocated
+//! equivalent inputs work and corruption of an unrelated function rejects.
 
 mod admission;
 mod rewrite;
