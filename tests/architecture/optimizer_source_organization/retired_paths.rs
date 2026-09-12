@@ -4,16 +4,18 @@ use std::fs;
 
 use crate::Audit;
 
-use super::bounds::is_test_source;
+fn is_test_source(path: &str) -> bool {
+    path.contains("/tests/") || path.ends_with("/tests.rs") || path.ends_with("_tests.rs")
+}
 
 pub(crate) fn check(audit: &mut Audit) {
     let repository = &audit.repository;
-    let source_lines = &audit.source_lines;
+    let source_files = &audit.source_files;
     let violations = &mut audit.violations;
 
     let psi_pass_root =
         "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/";
-    for path in source_lines.keys().filter(|path| {
+    for path in source_files.iter().filter(|path| {
         path.starts_with(psi_pass_root)
             && !is_test_source(path)
             && (path.ends_with("/rule.rs") || path.ends_with("/rules.rs"))
@@ -127,8 +129,8 @@ pub(crate) fn check(audit: &mut Audit) {
         ),
     ] {
         let family_root = format!("{psi_pass_root}{relative_root}");
-        for path in source_lines
-            .keys()
+        for path in source_files
+            .iter()
             .filter(|path| path.starts_with(&family_root) && !is_test_source(path))
         {
             match fs::read_to_string(repository.join(path)) {
@@ -250,7 +252,7 @@ pub(crate) fn check(audit: &mut Audit) {
             ));
         }
     }
-    for path in source_lines.keys().filter(|path| {
+    for path in source_files.iter().filter(|path| {
         !is_test_source(path)
             && (path.starts_with(
                 "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/",

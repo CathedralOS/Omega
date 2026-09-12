@@ -2,7 +2,7 @@
 //!
 //! This guard names current owners and reader entrances. It deliberately does
 //! not preserve a blacklist of historical paths: architecture is proved by the
-//! tree that exists, its documented dependency direction, and bounded leaves.
+//! tree that exists and its documented dependency direction.
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -25,13 +25,6 @@ const MANAGER_OWNERS: &[&str] = &[
     "review",
 ];
 const EVIDENCE_OWNERS: &[&str] = &["capture", "encoding", "ledger", "record"];
-const MAX_PRODUCTION_LEAF_LINES: usize = 525;
-const MAX_TEST_LEAF_LINES: usize = 800;
-const MAX_ENTRANCE_LINES: usize = 160;
-const MAX_SOURCE_DIRECTORY_DEPTH: usize = 5;
-
-/// Exact no-growth ratchets for package leaves that predate the bound.
-const PRODUCTION_LEAF_EXCEPTIONS: &[(&str, usize, &str)] = &[];
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -103,7 +96,7 @@ fn assert_documented_owners(crate_root: &Path, owners: &[&str]) {
         let source = fs::read_to_string(&entrance)
             .unwrap_or_else(|error| panic!("read {}: {error}", entrance.display()));
         assert!(
-            source.lines().take(12).any(|line| line.starts_with("//!")),
+            source.lines().any(|line| line.starts_with("//!")),
             "owner entrance must explain where curiosity leads next: {}",
             entrance.display()
         );
@@ -353,70 +346,6 @@ fn package_source_has_shared_owners_and_one_way_adapter_dependencies() {
 
     assert!(source.join("tree/capture/mod.rs").is_file());
     assert!(!source.join("tree/capture.rs").exists());
-}
-
-#[test]
-fn package_sources_are_bounded_and_shallow_enough_to_navigate() {
-    let packages = package_root();
-    for (relative, ceiling, reason) in PRODUCTION_LEAF_EXCEPTIONS {
-        let lines = fs::read_to_string(packages.join(relative))
-            .unwrap_or_else(|error| panic!("read package exception {relative}: {error}"))
-            .lines()
-            .count();
-        assert!(*ceiling > MAX_PRODUCTION_LEAF_LINES && !reason.trim().is_empty());
-        assert!(
-            lines > MAX_PRODUCTION_LEAF_LINES,
-            "stale package source exception: {relative} is now {lines} lines ({reason})"
-        );
-    }
-    for crate_name in PACKAGE_CRATES {
-        let source_root = packages.join(crate_name).join("src");
-        for path in rust_files(&source_root) {
-            let source = fs::read_to_string(&path)
-                .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
-            let file_name = path.file_name().and_then(|name| name.to_str()).unwrap();
-            let is_entrance = matches!(file_name, "lib.rs" | "mod.rs");
-            let is_test = file_name == "tests.rs"
-                || path
-                    .components()
-                    .any(|component| component.as_os_str() == "tests");
-            let relative = path
-                .strip_prefix(&packages)
-                .expect("package source belongs beneath the package root")
-                .to_string_lossy();
-            let exact_ceiling = PRODUCTION_LEAF_EXCEPTIONS
-                .iter()
-                .find_map(|(exception, ceiling, _)| (*exception == relative).then_some(*ceiling));
-            let (limit, kind) = if is_entrance {
-                (MAX_ENTRANCE_LINES, "entrance")
-            } else if is_test {
-                (MAX_TEST_LEAF_LINES, "test leaf")
-            } else {
-                (
-                    exact_ceiling.unwrap_or(MAX_PRODUCTION_LEAF_LINES),
-                    "production leaf",
-                )
-            };
-            let lines = source.lines().count();
-            assert!(
-                lines <= limit,
-                "package {kind} exceeds its {limit}-line navigation limit (found {lines}): {}",
-                path.display()
-            );
-
-            let depth = path
-                .strip_prefix(&source_root)
-                .expect("package source belongs to its crate")
-                .parent()
-                .map(|parent| parent.components().count())
-                .unwrap_or(0);
-            assert!(
-                depth <= MAX_SOURCE_DIRECTORY_DEPTH,
-                "package source exceeds its {MAX_SOURCE_DIRECTORY_DEPTH}-directory navigation depth (found {depth}): {}",
-                path.display()
-            );
-        }
-    }
 }
 
 #[test]

@@ -12,9 +12,15 @@ Apply these preferences within [AGENTS.md](../../../../AGENTS.md) and its [repos
 
 ## Organize around responsibilities
 
-Prefer one principal public type per snake_case file: `BufferRegion` in `buffer_region.rs`, its independent error type in `buffer_region_error.rs`. Keep the type's inherent and trait implementations together. Move unrelated structs and services to their own files; small private implementation details need not become modules.
+Name files for the responsibility a reader is looking for. Keep related types,
+errors, and their operations together when they form one coherent unit; a type
+does not automatically need its own file. Separate independent responsibilities,
+not declarations merely because they have different names.
 
-Organize folders by domain, then operation. Use meaningful suffixes such as `_request`, `_response`, `_error`, and `_provider` where those roles actually exist. Keep `mod.rs` focused on declarations, visibility, and platform selection. Put behavior in named implementation files.
+Organize folders by domain, then operation. Use meaningful suffixes such as
+`_request`, `_response`, `_error`, and `_provider` where those roles actually
+exist. Module roots may own cohesive behavior. Do not move it behind another
+file solely to keep `mod.rs` or `lib.rs` short or declaration-only.
 
 Prefer explicit imports for project types; grouping related standard-library or external imports is fine. Follow local formatting, remove unused imports, and do not churn existing imports solely for style. Do not add empty `impl` blocks or pass-through helpers with no responsibility.
 
@@ -23,7 +29,13 @@ Prefer explicit imports for project types; grouping related standard-library or 
 Shared models describe the domain; computation operates on those models; platform adapters perform I/O; application services coordinate them; frontends translate user actions and display results. Fit these responsibilities into existing modules or crates rather than creating a crate for each layer.
 
 - Keep reusable computation usable with caller-owned inputs. A byte-processing function should not require a process handle, application singleton, or UI state merely to run.
-- Keep CLI, GUI, and transport handlers thin. Validation and behavior shared by multiple entry points belong in their common execution path.
+- Keep application startup, argument routing, and subsystem dispatch visible in
+  `main.rs`. Delegate domain work to its real owner; do not hide the orchestration
+  in a generic `command.rs`, `entry.rs`, or `driver.rs` forwarding layer just to
+  shorten the entrypoint. Validation shared by multiple entry points belongs in
+  their common execution path. Squalr's `squalr-cli/src/main.rs` is a useful
+  example: it selects the mode, initializes the engine, and starts the chosen
+  interface; `cli.rs` owns the actual interactive loop and command handling.
 - Where commands already exist, use typed request and response models, explicit enum dispatch, and existing conversions. Keep serialization models separate from platform handles and executor state. Add derives only when required by their consumers.
 - Introduce traits at actual substitution boundaries, such as native backends or external I/O. Do not create an interface for every struct.
 - Select OS implementations at the module boundary with `cfg`; callers use the shared contract. Update every supported implementation when changing that contract, including explicit unsupported-operation handling. Keep platform dependencies target-scoped.

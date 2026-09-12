@@ -63,7 +63,7 @@ pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) -> ! {
         }
     };
     if !report.trust_admission_settlement().is_exactly_admitted() {
-        super::report_unsettled_admissions(report.trust_admission_settlement());
+        crate::admissions::report_unsettled_admissions(report.trust_admission_settlement());
         std::process::exit(200);
     }
     let exe = match super::output::publish_native_artifact(report, &build_dir) {

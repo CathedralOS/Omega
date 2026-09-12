@@ -24,7 +24,7 @@
 //! the honest answer there is negative.
 //!
 //! @Robustness: none of this counts anything unless a binary installs the
-//! wrapper. `omega/src/command.rs` does, with `#[global_allocator] static
+//! wrapper. `omega/src/main.rs` does, with `#[global_allocator] static
 //! GLOBAL_ALLOCATOR: CountingAllocator = CountingAllocator::system();`. Under a
 //! test binary, a bench harness, or any other host that does not use the wrapper,
 //! every snapshot reads zero

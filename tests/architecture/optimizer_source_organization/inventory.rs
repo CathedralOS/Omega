@@ -1,6 +1,6 @@
 //! Governed roots and deterministic repository inventory.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -164,7 +164,7 @@ pub(super) fn repository_relative_path(repository: &Path, path: &Path) -> Result
 pub(crate) fn collect() -> Audit {
     let repository = repository_root();
     let mut violations = BTreeSet::new();
-    let mut source_lines = BTreeMap::<String, usize>::new();
+    let mut source_files = BTreeSet::new();
 
     for governed_root in GOVERNED_ROOTS {
         let absolute_root = repository.join(governed_root);
@@ -193,15 +193,7 @@ pub(crate) fn collect() -> Audit {
                     continue;
                 }
             };
-            let contents = match fs::read_to_string(&file) {
-                Ok(contents) => contents,
-                Err(error) => {
-                    violations.insert(format!("cannot read {relative}: {error}"));
-                    continue;
-                }
-            };
-            let lines = contents.lines().count();
-            if source_lines.insert(relative.clone(), lines).is_some() {
+            if !source_files.insert(relative.clone()) {
                 violations.insert(format!("governed roots overlap at Rust file: {relative}"));
             }
         }
@@ -209,7 +201,7 @@ pub(crate) fn collect() -> Audit {
 
     Audit {
         repository,
-        source_lines,
+        source_files,
         violations,
     }
 }

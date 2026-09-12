@@ -10,8 +10,6 @@ mod rule_stages;
 
 use crate::Audit;
 
-pub(super) use requirements::is_required_coordination_entrance;
-
 pub(crate) fn check(audit: &mut Audit) {
     rule_stages::check(audit);
     domains::check(audit);
