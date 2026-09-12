@@ -1,4 +1,6 @@
 //! Case targets are source blocks, including returning arms and continuations.
+//! The hosted read leaf fixes EOF at tag zero and the byte payload at tag one;
+//! reorder executable blocks without changing that external result convention.
 use super::*;
 use abstract_operations::{
     AbstractBoundaryResult, AbstractStructuralCasePayloadBinding, AbstractStructuralCaseSuccessor,
@@ -23,6 +25,11 @@ fn fixture() -> AbstractOperationPlan {
             cases: vec![
                 StructuralCaseDeclaration {
                     id: StructuralCaseId::new(1).unwrap(),
+                    identity: "Eof".into(),
+                    fields: Vec::new(),
+                },
+                StructuralCaseDeclaration {
+                    id: StructuralCaseId::new(2).unwrap(),
                     identity: "Byte".into(),
                     fields: vec![StructuralFieldDeclaration {
                         id: field,
@@ -30,11 +37,6 @@ fn fixture() -> AbstractOperationPlan {
                         relevance: terminal_psi::BindingRelevance::Relevant,
                         field_type: StructuralFieldType::Scalar(scalar_type),
                     }],
-                },
-                StructuralCaseDeclaration {
-                    id: StructuralCaseId::new(2).unwrap(),
-                    identity: "End".into(),
-                    fields: Vec::new(),
                 },
             ],
         },
@@ -110,21 +112,21 @@ fn fixture() -> AbstractOperationPlan {
             source,
             cases: vec![
                 AbstractStructuralCaseSuccessor {
+                    psi_edge: edge(2),
+                    target: block(30),
+                    case: StructuralCaseId::new(1).unwrap(),
+                    payloads: Vec::new(),
+                    trivial_affine_discards: vec![source],
+                },
+                AbstractStructuralCaseSuccessor {
                     psi_edge: edge(1),
                     target: block(20),
-                    case: StructuralCaseId::new(1).unwrap(),
+                    case: StructuralCaseId::new(2).unwrap(),
                     payloads: vec![AbstractStructuralCasePayloadBinding {
                         parameter: value(20),
                         field,
                         scalar_type,
                     }],
-                    trivial_affine_discards: vec![source],
-                },
-                AbstractStructuralCaseSuccessor {
-                    psi_edge: edge(2),
-                    target: block(30),
-                    case: StructuralCaseId::new(2).unwrap(),
-                    payloads: Vec::new(),
                     trivial_affine_discards: vec![source],
                 },
             ],
@@ -211,9 +213,10 @@ fn structural_case_graph_preserves_reordered_blocks_and_ordinary_continuation() 
         source.operation_result().map(|(operation, _)| operation),
         Some(operation(2))
     );
-    assert_eq!((cases[0].target, cases[1].target), (block(20), block(30)));
+    assert_eq!((cases[0].target, cases[1].target), (block(30), block(20)));
+    assert_eq!((cases[0].case_tag, cases[1].case_tag), (0, 1));
     assert_eq!(
-        cases[0].payloads[0].parameter,
+        cases[1].payloads[0].parameter,
         target_operations::TargetScalarBlockValue {
             block: block(20),
             value: value(20),
@@ -279,12 +282,12 @@ fn structural_case_graph_retains_source_until_later_dispatch_cleanup() {
     let AbstractOperation::StructuralCase { cases, .. } = &mut later_dispatch else {
         panic!("case")
     };
-    cases[0].target = block(50);
-    cases[0].psi_edge = edge(7);
-    cases[0].payloads[0].parameter = value(50);
-    cases[1].target = block(60);
-    cases[1].psi_edge = edge(8);
-    let scalar_type = cases[0].payloads[0].scalar_type;
+    cases[1].target = block(50);
+    cases[1].psi_edge = edge(7);
+    cases[1].payloads[0].parameter = value(50);
+    cases[0].target = block(60);
+    cases[0].psi_edge = edge(8);
+    let scalar_type = cases[1].payloads[0].scalar_type;
     function.operations[7] = later_dispatch;
     for (identity, offset) in [(50, 8), (60, 9)] {
         function.block_entries.push(AbstractBlockEntry {
@@ -335,8 +338,8 @@ fn structural_case_graph_allows_repeated_field_projection() {
     else {
         panic!("case")
     };
-    let payload = cases[0].payloads[0];
-    cases[0]
+    let payload = cases[1].payloads[0];
+    cases[1]
         .payloads
         .push(AbstractStructuralCasePayloadBinding {
             parameter: value(21),
@@ -347,8 +350,10 @@ fn structural_case_graph_allows_repeated_field_projection() {
 
 #[test]
 fn structural_case_graph_rejects_changed_payload_telescope_source_and_cleanup() {
+    let valid = fixture();
+    lower(&valid).expect("the unmodified graph must reach case lowering");
     for mutation in 0..7 {
-        let mut plan = fixture();
+        let mut plan = valid.clone();
         let AbstractOperation::StructuralCase { source, cases } =
             &mut plan.functions[0].operations[2]
         else {
@@ -356,15 +361,39 @@ fn structural_case_graph_rejects_changed_payload_telescope_source_and_cleanup() 
         };
         match mutation {
             0 => cases.swap(0, 1),
-            1 => cases[0].payloads[0].parameter = value(99),
-            2 => cases[0].payloads[0].scalar_type = ScalarType::Boolean,
-            3 => cases[0].payloads[0].field = StructuralFieldId::new(99).unwrap(),
+            1 => cases[1].payloads[0].parameter = value(99),
+            2 => cases[1].payloads[0].scalar_type = ScalarType::Boolean,
+            3 => cases[1].payloads[0].field = StructuralFieldId::new(99).unwrap(),
             4 => *source = PlaceId::new(99).unwrap(),
             5 => cases[0].trivial_affine_discards.push(*source),
-            _ => cases[0].target = block(30),
+            _ => cases[1].target = block(30),
         }
-        assert!(lower(&plan).is_err(), "corruption {mutation}");
+        assert!(
+            matches!(lower(&plan), Err(crate::LoweringError::UnsupportedControlFlow(machine))
+                if machine == valid.entry),
+            "case corruption {mutation} must fail graph checking, not boundary admission",
+        );
     }
+}
+
+#[test]
+fn hosted_byte_read_rejects_reordered_result_even_with_matching_dispatch() {
+    let mut plan = fixture();
+    lower(&plan).expect("the declared EOF/byte result is admitted");
+    let StructuralTypeShape::Sum { cases } = &mut plan.structural_types.make_mut()[0].shape else {
+        panic!("sum");
+    };
+    cases.swap(0, 1);
+    let AbstractOperation::StructuralCase { cases, .. } = &mut plan.functions[0].operations[2]
+    else {
+        panic!("case");
+    };
+    cases.swap(0, 1);
+    assert!(matches!(
+        lower(&plan),
+        Err(crate::LoweringError::BoundaryRealizationMismatch(boundary))
+            if boundary == plan.boundary_machines[1].id
+    ));
 }
 
 fn lower_owned(
@@ -400,7 +429,7 @@ fn owned_arrival_fixture() -> AbstractOperationPlan {
     function.operations[1] = AbstractOperation::EstablishScalarCase {
         psi_operation,
         result,
-        result_case: StructuralCaseId::new(2).unwrap(),
+        result_case: StructuralCaseId::new(1).unwrap(),
         fields: Vec::new(),
     };
     let parameter = terminal_psi::StructuralParameterDeclaration {
