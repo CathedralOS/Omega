@@ -1,6 +1,47 @@
 //! Every primitive width observes the borrowed local after replacement.
 use super::{produce, publication};
 
+#[test]
+fn signed_narrow_reads_preserve_order_after_callee_replacement() {
+    for (scalar, carrier) in [("i8", "int8_t"), ("i16", "int16_t"), ("i32", "int32_t")] {
+        // A borrowed write prevents replacing the fresh read with its initializer.
+        let source = format!(
+            "machine replace(destination: &mut {scalar}, replacement: {scalar}) {{ destination = replacement; }}
+             machine observe(left: {scalar}, right: {scalar}) -> bool {{
+                 let mut saved: {scalar} = right;
+                 replace(&mut saved, left);
+                 saved < right
+             }}"
+        );
+        let artifact = produce(&source, "observe");
+        let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+        assert!(
+            module
+                .machines
+                .iter()
+                .flat_map(|machine| &machine.blocks)
+                .flat_map(|block| &block.operations)
+                .any(|operation| matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::PrimitiveScalarRead { .. }
+                ))
+        );
+        let driver = format!(
+            "#include <stdint.h>\nextern uint8_t omega_entry({carrier}, {carrier});
+             int main(void) {{
+                 const int64_t values[] = {{-2147483648LL, -32768, -128, -1, 0, 1, 127, 32767, 2147483647}};
+                 for (unsigned first = 0; first < 9; ++first) for (unsigned second = 0; second < 9; ++second) {{
+                     {carrier} left = ({carrier})values[first], right = ({carrier})values[second];
+                     if (omega_entry(left, right) != (left < right)) return 1;
+                 }}
+                 return 0;
+             }}"
+        );
+        publication::assert_four_targets(&artifact);
+        publication::assert_host_execution(&artifact, &driver);
+    }
+}
+
 fn source(scalar: &str) -> String {
     format!(
         "machine replace(destination: &mut {scalar}, value: {scalar}) {{

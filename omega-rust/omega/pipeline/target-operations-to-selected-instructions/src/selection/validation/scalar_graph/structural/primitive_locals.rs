@@ -153,5 +153,27 @@ pub(in crate::selection) fn read(
             ..Default::default()
         },
     )?;
+    // The exact-width load zero-extends raw bits. Restore a narrow signed
+    // value before any consumer, not only at a subsequent ABI boundary.
+    // Only the memory load carries the authored read's operation and fuel.
+    if matches!(definition.scalar_type, ScalarType::Integer(integer)
+        if integer.sign() == IntegerSign::Signed && matches!(integer.bits(), 8 | 16 | 32))
+    {
+        let normalized = replay.result_register(
+            definition.value,
+            definition.definition_site,
+            definition.scalar_type,
+        )?;
+        replay.check_instruction(
+            crate::selection::scalar_call_abi::integer_abi_normalization(definition.scalar_type),
+            replay.constraints.keys.copy_i64,
+            &[output, normalized],
+            &SelectedInstructionProvenance {
+                values: vec![definition.value],
+                ..Default::default()
+            },
+        )?;
+        return Ok(normalized);
+    }
     Ok(output)
 }

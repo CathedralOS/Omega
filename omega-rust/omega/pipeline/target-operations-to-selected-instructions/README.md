@@ -265,8 +265,11 @@ use that original pointer; a scalar call retains its actual result independently
 Fresh primitive reads use pointer loads and distinct SSA definitions. `Load8`,
 `Load16`, `Load32`, and `Load64` read exactly 1, 2, 4, or 8 bytes for Boolean,
 fixed-width signed/unsigned integers, and IEEE binary32/binary64. Narrow loads
-zero-extend the raw payload into the GPR carrier without changing its scalar
-type; IEEE loads preserve payload bits without floating-point arithmetic.
+zero-extend the raw payload into the GPR carrier. Signed narrow reads then
+restore the sign using the same normalization as incoming ABI values, before
+comparisons or other consumers observe the fresh result. Only the load charges
+the authored read's fuel; normalization neither widens the memory access nor
+changes the scalar type. IEEE loads preserve payload bits without floating-point arithmetic.
 Materialized Boolean reads retain their exact scalar home across stores, calls,
 and branches. A branch tests the fresh read's Boolean carrier using the ordinary
 zero comparison; it does not substitute the initializer or a previous observation.

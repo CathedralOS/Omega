@@ -120,6 +120,30 @@ fn primitive_read_width_and_definition_substitutions_reject_on_every_target() {
                 .find(|access| access.role == SelectedMemoryAccessRole::ReadPlace)
                 .unwrap();
             assert_eq!(access.byte_count, u32::from(width));
+            if matches!(scalar, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed && integer.bits() < 64)
+            {
+                let normalization = selected
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.instructions)
+                    .find(|instruction| instruction.id.0 == access.instruction.0 + 1)
+                    .unwrap();
+                assert_eq!(
+                    normalization.kind,
+                    crate::selection::scalar_call_abi::integer_abi_normalization(*scalar)
+                );
+                assert!(normalization.provenance.operations.is_empty());
+                assert!(normalization.provenance.fuel.is_empty());
+                let mut changed = selected.clone();
+                changed
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|block| &mut block.instructions)
+                    .find(|instruction| instruction.id == normalization.id)
+                    .unwrap()
+                    .kind = SelectedInstructionKind::CopyI64;
+                assert!(validate(&changed).is_err());
+            }
             for mutation in 0..6 {
                 let mut changed = selected.clone();
                 let instruction = changed
