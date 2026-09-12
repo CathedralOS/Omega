@@ -261,6 +261,14 @@ keeps its separate declaration role. Check the package customer with
 `omega --check tests/omega/pass/modules/package_bare_cases/main.omg`.
 The `module_machine_indices::bare_cases` probes cover lexical precedence,
 ambiguity, authority and construction obligations.
+Closed generic sum paths retain the authored carrier and case spans while
+selecting the specialized owner. Both selections survive as evidence that a
+membership test is not payload construction. Check this route with
+`omega --check tests/omega/pass/generics/closed_sum_case_membership/main.omg`
+and `cargo nextest run -p compiler --test generic_data --no-fail-fast`.
+Proof-position case membership uses that same expression and selection route;
+the bundled optional carrier's zero theorem is exercised by
+`omega --check tests/omega/pass/collections/std_option_surface/main.omg`.
 
 Nominal data references, scalar free-machine calls, and literal constants used
 in bodies have namespace coverage. Scalar constants include qualified Terminal

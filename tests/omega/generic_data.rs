@@ -752,7 +752,7 @@ fn direct_boolean_const_argument_uses_one_canonical_instance_value() {
 #[test]
 fn structured_const_instance_recasts_retain_exact_ranges_for_both_polarities() {
     let source = r#"
-        data UnitIndex { scale: u64; }
+        data UnitIndex [copy] { scale: u64; }
         data UnitIndices {}
         const UnitIndices::INDEX: UnitIndex = UnitIndex { scale: 2 };
         data Indexed<const U: UnitIndex> { marker: u8; }
@@ -779,7 +779,7 @@ fn structured_const_instance_recasts_retain_exact_ranges_for_both_polarities() {
 fn structured_const_instance_recast_rejects_overlap_but_keeps_siblings_writable() {
     rejected(
         r#"
-            data UnitIndex { scale: u64; }
+            data UnitIndex [copy] { scale: u64; }
             data UnitIndices {}
             const UnitIndices::INDEX: UnitIndex = UnitIndex { scale: 2 };
             data Indexed<const U: UnitIndex> { marker: u8; }
@@ -797,7 +797,7 @@ fn structured_const_instance_recast_rejects_overlap_but_keeps_siblings_writable(
 
     rejected(
         r#"
-            data UnitIndex { scale: u64; }
+            data UnitIndex [copy] { scale: u64; }
             data UnitIndices {}
             const UnitIndices::INDEX: UnitIndex = UnitIndex { scale: 2 };
             data Indexed<const U: UnitIndex> { marker: u8; }
@@ -814,7 +814,7 @@ fn structured_const_instance_recast_rejects_overlap_but_keeps_siblings_writable(
 
     checked(
         r#"
-            data UnitIndex { scale: u64; }
+            data UnitIndex [copy] { scale: u64; }
             data UnitIndices {}
             const UnitIndices::INDEX: UnitIndex = UnitIndex { scale: 2 };
             data Indexed<const U: UnitIndex> { marker: u8; }
@@ -834,8 +834,8 @@ fn structured_const_instance_recast_rejects_overlap_but_keeps_siblings_writable(
 #[test]
 fn structured_const_pure_sum_instances_retain_payloadless_and_payload_ranges() {
     let source = r#"
-        data CountPayload { value: u16; }
-        data Mode {
+        data CountPayload [copy] { value: u16; }
+        data Mode [copy] {
             case Idle;
             case Count(payload: CountPayload);
         }
@@ -871,8 +871,8 @@ fn structured_const_pure_sum_instances_retain_payloadless_and_payload_ranges() {
 fn structured_const_pure_sum_instance_rejects_overlap_but_keeps_siblings_writable() {
     rejected(
         r#"
-            data CountPayload { value: u16; }
-            data Mode { case Idle; case Count(payload: CountPayload); }
+            data CountPayload [copy] { value: u16; }
+            data Mode [copy] { case Idle; case Count(payload: CountPayload); }
             data Modes {}
             const Modes::COUNT: Mode =
                 Mode::Count { payload: CountPayload { value: 7 } };
@@ -891,8 +891,8 @@ fn structured_const_pure_sum_instance_rejects_overlap_but_keeps_siblings_writabl
 
     rejected(
         r#"
-            data CountPayload { value: u16; }
-            data Mode { case Idle; case Count(payload: CountPayload); }
+            data CountPayload [copy] { value: u16; }
+            data Mode [copy] { case Idle; case Count(payload: CountPayload); }
             data Modes {}
             const Modes::COUNT: Mode =
                 Mode::Count { payload: CountPayload { value: 7 } };
@@ -910,8 +910,8 @@ fn structured_const_pure_sum_instance_rejects_overlap_but_keeps_siblings_writabl
 
     checked(
         r#"
-            data CountPayload { value: u16; }
-            data Mode { case Idle; case Count(payload: CountPayload); }
+            data CountPayload [copy] { value: u16; }
+            data Mode [copy] { case Idle; case Count(payload: CountPayload); }
             data Modes {}
             const Modes::COUNT: Mode =
                 Mode::Count { payload: CountPayload { value: 7 } };
@@ -1044,7 +1044,7 @@ fn closed_generic_record_literal_uses_annotated_local_instance() {
     let ExpressionNode::StructLiteral(literal) = local_initializer(&syntax, "boxed") else {
         panic!("boxed initializer should remain a record literal");
     };
-    assert_eq!(literal.type_name.as_str(), "Box<i32>");
+    assert_eq!(literal.constructor_name.as_str(), "Box<i32>");
 }
 
 #[test]
@@ -1096,7 +1096,7 @@ fn nested_closed_generic_record_literal_uses_concrete_field_instance() {
     let ExpressionNode::StructLiteral(holder) = local_initializer(&syntax, "holder") else {
         panic!("holder initializer should remain a record literal");
     };
-    assert_eq!(holder.type_name.as_str(), "Holder<i32>");
+    assert_eq!(holder.constructor_name.as_str(), "Holder<i32>");
     let boxed = syntax
         .expressions
         .struct_fields(holder.fields)
@@ -1106,7 +1106,7 @@ fn nested_closed_generic_record_literal_uses_concrete_field_instance() {
     let ExpressionNode::StructLiteral(boxed) = syntax.expressions.expression(boxed.value) else {
         panic!("boxed field should remain a record literal");
     };
-    assert_eq!(boxed.type_name.as_str(), "Box<i32>");
+    assert_eq!(boxed.constructor_name.as_str(), "Box<i32>");
 }
 
 #[test]
@@ -1504,11 +1504,9 @@ fn closed_generic_sum_preserves_payload_relevance_and_identities() {
     let ExpressionNode::StructLiteral(literal) = local_initializer(&syntax, "maybe") else {
         panic!("Maybe::Some literal");
     };
-    assert_eq!(literal.type_name.as_str(), "Maybe<i32>");
-    assert_eq!(
-        literal.case_name.as_ref().map(|name| name.as_str()),
-        Some("Some")
-    );
+    // Syntax retains the complete constructor path; only resolution decides
+    // whether its final component selects a record or an exact case owner.
+    assert_eq!(literal.constructor_name.as_str(), "Maybe<i32>::Some");
 }
 
 #[test]
@@ -1917,13 +1915,29 @@ fn closed_generic_sum_preserves_generic_zero_home_lemma() {
         data Optional<T> { case None; case Some(value: T); }
         machine zero_is_none<T>()
         ensures
-            zero_value<Optional<T>>() == Optional::None
+            zero_value<Optional<T>>() in Optional::None
         {
         }
         data Holder { value: Optional<u64>; }
         "#,
     )
     .expect("closing one runtime instance must not specialize the generic zero-home lemma");
+}
+
+#[test]
+fn generic_zero_case_membership_rejects_the_wrong_case_and_owner() {
+    for domain in ["Optional::Some", "Other::None"] {
+        let source = format!(
+            "data Optional<T> {{ case None; case Some(value: T); }}
+             data Other {{ case None; }}
+             machine false_zero<T>() ensures zero_value<Optional<T>>() in {domain} {{}}
+             data Holder {{ value: Optional<u64>; }}"
+        );
+        assert!(
+            checked(&source).is_err(),
+            "zero's case membership cannot select {domain}"
+        );
+    }
 }
 
 #[test]
@@ -2134,8 +2148,8 @@ fn closed_generic_erased_records_use_concrete_attached_machine_instances() {
     checked(
         r#"
         data Evidence { case Only; }
-        data Box<T> { value: T; proof [erased]: Evidence; }
-        machine Box::stored<T>(&self) -> T { self.value }
+        data Box<T [copy]> { value: T; proof [erased]: Evidence; }
+        machine Box::stored<T [copy]>(&self) -> T { self.value }
 
         data Main { integer: Box<i32>; boolean: Box<bool>; }
         machine Main::run(&self) -> i32 {

@@ -106,12 +106,19 @@ pub(in crate::generic_data) fn relabel_closed_sum_memberships_from_local_types(
                 else {
                     return None;
                 };
-                (domain_base.as_str() == base)
-                    .then(|| (handle, membership.value, closed.clone(), case.clone()))
+                (domain_base.as_str() == base).then(|| {
+                    (
+                        handle,
+                        membership.value,
+                        closed.clone(),
+                        domain_base.source_span(),
+                        case.clone(),
+                    )
+                })
             })
             .collect::<Vec<_>>();
-        for (handle, value, closed, case) in replacements {
-            let domain = closed_sum_path(syntax, &closed, case);
+        for (handle, value, closed, carrier_span, case) in replacements {
+            let domain = closed_sum_path(syntax, &closed, carrier_span, case);
             syntax.expressions.replace_expression(
                 handle,
                 ExpressionNode::Membership(syntax_trees::expression::TableMembershipExpression {
@@ -177,6 +184,7 @@ pub(in crate::generic_data) fn relabel_unique_closed_sum_paths(
                         handle,
                         SumPathExpressionKind::StructLiteral(literal.clone()),
                         closed.clone(),
+                        literal.constructor_name.source_span(),
                         Identifier::new(case, literal.constructor_name.source_span()),
                     ));
                 }
@@ -192,19 +200,25 @@ pub(in crate::generic_data) fn relabel_unique_closed_sum_paths(
             {
                 return None;
             }
-            Some((handle, kind, closed.clone(), case.clone()))
+            Some((
+                handle,
+                kind,
+                closed.clone(),
+                base.source_span(),
+                case.clone(),
+            ))
         })
         .collect::<Vec<_>>();
 
-    for (handle, kind, closed, case) in replacements {
+    for (handle, kind, closed, carrier_span, case) in replacements {
         let replacement = match kind {
             SumPathExpressionKind::Name => {
-                ExpressionNode::Name(closed_sum_path(syntax, &closed, case))
+                ExpressionNode::Name(closed_sum_path(syntax, &closed, carrier_span, case))
             }
             SumPathExpressionKind::Membership(value) => {
                 ExpressionNode::Membership(syntax_trees::expression::TableMembershipExpression {
                     value,
-                    domain: closed_sum_path(syntax, &closed, case),
+                    domain: closed_sum_path(syntax, &closed, carrier_span, case),
                 })
             }
             SumPathExpressionKind::StructLiteral(mut literal) => {
@@ -246,16 +260,82 @@ pub(in crate::generic_data) fn generic_sum_variant_names(
 pub(in crate::generic_data) fn closed_sum_path(
     syntax: &mut SyntaxTrees,
     closed: &str,
+    carrier_span: source::SourceSpan,
     case: Identifier,
 ) -> HandleSpan<Identifier> {
     let mut path = HandleSpan::empty();
+    // Specialization changes the selected carrier, not its authored occurrence.
+    // Membership checking rejoins this carrier receipt with the case receipt.
     syntax
         .expressions
-        .append_identifier_path_member_to_span(&mut path, Identifier::generated(closed));
+        .append_identifier_path_member_to_span(&mut path, Identifier::new(closed, carrier_span));
     syntax
         .expressions
         .append_identifier_path_member_to_span(&mut path, case);
     path
+}
+
+#[cfg(test)]
+mod tests {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
+    };
+    use source::{SourceId, SourceSpan, Span};
+    use source_files_to_tokens::Lexer;
+    use tokens_to_syntax_trees::parse_syntax_trees_with_id;
+
+    #[test]
+    fn closed_sum_membership_retains_both_authored_selection_spans() {
+        let source = "data Maybe<T> { case None; case Some(value: T); }
+            machine present(value: Maybe<i32>) -> bool { value in Maybe::Some }";
+        let source_id = SourceId(0);
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize generic membership");
+        let syntax =
+            parse_syntax_trees_with_id(source_id, &tokens).expect("parse generic membership");
+        let syntax = crate::normalize_generic_data(syntax).expect("select closed carrier");
+        let resolved = crate::lower_syntax_trees(&syntax).expect("resolve closed membership");
+        let start = source
+            .rfind("Maybe::Some")
+            .expect("authored membership path");
+        for (kind, path, span) in [
+            (
+                AuthoredDeclarationSelectionKind::CaseReference,
+                "Maybe<i32>",
+                Span::new(start, start + 5),
+            ),
+            (
+                AuthoredDeclarationSelectionKind::CaseMembership,
+                "Maybe<i32>::Some",
+                Span::new(start + 7, start + 11),
+            ),
+        ] {
+            let selections = resolved
+                .authored_declaration_selections()
+                .iter()
+                .filter(|selection| {
+                    selection.kind() == kind
+                        && selection.source_span() == SourceSpan::new(source_id, span)
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                selections.len(),
+                1,
+                "one exact authored {kind:?} occurrence"
+            );
+            let AuthoredDeclarationSelectionTarget::Resolved(target) = selections[0].target()
+            else {
+                panic!("closed membership selects a declaration");
+            };
+            assert_eq!(
+                resolved
+                    .symbols
+                    .display_path(target.selected_symbol(), "::"),
+                path
+            );
+        }
+    }
 }
 
 #[derive(Clone)]

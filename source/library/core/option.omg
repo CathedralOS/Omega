@@ -10,6 +10,6 @@ pub data Optional<T> {
 
 machine zero_is_none<T>()
 ensures
-    zero_value<Optional<T>>() == Optional::None
+    zero_value<Optional<T>>() in Optional::None
 {
 }
