@@ -95,13 +95,6 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   These are native compiler guarantees, independent of package locks or
   `PackageInstance` construction.
 
-- **BOUNDARY-QUALIFICATION-PRESERVATION.** Add optimizer and publication
-  controls for boundary requirements that consume carried structural-domain
-  qualifications. Joins take at most the intersection; CSE/GVN must distinguish
-  unequal rosters; no transformation may widen a roster or mint a routed
-  qualification. Acceptance: dropped, substituted, redirected, or widened
-  qualification identities reject through final publication.
-
 - **GENERATED-DIFFERENTIALS.** Extend same-artifact interpreter/native
   differential testing beyond the landed exact-integer lane to float, trap,
   atomic, placed-memory, cleanup, and transition behavior. Acceptance: fixed

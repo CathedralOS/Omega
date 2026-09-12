@@ -100,6 +100,10 @@ pub(super) fn validate(
     Ok(())
 }
 
+/// Block parameters carry no qualification roster, so a structural join merges
+/// nothing a boundary requirement could consume: the joined value's roster is
+/// the empty intersection, and a qualified operand must reach its consumer
+/// through the dominating source contract rather than through the join.
 fn plain(parameter: &StructuralParameterDeclaration) -> bool {
     !parameter.is_self
         && match parameter.access {
