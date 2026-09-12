@@ -1,3 +1,4 @@
+use super::option_value;
 use compiler::OptimizationRollback;
 use std::path::PathBuf;
 
@@ -56,7 +57,7 @@ pub(crate) fn parse_arguments(
         }
 
         if argument == "--build-dir" {
-            build_dir = compile_option_value(&mut arguments).map(PathBuf::from);
+            build_dir = option_value(&mut arguments).map(PathBuf::from);
             if build_dir.is_none() {
                 return Err("--build-dir requires a directory".into());
             }
@@ -64,8 +65,8 @@ pub(crate) fn parse_arguments(
         }
 
         if argument == "--target" {
-            target_name = compile_option_value(&mut arguments)
-                .and_then(|target_name| target_name.into_string().ok());
+            target_name =
+                option_value(&mut arguments).and_then(|target_name| target_name.into_string().ok());
             if target_name.is_none() {
                 return Err("--target requires a UTF-8 target name".into());
             }
@@ -73,7 +74,7 @@ pub(crate) fn parse_arguments(
         }
 
         if argument == "--disable-optimization" {
-            let Some(name) = compile_option_value(&mut arguments) else {
+            let Some(name) = option_value(&mut arguments) else {
                 return Err("--disable-optimization requires one exact optimization name".into());
             };
             let name = name.into_string().map_err(|_| {
@@ -116,12 +117,4 @@ pub(crate) fn parse_arguments(
         target_name,
         optimization_rollback,
     })
-}
-
-pub(crate) fn compile_option_value(
-    arguments: &mut impl Iterator<Item = std::ffi::OsString>,
-) -> Option<std::ffi::OsString> {
-    arguments
-        .next()
-        .filter(|value| !value.is_empty() && !value.as_encoded_bytes().starts_with(b"--"))
 }

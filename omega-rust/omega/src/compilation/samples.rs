@@ -1,4 +1,4 @@
-use super::output;
+use super::publication;
 use compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct, compile,
 };
@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 /// Compile every sample `main.omg` under `samples_root` into its own build
 /// directory for the exact host target. Each worker owns a distinct output.
-pub(super) fn refresh(samples_root: &Path) -> ! {
+pub(crate) fn refresh(samples_root: &Path) -> ! {
     let mut mains = Vec::new();
     if let Err(error) = collect_mains(samples_root, &mut mains) {
         eprintln!(
@@ -66,7 +66,7 @@ pub(super) fn refresh(samples_root: &Path) -> ! {
                         .with_requested_product(RequestedCompileProduct::NativeArtifact)
                         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
                     let result = match compile(request) {
-                        Ok(report) => output::publish_native_artifact(report, &build_dir),
+                        Ok(report) => publication::publish_native_artifact(report, &build_dir),
                         Err(diagnostics) => Err(diagnostics
                             .first()
                             .map(ToString::to_string)

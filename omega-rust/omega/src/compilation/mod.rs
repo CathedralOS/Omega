@@ -1,6 +1,11 @@
 //! Prepare the requested project, compile it, settle admission, and publish its output.
 
-use crate::{admissions::report_unsettled_admissions, compile_arguments::CompileArguments, output};
+pub(crate) mod admissions;
+pub(crate) mod publication;
+pub(crate) mod samples;
+
+use crate::arguments::CompileArguments;
+use admissions::report_unsettled_admissions;
 use compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct, compile,
 };
@@ -129,7 +134,7 @@ pub(crate) fn compile_project(arguments: CompileArguments) {
     if arguments.check_only {
         println!("{}", report.summary());
     } else {
-        match output::publish_native_artifact(report, &build_dir) {
+        match publication::publish_native_artifact(report, &build_dir) {
             Ok((published, path)) => {
                 if let Some(receipt) = published.optimization_rollback_receipt() {
                     println!("optimizer rollback: {receipt}");

@@ -5,7 +5,7 @@
 
 use std::path::{Path, PathBuf};
 
-pub(super) fn publish_native_artifact(
+pub(crate) fn publish_native_artifact(
     report: compiler::CompileReport,
     build_dir: &Path,
 ) -> Result<(compiler::CompileReport, PathBuf), String> {

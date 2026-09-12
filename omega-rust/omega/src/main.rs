@@ -1,64 +1,42 @@
-mod admissions;
-mod audit;
+mod arguments;
 mod compilation;
-mod compile_arguments;
-mod inspect_terminal;
-mod output;
-mod package;
-mod probe;
-mod samples;
+mod execution;
+mod inspection;
+mod packages;
 
+use arguments::Invocation;
 use artifacts::allocations::CountingAllocator;
-use std::path::PathBuf;
 use std::process::ExitCode;
 
 #[global_allocator]
 static GLOBAL_ALLOCATOR: CountingAllocator = CountingAllocator::system();
 
-// Recursive compiler walks must reach their explicit depth guards before the
-// host stack runs out. Windows gives the process main thread only one MiB;
-// native realization also runs on its caller's stack, so cover every command.
+// Some recursive compiler paths still overflow the Windows main-thread stack.
+// This is stack provision, not parallel execution. Keep it until those paths
+// have bounded stack use; argument parsing needs no compiler worker.
 const COMPILER_STACK_SIZE: usize = 256 * 1024 * 1024;
 
 fn main() -> ExitCode {
+    let invocation = match arguments::parse(std::env::args_os().skip(1)) {
+        Ok(invocation) => invocation,
+        Err(error) => {
+            eprintln!("{error}");
+            return ExitCode::from(2);
+        }
+    };
+
     let worker = std::thread::Builder::new()
         .name("omega-command".to_owned())
         .stack_size(COMPILER_STACK_SIZE)
-        .spawn(|| {
-            let mut arguments = std::env::args_os().skip(1);
-            let first = arguments.next();
-            match first.as_deref().and_then(std::ffi::OsStr::to_str) {
-                Some("install") => package::run(
-                    package_manager::operations::PackageCommandKind::Install,
-                    arguments,
-                ),
-                Some("update") => package::run(
-                    package_manager::operations::PackageCommandKind::Update,
-                    arguments,
-                ),
-                Some("audit") => audit::run(arguments),
-                Some("run") => probe::run(arguments),
-                Some("inspect-terminal") => inspect_terminal::run(arguments),
-                Some("refresh-samples") => {
-                    let root = arguments
-                        .next()
-                        .map(PathBuf::from)
-                        .unwrap_or_else(|| PathBuf::from("samples"));
-                    samples::refresh(&root);
-                }
-                _ => {
-                    let arguments =
-                        compile_arguments::parse_arguments(first.into_iter().chain(arguments))
-                            .unwrap_or_else(|error| {
-                                if !error.is_empty() {
-                                    eprintln!("{error}");
-                                }
-                                eprintln!("{}", compile_arguments::usage());
-                                std::process::exit(2);
-                            });
-                    compilation::compile_project(arguments);
-                }
-            }
+        .spawn(move || match invocation {
+            Invocation::Compile(request) => compilation::compile_project(request),
+            Invocation::Run(request) => execution::run(request),
+            Invocation::InspectTerminal(request) => inspection::run(request),
+            Invocation::Package { command, options } => packages::run(command, options),
+            Invocation::AuditSource(request) => packages::source::run(request),
+            Invocation::AuditPackages(request) => packages::audit::run(request),
+            Invocation::RefreshSamples(root) => compilation::samples::refresh(&root),
+            Invocation::Help(usage) => println!("{usage}"),
         });
     match worker {
         Ok(worker) => {

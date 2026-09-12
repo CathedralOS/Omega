@@ -1,5 +1,5 @@
+use crate::arguments::InspectTerminalArguments;
 use std::fmt::Write;
-use std::path::PathBuf;
 
 use compiler::compile_to_checked;
 use semantic_vocabulary::{ServiceId, StructuralTypeId};
@@ -7,13 +7,7 @@ use terminal_psi::{OperationKind, TerminalMachineResult, TerminalModule, Termina
 
 mod evidence;
 
-pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) {
-    let Some(arguments) = parse_inspect_terminal_arguments(arguments) else {
-        eprintln!(
-            "usage: omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>"
-        );
-        std::process::exit(2);
-    };
+pub(crate) fn run(arguments: InspectTerminalArguments) {
     let checked = match compile_to_checked(&arguments.root_path, arguments.target_name.as_deref()) {
         Ok(checked) => checked,
         Err(diagnostics) => {
@@ -55,49 +49,6 @@ pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) {
         "{}",
         terminal_summary(&arguments.machine, &lowered.semantic_module, &fixed_fuel,)
     );
-}
-
-struct InspectTerminalArguments {
-    machine: String,
-    root_path: PathBuf,
-    target_name: Option<String>,
-}
-
-fn parse_inspect_terminal_arguments(
-    mut arguments: impl Iterator<Item = std::ffi::OsString>,
-) -> Option<InspectTerminalArguments> {
-    let mut machine = None;
-    let mut root_path = None;
-    let mut target_name = None;
-    while let Some(argument) = arguments.next() {
-        if argument == "--machine" {
-            if machine.is_some() {
-                return None;
-            }
-            machine = crate::compile_arguments::compile_option_value(&mut arguments)
-                .and_then(|value| value.into_string().ok());
-            machine.as_ref()?;
-            continue;
-        }
-        if argument == "--target" {
-            if target_name.is_some() {
-                return None;
-            }
-            target_name = crate::compile_arguments::compile_option_value(&mut arguments)
-                .and_then(|value| value.into_string().ok());
-            target_name.as_ref()?;
-            continue;
-        }
-        if root_path.is_some() || argument.to_string_lossy().starts_with('-') {
-            return None;
-        }
-        root_path = Some(PathBuf::from(argument));
-    }
-    Some(InspectTerminalArguments {
-        machine: machine?,
-        root_path: root_path?,
-        target_name,
-    })
 }
 
 fn terminal_summary(
@@ -434,24 +385,4 @@ fn service_identity(module: &TerminalModule, id: ServiceId) -> Option<&str> {
         .iter()
         .find(|declaration| declaration.id == id)
         .map(|declaration| declaration.identity.as_str())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::ffi::OsString;
-
-    #[test]
-    fn terminal_inspection_rejects_offline_in_every_position() {
-        let ordinary = ["--machine", "main", "--target", "linux_x64", "main.omg"];
-        assert!(parse_inspect_terminal_arguments(ordinary.iter().map(OsString::from)).is_some());
-        for position in 0..=ordinary.len() {
-            let mut arguments = ordinary.to_vec();
-            arguments.insert(position, "--offline");
-            assert!(
-                parse_inspect_terminal_arguments(arguments.iter().map(OsString::from)).is_none(),
-                "{arguments:?}"
-            );
-        }
-    }
 }

@@ -61,7 +61,7 @@
 //! custody already passed. That is why the accessors can be cheap and why
 //! `checked_native_executable_path` can afford to replay again anyway.
 
-//! `omega/src/output.rs` is the only production caller of
+//! `omega/src/compilation/publication.rs` is the only production caller of
 //! `publish_retained_native_artifact`; nine canary tests call it too.
 //! `compiler/src/compiler/native_checked.rs:23` calls the custody check.
 //! Custody tests reject rollback on check-only products and receipt drift

@@ -1,55 +1,12 @@
+use package_manager::operations::{PackageCommand, PackageCommandKind, PackageCommandOptions};
 use std::ffi::OsString;
 use std::path::PathBuf;
-
-use package_manager::operations::{
-    PackageCommand, PackageCommandKind, PackageCommandOptions, PackageCommandStatus,
-    execute_package_command,
-};
 use target::TargetProfile;
 
 #[cfg(test)]
 mod tests;
 
-pub(super) fn run(kind: PackageCommandKind, arguments: impl Iterator<Item = OsString>) {
-    let usage = usage(&kind);
-    let parsed = match parse_arguments(kind, arguments) {
-        Ok(parsed) => parsed,
-        Err(error) => {
-            eprintln!("{error}\n{usage}");
-            std::process::exit(2);
-        }
-    };
-    let Some((command, options)) = parsed else {
-        println!("{usage}");
-        return;
-    };
-    let outcome = execute_package_command(command, options).unwrap_or_else(|error| {
-        eprintln!("{error}");
-        std::process::exit(1);
-    });
-    if !outcome.report.is_empty() {
-        print!("{}", outcome.report);
-        if !outcome.report.ends_with('\n') {
-            println!();
-        }
-    }
-    for path in outcome.review_paths {
-        println!("review: {}", path.display());
-    }
-    let status = exit_status(outcome.status);
-    if status != 0 {
-        std::process::exit(status);
-    }
-}
-
-fn exit_status(status: PackageCommandStatus) -> i32 {
-    match status {
-        PackageCommandStatus::Published | PackageCommandStatus::ReviewDiscarded => 0,
-        PackageCommandStatus::ReviewRequired => 3,
-    }
-}
-
-fn usage(kind: &PackageCommandKind) -> &'static str {
+pub(super) fn usage(kind: &PackageCommandKind) -> &'static str {
     match kind {
         PackageCommandKind::Install => {
             "usage: omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline]\n       omega install --resume [--project <dir>] [--offline]\n       omega install --discard-review [--project <dir>] [--offline]\n       omega install --help\n--offline disables package source network acquisition for this invocation.\n--package selects a Git workspace member by its declared name.\n--discard-review abandons pending review; it does not discard publication recovery."
@@ -60,7 +17,7 @@ fn usage(kind: &PackageCommandKind) -> &'static str {
     }
 }
 
-fn parse_arguments(
+pub(super) fn parse_arguments(
     kind: PackageCommandKind,
     mut arguments: impl Iterator<Item = OsString>,
 ) -> Result<Option<(PackageCommand, PackageCommandOptions)>, String> {

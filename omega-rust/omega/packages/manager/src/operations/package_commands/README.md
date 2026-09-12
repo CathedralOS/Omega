@@ -1,7 +1,7 @@
 # Install and update
 
 Enter through [`../package_commands.rs`](../package_commands.rs). The CLI at
-`omega/src/package.rs` parses arguments; this operation owns resolution,
+`omega/src/arguments/packages.rs` parses arguments; this operation owns resolution,
 checking, review, and publication.
 
 ```text

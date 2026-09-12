@@ -286,13 +286,6 @@ fn review_controls_reject_new_command_inputs_in_either_order() {
     }
 }
 
-#[test]
-fn manager_outcomes_map_to_command_exit_status() {
-    assert_eq!(exit_status(PackageCommandStatus::Published), 0);
-    assert_eq!(exit_status(PackageCommandStatus::ReviewDiscarded), 0);
-    assert_eq!(exit_status(PackageCommandStatus::ReviewRequired), 3);
-}
-
 #[cfg(any(unix, windows))]
 fn non_utf8() -> OsString {
     #[cfg(unix)]

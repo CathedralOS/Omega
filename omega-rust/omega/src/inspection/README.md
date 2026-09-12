@@ -1,7 +1,7 @@
 # Terminal inspection
 
-[inspect_terminal.rs](../inspect_terminal.rs) owns command arguments and the
-text view. [evidence.rs](evidence.rs) verifies the selected module before trying
+[mod.rs](mod.rs) owns inspection and its text view;
+[arguments/inspection.rs](../arguments/inspection.rs) parses the request. [evidence.rs](evidence.rs) verifies the selected module before trying
 the existing fixed-work deriver. Inspection grants no execution or native authority.
 
 Natural-ranked and unranked modules use ordinary verification. Only an actual
