@@ -23,8 +23,9 @@ fn ordinary_callback_publication_replays_its_exact_specialization() {
         "#,
     ] {
         let checked = checked_source(source);
-        let _artifact =
-            produce_terminal_artifact(&checked, "enter").expect("valid ordinary closed callback");
+        let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
+            .produce_artifact()
+            .expect("valid ordinary closed callback");
         assert_eq!(checked.machine_specializations.len(), 1);
         let alternative = checked
             .machines()
@@ -58,7 +59,9 @@ fn ordinary_callback_publication_replays_its_exact_specialization() {
                 );
             }
             assert!(
-                produce_terminal_artifact(&invalid, "enter").is_err(),
+                terminal_production::TerminalProductionRequest::new(&invalid, "enter")
+                    .produce_artifact()
+                    .is_err(),
                 "ordinary publication must reject stale specialization custody: {mutation}"
             );
         }
@@ -108,7 +111,9 @@ fn nested_generic_callbacks_replay_interleaved_telescope_positions() {
         pub machine enter(value: u64) -> u64 { wrapper<first, second>(value) }
     "#,
     );
-    let artifact = produce_terminal_artifact(&checked, "enter").expect("nested closed callbacks");
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
+        .produce_artifact()
+        .expect("nested closed callbacks");
     assert_eq!(checked.machine_specializations.len(), 2);
     for specialization in &checked.machine_specializations {
         let mut invalid = checked.clone();
@@ -121,7 +126,9 @@ fn nested_generic_callbacks_replay_interleaved_telescope_positions() {
             .machine_arguments
             .swap(0, 1);
         assert!(
-            produce_terminal_artifact(&invalid, "enter").is_err(),
+            terminal_production::TerminalProductionRequest::new(&invalid, "enter")
+                .produce_artifact()
+                .is_err(),
             "same-contract selections retain binder positions"
         );
     }
