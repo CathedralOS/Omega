@@ -2,11 +2,10 @@
 mod selected_const_evaluation;
 use compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileRequest, ExplicitTargetSet,
-    MultiTargetCompileRequest, RequestedCompileProduct, compile, compile_targets,
-    compile_to_checked, compile_to_checked_with_packages,
+    MultiTargetCompileRequest, RequestedCompileProduct, RetainedNativeRealizationRequest, compile,
+    compile_targets, compile_to_checked, compile_to_checked_with_packages,
     compile_to_checked_with_packages_in_build_dir,
-    compile_to_checked_with_packages_in_sponsored_build_dir,
-    realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy,
+    compile_to_checked_with_packages_in_sponsored_build_dir, realize_retained_native_artifact,
     retained_terminal_report_from_checked_package,
 };
 use package_compilation::{
@@ -4886,15 +4885,34 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
             .expect("syntactically valid reconstructed retained product")
         };
 
-    let omitted = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
-        reconstruct_with_permissions("retained-omitted-proposal", vec![]),
-        &profile,
-        &optimizations,
-        native_realization::current_terminal_authority_policy(),
-        accepted_permission_policy(),
-        accepted_permission_policy(),
-        &[],
-    )
+    let omitted = {
+        let retained = reconstruct_with_permissions("retained-omitted-proposal", vec![]);
+        let image_request = native_realization::ExecutableImageEmissionRequest::direct(
+            retained
+                .native_realization_proposal()
+                .expect("native proposal")
+                .subsystem(),
+        );
+        realize_retained_native_artifact(
+            retained,
+            RetainedNativeRealizationRequest {
+                profile: &profile,
+                optimization_selections: &optimizations,
+                terminal_authority_policy: native_realization::current_terminal_authority_policy(),
+                accepted_package_terminal_authority_permission_policy: accepted_permission_policy(),
+                terminal_authority_permission_policy: accepted_permission_policy(),
+                image_request,
+                imports: &[],
+            },
+        )
+        .map(|artifact| match artifact {
+            native_realization::RequestedNativeArtifact::Direct(artifact) => artifact,
+            native_realization::RequestedNativeArtifact::DynamicElf(_) => {
+                panic!("direct image request returned dynamic ELF custody")
+            }
+        })
+        .map_err(|(_, diagnostics)| diagnostics)
+    }
     .expect_err("reconstructed proposal cannot omit an accepted package permission");
     assert!(
         omitted.iter().any(|diagnostic| diagnostic
@@ -4911,21 +4929,41 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
             effects::TerminalAuthorityClass::ProcessTermination,
         ]),
     );
-    let widened = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
-        reconstruct_with_permissions("retained-widened-proposal", vec![widened_permission]),
-        &profile,
-        &optimizations,
-        native_realization::current_terminal_authority_policy(),
-        accepted_permission_policy(),
-        permission_policy(
-            &[
-                effects::TerminalAuthorityClass::ProcessOutput,
-                effects::TerminalAuthorityClass::ProcessTermination,
-            ],
-            false,
-        ),
-        &[],
-    )
+    let widened = {
+        let retained =
+            reconstruct_with_permissions("retained-widened-proposal", vec![widened_permission]);
+        let image_request = native_realization::ExecutableImageEmissionRequest::direct(
+            retained
+                .native_realization_proposal()
+                .expect("native proposal")
+                .subsystem(),
+        );
+        realize_retained_native_artifact(
+            retained,
+            RetainedNativeRealizationRequest {
+                profile: &profile,
+                optimization_selections: &optimizations,
+                terminal_authority_policy: native_realization::current_terminal_authority_policy(),
+                accepted_package_terminal_authority_permission_policy: accepted_permission_policy(),
+                terminal_authority_permission_policy: permission_policy(
+                    &[
+                        effects::TerminalAuthorityClass::ProcessOutput,
+                        effects::TerminalAuthorityClass::ProcessTermination,
+                    ],
+                    false,
+                ),
+                image_request,
+                imports: &[],
+            },
+        )
+        .map(|artifact| match artifact {
+            native_realization::RequestedNativeArtifact::Direct(artifact) => artifact,
+            native_realization::RequestedNativeArtifact::DynamicElf(_) => {
+                panic!("direct image request returned dynamic ELF custody")
+            }
+        })
+        .map_err(|(_, diagnostics)| diagnostics)
+    }
     .expect_err("coordinated proposal/policy widening cannot replace accepted evidence");
     assert!(
         widened.iter().any(|diagnostic| diagnostic
@@ -4934,15 +4972,35 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
         "unexpected widened-proposal diagnostics: {widened:#?}",
     );
 
-    let missing = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
-        compile_retained("retained-missing"),
-        &profile,
-        &optimizations,
-        native_realization::current_terminal_authority_policy(),
-        accepted_permission_policy(),
-        native_realization::current_terminal_authority_permission_policy(),
-        &[],
-    )
+    let missing = {
+        let retained = compile_retained("retained-missing");
+        let image_request = native_realization::ExecutableImageEmissionRequest::direct(
+            retained
+                .native_realization_proposal()
+                .expect("native proposal")
+                .subsystem(),
+        );
+        realize_retained_native_artifact(
+            retained,
+            RetainedNativeRealizationRequest {
+                profile: &profile,
+                optimization_selections: &optimizations,
+                terminal_authority_policy: native_realization::current_terminal_authority_policy(),
+                accepted_package_terminal_authority_permission_policy: accepted_permission_policy(),
+                terminal_authority_permission_policy:
+                    native_realization::current_terminal_authority_permission_policy(),
+                image_request,
+                imports: &[],
+            },
+        )
+        .map(|artifact| match artifact {
+            native_realization::RequestedNativeArtifact::Direct(artifact) => artifact,
+            native_realization::RequestedNativeArtifact::DynamicElf(_) => {
+                panic!("direct image request returned dynamic ELF custody")
+            }
+        })
+        .map_err(|(_, diagnostics)| diagnostics)
+    }
     .expect_err("retained re-entry must reject a missing accepted package permission");
     assert!(
         missing
@@ -4951,15 +5009,37 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
         "unexpected missing-permission diagnostics: {missing:#?}",
     );
 
-    let substituted = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
-        compile_retained("retained-substituted"),
-        &profile,
-        &optimizations,
-        native_realization::current_terminal_authority_policy(),
-        accepted_permission_policy(),
-        permission_policy(&[effects::TerminalAuthorityClass::ProcessOutput], false),
-        &[],
-    )
+    let substituted = {
+        let retained = compile_retained("retained-substituted");
+        let image_request = native_realization::ExecutableImageEmissionRequest::direct(
+            retained
+                .native_realization_proposal()
+                .expect("native proposal")
+                .subsystem(),
+        );
+        realize_retained_native_artifact(
+            retained,
+            RetainedNativeRealizationRequest {
+                profile: &profile,
+                optimization_selections: &optimizations,
+                terminal_authority_policy: native_realization::current_terminal_authority_policy(),
+                accepted_package_terminal_authority_permission_policy: accepted_permission_policy(),
+                terminal_authority_permission_policy: permission_policy(
+                    &[effects::TerminalAuthorityClass::ProcessOutput],
+                    false,
+                ),
+                image_request,
+                imports: &[],
+            },
+        )
+        .map(|artifact| match artifact {
+            native_realization::RequestedNativeArtifact::Direct(artifact) => artifact,
+            native_realization::RequestedNativeArtifact::DynamicElf(_) => {
+                panic!("direct image request returned dynamic ELF custody")
+            }
+        })
+        .map_err(|(_, diagnostics)| diagnostics)
+    }
     .expect_err("retained re-entry must reject changed accepted package classes");
     assert!(
         substituted.iter().any(|diagnostic| diagnostic
@@ -4971,17 +5051,34 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
     let retained_policy =
         permission_policy(&[effects::TerminalAuthorityClass::ProcessTermination], true);
     let accepted_policy_identity = retained_policy.identity();
-    let retained_native =
-        realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
+    let retained_native = {
+        let image_request = native_realization::ExecutableImageEmissionRequest::direct(
+            retained
+                .native_realization_proposal()
+                .expect("native proposal")
+                .subsystem(),
+        );
+        realize_retained_native_artifact(
             retained,
-            &profile,
-            &optimizations,
-            native_realization::current_terminal_authority_policy(),
-            accepted_permission_policy(),
-            retained_policy,
-            &[],
+            RetainedNativeRealizationRequest {
+                profile: &profile,
+                optimization_selections: &optimizations,
+                terminal_authority_policy: native_realization::current_terminal_authority_policy(),
+                accepted_package_terminal_authority_permission_policy: accepted_permission_policy(),
+                terminal_authority_permission_policy: retained_policy,
+                image_request,
+                imports: &[],
+            },
         )
-        .expect("exact retained permission plus an unrelated row should realize");
+        .map(|artifact| match artifact {
+            native_realization::RequestedNativeArtifact::Direct(artifact) => artifact,
+            native_realization::RequestedNativeArtifact::DynamicElf(_) => {
+                panic!("direct image request returned dynamic ELF custody")
+            }
+        })
+        .map_err(|(_, diagnostics)| diagnostics)
+    }
+    .expect("exact retained permission plus an unrelated row should realize");
     assert_eq!(
         retained_native.terminal_authority_permission_policy_identity(),
         accepted_policy_identity,

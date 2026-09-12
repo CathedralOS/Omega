@@ -1,8 +1,7 @@
 use compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct,
-    SourceEvaluatedImportSettlement, compile,
-    realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy,
-    realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy_for_image,
+    RetainedNativeRealizationRequest, SourceEvaluatedImportSettlement, compile,
+    realize_retained_native_artifact,
 };
 use effects::provider_plan::ProviderBinding;
 use installation_evidence::ProviderExecutionEvidence;
@@ -420,18 +419,38 @@ fn retained_x86_fma_and_source_evaluated_import_compose_nested_mxcsr_custody() {
     let policy = terminal_authority_policy(&retained);
     let permission_policy = terminal_authority_permission_policy(&retained);
     let policy_identity = policy.identity();
-    let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
-        retained,
-        &proof_admission::AdmissionProfile::default(),
-        &optimization_core::PostTerminalOptimizationSelections::default(),
-        policy,
-        native_realization::current_terminal_authority_permission_policy(),
-        permission_policy,
-        &[SourceEvaluatedImportSettlement::new(
-            &admission.execution,
-            &admission.same_stack,
-        )],
-    )
+    let artifact = {
+        let image_request = native_realization::ExecutableImageEmissionRequest::direct(
+            retained
+                .native_realization_proposal()
+                .expect("native proposal")
+                .subsystem(),
+        );
+        realize_retained_native_artifact(
+            retained,
+            RetainedNativeRealizationRequest {
+                profile: &proof_admission::AdmissionProfile::default(),
+                optimization_selections:
+                    &optimization_core::PostTerminalOptimizationSelections::default(),
+                terminal_authority_policy: policy,
+                accepted_package_terminal_authority_permission_policy:
+                    native_realization::current_terminal_authority_permission_policy(),
+                terminal_authority_permission_policy: permission_policy,
+                image_request,
+                imports: &[SourceEvaluatedImportSettlement::new(
+                    &admission.execution,
+                    &admission.same_stack,
+                )],
+            },
+        )
+        .map(|artifact| match artifact {
+            native_realization::RequestedNativeArtifact::Direct(artifact) => artifact,
+            native_realization::RequestedNativeArtifact::DynamicElf(_) => {
+                panic!("direct image request returned dynamic ELF custody")
+            }
+        })
+        .map_err(|(_, diagnostics)| diagnostics)
+    }
     .unwrap_or_else(|diagnostics| panic!("FMA plus import should realize: {diagnostics:#?}"));
 
     artifact
@@ -519,15 +538,35 @@ machine Main::main(&mut self) {{
             .collect::<Vec<_>>();
         let policy = terminal_authority_policy(&retained);
         let permission_policy = terminal_authority_permission_policy(&retained);
-        let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
-            retained,
-            &proof_admission::AdmissionProfile::default(),
-            &optimization_core::PostTerminalOptimizationSelections::default(),
-            policy,
-            native_realization::current_terminal_authority_permission_policy(),
-            permission_policy,
-            &settlements,
-        )
+        let artifact = {
+            let image_request = native_realization::ExecutableImageEmissionRequest::direct(
+                retained
+                    .native_realization_proposal()
+                    .expect("native proposal")
+                    .subsystem(),
+            );
+            realize_retained_native_artifact(
+                retained,
+                RetainedNativeRealizationRequest {
+                    profile: &proof_admission::AdmissionProfile::default(),
+                    optimization_selections:
+                        &optimization_core::PostTerminalOptimizationSelections::default(),
+                    terminal_authority_policy: policy,
+                    accepted_package_terminal_authority_permission_policy:
+                        native_realization::current_terminal_authority_permission_policy(),
+                    terminal_authority_permission_policy: permission_policy,
+                    image_request,
+                    imports: &settlements,
+                },
+            )
+            .map(|artifact| match artifact {
+                native_realization::RequestedNativeArtifact::Direct(artifact) => artifact,
+                native_realization::RequestedNativeArtifact::DynamicElf(_) => {
+                    panic!("direct image request returned dynamic ELF custody")
+                }
+            })
+            .map_err(|(_, diagnostics)| diagnostics)
+        }
         .unwrap_or_else(|diagnostics| panic!("{library}: {diagnostics:#?}"));
         artifact
             .validate()
@@ -583,15 +622,35 @@ fn windows_evaluated_u32_result_reaches_a_later_pe_import_through_exact_home_cus
         .collect::<Vec<_>>();
     let policy = terminal_authority_policy(&retained);
     let permission_policy = terminal_authority_permission_policy(&retained);
-    let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
-        retained,
-        &proof_admission::AdmissionProfile::default(),
-        &optimization_core::PostTerminalOptimizationSelections::default(),
-        policy,
-        native_realization::current_terminal_authority_permission_policy(),
-        permission_policy,
-        &settlements,
-    )
+    let artifact = {
+        let image_request = native_realization::ExecutableImageEmissionRequest::direct(
+            retained
+                .native_realization_proposal()
+                .expect("native proposal")
+                .subsystem(),
+        );
+        realize_retained_native_artifact(
+            retained,
+            RetainedNativeRealizationRequest {
+                profile: &proof_admission::AdmissionProfile::default(),
+                optimization_selections:
+                    &optimization_core::PostTerminalOptimizationSelections::default(),
+                terminal_authority_policy: policy,
+                accepted_package_terminal_authority_permission_policy:
+                    native_realization::current_terminal_authority_permission_policy(),
+                terminal_authority_permission_policy: permission_policy,
+                image_request,
+                imports: &settlements,
+            },
+        )
+        .map(|artifact| match artifact {
+            native_realization::RequestedNativeArtifact::Direct(artifact) => artifact,
+            native_realization::RequestedNativeArtifact::DynamicElf(_) => {
+                panic!("direct image request returned dynamic ELF custody")
+            }
+        })
+        .map_err(|(_, diagnostics)| diagnostics)
+    }
     .unwrap_or_else(|diagnostics| {
         panic!("Windows evaluated result chain should realize: {diagnostics:#?}")
     });
@@ -640,15 +699,35 @@ fn windows_evaluated_result_rejects_cross_wired_same_stack_custody() {
     ];
     let policy = terminal_authority_policy(&retained);
     let permission_policy = terminal_authority_permission_policy(&retained);
-    let diagnostics = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
-        retained,
-        &proof_admission::AdmissionProfile::default(),
-        &optimization_core::PostTerminalOptimizationSelections::default(),
-        policy,
-        native_realization::current_terminal_authority_permission_policy(),
-        permission_policy,
-        &cross_wired,
-    )
+    let diagnostics = {
+        let image_request = native_realization::ExecutableImageEmissionRequest::direct(
+            retained
+                .native_realization_proposal()
+                .expect("native proposal")
+                .subsystem(),
+        );
+        realize_retained_native_artifact(
+            retained,
+            RetainedNativeRealizationRequest {
+                profile: &proof_admission::AdmissionProfile::default(),
+                optimization_selections:
+                    &optimization_core::PostTerminalOptimizationSelections::default(),
+                terminal_authority_policy: policy,
+                accepted_package_terminal_authority_permission_policy:
+                    native_realization::current_terminal_authority_permission_policy(),
+                terminal_authority_permission_policy: permission_policy,
+                image_request,
+                imports: &cross_wired,
+            },
+        )
+        .map(|artifact| match artifact {
+            native_realization::RequestedNativeArtifact::Direct(artifact) => artifact,
+            native_realization::RequestedNativeArtifact::DynamicElf(_) => {
+                panic!("direct image request returned dynamic ELF custody")
+            }
+        })
+        .map_err(|(_, diagnostics)| diagnostics)
+    }
     .expect_err("same-stack custody from the sibling PE leaf cannot authorize this result chain");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -892,18 +971,22 @@ fn realize_linux_dynamic(
         target::TargetProfile::LinuxX64,
     )
     .expect("canonical Linux x86-64 interpreter");
-    realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy_for_image(
+    realize_retained_native_artifact(
         retained,
-        &proof_admission::AdmissionProfile::default(),
-        &optimization_core::PostTerminalOptimizationSelections::default(),
-        policy,
-        native_realization::current_terminal_authority_permission_policy(),
-        permission_policy,
-        native::ExecutableImageEmissionRequest::dynamic_elf(interpreter),
-        &[SourceEvaluatedImportSettlement::new(
-            &admission.execution,
-            &admission.same_stack,
-        )],
+        RetainedNativeRealizationRequest {
+            profile: &proof_admission::AdmissionProfile::default(),
+            optimization_selections:
+                &optimization_core::PostTerminalOptimizationSelections::default(),
+            terminal_authority_policy: policy,
+            accepted_package_terminal_authority_permission_policy:
+                native_realization::current_terminal_authority_permission_policy(),
+            terminal_authority_permission_policy: permission_policy,
+            image_request: native::ExecutableImageEmissionRequest::dynamic_elf(interpreter),
+            imports: &[SourceEvaluatedImportSettlement::new(
+                &admission.execution,
+                &admission.same_stack,
+            )],
+        },
     )
     .unwrap_or_else(|(_, diagnostics)| {
         panic!("import-bearing Linux request should realize: {diagnostics:#?}")
@@ -967,21 +1050,24 @@ fn import_bearing_linux_compiler_route_retains_non_installable_dynamic_candidate
     );
     let policy = terminal_authority_policy(&rejected);
     let permission_policy = terminal_authority_permission_policy(&rejected);
-    let (request, diagnostics) =
-        realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy_for_image(
-            rejected,
-            &proof_admission::AdmissionProfile::default(),
-            &optimization_core::PostTerminalOptimizationSelections::default(),
-            policy,
-            native_realization::current_terminal_authority_permission_policy(),
-            permission_policy,
-            native::ExecutableImageEmissionRequest::direct(91),
-            &[SourceEvaluatedImportSettlement::new(
+    let (request, diagnostics) = realize_retained_native_artifact(
+        rejected,
+        RetainedNativeRealizationRequest {
+            profile: &proof_admission::AdmissionProfile::default(),
+            optimization_selections:
+                &optimization_core::PostTerminalOptimizationSelections::default(),
+            terminal_authority_policy: policy,
+            accepted_package_terminal_authority_permission_policy:
+                native_realization::current_terminal_authority_permission_policy(),
+            terminal_authority_permission_policy: permission_policy,
+            image_request: native::ExecutableImageEmissionRequest::direct(91),
+            imports: &[SourceEvaluatedImportSettlement::new(
                 &admission.execution,
                 &admission.same_stack,
             )],
-        )
-        .expect_err("import-bearing ELF cannot enter direct image custody");
+        },
+    )
+    .expect_err("import-bearing ELF cannot enter direct image custody");
     assert!(matches!(
         request,
         native::ExecutableImageEmissionRequest::Direct { subsystem: 91 }
@@ -994,20 +1080,76 @@ fn import_bearing_linux_compiler_route_retains_non_installable_dynamic_candidate
 }
 
 #[test]
+fn rejected_native_reentry_returns_the_exact_dynamic_interpreter() {
+    let fixture = Fixture::new_linux_named("linux-reentry-recovery", false);
+    let retained = fixture.compile_terminal();
+    let policy = terminal_authority_policy(&retained);
+    let permission_policy = terminal_authority_permission_policy(&retained);
+    let interpreter = target::normalize_elf_interpreter_plan(
+        b"/lib64/ld-linux-x86-64.so.2".to_vec(),
+        target::TargetProfile::LinuxX64,
+    )
+    .expect("canonical Linux x86-64 interpreter");
+    let expected_interpreter = interpreter.clone();
+    let (image_request, diagnostics) = realize_retained_native_artifact(
+        retained,
+        RetainedNativeRealizationRequest {
+            profile: &proof_admission::AdmissionProfile::default(),
+            optimization_selections:
+                &optimization_core::PostTerminalOptimizationSelections::default(),
+            terminal_authority_policy: policy,
+            accepted_package_terminal_authority_permission_policy:
+                native_realization::current_terminal_authority_permission_policy(),
+            terminal_authority_permission_policy: permission_policy,
+            image_request: native::ExecutableImageEmissionRequest::dynamic_elf(interpreter),
+            imports: &[],
+        },
+    )
+    .expect_err("a demanded import cannot omit its admitted custody");
+    let native::ExecutableImageEmissionRequest::DynamicElf { interpreter } = image_request else {
+        panic!("native rejection must retain dynamic interpreter custody");
+    };
+    assert_eq!(interpreter, expected_interpreter);
+    assert_eq!(diagnostics.len(), 1);
+    assert!(diagnostics[0].message.contains("has no supplied execution"));
+}
+
+#[test]
 fn retained_source_evaluated_import_realizes_exact_macho_image() {
     let fixture = Fixture::new();
     let missing = fixture.compile_terminal();
     let missing_policy = terminal_authority_policy(&missing);
     let missing_permission_policy = terminal_authority_permission_policy(&missing);
-    let diagnostics = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
-        missing,
-        &proof_admission::AdmissionProfile::default(),
-        &optimization_core::PostTerminalOptimizationSelections::default(),
-        missing_policy,
-        native_realization::current_terminal_authority_permission_policy(),
-        missing_permission_policy,
-        &[],
-    )
+    let diagnostics = {
+        let retained = missing;
+        let image_request = native_realization::ExecutableImageEmissionRequest::direct(
+            retained
+                .native_realization_proposal()
+                .expect("native proposal")
+                .subsystem(),
+        );
+        realize_retained_native_artifact(
+            retained,
+            RetainedNativeRealizationRequest {
+                profile: &proof_admission::AdmissionProfile::default(),
+                optimization_selections:
+                    &optimization_core::PostTerminalOptimizationSelections::default(),
+                terminal_authority_policy: missing_policy,
+                accepted_package_terminal_authority_permission_policy:
+                    native_realization::current_terminal_authority_permission_policy(),
+                terminal_authority_permission_policy: missing_permission_policy,
+                image_request,
+                imports: &[],
+            },
+        )
+        .map(|artifact| match artifact {
+            native_realization::RequestedNativeArtifact::Direct(artifact) => artifact,
+            native_realization::RequestedNativeArtifact::DynamicElf(_) => {
+                panic!("direct image request returned dynamic ELF custody")
+            }
+        })
+        .map_err(|(_, diagnostics)| diagnostics)
+    }
     .expect_err("a demanded source-evaluated import requires external custody");
     assert!(
         diagnostics
@@ -1024,18 +1166,38 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
     let policy = terminal_authority_policy(&retained);
     let permission_policy = terminal_authority_permission_policy(&retained);
     let policy_identity = policy.identity();
-    let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
-        retained,
-        &proof_admission::AdmissionProfile::default(),
-        &optimization_core::PostTerminalOptimizationSelections::default(),
-        policy,
-        native_realization::current_terminal_authority_permission_policy(),
-        permission_policy,
-        &[SourceEvaluatedImportSettlement::new(
-            &admission.execution,
-            &admission.same_stack,
-        )],
-    )
+    let artifact = {
+        let image_request = native_realization::ExecutableImageEmissionRequest::direct(
+            retained
+                .native_realization_proposal()
+                .expect("native proposal")
+                .subsystem(),
+        );
+        realize_retained_native_artifact(
+            retained,
+            RetainedNativeRealizationRequest {
+                profile: &proof_admission::AdmissionProfile::default(),
+                optimization_selections:
+                    &optimization_core::PostTerminalOptimizationSelections::default(),
+                terminal_authority_policy: policy,
+                accepted_package_terminal_authority_permission_policy:
+                    native_realization::current_terminal_authority_permission_policy(),
+                terminal_authority_permission_policy: permission_policy,
+                image_request,
+                imports: &[SourceEvaluatedImportSettlement::new(
+                    &admission.execution,
+                    &admission.same_stack,
+                )],
+            },
+        )
+        .map(|artifact| match artifact {
+            native_realization::RequestedNativeArtifact::Direct(artifact) => artifact,
+            native_realization::RequestedNativeArtifact::DynamicElf(_) => {
+                panic!("direct image request returned dynamic ELF custody")
+            }
+        })
+        .map_err(|(_, diagnostics)| diagnostics)
+    }
     .unwrap_or_else(|diagnostics| {
         panic!(
             "externally admitted import should realize a native Mach-O artifact:\n{}",
@@ -1483,20 +1645,38 @@ fn retained_terminal_import_rejects_optimization_selection_substitution() {
             .expect("one physical optimization selection"),
         )
         .expect("one post-Terminal optimization selection");
-        let diagnostics =
-            realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
+        let diagnostics = {
+            let image_request = native_realization::ExecutableImageEmissionRequest::direct(
+                retained
+                    .native_realization_proposal()
+                    .expect("native proposal")
+                    .subsystem(),
+            );
+            realize_retained_native_artifact(
                 retained,
-                &proof_admission::AdmissionProfile::default(),
-                &optimizations,
-                policy,
-                native_realization::current_terminal_authority_permission_policy(),
-                permission_policy,
-                &[SourceEvaluatedImportSettlement::new(
-                    &admission.execution,
-                    &admission.same_stack,
-                )],
+                RetainedNativeRealizationRequest {
+                    profile: &proof_admission::AdmissionProfile::default(),
+                    optimization_selections: &optimizations,
+                    terminal_authority_policy: policy,
+                    accepted_package_terminal_authority_permission_policy:
+                        native_realization::current_terminal_authority_permission_policy(),
+                    terminal_authority_permission_policy: permission_policy,
+                    image_request,
+                    imports: &[SourceEvaluatedImportSettlement::new(
+                        &admission.execution,
+                        &admission.same_stack,
+                    )],
+                },
             )
-            .expect_err("a retained Terminal proposal must not accept a substituted selection");
+            .map(|artifact| match artifact {
+                native_realization::RequestedNativeArtifact::Direct(artifact) => artifact,
+                native_realization::RequestedNativeArtifact::DynamicElf(_) => {
+                    panic!("direct image request returned dynamic ELF custody")
+                }
+            })
+            .map_err(|(_, diagnostics)| diagnostics)
+        }
+        .expect_err("a retained Terminal proposal must not accept a substituted selection");
         assert_eq!(diagnostics.len(), 1, "unexpected diagnostics for {label}");
         assert!(
             diagnostics[0]
@@ -1519,18 +1699,38 @@ fn retained_source_evaluated_fixed_u32_import_requires_complete_d32_custody() {
     );
     let policy = terminal_authority_policy(&retained);
     let permission_policy = terminal_authority_permission_policy(&retained);
-    let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
-        retained,
-        &proof_admission::AdmissionProfile::default(),
-        &optimization_core::PostTerminalOptimizationSelections::default(),
-        policy,
-        native_realization::current_terminal_authority_permission_policy(),
-        permission_policy,
-        &[SourceEvaluatedImportSettlement::new(
-            &admission.execution,
-            &admission.same_stack,
-        )],
-    )
+    let artifact = {
+        let image_request = native_realization::ExecutableImageEmissionRequest::direct(
+            retained
+                .native_realization_proposal()
+                .expect("native proposal")
+                .subsystem(),
+        );
+        realize_retained_native_artifact(
+            retained,
+            RetainedNativeRealizationRequest {
+                profile: &proof_admission::AdmissionProfile::default(),
+                optimization_selections:
+                    &optimization_core::PostTerminalOptimizationSelections::default(),
+                terminal_authority_policy: policy,
+                accepted_package_terminal_authority_permission_policy:
+                    native_realization::current_terminal_authority_permission_policy(),
+                terminal_authority_permission_policy: permission_policy,
+                image_request,
+                imports: &[SourceEvaluatedImportSettlement::new(
+                    &admission.execution,
+                    &admission.same_stack,
+                )],
+            },
+        )
+        .map(|artifact| match artifact {
+            native_realization::RequestedNativeArtifact::Direct(artifact) => artifact,
+            native_realization::RequestedNativeArtifact::DynamicElf(_) => {
+                panic!("direct image request returned dynamic ELF custody")
+            }
+        })
+        .map_err(|(_, diagnostics)| diagnostics)
+    }
     .unwrap_or_else(|diagnostics| {
         panic!(
             "fixed-scalar admitted import should realize complete D32 evidence:\n{}",
@@ -1716,18 +1916,38 @@ fn retained_source_evaluated_fixed_i32_result_requires_complete_d32_custody() {
     );
     let policy = terminal_authority_policy(&retained);
     let permission_policy = terminal_authority_permission_policy(&retained);
-    let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
-        retained,
-        &proof_admission::AdmissionProfile::default(),
-        &optimization_core::PostTerminalOptimizationSelections::default(),
-        policy,
-        native_realization::current_terminal_authority_permission_policy(),
-        permission_policy,
-        &[SourceEvaluatedImportSettlement::new(
-            &admission.execution,
-            &admission.same_stack,
-        )],
-    )
+    let artifact = {
+        let image_request = native_realization::ExecutableImageEmissionRequest::direct(
+            retained
+                .native_realization_proposal()
+                .expect("native proposal")
+                .subsystem(),
+        );
+        realize_retained_native_artifact(
+            retained,
+            RetainedNativeRealizationRequest {
+                profile: &proof_admission::AdmissionProfile::default(),
+                optimization_selections:
+                    &optimization_core::PostTerminalOptimizationSelections::default(),
+                terminal_authority_policy: policy,
+                accepted_package_terminal_authority_permission_policy:
+                    native_realization::current_terminal_authority_permission_policy(),
+                terminal_authority_permission_policy: permission_policy,
+                image_request,
+                imports: &[SourceEvaluatedImportSettlement::new(
+                    &admission.execution,
+                    &admission.same_stack,
+                )],
+            },
+        )
+        .map(|artifact| match artifact {
+            native_realization::RequestedNativeArtifact::Direct(artifact) => artifact,
+            native_realization::RequestedNativeArtifact::DynamicElf(_) => {
+                panic!("direct image request returned dynamic ELF custody")
+            }
+        })
+        .map_err(|(_, diagnostics)| diagnostics)
+    }
     .unwrap_or_else(|diagnostics| {
         panic!(
             "fixed-result admitted import should realize complete D32 evidence:\n{}",

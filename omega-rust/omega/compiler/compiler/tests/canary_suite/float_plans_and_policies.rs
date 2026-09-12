@@ -364,12 +364,36 @@ fn float_match_native_publication_retains_both_selected_physical_children() {
             .post_terminal_optimizations()
             .selections()
             .clone();
-        let replayed = compiler::realize_retained_terminal_artifact_with_source_evaluated_imports(
-            retained,
-            &proof_admission::AdmissionProfile::default(),
-            &selections,
-            &[],
-        )
+        let replayed = {
+            let image_request = native_realization::ExecutableImageEmissionRequest::direct(
+                retained
+                    .native_realization_proposal()
+                    .expect("native proposal")
+                    .subsystem(),
+            );
+            compiler::realize_retained_native_artifact(
+                retained,
+                compiler::RetainedNativeRealizationRequest {
+                    profile: &proof_admission::AdmissionProfile::default(),
+                    optimization_selections: &selections,
+                    terminal_authority_policy:
+                        native_realization::current_terminal_authority_policy(),
+                    accepted_package_terminal_authority_permission_policy:
+                        native_realization::current_terminal_authority_permission_policy(),
+                    terminal_authority_permission_policy:
+                        native_realization::current_terminal_authority_permission_policy(),
+                    image_request,
+                    imports: &[],
+                },
+            )
+            .map(|artifact| match artifact {
+                native_realization::RequestedNativeArtifact::Direct(artifact) => artifact,
+                native_realization::RequestedNativeArtifact::DynamicElf(_) => {
+                    panic!("direct image request returned dynamic ELF custody")
+                }
+            })
+            .map_err(|(_, diagnostics)| diagnostics)
+        }
         .expect("source-free re-entry consumes the same selected comparison custody");
         replayed
             .validate()

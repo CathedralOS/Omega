@@ -39,101 +39,31 @@ impl<'evidence> SourceEvaluatedImportSettlement<'evidence> {
     }
 }
 
-/// Consume one retained Terminal product and realize its demanded evaluated
-/// imports through externally admitted execution and same-stack custody.
+/// Explicit policy, image custody, and admitted imports for native re-entry.
 ///
-/// Direct callback custody is normalized from the exact retained placement and
-/// occurrence pair. The native pipeline currently consumes that row through
-/// physical assignment and then rejects at the explicit emission fence.
-pub fn realize_retained_terminal_artifact_with_source_evaluated_imports(
-    retained: compilation_report::RetainedTerminalArtifact,
-    profile: &proof_admission::AdmissionProfile,
-    optimization_selections: &optimization_core::PostTerminalOptimizationSelections,
-    imports: &[SourceEvaluatedImportSettlement<'_>],
-) -> Result<compilation_report::RetainedNativeArtifact, Vec<Diagnostic>> {
-    let accepted_package_permissions =
-        native_realization::current_terminal_authority_permission_policy();
-    let receiving_permissions = native_realization::current_terminal_authority_permission_policy();
-    realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
-        retained,
-        profile,
-        optimization_selections,
-        native_realization::current_terminal_authority_policy(),
-        accepted_package_permissions,
-        receiving_permissions,
-        imports,
-    )
+/// Policies do not establish package admission. Package orchestration must bind
+/// opaque accepted evidence to the retained production subject and derive the
+/// exact accepted-package policy before constructing this request.
+pub struct RetainedNativeRealizationRequest<'request> {
+    pub profile: &'request proof_admission::AdmissionProfile,
+    pub optimization_selections: &'request optimization_core::PostTerminalOptimizationSelections,
+    pub terminal_authority_policy: native_realization::TerminalAuthorityPolicy,
+    pub accepted_package_terminal_authority_permission_policy:
+        native_realization::TerminalAuthorityPermissionPolicy,
+    pub terminal_authority_permission_policy: native_realization::TerminalAuthorityPermissionPolicy,
+    pub image_request: native_realization::ExecutableImageEmissionRequest,
+    pub imports: &'request [SourceEvaluatedImportSettlement<'request>],
 }
 
-/// Realize a retained Terminal product under independently supplied package
-/// acceptance and receiving-authority policies.
+/// Consume a retained Terminal product into the requested non-installing native
+/// carrier. Rejection returns the complete image input, including its interpreter.
 ///
-/// The package policy must be the exact canonical projection from root-policy
-/// accepted evidence and must equal the rows preserved in the retained
-/// proposal. The receiving policy may contain unrelated rows but may neither
-/// omit nor alter any accepted package row. Normalized foreign imports still
-/// require explicit physical-policy rows. The compatibility entrypoint above
-/// supplies empty package and receiving policies and therefore remains
-/// deny-by-absence for every retained package permission.
-///
-/// This is the package-agnostic lower-level seam: passing freely constructed
-/// policy data here does not itself establish package admission. Package
-/// orchestration must consume opaque accepted evidence, bind it to the
-/// retained report's production subject, and derive this exact package policy
-/// before invoking the seam.
-pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
+/// Package permissions must exactly match the retained proposal. Receiving
+/// permissions may add unrelated rows, but cannot omit or alter accepted rows.
+/// Imports are independently rejoined to their exact retained provider plans.
+pub fn realize_retained_native_artifact(
     retained: compilation_report::RetainedTerminalArtifact,
-    profile: &proof_admission::AdmissionProfile,
-    optimization_selections: &optimization_core::PostTerminalOptimizationSelections,
-    terminal_authority_policy: native_realization::TerminalAuthorityPolicy,
-    accepted_package_terminal_authority_permission_policy:
-        native_realization::TerminalAuthorityPermissionPolicy,
-    terminal_authority_permission_policy: native_realization::TerminalAuthorityPermissionPolicy,
-    imports: &[SourceEvaluatedImportSettlement<'_>],
-) -> Result<compilation_report::RetainedNativeArtifact, Vec<Diagnostic>> {
-    let subsystem = retained
-        .native_realization_proposal()
-        .map(|proposal| proposal.subsystem())
-        .ok_or_else(|| {
-            diagnostic(
-                "retained Terminal product",
-                "source-evaluated import realization requires one native proposal",
-            )
-        })?;
-    let result =
-        realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy_for_image(
-            retained,
-            profile,
-            optimization_selections,
-            terminal_authority_policy,
-            accepted_package_terminal_authority_permission_policy,
-            terminal_authority_permission_policy,
-            native_realization::ExecutableImageEmissionRequest::direct(subsystem),
-            imports,
-        )
-        .map_err(|(_, diagnostics)| diagnostics)?;
-    match result {
-        native_realization::RequestedNativeArtifact::Direct(artifact) => Ok(artifact),
-        native_realization::RequestedNativeArtifact::DynamicElf(_) => {
-            unreachable!("a direct image request cannot produce dynamic ELF custody")
-        }
-    }
-}
-
-/// Realize a retained Terminal product into the non-installing native carrier
-/// selected by the exact object contents and explicit image-writer input.
-/// Rejection returns that complete input, including a consumed interpreter.
-#[allow(clippy::too_many_arguments)]
-pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy_for_image(
-    retained: compilation_report::RetainedTerminalArtifact,
-    profile: &proof_admission::AdmissionProfile,
-    optimization_selections: &optimization_core::PostTerminalOptimizationSelections,
-    terminal_authority_policy: native_realization::TerminalAuthorityPolicy,
-    accepted_package_terminal_authority_permission_policy:
-        native_realization::TerminalAuthorityPermissionPolicy,
-    terminal_authority_permission_policy: native_realization::TerminalAuthorityPermissionPolicy,
-    image_request: native_realization::ExecutableImageEmissionRequest,
-    imports: &[SourceEvaluatedImportSettlement<'_>],
+    request: RetainedNativeRealizationRequest<'_>,
 ) -> Result<
     native_realization::RequestedNativeArtifact,
     (
@@ -141,6 +71,15 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_poli
         Vec<Diagnostic>,
     ),
 > {
+    let RetainedNativeRealizationRequest {
+        profile,
+        optimization_selections,
+        terminal_authority_policy,
+        accepted_package_terminal_authority_permission_policy,
+        terminal_authority_permission_policy,
+        image_request,
+        imports,
+    } = request;
     let recoverable_image_request = image_request.clone();
     let result = (|| {
         retained
