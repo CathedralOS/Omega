@@ -158,6 +158,26 @@ pub(crate) fn accepts_write_borrow(
     .is_ok_and(|expected| expected == *call_plan)
 }
 
+/// Shared scalar-record receivers use the ordinary pointer ABI and scalar result.
+pub(crate) fn accepts_shared_record(
+    call_plan: &CallPlan,
+    parameters: &[Parameter<'_>],
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+) -> bool {
+    !parameters.is_empty()
+        && parameters.iter().all(|parameter| {
+            parameter.semantic.access == StructuralAccess::SharedBorrow
+                && parameter.semantic.multiplicity
+                    == terminal_psi::StructuralMultiplicity::Unrestricted
+                && crate::structural_reference_input::scalar_record_shape(
+                    parameter.semantic.structural_type,
+                    structural_types,
+                )
+                .is_some()
+        })
+        && accepts_graph(call_plan, parameters, structural_types)
+}
+
 /// A byte descriptor is borrowed through one native pointer, independently of
 /// the function's result carrier. Legalization and return selection validate
 /// that carrier separately; borrowing does not imply a Unit result.

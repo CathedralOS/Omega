@@ -1074,6 +1074,13 @@ pub(super) fn build_checked_machine_with(
     // crash predicates: both need the invocation's actual receiver. Contextual
     // cleanup requirements retain their separate receipt-bound environment.
     let retain_reference_self = retain_reference_self
+        // Scalar computation calls retain their declared shared receiver as an
+        // operand even when the body does not read it. Body specialization must
+        // not change the producer/consumer signature of that ordinary call.
+        || (program.primitive_type_reference(state.return_type).is_some()
+            && program.state_parameters(state).iter().any(|parameter| parameter.is_self
+                && matches!(program.type_reference_table.type_reference(parameter.type_reference),
+                    TypeReferenceNode::Reference { access: language_semantics::ReferenceAccess::Shared, .. })))
         || super::receiver_calls::reads_receiver(program, facts, state)
         || facts
             .contract_plans

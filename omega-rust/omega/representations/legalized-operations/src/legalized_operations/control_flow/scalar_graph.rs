@@ -86,6 +86,7 @@ impl LegalizedScalarInstruction {
                     LegalizedScalarInstructionKind::Constant(_)
                     | LegalizedScalarInstructionKind::HostedReadByte { .. }
                     | LegalizedScalarInstructionKind::PrimitiveScalarRead { .. }
+                    | LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
                     | LegalizedScalarInstructionKind::StructuralCaseMembership { .. }
                     | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
@@ -101,6 +102,7 @@ impl LegalizedScalarInstruction {
                         .any(|argument| matches!(argument, LegalizedScalarArgument::Scalar {source, ..} if *source == value)),
                     LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
                     | LegalizedScalarInstructionKind::BitwiseAnd { left, right }
+                    | LegalizedScalarInstructionKind::BitwiseXor { left, right }
                     | LegalizedScalarInstructionKind::Compare { left, right, .. }
                     | LegalizedScalarInstructionKind::IeeeFloatCompare { left, right, .. } => {
                         *left == value || *right == value
@@ -144,6 +146,10 @@ pub enum LegalizedScalarInstructionKind {
     },
     PrimitiveScalarRead {
         source: semantic_vocabulary::PlaceId,
+    },
+    StructuralScalarFieldRead {
+        source: terminal_psi::StructuralArgument,
+        field: semantic_vocabulary::StructuralFieldId,
     },
     StructuralCaseMembership {
         source: semantic_vocabulary::PlaceId,
@@ -239,6 +245,10 @@ pub enum LegalizedScalarInstructionKind {
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
     BitwiseAnd {
+        left: ValueId,
+        right: ValueId,
+    },
+    BitwiseXor {
         left: ValueId,
         right: ValueId,
     },

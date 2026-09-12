@@ -23,6 +23,63 @@ pub(super) struct ScalarBindings {
 }
 
 impl ScalarBindings {
+    /// Borrow the established referent, not a copy of its scalar field values.
+    /// Source replay checks the declaration and loan occurrence; this join binds
+    /// that source to the current activation's exact local or parameter place.
+    pub(super) fn shared_structural_argument(
+        &self,
+        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    ) -> Result<StructuralArgument, LoweringError> {
+        if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+            || !argument.path.is_empty()
+        {
+            return unsupported("computed shared argument changes its access or projection");
+        }
+        let place = match argument.source {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+                let mut locals = self.structural_locals.iter().filter(|row| row.0 == symbol);
+                let (_, source) = locals.next().ok_or(LoweringError::Unsupported(
+                    "computed shared argument lost its established local",
+                ))?;
+                if !symbol.is_valid()
+                    || locals.next().is_some()
+                    || source.access != StructuralAccess::Owned
+                    || !source.path.is_empty()
+                {
+                    return unsupported("computed shared argument changes its local custody");
+                }
+                source.place
+            }
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index,
+            } => {
+                let (_, source) = self
+                    .structural_parameters
+                    .get(parameter_index as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "computed shared argument lost its parameter",
+                    ))?;
+                if !matches!(
+                    source.access,
+                    StructuralAccess::Owned
+                        | StructuralAccess::SharedBorrow
+                        | StructuralAccess::MutableBorrow
+                ) || !source.qualifications.is_empty()
+                    || !source.projected_qualifications.is_empty()
+                {
+                    return unsupported("computed shared argument widens its parameter custody");
+                }
+                source.place
+            }
+            _ => return unsupported("computed shared argument has no established source"),
+        };
+        Ok(StructuralArgument {
+            place,
+            path: Vec::new(),
+            access: StructuralAccess::SharedBorrow,
+        })
+    }
+
     /// Observe an established whole local without transferring its ownership.
     pub(crate) fn structural_local_observation(
         &self,

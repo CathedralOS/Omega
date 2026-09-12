@@ -2,6 +2,60 @@
 use super::*;
 
 #[test]
+fn shared_affine_owner_loan_preserves_owner_and_rejects_access_or_place_substitution() {
+    use terminal_psi::{StructuralAccess as Access, StructuralMultiplicity as Multiplicity};
+    let mut unit = crate::tests::projected_shared_structural_scalar_call_unit();
+    let types = unit
+        .structural_types
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect();
+    let caller = &mut unit.functions[0];
+    caller.structural_parameters[0].access = Access::Owned;
+    caller.structural_parameters[0].multiplicity = Multiplicity::Affine;
+    let mut parameter = caller.structural_parameters[0].clone();
+    parameter.access = Access::SharedBorrow;
+    parameter.multiplicity = Multiplicity::Unrestricted;
+    let argument = terminal_psi::StructuralArgument {
+        place: caller.structural_parameters[0].place,
+        access: Access::SharedBorrow,
+        path: Vec::new(),
+    };
+    let accepts = |argument: &terminal_psi::StructuralArgument,
+                   parameter: &terminal_psi::StructuralParameterDeclaration| {
+        structural_arguments_match(
+            caller,
+            std::slice::from_ref(argument),
+            std::slice::from_ref(parameter),
+            &types,
+            StructuralProjectionPolicy::Projected,
+            false,
+        )
+    };
+    assert!(accepts(&argument, &parameter));
+    assert_eq!(
+        structural_source_contract(caller, argument.place, false)
+            .unwrap()
+            .multiplicity,
+        Multiplicity::Affine
+    );
+    for access in [
+        Access::MutableBorrow,
+        Access::WriteOnlyBorrow,
+        Access::Owned,
+    ] {
+        let mut changed = argument.clone();
+        changed.access = access;
+        let mut destination = parameter.clone();
+        destination.access = access;
+        assert!(!accepts(&changed, &destination));
+    }
+    let mut changed = argument;
+    changed.place = PlaceId::new(999).unwrap();
+    assert!(!accepts(&changed, &parameter));
+}
+
+#[test]
 fn subslice_source_contract_retains_shared_access_and_exact_result_identity() {
     let mut unit = crate::tests::projected_shared_structural_scalar_call_unit();
     let caller = &mut unit.functions[0];

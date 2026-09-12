@@ -27,8 +27,32 @@ pub(super) fn validate(
     }
     match (&actual.kind, &node.operation) {
         (
+            LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, field },
+            AbstractOperation::IntegerStructuralField { .. }
+            | AbstractOperation::BooleanStructuralField { .. },
+        ) => {
+            let (_, _, expected_source, expected_field) =
+                scalar_graph_input::structural_fields::read(
+                    optimized,
+                    &node.operation,
+                    &plan.structural_types,
+                )
+                .ok_or(invalid.clone())?;
+            if source != &expected_source || *field != expected_field {
+                return Err(invalid);
+            }
+        }
+        (
             LegalizedScalarInstructionKind::BitwiseAnd { left, right },
             AbstractOperation::IntegerBitwiseAnd {
+                left: source_left,
+                right: source_right,
+                ..
+            },
+        )
+        | (
+            LegalizedScalarInstructionKind::BitwiseXor { left, right },
+            AbstractOperation::IntegerBitwiseXor {
                 left: source_left,
                 right: source_right,
                 ..

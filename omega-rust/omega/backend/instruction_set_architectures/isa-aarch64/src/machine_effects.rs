@@ -352,6 +352,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::ZeroExtendU32 => (vec![0], vec![1]),
         MachineSemanticKind::ByteViewAddress
         | MachineSemanticKind::BitwiseAndI64
+        | MachineSemanticKind::BitwiseXorI64
         | MachineSemanticKind::ExactAddI64
         | MachineSemanticKind::ExactSubtractI64 => (vec![0, 1], vec![2]),
         MachineSemanticKind::ExactAddI64Immediate
@@ -559,6 +560,48 @@ mod tests {
             &physical,
         )
         .unwrap_or_else(|error: Aarch64RegisterConstraintCatalogValidationError| panic!("{error}"))
+    }
+
+    #[test]
+    fn bitwise_xor_catalog_binds_family_size_and_pure_effects() {
+        for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
+            let constraints = constraints();
+            let catalog = aarch64_machine_effect_catalog(target, &constraints).unwrap();
+            validate_aarch64_machine_effect_catalog(target, &constraints, catalog.clone()).unwrap();
+            let declaration = catalog
+                .declarations
+                .iter()
+                .find(|row| row.semantic == MachineSemanticKind::BitwiseXorI64)
+                .unwrap();
+            assert_eq!(declaration.alternatives.len(), 1);
+            let alternative = &declaration.alternatives[0];
+            assert_eq!(
+                alternative.key.family,
+                MachineSemanticKind::BitwiseXorI64.into()
+            );
+            assert_eq!(alternative.size, MachineSizeKnowledge::ExactBytes(4));
+            assert_eq!(
+                alternative.encoded,
+                MachineEncodedEffects::fallthrough_v1(vec![0, 1], vec![2])
+            );
+            for corruption in 0..3 {
+                let mut changed = catalog.clone();
+                let alternative = &mut changed
+                    .declarations
+                    .iter_mut()
+                    .find(|row| row.semantic == MachineSemanticKind::BitwiseXorI64)
+                    .unwrap()
+                    .alternatives[0];
+                match corruption {
+                    0 => alternative.key.family = MachineSemanticKind::BitwiseAndI64.into(),
+                    1 => alternative.encoded.external_operand_reads.truncate(1),
+                    _ => alternative.size = MachineSizeKnowledge::ExactBytes(8),
+                }
+                assert!(
+                    validate_aarch64_machine_effect_catalog(target, &constraints, changed).is_err()
+                );
+            }
+        }
     }
 
     #[test]

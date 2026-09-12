@@ -144,6 +144,34 @@ pub(crate) fn parameter_shape(
     }
 }
 
+/// The existing aggregate home can supply a pointer to this exact plain record.
+pub(crate) fn scalar_record_shape(
+    structural_type: StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<ValueShape> {
+    let mut matching = declarations
+        .iter()
+        .filter(|declaration| declaration.id == structural_type);
+    let declaration = matching.next()?;
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return None;
+    };
+    if matching.next().is_some()
+        || fields.iter().any(|field| {
+            field.relevance.is_erased()
+                || matches!(field.field_type, StructuralFieldType::BoundedInteger(_))
+                || field
+                    .field_type
+                    .scalar_type()
+                    .and_then(scalar_shape)
+                    .is_none()
+        })
+    {
+        return None;
+    }
+    shape(structural_type, declarations)
+}
+
 /// Owned arrays retain their full recursive type, including below empty extents.
 pub(crate) fn primitive_array_shape(
     root: StructuralTypeId,
@@ -414,4 +442,33 @@ pub(crate) fn store(
         offset = offset.checked_add(u32::from(layout.byte_size))?;
     }
     None
+}
+
+/// Reconstruct a fresh shared-record field observation from its exact declaration.
+pub(crate) fn field_read(
+    parameter: &terminal_psi::StructuralParameterDeclaration,
+    source: &terminal_psi::StructuralArgument,
+    field: StructuralFieldId,
+    scalar: ScalarType,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(u32, u8)> {
+    if parameter.place != source.place
+        || parameter.access != terminal_psi::StructuralAccess::SharedBorrow
+        || source.access != parameter.access
+        || !source.path.is_empty()
+        || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || !parameter.qualifications.is_empty()
+        || !parameter.projected_qualifications.is_empty()
+        || !matches!(scalar, ScalarType::Boolean | ScalarType::Integer(_))
+    {
+        return None;
+    }
+    scalar_record_shape(parameter.structural_type, declarations)?;
+    store(
+        parameter.structural_type,
+        &source.path,
+        field,
+        scalar,
+        declarations,
+    )
 }

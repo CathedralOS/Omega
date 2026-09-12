@@ -42,6 +42,23 @@ pub(in crate::legalization) fn argument_at(
             plan,
         );
     }
+    if semantic.access == StructuralAccess::SharedBorrow
+        && crate::structural_reference_input::scalar_record_shape(
+            destination_parameter.structural_type,
+            &plan.structural_types,
+        )
+        .is_some()
+    {
+        return record_argument(
+            semantic,
+            caller,
+            destination_parameter,
+            call,
+            parameter_ordinal,
+            native,
+            plan,
+        );
+    }
     if super::primitive_locals::producer(caller, semantic.place).is_some()
         || matches!(
             semantic.access,
@@ -150,6 +167,104 @@ pub(in crate::legalization) fn argument_at(
             .get(parameter_ordinal)
             .ok_or(invalid)?
             .clone(),
+    })
+}
+
+/// Bind a shared pointer to the exact established home or incoming referent.
+fn record_argument(
+    semantic: &StructuralArgument,
+    caller: &PsiOptimizationFunction,
+    destination: &terminal_psi::StructuralParameterDeclaration,
+    call: &CallPlan,
+    parameter_ordinal: usize,
+    native: &TargetOperationPlan,
+    plan: &AbstractOperationPlan,
+) -> Result<TargetStructuralArgument, LegalizationError> {
+    let invalid = LegalizationError::SourceCustodyMismatch;
+    if !semantic.path.is_empty()
+        || destination.access != StructuralAccess::SharedBorrow
+        || destination.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || !destination.qualifications.is_empty()
+        || !destination.projected_qualifications.is_empty()
+    {
+        return Err(invalid);
+    }
+    let (structural_type, source) = if let Some(parameter) = caller
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == semantic.place)
+    {
+        if parameter.access != StructuralAccess::SharedBorrow
+            || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+        {
+            return Err(invalid);
+        }
+        let target = native
+            .functions
+            .iter()
+            .find(|function| function.machine == caller.machine)
+            .and_then(super::structural_parameters)
+            .and_then(|parameters| {
+                parameters
+                    .iter()
+                    .find(|target| target.place == semantic.place)
+            })
+            .ok_or(invalid.clone())?;
+        (parameter.structural_type, target.placement.clone().into())
+    } else {
+        let home = super::aggregate_results::result_home(caller, semantic.place, plan)?;
+        let (producer, result) = home.operation_result().ok_or(invalid.clone())?;
+        if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+            || !result.claims.is_empty()
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !caller
+                .blocks
+                .iter()
+                .flat_map(|block| &block.nodes)
+                .any(|node| {
+                    matches!(&node.operation,
+                AbstractOperation::EstablishScalarRecord { psi_operation, result: retained, .. }
+                | AbstractOperation::CallStructural { psi_operation, result: retained, .. }
+                    if *psi_operation == producer && retained == result)
+                })
+        {
+            return Err(invalid);
+        }
+        (
+            result.structural_type,
+            target_operations::TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: producer,
+            },
+        )
+    };
+    let referent = crate::structural_reference_input::scalar_record_shape(
+        structural_type,
+        &plan.structural_types,
+    )
+    .ok_or(invalid.clone())?;
+    let shape = ValueShape::borrowed_reference(referent.byte_size, referent.alignment);
+    let placement = call
+        .parameters
+        .get(parameter_ordinal)
+        .ok_or(invalid.clone())?;
+    if structural_type != destination.structural_type || placement.shape != shape {
+        return Err(invalid);
+    }
+    Ok(TargetStructuralArgument {
+        place: semantic.place,
+        access: semantic.access,
+        path: semantic.path.clone(),
+        root_structural_type: structural_type,
+        structural_type,
+        shape,
+        source_byte_offset: 0,
+        fixed_array_length: None,
+        element_stride: None,
+        source,
+        destination: placement.clone(),
     })
 }
 

@@ -154,6 +154,13 @@ pub(super) fn observation(
             left,
             right,
         }
+        | AbstractOperation::IntegerBitwiseXor {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        }
         | AbstractOperation::ExactIntegerAdd {
             psi_operation,
             result,

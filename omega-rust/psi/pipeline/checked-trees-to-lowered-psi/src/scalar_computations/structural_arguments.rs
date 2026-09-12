@@ -146,6 +146,11 @@ pub(super) fn lower(
             else {
                 return unsupported("computed structural operand is not a primitive reference");
             };
+            if parameter.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+                && checked.primitive_type_reference(*referee).is_none()
+            {
+                return bindings.shared_structural_argument(argument);
+            }
             if !matches!(
                 checked.type_reference_table.type_reference(*referee),
                 checked_trees::types::TypeReferenceNode::Named { .. }

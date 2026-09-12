@@ -48,14 +48,10 @@ pub fn result_initializer_call_is_supported(
         || boundary_return::is_supported(program, machine, value)
 }
 
-/// A value call on a LET-BOUND LOCAL receiver (`let p: Pair = ..; p.total()`)
-/// reads ZII natively: receiver resolution reaches machine FIELDS and state
-/// PARAMETERS only, so the callee's `self.field` reads bind to nothing and
-/// the result silently zeroes when the caller is itself an inlined value
-/// callee (Main-state spellings hit the emission backstop instead). Fence it
-/// loudly until local receiver resolution lands (TASKS.md "local-receiver
-/// value calls"). Field receivers, `self`, and state-parameter receivers are
-/// the supported (canaried) forms.
+/// Unimplemented local receiver paths historically read ZII through ambient
+/// attachment resolution. The ordinary shared scalar-record route now carries
+/// the local's actual structural place; keep the fence for receiver storage and
+/// type categories that do not yet retain that source-to-consumer relationship.
 pub(crate) fn report_local_receiver_value_call(
     program: &TypedTrees,
     machine: &Machine,
@@ -134,6 +130,13 @@ pub(crate) fn report_local_receiver_value_call(
     let Some(local) = local else {
         return;
     };
+    // Plain shared record receivers now retain an ordinary structural operand
+    // in scalar computation calls. The checked producer and source replay must
+    // still establish this exact local before use; this is signature admission,
+    // not permission to substitute attachment storage or a constructor value.
+    if shared_record_receiver_signature(program, call, local) {
+        return;
+    }
     // A checked local dynamic coercion is not an ordinary local receiver:
     // closed-row lowering devirtualizes the call onto the coercion's retained
     // source place. Invalid, missing, or ambiguous conformance selection is
@@ -153,6 +156,85 @@ pub(crate) fn report_local_receiver_value_call(
         receiver,
         call.target.as_str(),
     )));
+}
+
+fn shared_record_receiver_signature(
+    program: &TypedTrees,
+    call: &typed_trees::expression::TableCallExpression,
+    local: &typed_trees::statement::TableLocalData,
+) -> bool {
+    use typed_trees::types::TypeReferenceNode;
+    if local.is_mutable
+        || !matches!(
+            program.type_multiplicity(local.type_reference),
+            language_semantics::Multiplicity::Affine
+                | language_semantics::Multiplicity::Unrestricted
+        )
+        || !crate::has_plain_owned_contents_with_numeric_constraints(program, local.type_reference)
+    {
+        return false;
+    }
+    let TypeReferenceNode::Named { symbol, .. } = program
+        .type_reference_table
+        .type_reference(local.type_reference)
+    else {
+        return false;
+    };
+    let Some(data) = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == *symbol)
+    else {
+        return false;
+    };
+    if !program.data_type_parameters(data).is_empty()
+        || !program.data_members(data).iter().all(|member| matches!(member,
+            typed_trees::data::DataMember::Field(field)
+                if !field.relevance.is_erased()
+                    && matches!(program.type_reference_table.type_reference(field.type_reference), TypeReferenceNode::Named { .. })
+                    && program.primitive_type_reference(field.type_reference).is_some()))
+    {
+        return false;
+    }
+    let mut targets = program.machines().iter().filter_map(|owner| {
+        let entry = program.machine_states(owner).first()?;
+        (entry.symbol == call.target_symbol).then_some((owner, entry))
+    });
+    let Some((owner, entry)) = targets.next() else {
+        return false;
+    };
+    if targets.next().is_some()
+        || owner.attached_data_symbol != *symbol
+        || owner.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+        || !matches!(
+            program
+                .type_reference_table
+                .type_reference(entry.return_type),
+            TypeReferenceNode::Named { .. }
+        )
+        || program
+            .primitive_type_reference(entry.return_type)
+            .is_none()
+    {
+        return false;
+    }
+    let parameters = program.state_parameters(entry);
+    parameters.first().is_some_and(|parameter| {
+        parameter.is_self
+            && matches!(
+                program
+                    .type_reference_table
+                    .type_reference(parameter.type_reference),
+                TypeReferenceNode::Reference {
+                    access: language_semantics::ReferenceAccess::Shared,
+                    ..
+                }
+            )
+    }) && parameters
+        .iter()
+        .filter(|parameter| parameter.is_self)
+        .count()
+        == 1
 }
 
 fn type_reference_contains_dynamic_trait(

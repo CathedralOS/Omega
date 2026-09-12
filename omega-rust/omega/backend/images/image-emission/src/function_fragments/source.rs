@@ -8,6 +8,7 @@ use semantic_vocabulary::MachineId;
 mod aggregate_results;
 mod control_flow;
 mod structural_case;
+mod structural_fields;
 mod unobserved_owned;
 pub(super) use unobserved_owned::{arrivals as unobserved_owned_arrivals, scalar_cleanup_retained};
 #[cfg(test)]
@@ -41,6 +42,8 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
                 | AbstractOperation::ReturnStructural { .. }
                 | AbstractOperation::PrimitiveLocalStore { .. }
                 | AbstractOperation::PrimitiveScalarRead { .. }
+                | AbstractOperation::IntegerStructuralField { .. }
+                | AbstractOperation::BooleanStructuralField { .. }
                 | AbstractOperation::StructuralCaseMembership { .. }
         )
     })
@@ -214,6 +217,10 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         }
         for operation in &abstracted.operations {
             let admitted = match operation {
+                AbstractOperation::IntegerStructuralField { .. }
+                | AbstractOperation::BooleanStructuralField { .. } => {
+                    structural_fields::retained(abstracted, operation, targeted)
+                }
                 AbstractOperation::StructuralCaseMembership { .. }
                 | AbstractOperation::EstablishScalarCase { .. }
                 | AbstractOperation::EstablishScalarRecord { .. }
@@ -326,6 +333,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::IntegerWiden { .. }
                 | AbstractOperation::IntegerExactCast { .. }
                 | AbstractOperation::IntegerBitwiseAnd { .. }
+                | AbstractOperation::IntegerBitwiseXor { .. }
                 | AbstractOperation::ExactIntegerAdd { .. }
                 | AbstractOperation::ExactIntegerSubtract { .. } => true,
                 AbstractOperation::StructuralScalarFieldStore { psi_operation, destination, .. }

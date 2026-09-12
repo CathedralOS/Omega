@@ -5,6 +5,15 @@ use crate::{legalize_target_operations, validate_legalized_operations};
 
 #[test]
 fn bitwise_and_graph_preserves_operand_types_and_independent_replay() {
+    bitwise_graph_preserves_operand_types_and_independent_replay(false);
+}
+
+#[test]
+fn bitwise_xor_graph_preserves_operand_types_and_independent_replay() {
+    bitwise_graph_preserves_operand_types_and_independent_replay(true);
+}
+
+fn bitwise_graph_preserves_operand_types_and_independent_replay(exclusive: bool) {
     use abstract_operations::{AbstractOperation, AbstractParameter};
     use legalized_operations::LegalizedScalarInstructionKind;
     use semantic_vocabulary::{
@@ -33,12 +42,22 @@ fn bitwise_and_graph_preserves_operand_types_and_independent_replay() {
                 ];
                 source.functions[0].operations.insert(
                     0,
-                    AbstractOperation::IntegerBitwiseAnd {
-                        psi_operation: OperationId::new(1).unwrap(),
-                        result,
-                        scalar_type: integer,
-                        left,
-                        right,
+                    if exclusive {
+                        AbstractOperation::IntegerBitwiseXor {
+                            psi_operation: OperationId::new(1).unwrap(),
+                            result,
+                            scalar_type: integer,
+                            left,
+                            right,
+                        }
+                    } else {
+                        AbstractOperation::IntegerBitwiseAnd {
+                            psi_operation: OperationId::new(1).unwrap(),
+                            result,
+                            scalar_type: integer,
+                            left,
+                            right,
+                        }
                     },
                 );
                 let targeted =
@@ -54,21 +73,32 @@ fn bitwise_and_graph_preserves_operand_types_and_independent_replay() {
                 let legal = legalize_target_operations(&targeted, &source, &unit).unwrap();
                 validate_legalized_operations(&targeted, &source, &unit, legal.plan().clone())
                     .unwrap();
-                for mutation in ["left", "right", "result type"] {
+                for mutation in ["left", "right", "result type", "operator"] {
                     let mut changed = legal.plan().clone();
                     let instruction = &mut changed.scalar_functions[0].blocks[0].instructions[0];
-                    let LegalizedScalarInstructionKind::BitwiseAnd {
+                    let (LegalizedScalarInstructionKind::BitwiseAnd {
                         left: actual_left,
                         right: actual_right,
-                    } = &mut instruction.kind
+                    }
+                    | LegalizedScalarInstructionKind::BitwiseXor {
+                        left: actual_left,
+                        right: actual_right,
+                    }) = &mut instruction.kind
                     else {
-                        panic!("bitwise and");
+                        panic!("bitwise instruction");
                     };
                     match mutation {
                         "left" => *actual_left = right,
                         "right" => *actual_right = left,
                         "result type" => {
                             instruction.result.as_mut().unwrap().scalar_type = ScalarType::Boolean
+                        }
+                        "operator" => {
+                            instruction.kind = if exclusive {
+                                LegalizedScalarInstructionKind::BitwiseAnd { left, right }
+                            } else {
+                                LegalizedScalarInstructionKind::BitwiseXor { left, right }
+                            };
                         }
                         _ => unreachable!(),
                     }
@@ -90,13 +120,18 @@ fn bitwise_and_graph_preserves_operand_types_and_independent_replay() {
                                     left,
                                     right,
                                     ..
+                                }
+                                | target_operations::TargetIntegerExpression::BitwiseXor {
+                                    left,
+                                    right,
+                                    ..
                                 },
                             ..
                         },
                     ..
                 } = &mut changed_target.functions[0].graph.blocks[0].operations[0]
                 else {
-                    panic!("target bitwise and");
+                    panic!("target bitwise instruction");
                 };
                 std::mem::swap(left, right);
                 assert!(legalize_target_operations(&changed_target, &source, &unit).is_err());
@@ -119,16 +154,20 @@ fn bitwise_and_graph_preserves_operand_types_and_independent_replay() {
                 )
                 .unwrap();
                 let mut corrupted = selected.plan().clone();
-                let selected_and = corrupted.functions[0].blocks[0]
+                let selected_bitwise = corrupted.functions[0].blocks[0]
                     .instructions
                     .iter_mut()
                     .find(|instruction| {
                         instruction.kind
-                            == selected_instructions::SelectedInstructionKind::BitwiseAndI64
+                            == if exclusive {
+                                selected_instructions::SelectedInstructionKind::BitwiseXorI64
+                            } else {
+                                selected_instructions::SelectedInstructionKind::BitwiseAndI64
+                            }
                     })
-                    .expect("selected bitwise and");
-                selected_and.operands[1].virtual_register =
-                    selected_and.operands[0].virtual_register;
+                    .expect("selected bitwise instruction");
+                selected_bitwise.operands[1].virtual_register =
+                    selected_bitwise.operands[0].virtual_register;
                 assert!(
                     crate::validate_selected_instructions(
                         &legal,

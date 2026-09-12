@@ -94,6 +94,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::MaterializeI64 { .. } => 1,
         SelectedInstructionKind::CopyI64 => 2,
         SelectedInstructionKind::BitwiseAndI64 => 51,
+        SelectedInstructionKind::BitwiseXorI64 => 52,
         SelectedInstructionKind::Float32ToBits => 26,
         SelectedInstructionKind::Float64ToBits => 27,
         SelectedInstructionKind::BitsToFloat32 => 28,
@@ -215,6 +216,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         | SelectedInstructionKind::CompareI64
         | SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::BitwiseAndI64
+        | SelectedInstructionKind::BitwiseXorI64
         | SelectedInstructionKind::Float32ToBits
         | SelectedInstructionKind::Float64ToBits
         | SelectedInstructionKind::BitsToFloat32

@@ -162,7 +162,8 @@ pub(in crate::selection) fn validate_with_environment(
                     LegalizedScalarInstructionKind::StructuralCaseMembership { .. } => {
                         structural::observe(source, &mut replay, operation)?
                     }
-                    LegalizedScalarInstructionKind::PrimitiveScalarRead { .. } => {
+                    LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
+                    | LegalizedScalarInstructionKind::PrimitiveScalarRead { .. } => {
                         structural::read(source, &mut replay, operation)?
                     }
                     LegalizedScalarInstructionKind::ByteSequenceRead { .. }
@@ -349,7 +350,8 @@ pub(in crate::selection) fn validate_with_environment(
                         )?;
                         register
                     }
-                    LegalizedScalarInstructionKind::BitwiseAnd { left, right } => {
+                    LegalizedScalarInstructionKind::BitwiseAnd { left, right }
+                    | LegalizedScalarInstructionKind::BitwiseXor { left, right } => {
                         let (_, left_register, _, left_type) =
                             replay.resolve(*left).ok_or_else(invalid)?;
                         let (_, right_register, _, right_type) =
@@ -368,7 +370,14 @@ pub(in crate::selection) fn validate_with_environment(
                             scalar_type,
                         )?;
                         replay.check_instruction(
-                            SelectedInstructionKind::BitwiseAndI64,
+                            if matches!(
+                                operation.kind,
+                                LegalizedScalarInstructionKind::BitwiseXor { .. }
+                            ) {
+                                SelectedInstructionKind::BitwiseXorI64
+                            } else {
+                                SelectedInstructionKind::BitwiseAndI64
+                            },
                             constraints.keys.subtract_i64,
                             &[left_register, right_register, output],
                             &SelectedInstructionProvenance {

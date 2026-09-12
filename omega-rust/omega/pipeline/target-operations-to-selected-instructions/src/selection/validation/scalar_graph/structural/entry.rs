@@ -163,6 +163,7 @@ pub(in crate::selection) fn entry(
         if !crate::selection::established_view_input::transferred(source, place) && !source.blocks.iter().flat_map(|block|&block.instructions).any(|row| match &row.kind {
             LegalizedScalarInstructionKind::StructuralScalarFieldStore { destination, .. }
             | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { destination, .. } => destination.place == place,
+            LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, .. } => source.place == place,
             LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }
             | LegalizedScalarInstructionKind::StructuralCaseMembership { source, .. }
             | LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }

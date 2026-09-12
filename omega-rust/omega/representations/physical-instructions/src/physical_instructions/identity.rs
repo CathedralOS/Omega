@@ -294,6 +294,7 @@ fn encode_alternative(bytes: &mut Vec<u8>, alternative: &MachineAlternative) {
         MachineAlternativeFamily::LoadPacked7 => 49,
         MachineAlternativeFamily::StorePacked => 50,
         MachineAlternativeFamily::BitwiseAndI64 => 51,
+        MachineAlternativeFamily::BitwiseXorI64 => 52,
         MachineAlternativeFamily::Load8 => 33,
         MachineAlternativeFamily::Load16 => 34,
         MachineAlternativeFamily::Load32 => 30,

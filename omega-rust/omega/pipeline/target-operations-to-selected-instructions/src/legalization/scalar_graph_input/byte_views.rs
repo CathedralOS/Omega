@@ -62,6 +62,10 @@ pub(super) fn validate(
             call_plan,
             &parameters,
             &plan.structural_types,
+        ) && !crate::structural_unit_input::accepts_shared_record(
+            call_plan,
+            &parameters,
+            &plan.structural_types,
         ))
         || abstracted.parameters.len() != optimized.parameters.len()
         || scalar_parameters.len() != abstracted.parameters.len()
@@ -104,6 +108,10 @@ pub(super) fn validate(
             &parameters,
             &plan.structural_types,
         ) || crate::structural_unit_input::accepts_write_borrow(
+            call_plan,
+            &parameters,
+            &plan.structural_types,
+        ) || crate::structural_unit_input::accepts_shared_record(
             call_plan,
             &parameters,
             &plan.structural_types,

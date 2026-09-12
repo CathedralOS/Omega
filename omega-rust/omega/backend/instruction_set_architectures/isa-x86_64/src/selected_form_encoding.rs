@@ -519,6 +519,9 @@ fn family_and_operand_count(
         SelectedInstructionKind::BitwiseAndI64 => {
             (MachineAlternativeFamily::BitwiseAndI64, 3, 0..=0)
         }
+        SelectedInstructionKind::BitwiseXorI64 => {
+            (MachineAlternativeFamily::BitwiseXorI64, 3, 0..=0)
+        }
         SelectedInstructionKind::ExactSubtractI64 { .. } => {
             (MachineAlternativeFamily::ExactSubtractI64, 3, 0..=3)
         }
@@ -835,14 +838,21 @@ fn encode_unchecked(
         SelectedInstructionKind::ByteViewAddress | SelectedInstructionKind::ExactAddI64 { .. } => {
             append_lea_register(&mut bytes, registers[0], registers[1], registers[2]);
         }
-        SelectedInstructionKind::BitwiseAndI64 => {
+        SelectedInstructionKind::BitwiseAndI64 | SelectedInstructionKind::BitwiseXorI64 => {
+            // Both operations commute, so either input may already own the
+            // output register. A distinct output needs one non-destructive copy.
+            let opcode = if kind == SelectedInstructionKind::BitwiseXorI64 {
+                0x31
+            } else {
+                0x21
+            };
             if registers[2] == registers[0] {
-                append_register_binary(&mut bytes, 0x21, registers[1], registers[2]);
+                append_register_binary(&mut bytes, opcode, registers[1], registers[2]);
             } else if registers[2] == registers[1] {
-                append_register_binary(&mut bytes, 0x21, registers[0], registers[2]);
+                append_register_binary(&mut bytes, opcode, registers[0], registers[2]);
             } else {
                 append_register_binary(&mut bytes, 0x89, registers[0], registers[2]);
-                append_register_binary(&mut bytes, 0x21, registers[1], registers[2]);
+                append_register_binary(&mut bytes, opcode, registers[1], registers[2]);
             }
         }
         SelectedInstructionKind::ExactAddI64Immediate { immediate, .. } => {
@@ -1330,19 +1340,24 @@ fn validate_decoded(
                     && ((*base == registers[0] && *index == registers[1])
                         || (*base == registers[1] && *index == registers[0])))
         }
-        SelectedInstructionKind::BitwiseAndI64 => {
+        SelectedInstructionKind::BitwiseAndI64 | SelectedInstructionKind::BitwiseXorI64 => {
+            let operation = |source, destination| {
+                if kind == SelectedInstructionKind::BitwiseXorI64 {
+                    DecodedInstruction::Xor {
+                        source,
+                        destination,
+                    }
+                } else {
+                    DecodedInstruction::BitwiseAnd {
+                        source,
+                        destination,
+                    }
+                }
+            };
             if registers[2] == registers[0] {
-                decoded
-                    == [DecodedInstruction::BitwiseAnd {
-                        source: registers[1],
-                        destination: registers[2],
-                    }]
+                decoded == [operation(registers[1], registers[2])]
             } else if registers[2] == registers[1] {
-                decoded
-                    == [DecodedInstruction::BitwiseAnd {
-                        source: registers[0],
-                        destination: registers[2],
-                    }]
+                decoded == [operation(registers[0], registers[2])]
             } else {
                 decoded
                     == [
@@ -1350,10 +1365,7 @@ fn validate_decoded(
                             source: registers[0],
                             destination: registers[2],
                         },
-                        DecodedInstruction::BitwiseAnd {
-                            source: registers[1],
-                            destination: registers[2],
-                        },
+                        operation(registers[1], registers[2]),
                     ]
             }
         }
@@ -1489,7 +1501,7 @@ fn footprint(
         SelectedInstructionKind::ExactSubtractI64 { .. } => {
             (vec![operands[0], operands[1]], vec![operands[2]], true)
         }
-        SelectedInstructionKind::BitwiseAndI64 => {
+        SelectedInstructionKind::BitwiseAndI64 | SelectedInstructionKind::BitwiseXorI64 => {
             (vec![operands[0], operands[1]], vec![operands[2]], true)
         }
         SelectedInstructionKind::ReturnScalar
@@ -1598,7 +1610,8 @@ fn footprint(
                     vec![]
                 }
                 SelectedInstructionKind::ExactSubtractI64 { .. }
-                | SelectedInstructionKind::BitwiseAndI64 => vec![0, 1],
+                | SelectedInstructionKind::BitwiseAndI64
+                | SelectedInstructionKind::BitwiseXorI64 => vec![0, 1],
                 _ => unreachable!("control forms handled separately"),
             },
             match kind {
@@ -1620,7 +1633,9 @@ fn footprint(
                 SelectedInstructionKind::ByteViewAddress
                 | SelectedInstructionKind::ExactAddI64 { .. }
                 | SelectedInstructionKind::ExactSubtractI64 { .. } => vec![2],
-                SelectedInstructionKind::BitwiseAndI64 => vec![2],
+                SelectedInstructionKind::BitwiseAndI64 | SelectedInstructionKind::BitwiseXorI64 => {
+                    vec![2]
+                }
                 SelectedInstructionKind::CompareI64Zero => vec![],
                 SelectedInstructionKind::CompareI64 => vec![],
                 _ => unreachable!("control forms handled separately"),
@@ -1636,6 +1651,7 @@ fn footprint(
             kind,
             SelectedInstructionKind::ExactSubtractI64 { .. }
                 | SelectedInstructionKind::BitwiseAndI64
+                | SelectedInstructionKind::BitwiseXorI64
         ) {
             effects.implicit_unit_clobbers = units("rflags");
         }
@@ -1909,56 +1925,69 @@ mod tests {
     }
 
     #[test]
-    fn bitwise_and_preserves_aliases_and_rejects_opcode_corruption() {
+    fn bitwise_operations_preserve_aliases_and_reject_opcode_corruption() {
         let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
         let views = ["rax", "r9", "r12"].map(|name| physical.model().view_named(name).unwrap().id);
-        let kind = SelectedInstructionKind::BitwiseAndI64;
-        let alternative = alternative(MachineAlternativeFamily::BitwiseAndI64, 0);
-        for left in views {
-            for right in views {
-                for output in views {
-                    let operands = [left, right, output];
-                    let encoded =
-                        encode_x86_64_selected_form(&physical, kind, alternative, &operands)
-                            .unwrap();
-                    assert_eq!(
-                        encoded.bytes().len(),
-                        if output == left || output == right {
-                            3
-                        } else {
-                            6
-                        }
-                    );
-                    assert!(encoded.footprint().writes_rflags);
-                    assert_eq!(encoded.footprint().encoded.external_operand_reads, [0, 1]);
-                    assert_eq!(encoded.footprint().encoded.external_operand_writes, [2]);
-                    let mut corrupted = encoded.bytes().to_vec();
-                    let opcode = corrupted.len() - 2;
-                    assert_eq!(corrupted[opcode], 0x21);
-                    corrupted[opcode] = 0x09; // OR is not interchangeable with AND.
-                    assert!(
-                        validate_x86_64_selected_form_encoding(
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            &corrupted
-                        )
-                        .is_err()
-                    );
-                    corrupted = encoded.bytes().to_vec();
-                    let register_byte = corrupted.len() - 1;
-                    corrupted[register_byte] ^= 1;
-                    assert!(
-                        validate_x86_64_selected_form_encoding(
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            &corrupted
-                        )
-                        .is_err()
-                    );
+        for (kind, family, expected_opcode) in [
+            (
+                SelectedInstructionKind::BitwiseAndI64,
+                MachineAlternativeFamily::BitwiseAndI64,
+                0x21,
+            ),
+            (
+                SelectedInstructionKind::BitwiseXorI64,
+                MachineAlternativeFamily::BitwiseXorI64,
+                0x31,
+            ),
+        ] {
+            let alternative = alternative(family, 0);
+            for left in views {
+                for right in views {
+                    for output in views {
+                        let operands = [left, right, output];
+                        let encoded =
+                            encode_x86_64_selected_form(&physical, kind, alternative, &operands)
+                                .unwrap();
+                        assert_eq!(
+                            encoded.bytes().len(),
+                            if output == left || output == right {
+                                3
+                            } else {
+                                6
+                            }
+                        );
+                        assert!(encoded.footprint().writes_rflags);
+                        assert_eq!(encoded.footprint().encoded.external_operand_reads, [0, 1]);
+                        assert_eq!(encoded.footprint().encoded.external_operand_writes, [2]);
+                        let mut corrupted = encoded.bytes().to_vec();
+                        let opcode = corrupted.len() - 2;
+                        assert_eq!(corrupted[opcode], expected_opcode);
+                        // Another valid bitwise opcode must not satisfy this operation.
+                        corrupted[opcode] = if expected_opcode == 0x21 { 0x31 } else { 0x21 };
+                        assert!(
+                            validate_x86_64_selected_form_encoding(
+                                &physical,
+                                kind,
+                                alternative,
+                                &operands,
+                                &corrupted
+                            )
+                            .is_err()
+                        );
+                        corrupted = encoded.bytes().to_vec();
+                        let register_byte = corrupted.len() - 1;
+                        corrupted[register_byte] ^= 1;
+                        assert!(
+                            validate_x86_64_selected_form_encoding(
+                                &physical,
+                                kind,
+                                alternative,
+                                &operands,
+                                &corrupted
+                            )
+                            .is_err()
+                        );
+                    }
                 }
             }
         }

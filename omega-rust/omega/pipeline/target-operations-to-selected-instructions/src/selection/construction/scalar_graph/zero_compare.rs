@@ -79,6 +79,7 @@ pub(super) fn folded_zero<'a>(
                 }
                 LegalizedScalarInstructionKind::Constant(_)
                 | LegalizedScalarInstructionKind::PrimitiveScalarRead { .. }
+                | LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
                 | LegalizedScalarInstructionKind::StructuralCaseMembership { .. }
                 | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                 | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
@@ -94,6 +95,7 @@ pub(super) fn folded_zero<'a>(
                     .any(|argument| argument.scalar_source() == Some(definition.value)),
                 LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
                 | LegalizedScalarInstructionKind::BitwiseAnd { left, right }
+                | LegalizedScalarInstructionKind::BitwiseXor { left, right }
                 | LegalizedScalarInstructionKind::IeeeFloatCompare { left, right, .. }
                 | LegalizedScalarInstructionKind::Compare { left, right, .. } => {
                     *left == definition.value || *right == definition.value

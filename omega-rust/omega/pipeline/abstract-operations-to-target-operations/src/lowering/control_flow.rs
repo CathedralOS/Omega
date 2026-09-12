@@ -2,11 +2,11 @@
 use super::shared::*;
 use super::unit::scalar_call::KnownUnitInteger;
 pub(super) mod aggregate_results;
+mod borrowed_calls;
 mod byte_write;
 mod dominance;
 mod observations;
 mod operations;
-mod primitive_calls;
 mod primitive_storage;
 pub(super) mod scalar_arrays;
 mod scalar_sources;
@@ -102,6 +102,7 @@ pub(super) fn lower(
         let result = match operation {
             AbstractOperation::IntegerConstant { result, .. }
             | AbstractOperation::BooleanConstant { result, .. }
+            | AbstractOperation::BooleanStructuralField { result, .. }
             | AbstractOperation::IeeeFloatConstant { result, .. }
             | AbstractOperation::IeeeFloatCompare { result, .. }
             | AbstractOperation::IntegerWiden { result, .. }
@@ -138,6 +139,7 @@ pub(super) fn lower(
             AbstractOperation::ByteSequenceLength { result, .. }
             | AbstractOperation::ByteSequenceRead { result, .. }
             | AbstractOperation::PrimitiveScalarRead { result, .. }
+            | AbstractOperation::IntegerStructuralField { result, .. }
             | AbstractOperation::StructuralCaseMembership { result, .. }
             | AbstractOperation::CallStructuralScalar { result, .. }
             | AbstractOperation::CallDynamicScalar { result, .. }

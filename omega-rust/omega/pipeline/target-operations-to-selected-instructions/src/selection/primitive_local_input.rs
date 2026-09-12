@@ -101,3 +101,38 @@ pub(super) fn readable(
             })
     })
 }
+
+/// The same load kernel reads primitive storage and exact shared record fields.
+pub(super) fn read_geometry(
+    source: &LegalizedScalarFunction,
+    row: &legalized_operations::LegalizedScalarInstruction,
+) -> Option<(PlaceId, u32)> {
+    let scalar = row.result?.scalar_type;
+    match &row.kind {
+        Instruction::PrimitiveScalarRead { source: place } => {
+            readable(source, *place, scalar).then_some((*place, 0))
+        }
+        Instruction::StructuralScalarFieldRead {
+            source: argument,
+            field,
+        } => {
+            let signature = source.structural.as_ref()?;
+            if !signature.entry_claims.is_empty() {
+                return None;
+            }
+            let parameter = signature
+                .parameters
+                .iter()
+                .find(|parameter| parameter.semantic.place == argument.place)?;
+            let (offset, _) = crate::structural_reference_input::field_read(
+                &parameter.semantic,
+                argument,
+                *field,
+                scalar,
+                &signature.structural_types,
+            )?;
+            Some((argument.place, offset))
+        }
+        _ => None,
+    }
+}

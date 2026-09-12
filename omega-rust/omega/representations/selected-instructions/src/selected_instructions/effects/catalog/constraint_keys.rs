@@ -94,6 +94,7 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::ByteViewAddress | MachineSemanticKind::ExactAddI64 => self.add_i64,
             // x64 AND clobbers flags, unlike the flag-preserving LEA addition.
             MachineSemanticKind::BitwiseAndI64 => self.subtract_i64,
+            MachineSemanticKind::BitwiseXorI64 => self.subtract_i64,
             MachineSemanticKind::ExactAddI64Immediate => self.add_i64_immediate,
             MachineSemanticKind::ExactSubtractI64 => self.subtract_i64,
             MachineSemanticKind::ExactSubtractI64Immediate => self.subtract_i64_immediate,

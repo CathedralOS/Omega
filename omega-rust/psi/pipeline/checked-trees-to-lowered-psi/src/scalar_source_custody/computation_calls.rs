@@ -13,6 +13,7 @@ mod operand_scopes;
 mod owned_arguments;
 pub(crate) mod primitive_arguments;
 mod qualifications;
+mod record_arguments;
 
 pub(crate) use mixed_arguments::access_occurrences::rejoin as rejoin_call_accesses;
 pub(crate) use mixed_arguments::{RejoinedComputationArgument, rejoin_computation_call_arguments};

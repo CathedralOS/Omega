@@ -35,6 +35,36 @@ fn reject_assignment(source: &str, root: &str) {
 }
 
 #[test]
+fn shared_receiver_rejects_overlapping_exclusive_argument() {
+    for caller in [
+        "machine invoke(value: &mut Pair) -> u64 { value.inspect(&mut value) }",
+        "machine invoke(input: u64) -> u64 {
+            let value: Pair = Pair { left: input, right: 7 };
+            value.inspect(&mut value)
+        }",
+    ] {
+        let diagnostics = reject_source(&format!(
+            "data Pair {{ left: u64; right: u64; }}
+         machine Pair::inspect(&self, other: &mut Pair) -> u64 {{ self.right }}
+         {caller}",
+        ));
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(
+                    "receives shared receiver overlapping another argument in the same call"
+                )),
+            "exact receiver/argument incompatibility: {diagnostics:#?}"
+        );
+        assert!(
+            !diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("LET-bound"))
+        );
+    }
+}
+
+#[test]
 fn projected_receiver_and_live_slice_require_compatible_access() {
     for (receiver, accepted) in [("&self", true), ("&mut self", false)] {
         let source = format!(

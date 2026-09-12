@@ -157,7 +157,29 @@ pub(crate) fn structural_arguments_match(
         {
             return false;
         }
-        let actual_multiplicity = if argument.path.is_empty() {
+        // The shared loan is unrestricted; the original affine owner remains
+        // live and retains its independent transfer or cleanup obligation.
+        let shared_affine_loan = argument.path.is_empty()
+            && argument.access == terminal_psi::StructuralAccess::SharedBorrow
+            && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            && source.access == terminal_psi::StructuralAccess::Owned
+            && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+            && (caller
+                .structural_parameters
+                .iter()
+                .any(|parameter| parameter.place == argument.place)
+                || caller
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.nodes)
+                    .any(|node| {
+                        matches!(&node.operation,
+                    O::CallStructural { result, .. } | O::EstablishScalarRecord { result, .. }
+                        if result.place == argument.place)
+                    }));
+        let actual_multiplicity = if shared_affine_loan {
+            terminal_psi::StructuralMultiplicity::Unrestricted
+        } else if argument.path.is_empty() {
             source.multiplicity
         } else if unrestricted_write_only_subloan
             || unrestricted_mutable_field

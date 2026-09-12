@@ -211,6 +211,7 @@ fn replay_declaration<'a>(
         SelectedInstructionKind::HostedExitProcessI32 => MachineSemanticKind::HostedExitProcessI32,
         SelectedInstructionKind::ExactAddI64 { .. } => MachineSemanticKind::ExactAddI64,
         SelectedInstructionKind::BitwiseAndI64 => MachineSemanticKind::BitwiseAndI64,
+        SelectedInstructionKind::BitwiseXorI64 => MachineSemanticKind::BitwiseXorI64,
         SelectedInstructionKind::ExactAddI64Immediate { .. } => {
             MachineSemanticKind::ExactAddI64Immediate
         }

@@ -28,6 +28,7 @@ pub(super) use hosted_scalar::hosted_realization;
 mod literals;
 mod primitive_locals;
 pub(super) mod structural_call;
+pub(super) mod structural_fields;
 fn structural_parameters(
     target: &TargetFunction,
 ) -> Option<&[target_operations::TargetStructuralParameter]> {
@@ -366,8 +367,18 @@ pub(super) fn callee_plan(
         return Err(LegalizationError::SourceCustodyMismatch);
     };
     if !aggregate_results::uses(optimized, plan)
-        && ((target.attachment.is_some()
-            && !matches!(abstracted.result, AbstractFunctionResult::Unit))
+        && ((target.attachment.is_some_and(|attachment| {
+            !abstracted.structural_parameters.iter().any(|parameter| {
+                parameter.is_self
+                    && parameter.structural_type == attachment
+                    && parameter.access == terminal_psi::StructuralAccess::SharedBorrow
+                    && crate::structural_reference_input::scalar_record_shape(
+                        attachment,
+                        &plan.structural_types,
+                    )
+                    .is_some()
+            })
+        }) && !matches!(abstracted.result, AbstractFunctionResult::Unit))
             || !matches!(abstracted.result, AbstractFunctionResult::Unit)
                 && !matches!(abstracted.result, AbstractFunctionResult::Scalar(result) if scalar_shape(result.scalar_type).is_some())
             || abstracted

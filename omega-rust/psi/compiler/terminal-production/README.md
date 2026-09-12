@@ -261,9 +261,17 @@ The admitted record is affine or unrestricted, unqualified, and claim-free.
 Nested/erased fields and declaration-restricted integers still require additional
 construction/evidence support. Whole plain records can pass through typed block
 parameters and return from their arriving home, including across an unrelated
-owned selection. Source local-receiver calls and post-arrival field observation
-remain separate missing joins: a constructor or a source-free Terminal getter
-does not establish source getter support.
+owned selection. Immutable plain-record locals retain their actual
+structural place through shared attached calls, whether established directly or
+returned by an ordinary constructor call. The implicit receiver precedes explicit
+structural operands but has its own captured occurrence, not a fabricated explicit
+argument observation. Scalar computations own initializer, tail, and nested calls;
+source replay checks their complete call roster without scheduling a second call.
+Scalar-result callees retain declared shared `self` independently of body reads.
+The native `scalar_case_results::records` controls consume full-width integer
+getter results through further computation. Nested record fields, mutable local
+receiver storage, and post-block-arrival field observation remain separate
+dependencies; this does not remove their realization fences.
 
 Closed integer field restrictions retain their exact carrier and inclusive
 bounds through the checked catalog and Terminal declaration. The selected case

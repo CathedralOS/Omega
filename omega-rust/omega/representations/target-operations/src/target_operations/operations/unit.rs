@@ -56,6 +56,12 @@ pub enum TargetUnitOperation {
         case: semantic_vocabulary::StructuralCaseId,
         case_tag: u32,
     },
+    StructuralScalarFieldRead {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: StructuralArgument,
+        field: StructuralFieldId,
+    },
     /// One ordered scalar definition; residence is assigned downstream, not
     /// prescribed as a stack slot by target lowering.
     ScalarDefinition {
