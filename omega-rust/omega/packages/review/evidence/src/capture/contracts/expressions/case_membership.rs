@@ -64,9 +64,9 @@ pub(super) fn checked_case_classifier(
         } => Some((machine_symbol, Some(state_symbol))),
         _ => None,
     };
-    // Abstract signatures have real parameter custody without an executable
-    // machine. Pass that exact lexical scope to Psi instead of inventing an
-    // attachment or finding a same-spelled parameter elsewhere in the program.
+    // Declarations and abstract signatures have their own subject custody
+    // without an executable machine. Pass that exact scope to Psi instead of
+    // inventing an attachment or borrowing a same-spelled subject elsewhere.
     let exact_meaning = if let Some((machine_symbol, state_symbol)) = machine_owner {
         let machine = exactly_one(
             compilation
@@ -92,6 +92,36 @@ pub(super) fn checked_case_classifier(
             &compilation.typed,
             machine,
             state,
+            expression,
+            binary,
+        )
+    } else if let Some(domain_symbol) = context.domain_symbol {
+        let domain = exactly_one(
+            compilation
+                .domain_definitions()
+                .iter()
+                .filter(|domain| domain.symbol == domain_symbol),
+            context.subject_name,
+            "case-membership domain owner",
+        )?;
+        validation::has_exact_domain_case_membership_meaning(
+            &compilation.typed,
+            domain,
+            expression,
+            binary,
+        )
+    } else if let Some(data_symbol) = context.data_symbol {
+        let data = exactly_one(
+            compilation
+                .data_definitions()
+                .iter()
+                .filter(|data| data.symbol == data_symbol),
+            context.subject_name,
+            "case-membership data owner",
+        )?;
+        validation::has_exact_data_case_membership_meaning(
+            &compilation.typed,
+            data,
             expression,
             binary,
         )

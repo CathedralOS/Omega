@@ -82,7 +82,8 @@ pub use places::{
 pub use bound_expression_meaning::{
     exact_case_reference_owner, has_builtin_binary_expression_meaning,
     has_builtin_bound_expression_meaning, has_builtin_decomposed_guard_meaning,
-    has_exact_case_membership_meaning, has_exact_parameter_case_membership_meaning,
+    has_exact_case_membership_meaning, has_exact_data_case_membership_meaning,
+    has_exact_domain_case_membership_meaning, has_exact_parameter_case_membership_meaning,
 };
 pub use intrinsic_boundaries::exact_byte_read_result_type;
 pub use intrinsic_boundaries::exact_compiler_intrinsic_boundary_requirement;

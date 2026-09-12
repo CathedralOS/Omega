@@ -160,8 +160,8 @@ applications are not admitted by adding a review row. Contract/bundle migration
 must preserve exact occurrence, substitution, law/member, and witness joins;
 replacement encodings remain `PROOF-CONTRACT-MIGRATION` work.
 
-Nominal membership capture uses Psi's exact carrier validator with either the
-real machine/state owner or the declaration's own parameter roster. Nested
+Nominal membership capture uses Psi's exact carrier validator with the real
+machine/state owner, declaration-owned subject, or exact parameter roster. Nested
 static-machine signature guards support direct, borrowed, field and builtin-index
 subjects without inventing an executable receiver. A same-spelled parameter from
 another signature cannot supply that scope. A reserved `result` rejoins its exact
@@ -169,7 +169,10 @@ authored postcondition occurrence and owning machine's declared return carrier;
 an equal carrier on another machine or a shadowing parameter is not that result.
 Ordinary result field paths retain that root and exact declaration-owned field
 coordinates, checked against both semantic dependency rows and member selections.
-Domain/data subjects and result projections through indexes, case payloads or
+Domain predicates bind `self` through their declared carrier; data invariants
+bind fields through their own nominal declaration. Both rejoin the exact authored
+predicate occurrence and independently retained definition evidence, without an
+invented executable owner. Projected subjects through indexes, case payloads or
 unsubstituted generic carriers still need their own custody.
 Legacy `proposition` declarations
 remain subject to the [proof-contract migration](../../../../../wiki/spec/proofs/contracts.md#delivery-obligations);
