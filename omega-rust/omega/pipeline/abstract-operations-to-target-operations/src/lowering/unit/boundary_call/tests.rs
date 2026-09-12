@@ -8,6 +8,7 @@ fn declaration(
     scalar_parameters: Vec<ScalarType>,
 ) -> terminal_psi::BoundaryMachineDeclaration {
     terminal_psi::BoundaryMachineDeclaration {
+        fixed_service_reach: Vec::new(),
         id: boundary,
         identity: "Foreign::leaf".into(),
         attachment: None,

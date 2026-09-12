@@ -204,6 +204,7 @@ fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
         reborrow_root_handoffs: Vec::new(),
         reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
+            fixed_service_reach: Vec::new(),
             id: boundary_id(1),
             identity: "test::write_line".into(),
             attachment: None,

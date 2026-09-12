@@ -21,6 +21,7 @@ fn accepts_content_only_boundary_completion_and_rejects_correspondence_corruptio
     baseline
         .boundary_machines
         .push(terminal_psi::BoundaryMachineDeclaration {
+            fixed_service_reach: Vec::new(),
             id: boundary_id,
             identity: "validation::content-only-boundary".into(),
             attachment: None,

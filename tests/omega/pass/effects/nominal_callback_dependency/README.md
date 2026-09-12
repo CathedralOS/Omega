@@ -32,3 +32,9 @@ service row. Removing the declared contribution or the concrete root row rejects
 Scalar calls use the shared service catalog; inert callbacks retain authored reach
 without inventing boundary I/O. This closes concrete-row preservation, not the
 remaining portable original-telescope and exact-substitution replay obligation.
+
+The same focused Terminal command also exercises bounded boundary calls through
+ordinary helpers. Reload and interpretation retain nominal service parents and
+fixed synchronous-invocation reach separately from the exact installation bound,
+including overlapping rows. This validates the preselection artifact, not final
+provider installation or admission of an unresolved row at a package boundary.

@@ -487,6 +487,47 @@ fn substitute_dependency(
     }
 }
 
+/// Reconstruct the fixed basis beside one exact boundary requirement's bound.
+/// Nominal boundary services and synchronous invocations survive installation
+/// substitution, even when they also occur in the requirement's upper bound.
+/// Use the same source meaning as call inference; subtraction from its flattened
+/// ceiling cannot recover overlapping fixed contributions.
+/// Ordinary boundaries need no separate basis: their whole published ceiling
+/// is already concrete. This projection must not reinterpret an ordinary
+/// callable contract as a newly authored nominal boundary invocation.
+pub fn fixed_installation_boundary_service_reach(
+    program: &TypedTrees,
+    target: SymbolHandle,
+) -> Option<Vec<ServiceReachId>> {
+    let trait_requirements = program
+        .traits()
+        .iter()
+        .filter(|owner| owner.is_boundary)
+        .flat_map(|owner| program.trait_machine_signatures(owner))
+        .filter(|signature| signature.symbol == target)
+        .map(|signature| signature.service_reach_is_installation_bound);
+    let machine_requirements = program
+        .machines()
+        .iter()
+        .filter(|machine| {
+            machine.supply_mode.is_boundary_declaration()
+                && program
+                    .machine_states(machine)
+                    .iter()
+                    .any(|state| state.symbol == target)
+        })
+        .map(|machine| machine.service_reach_is_installation_bound);
+    let mut requirements = trait_requirements.chain(machine_requirements);
+    let installation_bound = requirements.next()?;
+    if requirements.next().is_some() {
+        return None;
+    }
+    if !installation_bound {
+        return Some(Vec::new());
+    }
+    Some(direct_service_reach_for_call(program, target).concrete_services)
+}
+
 fn direct_service_reach_for_call(program: &TypedTrees, target: SymbolHandle) -> DirectServiceReach {
     // Checked calls to an exact intrinsic realization retain the boundary
     // requirement's identity. Infer its nominal reach at the same boundary,

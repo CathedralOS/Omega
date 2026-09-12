@@ -20,6 +20,7 @@ fn module(nested: bool) -> TerminalModule {
     let mut boundary_parameter = parameter.clone();
     boundary_parameter.place = place_id(6);
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        fixed_service_reach: Vec::new(),
         id: boundary_id(1),
         identity: "test::forward".into(),
         attachment: None,
@@ -236,6 +237,7 @@ fn installed_structural_provider_preserves_identity_into_a_projected_boundary_ef
     let mut module = module(false);
     let parameter = module.machines[1].structural_parameters[0].clone();
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        fixed_service_reach: Vec::new(),
         id: boundary_id(2),
         identity: "test::observe_leaf".into(),
         attachment: None,

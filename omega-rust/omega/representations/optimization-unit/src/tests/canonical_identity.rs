@@ -21,6 +21,37 @@ use terminal_psi::{
 };
 
 #[test]
+fn boundary_fixed_service_reach_changes_identity_without_changing_published_ceiling() {
+    let source = plan();
+    let mut unit =
+        reconstruct_psi_optimization_unit_seed(&source, FuelScheduleIdentity::new(1).unwrap())
+            .unwrap();
+    let service = id(1, ServiceId::new);
+    unit.boundary_machines.push(BoundaryMachineDeclaration {
+        id: id(1, BoundaryMachineId::new),
+        identity: "Installer::step".into(),
+        attachment: None,
+        scalar_parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: terminal_psi::BoundaryMachineResult::Unit,
+        requires: Vec::new(),
+        program_local_root_introductions: Vec::new(),
+        content_guarantees: Vec::new(),
+        fixed_service_reach: Vec::new(),
+        published_service_ceiling: vec![service],
+        crash_routes: Vec::new(),
+    });
+    let original = recompute_psi_optimization_unit_identity(&unit);
+    let published = unit.boundary_machines[0].published_service_ceiling.clone();
+    unit.boundary_machines[0].fixed_service_reach.push(service);
+    assert_eq!(
+        unit.boundary_machines[0].published_service_ceiling,
+        published
+    );
+    assert_ne!(original, recompute_psi_optimization_unit_identity(&unit));
+}
+
+#[test]
 fn float_comparison_identity_binds_relation_format_operands_and_provenance() {
     use semantic_vocabulary::{IeeeFloatComparisonOperation as Comparison, IeeeFloatFormat};
     let mut source = plan();
@@ -258,18 +289,18 @@ fn canonical_operation_identity_bytes_are_stable() {
     assert_eq!(
         scalar.identity.bytes(),
         [
-            83, 181, 16, 142, 109, 25, 184, 105, 73, 190, 207, 17, 180, 245, 221, 230, 185, 24, 18,
-            154, 148, 194, 92, 10, 87, 241, 175, 73, 247, 194, 68, 216,
+            38, 251, 121, 188, 39, 116, 251, 39, 114, 108, 219, 206, 36, 161, 114, 186, 130, 102,
+            65, 138, 45, 72, 199, 45, 38, 125, 225, 29, 220, 66, 116, 51,
         ],
-        "identity binds vocabulary 99 and scalar-case payloads",
+        "identity binds vocabulary 101 and unit schema 25",
     );
     assert_eq!(
         structural.identity.bytes(),
         [
-            29, 68, 182, 16, 91, 74, 8, 194, 13, 108, 80, 89, 146, 164, 38, 29, 184, 139, 105, 212,
-            64, 110, 62, 73, 141, 62, 31, 78, 202, 229, 197, 150,
+            90, 152, 191, 10, 238, 96, 120, 234, 180, 56, 63, 0, 1, 239, 63, 136, 48, 149, 249,
+            210, 62, 40, 177, 110, 172, 171, 164, 236, 149, 180, 97, 97,
         ],
-        "identity binds vocabulary 99 alongside unchanged storage and return tags",
+        "identity binds vocabulary 101 and unit schema 25 alongside unchanged storage and return tags",
     );
 }
 
@@ -438,6 +469,7 @@ fn canonical_identity_binds_every_retained_field_class() {
     mutations.push(("root installation service reach", unit));
     let mut unit = baseline.clone();
     unit.boundary_machines.push(BoundaryMachineDeclaration {
+        fixed_service_reach: Vec::new(),
         id: boundary,
         identity: "identity-test-boundary".into(),
         attachment: Some(structural_type),

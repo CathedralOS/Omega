@@ -277,10 +277,14 @@ Its `service_reach_contracts` command covers concrete callback rows through
 publication, reload and interpretation, including inert declared reach and
 private helper propagation. Resume with original dependency/telescope custody
 and exact substitution replay; concrete row preservation does not establish them.
-The valid bounded-boundary source in `direct_installation_boundary_keeps_its_required_declaration`
-checks but publication at `4306898b5f` plus this row repair still rejects with
-`InstallationReachBoundaryMismatch`: rejoin the normalized requirement upper bound
-and boundary declaration before claiming source-to-Terminal installation coverage.
+The unresolved callback projection in `terminal_unit/calls.rs` (`selected_parameter`)
+and `terminal_unit/control.rs` still treats a binder requirement as an executable
+boundary target without a closed selection. Replace it with exact continuation
+selection while preserving the ProgramEntry two-root claim-transfer and installed
+provider tests; those receipt tests alone do not prove post-instantiation closure.
+Top-level installation-bound `invokes` still needs the fixed contribution retained
+by `validation/src/effect_inference/service_reach.rs`'s machine branch; the trait
+boundary regression does not cover that source path (publication probe unrun).
 
 ## Semantic reflection
 

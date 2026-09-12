@@ -359,6 +359,7 @@ fn completion_artifact() -> (Vec<u8>, Vec<u8>, semantic_vocabulary::BoundaryMach
     module
         .boundary_machines
         .push(terminal_psi::BoundaryMachineDeclaration {
+            fixed_service_reach: Vec::new(),
             id: boundary,
             identity: "Extent::complete".into(),
             attachment: None,
@@ -425,6 +426,7 @@ fn provider_artifact() -> (
         parameter.place = PlaceId::new(3_622 + index as u64).unwrap();
     }
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        fixed_service_reach: Vec::new(),
         id: boundary,
         identity: "StructuralSink::accept".into(),
         attachment: None,

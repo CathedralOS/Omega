@@ -4,6 +4,7 @@ fn module(ordinary: bool, nested: bool, complete_transfer: bool) -> TerminalModu
     let mut module = produced_partial_module(ordinary, nested);
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 16).unwrap());
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        fixed_service_reach: Vec::new(),
         id: boundary_id(2),
         identity: "observe_continuation".into(),
         attachment: None,

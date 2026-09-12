@@ -278,6 +278,7 @@ fn build_unit(
             },
         );
         boundary_machines.push(terminal_psi::BoundaryMachineDeclaration {
+            fixed_service_reach: Vec::new(),
             id: boundary,
             identity: "validation::general-affine-factory".into(),
             attachment: None,

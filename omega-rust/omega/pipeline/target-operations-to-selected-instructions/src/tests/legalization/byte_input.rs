@@ -57,6 +57,7 @@ pub(crate) fn fixture(
     source
         .boundary_machines
         .push(terminal_psi::BoundaryMachineDeclaration {
+            fixed_service_reach: Vec::new(),
             id: boundary,
             identity: "test::input".into(),
             attachment: None,

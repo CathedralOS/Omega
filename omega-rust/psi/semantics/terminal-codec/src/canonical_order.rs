@@ -374,6 +374,11 @@ pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                 "boundary published service ceiling by ServiceId",
             ));
         }
+        if !strictly_increasing(declaration.fixed_service_reach.iter().copied()) {
+            return Err(CodecError::NonCanonicalOrder(
+                "boundary fixed service reach by ServiceId",
+            ));
+        }
     }
     if !strictly_increasing(module.provider_candidates.iter().map(|candidate| {
         (

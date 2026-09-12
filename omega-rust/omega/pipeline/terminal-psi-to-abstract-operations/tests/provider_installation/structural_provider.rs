@@ -81,6 +81,7 @@ pub(super) fn structural_provider_module() -> TerminalModule {
     module.boundary_machines[0].structural_parameters =
         vec![structural_parameter(place_id(9), resource)];
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        fixed_service_reach: Vec::new(),
         id: boundary_id(2),
         identity: "Resource::settle".into(),
         attachment: None,

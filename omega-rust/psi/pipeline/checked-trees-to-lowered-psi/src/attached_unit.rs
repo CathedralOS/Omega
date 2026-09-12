@@ -34,9 +34,9 @@ mod structural_completion;
 pub(crate) mod structural_values;
 
 use bodies::UnitBody;
-pub(super) use parameters::lower_declared_service_reach;
 use parameters::lower_unit_scalar_parameter_types;
 pub(super) use parameters::validate_direct_unit_parameter_custody;
+pub(super) use parameters::{lower_declared_service_reach, lower_fixed_boundary_service_reach};
 
 use call_closure::{
     checked_scalar_call_closure_with_structural_roots, checked_terminal_machine_name,
@@ -1011,6 +1011,7 @@ fn assemble_unit_closure(
             requires,
             program_local_root_introductions,
             content_guarantees,
+            fixed_service_reach: lower_fixed_boundary_service_reach(checked, plan, &service_ids)?,
             published_service_ceiling,
         });
         lowered_boundary_parameters.push((plan.machine, id, parameters, scalar_parameters));

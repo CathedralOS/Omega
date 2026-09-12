@@ -310,6 +310,7 @@ fn unused_provider_attachment_module() -> TerminalModule {
         }],
     };
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        fixed_service_reach: Vec::new(),
         crash_routes: Vec::new(),
         id: boundary_id(1),
         identity: "example::Console::write".into(),
@@ -3421,6 +3422,7 @@ fn projected_boundary_qualification_module() -> TerminalModule {
     module.structural_types = vec![leaf.clone(), root.clone()];
     module.structural_domains = vec![domain.clone()];
     module.boundary_machines = vec![BoundaryMachineDeclaration {
+        fixed_service_reach: Vec::new(),
         crash_routes: Vec::new(),
         id: boundary_id(1),
         identity: "consume_ready_leaf".into(),
@@ -4551,6 +4553,7 @@ fn hard_root_module() -> TerminalModule {
     let mut boundary_parameter = structural_parameter(place_id(9));
     boundary_parameter.qualifications.clear();
     let boundary = BoundaryMachineDeclaration {
+        fixed_service_reach: Vec::new(),
         crash_routes: Vec::new(),
         id: boundary_id(1),
         identity: "settle_port".into(),

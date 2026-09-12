@@ -148,7 +148,122 @@ fn direct_installation_boundary_keeps_its_required_declaration() {
             );
             continue;
         }
-        result.expect("complete direct reach declaration checks");
+        let checked = result.expect("complete direct reach declaration checks");
+        let artifact = produce_terminal_artifact(&checked, "Root::enter")
+            .expect("publish complete direct installation-bound declaration");
+        let module = terminal_codec::decode_module(artifact.semantic_bytes()).expect("reload");
+        assert_eq!(
+            service_names(&module, &module.boundary_machines[0].fixed_service_reach),
+            ["Installer"]
+        );
+        assert_eq!(
+            service_names(
+                &module,
+                &module.root_service_reach.installation_dependencies[0].upper_bound
+            ),
+            ["Console"]
+        );
+        assert_eq!(
+            service_names(&module, &module.root_service_reach.concrete),
+            ["Console", "Installer"]
+        );
+    }
+}
+
+fn service_names<'module>(module: &'module TerminalModule, row: &[ServiceId]) -> Vec<&'module str> {
+    row.iter()
+        .map(|service| {
+            module
+                .services
+                .iter()
+                .find(|declaration| declaration.id == *service)
+                .expect("declared service")
+                .identity
+                .as_str()
+        })
+        .collect()
+}
+
+#[test]
+fn bounded_boundary_helpers_replay_fixed_parent_and_invocation_reach() {
+    for (bound, invocations, expected_fixed, expected_bound) in [
+        ("Console", "", vec!["Audit", "Installer"], vec!["Console"]),
+        (
+            "Console + Installer",
+            "",
+            vec!["Audit", "Installer"],
+            vec!["Audit", "Console", "Installer"],
+        ),
+        (
+            "Console",
+            "invokes Console;",
+            vec!["Audit", "Console", "Installer"],
+            vec!["Console"],
+        ),
+    ] {
+        let source = format!(
+            r#"
+            pub boundary trait Audit {{}}
+            pub boundary trait Console {{}}
+            pub boundary trait Installer: Audit {{
+                machine step() {invocations} reaches <= {bound};
+            }}
+            machine helper() reaches Installer + Console invokes Installer; {invocations} {{ Installer::step(); }}
+            pub data Root {{}}
+            pub machine Root::enter() invokes Installer; {invocations} {{ helper(); helper(); }}
+        "#
+        );
+        let checked = checked_source(&source);
+        let artifact =
+            produce_terminal_artifact(&checked, "Root::enter").expect("publish helper closure");
+        let module = terminal_codec::decode_module(artifact.semantic_bytes())
+            .expect("reload helper closure");
+        assert_eq!(module.boundary_machines.len(), 1);
+        assert_eq!(module.root_service_reach.installation_dependencies.len(), 1);
+        assert_eq!(
+            service_names(&module, &module.boundary_machines[0].fixed_service_reach),
+            expected_fixed
+        );
+        assert_eq!(
+            service_names(
+                &module,
+                &module.root_service_reach.installation_dependencies[0].upper_bound
+            ),
+            expected_bound
+        );
+        assert_eq!(
+            service_names(&module, &module.root_service_reach.concrete),
+            ["Audit", "Console", "Installer"]
+        );
+        drop(checked);
+        struct Host;
+        impl terminal_interpreter::TerminalEffectHandler for Host {
+            fn handle_effect(
+                &mut self,
+                effect: &terminal_interpreter::TerminalEffect,
+            ) -> Result<(), terminal_interpreter::TerminalEffectRejection> {
+                assert!(matches!(
+                    effect,
+                    terminal_interpreter::TerminalEffect::BoundaryCall { .. }
+                ));
+                Ok(())
+            }
+        }
+        let execution =
+            terminal_interpreter::interpret_terminal_artifact_with_effect_handler_measured(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &proof_admission::AdmissionProfile::default(),
+                &[],
+                &[],
+                &mut Host,
+            )
+            .expect("interpret decoded helpers with receiving host authority");
+        assert_eq!(
+            execution.value(),
+            terminal_interpreter::TerminalExecutionResult::Unit
+        );
+        assert_eq!(execution.effects().len(), 2);
     }
 }
 

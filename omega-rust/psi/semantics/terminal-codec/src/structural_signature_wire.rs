@@ -114,6 +114,7 @@ pub(super) fn encode_boundary_machine(
             }
         }
     }
+    encode_service_ceiling(writer, &declaration.fixed_service_reach)?;
     encode_service_ceiling(writer, &declaration.published_service_ceiling)
 }
 
@@ -289,6 +290,7 @@ pub(super) fn decode_boundary_machine(
             )),
             tag => Err(CodecError::InvalidTag("BoundaryContentGuarantee", tag)),
         })?,
+        fixed_service_reach: decode_ids(reader, "ServiceId")?,
         published_service_ceiling: decode_ids(reader, "ServiceId")?,
     })
 }

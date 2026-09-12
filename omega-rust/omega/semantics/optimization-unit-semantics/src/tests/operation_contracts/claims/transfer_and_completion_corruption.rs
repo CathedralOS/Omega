@@ -46,6 +46,7 @@ fn rejects_self_consistent_internal_claim_transfer_and_boundary_completion_corru
     boundary
         .boundary_machines
         .push(terminal_psi::BoundaryMachineDeclaration {
+            fixed_service_reach: Vec::new(),
             id: boundary_id,
             identity: "validation::claim-completing-boundary".into(),
             attachment: None,

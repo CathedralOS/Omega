@@ -36,6 +36,7 @@ fn fixture() -> TerminalModule {
         },
     });
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        fixed_service_reach: Vec::new(),
         crash_routes: Vec::new(),
         id: boundary,
         identity: "Input::read".into(),

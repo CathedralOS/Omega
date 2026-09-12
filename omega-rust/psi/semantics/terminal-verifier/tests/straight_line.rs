@@ -5674,6 +5674,7 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
         },
     };
     let boundary = BoundaryMachineDeclaration {
+        fixed_service_reach: Vec::new(),
         crash_routes: Vec::new(),
         id: boundary_id,
         identity: "Splitter::partition".to_owned(),

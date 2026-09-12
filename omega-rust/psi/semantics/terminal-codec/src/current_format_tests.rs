@@ -16,7 +16,7 @@ const LEGACY_UNIT: &[u8] = &[
 
 // The same Unit semantics with the current declaration rosters and markers.
 const CURRENT_UNIT: &[u8] = &[
-    80, 83, 73, 84, 69, 82, 77, 0, 90, 0, 100, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    80, 83, 73, 84, 69, 82, 77, 0, 91, 0, 101, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -119,6 +119,120 @@ fn declared_service_reach_format_rejects_previous_contract_encoding() {
         decode_module(&bytes),
         Err(CodecError::UnsupportedFormatMarker(FORMAT_MARKER - 1))
     );
+}
+
+fn fixed_boundary_service_module() -> terminal_psi::TerminalModule {
+    let mut module = decode_module(CURRENT_UNIT).expect("current Unit fixture");
+    let fixed = semantic_vocabulary::ServiceId::new(1).unwrap();
+    let bound = semantic_vocabulary::ServiceId::new(2).unwrap();
+    let boundary = semantic_vocabulary::BoundaryMachineId::new(1).unwrap();
+    module.services = vec![
+        terminal_psi::ServiceDeclaration {
+            id: fixed,
+            identity: "Installer".into(),
+            parents: Vec::new(),
+        },
+        terminal_psi::ServiceDeclaration {
+            id: bound,
+            identity: "Console".into(),
+            parents: Vec::new(),
+        },
+    ];
+    module
+        .boundary_machines
+        .push(terminal_psi::BoundaryMachineDeclaration {
+            id: boundary,
+            identity: "Installer::step".into(),
+            attachment: None,
+            scalar_parameters: Vec::new(),
+            crash_routes: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: terminal_psi::BoundaryMachineResult::Unit,
+            requires: Vec::new(),
+            program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
+            fixed_service_reach: vec![fixed],
+            published_service_ceiling: vec![fixed, bound],
+        });
+    module.machines[0].published_service_ceiling = vec![fixed, bound];
+    module.machines[0].blocks[0]
+        .operations
+        .push(terminal_psi::Operation {
+            id: semantic_vocabulary::OperationId::new(1).unwrap(),
+            result: terminal_psi::OperationResult::Unit,
+            kind: terminal_psi::OperationKind::BoundaryCall {
+                boundary,
+                arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                completion_receipts: Vec::new(),
+            },
+        });
+    module.root_service_reach.concrete = vec![fixed];
+    module.root_service_reach.installation_dependencies =
+        vec![terminal_psi::InstallationReachDependency {
+            requirement_identity: "Installer::step".into(),
+            upper_bound: vec![bound],
+        }];
+    module
+}
+
+#[test]
+fn fixed_boundary_service_reach_roundtrips_with_distinct_installation_identity() {
+    let module = fixed_boundary_service_module();
+    let bytes = encode_module(&module).expect("fixed boundary contract");
+    assert_eq!(decode_module(&bytes).unwrap(), module);
+    assert_eq!(
+        encode_module(&decode_module(&bytes).unwrap()).unwrap(),
+        bytes
+    );
+    let mut overlapping = module.clone();
+    let bound = overlapping.root_service_reach.installation_dependencies[0].upper_bound[0];
+    overlapping.boundary_machines[0]
+        .fixed_service_reach
+        .push(bound);
+    overlapping.root_service_reach.concrete.push(bound);
+    let overlapping_bytes = encode_module(&overlapping).unwrap();
+    assert_eq!(decode_module(&overlapping_bytes).unwrap(), overlapping);
+    assert_ne!(
+        super::semantic_fingerprint(&module).unwrap(),
+        super::semantic_fingerprint(&overlapping).unwrap()
+    );
+    assert_eq!(
+        module.root_service_reach.installation_dependencies,
+        overlapping.root_service_reach.installation_dependencies
+    );
+}
+
+#[test]
+fn fixed_boundary_service_reach_decoder_rejects_corrupt_partition_and_rosters() {
+    let module = fixed_boundary_service_module();
+    for mutation in 0..6 {
+        let mut corrupt = module.clone();
+        match mutation {
+            0 => corrupt.boundary_machines[0].fixed_service_reach.clear(),
+            1 => corrupt.root_service_reach.concrete.clear(),
+            2 => corrupt.root_service_reach.installation_dependencies[0]
+                .upper_bound
+                .clear(),
+            3 => {
+                corrupt.boundary_machines[0].fixed_service_reach =
+                    vec![semantic_vocabulary::ServiceId::new(3).unwrap()];
+            }
+            4 => {
+                let fixed = corrupt.boundary_machines[0].fixed_service_reach[0];
+                corrupt.boundary_machines[0].fixed_service_reach.push(fixed);
+            }
+            5 => corrupt.boundary_machines[0]
+                .published_service_ceiling
+                .clear(),
+            _ => unreachable!(),
+        }
+        let bytes = super::encode_raw(&corrupt).expect("raw corruption fixture");
+        assert!(
+            decode_module(&bytes).is_err(),
+            "mutation {mutation} must reject"
+        );
+    }
 }
 
 #[test]

@@ -87,6 +87,11 @@ pub(super) fn lower_boundary_scalar_return_machine(
             &checked.facts.qualifications.content.conservation_plans,
             boundary.state,
         )?,
+        fixed_service_reach: crate::attached_unit::lower_fixed_boundary_service_reach(
+            checked,
+            boundary,
+            &service_ids,
+        )?,
         published_service_ceiling: lower_published_service_ceiling(
             &checked.facts.service_reaches.rows,
             boundary.contract_service_reach,
