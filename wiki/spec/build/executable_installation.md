@@ -3,7 +3,7 @@
 There is no general executable-memory capability, arbitrary bytes-to-code
 conversion, JIT, or self-modifying-code route. An immutable reusable `Artifact`
 is eligible only through the sealed `Artifact::AdmittedExecutable` qualification.
-Admission binds exact content, identity, relocation/proof payload, footprint,
+Admission binds exact content, identity, relocation and required evidence, footprint,
 and placement plan. Packages cannot self-establish it; mutation destroys it.
 
 ## Placement lifecycle
@@ -12,7 +12,7 @@ These are semantic states, not prescribed generic source type names:
 
 | Transition | Required result |
 | --- | --- |
-| Canonical decode and PCC/contract admission | Immutable admitted artifact. |
+| Canonical decode and receiver-required contract/evidence admission | Immutable admitted artifact. |
 | Linear `CodePlacement` (write, no execute) plus borrowed artifact | Materialized declared sections/relocations. |
 | Freeze | Readable, non-executable immutable placement. |
 | Validate exact final bytes and footprint | Validated placement bound to those bytes and authority. |
@@ -79,10 +79,17 @@ hardware hardening are separate assurance work, not substitutes for those rules.
 
 The canonical native component container has bounded length-delimited tables,
 checked arithmetic/ranges, nonoverlap, a closed relocation vocabulary, and
-required PCC/contract/footprint sections. It has no constructors, scripts,
+required contract/footprint sections. It has no constructors, scripts,
 ambient imports, recursive metadata, or permissive semantic extensions.
 Informational sections grant no authority; meaning/trust-bearing sections are
 required. A UEFI PE/COFF envelope is not the component format.
+
+[Portable PCC](../proofs/publication.md) is requested independently and initially
+published in an adjacent `.proof` file, not a required embedded section. A
+receiver requiring PCC must check that companion before admission. A receiver
+may instead explicitly trust an accepted producer for checks it does not replay;
+that route is not independent PCC verification. Neither choice bypasses sealed
+admission, final-byte/placement validation, footprint checks or the W^X lifecycle.
 
 Decode/structural validation yields only an immutable candidate. Admission is
 separate. Exact content and normalized semantic promises define identity;

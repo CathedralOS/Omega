@@ -49,7 +49,10 @@ is not yet a complete certificate producer. The
 reference core, strict/relevant distinction, noncomputability and assumption
 rules. The remaining questions below do not reopen those decisions.
 
-Complete its source elaboration, PCC authority bridge and exact extended profile.
+The [PCC publication and authority contract](wiki/spec/proofs/publication.md) is
+settled. Complete source elaboration and the exact extended foundation profile;
+PCC interpretation proofs, checker implementation and sidecar delivery are
+execution work unless they expose a new semantic choice.
 No question restores anonymous machines, dedicated formula declarations, or
 authored `-> Prop` syntax. Those ergonomic proposals remain separate.
 
@@ -126,89 +129,9 @@ The existing [evaluation admission](wiki/spec/language/evaluation.md#invocation-
 and total-term rules stay fixed: this question does not reopen whether arbitrary
 runtime effects may execute in proofs.
 
-<a id="general-proof-pcc-authority"></a>
-
-## Q2. General proof authority and the PCC checking boundary
-
-### Context
-
-[Terminal verification](wiki/spec/terminal-psi/verification.md) already separates
-untrusted producers, verifier-reconstructed questions and certificate checking.
-It requires exact subjects, transitive assumptions and low-rung soundness
-theorems. Those responsibilities are settled. What is not settled is the
-exact derivation interface and operational interpretation of the selected
-[foundation](wiki/spec/proofs/foundation.md), including its completed profile identity.
-
-The [product proof checker](omega-rust/psi/semantics/proof-admission/src/evidence.rs)
-has primitive, certificate and explicitly admitted routes. The
-[Gamma checker](bootstrap/proofs/checker/README.md) is a different finite
-ground-equality calculus with no general quantifiers or induction. It cannot
-be treated as the already-complete checker for universal schema soundness or
-arbitrary mathematical proofs. Completing its existing Beta certificate is
-separate delegated implementation work, not this question.
-
-The customer is a source-free consumer checking a program whose safety argument
-uses a mathematical library theorem, plus the required compiler/refinement
-proofs. Neither the source producer nor a library chooses the consumer's policy.
-
-### Problem and required decision
-
-Does general proof publication use the canonical mathematical kernel directly,
-or a checked translation into a separate fixed PCC calculus? Identify where
-the canonical operational questions enter that calculus, what checks the
-translation, and which judgments remain trusted. Specify how foundation
-identity and exact assumptions survive theorem import, normalization, erasure
-and separate consumption. Changing axioms within one calculus is not changing
-the calculus; an accepted mathematical assumption is not silently a grant for
-runtime-safety or native-refinement acceptance.
-
-### Proposed solution
-
-Use one canonical proof calculus and checking interface for general theorem
-evidence and the mathematical obligations behind PCC. Keep operational
-obligation reconstruction a separate owner with explicit checked interpretation
-of its terms and premises. Existing bounded decision procedures either have a
-specified trusted rule with a soundness argument or emit checked derivations;
-total execution alone is not a soundness argument.
-
-Alternative proof tools may produce that calculus's evidence, but do not install
-new trusted checker plugins. Retain calculus/version and exact assumption
-identities; reject unknown foundations rather than guess compatibility. Admit
-cross-foundation results only through an explicitly checked interpretation for
-a concrete pair. Consumer policy must explicitly cover assumptions used by a
-safety/refinement claim, or that claim rejects. This implements the existing
-no-silent-authority rule; it does not promise to decide axiom consistency.
-
-### Alternates and closure evidence
-
-- **Viable:** separate mathematical and PCC calculi with a checked translation
-  and explicit assumption mapping. Compare the trusted surface and proof cost;
-  sharing digests or theorem names is not a translation proof.
-- **Tempting but wrong:** bless whichever Rust procedure currently returns true,
-  let a producer-supplied foundation weaken reconstructed goals, treat a generic
-  Gamma equality receipt as artifact authority, or hide new axioms in reductions.
-
-Acceptance must publish a theorem-dependent obligation, discard source/compiler
-state, and check it independently. Wrong calculus, substituted goals, omitted
-assumptions, stale translations and disallowed safety-use assumptions reject;
-two consumer policies distinguish the same assumption-bearing theorem. Include
-an operational schema/call-composition proof, not only an unrelated theorem.
-This does not claim the existing bootstrap checker can express that proof.
-Also check a well-founded mathematical denotation against an emitted iterative
-machine. Termination, functional correctness and lowering preservation are
-distinct obligations: a bad accumulator update that still decreases rejects.
-
-**Blocked work:** the general PCC publication/interpretation and authority-bearing
-encoding parts of `PROOF-CERTIFICATION-BRIDGE` and
-`PCC-CANONICAL-SEMANTIC-LEDGER`. Bounded current-rule
-production, reference-core checking, replay repairs and the existing bootstrap
-proof customer can continue.
-Byte tags, certificate storage, tactic APIs and the Real library are not separate
-owner decisions unless implementing them exposes a new semantic or trust choice.
-
 <a id="foundation-profile-completion"></a>
 
-## Q3. Exact inductive and quotient extension of the reference core
+## Q2. Exact inductive and quotient extension of the reference core
 
 ### Context
 

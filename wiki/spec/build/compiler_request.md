@@ -103,10 +103,20 @@ snapshots, admissions, and commitment before source tokenization and build work.
 | 0 | `Complete` | Unwrapped requested artifact. |
 | 1 | `Reject` | Invalid/noncanonical request or ordinary source/build/checking refusal. |
 | 2 | `Incomplete` | Named private provision exceeded; no verdict on unexamined source. |
-| 3 | `InternalFailure` | Compiler contradiction after input admission; no artifact authority. |
+| 3 | `InternalFailure` | Compiler malfunction or implementation-invariant violation after input admission; no artifact authority. |
 
 Every failure publishes only its closed OCOUT frame, never an artifact prefix.
-The eight-byte identity is `FF 4F 43 4F 55 54 01 00`; the common header is 40
+
+The requested product includes normalized Build's independent
+[Psi/native PCC selections](../proofs/publication.md). `Complete` must deliver
+every requested artifact/sidecar pair; an uncertified artifact is not a fallback.
+The existing single-artifact payload does not define multi-file framing: extend
+the owning product schema explicitly, without concatenating unframed files or
+inventing halt tags. Search exhaustion is `Incomplete`, an invalid certificate
+is `Reject`, and deriving a contradiction from admitted logical premises is not
+by itself `InternalFailure`.
+
+The failure frame's eight-byte identity is `FF 4F 43 4F 55 54 01 00`; its common header is 40
 bytes. Its outcome must match the halt tag. Coordinate space 4 alone appends
 eight bytes: little-endian `u32` canonical package and source-unit ordinals;
 the header's `u64` coordinate holds the source byte offset. Other spaces have

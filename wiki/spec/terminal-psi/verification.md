@@ -10,9 +10,11 @@ Runtime cycles and grouped recursive certificates follow
 ## General proof integration status
 
 The responsibilities below and the [mathematical foundation](../proofs/foundation.md)
-are specified. Its complete extended profile and the exact
-[general proof authority bridge](../../../OWNER_QUESTIONS.md#general-proof-pcc-authority)
-remain open. Selecting a reference core does not implement either.
+are specified. [Application PCC](../proofs/publication.md) uses the common
+mathematical checking foundation with separate operational obligation
+reconstruction. Its implementation and soundness proofs remain required;
+the exact [extended profile](../../../OWNER_QUESTIONS.md#foundation-profile-completion)
+is still open. Selecting a reference core does not implement these components.
 The current product checker implements bounded rules, while the Gamma bootstrap
 checker implements finite ground equality. Neither establishes the general
 kernel or the universal schema-soundness proofs required below.
@@ -24,6 +26,12 @@ Source elaboration and search are producers for the common mathematical checker,
 not separate general truth authorities. Bounded procedures must emit checked
 derivations or retain explicit justified rules and their exact numeric meaning.
 
+Portable Psi and native PCC are independent opt-ins; this contract specifies
+independent verification, not mandatory evidence shipping on every build.
+Ordinary checks and internal validation still run without a sidecar. A receiving
+policy may require PCC and refuse ordinary output. Absence of independently
+checked evidence cannot be reported as independently verified safety.
+
 ## Responsibilities
 
 | Component | Responsibility | Cannot choose |
@@ -31,6 +39,13 @@ derivations or retain explicit justified rules and their exact numeric meaning.
 | Producer | Emit canonical Terminal Psi and candidate evidence. | Which obligations the artifact must satisfy. |
 | Artifact verifier | Decode and validate the module, then reconstruct its complete ordered obligations and premises. | A weaker question based on the evidence supplied. |
 | Proof kernel | Check derivations against those exact questions and their permitted premises. | Additional assumptions or unrecorded admissions. |
+
+The receiver independently pins its policy package, configuration, required
+guarantees, entry/environment conditions and accepted assumptions. Authored
+contracts and producer annotations cannot weaken those requirements. Reconstruct
+both ordinary semantic obligations and the required guarantee applications;
+check every offered premise against the admitted conditions. This applies to
+Psi and native products alike, not just to source-level contracts.
 
 The verifier reconstructs obligations from every operation and edge and retains
 the fingerprinted author contracts before matching evidence. Missing obligations,
@@ -189,8 +204,10 @@ time out or return unknown must carry a certificate for portable checking.
 compiler-service budget is incomplete evaluation, not native behavior or a
 termination argument.
 
-Schema soundness theorems are universally quantified metatheory proved once in
-the low-rung calculus, not repeated in each artifact. They bind exact schema,
+Application schema soundness theorems are universally quantified metatheory in
+the selected general mathematical calculus, not repeated in each artifact.
+The bounded bootstrap encoding checker is not their assumed implementation.
+They bind exact schema,
 state-model, mathematical-definition, operational-clause, and composition-theorem
 digests. A checked conservative-extension theorem may transport an unaffected
 row to a new semantics version; otherwise it must be reproved. This does not
@@ -202,6 +219,36 @@ rationale, and accepting policy. Unknown, cyclic, unreachable, duplicate, or
 noncanonical dependencies reject. Unproved generators, reductions, ledger
 frameworks, leaf rows, and call-composition rows remain distinct dependencies.
 Proving one row must not hide an unproved composition theorem.
+
+### Trusted-surface inventory
+
+Use this ledger, not a parallel manifest framework, to inventory primitive
+judgments, inference rules, reconstructed fact kinds, normalization/conversion,
+and shared formation, scope, invalidation, reconstruction and composition rules.
+Each entry states its exact licensed premises/conclusion, dependencies,
+implementation identity/site and soundness status: `Proved`, `ExplicitlyTrusted`
+or `Unfinished`. A source path locates code; it does not identify its semantics.
+`Proved` binds checked evidence and its assumptions. `ExplicitlyTrusted` needs
+an identified accepting root/policy and rationale. `Unfinished` cannot establish
+an independent claim merely because the implementation returns success.
+
+Mechanically check coverage of accepted checker dispatch paths and reconstructed
+fact kinds. A new accepted variant without its entry fails before publication.
+Changing an existing implementation also requires revalidating its justification
+or an explicit checked preservation relationship; a stable enum tag is not enough.
+Coverage tests establish inventory completeness, not rule soundness. Do not freeze
+the current enum count into this specification or infer the trusted surface from
+the name `Primitive` alone.
+
+Local fact-interpretation lemmas establish meaning, not availability. Separate
+dependencies establish complete artifact coverage, valid premises on each path,
+write invalidation, cyclic invariants and call composition. A once-true fact
+cannot survive a modifying write merely because its introduction rule is sound.
+
+Sidecars enumerate exact omitted dependencies. Independent replay requires the
+receiver to possess and accept those identities; no source, missing-artifact
+digest, version range or producer-selected policy supplies the missing premise.
+Conversion and erasure preserve the separately retained assumption closure.
 
 Terminal denotation ends at its abstract execution model. Native lowering,
 installation, ISA semantics, and hardware fidelity belong to the separate

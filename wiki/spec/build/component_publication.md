@@ -90,6 +90,12 @@ describe API roles, not shipped signatures. The expected subject and profile
 come from independent caller policy; deserialization yields only a candidate.
 A producer-written completeness flag cannot establish the qualification.
 
+[PCC admission](../proofs/publication.md) takes the corresponding sidecar and
+the receiver's independently selected policy package/configuration. These are
+explicit verification inputs even when an API groups them into `profile`.
+Native verification does not require a separate Psi artifact. An ordinary
+uncertified executable cannot acquire independent completeness by deserialization.
+
 The description exposes exact public slots and directions, complete closed
 requirement/calling contracts, all possible entries, outgoing authority demands,
 and checked custody/lifetime constraints. It retains verification-schema and
@@ -131,16 +137,19 @@ consumer coverage must be demonstrated before claiming this interface implemente
 
 ## Candidate acceptance and resources
 
-A deployment-agnostic checked capsule for one exact slot retains canonical
-Terminal Psi, reconstructed obligations, symbolic imports/exports,
-resource/lifecycle demands, target dependencies, and any offered native
-realizations/refinement certificates.
+A deployment-agnostic checked capsule for one exact slot retains symbolic
+imports/exports, resource/lifecycle demands, target dependencies and the evidence
+required for its claims. A portable Psi capsule contains canonical Terminal Psi
+and reconstructed obligations. A native-only capsule supplies independently
+checkable native evidence; any intermediate definitions needed by that evidence
+are included or exact accepted dependencies, not a missing separate Psi product.
 Source/provider identity remains audit/correspondence data, not the runtime
 service carrier's provider type.
 
 An envelope may admit verified Psi on an interpreter proved against pinned
 semantics, checked target-native realization of that Psi (shipped or lowered
-locally), or disclosed opaque-native executable-TCB admission. The last has no
+locally), independently checked native obligations without a separate Psi
+artifact, or disclosed opaque-native executable-TCB admission. The last has no
 reconstructible Omega semantic subject; it is not merely more capability reach.
 Source correspondence, semantic safety, and executable realization are separate
 edges. Producer identity or reproducibility substitutes for none of them.
@@ -346,13 +355,13 @@ ordinary source `Independent` execution is implemented.
 
 | Product | Contains | Does not establish |
 | --- | --- | --- |
-| Canonical Terminal artifact | Exact semantic, proof, optional debug, and reconstructed manifest sections. | Native target, installed provider, or publication authority. |
-| Native artifact | Verified Terminal product, exact selected provider closure/executions, target realization, object/image, and replay evidence. | Output path, installed occurrence, progress receipt, or `InstalledCode` custody. |
+| Canonical Terminal artifact | Exact semantics, optional debug and required product metadata; a separate `.proof` companion when requested. | Native target, installed provider, or publication authority. |
+| Native artifact | Final object/image with its required realization metadata; a standalone `.proof` companion when requested. Internal production retains the checked Terminal/provider/realization relationships. | A requirement to ship Terminal, output path, installed occurrence, progress receipt, or `InstalledCode` custody. |
 | Native component candidate | The same native artifact plus exact source-selected provider facts and pending component-progress manifest. | A second lowering route or runnable installation. |
 | Installed runnable | Replayed installation and the real installed-code/provider/progress custody for a live component era. | A new installation merely by recompilation. |
 | Publication receipt | Exact installation/image/path relationship and required file-mode validation. | Authority inferred from a filename or compact report identifier. |
 
-A source-free native consumer accepts canonical Terminal plus explicit realization
+A source-free native producer accepts canonical Terminal plus explicit realization
 inputs, not checked/typed/source representations. It verifies, lowers, emits,
 and replays exact bytes. Unresolved/duplicate settlements, executions outside
 the selected requirement closure, target substitution, and object/image drift

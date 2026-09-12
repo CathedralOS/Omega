@@ -3,8 +3,8 @@
 Omega's proof system uses ordinary machines, contracts, data, traits, and named
 conformances. The [mathematical foundation](foundation.md) selects a dependent
 core with proof-relevant identity and strict logical proofs. This specifies the
-required model, not complete implementation support. Remaining profile, source
-and publication decisions are listed under [open joins](#open-joins).
+required model, not complete implementation support. Remaining profile and source
+decisions are listed under [open joins](#open-joins).
 
 ## Machines and bundles
 
@@ -336,7 +336,6 @@ The following narrower decisions remain open; their proposals are not ratified.
 | --- | --- |
 | Exact general declaration extension and quotient realization for the selected reference core | [Foundation profile completion](../../../OWNER_QUESTIONS.md#foundation-profile-completion) |
 | General logical binders, predicate abstraction/passing, universe annotations and mathematical-result source elaboration | [Mathematical binders](../../../OWNER_QUESTIONS.md#mathematical-binders) |
-| General derivation checking, foundation identity, checked cross-foundation interpretation and the PCC authority bridge | [General proof authority](../../../OWNER_QUESTIONS.md#general-proof-pcc-authority) |
 
 Changing axioms within one calculus does not establish compatibility between
 different calculi. These questions do not reopen the specified evaluation,
@@ -348,6 +347,13 @@ Certificate byte layouts, a tactic-machine API, and the remaining
 Real/approximation library are separate engineering or deferred surface work;
 they are not substitutes for implementing the selected foundation. Promote any
 new semantic or trust choice they expose to the owner queue before relying on it.
+
+[Application PCC](publication.md) uses the common mathematical checking
+foundation, independently reconstructed requirements and exact receiver policy.
+Psi and native evidence are optional, separate `.proof` products; ordinary
+proof-obligation checking remains mandatory. General certificate production and
+operational soundness proofs are implementation obligations, not an unresolved
+choice of acceptance authority.
 
 `PROOF-CONTRACT-MIGRATION` on the [execution board](../../../TASKS.md) owns worked
 proofs and migration through source, serialization, and replay. Neither a

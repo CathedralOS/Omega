@@ -39,6 +39,7 @@ beside code; completed work belongs in Git, not current reference material.
 - Mathematical proofs: [foundation and checking judgments](spec/proofs/foundation.md),
   [contracts, bundles, normalization, and trust](spec/proofs/contracts.md)
   and [relations and quotients](spec/proofs/quotients.md).
+- Proof-carrying products: [optional Psi/native sidecars and receiver policy](spec/proofs/publication.md).
 - Terminal Psi: [product](spec/terminal-psi/product.md),
   [calls and outcomes](spec/terminal-psi/calls_and_outcomes.md),
   [control flow and ranking](spec/terminal-psi/control_flow.md),

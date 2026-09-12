@@ -503,6 +503,31 @@ Absence of one named axiom alone does not certify constructivity: the calculus
 and all other assumptions matter too. A checked quotient theorem can depend on
 admitted premises without becoming an assumption-free guarantee.
 
+## Shipping independently checkable proofs
+
+Checking a program and shipping its proof are different choices. Ordinary Omega
+checking always runs. Portable proof-carrying code (PCC) lets a receiver check
+claims without trusting the producer's verdict.
+
+| Opt-in | Files the receiver checks |
+| --- | --- |
+| Psi PCC | Psi artifact plus its adjacent `.proof` file. |
+| Native PCC | Executable plus its adjacent `.proof` file; no source or separate Psi artifact. |
+
+Both are off by default and may be requested independently in `build.omg`.
+Append the suffix to the whole filename: `app.exe.proof` accompanies `app.exe`.
+Artifact and proof sizes are reported separately. A requested proof that cannot
+be completed fails that product request; it never silently becomes ordinary output.
+
+The receiver selects a pinned policy package and configuration naming the claims,
+entry conditions and assumptions it accepts. Producer hints must be checked;
+they cannot weaken those requirements. A checked proof establishes its stated
+claim under those assumptions, not that the policy is adequate or its axioms true.
+Bootstrap construction certificates answer a different question about building
+the toolchain. See the [product contract](../spec/proofs/publication.md) for exact
+identities, dependencies and failure distinctions. General PCC publication remains
+implementation work.
+
 ## Automation And Boundary
 
 Source normally shows proof strategy rather than every inference. Elaboration

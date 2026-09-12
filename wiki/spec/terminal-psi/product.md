@@ -39,27 +39,35 @@ may consume it in a different process, on another machine, under separately
 supplied authority. The first-party source-to-native path crosses this same
 boundary; checked frontend state is not a privileged alternative input.
 
-The portable envelope contains canonical semantic, proof, and pre-Terminal
-optimization-execution sections, plus an optional canonical debug section.
+The portable envelope contains canonical semantics and pre-Terminal selection
+provenance, plus optional canonical debug information. Portable proof evidence
+is a separately requested `<artifact>.proof` sidecar under
+[PCC publication](../proofs/publication.md), not a mandatory embedded section.
 Program meaning, replaceable proof evidence, installation decisions, and debug
 information have distinct identities. The manifest is reconstructed from the
 sections, not accepted as redundant authoritative input. Proof improvement
 does not change program identity.
 
-Optimization-execution evidence retains the exact Psi-local selection and
-the input and output semantic/proof identities. The manifest binds its strong
-identity; decoding rejoins the recorded output to the decoded semantic and
-proof sections. Producers and consumers use the current pre-release vocabulary;
+Optimization validation retains the exact Psi-local selection and input/output
+semantic identities. Internal proof identities remain validation provenance;
+when portable evidence is requested, its sidecar binds the relevant proof and
+preservation dependencies. Decoding rejoins retained output identity to the
+semantic module without requiring an absent proof product. Producers and
+consumers use the current pre-release vocabulary;
 stale encodings reject rather than being guessed compatible.
 
-A consumer decodes and verifies the canonical sections before creating
-resumable execution state or native realization requirements. A public
-in-memory module cannot bypass artifact admission. The verifier reconstructs
-the full obligation set from semantics and fingerprinted contracts; the proof
-bundle cannot select a smaller set. The kernel checks that evidence. An accepted
-fact is decided by a total kernel judgment, proved by checked evidence, or
-explicitly admitted at a sealed site allowed by the active profile.
-Unsupported entailment rejects.
+A consumer decodes and performs ordinary structural, contract and authority
+validation before creating execution state or native realization requirements.
+A public in-memory module cannot bypass those checks. Ordinary consumption
+without PCC relies on the stated producer trust for logical checks it cannot
+independently repeat; it must not be reported as independent proof verification.
+If the receiver requires PCC, the verifier reconstructs the full required
+obligation set from semantics, fingerprinted contracts and independent policy;
+the proof bundle cannot select a smaller set. The kernel checks that evidence.
+An independently accepted fact is decided by a justified kernel judgment,
+proved by checked evidence, or explicitly admitted at a sealed site allowed by
+the active profile. Missing required evidence prevents PCC acceptance, never
+silent fallback. Failure to find a proof does not refute its conclusion.
 
 An authoritative vocabulary extension must define encoding, execution,
 reconstructed obligations and authorized admissions, proof rules and their
@@ -74,7 +82,8 @@ lemmas do not change operation or program identity.
 
 Target/profile, ProgramEntry, target-constrained provider plans, external-binding
 requirements, compiler-builtin proposals, and pending Omega optimization
-selections travel beside the target-neutral module in an exact owned companion.
+selections and pending native PCC request travel beside the target-neutral
+module in an exact owned build companion. It is distinct from a `.proof` file.
 They are not executable semantics inserted into Terminal, and possession does
 not grant realization authority.
 
@@ -125,3 +134,7 @@ for installed provider/progress closure, runtime custody, and transactional
 publication. [Content custody](../resources/content_custody.md) defines installed
 root accounting and conservation; [placed access](../resources/placed_access.md)
 defines resident occurrences.
+
+Standalone native PCC consumption is not this Terminal-to-native production
+interface. Native evidence must check against the binary and accepted receiver
+dependencies without a separately distributed Terminal module or Psi proof.
