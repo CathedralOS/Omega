@@ -2443,6 +2443,106 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     ));
 }
 
+/// Every representable scalar field of an installed function row is an
+/// authenticated custody axis: a one-field substitution still encodes,
+/// recomputes a distinct installation fingerprint, and independent replay
+/// against the unchanged image rejects it. Roster-level rows (call stacks,
+/// homes, continuations) are covered by their producing fixtures elsewhere.
+#[test]
+fn installation_function_row_rejects_every_one_field_substitution() {
+    let plan = two_function_plan();
+    let artifact = build_object_artifact(&plan).expect("artifact");
+    let image = emit_executable_image(&artifact, 3).expect("Linux image");
+    let record = build_installation_record(&image, ProfileDecisionId::new(11).expect("profile"))
+        .expect("installation record");
+    validate_installation_record(&record, &image).expect("exact image binding");
+    let authentic_fingerprint = installation_fingerprint(&record).expect("fingerprint");
+    let [_, authentic] = record.functions() else {
+        panic!("two-function fixture retains two rows");
+    };
+    assert_eq!(authentic.attachment, None);
+    assert!(!authentic.unit_body);
+    assert_eq!(authentic.unit_stack, None);
+    assert_eq!(authentic.scalar_stack, None);
+
+    let mutations: [(&str, fn(&mut image_emission::InstalledFunction)); 4] = [
+        ("machine", |row| {
+            row.machine = MachineId::new(row.machine.get() + 100).expect("drifted machine");
+        }),
+        ("attachment", |row| {
+            row.attachment = Some(StructuralTypeId::new(7).expect("drifted attachment"));
+        }),
+        ("unit_stack", |row| {
+            row.unit_stack = Some(image_emission::ObjectUnitStack {
+                frame_bytes: 16,
+                local_peak_bytes: 0,
+                stack_alignment: 16,
+            });
+        }),
+        ("scalar_stack", |row| {
+            row.scalar_stack = Some(image_emission::ObjectScalarStack {
+                local_peak_bytes: 0,
+                stack_alignment: 16,
+            });
+        }),
+    ];
+    for (field, mutate) in mutations {
+        let mut changed = record.clone();
+        mutate(&mut changed.functions_mut_for_test()[1]);
+        assert_ne!(changed, record, "{field}: substitution changes the row");
+        let bytes = encode_installation_record(&changed)
+            .unwrap_or_else(|error| panic!("{field}: substituted row encodes: {error:?}"));
+        let replayed = decode_installation_record(&bytes)
+            .unwrap_or_else(|error| panic!("{field}: substituted row decodes: {error:?}"));
+        assert_eq!(
+            replayed, changed,
+            "{field}: codec preserves the substituted row"
+        );
+        assert_ne!(
+            installation_fingerprint(&replayed)
+                .unwrap_or_else(|error| panic!("{field}: substituted fingerprint: {error:?}")),
+            authentic_fingerprint,
+            "{field}: recomputed identity differs from the authentic record"
+        );
+        assert_eq!(
+            validate_installation_record(&replayed, &image),
+            Err(InstallationError::ImageBindingMismatch),
+            "{field}: independent replay rejects the substituted row"
+        );
+    }
+
+    // Text intervals are not independently representable: canonical rows are
+    // contiguous and exhaust the text section, so the encoder rejects a shifted
+    // offset, a shortened interval, or a dropped row before any identity or
+    // replay could accept it.
+    let mut shifted_offset = record.clone();
+    shifted_offset.functions_mut_for_test()[1].text_offset += 1;
+    assert_eq!(
+        encode_installation_record(&shifted_offset),
+        Err(InstallationError::NonCanonicalInstalledFunctions)
+    );
+    let mut shortened = record.clone();
+    shortened.functions_mut_for_test()[1].byte_count -= 1;
+    assert_eq!(
+        encode_installation_record(&shortened),
+        Err(InstallationError::InvalidImageSectionLayout)
+    );
+    let mut dropped_row = record.clone();
+    dropped_row.functions_mut_for_test().pop();
+    assert_eq!(
+        encode_installation_record(&dropped_row),
+        Err(InstallationError::InvalidImageSectionLayout)
+    );
+    // `unit_body` is a projection of the retained affine cleanup; flipping it
+    // alone is likewise rejected at encoding.
+    let mut flipped_body = record.clone();
+    flipped_body.functions_mut_for_test()[1].unit_body = true;
+    assert_eq!(
+        encode_installation_record(&flipped_body),
+        Err(InstallationError::InvalidUnitAffineCleanup(machine_id(2)))
+    );
+}
+
 #[derive(Debug)]
 struct TestComponentProgressAcceptance {
     manifest: u64,
