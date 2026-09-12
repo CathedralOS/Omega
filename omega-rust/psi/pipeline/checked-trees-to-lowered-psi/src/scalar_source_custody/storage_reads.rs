@@ -46,13 +46,55 @@ pub(crate) fn validate_expression(
     expression: ExpressionHandle,
     retained: &CheckedScalarExpression,
 ) -> Result<(), LoweringError> {
+    validate_reads(
+        checked,
+        state,
+        ReadScope::Body(statement),
+        expression,
+        retained,
+    )
+}
+
+/// Invocation requirements read parameter entry values, including mutable formals.
+/// This checks read identity; the caller separately checks predicate meaning.
+pub(crate) fn validate_entry_read_expression(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+    retained: &CheckedScalarExpression,
+) -> Result<(), LoweringError> {
+    validate_reads(checked, state, ReadScope::Entry, expression, retained)
+}
+
+#[derive(Clone, Copy)]
+enum ReadScope {
+    Body(u32),
+    Entry,
+}
+
+impl ReadScope {
+    fn preceding_statements(self) -> u32 {
+        match self {
+            Self::Body(statement) => statement,
+            Self::Entry => 0,
+        }
+    }
+}
+
+fn validate_reads(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    scope: ReadScope,
+    expression: ExpressionHandle,
+    retained: &CheckedScalarExpression,
+) -> Result<(), LoweringError> {
     let (_, state) = authored_state(checked, state)?;
     let mut authored_reads = Vec::new();
     let mut member_paths = Vec::new();
     collect_authored_storage_reads(
         checked,
         state,
-        statement,
+        scope,
         expression,
         &mut Vec::new(),
         &mut Vec::new(),
@@ -73,7 +115,7 @@ pub(crate) fn validate_expression(
                 .statement_table
                 .statements(state.statement_nodes)
                 .iter()
-                .take(statement as usize)
+                .take(scope.preceding_statements() as usize)
                 .filter_map(|statement| match statement {
                     StatementNode::LocalData(local)
                         if !local.is_mutable
@@ -89,6 +131,7 @@ pub(crate) fn validate_expression(
         )
         .collect::<Vec<_>>();
     let namespace = ReadNamespace {
+        scope,
         scalar: namespace,
         structural: checked.state_parameters(state),
         owned_field_paths: member_paths,
@@ -151,6 +194,7 @@ enum ReadKind {
 type StorageReadOccurrence = (Vec<usize>, symbols::SymbolHandle, PrimitiveType, ReadKind);
 
 struct ReadNamespace<'checked> {
+    scope: ReadScope,
     scalar: Vec<symbols::SymbolHandle>,
     structural: &'checked [checked_trees::signature::StateParameter],
     owned_field_paths: Vec<Vec<usize>>,
@@ -317,7 +361,7 @@ fn collect_owned_field(
 fn authored_storage_read(
     checked: &CheckedTrees,
     state: &checked_trees::state::State,
-    before: u32,
+    scope: ReadScope,
     name: &checked_trees::expression::TableNamePath,
 ) -> Result<Option<(symbols::SymbolHandle, PrimitiveType, ReadKind)>, LoweringError> {
     if !name.symbol.is_valid()
@@ -328,13 +372,16 @@ fn authored_storage_read(
             .len()
             != 1
     {
+        if matches!(scope, ReadScope::Entry) {
+            return unsupported("entry predicate read has no exact parameter identity");
+        }
         return Ok(None);
     }
     let mut locals = checked
         .statement_table
         .statements(state.statement_nodes)
         .iter()
-        .take(before as usize)
+        .take(scope.preceding_statements() as usize)
         .filter_map(|statement| match statement {
             StatementNode::LocalData(local) if local.symbol == name.symbol => Some(local),
             _ => None,
@@ -363,10 +410,22 @@ fn authored_storage_read(
         .iter()
         .filter(|parameter| parameter.symbol == name.symbol);
     let Some(parameter) = parameters.next() else {
+        if matches!(scope, ReadScope::Entry) {
+            return unsupported("entry predicate read is not an invocation parameter");
+        }
         return Ok(None);
     };
     if parameters.next().is_some() {
         return unsupported("scalar storage read has duplicate authored parameters");
+    }
+    if matches!(scope, ReadScope::Entry) {
+        let primitive = checked
+            .primitive_type_reference(parameter.type_reference)
+            .filter(|primitive| supported_mutable_parameter(*primitive))
+            .ok_or(LoweringError::Unsupported(
+                "entry predicate read requires a fixed integer or Boolean parameter",
+            ))?;
+        return Ok(Some((parameter.symbol, primitive, ReadKind::Parameter)));
     }
     if let Some((primitive, _)) = super::primitive_references::parameter_type(checked, parameter) {
         return Ok(Some((parameter.symbol, primitive, ReadKind::Storage)));
@@ -390,7 +449,7 @@ fn authored_storage_read(
 fn collect_authored_storage_reads(
     checked: &CheckedTrees,
     state: &checked_trees::state::State,
-    before: u32,
+    scope: ReadScope,
     expression: ExpressionHandle,
     path: &mut Vec<usize>,
     active: &mut Vec<ExpressionHandle>,
@@ -421,7 +480,7 @@ fn collect_authored_storage_reads(
         }
         ExpressionNode::Name(name) => {
             if let Some((symbol, primitive, kind)) =
-                authored_storage_read(checked, state, before, name)?
+                authored_storage_read(checked, state, scope, name)?
             {
                 reads.push((path.clone(), symbol, primitive, kind));
             }
@@ -455,7 +514,7 @@ fn collect_authored_storage_reads(
                 collect_authored_storage_reads(
                     checked,
                     state,
-                    before,
+                    scope,
                     operand,
                     path,
                     active,
@@ -469,7 +528,7 @@ fn collect_authored_storage_reads(
             collect_authored_storage_reads(
                 checked,
                 state,
-                before,
+                scope,
                 unary.operand,
                 path,
                 active,
@@ -481,7 +540,7 @@ fn collect_authored_storage_reads(
             collect_authored_storage_reads(
                 checked,
                 state,
-                before,
+                scope,
                 cast.value,
                 path,
                 active,
@@ -494,7 +553,7 @@ fn collect_authored_storage_reads(
             collect_authored_storage_reads(
                 checked,
                 state,
-                before,
+                scope,
                 indexed.index,
                 path,
                 active,
@@ -564,7 +623,9 @@ fn collect_scalar_storage_reads(
             position,
             primitive_type,
         } => {
-            if supported_mutable_parameter(*primitive_type) {
+            if supported_mutable_parameter(*primitive_type)
+                || matches!(namespace.scope, ReadScope::Entry)
+            {
                 reads.push((
                     path.clone(),
                     namespace.scalar.get(*position).copied().unwrap_or_default(),
