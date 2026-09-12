@@ -49,21 +49,26 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   then the real supplied-byte scan/filtered-result path. The submodule's TASKS
   owns port work; this board owns compiler blockers exposed by the unchanged app.
 
-  Acceptance: `python samples/apps/squalr/tools/verify.py native --omega <binary>`
+  Acceptance: `python samples/apps/squalr/tools/verify.py native --timeout 600 --omega <binary>`
   executes the selected application with correct results. Package audit/source
   checking are separate evidence, not the native bar. Current invocation output
   is retained under the application's ignored `build/verification/`; record the
   owning diagnostic before expanding compiler work. Initialization is explicit
   and requires private repository access during in-house development.
-  With compiler `62edd46e2f` on macOS ARM64, Python 3.13 and
-  `RUST_MIN_STACK=67108864`, the unchanged
-  native invocation exits 200 on one diagnostic: `Main::main` publishes no service
-  reach while its body reaches `Console`. The application is at `1141aa1406b2`
+  With compiler `26b7fe994b` on macOS ARM64, Python 3.13 and
+  `RUST_MIN_STACK=67108864`, the native invocation completes ordinary package
+  acceptance, then exits 200 at Terminal production after 209.677 seconds:
+  `InvalidUnitMachinePlan` for `Main::main`, with reason
+  `attached Unit closure is missing a checked transitive machine plan`.
+  The application is at `7a272a896c85`
   with standard-package pin `a91d878cb9252647d977c45787969b16e6ef937a`.
-  Resolve the application's authored entry contract under the existing service
-  reach rules, then rerun native acceptance to identify the next compiler join.
-  The current diagnostic belongs to `validation/src/effects.rs`; do not weaken
-  service checking to reach later lowering. Geometry execution remains unverified.
+  Trace the missing ordinary/composed checked body consumed by
+  `checked-trees-to-lowered-psi/src/attached_unit/bodies.rs` through its producer;
+  preserve exact closure validation and the authored multi-state geometry checks.
+  The application lock records its reviewed macOS baseline. Checkout-specific
+  local identities require ordinary update/review when relocated; see its README.
+  Geometry execution remains unverified. The existing harness timeout option
+  permits the measured package passes without changing compiler checking.
 
   Reuse the ordinary structural-value/evaluation path in
   `checked-trees-to-lowered-psi/src/attached_unit/structural_values/record.rs`
