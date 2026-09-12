@@ -1031,7 +1031,10 @@ Owners include
 
 - **MATCH-SELECTIVE-LOWERING.** Complete the
   [value-dispatch contract](wiki/spec/language/patterns.md) for owned/nonnumeric
-  results, conditional transfers, structural/case/domain patterns and coverage.
+  results with parameter/projected/borrowed/linear custody, mixed fresh/existing
+  conditional transfers, structural/case/domain patterns and coverage. Remaining
+  existing-local joins need interleaved live-root ordering and residual transport
+  across authored states; preserve exact origins and actual death edges.
   Owners: `validation/src/expression_types/{match_dispatch,result_type}.rs`,
   checked scalar computation/result continuations, Terminal production and
   canonical package-review contract/index projection. Preserve a once-evaluated
@@ -1047,7 +1050,8 @@ Owners include
   **CRASH-CONTRACT** owns crash-qualified equality; numeric landing is in
   **STATE-LOCAL-VALUE-FRONTIER**.
 
-  Acceptance: `checked-trees-to-lowered-psi --test value_dispatch`, corresponding
+  Acceptance: `checked-trees-to-lowered-psi --test value_dispatch`,
+  `omega-native-differential-test --test scalar_case_results`, corresponding
   checker/interpreter controls, and the
   [float Match native customer](omega-rust/omega/compiler/compiler/float_realization.md#operation-and-control-custody)
   preserve effects, skipped trapping arms, overlapping patterns, complete

@@ -89,13 +89,13 @@ pub(super) fn operation(
                 && row.call.result_placement == row.call.call_plan.result && row.call.result_placement.is_some()).count() == 1
         }
         AbstractOperation::ReturnStructural { psi_edge, source, returned_claims, trivial_affine_locals, trivial_affine_discards } => {
-            returned_claims.is_empty() && trivial_affine_locals.is_empty() && trivial_affine_discards.is_empty()
+            returned_claims.is_empty() && trivial_affine_locals.is_empty()
                 && graph.blocks.iter().filter(|block| matches!(&block.terminator,
                     TargetControlTerminator::ReturnStructural { psi_edge: retained, source: home, cleanup_actions }
                         if retained == psi_edge && match home {
                             target_operations::TargetStructuralReturnSource::Home(home) => home.place() == *source,
                             target_operations::TargetStructuralReturnSource::Parameter(parameter) => parameter.place == *source,
-                        } && cleanup_actions.is_empty())).count() == 1
+                        } && super::control_flow::cleanup_matches(cleanup_actions, trivial_affine_discards))).count() == 1
                 && selected.blocks.iter().filter(|block| matches!(&block.terminator,
                     SelectedTerminator::Return { psi_return_edge, instruction }
                         if psi_return_edge == psi_edge && (matches!(instruction.kind, selected_instructions::SelectedInstructionKind::ReturnAggregate { .. } | selected_instructions::SelectedInstructionKind::ReturnScalar)

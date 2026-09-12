@@ -15,6 +15,7 @@ pub(crate) enum FlowOwnershipEventSource {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DiscoveredMoveEvent {
     pub(crate) source: FlowOwnershipEventSource,
+    pub(crate) source_arm: arena::Handle<typed_trees::expression::TableMatchArm>,
     pub(crate) root: facts::PlaceRoot,
     pub(crate) segments: HandleSpan<facts::PlaceSegment>,
 }
@@ -24,6 +25,7 @@ pub(crate) struct DirectMoveEventSink<'segments> {
     pub(super) operators: &'segments checked_trees::CheckedOperatorFacts,
     events: Vec<DiscoveredMoveEvent>,
     proof_only: Option<typed_trees::proof_only::ProofOnlyClassification>,
+    pub(super) source_arm: arena::Handle<typed_trees::expression::TableMatchArm>,
 }
 
 impl<'segments> DirectMoveEventSink<'segments> {
@@ -36,6 +38,7 @@ impl<'segments> DirectMoveEventSink<'segments> {
             operators,
             events: Vec::new(),
             proof_only: None,
+            source_arm: arena::Handle::invalid(),
         }
     }
 
@@ -61,6 +64,7 @@ impl DirectMoveEventSink<'_> {
     ) {
         self.events.push(DiscoveredMoveEvent {
             source,
+            source_arm: self.source_arm,
             root: normalized_event_place_root(program, place.root),
             segments: self.segments.insert_many(place.segments),
         });

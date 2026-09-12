@@ -108,6 +108,7 @@ pub fn validate_match_dispatch(
         == Some(PrimitiveType::Bool)
         || subject_class == Some(super::ValueClass::Boolean)
         || match_subject_primitive_type(program, dispatch) == Some(PrimitiveType::Bool);
+    let selected_local_owners = plain_local_owner_selection(program, machine, state, expression);
     for arm in arms {
         match arm.pattern {
             MatchPattern::Wildcard => wildcard = true,
@@ -185,7 +186,7 @@ pub fn validate_match_dispatch(
                 "match selected pattern or arm transfers owned input custody; branch-local transfer and cleanup joins are not supported yet",
             ).with_source_span(arm.source_span));
         }
-        if result_needs_custody_join(program, machine, state, arm.value) {
+        if !selected_local_owners && result_needs_custody_join(program, machine, state, arm.value) {
             diagnostics.push(Diagnostic::error(
                 "match result requires a reference or non-plain-owned branch custody join, which is not supported yet",
             ).with_source_span(arm.source_span));
@@ -199,6 +200,45 @@ pub fn validate_match_dispatch(
             "match arms produce incompatible values",
             diagnostics,
         );
+    }
+}
+
+/// Type admission only. Mandatory multiplicity checking subsequently establishes
+/// selected transfer receipts, continuation availability, and residual custody.
+/// Fresh/existing mixtures and borrowed, projected, or parameter owners remain
+/// outside this whole-local contract.
+fn plain_local_owner_selection(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> bool {
+    if crate::scalar_case_constructor(program, expression).is_some() {
+        // Construction remains type-compatible. Multiplicity checking rejects
+        // a reachable fresh/existing mixture until residual counts can join.
+        return true;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            let arms = program.expression_table.match_arms(dispatch.arms);
+            !arms.is_empty()
+                && arms
+                    .iter()
+                    .all(|arm| plain_local_owner_selection(program, machine, state, arm.value))
+        }
+        ExpressionNode::Name(path) => {
+            let Some(reference) = declared_value_type(program, machine, state, expression) else {
+                return false;
+            };
+            program.type_multiplicity(reference) == language_semantics::Multiplicity::Affine
+                && crate::scalar_case_value_source(program, expression, reference) == Some(path.symbol)
+                && crate::has_plain_owned_contents_with_numeric_constraints(program, reference)
+                && program.statement_table.statements(state.statement_nodes).iter().any(|statement| {
+                    matches!(statement, typed_trees::statement::StatementNode::LocalData(local)
+                        if local.symbol == path.symbol && !local.is_mutable && local.initial_value.is_valid())
+                })
+        }
+        _ => false,
     }
 }
 

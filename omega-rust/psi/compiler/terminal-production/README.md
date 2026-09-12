@@ -163,9 +163,10 @@ exercise scalar-sum result transport through destination-owned homes, joins,
 and dispatch using the ordinary publication pipeline. The complete filesystem
 entry still requires the remaining source dependencies above.
 
-Fresh closed scalar-payload sum expressions use that same owned-result namespace. An
-ordered scalar `match` evaluates its subject once and constructs only the
-selected case, transferring that owner into a continuation block parameter.
+Closed scalar-payload sum expressions use that same owned-result namespace. An
+ordered scalar `match` evaluates its subject once and either constructs the
+selected case or transfers an existing whole immutable plain-affine local into
+a continuation block parameter.
 Nested selections, immutable locals, subsequent scalar statements, state
 transfers, and returns retain the completed owner rather than reconstructing
 the case or treating its tag as the source value. Constructor operands use the
@@ -181,8 +182,23 @@ ownership checking. The general state graph and ordinary scalar-completion
 sequence share this value operation; an unavailable graph must not suppress a
 complete ordinary sequence. Constrained fields stay on the existing proof-bearing
 return route until general value establishment retains their range obligations.
-This does not admit
-joins of existing moved inputs, references, linear values, or nominal cleanup;
+Existing-local selection retains exact source origins and arm occurrences in
+checked ownership receipts, not unconditional statement-wide moves. The chosen
+owner and its still-live complement travel through ordinary typed block
+parameters. Untouched locals retain their identity and relative cleanup order;
+no owner is disposed merely to equalize a join. Nested alternatives share one
+continuation. Cleanup follows reverse declaration order; a return transfers
+the selected result with its actual multiplicity. The
+[owned-selection tests](../../../../tests/native-differential/tests/scalar_case_results/owned_selection.rs)
+exercise source-to-native execution and hostile source, optimizer and target
+cleanup correspondence. Receiving stages reconstruct custody instead of trusting
+producer assertions.
+
+This does not admit parameter/projected selection sources, fresh/existing
+mixtures, references, linear values, or nominal cleanup. Selected residuals
+crossing authored states and candidates interleaved with other live owners need
+their shared frontier correspondence. Borrowed-local observation is still an
+explicit lowering dependency, not a demonstrated address-stable transport;
 whole receiver-field replacement and selected floating comparisons remain
 separate implementation dependencies.
 

@@ -27,6 +27,7 @@ validation = { path = "../../semantics/validation" }
 sha2 = "0.10.9"
 
 [dev-dependencies]
+diagnostics = { path = "../../foundation/diagnostics" }
 optimization = { path = "../../representations/optimization" }
 lowered-psi-to-lowered-psi = { path = "../lowered-psi-to-lowered-psi" }
 lowered-psi-to-terminal-psi = { path = "../lowered-psi-to-terminal-psi" }

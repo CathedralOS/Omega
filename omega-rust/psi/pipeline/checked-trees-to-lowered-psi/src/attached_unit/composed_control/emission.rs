@@ -290,6 +290,8 @@ pub(crate) fn emit_call_leaf(
 ) -> Result<(Vec<Block>, Vec<LoweredSourceCallOccurrence>), LoweringError> {
     let mut operations = OperationBuffer::new(*next_operation - 1);
     let mut evaluation = super::super::argument_evaluation::Evaluation {
+        structural_value_owners: Vec::new(),
+        selection_cleanups: Vec::new(),
         structural_locals: Vec::new(),
         local_cases: Vec::new(),
         arrays: crate::scalar_computations::arrays::prepare(
@@ -333,6 +335,36 @@ pub(crate) fn emit_call_leaf(
         &mut operations,
     )?;
     *next_operation = operations.next_identity;
+    let discards = evaluation.selection_return_discards(
+        catalogs.result_places[result_start..]
+            .iter()
+            .rev()
+            .map(|declaration| {
+                let discard = operations
+                    .structural_values
+                    .iter()
+                    .find(|(_, result)| result.place == declaration.id)
+                    .and_then(|(ordinal, _)| {
+                        state
+                            .operations
+                            .iter()
+                            .find_map(|operation| match operation {
+                                CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                                    result,
+                                    discard_result_on_return,
+                                    ..
+                                } if result.binding_ordinal == *ordinal => {
+                                    Some(*discard_result_on_return)
+                                }
+                                _ => None,
+                            })
+                    })
+                    .unwrap_or(true);
+                (declaration.id, discard)
+            })
+            .collect(),
+    )?;
+    evaluation.remap_transported_call_operands(&mut operations);
     evaluation.blocks.push(Block {
         structural_parameters: evaluation.block_structural_parameters,
         id: evaluation.current,
@@ -340,11 +372,7 @@ pub(crate) fn emit_call_leaf(
         operations: operations[evaluation.operation_start..].to_vec(),
         terminator: Terminator::ReturnUnit {
             edge: edge_id(allocate_dense(next_edge)?),
-            trivial_affine_discards: catalogs.result_places[result_start..]
-                .iter()
-                .rev()
-                .map(|declaration| declaration.id)
-                .collect(),
+            trivial_affine_discards: discards,
         },
     });
     Ok((evaluation.blocks, operations.source_calls))

@@ -14,6 +14,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use crate::flow::FlowOwnershipEventSource;
 
+mod owned_selection;
 mod projected_affine;
 
 #[derive(Debug, Clone)]
@@ -112,7 +113,7 @@ pub(crate) fn check_linear_obligations(
     incoming_guards: &super::ranges::incoming_guards::IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {
     validate_partial_moves(program, facts)?;
-    record_permission_events_with_incoming_guards(program, facts, incoming_guards);
+    record_permission_events_with_incoming_guards(program, facts, incoming_guards)?;
     validate_linear_permission_events(program, facts)
 }
 
@@ -354,15 +355,20 @@ pub(crate) fn record_permission_events(program: &typed_trees::TypedTrees, facts:
     let call_frames = validation::CallFrameResolver::new(program);
     let incoming_guards =
         super::ranges::incoming_guards::IncomingGuardIndex::build(program, call_frames.as_ref());
-    record_permission_events_with_incoming_guards(program, facts, &incoming_guards);
+    record_permission_events_with_incoming_guards(program, facts, &incoming_guards)
+        .expect("fixture permission production");
 }
 
 fn record_permission_events_with_incoming_guards(
     program: &typed_trees::TypedTrees,
     facts: &mut CheckFacts,
     incoming_guards: &super::ranges::incoming_guards::IncomingGuardIndex,
-) {
+) -> Result<(), Vec<Diagnostic>> {
     let mut permission_events = Vec::new();
+    let mut selection_diagnostics = Vec::new();
+    facts.flow.ownership.owned_selections = arena::Arena::default();
+    facts.flow.ownership.selection_sources = arena::Arena::default();
+    facts.flow.ownership.selection_transfers = arena::Arena::default();
     let mut claim_identities = ClaimIdentityAllocator::default();
 
     let state_flows = facts
@@ -430,6 +436,22 @@ fn record_permission_events_with_incoming_guards(
             .position(|statement| matches!(statement, StatementNode::Transition(_)));
         let prefix_end = first_transition.unwrap_or(statements.len());
         for (statement_index, statement) in statements[..prefix_end].iter().enumerate() {
+            match owned_selection::record_statement(
+                program,
+                facts,
+                machine,
+                state,
+                statement_index,
+                statement,
+                &mut places,
+            ) {
+                Ok(true) => continue,
+                Ok(false) => {}
+                Err(diagnostic) => {
+                    selection_diagnostics.push(diagnostic);
+                    continue;
+                }
+            }
             apply_statement_permission_production(
                 program,
                 facts,
@@ -451,6 +473,18 @@ fn record_permission_events_with_incoming_guards(
                 .collect::<Vec<_>>();
             for statement_index in arm_indices.iter().copied() {
                 let mut outcome = entry.clone();
+                if let Err(diagnostic) = owned_selection::record_statement(
+                    program,
+                    facts,
+                    machine,
+                    state,
+                    statement_index,
+                    &statements[statement_index],
+                    &mut outcome,
+                ) {
+                    selection_diagnostics.push(diagnostic);
+                    continue;
+                }
                 apply_statement_permission_production(
                     program,
                     facts,
@@ -497,6 +531,11 @@ fn record_permission_events_with_incoming_guards(
         .insert_many(permission_events);
     publish_claim_outcome_maps(facts, claim_outcome_maps);
     record_crash_frontier_lower_bounds(program, facts, incoming_guards);
+    if selection_diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(selection_diagnostics)
+    }
 }
 
 #[derive(Debug)]
@@ -554,6 +593,14 @@ fn record_crash_frontier_lower_bounds(
         let prefix_end = first_transition.unwrap_or(statements.len());
         let mut ignored_diagnostics = Vec::new();
         for statement_index in 0..prefix_end {
+            if let Some((_, receipt)) = facts
+                .flow
+                .ownership
+                .owned_selection_at(state.symbol, statement_index as u32)
+            {
+                owned_selection::apply_availability(&facts.flow.ownership, receipt, &mut places);
+                continue;
+            }
             apply_recorded_statement_events(
                 statement_index,
                 &events,
@@ -1965,9 +2012,17 @@ pub(crate) fn validate_linear_permission_events(
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    let mut selected_replay = CheckFacts::default();
 
     for (_, state_flow) in facts.flow.control.states.iter() {
         let Some(state) = crate::find_state(program, state_flow.state_symbol) else {
+            continue;
+        };
+        let Some(machine) = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == state_flow.machine_symbol)
+        else {
             continue;
         };
         let statements = program.statement_table.statements(state.statement_nodes);
@@ -1997,7 +2052,23 @@ pub(crate) fn validate_linear_permission_events(
             .iter()
             .position(|statement| matches!(statement, StatementNode::Transition(_)));
         let prefix_end = first_transition.unwrap_or(statements.len());
-        for statement_index in 0..prefix_end {
+        for (statement_index, statement) in statements[..prefix_end].iter().enumerate() {
+            match owned_selection::record_statement(
+                program,
+                &mut selected_replay,
+                machine,
+                state,
+                statement_index,
+                statement,
+                &mut places,
+            ) {
+                Ok(true) => continue,
+                Ok(false) => {}
+                Err(diagnostic) => {
+                    diagnostics.push(diagnostic);
+                    continue;
+                }
+            }
             apply_recorded_statement_events(
                 statement_index,
                 &events,
@@ -2018,6 +2089,18 @@ pub(crate) fn validate_linear_permission_events(
             let mut excluded_case_tests = Vec::new();
             for statement_index in arm_indices.iter().copied() {
                 let mut outcome = entry.clone();
+                if let Err(diagnostic) = owned_selection::record_statement(
+                    program,
+                    &mut selected_replay,
+                    machine,
+                    state,
+                    statement_index,
+                    &statements[statement_index],
+                    &mut outcome,
+                ) {
+                    diagnostics.push(diagnostic);
+                    continue;
+                }
                 for &(subject, variant) in &excluded_case_tests {
                     exclude_case_alternative(
                         program,
@@ -2117,6 +2200,42 @@ pub(crate) fn validate_linear_permission_events(
         }
     }
 
+    if selected_replay.flow.ownership.owned_selections != facts.flow.ownership.owned_selections
+        || selected_replay.flow.ownership.selection_sources
+            != facts.flow.ownership.selection_sources
+        || selected_replay.flow.ownership.selection_transfers
+            != facts.flow.ownership.selection_transfers
+    {
+        diagnostics.push(Diagnostic::error(
+            "owned selection receipts differ from source ownership replay",
+        ));
+    }
+    for (_, receipt) in selected_replay.flow.ownership.owned_selections.iter() {
+        let sources = selected_replay
+            .flow
+            .ownership
+            .selection_sources
+            .span_or_empty(receipt.sources);
+        if facts.flow.ownership.permissions.iter().any(|(_, event)| {
+            if event.machine_symbol != receipt.machine
+                || event.state_symbol != receipt.state
+                || event.access != PermissionAccess::Owned
+            {
+                return false;
+            }
+            let statement = permission_event_statement_index(event.source);
+            statement == Some(receipt.statement_ordinal as usize)
+                || (sources
+                    .iter()
+                    .any(|source| event.root == facts::PlaceRoot::Symbol(source.symbol))
+                    && (event.source == PermissionEventSource::StateExit
+                        || statement.is_some_and(|statement| {
+                            statement > receipt.statement_ordinal as usize
+                        })))
+        }) {
+            diagnostics.push(Diagnostic::error("owned selection acquired unconditional transfer, establishment, or residual cleanup events"));
+        }
+    }
     if diagnostics.is_empty() {
         Ok(())
     } else {
@@ -2866,7 +2985,10 @@ fn apply_statement_permission_production(
         .to_vec();
     let mut statement_moves = moves
         .iter()
-        .filter(|event| event_statement_index(event.source) == Some(statement_index))
+        .filter(|event| {
+            !event.source_arm.is_valid()
+                && event_statement_index(event.source) == Some(statement_index)
+        })
         .collect::<Vec<_>>();
     // Call ordinals are authored preorder coordinates, not evaluation order.
     // Reuse the captured control-flow order: nested producers execute before

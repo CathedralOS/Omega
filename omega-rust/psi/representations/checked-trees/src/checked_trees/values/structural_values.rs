@@ -40,6 +40,9 @@ pub enum CheckedStructuralValueKind {
         data_symbol: SymbolHandle,
         fields: HandleSpan<CheckedStructuralRecordField>,
     },
+    /// Existing storage is transferred, never reconstructed as a fresh case.
+    /// Conditional transfer and residual ownership come from checked flow.
+    Place(crate::CheckedUnitStructuralArgumentPlan),
     Dispatch {
         subject: CheckedScalarComputationHandle,
         arms: HandleSpan<CheckedStructuralDispatchArm>,

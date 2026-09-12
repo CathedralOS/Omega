@@ -68,6 +68,7 @@ pub(super) fn lower_terminator(
             trivial_affine_discards,
         } => {
             let result = function.result.structural().ok_or_else(invalid)?;
+            let cleanup_actions = cleanup(trivial_affine_discards)?;
             if let Some(parameter) = function
                 .structural_parameters
                 .iter()
@@ -91,7 +92,6 @@ pub(super) fn lower_terminator(
                     || !result.projected_qualifications.is_empty()
                     || !returned_claims.is_empty()
                     || !trivial_affine_locals.is_empty()
-                    || !trivial_affine_discards.is_empty()
                     || actual.shape != placement.shape
                 {
                     return Err(invalid());
@@ -140,7 +140,7 @@ pub(super) fn lower_terminator(
                     source: target_operations::TargetStructuralReturnSource::Parameter(
                         actual.clone(),
                     ),
-                    cleanup_actions: Vec::new(),
+                    cleanup_actions,
                 });
             }
             let home = live.structural_homes.get(source).ok_or_else(invalid)?;
@@ -150,7 +150,6 @@ pub(super) fn lower_terminator(
                 || !result.projected_qualifications.is_empty()
                 || !returned_claims.is_empty()
                 || !trivial_affine_locals.is_empty()
-                || !trivial_affine_discards.is_empty()
             {
                 return Err(invalid());
             }
@@ -158,7 +157,7 @@ pub(super) fn lower_terminator(
             Ok(TargetControlTerminator::ReturnStructural {
                 psi_edge: *psi_edge,
                 source: target_operations::TargetStructuralReturnSource::Home(home.clone()),
-                cleanup_actions: Vec::new(),
+                cleanup_actions,
             })
         }
         AbstractOperation::Return {

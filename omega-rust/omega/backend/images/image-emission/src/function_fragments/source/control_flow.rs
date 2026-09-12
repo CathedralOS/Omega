@@ -87,7 +87,7 @@ fn successor_matches(source: &AbstractSuccessor, target: &TargetControlSuccessor
         && cleanup_matches(&target.cleanup_actions, &source.trivial_affine_discards)
 }
 
-fn cleanup_matches(
+pub(super) fn cleanup_matches(
     actions: &[TerminalAffineCleanupAction],
     places: &[semantic_vocabulary::PlaceId],
 ) -> bool {

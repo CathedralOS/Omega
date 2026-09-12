@@ -20,6 +20,8 @@ mod membership;
 #[path = "scalar_case_results/package_membership.rs"]
 mod package_membership;
 
+#[path = "scalar_case_results/owned_selection.rs"]
+mod owned_selection;
 #[path = "scalar_case_results/records.rs"]
 mod records;
 

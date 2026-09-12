@@ -1,4 +1,4 @@
-//! Reconstruct fresh value ownership and ordered selection from authored nodes.
+//! Reconstruct construction, selected ownership and ordered dispatch from authored nodes.
 
 use crate::{LoweringError, unsupported};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
@@ -10,6 +10,7 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 
+mod owned_selection;
 #[cfg(test)]
 mod tests;
 
@@ -42,11 +43,33 @@ pub(crate) fn validate(
         _ => return unsupported("structural construction lost its authored destination"),
     };
     let plans = &checked.facts.values.structural_values;
+    // Absence and ambiguity are different: a duplicate key must not turn a
+    // selected owner into a fresh construction with fabricated provenance.
+    if checked
+        .facts
+        .flow
+        .ownership
+        .owned_selections
+        .iter()
+        .filter(|(_, receipt)| {
+            receipt.state == state && receipt.statement_ordinal == result.statement_index
+        })
+        .count()
+        > 1
+    {
+        return unsupported("structural value has ambiguous selected ownership receipts");
+    }
     let root = plans
         .root_at(state, result.statement_index)
         .ok_or(LoweringError::Unsupported(
             "structural construction has no unique source root",
         ))?;
+    let selection = checked
+        .facts
+        .flow
+        .ownership
+        .owned_selection_at(state, result.statement_index)
+        .map(|(_, receipt)| receipt);
     if owner.symbol != machine
         || root.machine != machine
         || root.state != state
@@ -58,6 +81,15 @@ pub(crate) fn validate(
         || !validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, reference)
     {
         return unsupported("structural construction substituted its owner or result type");
+    }
+    if let Some(receipt) = selection {
+        owned_selection::validate_receipt(
+            checked,
+            machine,
+            state,
+            result.statement_index,
+            receipt,
+        )?;
     }
     if let Some(StatementNode::LocalData(local)) = checked
         .statement_table
@@ -74,10 +106,11 @@ pub(crate) fn validate(
             *discard_result_on_return,
         )?;
     }
-    let mut pending = vec![(*value, expression)];
+    let mut pending = vec![(*value, expression, arena::Handle::invalid())];
     let mut visited = Vec::new();
     let mut operand_roles = Vec::new();
-    while let Some((handle, expression)) = pending.pop() {
+    let mut selected_leaves = Vec::new();
+    while let Some((handle, expression, source_arm)) = pending.pop() {
         if !plans.nodes.is_valid(handle) || visited.contains(&handle) {
             return unsupported("structural construction has stale or reused value nodes");
         }
@@ -91,6 +124,9 @@ pub(crate) fn validate(
                 data_symbol,
                 fields,
             } => {
+                if selection.is_some() {
+                    return unsupported("selected ownership mixes fresh and existing obligations");
+                }
                 let ExpressionNode::StructLiteral(literal) =
                     checked.expression_table.expression(expression)
                 else {
@@ -163,7 +199,17 @@ pub(crate) fn validate(
                     }
                 }
             }
+            CheckedStructuralValueKind::Place(place) => {
+                let receipt = selection.ok_or(LoweringError::Unsupported(
+                    "existing structural value has no selected ownership receipt",
+                ))?;
+                owned_selection::validate_leaf(checked, receipt, expression, source_arm, &place)?;
+                selected_leaves.push(expression);
+            }
             CheckedStructuralValueKind::Case(construction) => {
+                if selection.is_some() {
+                    return unsupported("selected ownership mixes fresh and existing obligations");
+                }
                 if construction.expression != expression
                     || checked.normalized_type_identity(construction.type_reference)
                         != checked.normalized_type_identity(reference)
@@ -229,7 +275,25 @@ pub(crate) fn validate(
                     ))?;
                 let mut covered = false;
                 let mut booleans = [false; 2];
-                for (ordinal, arm) in retained.iter().enumerate() {
+                let mut retained_ordinal = 0;
+                for (ordinal, authored_arm) in authored.iter().enumerate() {
+                    if covered {
+                        break;
+                    }
+                    if primitive == PrimitiveType::Bool
+                        && let MatchPattern::Value(pattern) = authored_arm.pattern
+                        && let ExpressionNode::Boolean(value) =
+                            checked.expression_table.expression(pattern)
+                        && booleans[usize::from(*value)]
+                    {
+                        continue;
+                    }
+                    let arm = retained
+                        .get(retained_ordinal)
+                        .ok_or(LoweringError::Unsupported(
+                            "structural selection omitted an executable alternative",
+                        ))?;
+                    retained_ordinal += 1;
                     let source_arm = dispatch
                         .arms
                         .start()
@@ -243,9 +307,6 @@ pub(crate) fn validate(
                         .ok_or(LoweringError::Unsupported(
                             "structural arm identity overflow",
                         ))?;
-                    let authored_arm = authored.get(ordinal).ok_or(LoweringError::Unsupported(
-                        "structural selection added an unauthored alternative",
-                    ))?;
                     if covered || arm.source_arm != source_arm {
                         return unsupported(
                             "structural selection reordered its covered alternatives",
@@ -319,12 +380,32 @@ pub(crate) fn validate(
                             );
                         }
                     }
-                    pending.push((arm.value, authored_arm.value));
+                    pending.push((arm.value, authored_arm.value, arm.source_arm));
                 }
-                if !covered {
+                if !covered || retained_ordinal != retained.len() {
                     return unsupported("structural selection omitted required coverage");
                 }
             }
+        }
+    }
+    if let Some(receipt) = selection {
+        let transfers = checked
+            .facts
+            .flow
+            .ownership
+            .selection_transfers
+            .span(receipt.transfers)
+            .ok_or(LoweringError::Unsupported(
+                "selected ownership has a stale transfer span",
+            ))?;
+        if transfers.len() != selected_leaves.len()
+            || transfers
+                .iter()
+                .any(|transfer| !selected_leaves.contains(&transfer.expression))
+        {
+            return unsupported(
+                "selected ownership differs from the executable value alternatives",
+            );
         }
     }
     if checked
@@ -553,6 +634,28 @@ fn validate_local_ownership(
         source: establishment_source,
     };
     let ownership = &checked.facts.flow.ownership;
+    let selected_destination = ownership.owned_selection_at(state, statement).is_some();
+    let mut selected_uses = 0;
+    for (_, receipt) in ownership
+        .owned_selections
+        .iter()
+        .filter(|(_, receipt)| receipt.state == state)
+    {
+        if ownership
+            .selection_sources
+            .span(receipt.sources)
+            .is_none_or(|sources| sources.iter().any(|source| source.symbol == symbol))
+        {
+            owned_selection::validate_receipt(
+                checked,
+                machine,
+                state,
+                receipt.statement_ordinal,
+                receipt,
+            )?;
+            selected_uses += 1;
+        }
+    }
     let mut establishments = 0;
     let mut drops = 0;
     let mut transfers = 0;
@@ -565,7 +668,12 @@ fn validate_local_ownership(
             || event.multiplicity != multiplicity
             || multiplicity != Multiplicity::Affine
             || event.claim_identity != language_semantics::PermissionClaimIdentity::Unknown
-            || event.provenance != provenance
+            || event.provenance
+                != if selected_destination {
+                    language_semantics::PermissionProvenance::Unknown
+                } else {
+                    provenance
+                }
             || event.obligation_live
             || ownership
                 .segments
@@ -585,9 +693,15 @@ fn validate_local_ownership(
             _ => return unsupported("structural local changed its ownership event"),
         }
     }
-    if establishments != usize::from(multiplicity == Multiplicity::Affine)
+    if selected_uses > 1
+        || establishments
+            != usize::from(multiplicity == Multiplicity::Affine && !selected_destination)
         || drops > 1
-        || (multiplicity == Multiplicity::Affine && drops == 0 && transfers == 0)
+        || (multiplicity == Multiplicity::Affine
+            && drops == 0
+            && transfers == 0
+            && selected_uses == 0)
+        || (selected_uses != 0 && (drops != 0 || transfers != 0))
         || (multiplicity != Multiplicity::Unrestricted
             && discard_result_on_return
             && (drops != 1 || transfers != 0))

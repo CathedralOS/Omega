@@ -25,6 +25,33 @@ pub fn is_fresh_scalar_case_value(
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> bool {
+    is_case_value(program, expression, reference, false)
+}
+
+/// Classify value sequencing before permission checking. A named source is not
+/// evidence of an available owner; selected transfers require checked receipts.
+pub fn is_scalar_case_value(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    reference: TypeReferenceHandle,
+) -> bool {
+    is_case_value(
+        program,
+        expression,
+        reference,
+        matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Match(_)
+        ),
+    )
+}
+
+fn is_case_value(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    reference: TypeReferenceHandle,
+    allow_existing: bool,
+) -> bool {
     // This value route has no numeric field-establishment obligations yet.
     // Keep constrained constructors with the proof-bearing return producer;
     // selecting this plan must not displace a supported bounded-field return.
@@ -43,6 +70,9 @@ pub fn is_fresh_scalar_case_value(
             }
             continue;
         }
+        if allow_existing && scalar_case_value_source(program, expression, reference).is_some() {
+            continue;
+        }
         let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression)
         else {
             return false;
@@ -54,6 +84,59 @@ pub fn is_fresh_scalar_case_value(
         pending.extend(arms.iter().map(|arm| (arm.value, depth + 1)));
     }
     true
+}
+
+/// Resolve a whole local/parameter occurrence without erasing a borrow or
+/// qualification. The caller independently checks its scope and live custody.
+pub fn scalar_case_value_source(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    reference: TypeReferenceHandle,
+) -> Option<SymbolHandle> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if path.symbol != path.head_symbol
+        || program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            != 1
+        || !matches!(
+            program.symbols.get(path.symbol).kind,
+            symbols::SymbolKind::Local | symbols::SymbolKind::Parameter
+        )
+        || !crate::has_plain_owned_contents(program, reference)
+    {
+        return None;
+    }
+    let actual = crate::expression_types::named_value_type_reference(program, path)?;
+    if program.normalized_type_identity(actual) != program.normalized_type_identity(reference) {
+        return None;
+    }
+    let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(reference)
+    else {
+        return None;
+    };
+    let owner = program
+        .data_definitions()
+        .iter()
+        .find(|owner| owner.symbol == *symbol)?;
+    let members = program.data_members(owner);
+    if members.is_empty()
+        || members.iter().any(|member| match member {
+            DataMember::Field(_) => true,
+            DataMember::Variant(case) => program.data_payload_fields(case).iter().any(|field| {
+                program
+                    .primitive_type_reference(field.type_reference)
+                    .is_none()
+            }),
+        })
+    {
+        return None;
+    }
+    Some(path.symbol)
 }
 
 pub fn scalar_case_constructor(

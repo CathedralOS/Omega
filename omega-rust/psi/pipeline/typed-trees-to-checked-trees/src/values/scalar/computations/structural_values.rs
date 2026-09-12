@@ -121,6 +121,20 @@ impl Builder<'_, '_> {
                 data_symbol,
                 fields: values.record_fields.insert_many(fields),
             }
+        } else if let Some(symbol) =
+            validation::scalar_case_value_source(self.program, expression, expected)
+        {
+            CheckedStructuralValueKind::Place(checked_trees::CheckedUnitStructuralArgumentPlan {
+                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    symbol,
+                },
+                path: Vec::new(),
+                type_identity: self
+                    .program
+                    .normalized_type_identity(expected)
+                    .into_string(),
+                access: checked_trees::CheckedStructuralAccess::Owned,
+            })
         } else {
             let ExpressionNode::Match(dispatch) =
                 self.program.expression_table.expression(expression).clone()
@@ -164,6 +178,16 @@ impl Builder<'_, '_> {
             let mut covered = false;
             let mut boolean_coverage = [false; 2];
             for (ordinal, arm) in authored.iter().enumerate() {
+                // First-match semantics make a repeated literal Boolean arm
+                // unreachable. It cannot transfer an owner or evaluate fields.
+                if subject_type == PrimitiveType::Bool
+                    && let MatchPattern::Value(pattern) = arm.pattern
+                    && let ExpressionNode::Boolean(value) =
+                        self.program.expression_table.expression(pattern)
+                    && boolean_coverage[usize::from(*value)]
+                {
+                    continue;
+                }
                 let source_arm = arena::Handle::from_parts(
                     dispatch
                         .arms

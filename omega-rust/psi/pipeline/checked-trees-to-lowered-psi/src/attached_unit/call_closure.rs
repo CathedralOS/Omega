@@ -161,7 +161,7 @@ pub(super) fn validate_unit_operation_sequence(
     {
         let coordinate = match operation {
             CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
-                structural_calls::validate_usage(machine, result)?;
+                structural_calls::validate_usage(checked, machine, result)?;
                 checked_trees::CheckedUnitCallCoordinate {
                     statement_index: result.statement_index,
                     call_ordinal: 0,
@@ -275,7 +275,7 @@ pub(super) fn validate_unit_operation_sequence(
                         "Unit structural result local or call coordinate is not canonical",
                     );
                 }
-                structural_calls::validate_usage(machine, result)?;
+                structural_calls::validate_usage(checked, machine, result)?;
                 *coordinate
             }
             CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
@@ -294,7 +294,7 @@ pub(super) fn validate_unit_operation_sequence(
                     );
                 }
                 if result.multiplicity == Multiplicity::Affine {
-                    structural_calls::validate_usage(machine, result)?;
+                    structural_calls::validate_usage(checked, machine, result)?;
                 }
                 *coordinate
             }

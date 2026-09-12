@@ -64,6 +64,9 @@ pub struct FlowOwnershipFacts {
     pub permissions: Arena<FlowPermissionEventFact>,
     pub claim_outcome_entries: Arena<FlowClaimOutcomeEntryFact>,
     pub claim_outcome_maps: Arena<FlowClaimOutcomeMapFact>,
+    pub owned_selections: Arena<super::FlowOwnedSelectionReceipt>,
+    pub selection_sources: Arena<super::FlowOwnedSelectionSource>,
+    pub selection_transfers: Arena<super::FlowOwnedSelectionTransfer>,
 }
 
 impl FlowOwnershipFacts {
@@ -78,6 +81,9 @@ impl FlowOwnershipFacts {
             permissions,
             claim_outcome_entries,
             claim_outcome_maps,
+            owned_selections: Arena::default(),
+            selection_sources: Arena::default(),
+            selection_transfers: Arena::default(),
         }
     }
 }

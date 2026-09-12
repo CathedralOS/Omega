@@ -1088,6 +1088,10 @@ pub(super) fn build_checked_machine_with(
             });
     if !is_unit(program, state.return_type)
         && !validation::is_closed_primitive_array_type(program, state.return_type)
+        && !validation::has_plain_owned_contents_with_numeric_constraints(
+            program,
+            state.return_type,
+        )
         && program
             .primitive_type_reference(state.return_type)
             .is_none()

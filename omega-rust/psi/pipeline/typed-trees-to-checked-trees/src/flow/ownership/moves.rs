@@ -83,10 +83,9 @@ pub(super) fn append_move_events_for_expression(
 
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            // The current ownership summary conservatively retains possible
-            // moves. Source validation permits fresh plain-owned construction
-            // but rejects selected transfers from existing owned inputs until
-            // their branch-local custody is represented.
+            // Each arm retains its authored scope. Only the selected arm
+            // commits; multiplicity checking publishes separate transfer
+            // receipts instead of flattening these into statement events.
             append_move_events_for_expression(
                 program,
                 sink,
@@ -95,7 +94,12 @@ pub(super) fn append_move_events_for_expression(
                 dispatch.subject,
                 source,
             );
-            for arm in program.expression_table.match_arms(dispatch.arms) {
+            for (ordinal, arm) in program
+                .expression_table
+                .match_arms(dispatch.arms)
+                .iter()
+                .enumerate()
+            {
                 if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                     append_move_events_for_expression(
                         program,
@@ -106,6 +110,11 @@ pub(super) fn append_move_events_for_expression(
                         source,
                     );
                 }
+                let enclosing_arm = sink.source_arm;
+                sink.source_arm = arena::Handle::from_parts(
+                    dispatch.arms.start().arena_index() + ordinal as u32,
+                    dispatch.arms.start().generation(),
+                );
                 append_move_events_for_expression(
                     program,
                     sink,
@@ -114,6 +123,7 @@ pub(super) fn append_move_events_for_expression(
                     arm.value,
                     source,
                 );
+                sink.source_arm = enclosing_arm;
             }
         }
         ExpressionNode::Atomic(atomic) => append_move_events_for_expression(

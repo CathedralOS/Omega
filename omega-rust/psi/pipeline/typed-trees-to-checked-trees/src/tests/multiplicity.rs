@@ -2,6 +2,7 @@ use super::*;
 
 mod borrowed_case_payloads;
 mod borrowed_observations;
+mod owned_selection;
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");

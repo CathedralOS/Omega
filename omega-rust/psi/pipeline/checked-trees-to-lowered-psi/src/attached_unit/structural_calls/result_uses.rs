@@ -99,6 +99,7 @@ fn producer(
 }
 
 pub(crate) fn validate_usage(
+    checked: &CheckedTrees,
     caller: &CheckedUnitEffectMachinePlan,
     result: &CheckedUnitStructuralResultBindingPlan,
 ) -> Result<(), LoweringError> {
@@ -110,6 +111,50 @@ pub(crate) fn validate_usage(
     let mut disposed = false;
     let mut projected_paths = Vec::<&[checked_trees::CheckedUnitStructuralPathSegment]>::new();
     for (operation_index, operation) in caller.operations.iter().enumerate() {
+        if let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            result: selected, ..
+        } = operation
+            && let Some((_, receipt)) = checked
+                .facts
+                .flow
+                .ownership
+                .owned_selection_at(caller.state, selected.statement_index)
+        {
+            // A selection carries both the chosen source and its complement.
+            // This replaces each candidate's old unconditional death, without
+            // claiming that every arm moves that candidate into the result.
+            super::super::structural_values::source_custody::validate(
+                checked,
+                caller.machine,
+                caller.state,
+                operation,
+            )?;
+            let sources = checked
+                .facts
+                .flow
+                .ownership
+                .selection_sources
+                .span(receipt.sources)
+                .ok_or(LoweringError::Unsupported(
+                    "selected result has stale source custody",
+                ))?;
+            if sources
+                .iter()
+                .any(|source| source.statement_ordinal == result.statement_index)
+            {
+                if consumed
+                    || disposed
+                    || !projected_paths.is_empty()
+                    || operation_index <= producer.operation_index
+                    || selected.statement_index <= result.statement_index
+                    || result.multiplicity != Multiplicity::Affine
+                    || selected.type_identity != result.type_identity
+                {
+                    return unsupported("selected result reuses an unavailable structural source");
+                }
+                consumed = true;
+            }
+        }
         if let CheckedUnitEffectOperationPlan::CallContinuationCleanup {
             coordinate,
             affine_discards,
@@ -283,6 +328,22 @@ pub(crate) fn validate_usage(
             }
             consumed = argument.access == checked_trees::CheckedStructuralAccess::Owned;
         }
+    }
+    if let Some(returned) = &caller.structural_result
+        && returned.source
+            == (checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: result.binding_ordinal,
+            })
+    {
+        if consumed
+            || disposed
+            || !projected_paths.is_empty()
+            || returned.type_identity != result.type_identity
+            || returned.multiplicity != result.multiplicity
+        {
+            return unsupported("structural completion reuses or changes its owned result");
+        }
+        consumed = result.multiplicity != Multiplicity::Unrestricted;
     }
     // Unrestricted values carry no disposal debt. Argument transport is still
     // checked above; completing with a result is rejoined to source separately.
