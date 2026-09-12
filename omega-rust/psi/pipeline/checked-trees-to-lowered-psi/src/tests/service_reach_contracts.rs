@@ -1,6 +1,152 @@
 use super::*;
 
 #[test]
+fn ordinary_callback_publication_replays_its_exact_specialization() {
+    for source in [
+        r#"
+            boundary trait Callback { machine call(); }
+            machine forward<machine Selected>()
+            where machine Selected satisfies Callback::call;
+            { Selected(); }
+            machine selected() satisfies Callback::call {}
+            machine alternative() satisfies Callback::call {}
+            pub machine enter() { forward<selected>(); }
+        "#,
+        r#"
+            boundary trait Callback { machine call(value: u64) -> u64; }
+            machine forward<machine Selected>(value: u64) -> u64
+            where machine Selected satisfies Callback::call;
+            { Selected(value) }
+            machine selected(value: u64) -> u64 satisfies Callback::call { value }
+            machine alternative(value: u64) -> u64 satisfies Callback::call { value }
+            pub machine enter(value: u64) -> u64 { forward<selected>(value) }
+        "#,
+    ] {
+        let checked = checked_source(source);
+        let _artifact =
+            produce_terminal_artifact(&checked, "enter").expect("valid ordinary closed callback");
+        assert_eq!(checked.machine_specializations.len(), 1);
+        let alternative = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "alternative")
+            .expect("alternative");
+        let alternative_state = checked.machine_states(alternative)[0].symbol;
+        let instance = checked.machine_specializations[0].instance;
+        for mutation in 0..8 {
+            let mut invalid = checked.clone();
+            let specialization = &mut invalid.typed.machine_specializations[0];
+            match mutation {
+                0 => specialization.commitment = Default::default(),
+                1 => specialization.normalized_template_identity = "forged-template".into(),
+                2 => specialization.template_parameters = Default::default(),
+                3 => specialization.machine_arguments[0] = alternative_state,
+                4 => specialization.machine_argument_contract_commitments[0] = [0; 32],
+                5 => specialization.canonical_template_contract_bytes.push(0),
+                6 => specialization
+                    .type_argument_identities
+                    .push("unselected-type".into()),
+                _ => invalid.typed.machine_specializations.clear(),
+            }
+            if matches!(mutation, 1 | 2 | 4) {
+                assert!(
+                    validation::recompute_checked_machine_specialization_commitment(
+                        &invalid, instance
+                    )
+                    .is_err(),
+                    "re-hashing cannot authorize a different live template or recorded contract: {mutation}"
+                );
+            }
+            assert!(
+                produce_terminal_artifact(&invalid, "enter").is_err(),
+                "ordinary publication must reject stale specialization custody: {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
+fn isolated_callback_publication_replays_its_specialization() {
+    let checked = checked_source(
+        r#"
+        machine identity<T [copy]>(value: u64) -> u64 { value }
+        pub machine enter(value: u64) -> u64 { identity<u64>(value) }
+    "#,
+    );
+    let instance = checked.machine_specializations[0].instance;
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == instance)
+        .expect("instance");
+    let entry = checked.machine_states(machine)[0].symbol;
+    let _callback = lower_bounded_callback_identity_machine(&checked, instance, entry)
+        .expect("valid isolated generic callback");
+    let mut invalid = checked.clone();
+    invalid.typed.machine_specializations[0].commitment = Default::default();
+    assert!(
+        lower_bounded_callback_identity_machine(&invalid, instance, entry).is_err(),
+        "isolating a callback cannot bypass specialization custody"
+    );
+}
+
+#[test]
+fn nested_generic_callbacks_replay_interleaved_telescope_positions() {
+    let checked = checked_source(
+        r#"
+        boundary trait Callback { machine call(value: u64) -> u64; }
+        machine relay<T [copy], machine First, const Count: u64, machine Second>(value: u64) -> u64
+        where machine First satisfies Callback::call;
+        where machine Second satisfies Callback::call;
+        { let intermediate: u64 = First(value); Second(intermediate) }
+        machine wrapper<machine First, machine Second>(value: u64) -> u64
+        where machine First satisfies Callback::call;
+        where machine Second satisfies Callback::call;
+        { relay<u64, First, 2, Second>(value) }
+        machine first(value: u64) -> u64 satisfies Callback::call { 3 }
+        machine second(value: u64) -> u64 satisfies Callback::call { value }
+        pub machine enter(value: u64) -> u64 { wrapper<first, second>(value) }
+    "#,
+    );
+    let artifact = produce_terminal_artifact(&checked, "enter").expect("nested closed callbacks");
+    assert_eq!(checked.machine_specializations.len(), 2);
+    for specialization in &checked.machine_specializations {
+        let mut invalid = checked.clone();
+        invalid
+            .typed
+            .machine_specializations
+            .iter_mut()
+            .find(|candidate| candidate.instance == specialization.instance)
+            .expect("instance")
+            .machine_arguments
+            .swap(0, 1);
+        assert!(
+            produce_terminal_artifact(&invalid, "enter").is_err(),
+            "same-contract selections retain binder positions"
+        );
+    }
+    drop(checked);
+    assert_eq!(
+        terminal_interpreter::interpret_terminal_artifact(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &[terminal_interpreter::TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
+                value: IntegerValue::Unsigned(9),
+            }],
+        )
+        .expect("source-free nested selection"),
+        terminal_interpreter::TerminalExecutionResult::Scalar(
+            terminal_interpreter::TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
+                value: IntegerValue::Unsigned(3),
+            }
+        )
+    );
+}
+
+#[test]
 fn direct_boundary_calls_transfer_both_owned_claims() {
     let checked = checked_source(
         r#"

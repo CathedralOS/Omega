@@ -190,6 +190,7 @@ pub use machine_parameters::{
 pub use machine_specialization_identity::{
     machine_specialization_matches_template_identity,
     recompute_checked_machine_specialization_commitment,
+    validate_checked_machine_specialization_commitments,
 };
 pub use operators::{
     ValidatedBoundaryOperatorApplication, ValidatedBoundaryOperatorApplicationArgument,

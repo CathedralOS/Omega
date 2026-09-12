@@ -42,6 +42,15 @@ wrong-position, and reordered receipts reject independently. Provider installati
 coverage remains in the lowerer's `provider_candidates` integration target, using
 explicit boundary calls rather than projecting an unresolved generic binder.
 
+Ordinary and isolated callback producers also replay their existing specialization
+commitments before discarding checked custody. Tests replace the template identity,
+binder span, selected callback, recorded contract, and argument tuple. Removing
+the ordinary nominal callback's final receipt also rejects through its retained
+binder-call markers; this is not a universal receipt-omission check for bodies
+without those markers. Nested generic calls retain two callback positions interleaved
+with type and const binders. This is producer-side replay, not portable proof of
+the original generic dependency or a reconstruction of its complete contract.
+
 The same focused Terminal command also exercises bounded boundary calls through
 ordinary helpers. Reload and interpretation retain nominal service parents and
 fixed synchronous-invocation reach separately from the exact installation bound,

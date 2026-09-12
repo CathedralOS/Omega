@@ -4,11 +4,19 @@
 //! enter here through [`recompute_checked_machine_specialization_commitment`]
 //! so they validate retained checked custody without depending back on that
 //! earlier pipeline stage.
+//!
+//! The original callable remains in the typed program. Its normalized identity
+//! and binder span must match the retained application: hashing self-consistent
+//! bytes alone cannot establish which template or selected contracts they name.
+//! This replay does not reconstruct the template's complete inferred dependency
+//! or carry that relationship across the portable boundary.
 
 use checked_trees::CheckedTrees;
+use flow_effects::OperationalPlan;
 use language_semantics::MachineSupplyMode;
 use sha2::{Digest, Sha256};
 use symbols::SymbolHandle;
+use typed_trees::typed_trees::MachineSpecialization;
 
 /// Rejoin a ProviderPlan's split checked-adapter identity to the exact
 /// package-qualified template identity retained before specialization.
@@ -53,6 +61,37 @@ pub fn recompute_checked_machine_specialization_commitment(
     let operational = crate::infer_operational_may(&checked.typed);
     crate::validate_static_machine_call_contracts(&checked.typed, &operational)
         .map_err(|_| "checked specialization lost its exact static machine call contracts")?;
+    let specialization = exact_specialization(checked, instance)?;
+    recompute_specialization_commitment(checked, &operational, specialization)
+}
+
+/// Replay the exact retained commitments of selected specialization instances.
+/// Shared operational inference and static-call validation run once for the batch.
+/// Every supplied instance must have one retained specialization; ordinary
+/// machine owners are not specialization instances.
+/// Static-call validation still runs for an empty batch so deleting the final
+/// receipt cannot leave retained binder calls without a selected owner.
+pub fn validate_checked_machine_specialization_commitments(
+    checked: &CheckedTrees,
+    instances: &[SymbolHandle],
+) -> Result<(), &'static str> {
+    let operational = crate::infer_operational_may(&checked.typed);
+    crate::validate_static_machine_call_contracts(&checked.typed, &operational)
+        .map_err(|_| "checked specialization lost its exact static machine call contracts")?;
+    for instance in instances {
+        let specialization = exact_specialization(checked, *instance)?;
+        let replayed = recompute_specialization_commitment(checked, &operational, specialization)?;
+        if specialization.commitment.is_zero() || specialization.commitment.as_bytes() != replayed {
+            return Err("checked specialization commitment does not replay");
+        }
+    }
+    Ok(())
+}
+
+fn exact_specialization(
+    checked: &CheckedTrees,
+    instance: SymbolHandle,
+) -> Result<&MachineSpecialization, &'static str> {
     let mut matches = checked
         .typed
         .machine_specializations
@@ -64,13 +103,36 @@ pub fn recompute_checked_machine_specialization_commitment(
     if matches.next().is_some() {
         return Err("checked machine has ambiguous retained specializations");
     }
+    Ok(specialization)
+}
 
-    let template = checked
+fn recompute_specialization_commitment(
+    checked: &CheckedTrees,
+    operational: &OperationalPlan,
+    specialization: &MachineSpecialization,
+) -> Result<[u8; 32], &'static str> {
+    let mut templates = checked
         .typed
         .machines()
         .iter()
-        .find(|machine| machine.symbol == specialization.template)
+        .filter(|machine| machine.symbol == specialization.template);
+    let template = templates
+        .next()
         .ok_or("checked specialization lost its template machine")?;
+    if templates.next().is_some() {
+        return Err("checked specialization has ambiguous template machines");
+    }
+    if specialization.template_parameters != template.type_parameters
+        || checked.typed.machine_type_parameters(template).len()
+            != specialization.template_parameters.len()
+    {
+        return Err("checked specialization parameters differ from its live template");
+    }
+    let template_identity = normalized_machine_identity(checked, template)
+        .ok_or("checked specialization has no normalized live template identity")?;
+    if specialization.normalized_template_identity != template_identity {
+        return Err("checked specialization identity differs from its live template");
+    }
     match (
         template.supply_mode,
         &specialization.accepted_template_commitment,
@@ -106,10 +168,6 @@ pub fn recompute_checked_machine_specialization_commitment(
     {
         return Err("checked specialization mismatches its authoritative template commitment");
     }
-    if specialization.normalized_template_identity.is_empty() {
-        return Err("checked specialization lost its normalized template identity");
-    }
-
     let concrete = checked
         .typed
         .machines()
@@ -147,6 +205,11 @@ pub fn recompute_checked_machine_specialization_commitment(
         let state_identity = symbol_identity(checked, *state_symbol);
         machine_owners.push(format!("{owner_identity}|selected={state_identity}"));
         machine_commitments.push(contract.commitment.as_bytes());
+    }
+    if specialization.machine_argument_contract_commitments != machine_commitments {
+        return Err(
+            "checked specialization selected contract commitments differ from their owners",
+        );
     }
 
     let mut conformance_commitments =
@@ -193,7 +256,7 @@ pub fn recompute_checked_machine_specialization_commitment(
     )?;
     encode_bytes(&operator_realization_bytes, &mut bytes);
     let static_call_bindings =
-        crate::static_machine_call_binding_bytes(&checked.typed, &operational, specialization)
+        crate::static_machine_call_binding_bytes(&checked.typed, operational, specialization)
             .map_err(|_| "checked specialization lost its static call binding footprint")?;
     encode_bytes(&static_call_bindings, &mut bytes);
     match &specialization.accepted_template_commitment {
