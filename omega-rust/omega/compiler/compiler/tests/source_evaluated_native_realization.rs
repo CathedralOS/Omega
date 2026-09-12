@@ -1082,6 +1082,17 @@ fn import_bearing_linux_compiler_route_retains_non_installable_dynamic_candidate
 #[test]
 fn rejected_native_reentry_returns_the_exact_dynamic_interpreter() {
     let fixture = Fixture::new_linux_named("linux-reentry-recovery", false);
+    let source = fs::read_to_string(&fixture.main).expect("read the native re-entry fixture");
+    let declaration = "machine Main::main(&mut self) {";
+    assert_eq!(source.matches(declaration).count(), 1);
+    fs::write(
+        &fixture.main,
+        source.replace(
+            declaration,
+            "machine Main::main(&mut self) reaches Process {",
+        ),
+    )
+    .expect("declare the fixture's direct boundary reach");
     let retained = fixture.compile_terminal();
     let policy = terminal_authority_policy(&retained);
     let permission_policy = terminal_authority_permission_policy(&retained);
