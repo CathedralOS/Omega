@@ -98,13 +98,26 @@ pub(super) fn call_pointer(
     {
         return Err(replay.invalid());
     }
-    let input = replay
+    let incoming = replay
         .transport
         .pointers
         .iter()
         .find(|(source, _)| *source == place)
-        .map(|(_, pointer)| *pointer)
-        .ok_or_else(|| replay.invalid())?;
+        .map(|(_, pointer)| *pointer);
+    let input = if let Some(pointer) = incoming {
+        pointer
+    } else {
+        let mut homes = replay
+            .transport
+            .local_slots
+            .iter()
+            .filter(|home| home.id.structural_place() == Some(place));
+        let home = homes.next().ok_or_else(|| replay.invalid())?.clone();
+        if homes.next().is_some() {
+            return Err(replay.invalid());
+        }
+        local_storage::address(replay, row, home.id, 0, home.byte_size, false)?
+    };
     let output = result(replay, place, byte_offset)?;
     replay.check_instruction(
         if byte_offset == 0 {

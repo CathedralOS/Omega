@@ -207,7 +207,9 @@ pub(super) fn lower_operation(
         ),
         AbstractOperation::EstablishPrimitiveLocal { .. }
         | AbstractOperation::PrimitiveLocalStore { .. }
-        | AbstractOperation::PrimitiveScalarRead { .. } => super::primitive_storage::lower(
+        | AbstractOperation::PrimitiveScalarRead { .. }
+        | AbstractOperation::IntegerStructuralField { .. }
+        | AbstractOperation::BooleanStructuralField { .. } => super::primitive_storage::lower(
             operation,
             function,
             structural_types,
@@ -216,7 +218,7 @@ pub(super) fn lower_operation(
             operations,
             provenance,
         ),
-        AbstractOperation::CallStructuralScalar { .. } => super::primitive_calls::lower(
+        AbstractOperation::CallStructuralScalar { .. } => super::borrowed_calls::lower(
             operation,
             function,
             target,
@@ -239,7 +241,7 @@ pub(super) fn lower_operation(
                     }))
         }) =>
         {
-            super::primitive_calls::lower(
+            super::borrowed_calls::lower(
                 operation,
                 function,
                 target,

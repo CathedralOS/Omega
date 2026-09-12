@@ -78,6 +78,65 @@ pub(super) fn lower(
             matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(expected) if expected == scalar_type))
     };
     let (identity, lowered) = match operation {
+        AbstractOperation::IntegerStructuralField { .. }
+        | AbstractOperation::BooleanStructuralField { .. } => {
+            let (psi_operation, result, place, field) = match operation {
+                AbstractOperation::IntegerStructuralField {
+                    psi_operation,
+                    result,
+                    source,
+                    field,
+                } => {
+                    if !function.structural_parameters.contains(source) {
+                        return Err(invalid());
+                    }
+                    (*psi_operation, *result, source.place, *field)
+                }
+                AbstractOperation::BooleanStructuralField {
+                    psi_operation,
+                    result,
+                    source,
+                    field,
+                } => (
+                    *psi_operation,
+                    abstract_operations::AbstractResult {
+                        value: *result,
+                        scalar_type: ScalarType::Boolean,
+                    },
+                    *source,
+                    *field,
+                ),
+                _ => return Err(invalid()),
+            };
+            let source = function
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == place)
+                .ok_or_else(invalid)?;
+            if source.access != StructuralAccess::SharedBorrow
+                || source.multiplicity != StructuralMultiplicity::Unrestricted
+                || !source.qualifications.is_empty() || !source.projected_qualifications.is_empty()
+                || !types.get(&source.structural_type).is_some_and(|declaration|
+                    matches!(&declaration.shape, StructuralTypeShape::Record { fields }
+                        if fields.iter().any(|candidate| candidate.id == field && !candidate.relevance.is_erased()
+                            && !matches!(candidate.field_type, StructuralFieldType::BoundedInteger(_))
+                            && candidate.field_type.scalar_type() == Some(result.scalar_type))))
+            { return Err(invalid()); }
+            retain_result(psi_operation, result, live)?;
+            (
+                psi_operation,
+                TargetUnitOperation::StructuralScalarFieldRead {
+                    psi_operation,
+                    result,
+                    source: terminal_psi::StructuralArgument {
+                        place,
+                        access: source.access,
+                        path: Vec::new(),
+                    },
+                    field,
+                },
+            )
+        }
         AbstractOperation::EstablishPrimitiveLocal {
             psi_operation,
             result,

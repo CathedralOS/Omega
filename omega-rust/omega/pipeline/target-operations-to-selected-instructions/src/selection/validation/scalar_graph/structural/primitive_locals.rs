@@ -94,13 +94,9 @@ pub(in crate::selection) fn read(
     replay: &mut Replay<'_>,
     row: &LegalizedScalarInstruction,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let LegalizedScalarInstructionKind::PrimitiveScalarRead { source: place } = row.kind else {
-        return Err(replay.invalid());
-    };
+    let (place, byte_offset) = crate::selection::primitive_local_input::read_geometry(source, row)
+        .ok_or_else(|| replay.invalid())?;
     let definition = row.result.ok_or_else(|| replay.invalid())?;
-    if !crate::selection::primitive_local_input::readable(source, place, definition.scalar_type) {
-        return Err(replay.invalid());
-    }
     let pointer = replay
         .transport
         .pointers
@@ -117,19 +113,19 @@ pub(in crate::selection) fn read(
         .ok_or_else(|| replay.invalid())?;
     let (instruction, constraint) = match shape.byte_size {
         1 => (
-            SelectedInstructionKind::Load8 { byte_offset: 0 },
+            SelectedInstructionKind::Load8 { byte_offset },
             replay.constraints.keys.load8,
         ),
         2 => (
-            SelectedInstructionKind::Load16 { byte_offset: 0 },
+            SelectedInstructionKind::Load16 { byte_offset },
             replay.constraints.keys.load16,
         ),
         4 => (
-            SelectedInstructionKind::Load32 { byte_offset: 0 },
+            SelectedInstructionKind::Load32 { byte_offset },
             replay.constraints.keys.load32,
         ),
         8 => (
-            SelectedInstructionKind::Load64 { byte_offset: 0 },
+            SelectedInstructionKind::Load64 { byte_offset },
             replay.constraints.keys.load64,
         ),
         _ => return Err(replay.invalid()),
@@ -138,7 +134,7 @@ pub(in crate::selection) fn read(
         replay,
         row,
         place,
-        0,
+        byte_offset,
         u32::from(shape.byte_size),
         SelectedMemoryAccessRole::ReadPlace,
     )?;

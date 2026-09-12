@@ -274,7 +274,8 @@ pub(super) fn build_with_environment(
                     LegalizedScalarInstructionKind::StructuralCaseMembership { .. } => {
                         structural::observe(source, &mut builder, operation)?
                     }
-                    LegalizedScalarInstructionKind::PrimitiveScalarRead { .. } => {
+                    LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
+                    | LegalizedScalarInstructionKind::PrimitiveScalarRead { .. } => {
                         structural::read(source, &mut builder, operation)?
                     }
                     LegalizedScalarInstructionKind::ByteSequenceRead { .. }
@@ -340,7 +341,8 @@ pub(super) fn build_with_environment(
                         )?;
                         output
                     }
-                    LegalizedScalarInstructionKind::BitwiseAnd { left, right } => {
+                    LegalizedScalarInstructionKind::BitwiseAnd { left, right }
+                    | LegalizedScalarInstructionKind::BitwiseXor { left, right } => {
                         let (_, left_register, _, left_type) =
                             builder.resolve(*left).ok_or_else(invalid)?;
                         let (_, right_register, _, right_type) =
@@ -356,9 +358,16 @@ pub(super) fn build_with_environment(
                         let output =
                             builder.register(result.value, result.definition_site, scalar_type)?;
                         // Subtraction shares operand constraints and conservatively models
-                        // x64 flag clobbers; the distinct AND form carries the semantics.
+                        // x64 flag clobbers; the distinct bitwise form carries the semantics.
                         builder.emit(
-                            SelectedInstructionKind::BitwiseAndI64,
+                            if matches!(
+                                operation.kind,
+                                LegalizedScalarInstructionKind::BitwiseXor { .. }
+                            ) {
+                                SelectedInstructionKind::BitwiseXorI64
+                            } else {
+                                SelectedInstructionKind::BitwiseAndI64
+                            },
                             constraints.keys.subtract_i64,
                             &[left_register, right_register, output],
                             SelectedInstructionProvenance {

@@ -30,6 +30,7 @@ pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Resu
                 | AbstractOperation::IntegerWiden { psi_operation, .. }
                 | AbstractOperation::IntegerExactCast { psi_operation, .. }
                 | AbstractOperation::IntegerBitwiseAnd { psi_operation, .. }
+                | AbstractOperation::IntegerBitwiseXor { psi_operation, .. }
                 | AbstractOperation::ExactIntegerAdd { psi_operation, .. }
                 | AbstractOperation::ExactIntegerSubtract { psi_operation, .. }
                 | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
@@ -42,6 +43,8 @@ pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Resu
                 | AbstractOperation::EstablishPrimitiveLocal { psi_operation, .. }
                 | AbstractOperation::PrimitiveLocalStore { psi_operation, .. }
                 | AbstractOperation::PrimitiveScalarRead { psi_operation, .. }
+                | AbstractOperation::IntegerStructuralField { psi_operation, .. }
+                | AbstractOperation::BooleanStructuralField { psi_operation, .. }
                 | AbstractOperation::StructuralCaseMembership { psi_operation, .. }
                 | AbstractOperation::CallStructuralScalar { psi_operation, .. }
                 | AbstractOperation::EstablishScalarCase { psi_operation, .. }

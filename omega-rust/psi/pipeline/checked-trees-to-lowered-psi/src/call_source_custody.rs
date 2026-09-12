@@ -96,6 +96,10 @@ pub(super) fn validate_store_and_initializer_calls(
                         coordinate: actual,
                         ..
                     } => *actual == coordinate,
+                    CheckedUnitEffectOperationPlan::EstablishScalarLocal {
+                        result,
+                        value: checked_trees::CheckedCallScalarArgument::Computation(_),
+                    } => result.statement_index == statement_index,
                     _ => false,
                 });
         let Some((operation_index, owner)) = owners.next() else {
@@ -103,6 +107,28 @@ pub(super) fn validate_store_and_initializer_calls(
         };
         if owners.next().is_some() {
             return unsupported("Unit body omits or duplicates an authored call");
+        }
+        if let CheckedUnitEffectOperationPlan::EstablishScalarLocal {
+            value: checked_trees::CheckedCallScalarArgument::Computation(computation),
+            ..
+        } = owner
+        {
+            // A local initializer's computation owns its outer call as well as
+            // nested operands. Requiring a second ScalarCall would execute it
+            // twice; replay the existing computation's complete call roster.
+            crate::scalar_source_custody::validate_computation_calls(
+                checked,
+                plan.machine,
+                plan.state,
+                statement_index,
+                *computation,
+                initializer
+                    .or(match statement {
+                        StatementNode::Expression(expression) => Some(*expression),
+                        _ => None,
+                    })
+                    .ok_or(LoweringError::Unsupported("computed value lost its source"))?,
+            )?;
         }
         if matches!(statement, StatementNode::Call(call) if call.discards_result)
             && let CheckedUnitEffectOperationPlan::BoundaryStructuralCall {

@@ -118,11 +118,13 @@ fn reads(instruction: &Instruction, value: ValueId) -> bool {
             .any(|argument| argument.scalar_source() == Some(value)),
         Instruction::ExactBinary { left, right, .. }
         | Instruction::BitwiseAnd { left, right }
+        | Instruction::BitwiseXor { left, right }
         | Instruction::IeeeFloatCompare { left, right, .. }
         | Instruction::Compare { left, right, .. } => [*left, *right].contains(&value),
         Instruction::Constant(_)
         | Instruction::HostedReadByte { .. }
         | Instruction::PrimitiveScalarRead { .. }
+        | Instruction::StructuralScalarFieldRead { .. }
         | Instruction::StructuralCaseMembership { .. }
         | Instruction::EstablishByteSequenceLiteral { .. }
         | Instruction::ByteSequenceLength { .. }

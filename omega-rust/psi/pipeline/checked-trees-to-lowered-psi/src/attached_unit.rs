@@ -1822,7 +1822,7 @@ fn assemble_unit_closure(
                     scalar_result_values.truncate(leaf_start);
                     structural_result_places.push((declaration, false));
                     if *source == checked_trees::CheckedArrayConstructionSource::Statement {
-                        scalar_arrays::bind_local(
+                        structural_values::bind_local(
                             checked,
                             plan,
                             operation,
@@ -1875,7 +1875,7 @@ fn assemble_unit_closure(
                         &mut next_place,
                         &mut operations,
                     )?;
-                    scalar_arrays::bind_local(
+                    structural_values::bind_local(
                         checked,
                         plan,
                         operation,
@@ -2123,7 +2123,7 @@ fn assemble_unit_closure(
                             },
                             *discard_result_on_return,
                         ));
-                        scalar_arrays::bind_local(
+                        structural_values::bind_local(
                             checked,
                             plan,
                             operation,

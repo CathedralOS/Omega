@@ -88,13 +88,27 @@ pub(super) fn call_pointer(
     {
         return Err(invalid());
     }
-    let input = builder
+    let incoming = builder
         .transport
         .pointers
         .iter()
         .find(|(source, _)| *source == place)
-        .map(|(_, pointer)| *pointer)
-        .ok_or_else(invalid)?;
+        .map(|(_, pointer)| *pointer);
+    let input = if let Some(pointer) = incoming {
+        pointer
+    } else {
+        // Borrow the completed aggregate's original home, not ABI fragments.
+        let mut homes = builder
+            .transport
+            .local_slots
+            .iter()
+            .filter(|home| home.id.structural_place() == Some(place));
+        let home = homes.next().ok_or_else(invalid)?.clone();
+        if homes.next().is_some() {
+            return Err(invalid());
+        }
+        local_storage::address(builder, row, home.id, 0, home.byte_size, false)?
+    };
     let output = transport_register(builder, place, byte_offset)?;
     builder.emit(
         if byte_offset == 0 {

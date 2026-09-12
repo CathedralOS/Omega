@@ -65,6 +65,11 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             result,
             ..
         }
+        | AbstractOperation::IntegerStructuralField {
+            psi_operation,
+            result,
+            ..
+        }
         | AbstractOperation::StructuralCaseMembership {
             psi_operation,
             result,
@@ -76,6 +81,11 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             ..
         } => Some((*psi_operation, *result)),
         AbstractOperation::BooleanConstant {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::BooleanStructuralField {
             psi_operation,
             result,
             ..
@@ -128,6 +138,12 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             Some((*psi_operation, *result))
         }
         AbstractOperation::IntegerBitwiseAnd {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
+        | AbstractOperation::IntegerBitwiseXor {
             psi_operation,
             result,
             scalar_type,
@@ -404,9 +420,11 @@ pub(super) fn validate(
             AbstractOperation::IeeeFloatConstant { value, .. } => {
                 ScalarType::IeeeFloat(value.format())
             }
-            AbstractOperation::BooleanConstant { .. } => ScalarType::Boolean,
+            AbstractOperation::BooleanConstant { .. }
+            | AbstractOperation::BooleanStructuralField { .. } => ScalarType::Boolean,
             AbstractOperation::CallStructuralScalar { result, .. }
             | AbstractOperation::PrimitiveScalarRead { result, .. }
+            | AbstractOperation::IntegerStructuralField { result, .. }
             | AbstractOperation::StructuralCaseMembership { result, .. } => result.scalar_type,
             AbstractOperation::ByteSequenceRead {
                 source,
@@ -431,6 +449,12 @@ pub(super) fn validate(
             AbstractOperation::IntegerConstant { scalar_type, .. }
             | AbstractOperation::Call { scalar_type, .. } => *scalar_type,
             AbstractOperation::IntegerBitwiseAnd {
+                scalar_type,
+                left,
+                right,
+                ..
+            }
+            | AbstractOperation::IntegerBitwiseXor {
                 scalar_type,
                 left,
                 right,

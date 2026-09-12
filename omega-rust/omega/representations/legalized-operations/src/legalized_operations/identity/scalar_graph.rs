@@ -160,6 +160,11 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.push(18);
                     bytes.extend_from_slice(&source.get().to_le_bytes());
                 }
+                LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, field } => {
+                    bytes.push(25);
+                    super::structural_types::encode_structural_argument(bytes, source);
+                    bytes.extend_from_slice(&field.get().to_le_bytes());
+                }
                 LegalizedScalarInstructionKind::HostedReadByte {
                     boundary,
                     result,
@@ -336,6 +341,11 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 }
                 LegalizedScalarInstructionKind::BitwiseAnd { left, right } => {
                     bytes.push(24);
+                    bytes.extend_from_slice(&left.get().to_le_bytes());
+                    bytes.extend_from_slice(&right.get().to_le_bytes());
+                }
+                LegalizedScalarInstructionKind::BitwiseXor { left, right } => {
+                    bytes.push(26);
                     bytes.extend_from_slice(&left.get().to_le_bytes());
                     bytes.extend_from_slice(&right.get().to_le_bytes());
                 }

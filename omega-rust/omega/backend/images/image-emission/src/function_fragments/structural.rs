@@ -85,9 +85,12 @@ pub(super) fn published_call(contract: &selected_instructions::SelectedCallContr
         // Inline value fragments have no pointer/copy record in the legacy
         // projection. Their complete call operands and homes belong to the
         // mandatory selected graph replay, just like aggregate results.
+        // Borrowing a constructed home also belongs to that replay: its address
+        // is activation-local storage, not an incoming pointer placement.
         && !contract.call.arguments.iter().any(|argument| {
             matches!(argument, LegalizedScalarArgument::Structural { target, .. }
-                if inline_owned_placement(target.access, &target.destination))
+                if inline_owned_placement(target.access, &target.destination)
+                    || matches!(target.source, target_operations::TargetStructuralArgumentSource::StructuralHome { .. }))
         })
         && (contract.call.result_placement.is_none()
             || contract

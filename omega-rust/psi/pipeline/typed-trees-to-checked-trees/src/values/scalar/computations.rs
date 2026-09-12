@@ -746,12 +746,10 @@ impl Builder<'_, '_> {
                         .is_some_and(|state| state.symbol == call.target_symbol)
                 })?;
                 let target_state = self.program.machine_states(target_machine).first()?;
-                if !self
-                    .program
-                    .call_has_no_runtime_receiver(&call, target_machine, target_state)
-                {
-                    return None;
-                }
+                let has_runtime_receiver =
+                    !self
+                        .program
+                        .call_has_no_runtime_receiver(&call, target_machine, target_state);
                 if self
                     .program
                     .primitive_type_reference(target_state.return_type)?
@@ -761,7 +759,7 @@ impl Builder<'_, '_> {
                 }
                 let target_parameters = self.program.state_parameters(target_state);
                 if target_parameters.iter().any(|parameter| {
-                    parameter.is_self
+                    (parameter.is_self && !has_runtime_receiver)
                         || parameter.is_const
                         || (parameter.is_mutable
                             && self
@@ -778,10 +776,28 @@ impl Builder<'_, '_> {
                 }
                 let (source_call, call_ordinal) =
                     self.call_ordinal(expression, call.target_symbol)?;
-                let arguments = self
+                let mut arguments = self
                     .program
                     .expression_table
-                    .expression_handles(call.arguments);
+                    .expression_handles(call.arguments)
+                    .to_vec();
+                if has_runtime_receiver {
+                    // The receiver is an ordinary structural operand, ordered
+                    // before explicit actuals, not ambient attachment storage.
+                    if !call.receiver.is_valid()
+                        || !target_parameters
+                            .first()
+                            .is_some_and(|parameter| parameter.is_self)
+                        || target_parameters
+                            .iter()
+                            .filter(|parameter| parameter.is_self)
+                            .count()
+                            != 1
+                    {
+                        return None;
+                    }
+                    arguments.insert(0, call.receiver);
+                }
                 if arguments.len() != target_parameters.len() {
                     return None;
                 }

@@ -181,6 +181,35 @@ pub(super) fn validate_operation(
             ));
         }
         (
+            TargetUnitOperation::StructuralScalarFieldRead {
+                psi_operation,
+                result,
+                source,
+                field,
+            },
+            AbstractOperation::IntegerStructuralField { .. }
+            | AbstractOperation::BooleanStructuralField { .. },
+        ) => {
+            let expected = super::super::structural_fields::read(
+                optimized,
+                abstracted,
+                &plan.structural_types,
+            )
+            .ok_or(invalid.clone())?;
+            if expected != (*psi_operation, *result, source.clone(), *field) {
+                return Err(invalid);
+            }
+            sources.push((
+                result.value,
+                Source::Home(target_operations::TargetUnitScalarHomeRequirement {
+                    defining_operation: *psi_operation,
+                    source_value: result.value,
+                    scalar_type: result.scalar_type,
+                    shape: super::super::scalar_shape(result.scalar_type).ok_or(invalid.clone())?,
+                }),
+            ));
+        }
+        (
             TargetUnitOperation::EstablishByteSequenceLiteral {
                 psi_operation,
                 place,
@@ -214,6 +243,7 @@ pub(super) fn validate_operation(
             | AbstractOperation::BooleanEqual { .. }
             | AbstractOperation::ExactIntegerAdd { .. }
             | AbstractOperation::IntegerBitwiseAnd { .. }
+            | AbstractOperation::IntegerBitwiseXor { .. }
             | AbstractOperation::IntegerExactCast { .. }
             | AbstractOperation::ExactIntegerSubtract { .. },
         ) => {

@@ -53,11 +53,13 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                 ),
                 Instruction::ExactBinary { left, right, .. }
                 | Instruction::BitwiseAnd { left, right }
+                | Instruction::BitwiseXor { left, right }
                 | Instruction::IeeeFloatCompare { left, right, .. }
                 | Instruction::Compare { left, right, .. } => pending.extend([*left, *right]),
                 Instruction::Constant(_)
                 | Instruction::HostedReadByte { .. }
                 | Instruction::PrimitiveScalarRead { .. }
+                | Instruction::StructuralScalarFieldRead { .. }
                 | Instruction::StructuralCaseMembership { .. }
                 | Instruction::EstablishByteSequenceLiteral { .. }
                 | Instruction::ByteSequenceLength { .. }

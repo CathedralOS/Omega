@@ -61,21 +61,21 @@ pub(super) fn has_structural_result(
     else {
         return false;
     };
-    facts
-        .flow
-        .terminal_structural_returns
-        .claim_free_affine_machines
-        .iter()
-        .any(|plan| plan.state == call.target_symbol)
-        || (program
-            .primitive_type_reference(local.type_reference)
-            .is_none()
-            && validation::has_plain_owned_contents(program, local.type_reference)
-            && validation::unit_result_initializer_call_is_supported(
+    // The result signature is available before the producer body is selected.
+    // This sequencing decision must not depend on the caller's result category
+    // or on a legacy affine-return body recognizer; closure pruning still
+    // requires the actual ordinary/composed callee plan.
+    crate::flow::call_target_return_type(program, call.target_symbol).is_some_and(|reference| {
+        program.normalized_type_identity(reference)
+            == program.normalized_type_identity(local.type_reference)
+            && super::checked_structural_result_type(
                 program,
-                machine,
-                local.initial_value,
-            ))
+                &mut ShapeCollector::new(program),
+                local.type_reference,
+                &machine_binders(program, machine),
+            )
+            .is_some()
+    })
 }
 
 pub(super) fn has_statement_shape(
@@ -200,12 +200,15 @@ pub(in crate::flow::terminal_unit) fn build(
         .iter()
         .enumerate()
         .skip(construction_statement_count)
-        .take_while(|(_, statement)| {
+        .take_while(|(index, statement)| {
             !matches!(statement, StatementNode::Transition(_))
                 && !matches!(statement, StatementNode::LocalData(local) if local.name.as_str().starts_with("__arm_destructure#V="))
                 && !matches!(statement, StatementNode::Expression(expression)
                     if !is_unit(program, state.return_type)
-                        && !matches!(program.expression_table.expression(*expression), ExpressionNode::Call(_)))
+                        && (!matches!(program.expression_table.expression(*expression), ExpressionNode::Call(_))
+                            || u32::try_from(*index).ok().is_some_and(|ordinal| facts.values.scalar_computations.root_at(
+                                state.symbol, ordinal, CheckedScalarExpressionRole::Return,
+                            ).is_some())))
         })
     {
         let statement_index = u32::try_from(index).ok()?;
@@ -349,7 +352,11 @@ pub(in crate::flow::terminal_unit) fn build(
                     if !matches!(
                         program.expression_table.expression(local.initial_value),
                         ExpressionNode::Call(_)
-                    ) {
+                    ) || facts.values.scalar_computations.root_at(
+                        state.symbol,
+                        statement_index,
+                        CheckedScalarExpressionRole::LocalInitializer { binding_ordinal },
+                    ).is_some() {
                         let (result, value) = scalar_computation_local_at(
                             program,
                             facts,

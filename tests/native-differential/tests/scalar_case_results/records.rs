@@ -2,6 +2,112 @@
 
 use super::*;
 
+const DIRECT_LOCAL_RECORD_GETTER: &str = "
+    data Pair [copy] { left: u64; right: u64; }
+    machine Pair::get_right(&self) -> u64 { self.right }
+    machine direct_local(left: u64, right: u64) -> u64 {
+        let prefix: u64 = left & 255;
+        let local: Pair = Pair { right: right, left: left };
+        let observed: u64 = local.get_right();
+        observed ^ prefix
+    }
+    machine direct_tail(left: u64, right: u64) -> u64 {
+        let prefix: u64 = left & 255;
+        let local: Pair = Pair { left: left, right: right ^ prefix };
+        local.get_right()
+    }
+";
+
+const RETURNED_LOCAL_RECORD_GETTER: &str = "
+    data Region { base: u64; length: u64; }
+    machine Region::new(base: u64, length: u64) -> Region {
+        Region { base: base, length: length }
+    }
+    machine Region::get_length(&self) -> u64 { self.length }
+    machine returned_local(left: u64, right: u64) -> u64 {
+        let prefix: u64 = left & 255;
+        let local: Region = Region::new(left, right);
+        let observed: u64 = local.get_length();
+        observed ^ prefix
+    }
+    machine combine(observed: u64, prefix: u64) -> u64 { observed ^ prefix }
+    machine nested_getter(left: u64, right: u64) -> u64 {
+        let prefix: u64 = left & 255;
+        let local: Region = Region::new(left, right);
+        combine(local.get_length(), prefix)
+    }
+";
+
+fn assert_local_record_getter(entry: &str, source: &str) {
+    eprintln!("source-to-native local record getter: {entry}");
+    let artifact = produce_source(entry, source);
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let (image, offset) = publish(&artifact, target);
+        #[cfg(any(
+            all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", target_arch = "aarch64")
+        ))]
+        if target == NativeTarget::host() {
+            native_function::assert_c_text(
+                &image.output().final_text_bytes,
+                offset,
+                r#"
+                #include <stdint.h>
+                extern uint64_t omega_entry(uint64_t left, uint64_t right);
+                int main(void) {
+                    const uint64_t inputs[][2] = {
+                        {0, UINT64_MAX},
+                        {UINT64_MAX, 0},
+                        {UINT64_C(0x8123456789abcdef), UINT64_C(0xfedcba9876543210)},
+                        {7, 19}
+                    };
+                    for (unsigned iteration = 0; iteration < 4; ++iteration) {
+                        uint64_t left = inputs[iteration][0];
+                        uint64_t right = inputs[iteration][1];
+                        if (omega_entry(left, right) != (right ^ (left & 255))) return 1;
+                    }
+                    return 0;
+                }
+            "#,
+            );
+        }
+        #[cfg(not(any(
+            all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", target_arch = "aarch64")
+        )))]
+        {
+            let _ = (image, offset);
+            eprintln!(
+                "SKIP: local record getter execution needs a matching Linux/macOS host; cross-target publication was checked"
+            );
+        }
+    }
+}
+
+#[test]
+fn direct_runtime_record_local_shared_getter_preserves_full_width_value() {
+    for entry in ["direct_local", "direct_tail"] {
+        assert_local_record_getter(entry, DIRECT_LOCAL_RECORD_GETTER);
+    }
+}
+
+#[test]
+fn returned_runtime_record_local_shared_getter_preserves_full_width_value() {
+    for entry in ["returned_local", "nested_getter"] {
+        assert_local_record_getter(entry, RETURNED_LOCAL_RECORD_GETTER);
+    }
+}
+
 #[test]
 fn record_wire_rejects_retired_literal_tag_and_changed_field_roster() {
     let artifact = produce_source(

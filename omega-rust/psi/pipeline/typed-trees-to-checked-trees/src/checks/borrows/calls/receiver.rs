@@ -1,4 +1,5 @@
-//! An implicit mutable or write-only receiver is an exclusive call operand.
+//! An implicit receiver participates in the same loan compatibility checks as
+//! explicit operands, including shared receivers beside exclusive arguments.
 
 use checked_trees::{BorrowAccessKind, BorrowCallFact, CapturedPlace, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
@@ -10,7 +11,7 @@ use super::super::overlap::captured_place_compatibility;
 
 mod aliases;
 
-pub(super) fn check_exclusive_receiver_conflicts(
+pub(super) fn check_receiver_conflicts(
     program: &TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
@@ -32,6 +33,10 @@ pub(super) fn check_exclusive_receiver_conflicts(
                         .type_reference_table
                         .type_reference(parameter.type_reference)
                     {
+                        TypeReferenceNode::Reference {
+                            access: ReferenceAccess::Shared,
+                            ..
+                        } => Some((BorrowAccessKind::Read, "shared")),
                         TypeReferenceNode::Reference {
                             access: ReferenceAccess::Mutable,
                             ..
@@ -74,7 +79,7 @@ pub(super) fn check_exclusive_receiver_conflicts(
         segments,
     }) = receiver
     else {
-        if receiver_access == BorrowAccessKind::Mutable {
+        if receiver_access != BorrowAccessKind::WriteOnly {
             // Computed reference receivers use the existing result-origin and
             // call-frame checks, not this source-place subloan judgment. Their
             // presence is still retained in call facts. Write-only receivers
@@ -94,7 +99,9 @@ pub(super) fn check_exclusive_receiver_conflicts(
             segments,
         },
     );
-    if !receiver_is_writable(program, facts, state_flow, entry_constraints, &receiver) {
+    if receiver_access.is_exclusive()
+        && !receiver_is_writable(program, facts, state_flow, entry_constraints, &receiver)
+    {
         diagnostics.push(Diagnostic::error(format!(
             "state `{target_name}` requires a {receiver_name} receiver, but its source is not writable in this state"
         )));
@@ -125,6 +132,12 @@ pub(super) fn check_exclusive_receiver_conflicts(
         .non_interfering
     };
     for argument in facts.borrow.argument_accesses.span_or_empty(call.accesses) {
+        // Two reads are compatible even when their storage overlaps. A
+        // derived view need not prove reborrow ancestry for that judgment;
+        // ancestry remains required wherever an exclusive access competes.
+        if receiver_access == BorrowAccessKind::Read && argument.kind == BorrowAccessKind::Read {
+            continue;
+        }
         let Some(argument_place) = aliases::resolve(
             program,
             facts,

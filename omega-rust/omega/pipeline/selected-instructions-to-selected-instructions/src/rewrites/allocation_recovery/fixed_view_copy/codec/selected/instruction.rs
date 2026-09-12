@@ -105,6 +105,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::ReturnScalar => 3,
         SelectedInstructionKind::CopyI64 => 4,
         SelectedInstructionKind::BitwiseAndI64 => 51,
+        SelectedInstructionKind::BitwiseXorI64 => 52,
         SelectedInstructionKind::Float32ToBits => 26,
         SelectedInstructionKind::Float64ToBits => 27,
         SelectedInstructionKind::BitsToFloat32 => 28,
@@ -220,6 +221,7 @@ fn zero_extension_has_a_distinct_round_trip_tag() {
     for (kind, tag) in [
         (SelectedInstructionKind::ZeroExtendU8, 15),
         (SelectedInstructionKind::BitwiseAndI64, 51),
+        (SelectedInstructionKind::BitwiseXorI64, 52),
         (SelectedInstructionKind::ZeroExtendU32, 20),
         (SelectedInstructionKind::ZeroExtendU16, 37),
         (SelectedInstructionKind::SignExtendI8, 38),
@@ -323,6 +325,7 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
         3 => SelectedInstructionKind::ReturnScalar,
         4 => SelectedInstructionKind::CopyI64,
         51 => SelectedInstructionKind::BitwiseAndI64,
+        52 => SelectedInstructionKind::BitwiseXorI64,
         26 => SelectedInstructionKind::Float32ToBits,
         27 => SelectedInstructionKind::Float64ToBits,
         28 => SelectedInstructionKind::BitsToFloat32,

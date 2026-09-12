@@ -24,6 +24,7 @@ impl MachineEffectCatalogIdentity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MachineSemanticKind {
     BitwiseAndI64,
+    BitwiseXorI64,
     CallAggregate,
     ReturnAggregate,
     HostedExitProcessI32,
@@ -78,8 +79,9 @@ pub enum MachineSemanticKind {
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 52] = [
+    pub const ALL: [Self; 53] = [
         Self::BitwiseAndI64,
+        Self::BitwiseXorI64,
         Self::CallAggregate,
         Self::ReturnAggregate,
         Self::HostedExitProcessI32,
@@ -137,6 +139,7 @@ impl MachineSemanticKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MachineAlternativeFamily {
     BitwiseAndI64,
+    BitwiseXorI64,
     CallAggregate,
     ReturnAggregate,
     HostedExitProcessI32,
@@ -194,6 +197,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
     fn from(value: MachineSemanticKind) -> Self {
         match value {
             MachineSemanticKind::BitwiseAndI64 => Self::BitwiseAndI64,
+            MachineSemanticKind::BitwiseXorI64 => Self::BitwiseXorI64,
             MachineSemanticKind::CallAggregate => Self::CallAggregate,
             MachineSemanticKind::ReturnAggregate => Self::ReturnAggregate,
             MachineSemanticKind::HostedExitProcessI32 => Self::HostedExitProcessI32,

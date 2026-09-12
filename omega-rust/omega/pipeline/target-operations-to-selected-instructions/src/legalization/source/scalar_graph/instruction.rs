@@ -10,8 +10,24 @@ pub(super) fn project(
     let (operation, result) =
         scalar_graph_input::instruction(node).ok_or(Error::SourceCustodyMismatch)?;
     let kind = match &node.operation {
+        AbstractOperation::IntegerStructuralField { .. }
+        | AbstractOperation::BooleanStructuralField { .. } => {
+            let (_, _, source, field) = scalar_graph_input::structural_fields::read(
+                optimized,
+                &node.operation,
+                &plan.structural_types,
+            )
+            .ok_or(Error::SourceCustodyMismatch)?;
+            LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, field }
+        }
         AbstractOperation::IntegerBitwiseAnd { left, right, .. } => {
             LegalizedScalarInstructionKind::BitwiseAnd {
+                left: *left,
+                right: *right,
+            }
+        }
+        AbstractOperation::IntegerBitwiseXor { left, right, .. } => {
+            LegalizedScalarInstructionKind::BitwiseXor {
                 left: *left,
                 right: *right,
             }

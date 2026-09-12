@@ -14,7 +14,7 @@ pub(crate) fn structural_computation_argument(
     expression: typed_trees::expression::ExpressionHandle,
     target: &StateParameter,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    if target.is_self || target.is_const {
+    if target.is_const {
         return None;
     }
     let target_access = structural_access_for_type_reference(program, target.type_reference)?;
@@ -68,13 +68,30 @@ pub(crate) fn structural_computation_argument(
     else {
         return None;
     };
-    if authored.target_symbol != call.target_symbol
-        || program
+    let target_parameters = program.state_parameters(target_state);
+    let receiver_count = target_parameters
+        .iter()
+        .filter(|parameter| parameter.is_self)
+        .count();
+    let exact_actual = if target.is_self {
+        receiver_count == 1 && target_position == 0 && authored.receiver == expression
+    } else {
+        program
             .expression_table
             .expression_handles(authored.arguments)
-            .get(target_position)
-            != Some(&expression)
+            .get(target_position.checked_sub(receiver_count)?)
+            == Some(&expression)
+    };
+    if authored.target_symbol != call.target_symbol || !exact_actual {
+        return None;
+    }
+    if target_access == CheckedStructuralAccess::SharedBorrow
+        && let Some(argument) =
+            shared_record_argument(program, borrow, machine, state, call, &place, target)
     {
+        return Some(argument);
+    }
+    if target.is_self {
         return None;
     }
     if target_access == CheckedStructuralAccess::Owned {
@@ -162,6 +179,185 @@ pub(crate) fn structural_computation_argument(
         path: Vec::new(),
         type_identity: base_type_identity(program, target.type_reference, &[])?,
         access,
+    })
+}
+
+/// A readable record argument borrows its existing parameter or local result
+/// home. Initializer spelling does not select custody; publication independently
+/// rejoins this symbol to its dominating structural establishment.
+fn shared_record_argument(
+    program: &TypedTrees,
+    borrow: &checked_trees::BorrowFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    call: &checked_trees::FlowCallFact,
+    place: &crate::flow::CanonicalPlace,
+    target: &StateParameter,
+) -> Option<CheckedUnitStructuralArgumentPlan> {
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return None;
+    };
+    if !place.segments.is_empty() {
+        return None;
+    }
+    let TypeReferenceNode::Reference {
+        access: language_semantics::ReferenceAccess::Shared,
+        referee,
+        ..
+    } = program
+        .type_reference_table
+        .type_reference(target.type_reference)
+    else {
+        return None;
+    };
+    if !matches!(
+        program.type_reference_table.type_reference(*referee),
+        TypeReferenceNode::Named { .. }
+    ) {
+        return None;
+    }
+    let target_identity = if target.is_self {
+        let owner = program.machines().iter().find(|owner| {
+            program
+                .machine_states(owner)
+                .first()
+                .is_some_and(|entry| entry.symbol == call.target_symbol)
+        })?;
+        let reference = program
+            .type_reference_table
+            .find_named_type_reference(owner.attached_data_symbol)?;
+        base_type_identity(program, reference, &[])?
+    } else {
+        if !matches!(
+            program.type_reference_table.type_reference(*referee),
+            TypeReferenceNode::Named { .. }
+        ) || !validation::has_plain_owned_contents_with_numeric_constraints(program, *referee)
+        {
+            return None;
+        }
+        base_type_identity(program, *referee, &[])?
+    };
+    let parameters = program.state_parameters(state);
+    let (reference, source) = if let Some(position) = parameters
+        .iter()
+        .position(|parameter| parameter.symbol == symbol)
+    {
+        let parameter = &parameters[position];
+        if parameter.is_self || parameter.is_const {
+            return None;
+        }
+        let reference = match program
+            .type_reference_table
+            .type_reference(parameter.type_reference)
+        {
+            TypeReferenceNode::Reference {
+                access:
+                    language_semantics::ReferenceAccess::Shared
+                    | language_semantics::ReferenceAccess::Mutable,
+                referee,
+                ..
+            } => *referee,
+            TypeReferenceNode::Named { .. } => parameter.type_reference,
+            _ => return None,
+        };
+        let ordinal = parameters[..position]
+            .iter()
+            .filter(|parameter| {
+                program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+            })
+            .count();
+        (
+            reference,
+            CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: u32::try_from(ordinal).ok()?,
+            },
+        )
+    } else {
+        let mut locals = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(..call.statement_index)?
+            .iter()
+            .filter_map(|statement| match statement {
+                StatementNode::LocalData(local) if local.symbol == symbol => Some(local),
+                _ => None,
+            });
+        let local = locals.next()?;
+        if locals.next().is_some() || local.is_mutable || !local.initial_value.is_valid() {
+            return None;
+        }
+        (
+            local.type_reference,
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
+        )
+    };
+    if !matches!(
+        program.type_reference_table.type_reference(reference),
+        TypeReferenceNode::Named { .. }
+    ) || !validation::has_plain_owned_contents_with_numeric_constraints(program, reference)
+        || !matches!(
+            program.type_multiplicity(reference),
+            Multiplicity::Affine | Multiplicity::Unrestricted
+        )
+    {
+        return None;
+    }
+    let mut shapes = ShapeCollector::new(program);
+    let identity = shapes.add_type(reference, &[], &[])?;
+    if identity != target_identity
+        || !parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty()
+        || !matches!(&shapes.types.get(&identity)?.shape, CheckedUnitStructuralTypeShape::Record { fields }
+            if fields.iter().all(|field| !field.relevance.is_erased() && matches!(field.field_type, CheckedUnitStructuralFieldType::Scalar(_))))
+    {
+        return None;
+    }
+    if target.is_self {
+        let site = crate::find_call_site(
+            program,
+            machine,
+            state.symbol,
+            call.statement_index,
+            call.call_ordinal,
+        )?;
+        if !call.has_receiver
+            || crate::flow::canonical_receiver_place_for_call_site(
+                program,
+                machine,
+                state.symbol,
+                &site,
+            )? != *place
+        {
+            return None;
+        }
+        // The receiver is retained separately from the explicit access roster.
+        // Its shared loan cannot overlap an exclusive explicit actual.
+        if borrow
+            .argument_accesses
+            .span(call.accesses)?
+            .iter()
+            .any(|access| access.root_symbol == symbol && access.kind.is_exclusive())
+        {
+            return None;
+        }
+    } else if exact_structural_borrow_access(
+        program,
+        borrow,
+        machine,
+        state.symbol,
+        call,
+        place,
+        CheckedStructuralAccess::SharedBorrow,
+    )? != CheckedStructuralAccess::SharedBorrow
+    {
+        return None;
+    }
+    Some(CheckedUnitStructuralArgumentPlan {
+        source,
+        path: Vec::new(),
+        type_identity: identity,
+        access: CheckedStructuralAccess::SharedBorrow,
     })
 }
 

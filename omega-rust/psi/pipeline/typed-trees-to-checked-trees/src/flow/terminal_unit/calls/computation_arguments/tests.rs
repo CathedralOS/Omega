@@ -39,6 +39,132 @@ fn machine<'program>(
 }
 
 #[test]
+fn scalar_receiver_call_retains_shared_parameter_and_ordinary_callee() {
+    for body in ["self.left ^ self.right", "7"] {
+        let checked = checked(
+            &"data Pair { left: u64; right: u64; }
+         machine Pair::total(&self) -> u64 { self.left ^ self.right }
+         machine invoke(value: Pair) -> u64 {
+             let observed: u64 = value.total();
+             observed
+         }"
+            .replace("self.left ^ self.right", body),
+        );
+        let caller = machine(&checked.typed, "invoke");
+        let state = &checked.machine_states(caller)[0];
+        let plans = &checked.facts.values.scalar_computations;
+        let root = plans
+            .root_at(
+                state.symbol,
+                0,
+                CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 },
+            )
+            .expect("ordinary scalar receiver computation");
+        let checked_trees::CheckedScalarComputationKind::Call {
+            structural_arguments,
+            arguments,
+            target_machine,
+            ..
+        } = plans.nodes.get(root.root).kind
+        else {
+            panic!("one retained scalar call");
+        };
+        assert!(arguments.is_empty());
+        let [checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] = plans
+            .structural_arguments
+            .span(structural_arguments)
+            .unwrap()
+        else {
+            panic!("one retained implicit receiver");
+        };
+        assert_eq!(
+            argument.source,
+            CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 }
+        );
+        assert_eq!(argument.access, CheckedStructuralAccess::SharedBorrow);
+        assert!(argument.path.is_empty());
+        let callee = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(target_machine)
+            .expect("ordinary scalar completion callee");
+        assert!(callee.scalar_result.is_some());
+        let [receiver] = callee.structural_parameters.as_slice() else {
+            panic!("one receiver parameter");
+        };
+        assert!(receiver.is_self);
+        assert_eq!(receiver.access, CheckedStructuralAccess::SharedBorrow);
+    }
+}
+
+#[test]
+fn scalar_caller_retains_call_produced_record_local_before_getter() {
+    let checked = checked(
+        "data Region { base: u64; length: u64; }
+         machine Region::new(base: u64, length: u64) -> Region {
+             Region { base: base, length: length }
+         }
+         machine Region::get_length(&self) -> u64 { self.length }
+         machine invoke(left: u64, right: u64) -> u64 {
+             let prefix: u64 = left & 255;
+             let local: Region = Region::new(left, right);
+             let observed: u64 = local.get_length();
+             observed ^ prefix
+         }",
+    );
+    let caller = machine(&checked.typed, "invoke");
+    let state = &checked.machine_states(caller)[0];
+    let StatementNode::LocalData(local) =
+        &checked.statement_table.statements(state.statement_nodes)[1]
+    else {
+        panic!("authored record local");
+    };
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(caller.symbol)
+        .expect("ordinary scalar caller sequence");
+    let constructor = plan.operations.iter().position(|operation| matches!(operation,
+        CheckedUnitEffectOperationPlan::StructuralCall { result, .. } if result.statement_index == 1
+    )).expect("actual constructor result producer");
+    let getter = plan.operations.iter().position(|operation| matches!(operation,
+        CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. } if result.statement_index == 2
+    )).expect("getter computation after construction");
+    assert!(constructor < getter);
+    let computations = &checked.facts.values.scalar_computations;
+    let root = computations
+        .root_at(
+            state.symbol,
+            2,
+            CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 1 },
+        )
+        .expect("getter operand graph");
+    let checked_trees::CheckedScalarComputationKind::Call {
+        structural_arguments,
+        ..
+    } = computations.nodes.get(root.root).kind
+    else {
+        panic!("getter call");
+    };
+    let [checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] = computations
+        .structural_arguments
+        .span(structural_arguments)
+        .unwrap()
+    else {
+        panic!("one implicit receiver");
+    };
+    assert_eq!(
+        argument.source,
+        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+            symbol: local.symbol
+        }
+    );
+    assert_eq!(argument.access, CheckedStructuralAccess::SharedBorrow);
+}
+
+#[test]
 fn owned_scalar_graphs_read_and_forward_customer_limits() {
     let checked = checked(SOURCE);
     for (name, scalar_position, owned_position, local_count) in

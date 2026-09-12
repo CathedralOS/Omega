@@ -77,6 +77,22 @@ input boundary. No literal-only construction or separate record storage graph
 remains. Direct aggregate returns are exercised on Linux x64/ARM64 and macOS
 ARM64; Windows indirect aggregate returns remain a realization dependency.
 
+Shared calls can borrow a constructed plain record's existing home, including
+one produced by an ordinary call. The borrow passes its address, not copied
+field values. An affine owner remains affine while its shared loan has
+unrestricted multiplicity; cleanup and transfer obligations stay with the owner.
+Integer and Boolean field observations use the common graph's explicit field-read
+operation. Receiving checks derive the field offset and scalar type from the
+declaration, then selection reuses the primitive load kernel and independent
+replay. Source-produced integer getter controls cover direct and call-produced
+locals, tail completion, and nested scalar arguments. Nested record construction
+and broader projected/mutable receiver forms remain separate dependencies.
+
+Integer XOR also follows ordinary scalar definitions, legalized operands and
+selected bitwise instructions. Its x86-64 and AArch64 realizations independently
+check the opcode, operand registers and flag effects; an AND instruction cannot
+stand in for XOR even when both share register constraints.
+
 Dynamic descriptor operations may be representable here without native indirect
 call support. Their source/table/slot identities are not permission to substitute
 a direct call or fabricate an implementation. Object, image and installation

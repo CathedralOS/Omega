@@ -1,4 +1,4 @@
-//! Borrow primitive referents from incoming pointers or established local storage.
+//! Prepare borrowed call referents from incoming pointers or exact local storage.
 use super::LiveDefinitions;
 use crate::lowering::function_signature::{PreparedFunctionSignature, prepare_function_signature};
 use crate::lowering::shared::*;
@@ -67,7 +67,16 @@ pub(super) fn lower(
         || !crashes.is_empty()
         || !callee_function.entry_claims.is_empty()
         || !callee_function.published_service_ceiling.is_empty()
-        || callee_function.attachment.is_some()
+        || callee_function.attachment.is_some_and(|attachment| {
+            !callee_function
+                .structural_parameters
+                .iter()
+                .any(|parameter| {
+                    parameter.is_self
+                        && parameter.structural_type == attachment
+                        && is_shared_record(parameter, types)
+                })
+        })
         || values.len() != callee_function.parameters.len()
         || arguments.len() != callee_function.structural_parameters.len()
         || result.map(|result| result.scalar_type)
@@ -151,7 +160,7 @@ pub(super) fn lower(
     Ok(())
 }
 
-/// Retain the same primitive referent custody independently of the call result.
+/// Retain the original referent independently of the call's scalar or Unit result.
 pub(super) fn argument(
     argument: &terminal_psi::StructuralArgument,
     declaration: &terminal_psi::StructuralParameterDeclaration,
@@ -164,23 +173,42 @@ pub(super) fn argument(
     let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     if !argument.path.is_empty()
         || argument.access != declaration.access
-        || !super::primitive_storage::is_primitive_reference(declaration, types)
+        || !(super::primitive_storage::is_primitive_reference(declaration, types)
+            || is_shared_record(declaration, types))
     {
         return Err(invalid());
     }
     let (identity, source) = if let Some(home) = live.structural_homes.get(&argument.place) {
         let (defining_operation, home_result) = home.operation_result().ok_or_else(invalid)?;
-        if !function.operations.iter().any(|operation| {
+        let primitive = function.operations.iter().any(|operation| {
             matches!(operation,
             AbstractOperation::EstablishPrimitiveLocal { psi_operation, result, .. }
             if *psi_operation == defining_operation && result == home_result)
-        }) {
+        });
+        let record = is_shared_record(declaration, types)
+            && home_result.claims.is_empty()
+            && home_result.qualifications.is_empty()
+            && home_result.projected_qualifications.is_empty()
+            && home_result.multiplicity != StructuralMultiplicity::Linear
+            && function.operations.iter().any(|operation| {
+                matches!(operation,
+                AbstractOperation::EstablishScalarRecord { psi_operation, result, .. }
+                | AbstractOperation::CallStructural { psi_operation, result, .. }
+                    if *psi_operation == defining_operation && result == home_result)
+            });
+        if !primitive && !record {
             return Err(invalid());
         }
         (
             home.structural_type(),
-            TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
-                psi_operation: defining_operation,
+            if record {
+                TargetStructuralArgumentSource::StructuralHome {
+                    psi_operation: defining_operation,
+                }
+            } else {
+                TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+                    psi_operation: defining_operation,
+                }
             },
         )
     } else {
@@ -197,7 +225,10 @@ pub(super) fn argument(
             }
             StructuralAccess::Owned => false,
         };
-        if !allowed {
+        if !allowed
+            || (is_shared_record(declaration, types)
+                && source.access != StructuralAccess::SharedBorrow)
+        {
             return Err(invalid());
         }
         (source.structural_type, source.placement.clone().into())
@@ -218,4 +249,23 @@ pub(super) fn argument(
         source,
         destination: destination.placement.clone(),
     })
+}
+
+fn is_shared_record(
+    parameter: &terminal_psi::StructuralParameterDeclaration,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> bool {
+    parameter.access == StructuralAccess::SharedBorrow
+        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+        && parameter.qualifications.is_empty()
+        && parameter.projected_qualifications.is_empty()
+        && types
+            .get(&parameter.structural_type)
+            .is_some_and(|declaration| {
+                matches!(&declaration.shape, StructuralTypeShape::Record { fields }
+                if fields.iter().all(|field| !field.relevance.is_erased()
+                    && !matches!(field.field_type, StructuralFieldType::BoundedInteger(_))
+                    && field.field_type.scalar_type().is_some_and(|scalar|
+                        super::primitive_storage::native_shape(scalar).is_some())))
+            })
 }

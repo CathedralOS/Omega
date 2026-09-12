@@ -333,7 +333,7 @@ pub(super) fn call(
                 );
             }
             if super::primitive_storage::is_primitive_reference(declaration, types) {
-                return super::primitive_calls::argument(
+                return super::borrowed_calls::argument(
                     argument,
                     declaration,
                     destination,

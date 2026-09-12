@@ -28,6 +28,7 @@ pub(super) fn encode_alternative(bytes: &mut Vec<u8>, alternative: &MachineAlter
         MachineAlternativeFamily::MaterializeBooleanI64LessOrEqual => 45,
         MachineAlternativeFamily::ExactAddI64 => 3,
         MachineAlternativeFamily::BitwiseAndI64 => 51,
+        MachineAlternativeFamily::BitwiseXorI64 => 52,
         MachineAlternativeFamily::ExactAddI64Immediate => 4,
         MachineAlternativeFamily::ExactSubtractI64 => 5,
         MachineAlternativeFamily::ConditionalBranchNonZero => 6,

@@ -237,6 +237,7 @@ fn declaration(
 ) -> MachineEffectDeclaration {
     let alternatives = match semantic {
         MachineSemanticKind::BitwiseAndI64
+        | MachineSemanticKind::BitwiseXorI64
         | MachineSemanticKind::ByteViewAddress
         | MachineSemanticKind::ExactAddI64 => {
             vec![alternative(
@@ -383,6 +384,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::SignExtendI32
         | MachineSemanticKind::ZeroExtendU32 => (vec![0], vec![1]),
         MachineSemanticKind::BitwiseAndI64
+        | MachineSemanticKind::BitwiseXorI64
         | MachineSemanticKind::ByteViewAddress
         | MachineSemanticKind::ExactAddI64 => (vec![0, 1], vec![2]),
         MachineSemanticKind::ExactAddI64Immediate
@@ -443,7 +445,9 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
                 MachineEncodedTrapBehavior::NeverV1,
                 MachineEncodedControlEffect::FallThroughV1,
             ),
-            MachineSemanticKind::BitwiseAndI64 | MachineSemanticKind::ExactSubtractI64 => (
+            MachineSemanticKind::BitwiseAndI64
+            | MachineSemanticKind::BitwiseXorI64
+            | MachineSemanticKind::ExactSubtractI64 => (
                 vec![],
                 vec![],
                 units("rflags"),
@@ -555,10 +559,12 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
             MachineSizeKnowledge::ExactBytes(3)
         }
         MachineSemanticKind::MaterializeI64 => MachineSizeKnowledge::ExactBytes(10),
-        MachineSemanticKind::BitwiseAndI64 => MachineSizeKnowledge::EncoderResolved {
-            minimum_bytes: 3,
-            maximum_bytes: Some(6),
-        },
+        MachineSemanticKind::BitwiseAndI64 | MachineSemanticKind::BitwiseXorI64 => {
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 3,
+                maximum_bytes: Some(6),
+            }
+        }
         MachineSemanticKind::ByteViewAddress | MachineSemanticKind::ExactAddI64 => {
             MachineSizeKnowledge::EncoderResolved {
                 minimum_bytes: 4,

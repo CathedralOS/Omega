@@ -46,6 +46,16 @@ pub(super) fn validate_borrowed_argument(
         StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
     );
     let local = crate::selection::primitive_local_input::local(source, semantic.place);
+    // Exclusive record projections retain the ordinary projection geometry
+    // below; a scalar-bearing leaf alone does not select whole-record sharing.
+    let shared_record = (semantic.access == StructuralAccess::SharedBorrow)
+        .then(|| {
+            crate::structural_reference_input::scalar_record_shape(
+                target.structural_type,
+                &signature.structural_types,
+            )
+        })
+        .flatten();
     let byte_view = signature
         .parameters
         .iter()
@@ -58,7 +68,16 @@ pub(super) fn validate_borrowed_argument(
                 &signature.structural_types,
             )
         });
-    let shape = if let Some((offset, _)) = byte_view {
+    let shape = if let Some(referent) = shared_record {
+        if semantic.access != StructuralAccess::SharedBorrow
+            || !semantic.path.is_empty()
+            || target.root_structural_type != target.structural_type
+            || target.source_byte_offset != 0
+        {
+            return None;
+        }
+        ValueShape::borrowed_reference(referent.byte_size, referent.alignment)
+    } else if let Some((offset, _)) = byte_view {
         if offset != target.source_byte_offset
             || call.result_placement.is_some()
             || call.call_plan.result.is_some()
@@ -126,10 +145,21 @@ pub(super) fn validate_borrowed_argument(
         },
     )
     .ok()?;
-    // Unit entry attachments and service ceilings are retained declaration
-    // metadata; they do not add ABI arguments. The scalar-result attachment
-    // family remains outside this transport contract.
-    if (source.attachment.is_some() && !exclusive && source.call_plan.result.is_some())
+    // Attachments remain bound to the actual shared receiver declaration;
+    // metadata never supplies an additional ABI argument or storage pointer.
+    if (source.attachment.is_some_and(|attachment| {
+        !signature.parameters.iter().any(|parameter| {
+            parameter.semantic.is_self
+                && parameter.semantic.structural_type == attachment
+                && parameter.semantic.access == StructuralAccess::SharedBorrow
+                && crate::structural_reference_input::scalar_record_shape(
+                    attachment,
+                    &signature.structural_types,
+                )
+                .is_some()
+        })
+    }) && !exclusive
+        && source.call_plan.result.is_some())
         || !signature.entry_claims.is_empty()
         || (source.call_plan.result.is_some() && !signature.published_service_ceiling.is_empty())
         || (!parameters.is_empty()
@@ -159,7 +189,39 @@ pub(super) fn validate_borrowed_argument(
         return None;
     }
     match &target.source {
-        target_operations::TargetStructuralArgumentSource::StructuralHome { .. } => return None,
+        target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
+            shared_record?;
+            if *psi_operation == operation {
+                return None;
+            }
+            let row = source
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .find(|row| row.operation == *psi_operation)?;
+            let result = match &row.kind {
+                legalized_operations::LegalizedScalarInstructionKind::EstablishScalarRecord {
+                    result,
+                    ..
+                } => {
+                    crate::selection::scalar_array_input::storage(source, row)?;
+                    result
+                }
+                legalized_operations::LegalizedScalarInstructionKind::Call(call) => {
+                    crate::selection::aggregate_result_input::call_result(source, call)?.0
+                }
+                _ => return None,
+            };
+            if result.place != semantic.place
+                || result.structural_type != target.structural_type
+                || result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+                || !result.claims.is_empty()
+                || !result.qualifications.is_empty()
+                || !result.projected_qualifications.is_empty()
+            {
+                return None;
+            }
+        }
         target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
             psi_operation,
         } => {
@@ -175,6 +237,10 @@ pub(super) fn validate_borrowed_argument(
                 .find(|parameter| parameter.semantic.place == semantic.place)?;
             if target.root_structural_type != parameter.semantic.structural_type
                 || *placement != parameter.target.placement
+                || (shared_record.is_some()
+                    && (parameter.semantic.access != StructuralAccess::SharedBorrow
+                        || parameter.semantic.multiplicity
+                            != terminal_psi::StructuralMultiplicity::Unrestricted))
             {
                 return None;
             }

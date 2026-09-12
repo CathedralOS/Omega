@@ -1,6 +1,6 @@
 use super::*;
 
-pub(crate) fn plain_scalar_sum_call(
+pub(crate) fn plain_scalar_aggregate_call(
     operation: &O,
     callee: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
@@ -23,8 +23,11 @@ pub(crate) fn plain_scalar_sum_call(
     let Some(contract) = &callee.verified_contract else {
         return false;
     };
-    matches!(signature.multiplicity, terminal_psi::StructuralMultiplicity::Affine | terminal_psi::StructuralMultiplicity::Unrestricted)
-        && signature.qualifications.is_empty()
+    matches!(
+        signature.multiplicity,
+        terminal_psi::StructuralMultiplicity::Affine
+            | terminal_psi::StructuralMultiplicity::Unrestricted
+    ) && signature.qualifications.is_empty()
         && signature.projected_qualifications.is_empty()
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
@@ -42,15 +45,34 @@ pub(crate) fn plain_scalar_sum_call(
         && contract.crash_routes.is_empty()
         && contract.outcome_specific_ensures.is_empty()
         && callee.structural_parameters.iter().all(|parameter| {
-            matches!(parameter.access, terminal_psi::StructuralAccess::SharedBorrow | terminal_psi::StructuralAccess::MutableBorrow)
-                && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            matches!(
+                parameter.access,
+                terminal_psi::StructuralAccess::SharedBorrow
+                    | terminal_psi::StructuralAccess::MutableBorrow
+            ) && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
                 && parameter.qualifications.is_empty()
                 && parameter.projected_qualifications.is_empty()
         })
-        && types.get(&signature.structural_type).is_some_and(|declaration| {
-            matches!(&declaration.shape, terminal_psi::StructuralTypeShape::Sum { cases }
-                if cases.iter().all(|case| case.fields.iter().all(|field| !field.relevance.is_erased() && field.field_type.scalar_type().is_some())))
-        })
+        && types
+            .get(&signature.structural_type)
+            .is_some_and(|declaration| match &declaration.shape {
+                terminal_psi::StructuralTypeShape::Sum { cases } => cases.iter().all(|case| {
+                    case.fields.iter().all(|field| {
+                        !field.relevance.is_erased() && field.field_type.scalar_type().is_some()
+                    })
+                }),
+                terminal_psi::StructuralTypeShape::Record { fields } => {
+                    fields.iter().all(|field| {
+                        !field.relevance.is_erased()
+                            && matches!(
+                                field.field_type,
+                                terminal_psi::StructuralFieldType::Scalar(_)
+                                    | terminal_psi::StructuralFieldType::IeeeFloat(_)
+                            )
+                    })
+                }
+                _ => false,
+            })
 }
 
 pub(crate) fn scalar_record_establishment_matches(

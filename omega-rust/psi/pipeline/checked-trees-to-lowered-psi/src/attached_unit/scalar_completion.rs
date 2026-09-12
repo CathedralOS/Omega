@@ -68,10 +68,11 @@ pub(super) fn validate(
     crate::runtime_requirements::validate_scalar_source(checked, source, state)?;
     crate::scalar_contracts::validate_guarantees(checked, source, state)?;
     if result.statement_index as usize + 1 == statements.len()
-        && !matches!(
-            checked.expression_table.expression(*expression),
-            ExpressionNode::Call(_)
-        )
+        && machine.operations.iter().any(|operation| {
+            matches!(operation,
+            CheckedUnitEffectOperationPlan::EstablishScalarLocal { result: candidate, .. }
+                if candidate == result)
+        })
     {
         let mut producers = machine.operations.iter().filter(|operation| {
             matches!(operation, CheckedUnitEffectOperationPlan::EstablishScalarLocal {

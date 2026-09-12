@@ -150,10 +150,7 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
                 binding_ordinal: scalar_local_count,
             };
             scalar_local_count = scalar_local_count.checked_add(1)?;
-            if !matches!(
-                program.expression_table.expression(local.initial_value),
-                ExpressionNode::Call(_)
-            ) && let Some(root) = facts.values.scalar_computations.root_at(
+            if let Some(root) = facts.values.scalar_computations.root_at(
                 state.symbol,
                 u32::try_from(statement_index).ok()?,
                 role,
@@ -176,6 +173,31 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
                     &mut consumed,
                 )?;
             }
+        }
+        if matches!(statement, StatementNode::Expression(_))
+            && statement_index.checked_add(1)?
+                == program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .len()
+            && let Some(root) = facts.values.scalar_computations.root_at(
+                state.symbol,
+                u32::try_from(statement_index).ok()?,
+                CheckedScalarExpressionRole::Return,
+            )
+        {
+            if root.machine != machine {
+                return None;
+            }
+            collect(
+                facts,
+                statement_index,
+                root.root,
+                calls,
+                0,
+                &mut Vec::new(),
+                &mut consumed,
+            )?;
         }
         let construction_destination = match statement {
             StatementNode::LocalData(local) if !local.is_mutable => {

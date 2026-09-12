@@ -7,7 +7,7 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 
-use super::{authored_state, borrow_rows, owned_arguments, primitive_arguments};
+use super::{authored_state, borrow_rows, owned_arguments, primitive_arguments, record_arguments};
 use crate::{LoweringError, unsupported};
 
 pub(super) mod access_occurrences;
@@ -113,16 +113,24 @@ pub(crate) fn rejoin_computation_call_arguments(
     let (owner, target) = authored_state(checked, *target_state)?;
     let parameters = checked.state_parameters(target);
     let authored = checked.expression_table.expression_handles(call.arguments);
+    let has_receiver = !checked.call_has_no_runtime_receiver(call, owner, target);
+    let explicit_parameters = if has_receiver {
+        let Some((receiver, explicit)) = parameters.split_first() else {
+            return unsupported("computed receiver has no formal");
+        };
+        if !call.receiver.is_valid()
+            || !receiver.is_self
+            || explicit.iter().any(|parameter| parameter.is_self)
+        {
+            return unsupported("computed receiver has an invalid formal position");
+        }
+        explicit
+    } else {
+        parameters
+    };
     if owner.symbol != *target_machine
         || call.target_symbol != *target_state
-        || !checked.call_has_no_runtime_receiver(call, owner, target)
         || source.has_receiver != call.receiver.is_valid()
-        || source.receiver_symbol
-            != if call.receiver.is_valid() {
-                owner.attached_data_symbol
-            } else {
-                SymbolHandle::invalid()
-            }
         || !call.machine_arguments.is_empty()
         || !call.evidence_arguments.is_empty()
         || call.static_requirement_dispatch.is_some()
@@ -130,10 +138,20 @@ pub(crate) fn rejoin_computation_call_arguments(
         || call.private_layout_operation.is_some()
         || checked.primitive_type_reference(target.return_type) != Some(node.primitive_type)
         || authored.len() != call.arguments.count() as usize
-        || authored.len() != parameters.len()
+        || authored.len() != explicit_parameters.len()
     {
         return unsupported("computed invocation disagrees with its authored signature");
     }
+    crate::call_source_custody::occurrences::validate(
+        checked,
+        machine,
+        state,
+        CheckedUnitCallCoordinate {
+            statement_index: statement,
+            call_ordinal: *call_ordinal,
+        },
+        source.authored_expression,
+    )?;
     let scalars = plans
         .operands
         .span(*arguments)
@@ -190,8 +208,35 @@ pub(crate) fn rejoin_computation_call_arguments(
     let mut structural = structural.iter();
     let mut previous_access = None;
     let mut result = Vec::with_capacity(authored.len());
-    for (formal_position, (parameter, expression)) in
-        parameters.iter().zip(authored.iter().copied()).enumerate()
+    // The receiver has a distinct captured occurrence, not a fabricated row in
+    // the explicit-argument observation roster. Its storage still enters the
+    // ordinary positional structural lane before the explicit actuals.
+    if has_receiver {
+        let Some(CheckedScalarComputationStructuralArgument::Place(argument)) = structural.next()
+        else {
+            return unsupported("computed receiver lost its structural operand");
+        };
+        record_arguments::validate(
+            checked,
+            caller_state,
+            statement,
+            owner,
+            &parameters[0],
+            call.receiver,
+            argument,
+            borrow_call.ok_or(LoweringError::Unsupported(
+                "computed receiver lost its call custody",
+            ))?,
+            None,
+        )?;
+        result.push(RejoinedComputationArgument::Structural {
+            expression: call.receiver,
+        });
+    }
+    for (formal_position, (parameter, expression)) in explicit_parameters
+        .iter()
+        .zip(authored.iter().copied())
+        .enumerate()
     {
         if parameter.is_self
             || parameter.is_const
@@ -256,6 +301,28 @@ pub(crate) fn rejoin_computation_call_arguments(
                             "computed owned argument has no positional source observation",
                         ))?,
                 )?
+            } else if matches!(checked.type_reference_table.type_reference(parameter.type_reference),
+                checked_trees::types::TypeReferenceNode::Reference { referee, .. }
+                    if checked.primitive_type_reference(*referee).is_none())
+            {
+                let position = access_positions
+                    .as_ref()
+                    .map(|positions| positions[formal_position])
+                    .ok_or(LoweringError::Unsupported(
+                        "record argument lost its observation position",
+                    ))?;
+                record_arguments::validate(
+                    checked,
+                    caller_state,
+                    statement,
+                    owner,
+                    parameter,
+                    expression,
+                    argument,
+                    borrow_call,
+                    Some(position),
+                )?;
+                position
             } else {
                 primitive_arguments::validate(
                     checked,
