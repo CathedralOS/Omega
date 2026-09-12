@@ -41,6 +41,25 @@ implementation. They take precedence over adding another evidence carrier that
 has no exercising program. The finite definition of Rust-product completion is
 the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
+- **SQUALR-HEADLESS.** Drive the independently versioned
+  [Squalr application](samples/apps/README.md) through its nested workspace and
+  package builds. Preserve the essentially 1:1 Rust port, its actual dependency
+  graph, and native acceptance; do not flatten packages or substitute a fixed-size
+  scanner to fit current lowering. Start with its geometry test application,
+  then the real supplied-byte scan/filtered-result path. The submodule's TASKS
+  owns port work; this board owns compiler blockers exposed by the unchanged app.
+
+  Acceptance: `python samples/apps/squalr/tools/verify.py native --omega <binary>`
+  executes the selected application with correct results. Package audit/source
+  checking are separate evidence, not the native bar. Current invocation output
+  is retained under the application's ignored `build/verification/`; record the
+  owning diagnostic before expanding compiler work. Initialization is explicit
+  and requires private repository access during in-house development.
+  On `24ab0f1c87`/Windows, package-aware audit/check stops in std on unsupported
+  `Optional` equality; `run` instead attempts a local `omega_language_std` path.
+  The API-only check also exposes exact-owner case and range-result diagnostics
+  requiring triage. Keep these distinct; the setup is not a native pass.
+
 - **MACOS-APPLICATION-PUBLICATION.** Implement the
   [settled publication contract](wiki/spec/build/macos_application.md)
   in build evaluation/realization inputs, Mach-O signing, command publication,
