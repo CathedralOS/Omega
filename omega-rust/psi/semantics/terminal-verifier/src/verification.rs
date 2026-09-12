@@ -92,6 +92,18 @@ struct VerifiedTerminalModuleState<'module> {
 }
 
 impl<'module> VerifiedTerminalModule<'module> {
+    /// Check optimizer eligibility for this exact already-verified module.
+    /// Proof reconstruction and admission are retained, not repeated. This is
+    /// a one-way transfer; optimizer authority cannot recover execution authority.
+    pub fn into_optimization(
+        mut self,
+    ) -> Result<VerifiedOptimizableTerminalModule<'module>, VerificationError> {
+        let validated =
+            validate_module_for_optimization(self.module()).map_err(VerificationError::Module)?;
+        self.state.validated = validated.validated();
+        Ok(VerifiedOptimizableTerminalModule { state: self.state })
+    }
+
     pub const fn module(&self) -> &'module TerminalModule {
         self.state.validated.module()
     }

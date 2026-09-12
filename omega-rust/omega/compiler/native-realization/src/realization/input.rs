@@ -84,22 +84,12 @@ pub(crate) fn lower_realization_input(
     proof_bytes: &[u8],
     profile: &proof_admission::AdmissionProfile,
 ) -> Result<NativeRealizationInput, Vec<Diagnostic>> {
-    let native =
-        terminal_psi_to_abstract_operations::lower_artifact_sections_for_native_realization(
-            semantic_bytes,
-            proof_bytes,
-            profile,
-        )
-        .map_err(|error| realization_error("native artifact lowering", error))?;
-    let optimization_input =
-        terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
-            semantic_bytes,
-            proof_bytes,
-            profile,
-        )
-        .map_err(|error| realization_error("verified optimizer artifact lowering", error))?;
-    NativeRealizationInput::new(native, optimization_input)
-        .map_err(|error| realization_error("native abstract-stage join", error))
+    terminal_psi_to_abstract_operations::lower_artifact_sections_for_native_realization(
+        semantic_bytes,
+        proof_bytes,
+        profile,
+    )
+    .map_err(|error| realization_error("native artifact lowering", error))
 }
 
 #[cfg(test)]
@@ -170,28 +160,33 @@ mod tests {
     }
 
     #[test]
-    fn native_input_rejects_a_substituted_terminal_root() {
+    fn native_input_retains_one_canonical_program_and_its_proof_context() {
         let profile = AdmissionProfile::default();
-        let artifact = artifact_fixture();
-        let first =
-            lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), &profile)
-                .expect("first native input");
-        let alternate_artifact = alternate_artifact_fixture();
-        let alternate = lower_realization_input(
-            alternate_artifact.semantic_bytes(),
-            alternate_artifact.proof_bytes(),
-            &profile,
-        )
-        .expect("alternate native input");
-        let native = first.plan().clone();
-        let substituted_continuation = alternate.into_optimization_input();
-
-        assert!(matches!(
-            NativeRealizationInput::new(native, substituted_continuation),
-            Err(
-                "native authority and abstract-optimization context disagree on the complete abstract program"
+        for artifact in [artifact_fixture(), alternate_artifact_fixture()] {
+            let input = lower_realization_input(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &profile,
             )
-        ));
+            .expect("native input");
+            let expected = terminal_psi_to_abstract_operations::lower_artifact_sections(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &profile,
+            )
+            .expect("independent ordinary lowering");
+            assert_eq!(input.plan(), &expected);
+            let input = input.into_optimization_input();
+            assert_eq!(input.plan(), &expected);
+            assert_eq!(
+                input.context().module(),
+                &terminal_codec::decode_module(artifact.semantic_bytes()).unwrap()
+            );
+            assert_eq!(
+                input.context().proof_bundle(),
+                &terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap()
+            );
+        }
     }
 
     #[test]
@@ -206,23 +201,11 @@ mod tests {
     }
 
     #[test]
-    fn native_input_rejects_changed_program_under_the_same_terminal_root() {
-        let profile = AdmissionProfile::default();
+    fn native_input_rejects_malformed_semantic_or_proof_sections() {
         let artifact = artifact_fixture();
-        let input =
-            lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), &profile)
-                .expect("native input");
-        let mut substituted = input.plan().clone();
-        let original_root = (substituted.psi, substituted.entry);
-        substituted.functions.clear();
-        assert_eq!((substituted.psi, substituted.entry), original_root);
-        let optimization_input = input.into_optimization_input();
-        assert!(matches!(
-            NativeRealizationInput::new(substituted, optimization_input,),
-            Err(
-                "native authority and abstract-optimization context disagree on the complete abstract program"
-            )
-        ));
+        let profile = AdmissionProfile::default();
+        assert!(lower_realization_input(&[], artifact.proof_bytes(), &profile).is_err());
+        assert!(lower_realization_input(artifact.semantic_bytes(), &[], &profile).is_err());
     }
 
     #[test]

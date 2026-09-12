@@ -189,7 +189,11 @@ fn natural_slice_writer_uses_ordinary_native_admission_without_losing_its_cycle(
     assert_eq!(optimization.plan(), &ordinary);
     assert_eq!(optimization.context().module(), &module);
     assert_eq!(optimization.context().proof_bundle(), &proof);
-    assert_eq!(selected, ordinary);
+    assert_eq!(selected.plan(), &ordinary);
+    let native_context = selected.into_optimization_input();
+    assert_eq!(native_context.context().module(), &module);
+    assert_eq!(native_context.context().proof_bundle(), &proof);
+    assert_eq!(native_context, optimization);
 }
 
 #[test]

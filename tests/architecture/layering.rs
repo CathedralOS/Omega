@@ -2078,8 +2078,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && post_terminal_selection.contains("OptimizationExecutionPhase::Psi")
             && !model.contains("enum NativeRealizationAuthority")
             && !model.contains("PostTerminalOptimizationContinuation")
-            && model.contains("optimization_input.plan() != &native")
-            && model.contains("self.optimization_input.plan()")
+            && model.contains("VerifiedNativeArtifactInput as NativeRealizationInput")
             && !model.contains(
                 "optimization: Option<terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput>",
             )
@@ -2162,22 +2161,29 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         "a resumed lowerer must make pre-Terminal selections unrepresentable and finish target lowering and physical routing through explicit typed stages"
     );
     let input = input.split_whitespace().collect::<Vec<_>>().join(" ");
-    let native_stage = input
-        .find("let native = terminal_psi_to_abstract_operations::lower_artifact_sections_for_native_realization")
-        .expect("native realization constructs one unconditional Terminal-to-abstract stage");
-    let native_input_join = input
-        .find("NativeRealizationInput::new(native, optimization_input)")
-        .expect("native authority joins the current verified abstract program");
-    let verified_optimization_input = input
-        .find("let optimization_input =")
-        .expect("every continuation retains independently verified optimizer input");
+    let native_admission = std::fs::read_to_string(root.join(
+        "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/artifact/native.rs",
+    ))
+    .expect("native artifact admission owner");
+    let production_input = input.split("#[cfg(test)]").next().unwrap();
     assert!(
-        native_stage < verified_optimization_input
-            && verified_optimization_input < native_input_join
-            && model.contains("pub(crate) struct NativeRealizationInput")
+        production_input
+            .matches("lower_artifact_sections_for_native_realization(")
+            .count()
+            == 1
+            && !production_input.contains("lower_artifact_sections_for_optimization(")
+            && !production_input.contains("NativeRealizationInput::new(")
+            && model.contains("VerifiedNativeArtifactInput as NativeRealizationInput")
+            && native_admission.contains("pub struct VerifiedNativeArtifactInput")
+            && native_admission.contains("optimization_input: VerifiedPsiOptimizationInput,")
+            && !native_admission.contains("pub optimization_input:")
+            && native_admission.contains("terminal_verifier::verify_module(")
+            && native_admission.contains("lower_decoded_verified_module(&verified)")
+            && native_admission.contains(".into_optimization()")
+            && native_admission.contains("retain_verified_optimization_context(&optimizable)")
             && !model.contains("NativeRealizationInput::Unoptimized")
             && !model.contains("NativeRealizationInput::ExplicitOptimization"),
-        "optimization presence must not select the Terminal-to-abstract native authority entrance, and identity execution must retain verified stage input"
+        "native admission must retain one verified program and optimizer context without caller-assembled authority pairs or duplicate artifact lowering"
     );
     let ordinary_target_stage = target_stage
         .find("lower_validated_abstract_to_target_operations(")

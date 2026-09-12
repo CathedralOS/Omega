@@ -34,35 +34,7 @@ builtin_native_realization_conversion!(target_operations::HostedExitProcessI32Re
 builtin_native_realization_conversion!(target_operations::HostedReadByteRealization);
 builtin_native_realization_conversion!(target_operations::ClaimCompletionOnlyRealization);
 
-/// One current verified abstract input, independently joined to native admission.
-#[derive(Debug, Clone)]
-pub(crate) struct NativeRealizationInput {
-    optimization_input: terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
-}
-
-impl NativeRealizationInput {
-    pub(crate) fn new(
-        native: abstract_operations::AbstractOperationPlan,
-        optimization_input: terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
-    ) -> Result<Self, &'static str> {
-        if optimization_input.plan() != &native {
-            return Err(
-                "native authority and abstract-optimization context disagree on the complete abstract program",
-            );
-        }
-        Ok(Self { optimization_input })
-    }
-
-    pub(crate) fn plan(&self) -> &abstract_operations::AbstractOperationPlan {
-        self.optimization_input.plan()
-    }
-
-    pub(crate) fn into_optimization_input(
-        self,
-    ) -> terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput {
-        self.optimization_input
-    }
-}
+pub(crate) use terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput as NativeRealizationInput;
 
 /// Provider-supplied realization input for one Terminal boundary. The exact
 /// requirement comes from admitted execution evidence rather than a caller-

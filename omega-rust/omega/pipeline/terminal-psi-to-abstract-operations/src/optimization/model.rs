@@ -3,10 +3,10 @@ use crate::shared::*;
 /// Required optimizer input produced only after canonical artifact decoding,
 /// Terminal-Psi validation, proof reconstruction, and evidence admission.
 ///
-/// The ordinary native path may consume the bare abstract plan for backwards
-/// compatibility. Optimizer entry points must instead require this carrier so
-/// proof, ownership, and path-sensitive semantic context cannot become an
-/// optional side channel.
+/// Optimizer entry points require this carrier so proof, ownership, and
+/// path-sensitive semantic context cannot become an optional side channel.
+/// Native artifact admission retains it inside its distinct authority carrier;
+/// optimizer-only input cannot grant native admission.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedPsiOptimizationInput {
     pub(crate) plan: AbstractOperationPlan,
