@@ -58,7 +58,7 @@ pub(crate) fn report_nested_call_in_local_initializer(
     value: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if free_scalar_computation_call(program, machine, value)
+    if scalar_computation_call(program, machine, value, true)
         || result_initializer_call_is_supported(program, machine, value)
     {
         // This exempts a destination, not its semantics. Ordinary call checks
@@ -315,7 +315,7 @@ pub(crate) fn report_nested_call_in_local_assignment(
                         && local.is_mutable
                         && program.primitive_type_reference(local.type_reference).is_some())
             })
-        && free_scalar_computation_call(program, machine, assignment.value)
+        && scalar_computation_call(program, machine, assignment.value, false)
     {
         return;
     }
@@ -328,10 +328,11 @@ pub(crate) fn report_nested_call_in_local_assignment(
     );
 }
 
-fn free_scalar_computation_call(
+fn scalar_computation_call(
     program: &TypedTrees,
     machine: &Machine,
     value: ExpressionHandle,
+    allow_static_local: bool,
 ) -> bool {
     if !value.is_valid() {
         return false;
@@ -339,7 +340,8 @@ fn free_scalar_computation_call(
     let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
         return false;
     };
-    free_scalar_machine(program, machine)
+    (free_scalar_machine(program, machine)
+        || (allow_static_local && static_scalar_local(program, machine, value)))
         && !call.receiver.is_valid()
         && call.machine_arguments.is_empty()
         && call.evidence_arguments.is_empty()
@@ -351,6 +353,50 @@ fn free_scalar_computation_call(
                     .first()
                     .is_some_and(|entry| entry.symbol == call.target_symbol)
         })
+}
+
+fn static_scalar_local(program: &TypedTrees, machine: &Machine, value: ExpressionHandle) -> bool {
+    let [state] = program.machine_states(machine) else {
+        return false;
+    };
+    // This is only an admission check. Do not classify the destination as a
+    // result operation: nested calls retain their existing whole-call graph.
+    if program
+        .primitive_type_reference(state.return_type)
+        .is_none()
+        || !machine.type_parameters.is_empty()
+        || !machine.lifetime_parameters.is_empty()
+        || !machine.conformance_bounds.is_empty()
+        || !machine.owned_data.is_empty()
+        || program.state_parameters(state).iter().any(|parameter| {
+            parameter.is_self
+                || parameter.is_const
+                || parameter.is_mutable
+                || program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+        })
+    {
+        return false;
+    }
+    let mut locals = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .filter_map(|statement| {
+            let StatementNode::LocalData(local) = statement else {
+                return None;
+            };
+            (local.initial_value == value).then_some(local)
+        });
+    let Some(local) = locals.next() else {
+        return false;
+    };
+    locals.next().is_none()
+        && !local.is_mutable
+        && program
+            .primitive_type_reference(local.type_reference)
+            .is_some()
 }
 
 fn free_scalar_machine(program: &TypedTrees, machine: &Machine) -> bool {

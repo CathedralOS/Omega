@@ -31,6 +31,111 @@ fn typed(source: &str) -> TypedTrees {
 }
 
 #[test]
+fn static_scalar_local_calls_use_the_shared_computation_destination() {
+    for owner in ["", "Scalar::"] {
+        for prefix in ["", "Host::finish(false);"] {
+            let program = typed(&format!(
+                "boundary trait Host {{ machine finish(value: bool) reaches Host; }}
+                 data Scalar {{}}
+                 machine identity(input: bool) -> bool {{ input }}
+                 machine {owner}measure(value: bool) -> bool reaches Host {{
+                    {prefix}
+                    let saved: bool = identity(!identity(value));
+                    Host::finish(false);
+                    saved
+                 }}"
+            ));
+            let machine = program
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str().ends_with("measure"))
+                .unwrap();
+            let state = &program.machine_states(machine)[0];
+            let value = program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .find_map(|statement| {
+                    let StatementNode::LocalData(local) = statement else {
+                        return None;
+                    };
+                    (local.name.as_str() == "saved").then_some(local.initial_value)
+                })
+                .unwrap();
+            assert!(scalar_computation_call(&program, machine, value, true));
+            if !owner.is_empty() {
+                assert!(
+                    !scalar_computation_call(&program, machine, value, false),
+                    "assignment admission must keep its existing free-scalar fence"
+                );
+            }
+            assert!(
+                !result_initializer_call_is_supported(&program, machine, value),
+                "source admission must preserve the whole-call computation owner"
+            );
+            let mut diagnostics = Vec::new();
+            report_nested_call_in_local_initializer(
+                &program,
+                machine,
+                "entry",
+                value,
+                &mut diagnostics,
+            );
+            assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        }
+    }
+}
+
+#[test]
+fn static_scalar_local_destination_keeps_unserved_signature_and_mutation_fences() {
+    for (signature, binding) in [
+        ("measure(mut value: bool)", "let saved: bool"),
+        ("measure(value: &bool)", "let saved: bool"),
+        ("measure<T>(value: bool)", "let saved: bool"),
+        ("measure(&self)", "let saved: bool"),
+        ("measure(value: bool)", "let mut saved: bool"),
+    ] {
+        let program = typed(&format!(
+            "data Scalar {{}}
+             machine identity(input: bool) -> bool {{ input }}
+             machine Scalar::{signature} -> bool {{
+                {binding} = identity(identity(true)); saved
+             }}"
+        ));
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str().ends_with("measure"))
+            .unwrap();
+        let state = &program.machine_states(machine)[0];
+        let value = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .find_map(|statement| {
+                let StatementNode::LocalData(local) = statement else {
+                    return None;
+                };
+                (local.name.as_str() == "saved").then_some(local.initial_value)
+            })
+            .unwrap();
+        assert!(
+            !unit_result_initializer_call_is_supported(&program, machine, value),
+            "{signature}: {binding}"
+        );
+        let mut diagnostics = Vec::new();
+        report_nested_call_in_local_initializer(
+            &program,
+            machine,
+            "entry",
+            value,
+            &mut diagnostics,
+        );
+        assert!(!diagnostics.is_empty(), "{signature}: {binding}");
+    }
+}
+
+#[test]
 fn owned_scalar_nested_borrows_admit_unchanged_ordered_fixture() {
     let program = typed(ORDERED);
     crate::validate_program(&program).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
@@ -47,10 +152,11 @@ fn owned_scalar_nested_borrows_admit_unchanged_ordered_fixture() {
     let StatementNode::LocalData(answer) = &statements[1] else {
         panic!("authored answer")
     };
-    assert!(free_scalar_computation_call(
+    assert!(scalar_computation_call(
         &program,
         machine,
-        answer.initial_value
+        answer.initial_value,
+        false,
     ));
     let mut diagnostics = Vec::new();
     report_nested_call_in_local_initializer(

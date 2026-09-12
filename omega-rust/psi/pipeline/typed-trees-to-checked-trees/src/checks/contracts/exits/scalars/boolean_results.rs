@@ -18,6 +18,8 @@ use typed_trees::types::PrimitiveType;
 
 use super::{ExitScalars, ExpressionHandle, exit_return_expression};
 
+mod computations;
+
 impl ExitScalars<'_, '_> {
     pub(super) fn proves_boolean_result(&self, expression: ExpressionHandle) -> Option<bool> {
         let entry = self.program.machine_states(self.machine).first()?;
@@ -28,10 +30,6 @@ impl ExitScalars<'_, '_> {
         if !self.return_expression_is_stable(returned) {
             return None;
         }
-        let (selected, symbols) = self.selected_return_expression(returned)?;
-        let CheckedScalarExpression::Boolean(selected) = selected else {
-            return None;
-        };
         let mut remaining = 4096;
         let predicate = crate::values::lower_scalar_contract_predicate(
             self.program,
@@ -97,10 +95,10 @@ impl ExitScalars<'_, '_> {
                 })
                 .map(|parameter| parameter.symbol)
         };
-        let returned = self.bind_selected_boolean(
-            selected,
-            symbols,
+        let returned = self.bind_boolean_expression_at(
             u32::try_from(self.exit.statement_index).ok()?,
+            self.return_expression_role()?,
+            returned,
             &|symbol| {
                 let mut positions = (0..scalar_parameters().count())
                     .filter(|position| origin(*position) == Some(symbol));
@@ -112,7 +110,7 @@ impl ExitScalars<'_, '_> {
         )?;
         let predicate = bind_boolean(
             &predicate,
-            &|position, local, remaining, depth| {
+            &mut |position, local, remaining, depth| {
                 if local {
                     return None;
                 }
@@ -121,7 +119,7 @@ impl ExitScalars<'_, '_> {
                     // repeated reserved-result occurrences.
                     bind_boolean(
                         &returned,
-                        &|position, local, _, _| {
+                        &mut |position, local, _, _| {
                             (!local).then_some(CheckedBooleanExpression::Parameter { position })
                         },
                         remaining,
@@ -151,7 +149,7 @@ impl ExitScalars<'_, '_> {
     ) -> Option<CheckedBooleanExpression> {
         bind_boolean(
             expression,
-            &|position, local, remaining, depth| {
+            &mut |position, local, remaining, depth| {
                 let symbol = *symbols.get(position)?;
                 if !local {
                     return entry_position(symbol)
@@ -204,6 +202,31 @@ impl ExitScalars<'_, '_> {
                 let mut definitions = plans.source_bindings.iter().filter(|(_, binding)| {
                     binding.state == self.exit.state_symbol && binding.destination == symbol
                 });
+                let role = CheckedScalarExpressionRole::LocalInitializer { binding_ordinal };
+                if self
+                    .facts
+                    .values
+                    .scalar_computations
+                    .roots
+                    .iter()
+                    .any(|(_, root)| {
+                        root.state == self.exit.state_symbol
+                            && root.statement_ordinal == statement
+                            && root.role == role
+                    })
+                {
+                    if definitions.next().is_some() {
+                        return None;
+                    }
+                    return self.bind_boolean_expression_at(
+                        statement,
+                        role,
+                        local.initial_value,
+                        entry_position,
+                        remaining,
+                        depth,
+                    );
+                }
                 if matches!(
                     self.program
                         .expression_table
@@ -267,7 +290,6 @@ impl ExitScalars<'_, '_> {
         remaining: &mut usize,
         depth: usize,
     ) -> Option<CheckedBooleanExpression> {
-        use CheckedBooleanExpression as Boolean;
         if depth >= 64 || *remaining == 0 {
             return None;
         }
@@ -305,6 +327,43 @@ impl ExitScalars<'_, '_> {
                 return None;
             }
         }
+        self.bind_normal_call_boolean(
+            call,
+            &mut |position, remaining, depth| {
+                let (selected, symbols) = self.selected_scalar_expression(
+                    statement,
+                    CheckedScalarExpressionRole::CallArgument {
+                        binding_ordinal,
+                        argument_ordinal: u32::try_from(position).ok()?,
+                    },
+                    *call.arguments.get(position)?,
+                )?;
+                let CheckedScalarExpression::Boolean(selected) = selected else {
+                    return None;
+                };
+                self.bind_selected_boolean(
+                    selected,
+                    symbols,
+                    statement,
+                    entry_position,
+                    remaining,
+                    depth,
+                )
+            },
+            remaining,
+            depth,
+        )
+    }
+
+    fn bind_normal_call_boolean(
+        &self,
+        call: super::calls::NormalReturnCall<'_>,
+        argument: &mut dyn FnMut(usize, &mut usize, usize) -> Option<CheckedBooleanExpression>,
+        remaining: &mut usize,
+        depth: usize,
+    ) -> Option<CheckedBooleanExpression> {
+        use CheckedBooleanExpression as Boolean;
+        let parameters = self.program.state_parameters(call.entry);
         for guarantee in self.normal_call_guarantees(call) {
             if *remaining == 0 {
                 return None;
@@ -341,7 +400,7 @@ impl ExitScalars<'_, '_> {
             // is never available to prove the call's own requirements.
             if let Some(value) = bind_boolean(
                 definition,
-                &|position, local, remaining, depth| {
+                &mut |position, local, remaining, depth| {
                     if local
                         || self
                             .program
@@ -350,25 +409,7 @@ impl ExitScalars<'_, '_> {
                     {
                         return None;
                     }
-                    let (selected, symbols) = self.selected_scalar_expression(
-                        statement,
-                        CheckedScalarExpressionRole::CallArgument {
-                            binding_ordinal,
-                            argument_ordinal: u32::try_from(position).ok()?,
-                        },
-                        *call.arguments.get(position)?,
-                    )?;
-                    let CheckedScalarExpression::Boolean(selected) = selected else {
-                        return None;
-                    };
-                    self.bind_selected_boolean(
-                        selected,
-                        symbols,
-                        statement,
-                        entry_position,
-                        remaining,
-                        depth,
-                    )
+                    argument(position, remaining, depth)
                 },
                 remaining,
                 depth + 1,
@@ -382,7 +423,7 @@ impl ExitScalars<'_, '_> {
 
 fn bind_boolean(
     expression: &CheckedBooleanExpression,
-    resolve: &dyn Fn(usize, bool, &mut usize, usize) -> Option<CheckedBooleanExpression>,
+    resolve: &mut dyn FnMut(usize, bool, &mut usize, usize) -> Option<CheckedBooleanExpression>,
     remaining: &mut usize,
     depth: usize,
 ) -> Option<CheckedBooleanExpression> {
@@ -403,6 +444,7 @@ fn bind_boolean(
         }
         Boolean::Not(operand) => match bind_boolean(operand, resolve, remaining, depth + 1)? {
             Boolean::Constant(value) => Boolean::Constant(!value),
+            Boolean::Not(operand) => *operand,
             operand => Boolean::Not(Box::new(operand)),
         },
         Boolean::Equal { left, right }
@@ -416,18 +458,32 @@ fn bind_boolean(
                     (Boolean::Constant(left), Boolean::Constant(right)) => {
                         Boolean::Constant(left == right)
                     }
+                    (Boolean::Constant(true), _) => *right,
+                    (_, Boolean::Constant(true)) => *left,
+                    (Boolean::Constant(false), _) => Boolean::Not(right),
+                    (_, Boolean::Constant(false)) => Boolean::Not(left),
                     _ => Boolean::Equal { left, right },
                 },
                 Boolean::And { .. } => match (&*left, &*right) {
                     (Boolean::Constant(left), Boolean::Constant(right)) => {
                         Boolean::Constant(*left && *right)
                     }
+                    (Boolean::Constant(false), _) | (_, Boolean::Constant(false)) => {
+                        Boolean::Constant(false)
+                    }
+                    (Boolean::Constant(true), _) => *right,
+                    (_, Boolean::Constant(true)) => *left,
                     _ => Boolean::And { left, right },
                 },
                 _ => match (&*left, &*right) {
                     (Boolean::Constant(left), Boolean::Constant(right)) => {
                         Boolean::Constant(*left || *right)
                     }
+                    (Boolean::Constant(true), _) | (_, Boolean::Constant(true)) => {
+                        Boolean::Constant(true)
+                    }
+                    (Boolean::Constant(false), _) => *right,
+                    (_, Boolean::Constant(false)) => *left,
                     _ => Boolean::Or { left, right },
                 },
             }
