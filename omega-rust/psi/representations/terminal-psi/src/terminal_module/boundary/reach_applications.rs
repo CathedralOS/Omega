@@ -44,8 +44,10 @@ pub struct ClosedReachMachineBinding {
     /// An unused selection need not have an emitted body. Every dependency and
     /// direct consumer must nevertheless join an actual retained callable.
     pub callee: Option<MachineId>,
-    /// A generic selection names its original contract, not one observed body.
-    /// Its consumers retain separate closed applications below.
+    /// A generic selection with emitted applications names its original
+    /// contract, not one observed body. Its consumers retain separate closed
+    /// applications below. An unused selected contract needs no schema join;
+    /// absence here does not assert that the selection is nongeneric.
     pub schema: Option<ClosedReachSchema>,
 }
 

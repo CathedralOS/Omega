@@ -1,4 +1,4 @@
-use crate::data::lower_type_parameter;
+use crate::data::lower_type_parameters;
 use crate::lowerer::Lowerer;
 use crate::state::lower_state_signature;
 use diagnostics::Diagnostic;
@@ -25,15 +25,7 @@ pub(crate) fn lower_trait_definition(
         machines: arena::HandleSpan::empty(),
     };
 
-    for parameter in lowerer
-        .source_trees
-        .data_type_parameters(trait_definition.type_parameters)
-    {
-        let type_parameter = lower_type_parameter(lowerer, parameter)?;
-        lowerer
-            .typed_trees
-            .push_trait_type_parameter(&mut typed_trait, type_parameter);
-    }
+    typed_trait.type_parameters = lower_type_parameters(lowerer, trait_definition.type_parameters)?;
 
     for bound in &trait_definition.conformance_bounds {
         let mut arguments = Vec::new();

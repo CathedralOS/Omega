@@ -400,16 +400,8 @@ pub(crate) fn lower_state_signature(
         },
     };
 
-    for parameter in lowerer
-        .source_trees
-        .data_type_parameters(signature.type_parameters)
-    {
-        let parameter = crate::data::lower_type_parameter(lowerer, parameter)?;
-        lowerer
-            .typed_trees
-            .data_type_parameters
-            .append_to_span(&mut typed_signature.type_parameters, parameter);
-    }
+    typed_signature.type_parameters =
+        crate::data::lower_type_parameters(lowerer, signature.type_parameters)?;
 
     // #66/DOM1/P1a: collect every declared domain on constrained parameters.
     // Each desugars below into its own implicit `requires <param> in <domain>`

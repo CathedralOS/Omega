@@ -167,15 +167,8 @@ pub(crate) fn lower_domain_definition(
         establishment_routes: domain.establishment_routes.clone(),
     };
 
-    for parameter in lowerer
-        .source_trees
-        .data_type_parameters(domain.type_parameters)
-    {
-        let parameter = crate::data::lower_type_parameter(lowerer, parameter)?;
-        lowerer
-            .typed_trees
-            .push_domain_type_parameter(&mut typed_domain, parameter);
-    }
+    typed_domain.type_parameters =
+        crate::data::lower_type_parameters(lowerer, domain.type_parameters)?;
 
     for operator in lowerer.source_trees.operator_definitions(domain.operators) {
         let operator = lowerer.with_type_reference_exposure(

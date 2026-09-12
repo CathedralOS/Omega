@@ -1,4 +1,4 @@
-use crate::data::lower_type_parameter;
+use crate::data::lower_type_parameters;
 use crate::domain::lower_proof_facts;
 use crate::lowerer::Lowerer;
 use crate::type_reference::lower_type_reference_into_table;
@@ -37,15 +37,7 @@ pub(crate) fn lower_operator_definition(
             .push_operator_path_member(&mut typed_operator, crate::name::lower_name(member));
     }
 
-    for parameter in lowerer
-        .source_trees
-        .data_type_parameters(operator.type_parameters)
-    {
-        let type_parameter = lower_type_parameter(lowerer, parameter)?;
-        lowerer
-            .typed_trees
-            .push_operator_type_parameter(&mut typed_operator, type_parameter);
-    }
+    typed_operator.type_parameters = lower_type_parameters(lowerer, operator.type_parameters)?;
 
     for parameter in lowerer.source_trees.state_parameters(operator.parameters) {
         let type_reference = lower_type_reference_into_table(lowerer, &parameter.type_reference)?;

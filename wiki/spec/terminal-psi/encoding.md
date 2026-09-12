@@ -77,9 +77,10 @@ of evidence. The block-predicate representation replaces the former dedicated
 range row; old bytes are rejected rather than reinterpreted.
 
 Closed reach applications retain an ordered telescope and finite dependency.
-A selected generic callback keeps its original schema identity and commitment
-separate from the selected public reach contract. Each consumer records an exact
-concrete callee, specialization commitment, and ordered expected argument tuple;
+A selected generic callback with emitted applications keeps its original schema
+identity and commitment separate from the selected public reach contract. Each
+consumer records an exact concrete callee, specialization commitment, and ordered
+expected argument tuple;
 the verifier rejoins them to that callee's retained closed application. Argument
 tags distinguish type, const, proposition, and machine selections; machine
 arguments retain selected identity and contract commitment without duplicating
@@ -87,6 +88,12 @@ the callee's dependency graph. Missing, differently typed, reordered, or changed
 tuples reject even if a stale commitment is unchanged. The original source
 projection remains producer-trusted without independently checkable openings.
 These contract records add no executable call variant or fuel rule.
+
+An unused selected family retains its selected identity, public contract
+commitment, reach row, and requirement bound without requiring an executable
+application or schema join header. If the same selection has retained
+applications elsewhere in the module, all occurrences retain the same schema
+header. Absence of that header does not classify a selected contract as nongeneric.
 
 ## Residual jump encoding
 

@@ -1277,15 +1277,10 @@ pub fn lower_symbol_resolved_trees(
                 }
             },
         };
-        for parameter in symbol_resolved_trees.data_type_parameters(source_type_parameters) {
-            let parameter = lowerer
-                .with_type_reference_exposure(conformance_exposure, |lowerer| {
-                    crate::data::lower_type_parameter(lowerer, parameter)
-                })?;
-            lowerer
-                .typed_trees
-                .push_conformance_type_parameter(&mut conformance, parameter);
-        }
+        conformance.type_parameters = lowerer
+            .with_type_reference_exposure(conformance_exposure, |lowerer| {
+                crate::data::lower_type_parameters(lowerer, source_type_parameters)
+            })?;
         // Inline/default realization machines close over the conformance
         // name's telescope. Publish that telescope as the machine template's
         // own generic surface as well, so ordinary specialization can clone
