@@ -634,8 +634,15 @@ Owners include
   encoding and independent actual-argument substitution; run
   `cargo nextest run -p checked-trees-to-lowered-psi --test scalar_boundary_arguments --no-fail-fast`.
   Reuse that requirement contract for selected operators, retaining exact occurrence
-  evidence. Boundary crash outcomes still need interpreter, provider-refinement
-  and Omega projection support; those consumers reject nonempty boundary routes.
+  evidence. Complete interpreter boundary-outcome validation for mathematical
+  integer guards; `terminal-verifier/src/validation/crash/outcome.rs` rejects
+  unsupported closed predicates rather than interpreting them as false.
+  Boundary crash observation profiles, guarded refinement of crashing providers,
+  and Omega projection remain open. The edge-only `TerminalTraceV1` profile and
+  Omega projection reject nonempty boundary routes; crash-free providers can
+  already refine a may-crash requirement. Extend the source-to-execution controls above
+  while preserving exact call sites, guard actuals, abandoned claims, staged
+  writeback and no-result/no-cleanup behavior.
   Extend the ordinary scalar-call sequencing path for direct boundary returns;
   the existing result-bearing producer still requires a local-result binding.
 

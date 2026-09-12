@@ -217,6 +217,57 @@ fn unit_caller_transfers_linear_claim_into_scalar_boundary_wrapper() {
 }
 
 #[test]
+fn boundary_crash_in_scalar_wrapper_abandons_claim_without_a_result_or_receipt() {
+    let source = unit_wrapper_source().replace("reaches PortIo", "reaches PortIo crashes Abort");
+    let artifact = unit_wrapper_artifact(&checked(&source));
+    let mut execution = start(&artifact);
+    let mut observer = ObserveSettlement {
+        crash: Some(terminal_psi::CrashCause::Abort),
+        ..Default::default()
+    };
+    let mut fuel = TerminalFuelMeter::unbounded();
+    let status = execution
+        .resume_with_effect_handler(&mut fuel, &mut observer)
+        .unwrap();
+    let TerminalExecutionStatus::Crashed(crash) = &status else {
+        panic!("{status:?}")
+    };
+    assert_eq!(crash.cause, terminal_psi::CrashCause::Abort);
+    let terminal_interpreter::TerminalCrashSite::BoundaryCall {
+        machine,
+        operation,
+        boundary,
+        ..
+    } = crash.site
+    else {
+        panic!("exact boundary call site")
+    };
+    let module = decode_module(&artifact.0).unwrap();
+    assert_ne!(machine, module.entry, "crash remains in the scalar wrapper");
+    assert_eq!(crash.frontier_lower_bound.len(), 1);
+    assert_eq!(
+        execution.live_claim_frontier().collect::<Vec<_>>(),
+        crash.frontier_lower_bound
+    );
+    assert_eq!(observer.calls, [vec![unsigned(70), unsigned(70)]]);
+    assert!(
+        matches!(execution.effects(), [TerminalEffect::BoundaryCall {
+        operation: observed_operation, boundary: observed_boundary, completion_receipts, ..
+    }] if *observed_operation == operation && *observed_boundary == boundary
+        && completion_receipts.len() == 1)
+    );
+    let units = fuel.usage().total_units();
+    assert_eq!(
+        execution
+            .resume_with_effect_handler(&mut fuel, &mut observer)
+            .unwrap(),
+        status
+    );
+    assert_eq!(fuel.usage().total_units(), units);
+    assert_eq!(observer.calls.len(), 1);
+}
+
+#[test]
 fn unit_wrapper_accepts_nested_affine_result_argument() {
     let source = unit_wrapper_source()
         .replace("Receipt [linear]", "Receipt")
@@ -1386,6 +1437,7 @@ struct ObserveSettlement {
     calls: Vec<Vec<TerminalScalarValue>>,
     receipts: Vec<TerminalStructuralValue>,
     reject: bool,
+    crash: Option<terminal_psi::CrashCause>,
     erased_reference_self: bool,
     expected_opaque_identity: Option<u64>,
 }
@@ -1423,6 +1475,9 @@ impl TerminalEffectHandler for ObserveSettlement {
         self.calls.push(arguments.clone());
         if self.reject {
             return Err(TerminalEffectRejection::new("settlement refused"));
+        }
+        if let Some(cause) = self.crash {
+            return Ok(terminal_interpreter::TerminalEffectResult::Crash(cause));
         }
         Ok(terminal_interpreter::TerminalEffectResult::Scalar(
             *arguments.last().unwrap(),
@@ -1691,8 +1746,9 @@ fn assert_unsettled_helper_crash(
         .iter()
         .find(|machine| {
             machine.blocks.iter().any(|block| {
-        matches!(block.terminator, Terminator::Crash { edge, .. } if edge == crash.edge)
-    })
+                matches!(block.terminator, Terminator::Crash { edge, .. }
+            if terminal_interpreter::TerminalCrashSite::Edge(edge) == crash.site)
+            })
         })
         .unwrap();
     assert_ne!(helper.id, module.entry);

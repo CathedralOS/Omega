@@ -1030,7 +1030,7 @@ fn crashing_structural_callee_never_produces_a_caller_result() {
     assert!(matches!(
         &crashed,
         TerminalExecutionStatus::Crashed(crash)
-            if crash.edge == edge_id(2)
+            if crash.site == terminal_interpreter::TerminalCrashSite::Edge(edge_id(2))
                 && crash.frontier_lower_bound == vec![claim_id(1)]
     ));
     assert_eq!(execution.resume(&mut meter).unwrap(), crashed);
@@ -1062,7 +1062,7 @@ fn crashing_multi_claim_structural_callee_preserves_the_exact_abandonment_fronti
     assert!(matches!(
         &crashed,
         TerminalExecutionStatus::Crashed(crash)
-            if crash.edge == edge_id(2)
+            if crash.site == terminal_interpreter::TerminalCrashSite::Edge(edge_id(2))
                 && crash.frontier_lower_bound == vec![claim_id(1), claim_id(2)]
     ));
     assert_eq!(execution.resume(&mut meter).unwrap(), crashed);

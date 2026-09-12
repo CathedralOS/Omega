@@ -139,7 +139,8 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
     assert_eq!(arguments, &[byte.id, boolean.id]);
 
     // Verification retains the opaque requirement even when no executable
-    // provider exists. Neither execution nor native projection may erase it.
+    // provider exists. Native projection still rejects its unsupported route;
+    // interpreter admission retains the declaration and checks host outcomes.
     let mut crashing = module.clone();
     let crash = terminal_psi::CrashRouteBucket {
         cause: terminal_psi::CrashCause::Trap,
@@ -164,18 +165,18 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
         &crashing_semantic,
         &proof,
         &AdmissionProfile::default(),
-        &[],
+        &[
+            terminal_interpreter::TerminalScalarValue::Boolean(false),
+            terminal_interpreter::TerminalScalarValue::Integer {
+                scalar_type: match byte_type {
+                    ScalarType::Integer(integer) => integer,
+                    _ => unreachable!(),
+                },
+                value: semantic_vocabulary::IntegerValue::Unsigned(0),
+            },
+        ],
     );
-    assert!(matches!(
-        execution,
-        Err(
-            terminal_interpreter::TerminalArtifactInterpretError::Execution(
-                terminal_interpreter::TerminalInterpretError::UnsupportedSemanticVariant(
-                    "boundary crash outcome execution"
-                )
-            )
-        )
-    ));
+    assert!(execution.is_ok());
 
     let structural_type = structural_type_id(1);
     let place = place_id(1);

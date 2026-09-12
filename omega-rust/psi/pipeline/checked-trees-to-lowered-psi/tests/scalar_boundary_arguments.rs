@@ -28,7 +28,7 @@ fn guarded_boundary_crash_contract_survives_source_lowering() {
             machine record(value: u16) crashes Abort value == 0u16;
         }
         data Root {}
-        machine Root::enter(value: u16) crashes Abort value == 0u16 {
+        machine Root::enter(value: u16) reaches Sink crashes Abort value == 0u16 {
             Sink::record(value);
         }
     "#;
@@ -47,6 +47,156 @@ fn guarded_boundary_crash_contract_survives_source_lowering() {
         [terminal_psi::CrashRouteGuard::Predicate(_)]
     ));
     verify_roundtrip(&lowered);
+    exercise_boundary_outcomes(&lowered, &[unsigned16(0)], true);
+    exercise_boundary_outcomes(&lowered, &[unsigned16(1)], false);
+}
+
+struct BoundaryOutcome {
+    result: terminal_interpreter::TerminalEffectResult,
+    calls: usize,
+}
+
+impl terminal_interpreter::TerminalEffectHandler for BoundaryOutcome {
+    fn handle_effect(
+        &mut self,
+        _: &terminal_interpreter::TerminalEffect,
+    ) -> Result<(), terminal_interpreter::TerminalEffectRejection> {
+        self.calls += 1;
+        Ok(())
+    }
+
+    fn handle_effect_result(
+        &mut self,
+        effect: &terminal_interpreter::TerminalEffect,
+    ) -> Result<
+        terminal_interpreter::TerminalEffectResult,
+        terminal_interpreter::TerminalEffectRejection,
+    > {
+        self.handle_effect(effect)?;
+        Ok(self.result.clone())
+    }
+}
+
+fn unsigned16(value: u128) -> terminal_interpreter::TerminalScalarValue {
+    terminal_interpreter::TerminalScalarValue::Integer {
+        scalar_type: IntegerType::new(IntegerSign::Unsigned, 16).unwrap(),
+        value: IntegerValue::Unsigned(value),
+    }
+}
+
+fn exercise_boundary_outcomes(
+    lowered: &lowered_psi::LoweredPsi,
+    arguments: &[terminal_interpreter::TerminalScalarValue],
+    abort_permitted: bool,
+) {
+    use terminal_interpreter::{
+        TerminalCrashSite, TerminalEffectResult, TerminalExecution, TerminalExecutionResult,
+        TerminalExecutionStatus, TerminalInterpretError, TerminalStructuralValue,
+    };
+    use terminal_psi::CrashCause;
+    let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
+    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let root = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .unwrap();
+    let structural = root
+        .structural_parameters
+        .iter()
+        .map(|parameter| TerminalStructuralValue {
+            opaque_identity: 701,
+            structural_type: parameter.structural_type,
+            qualifications: parameter.qualifications.clone(),
+            path: Vec::new(),
+        })
+        .collect::<Vec<_>>();
+    for returned in [
+        TerminalEffectResult::Unit,
+        TerminalEffectResult::Crash(CrashCause::Abort),
+        TerminalEffectResult::Crash(CrashCause::Trap),
+    ] {
+        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            arguments,
+            &structural,
+        )
+        .expect("crash-capable boundary module starts");
+        let claims = execution.live_claim_frontier().collect::<Vec<_>>();
+        let mut handler = BoundaryOutcome {
+            result: returned.clone(),
+            calls: 0,
+        };
+        let mut empty_meter = terminal_fuel::TerminalFuelMeter::with_allowance(0);
+        assert!(matches!(
+            execution
+                .resume_with_effect_handler(&mut empty_meter, &mut handler)
+                .unwrap(),
+            TerminalExecutionStatus::SponsorExhausted(_)
+        ));
+        assert_eq!(handler.calls, 0);
+        let mut meter = terminal_fuel::TerminalFuelMeter::unbounded();
+        let outcome = execution.resume_with_effect_handler(&mut meter, &mut handler);
+        assert_eq!(handler.calls, 1);
+        match returned {
+            TerminalEffectResult::Unit => {
+                assert_eq!(
+                    outcome.unwrap(),
+                    TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+                );
+                assert_eq!(execution.live_claim_frontier().count(), 0);
+            }
+            TerminalEffectResult::Crash(CrashCause::Abort) if abort_permitted => {
+                let outcome = outcome.unwrap();
+                let TerminalExecutionStatus::Crashed(crash) = &outcome else {
+                    panic!("{outcome:?}")
+                };
+                let [effect] = execution.effects() else {
+                    panic!("one invoked boundary")
+                };
+                let terminal_interpreter::TerminalEffect::BoundaryCall {
+                    operation,
+                    boundary,
+                    ..
+                } = effect
+                else {
+                    panic!("boundary invocation")
+                };
+                assert_eq!(
+                    crash.site,
+                    TerminalCrashSite::BoundaryCall {
+                        machine: root.id,
+                        block: root.entry,
+                        operation: *operation,
+                        boundary: *boundary,
+                    }
+                );
+                assert_eq!(crash.frontier_lower_bound, claims);
+                assert_eq!(execution.live_claim_frontier().collect::<Vec<_>>(), claims);
+                let usage = meter.usage().total_units();
+                assert_eq!(
+                    execution
+                        .resume_with_effect_handler(&mut meter, &mut handler)
+                        .unwrap(),
+                    outcome
+                );
+                assert_eq!(meter.usage().total_units(), usage);
+                assert_eq!(handler.calls, 1);
+            }
+            TerminalEffectResult::Crash(_) => {
+                assert!(matches!(
+                    outcome,
+                    Err(TerminalInterpretError::BoundaryCrashNotPermitted { .. })
+                ));
+                assert_eq!(execution.live_claim_frontier().collect::<Vec<_>>(), claims);
+                assert!(execution.effects().is_empty());
+            }
+            _ => unreachable!(),
+        }
+    }
 }
 
 fn verify_roundtrip(lowered: &lowered_psi::LoweredPsi) {
@@ -70,6 +220,7 @@ fn mixed_boundary_signature_uses_dense_scalar_crash_formals() {
         }
         data Root {}
         machine Root::enter(selected: bool, token: Token, value: u16)
+        reaches Sink
         crashes Abort selected && value == 0u16 {
             Sink::record(token, selected, value);
         }
@@ -94,6 +245,16 @@ fn mixed_boundary_signature_uses_dense_scalar_crash_formals() {
         1
     );
     verify_roundtrip(&lowered);
+    for (selected, value, permitted) in [(true, 0, true), (false, 0, false), (true, 1, false)] {
+        exercise_boundary_outcomes(
+            &lowered,
+            &[
+                terminal_interpreter::TerminalScalarValue::Boolean(selected),
+                unsigned16(value),
+            ],
+            permitted,
+        );
+    }
 }
 
 #[test]
@@ -122,7 +283,7 @@ fn literal_false_boundary_route_has_no_surviving_cause() {
     let source = r#"
         boundary trait Sink { machine record() crashes Abort false; }
         data Root {}
-        machine Root::enter() { Sink::record(); }
+        machine Root::enter() reaches Sink { Sink::record(); }
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
@@ -153,7 +314,7 @@ fn guarded_boundary_contracts_survive_attached_and_scalar_result_producers() {
         r#"
             boundary trait Sink { machine record(value: u16) -> bool crashes Abort value == 0u16; }
             data Root {}
-            machine Root::enter(value: u16) -> bool crashes Abort value == 0u16 {
+            machine Root::enter(value: u16) -> bool reaches Sink crashes Abort value == 0u16 {
                 let result: bool = Sink::record(value);
                 result
             }
@@ -161,7 +322,7 @@ fn guarded_boundary_contracts_survive_attached_and_scalar_result_producers() {
         r#"
             boundary trait Sink { machine record(first: u16, second: u16) crashes Abort first == 0u16 && second == 7u16; }
             data Root {}
-            machine Root::enter(left: u16, right: u16) crashes Abort right == 0u16 && left == 7u16 {
+            machine Root::enter(left: u16, right: u16) reaches Sink crashes Abort right == 0u16 && left == 7u16 {
                 Sink::record(right, left);
             }
         "#,
@@ -189,7 +350,7 @@ fn structural_boundary_crash_guards_reject_without_losing_the_contract() {
         data Flag { enabled: bool; }
         boundary trait Sink { machine record(flag: Flag) crashes Abort flag.enabled; }
         data Root {}
-        machine Root::enter(flag: Flag) crashes Abort { Sink::record(flag); }
+        machine Root::enter(flag: Flag) reaches Sink crashes Abort { Sink::record(flag); }
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");

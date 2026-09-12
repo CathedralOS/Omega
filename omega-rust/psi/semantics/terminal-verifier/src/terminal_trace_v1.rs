@@ -1,7 +1,8 @@
 //! Verifier-owned reconstruction of the first bounded D39 observation profile.
 
 use semantic_vocabulary::{
-    BlockId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, ScalarType,
+    BlockId, BoundaryMachineId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId,
+    ScalarType,
 };
 use terminal_psi::{
     BoundaryMachineResult, OperationKind, StructuralAccess, TerminalMachineResult, TerminalModule,
@@ -23,6 +24,7 @@ enum TerminalTraceV1OperationClassification {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalTraceV1ReconstructionError {
     InvalidModule(ModuleError),
+    UnsupportedBoundaryCrashRoutes(BoundaryMachineId),
     MissingEntry(MachineId),
     DuplicateCrashSite {
         machine: MachineId,
@@ -67,6 +69,18 @@ pub fn reconstruct_terminal_trace_v1_rows(
     module: &TerminalModule,
 ) -> Result<TerminalTraceV1Rows, TerminalTraceV1ReconstructionError> {
     validate_module_representation(module)?;
+
+    // V1 crash rows identify terminator edges only. An operation-level boundary
+    // crash must not disappear from a supposedly complete observer roster.
+    if let Some(boundary) = module
+        .boundary_machines
+        .iter()
+        .find(|boundary| !boundary.crash_routes.is_empty())
+    {
+        return Err(
+            TerminalTraceV1ReconstructionError::UnsupportedBoundaryCrashRoutes(boundary.id),
+        );
+    }
 
     let entry = module
         .machines

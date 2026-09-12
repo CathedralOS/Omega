@@ -8,7 +8,10 @@ use numerics::{
 use super::*;
 
 mod entry_requirements;
+mod outcome;
 mod site_truth;
+
+pub use outcome::{BoundaryCrashOutcomeError, validate_boundary_crash_outcome};
 
 pub(super) use site_truth::validate_site_guard_truth;
 

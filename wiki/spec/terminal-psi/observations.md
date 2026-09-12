@@ -50,6 +50,11 @@ vocabularies, tags, classifications, malformed ordering, duplicate coordinates,
 missing/extra sites, zero module commitments, and empty profiles reject.
 Decoding rejects trailing bytes.
 
+The current V1 implementation rejects modules with boundary crash routes: its
+crash rows describe terminator edges, not operation-level boundary outcomes.
+Interpreter support for a tagged boundary crash site does not establish a
+complete V1 observation profile or permit inventing an edge for that invocation.
+
 The consumer selects the typed schema and may retain an authenticated expected
 commitment. The verifier independently derives the instance from the validated
 module and compares the complete decoded profile. The proof producer supplies

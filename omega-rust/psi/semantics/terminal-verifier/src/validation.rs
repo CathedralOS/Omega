@@ -1,5 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+pub use crash::{BoundaryCrashOutcomeError, validate_boundary_crash_outcome};
+
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, ContentAlgebra,
     ContentConservation, ContentDomainId, ContentProjectionExpression, ContentProjectionIdentity,

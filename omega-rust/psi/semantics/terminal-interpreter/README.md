@@ -142,7 +142,26 @@ does not implement source-owned array construction or native array/view storage.
 ## Boundary responses
 
 [effect_results.rs](src/effect_results.rs) distinguishes Unit, scalar, and opaque
-structural values. The current structural response has exact type,
+structural values from an explicit `Crash(Trap | Abort)` response. A crash is
+admitted only against the published same-cause route with the invocation's
+already evaluated scalar inputs. A true guard permits normal completion too.
+Mathematical-integer predicates lacking closed evaluation remain an explicit
+unsupported outcome, not a false guard. The verifier's outcome validator reuses
+the existing positional substitution and closed scalar arithmetic semantics.
+
+A valid boundary crash retains a tagged machine/block/operation/boundary site,
+not a fabricated edge. The attempted call remains in the effects list: those
+records describe invocation inputs and required normal-completion receipts,
+not proof that completion occurred. No result, receipt, owned-input disposal,
+staged byte-buffer writeback, later operation, or cleanup commits on crash.
+Previously performed host effects cannot be rolled back. Repeated resume returns
+the same crash without charging or invoking again. Ordinary operand crashes
+retain their original edge and prevent the enclosing boundary invocation.
+Installed-provider refinement and native support remain separate; the edge-only
+`TerminalTraceV1` observer explicitly rejects boundary crash routes until its
+complete observation representation supports them.
+
+The current structural response has exact type,
 qualifications, opaque identity, and an empty path. Linear results, result claims,
 projected qualifications, and sum discriminator/payload inspection remain
 unsupported. Preflight rejects unsupported result requirements before the host

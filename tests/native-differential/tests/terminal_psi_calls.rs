@@ -328,7 +328,10 @@ fn unconditional_call_crash_is_explicitly_verified_interpreted_and_lowered() {
     else {
         panic!("the callee's explicit crash must escape the caller")
     };
-    assert_eq!(crash.edge, edge_id(2));
+    assert_eq!(
+        crash.site,
+        terminal_interpreter::TerminalCrashSite::Edge(edge_id(2))
+    );
     assert_eq!(crash.cause, CrashCause::Trap);
     assert_eq!(meter.usage().total_units(), 3);
     assert_eq!(
