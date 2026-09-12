@@ -1,4 +1,7 @@
 //! Scalar contracts over entry parameters and the normal-return result.
+//! Graph and ordered-operation bodies share the same predicate meaning. Only
+//! their execution schedules differ; normal guarantees still use the declared
+//! result pseudo-value and require independently reconstructed return proofs.
 
 use super::*;
 #[cfg(test)]
@@ -6,6 +9,8 @@ use crate::contract_predicates::canonical_equality;
 use crate::contract_predicates::{PredicateTerms, connective};
 
 mod namespace;
+mod source;
+pub(crate) use source::validate_guarantees;
 
 pub(crate) fn clauses(
     clauses: &[Option<ClosedScalarContractValue>],

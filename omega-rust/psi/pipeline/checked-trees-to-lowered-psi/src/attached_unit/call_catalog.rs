@@ -12,7 +12,6 @@ use super::*;
 pub(super) struct CheckedCallCatalog {
     pub(super) operations: Vec<symbols::SymbolHandle>,
     pub(super) providers: Vec<CheckedUnitProviderCandidate>,
-    pub(super) scalar_roots: Vec<symbols::SymbolHandle>,
     pub(super) scalars: Vec<symbols::SymbolHandle>,
 }
 
@@ -182,7 +181,6 @@ pub(super) fn discover(
         return Ok(CheckedCallCatalog {
             operations: closure,
             providers: candidates,
-            scalar_roots,
             scalars: scalar_closure,
         });
     }

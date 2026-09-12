@@ -320,7 +320,6 @@ fn assemble_unit_closure(
         call_catalog::discover(checked, entry, unit_roots, external.as_ref(), scalar_entry)?;
     let closure = call_catalog.operations;
     let provider_candidate_plans = call_catalog.providers;
-    let scalar_roots = call_catalog.scalar_roots;
     let scalar_closure = call_catalog.scalars;
     let scalar_callees = scalar_closure
         .iter()
@@ -1219,7 +1218,6 @@ fn assemble_unit_closure(
             callee.prepare(
                 checked,
                 source,
-                scalar_roots.contains(&source) && !(scalar_entry && source == entry),
                 &parameters.1,
                 &parameters.2,
                 &structural_types,
@@ -3753,6 +3751,31 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                 kind: StructuralPlaceKind::Result,
             });
         }
+        let normal_guarantees = if let Some((_, result)) = scalar_return {
+            // Contract result identity is distinct from the body's returned
+            // binding. Only exit reconstruction equates them, after normal
+            // completion; crashes and incomplete calls establish neither.
+            let mut namespace = scalar_parameters.clone();
+            namespace.push(result);
+            let contract = checked
+                .facts
+                .contract_plans
+                .for_machine(plan.machine)
+                .ok_or(LoweringError::Unsupported(
+                    "scalar completion has no checked contract",
+                ))?;
+            crate::scalar_contracts::clauses(contract.closed_scalar_values.ensures(), &namespace)?
+                .into_iter()
+                .map(|proposition| {
+                    Ok(ContractClause {
+                        obligation: obligation_id(allocate_dense(&mut next_call_obligation)?),
+                        proposition,
+                    })
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?
+        } else {
+            Vec::new()
+        };
         machines.push(TerminalMachine {
             id: terminal_machine,
             attachment,
@@ -3797,7 +3820,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                 id: contract_id(terminal_machine.get()),
                 crash_routes,
                 requires: runtime_requirements.clone(),
-                ensures: Vec::new(),
+                ensures: normal_guarantees,
                 outcome_specific_ensures: Vec::new(),
             },
         });

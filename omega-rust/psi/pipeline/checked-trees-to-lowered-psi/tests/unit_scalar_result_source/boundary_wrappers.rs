@@ -313,6 +313,162 @@ fn scalar_wrapper_parameter_ranges_survive_call_proofs_and_publication() {
     assert_eq!(observed.arguments, [vec![integer(70)], vec![integer(70)]]);
 }
 
+fn normal_guarantee_source(body: &str) -> String {
+    format!("machine identity(value: i32) -> i32 ensures result == value {{ value }}\n{}", source()
+        .replace("Scalar::measure() -> i32 reaches Host", "Scalar::measure(value: i32) -> i32\nrequires value >= 1\nensures result == value\nreaches Host")
+        .replace("let result: i32 = Host::measure(70);\n            result", body)
+        .replace("Scalar::measure();", "Scalar::measure(70);"))
+}
+
+#[test]
+fn ordered_scalar_completion_proves_normal_result_guarantees() {
+    for body in [
+        "Host::finish(11); value",
+        "let observed: i32 = Host::measure(11); value",
+        "Host::finish(11); identity(value)",
+    ] {
+        let source = normal_guarantee_source(body);
+        let artifact = artifact(&checked_from_source(&source));
+        let module = decode_module(&artifact.0).unwrap();
+        let wrapper = module
+            .machines
+            .iter()
+            .find(|machine| {
+                !machine.contract.ensures.is_empty() && !machine.contract.requires.is_empty()
+            })
+            .expect("normal guarantee published");
+        assert_eq!(wrapper.contract.ensures.len(), 1);
+        let (status, observed) = execute(&artifact);
+        assert_eq!(
+            status,
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+        );
+        assert_eq!(observed.arguments, [vec![integer(11)], vec![integer(70)]]);
+    }
+}
+
+#[test]
+fn ordered_scalar_guarantees_require_return_evidence_and_exact_return_value() {
+    let artifact = artifact(&checked_from_source(&normal_guarantee_source(
+        "let observed: i32 = Host::measure(11); value",
+    )));
+    let module = decode_module(&artifact.0).unwrap();
+    let proof = decode_proof_bundle(&artifact.1).unwrap();
+    let wrapper = module
+        .machines
+        .iter()
+        .find(|machine| {
+            !machine.contract.ensures.is_empty() && !machine.contract.requires.is_empty()
+        })
+        .unwrap();
+    let obligation = wrapper.contract.ensures[0].obligation;
+    let mut missing = proof.clone();
+    missing
+        .evidence
+        .retain(|evidence| evidence.obligation != obligation);
+    assert_eq!(missing.evidence.len() + 1, proof.evidence.len());
+    assert!(
+        terminal_verifier::verify_module(&module, &missing, &AdmissionProfile::default()).is_err()
+    );
+
+    let mut changed = module.clone();
+    let wrapper = changed
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == wrapper.id)
+        .unwrap();
+    let block = wrapper
+        .blocks
+        .iter_mut()
+        .find(|block| matches!(block.terminator, terminal_psi::Terminator::Return { .. }))
+        .unwrap();
+    let opaque_result = block
+        .operations
+        .iter()
+        .find_map(|operation| match (&operation.kind, &operation.result) {
+            (
+                terminal_psi::OperationKind::BoundaryCall { .. },
+                terminal_psi::OperationResult::Scalar(result),
+            ) => Some(result.id),
+            _ => None,
+        })
+        .unwrap();
+    let terminal_psi::Terminator::Return { value, .. } = &mut block.terminator else {
+        unreachable!()
+    };
+    assert_ne!(*value, opaque_result);
+    *value = opaque_result;
+    // The test handler returns its input, but an opaque boundary promises no
+    // such relation. Neither its carrier nor a previous proof grants equality.
+    assert!(
+        terminal_verifier::verify_module(&changed, &proof, &AdmissionProfile::default()).is_err()
+    );
+}
+
+#[test]
+fn ordered_scalar_guarantees_reject_changed_source_predicates() {
+    use checked_trees::{CheckedBooleanExpression as Boolean, ClosedScalarContractValue as Clause};
+    let original = checked_from_source(&normal_guarantee_source("Host::finish(11); value"));
+    artifact(&original);
+    let target = original
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Scalar::measure")
+        .unwrap()
+        .symbol;
+    for mutation in 0..7 {
+        let mut changed = original.clone();
+        let contract = changed
+            .facts
+            .contract_plans
+            .machines
+            .iter_mut()
+            .find(|contract| contract.machine == target)
+            .unwrap();
+        let mut guarantees = contract.closed_scalar_values.ensures().to_vec();
+        match mutation {
+            0 => guarantees.clear(),
+            1 => guarantees.push(guarantees[0].clone()),
+            2 => guarantees[0] = None,
+            3 => guarantees[0] = Some(Clause::Boolean(true)),
+            4..=6 => {
+                let Some(Clause::Predicate(Boolean::IntegerComparison { kind, left, .. })) =
+                    &mut guarantees[0]
+                else {
+                    panic!("integer guarantee")
+                };
+                match mutation {
+                    4 => {
+                        **left = CheckedScalarExpression::Parameter {
+                            position: 0,
+                            primitive_type: typed_trees::types::PrimitiveType::I32,
+                        }
+                    }
+                    5 => {
+                        **left = CheckedScalarExpression::Local {
+                            position: 1,
+                            primitive_type: typed_trees::types::PrimitiveType::I32,
+                        }
+                    }
+                    6 => *kind = checked_trees::CheckedIntegerComparisonKind::LessThan,
+                    _ => unreachable!(),
+                }
+            }
+            _ => unreachable!(),
+        }
+        contract.closed_scalar_values = checked_trees::ClosedScalarValueContractPlan::new(
+            contract.closed_scalar_values.requires().to_vec(),
+            guarantees,
+            contract.closed_scalar_values.has_crash_clauses(),
+            contract.closed_scalar_values.has_outcome_specific_clauses(),
+        );
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+            "mutation {mutation}"
+        );
+    }
+}
+
 #[test]
 fn ordered_boundary_return_preserves_entry_predicates() {
     let source = source()

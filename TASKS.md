@@ -654,11 +654,13 @@ Owners include
   already refine a may-crash requirement. Extend the source-to-execution controls above
   while preserving exact call sites, guard actuals, abandoned claims, staged
   writeback and no-result/no-cleanup behavior.
-  Carry normal guarantees and qualified scalar results through ordered boundary
-  completion. The shared sequence carries scalar machine-entry predicates and
-  parameter ranges through source replay, canonical publication, call proofs and
-  execution (`unit_scalar_result_source`'s `ordered_boundary` tests); state/control
-  predicates and field/arithmetic preconditions still need their evidence joins.
+  Carry qualified scalar results and the remaining normal-contract vocabulary
+  through ordered boundary completion. Reuse the machine-entry and fixed-integer
+  normal-guarantee path (`unit_scalar_result_source`'s `ordered_boundary` and
+  `ordered_scalar` tests); Boolean result predicates, state/control contracts,
+  and field/arithmetic predicates still need their evidence joins. Preserve
+  authored callee contracts regardless of whether a helper is a direct closure
+  root or a transitive dependency; a checked call identity is not contract proof.
   Mutable scalar inputs still need the shared signature/storage path beyond the
   invocation-entry read checker. Do not infer normal guarantees from crash ceilings
   or use current storage as an entry snapshot.

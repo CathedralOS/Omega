@@ -300,7 +300,7 @@ pub(crate) fn emit_boundary_scalar_return(
                 &lower_checked_crash_routes(checked, plan.machine)?,
                 &scalar_parameters,
             )?,
-            requires: crate::scalar_graph_module::result_contract::clauses(
+            requires: crate::scalar_contracts::clauses(
                 &checked_requirements(checked, plan)?,
                 &scalar_parameters,
             )?

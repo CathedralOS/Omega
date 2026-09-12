@@ -47,9 +47,9 @@ pub(super) fn validate(
     ) {
         return unsupported("scalar operation completion requires result refinement evidence");
     }
-    // Entry predicates are replayed in the immutable invocation namespace and
-    // emitted by the shared closure. They do not justify dropping guarantees:
-    // postconditions still require a normal-result contract lowering owner.
+    // Entry predicates and guarantees have distinct read scopes. A normal
+    // guarantee names the exact result pseudo-value, never an entry snapshot
+    // or the producer's incidental body-local binding ordinal.
     if checked
         .machine_contracts(source)
         .iter()
@@ -59,12 +59,14 @@ pub(super) fn validate(
                 contract.kind,
                 checked_trees::signature::SignatureContractKind::Crashes { .. }
                     | checked_trees::signature::SignatureContractKind::Requires
+                    | checked_trees::signature::SignatureContractKind::Ensures
             ) || contract.binding.is_some()
         })
     {
         return unsupported("scalar operation completion cannot erase authored scalar contracts");
     }
     crate::runtime_requirements::validate_scalar_source(checked, source, state)?;
+    crate::scalar_contracts::validate_guarantees(checked, source, state)?;
     if result.statement_index as usize + 1 == statements.len()
         && !matches!(
             checked.expression_table.expression(*expression),

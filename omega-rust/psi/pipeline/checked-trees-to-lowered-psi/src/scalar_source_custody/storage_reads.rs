@@ -66,17 +66,50 @@ pub(crate) fn validate_entry_read_expression(
     validate_reads(checked, state, ReadScope::Entry, expression, retained)
 }
 
+/// Normal guarantees read immutable formals and the exact contract-owned result.
+/// Mutable post-state storage needs separate evidence and is not an entry snapshot.
+pub(crate) fn validate_normal_result_read_expression(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+    retained: &CheckedScalarExpression,
+) -> Result<(), LoweringError> {
+    let (machine, source_state) = authored_state(checked, state)?;
+    let primitive = checked
+        .primitive_type_reference(source_state.return_type)
+        .filter(|primitive| supported_mutable_parameter(*primitive))
+        .ok_or(LoweringError::Unsupported(
+            "normal predicate result requires a fixed integer or Boolean carrier",
+        ))?;
+    validate_reads(
+        checked,
+        state,
+        ReadScope::NormalResult {
+            machine: machine.symbol,
+            return_type: source_state.return_type,
+            primitive,
+        },
+        expression,
+        retained,
+    )
+}
+
 #[derive(Clone, Copy)]
 enum ReadScope {
     Body(u32),
     Entry,
+    NormalResult {
+        machine: symbols::SymbolHandle,
+        return_type: checked_trees::types::TypeReferenceHandle,
+        primitive: PrimitiveType,
+    },
 }
 
 impl ReadScope {
     fn preceding_statements(self) -> u32 {
         match self {
             Self::Body(statement) => statement,
-            Self::Entry => 0,
+            Self::Entry | Self::NormalResult { .. } => 0,
         }
     }
 }
@@ -184,6 +217,7 @@ enum ReadKind {
     Storage,
     Parameter,
     Local,
+    Result,
     OwnedField(Vec<checked_trees::CheckedStructuralPredicatePathSegment>),
     CaseMembership {
         path: Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
@@ -200,6 +234,35 @@ struct ReadNamespace<'checked> {
     owned_field_paths: Vec<Vec<usize>>,
     // Structural positions are authored positions, including scalar formals.
     owned: Vec<symbols::SymbolHandle>,
+}
+
+impl ReadNamespace<'_> {
+    fn scalar_read(
+        &self,
+        position: usize,
+        primitive: PrimitiveType,
+        is_parameter: bool,
+    ) -> (symbols::SymbolHandle, ReadKind) {
+        if let ReadScope::NormalResult {
+            machine,
+            primitive: result_primitive,
+            ..
+        } = self.scope
+            && is_parameter
+            && position == self.scalar.len()
+            && primitive == result_primitive
+        {
+            return (machine, ReadKind::Result);
+        }
+        (
+            self.scalar.get(position).copied().unwrap_or_default(),
+            if is_parameter {
+                ReadKind::Parameter
+            } else {
+                ReadKind::Local
+            },
+        )
+    }
 }
 
 fn owned_record<'checked>(
@@ -372,7 +435,7 @@ fn authored_storage_read(
             .len()
             != 1
     {
-        if matches!(scope, ReadScope::Entry) {
+        if matches!(scope, ReadScope::Entry | ReadScope::NormalResult { .. }) {
             return unsupported("entry predicate read has no exact parameter identity");
         }
         return Ok(None);
@@ -410,7 +473,7 @@ fn authored_storage_read(
         .iter()
         .filter(|parameter| parameter.symbol == name.symbol);
     let Some(parameter) = parameters.next() else {
-        if matches!(scope, ReadScope::Entry) {
+        if matches!(scope, ReadScope::Entry | ReadScope::NormalResult { .. }) {
             return unsupported("entry predicate read is not an invocation parameter");
         }
         return Ok(None);
@@ -418,7 +481,12 @@ fn authored_storage_read(
     if parameters.next().is_some() {
         return unsupported("scalar storage read has duplicate authored parameters");
     }
-    if matches!(scope, ReadScope::Entry) {
+    if matches!(scope, ReadScope::NormalResult { .. }) && parameter.is_mutable {
+        return unsupported(
+            "normal predicate cannot replace mutable post-state with entry storage",
+        );
+    }
+    if matches!(scope, ReadScope::Entry | ReadScope::NormalResult { .. }) {
         let primitive = checked
             .primitive_type_reference(parameter.type_reference)
             .filter(|primitive| supported_mutable_parameter(*primitive))
@@ -479,6 +547,20 @@ fn collect_authored_storage_reads(
             return unsupported("scalar dispatch requires selective computation source custody");
         }
         ExpressionNode::Name(name) => {
+            if let ReadScope::NormalResult {
+                machine,
+                return_type,
+                primitive,
+            } = scope
+                && let Some(owner) = validation::reserved_result_owner(&checked.typed, expression)
+            {
+                if owner != (machine, return_type) {
+                    return unsupported("normal predicate result belongs to another contract");
+                }
+                reads.push((path.clone(), machine, primitive, ReadKind::Result));
+                active.pop();
+                return Ok(());
+            }
             if let Some((symbol, primitive, kind)) =
                 authored_storage_read(checked, state, scope, name)?
             {
@@ -624,18 +706,17 @@ fn collect_scalar_storage_reads(
             primitive_type,
         } => {
             if supported_mutable_parameter(*primitive_type)
-                || matches!(namespace.scope, ReadScope::Entry)
+                || matches!(
+                    namespace.scope,
+                    ReadScope::Entry | ReadScope::NormalResult { .. }
+                )
             {
-                reads.push((
-                    path.clone(),
-                    namespace.scalar.get(*position).copied().unwrap_or_default(),
+                let (symbol, kind) = namespace.scalar_read(
+                    *position,
                     *primitive_type,
-                    if matches!(expression, CheckedScalarExpression::Parameter { .. }) {
-                        ReadKind::Parameter
-                    } else {
-                        ReadKind::Local
-                    },
-                ));
+                    matches!(expression, CheckedScalarExpression::Parameter { .. }),
+                );
+                reads.push((path.clone(), symbol, *primitive_type, kind));
             }
         }
         CheckedScalarExpression::StructuralParameterField {
@@ -694,16 +775,12 @@ fn collect_boolean_storage_reads(
         }
         CheckedBooleanExpression::Parameter { position }
         | CheckedBooleanExpression::Local { position } => {
-            reads.push((
-                path.clone(),
-                namespace.scalar.get(*position).copied().unwrap_or_default(),
+            let (symbol, kind) = namespace.scalar_read(
+                *position,
                 PrimitiveType::Bool,
-                if matches!(expression, CheckedBooleanExpression::Parameter { .. }) {
-                    ReadKind::Parameter
-                } else {
-                    ReadKind::Local
-                },
-            ));
+                matches!(expression, CheckedBooleanExpression::Parameter { .. }),
+            );
+            reads.push((path.clone(), symbol, PrimitiveType::Bool, kind));
         }
         CheckedBooleanExpression::StructuralParameterField {
             parameter_position,

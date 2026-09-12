@@ -203,7 +203,6 @@ impl<'checked> CheckedScalarCallee<'checked> {
         self,
         checked: &CheckedTrees,
         source: symbols::SymbolHandle,
-        embedded_root: bool,
         structural_parameters: &[StructuralParameterDeclaration],
         primitive_locals: &[crate::scalar_graph_lowering::primitive_locals::PrimitiveLocal],
         structural_types: &[StructuralTypeDeclaration],
@@ -220,7 +219,6 @@ impl<'checked> CheckedScalarCallee<'checked> {
                 let prepared = crate::scalar_graph_lowering::prepare_scalar_graph_in_namespace(
                     checked,
                     graph,
-                    embedded_root,
                     structural_parameters,
                     primitive_locals,
                     structural_types,
