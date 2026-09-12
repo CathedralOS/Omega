@@ -515,7 +515,11 @@ pub(in crate::flow) fn build_call_operation(
     let direct_boundary_target = selected_realization
         .map(|(requirement, _)| requirement)
         .unwrap_or(call.target_symbol);
-    let mut static_boundaries = program
+    // A nominal binder describes an obligation, not a selected boundary body.
+    // Specialization must replace it with the exact executable target before
+    // this pass can produce a call. Projecting its requirement here would make
+    // an open generic entry executable and bypass its selected implementation.
+    let static_boundaries = program
         .traits()
         .iter()
         .filter(|definition| definition.is_boundary)
@@ -524,27 +528,10 @@ pub(in crate::flow) fn build_call_operation(
                 .trait_machine_signatures(definition)
                 .iter()
                 .filter(move |signature| signature.symbol == direct_boundary_target)
-                .map(move |signature| (definition, signature, false))
+                .map(move |signature| (definition, signature))
         })
         .collect::<Vec<_>>();
-    if direct_boundary_target == call.target_symbol
-        && let Some((_, requirement)) = program.machine_parameter_signature(call.target_symbol)
-    {
-        static_boundaries.extend(
-            program
-                .traits()
-                .iter()
-                .filter(|definition| definition.is_boundary)
-                .flat_map(|definition| {
-                    program
-                        .trait_machine_signatures(definition)
-                        .iter()
-                        .filter(move |signature| signature.symbol == requirement.symbol)
-                        .map(move |signature| (definition, signature, true))
-                }),
-        );
-    }
-    if let [(definition, signature, selected_parameter)] = static_boundaries.as_slice() {
+    if let [(definition, signature)] = static_boundaries.as_slice() {
         let arguments = crate::call_site_argument_expressions(program, &call_site);
         let source_parameters = program.state_signature_parameters(signature);
         let abi_parameters = source_parameters
@@ -761,8 +748,6 @@ pub(in crate::flow) fn build_call_operation(
             || arguments.len() != abi_parameters.len()
             || if let Some((_, qualifier)) = selected_realization {
                 call.has_receiver && call.receiver_symbol != qualifier
-            } else if *selected_parameter {
-                call.has_receiver
             } else {
                 !call.has_receiver
                     || (call.receiver_symbol != definition.symbol
@@ -790,20 +775,20 @@ pub(in crate::flow) fn build_call_operation(
         let capsule = facts
             .contract_plans
             .crash_capsule(definition.symbol, signature.symbol)?;
-        let completion_receipts = if *selected_parameter {
-            call_claim_transfers(
-                facts,
-                machine.symbol,
-                state.symbol,
-                call,
-                caller_parameters,
-                entry_claims,
-                &structural_arguments,
-                PermissionEventKind::Transfer,
-            )?
-        } else {
-            Vec::new()
-        };
+        // Trait calls transfer each owned argument into the boundary. Their
+        // permission events are transfers, not the terminal consumption used
+        // by an owned receiver. Reuse the exact call-site custody replay so
+        // every live claim has a normal-completion receipt at its argument.
+        let completion_receipts = call_claim_transfers(
+            facts,
+            machine.symbol,
+            state.symbol,
+            call,
+            caller_parameters,
+            entry_claims,
+            &structural_arguments,
+            PermissionEventKind::Transfer,
+        )?;
         return Some(CheckedUnitEffectOperationPlan::BoundaryCall {
             coordinate,
             source_site,

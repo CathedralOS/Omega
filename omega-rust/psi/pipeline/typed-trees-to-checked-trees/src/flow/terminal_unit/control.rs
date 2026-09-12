@@ -953,6 +953,8 @@ pub(super) fn build_static_boundary_requirements(
 /// A target can denote its own requirement and project to another one. Retain
 /// the union of exact identities, not a preferred classification. This sorted
 /// scratch index belongs only to the current immutable program and call facts.
+/// Nominal binder requirements are not selected execution targets; only a closed
+/// specialization may replace a binder with a callable body or exact boundary.
 fn static_boundary_call_targets(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -973,9 +975,6 @@ fn static_boundary_call_targets(
             exact_compiler_intrinsic_boundary_requirement(program, target)
         {
             requirements.push((requirement, target));
-        }
-        if let Some((_, requirement)) = program.machine_parameter_signature(target) {
-            requirements.push((requirement.symbol, target));
         }
     }
     requirements.sort_unstable_by_key(|(requirement, target)| {

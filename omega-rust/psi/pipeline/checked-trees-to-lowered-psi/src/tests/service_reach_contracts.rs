@@ -1,6 +1,170 @@
 use super::*;
 
 #[test]
+fn direct_boundary_calls_transfer_both_owned_claims() {
+    let checked = checked_source(
+        r#"
+        pub data Extent [linear] { value: u64; }
+        pub boundary trait Sink { machine take(first: Extent, second: Extent); }
+        pub data Root {}
+        pub machine Root::enter(first: Extent, second: Extent)
+        reaches Sink invokes Sink;
+        { Sink::take(first, second); }
+    "#,
+    );
+    let artifact = produce_terminal_artifact(&checked, "Root::enter")
+        .expect("publish direct boundary claim transfer");
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).expect("reload claims");
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .expect("entry");
+    assert_eq!(entry.entry_claims.len(), 2);
+    let OperationKind::BoundaryCall {
+        completion_receipts,
+        ..
+    } = &entry.blocks[0].operations[0].kind
+    else {
+        panic!("boundary call");
+    };
+    assert_eq!(completion_receipts.len(), 2);
+    for mutation in 0..4 {
+        let mut invalid = module.clone();
+        let entry = invalid
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == invalid.entry)
+            .expect("entry");
+        let OperationKind::BoundaryCall {
+            completion_receipts,
+            ..
+        } = &mut entry.blocks[0].operations[0].kind
+        else {
+            panic!("boundary call");
+        };
+        match mutation {
+            0 => {
+                completion_receipts.pop();
+            }
+            1 => completion_receipts[1] = completion_receipts[0],
+            2 => completion_receipts[0].argument_index = 1,
+            _ => completion_receipts.swap(0, 1),
+        }
+        assert!(
+            terminal_verifier::validate_module(&invalid).is_err(),
+            "missing, duplicate, wrong-position and reordered receipts reject: {mutation}"
+        );
+    }
+}
+
+#[test]
+fn nominal_unit_callbacks_require_a_closed_executable_selection() {
+    let source = r#"
+        pub boundary trait Sink { machine emit(); }
+        pub data Root {}
+        pub machine Root::unselected<machine Emit>()
+        where machine Emit satisfies Sink::emit;
+        { Emit(); }
+        machine quiet() satisfies Sink::emit {}
+        pub machine Root::selected() { Root::unselected<quiet>(); }
+    "#;
+    let checked = checked_source(source);
+    assert!(
+        produce_terminal_artifact(&checked, "Root::unselected").is_err(),
+        "an unresolved binder must not become a boundary execution choice"
+    );
+    let artifact = produce_terminal_artifact(&checked, "Root::selected")
+        .expect("publish the closed quiet selection");
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).expect("reload");
+    assert!(
+        module.boundary_machines.is_empty(),
+        "quiet checked selection is not a host boundary"
+    );
+    drop(checked);
+    assert_eq!(
+        terminal_interpreter::interpret_terminal_artifact(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &[],
+        )
+        .expect("interpret the selected body without host effects"),
+        terminal_interpreter::TerminalExecutionResult::Unit
+    );
+}
+
+#[test]
+fn closed_nominal_callback_transfers_both_claims_to_its_selected_body() {
+    let checked = checked_source(
+        r#"
+        pub data Extent [linear] { value: u64; }
+        pub boundary trait Sink { machine take(first: Extent, second: Extent); }
+        boundary machine Extent::settle(self) ensures true;
+        pub data Root {}
+        machine Root::forward<machine Take>(first: Extent, second: Extent)
+        where machine Take satisfies Sink::take;
+        { Take(first, second); }
+        machine selected(first: Extent, second: Extent) satisfies Sink::take
+        { first.settle(); second.settle(); }
+        pub machine Root::enter(first: Extent, second: Extent)
+        { Root::forward<selected>(first, second); }
+    "#,
+    );
+    let produced = produce_program_entry_terminal_artifact(&checked, "Root::enter", [0xa5; 32])
+        .expect("closed generic ProgramEntry publishes");
+    let artifact = produced.artifact();
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).expect("reload");
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .expect("entry");
+    assert_eq!(entry.entry_claims.len(), 2);
+    assert_eq!(
+        module.boundary_machines.len(),
+        1,
+        "only the selected body's settlement is a host boundary"
+    );
+    let arguments = entry
+        .structural_parameters
+        .iter()
+        .enumerate()
+        .map(
+            |(index, parameter)| terminal_interpreter::TerminalStructuralValue {
+                opaque_identity: u64::try_from(index).expect("argument index") + 1,
+                structural_type: parameter.structural_type,
+                qualifications: parameter.qualifications.clone(),
+                path: Vec::new(),
+            },
+        )
+        .collect::<Vec<_>>();
+    drop(checked);
+    let mut execution =
+        terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &[],
+            &arguments,
+        )
+        .expect("source-free closed selection starts");
+    assert_eq!(
+        execution
+            .resume(&mut terminal_fuel::TerminalFuelMeter::default())
+            .expect("execute selected body"),
+        terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        )
+    );
+    assert!(matches!(execution.effects(), [
+        terminal_interpreter::TerminalEffect::BoundaryCall { structural_arguments: first, completion_receipts: first_receipts, .. },
+        terminal_interpreter::TerminalEffect::BoundaryCall { structural_arguments: second, completion_receipts: second_receipts, .. },
+    ] if first == &arguments[..1] && second == &arguments[1..]
+        && first_receipts.len() == 1 && second_receipts.len() == 1));
+}
+
+#[test]
 fn nominal_callback_selected_reach_survives_terminal_publication() {
     let traversal = include_str!(
         "../../../../../../tests/omega/pass/effects/nominal_callback_dependency/main.omg"

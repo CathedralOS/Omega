@@ -281,11 +281,6 @@ Its `service_reach_contracts` command covers concrete callback rows through
 publication, reload and interpretation, including inert declared reach and
 private helper propagation. Resume with original dependency/telescope custody
 and exact substitution replay; concrete row preservation does not establish them.
-The unresolved callback projection in `terminal_unit/calls.rs` (`selected_parameter`)
-and `terminal_unit/control.rs` still treats a binder requirement as an executable
-boundary target without a closed selection. Replace it with exact continuation
-selection while preserving the ProgramEntry two-root claim-transfer and installed
-provider tests; those receipt tests alone do not prove post-instantiation closure.
 
 ## Semantic reflection
 
