@@ -160,23 +160,26 @@ pub(crate) fn retain_closed_reach_applications(
                     let schema = if checked.machine_type_parameters(selected_machine).is_empty() {
                         None
                     } else {
-                        let Some(application) =
-                            checked.machine_specializations.iter().find(|application| {
+                        // An unused family has a selected public contract but
+                        // no executable tuple. Retain that contract without
+                        // manufacturing a body or a template opening. Search
+                        // the whole retained module so used and unused bindings
+                        // of the same selection agree on any available schema.
+                        checked
+                            .machine_specializations
+                            .iter()
+                            .find(|application| {
                                 application.template == selected_machine.symbol
                                     && source_machines
                                         .iter()
                                         .any(|(source, _)| *source == application.instance)
                             })
-                        else {
-                            covered = false;
-                            break;
-                        };
-                        Some(ClosedReachSchema {
-                            template_identity: application.normalized_template_identity.clone(),
-                            template_commitment: application
-                                .template_contract_commitment
-                                .as_bytes(),
-                        })
+                            .map(|application| ClosedReachSchema {
+                                template_identity: application.normalized_template_identity.clone(),
+                                template_commitment: application
+                                    .template_contract_commitment
+                                    .as_bytes(),
+                            })
                     };
                     if !reach.unresolved_installation_reaches.is_empty()
                         || (dependencies.contains(&(position as u32))

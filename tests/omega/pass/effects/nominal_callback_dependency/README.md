@@ -52,9 +52,8 @@ digests identify provenance but are not independently checkable projection
 openings. [Selected generic schemas](../generic_callback_schema_reach/README.md)
 retain per-call closed tuples and exact callee applications; one observed body
 does not replace the selected schema's universal public contract. Inlined or
-missing callees, unused schemas without retained template applications,
-unresolved installation selections, and full generic PCC remain outside this
-coverage.
+missing callees, unresolved installation selections, and full generic PCC remain
+outside this coverage.
 
 Unit callbacks must also have an exact closed selection before publication.
 The focused Terminal command rejects an unresolved nominal binder as an entry,

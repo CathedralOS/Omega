@@ -4,6 +4,9 @@ use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
 
+#[cfg(test)]
+mod tests;
+
 pub(crate) fn lower_data_definition(
     lowerer: &mut Lowerer,
     data_definition: &resolved::data::DataDefinition,
@@ -119,15 +122,8 @@ fn lower_data_definition_contents(
         members: arena::HandleSpan::empty(),
     };
 
-    for parameter in lowerer
-        .source_trees
-        .data_type_parameters(data_definition.type_parameters)
-    {
-        let type_parameter = lower_type_parameter(lowerer, parameter)?;
-        lowerer
-            .typed_trees
-            .push_data_type_parameter(&mut typed_data_definition, type_parameter);
-    }
+    typed_data_definition.type_parameters =
+        lower_type_parameters(lowerer, data_definition.type_parameters)?;
 
     for member in lowerer.source_trees.data_members(data_definition.members) {
         let member = lower_data_member(lowerer, member)?;
@@ -139,7 +135,26 @@ fn lower_data_definition_contents(
     Ok(typed_data_definition)
 }
 
-pub(crate) fn lower_type_parameter(
+/// Nested callable contracts allocate their own telescopes in the same arena.
+/// Finish those children before publishing the complete sibling span; appending
+/// each parent immediately would interleave later siblings with nested binders.
+pub(crate) fn lower_type_parameters(
+    lowerer: &mut Lowerer,
+    parameters: arena::HandleSpan<resolved::data::TypeParameter>,
+) -> Result<arena::HandleSpan<typed::data::TypeParameter>, Diagnostic> {
+    let parameters = lowerer
+        .source_trees
+        .data_type_parameters(parameters)
+        .iter()
+        .map(|parameter| lower_type_parameter(lowerer, parameter))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(lowerer
+        .typed_trees
+        .data_type_parameters
+        .insert_many(parameters))
+}
+
+fn lower_type_parameter(
     lowerer: &mut Lowerer,
     parameter: &resolved::data::TypeParameter,
 ) -> Result<typed::data::TypeParameter, Diagnostic> {

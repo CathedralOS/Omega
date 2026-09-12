@@ -1,4 +1,4 @@
-use crate::data::lower_type_parameter;
+use crate::data::lower_type_parameters;
 use crate::domain::lower_proof_facts;
 use crate::expression::lower_expression_handle;
 use crate::lowerer::Lowerer;
@@ -71,15 +71,7 @@ fn lower_machine_contents(
         states: arena::HandleSpan::empty(),
     };
 
-    for parameter in lowerer
-        .source_trees
-        .data_type_parameters(machine.type_parameters)
-    {
-        let type_parameter = lower_type_parameter(lowerer, parameter)?;
-        lowerer
-            .typed_trees
-            .push_machine_type_parameter(&mut typed_machine, type_parameter);
-    }
+    typed_machine.type_parameters = lower_type_parameters(lowerer, machine.type_parameters)?;
 
     for owned_data in lowerer.source_trees.machine_owned_data(machine.owned_data) {
         let owned_data = lowerer.with_type_reference_exposure(

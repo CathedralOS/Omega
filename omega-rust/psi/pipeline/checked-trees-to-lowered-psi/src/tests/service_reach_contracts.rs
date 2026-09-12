@@ -27,6 +27,20 @@ fn generic_callback_schema_retains_both_closed_callees_after_reload() {
         .expect("outer schema selection must survive source discard");
     let application = outer.closed_reach_application.as_ref().unwrap();
     assert_eq!(application.calls.len(), 2);
+    assert_eq!(
+        application.telescope.len(),
+        2,
+        "unused schema stays in the full telescope"
+    );
+    let terminal_psi::ClosedReachParameter::Machine(unused) = &application.telescope[1] else {
+        panic!("unused schema binder");
+    };
+    assert!(unused.callee.is_none());
+    assert!(
+        unused.schema.is_none(),
+        "no closed application is manufactured for an unused schema"
+    );
+    assert_eq!(service_names(&module, &unused.selected_reach), ["Console"]);
     assert_eq!(service_names(&module, &application.fixed), ["Console"]);
     let first = application.calls[0]
         .application
@@ -130,6 +144,61 @@ fn generic_callback_schema_retains_both_closed_callees_after_reload() {
             "schema call mutation {mutation} must reject"
         );
     }
+}
+
+#[test]
+fn unused_schema_selection_reuses_the_same_retained_application_header() {
+    let source = include_str!(
+        "../../../../../../tests/omega/pass/effects/generic_callback_schema_reach/main.omg"
+    )
+    .replace("selected, unused", "selected, selected");
+    let checked = checked_source(&source);
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
+        .produce_artifact()
+        .expect("used and unused bindings select one family");
+    drop(checked);
+    let mut module = terminal_codec::decode_module(artifact.semantic_bytes())
+        .expect("source-free mixed-use reload");
+    let owner_position = module
+        .machines
+        .iter()
+        .position(|machine| {
+            machine
+                .closed_reach_application
+                .as_ref()
+                .is_some_and(|application| application.telescope.len() == 2)
+        })
+        .expect("full outer telescope");
+    let application = module.machines[owner_position]
+        .closed_reach_application
+        .as_ref()
+        .unwrap();
+    let [
+        terminal_psi::ClosedReachParameter::Machine(used),
+        terminal_psi::ClosedReachParameter::Machine(unused),
+    ] = application.telescope.as_slice()
+    else {
+        panic!("two selected family arguments");
+    };
+    assert!(used.schema.is_some());
+    assert_eq!(
+        used, unused,
+        "selection metadata is module-wide, not call-site dependent"
+    );
+    assert_eq!(application.calls.len(), 2);
+    assert!(application.calls.iter().all(|call| call.binder == 0));
+    let application = module.machines[owner_position]
+        .closed_reach_application
+        .as_mut()
+        .unwrap();
+    let terminal_psi::ClosedReachParameter::Machine(unused) = &mut application.telescope[1] else {
+        panic!("unused family argument");
+    };
+    unused.schema = None;
+    assert!(
+        terminal_verifier::validate_module_representation(&module).is_err(),
+        "unused occurrence cannot contradict the same selection's retained schema"
+    );
 }
 
 #[test]
@@ -736,8 +805,7 @@ fn isolated_callback_publication_replays_its_specialization() {
 
 #[test]
 fn isolated_callback_retains_unused_selections_without_emitting_their_bodies() {
-    let checked = checked_source(
-        r#"
+    let source = r#"
         boundary trait Console { machine ping(); }
         boundary trait Callback { machine call() reaches Console; }
         machine identity<T [copy], machine Unused, const Count: u64>(value: u64) -> u64
@@ -745,74 +813,86 @@ fn isolated_callback_retains_unused_selections_without_emitting_their_bodies() {
         { value }
         machine selected() satisfies Callback::call reaches Console {}
         pub machine enter(value: u64) -> u64 { identity<u64, selected, 2>(value) }
-    "#,
-    );
-    let instance = checked.machine_specializations[0].instance;
-    let source_machine = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == instance)
-        .expect("closed identity owner");
-    let entry = checked.machine_states(source_machine)[0].symbol;
-    let lowered = lower_bounded_callback_identity_machine(&checked, instance, entry)
-        .expect("isolated closed identity");
-    drop(checked);
-    let optimized = run_psi_optimization(lowered.terminal, Default::default())
-        .expect("ordinary callback optimization boundary");
-    let artifact = finalize_terminal_artifact(&optimized).expect("publish isolated callback");
-    let mut module = terminal_codec::decode_module(artifact.semantic_bytes())
-        .expect("reload without checked selection custody");
-    assert_eq!(
-        module.machines.len(),
-        1,
-        "unused selection does not manufacture a body"
-    );
-    let owner = &module.machines[0];
-    let application = owner
-        .closed_reach_application
-        .as_ref()
-        .expect("retained complete telescope");
-    assert!(owner.published_service_ceiling.is_empty());
-    assert!(application.fixed.is_empty());
-    assert!(application.dependencies.is_empty());
-    assert!(application.calls.is_empty());
-    let [
-        terminal_psi::ClosedReachParameter::Type { .. },
-        terminal_psi::ClosedReachParameter::Machine(binding),
-        terminal_psi::ClosedReachParameter::Const { .. },
-    ] = application.telescope.as_slice()
-    else {
-        panic!("original ordered type, machine, const telescope");
-    };
-    assert_eq!(service_names(&module, &binding.upper_bound), ["Console"]);
-    assert_eq!(service_names(&module, &binding.selected_reach), ["Console"]);
-    assert_eq!(binding.callee, None);
-    let input = terminal_interpreter::TerminalScalarValue::Integer {
-        scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
-        value: IntegerValue::Unsigned(7),
-    };
-    assert_eq!(
-        terminal_interpreter::interpret_terminal_artifact(
-            artifact.semantic_bytes(),
-            artifact.proof_bytes(),
-            &proof_admission::AdmissionProfile::default(),
-            &[input],
-        )
-        .expect("source-free isolated identity"),
-        terminal_interpreter::TerminalExecutionResult::Scalar(input)
-    );
-    let application = module.machines[0]
-        .closed_reach_application
-        .as_mut()
-        .unwrap();
-    let terminal_psi::ClosedReachParameter::Machine(binding) = &mut application.telescope[1] else {
-        panic!("machine binder");
-    };
-    binding.upper_bound.clear();
-    assert!(
-        terminal_verifier::validate_module_representation(&module).is_err(),
-        "unused selection still has to satisfy its retained bound"
-    );
+    "#;
+    for family_parameters in ["", "<const Number: u64>"] {
+        let source = source
+            .replace(
+                "machine call()",
+                &format!("machine call{family_parameters}()"),
+            )
+            .replace(
+                "machine selected()",
+                &format!("machine selected{family_parameters}()"),
+            );
+        let checked = checked_source(&source);
+        let instance = checked.machine_specializations[0].instance;
+        let source_machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == instance)
+            .expect("closed identity owner");
+        let entry = checked.machine_states(source_machine)[0].symbol;
+        let lowered = lower_bounded_callback_identity_machine(&checked, instance, entry)
+            .expect("isolated closed identity");
+        drop(checked);
+        let optimized = run_psi_optimization(lowered.terminal, Default::default())
+            .expect("ordinary callback optimization boundary");
+        let artifact = finalize_terminal_artifact(&optimized).expect("publish isolated callback");
+        let mut module = terminal_codec::decode_module(artifact.semantic_bytes())
+            .expect("reload without checked selection custody");
+        assert_eq!(
+            module.machines.len(),
+            1,
+            "unused selection does not manufacture a body"
+        );
+        let owner = &module.machines[0];
+        let application = owner
+            .closed_reach_application
+            .as_ref()
+            .expect("retained complete telescope");
+        assert!(owner.published_service_ceiling.is_empty());
+        assert!(application.fixed.is_empty());
+        assert!(application.dependencies.is_empty());
+        assert!(application.calls.is_empty());
+        let [
+            terminal_psi::ClosedReachParameter::Type { .. },
+            terminal_psi::ClosedReachParameter::Machine(binding),
+            terminal_psi::ClosedReachParameter::Const { .. },
+        ] = application.telescope.as_slice()
+        else {
+            panic!("original ordered type, machine, const telescope");
+        };
+        assert_eq!(service_names(&module, &binding.upper_bound), ["Console"]);
+        assert_eq!(service_names(&module, &binding.selected_reach), ["Console"]);
+        assert_eq!(binding.callee, None);
+        let input = terminal_interpreter::TerminalScalarValue::Integer {
+            scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
+            value: IntegerValue::Unsigned(7),
+        };
+        assert_eq!(
+            terminal_interpreter::interpret_terminal_artifact(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &proof_admission::AdmissionProfile::default(),
+                &[input],
+            )
+            .expect("source-free isolated identity"),
+            terminal_interpreter::TerminalExecutionResult::Scalar(input)
+        );
+        let application = module.machines[0]
+            .closed_reach_application
+            .as_mut()
+            .unwrap();
+        let terminal_psi::ClosedReachParameter::Machine(binding) = &mut application.telescope[1]
+        else {
+            panic!("machine binder");
+        };
+        binding.upper_bound.clear();
+        assert!(
+            terminal_verifier::validate_module_representation(&module).is_err(),
+            "unused selection still has to satisfy its retained bound"
+        );
+    }
 }
 
 #[test]
