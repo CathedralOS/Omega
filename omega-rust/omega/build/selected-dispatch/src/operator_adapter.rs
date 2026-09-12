@@ -26,7 +26,6 @@ use checked_trees::{
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderBinding;
 use language_core::CallOperationalAcknowledgementOrigin;
-use std::sync::Arc;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -46,37 +45,6 @@ pub(super) struct OperatorAdapterRewrite {
 enum OperatorAdapterSource {
     NamedCall,
     Spelled(Box<[ExpressionHandle]>),
-}
-
-pub fn settle_selected_operator_adapter_dispatch(
-    checked: &mut Arc<CheckedTrees>,
-    selected_provider_plans: &effects::SelectedProviderPlanFacts,
-) -> Result<(), Vec<Diagnostic>> {
-    let rewrites = plan_selected_operator_adapter_rewrites(checked, selected_provider_plans)?;
-    if rewrites.is_empty() {
-        return Ok(());
-    }
-
-    let applications = rewrites
-        .iter()
-        .map(|rewrite| unit::selected_application(checked, rewrite))
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|diagnostic| vec![diagnostic])?;
-    let mut staged = checked.as_ref().clone();
-    typed_trees_to_checked_trees::rebuild_checked_terminal_plans_with_selected_execution(
-        &mut staged,
-        &applications,
-        &[],
-    )?;
-    for rewrite in &rewrites {
-        unit::validate_selected_unit_application(&staged, rewrite)
-            .map_err(|diagnostic| vec![diagnostic])?;
-    }
-    let mut source_edits = super::source_edits::SourceEditBuilder::ignored();
-    apply_selected_operator_adapter_rewrites(&mut staged, &rewrites, &mut source_edits);
-    source_edits.finish(&staged.typed)?;
-    *Arc::make_mut(checked) = staged;
-    Ok(())
 }
 
 /// Rejoin every retained selected Unit call to the exact ProviderPlan still
@@ -854,6 +822,8 @@ pub(super) fn resolve_exact_selected_plan<'plans>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::settle_selected_execution_dispatch;
+    use std::sync::Arc;
 
     #[test]
     fn selected_operator_crash_invocations_reject_terminal_custody() {
@@ -1068,7 +1038,7 @@ mod tests {
             )
         });
         let mut settled = Arc::new(fixture.checked);
-        settle_selected_operator_adapter_dispatch(&mut settled, &selected)
+        settle_selected_execution_dispatch(&mut settled, &selected)
             .expect("selected Unit operator application settles");
         (settled, selected, operator_use)
     }
@@ -1420,7 +1390,7 @@ mod tests {
         let original = Arc::new(fixture.checked);
         let mut settled = Arc::clone(&original);
 
-        settle_selected_operator_adapter_dispatch(&mut settled, &selected)
+        settle_selected_execution_dispatch(&mut settled, &selected)
             .expect("exact selected adapter rewrites");
 
         assert!(
@@ -1482,7 +1452,7 @@ mod tests {
         });
         let mut settled = Arc::new(fixture.checked);
 
-        settle_selected_operator_adapter_dispatch(&mut settled, &selected)
+        settle_selected_execution_dispatch(&mut settled, &selected)
             .expect("selected Unit operator application settles");
 
         let unit_plan = settled
@@ -1557,7 +1527,7 @@ mod tests {
         });
         let mut settled = Arc::new(fixture.checked);
 
-        settle_selected_operator_adapter_dispatch(&mut settled, &selected)
+        settle_selected_execution_dispatch(&mut settled, &selected)
             .expect("selected result and immediate write-only store settle");
 
         let operations = &settled
@@ -1576,10 +1546,10 @@ mod tests {
                 CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                     statement_index: 1,
                     destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
-                    value: checked_trees::CheckedScalarExpression::Local {
+                    value: checked_trees::CheckedCallScalarArgument::Pure(checked_trees::CheckedScalarExpression::Local {
                         position: 0,
                         primitive_type: typed_trees::types::PrimitiveType::I32,
-                    },
+                    }),
                 },
                 CheckedUnitEffectOperationPlan::Complete { statement_index: 2, .. },
             ] if result.statement_index == 0 && result.binding_ordinal == 0
@@ -1617,7 +1587,7 @@ mod tests {
         });
         let mut settled = Arc::new(fixture.checked);
 
-        settle_selected_operator_adapter_dispatch(&mut settled, &selected)
+        settle_selected_execution_dispatch(&mut settled, &selected)
             .expect("selected call and dependent scalar local settle");
 
         let operations = &settled
@@ -1677,7 +1647,7 @@ mod tests {
         });
         let mut settled = Arc::new(fixture.checked);
 
-        let diagnostics = settle_selected_operator_adapter_dispatch(&mut settled, &selected)
+        let diagnostics = settle_selected_execution_dispatch(&mut settled, &selected)
             .expect_err("nested selected Unit call must remain fenced");
         assert!(
             diagnostics.iter().any(|diagnostic| {
@@ -1690,7 +1660,7 @@ mod tests {
     }
 
     #[test]
-    fn selected_unit_scalar_local_short_circuit_remains_fenced() {
+    fn selected_unit_scalar_local_retains_short_circuit_value() {
         let source = SOURCE.replace(
             "let result: i32 = CheckedMath::offset_zero(70);",
             "let selected: i32 = CheckedMath::offset_zero(70);\n            let result: bool = selected == 70 && true;",
@@ -1718,13 +1688,28 @@ mod tests {
         });
         let mut settled = Arc::new(fixture.checked);
 
-        let diagnostics = settle_selected_operator_adapter_dispatch(&mut settled, &selected)
-            .expect_err("short-circuit scalar local must remain fenced");
-        assert!(diagnostics.iter().any(|diagnostic| {
-            diagnostic
-                .message
-                .contains("retained 0 exact Unit realization applications")
-        }));
+        settle_selected_execution_dispatch(&mut settled, &selected)
+            .expect("checked short-circuit scalar local remains represented");
+        validate_selected_operator_terminal_custody(&settled, &selected)
+            .expect("selected call retains exact ProviderPlan custody");
+        let operations = &settled
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(main_symbol)
+            .expect("selected Unit plan")
+            .operations;
+        assert!(matches!(operations.as_slice(), [
+            CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. },
+            CheckedUnitEffectOperationPlan::EstablishScalarLocal {
+                result,
+                value: checked_trees::CheckedCallScalarArgument::Pure(
+                    checked_trees::CheckedScalarExpression::Boolean(value)
+                ),
+            },
+            CheckedUnitEffectOperationPlan::Complete { .. },
+        ] if result.primitive_type == typed_trees::types::PrimitiveType::Bool
+            && matches!(value.as_ref(), checked_trees::CheckedBooleanExpression::And { .. })));
     }
 
     #[test]
@@ -1775,7 +1760,7 @@ mod tests {
         )
         .expect("select exact checked-operator plan");
         let mut settled = Arc::new(fixture.checked);
-        settle_selected_operator_adapter_dispatch(&mut settled, &selected)
+        settle_selected_execution_dispatch(&mut settled, &selected)
             .expect("selected Unit operator application settles");
 
         let alternate = settled
@@ -1882,7 +1867,7 @@ mod tests {
         let original = Arc::new(fixture.checked);
         let mut rejected = Arc::clone(&original);
 
-        let diagnostics = settle_selected_operator_adapter_dispatch(&mut rejected, &selected)
+        let diagnostics = settle_selected_execution_dispatch(&mut rejected, &selected)
             .expect_err("one invalid use rejects the complete rewrite batch");
         assert!(
             diagnostics[0]
@@ -1907,7 +1892,7 @@ mod tests {
         let original = Arc::new(fixture.checked);
         let mut settled = Arc::clone(&original);
 
-        settle_selected_operator_adapter_dispatch(
+        settle_selected_execution_dispatch(
             &mut settled,
             &effects::SelectedProviderPlanFacts::default(),
         )

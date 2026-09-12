@@ -7,6 +7,8 @@
 
 mod adapter;
 mod compiler_intrinsic;
+#[cfg(test)]
+mod execution_tests;
 mod float_comparisons;
 mod float_intrinsic;
 mod intrinsic_review;
@@ -34,7 +36,7 @@ pub use operator_adapter::{
     CheckedSpecializedOperatorApplicationRealization,
     derive_checked_nongeneric_operator_application_realizations,
     derive_checked_specialized_operator_application_realizations,
-    settle_selected_operator_adapter_dispatch, validate_selected_operator_terminal_custody,
+    validate_selected_operator_terminal_custody,
 };
 pub use service_custody::{
     derive_fused_program_entry_establishments, validate_fused_service_terminal_custody,
@@ -137,6 +139,6 @@ fn settle_execution(
         float_comparisons::selected_executions(&staged, selected_provider_plans.plans())?;
     float_comparisons::replace_executions(&mut staged, comparisons);
     let source_edits = source_edits.finish(&staged.typed)?;
-    *std::sync::Arc::make_mut(checked) = staged;
+    *checked = std::sync::Arc::new(staged);
     Ok(source_edits)
 }
