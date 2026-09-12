@@ -158,7 +158,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "stage_validated_optimized_ordinary_callable_entry",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/backend/machine-emission/src/function_realization/routes/fixed_frame.rs",
+        path: "omega-rust/omega/backend/machine-emission/src/function_realization/fixed_frame.rs",
         coordination_marker: "pub fn stage_fixed_frame_function_relative_realization",
     },
     RequiredCoordinationEntrance {

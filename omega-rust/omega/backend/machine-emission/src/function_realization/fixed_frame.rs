@@ -1,6 +1,6 @@
 //! Optimizer module role: executable entrance. Ordinary realization with exact fixed-frame custody.
 
-use super::super::{assembly::*, carriers::*, error::*, prelude::*};
+use super::{assembly::*, carriers::*, error::*, prelude::*};
 use resolved_layout_to_resolved_layout::{
     execute_resolved_layout_optimization, validate_resolved_layout_optimization,
 };
@@ -21,7 +21,7 @@ pub fn stage_fixed_frame_function_relative_realization(
     let selected = current.selected();
     let environment = current.register_environment();
     let physical = environment.physical();
-    let frame = super::super::frame::stage_frame(
+    let frame = super::frame::stage_frame(
         &current,
         &machine,
         TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
@@ -131,7 +131,7 @@ pub fn validate_fixed_frame_function_relative_realization(
         &staged.layout_optimization,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)?;
-    super::super::frame::validate_frame(
+    super::frame::validate_frame(
         &current,
         &staged.machine,
         &staged.frame,

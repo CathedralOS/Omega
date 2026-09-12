@@ -1535,7 +1535,7 @@ fn allocation_has_one_phase_owner_and_machine_consumers_ignore_history() {
 fn fixed_frame_consumes_current_allocation_and_retains_exact_receipt_role() {
     let root =
         repository().join("omega-rust/omega/backend/machine-emission/src/function_realization");
-    let route = std::fs::read_to_string(root.join("routes/fixed_frame.rs")).unwrap();
+    let route = std::fs::read_to_string(root.join("fixed_frame.rs")).unwrap();
     assert!(route.contains("allocation: RetainedAllocation"));
     let compact_route = route.split_whitespace().collect::<String>();
     assert!(compact_route.contains("staged.allocation.replay_allocation()"));
@@ -1693,8 +1693,7 @@ fn completed_physical_results_and_emission_do_not_fork_by_history() {
             .exists()
     );
     let source =
-        std::fs::read_to_string(emission.join("function_realization/routes/fixed_frame.rs"))
-            .unwrap();
+        std::fs::read_to_string(emission.join("function_realization/fixed_frame.rs")).unwrap();
     assert!(source.contains("RetainedAllocation"));
     assert!(source.contains("replay_allocation()"));
     assert!(!source.contains("StagedAllocationRecoveryFunctionRelativeSource"));
