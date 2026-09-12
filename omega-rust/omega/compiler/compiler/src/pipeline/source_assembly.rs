@@ -201,23 +201,23 @@ fn append_dependency_generated_sources_to_storage(
             if logical_path.exists()
                 || entries
                     .iter()
-                    .any(|(existing, _): &(PathBuf, _)| existing == &logical_path)
+                    .any(|(existing, _, _): &(PathBuf, _, _)| existing == &logical_path)
             {
                 return Err(vec![Diagnostic::error(format!(
                     "generated dependency source logical path `{}` collides with another source",
                     logical_path.display(),
                 ))]);
             }
-            entries.push((logical_path, source.clone()));
+            entries.push((logical_path, source.clone(), bundle.package()));
         }
     }
 
-    for (logical_path, _) in &entries {
+    for (logical_path, _, _) in &entries {
         imports.mark_loaded(logical_path.clone());
     }
 
     let mut retained = Vec::with_capacity(entries.len());
-    for (logical_path, source) in entries {
+    for (logical_path, source, package) in entries {
         let text = std::str::from_utf8(source.bytes()).map_err(|_| {
             vec![Diagnostic::error(format!(
                 "included generated source `{}` is not UTF-8 Omega source",
@@ -235,8 +235,13 @@ fn append_dependency_generated_sources_to_storage(
         let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
             parse_sources(lexed, &mut source_storage.syntax_trees)
         })?;
-        let discovered =
-            discover_imports_with_packages(&parsed, &source_storage.syntax_trees, package_inputs)?;
+        let discovered = discover_imports_with_packages(
+            &parsed,
+            &source_storage.syntax_trees,
+            package_inputs,
+            Some(package),
+            &mut source_storage.resolved_imports,
+        )?;
         imports.enqueue(discovered)?;
         extend_source_storage(source_storage, parsed)?;
         retained.push((source_id, source));
@@ -310,8 +315,15 @@ fn load_pending_imports(
                 &parsed,
                 &source_storage.syntax_trees,
                 package_inputs,
+                None,
+                &mut source_storage.resolved_imports,
             )?,
-            None => discover_imports(&parsed, &source_storage.syntax_trees, root_path)?,
+            None => discover_imports(
+                &parsed,
+                &source_storage.syntax_trees,
+                root_path,
+                &mut source_storage.resolved_imports,
+            )?,
         };
 
         imports.enqueue(discovered_imports)?;

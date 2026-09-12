@@ -103,6 +103,58 @@ impl Drop for Fixture {
 }
 
 #[test]
+fn retained_import_bindings_do_not_reopen_the_source_filesystem() {
+    let fixture = Fixture::new(false);
+    fs::remove_file(fixture.main.with_file_name("build.omg")).unwrap();
+    fs::write(&fixture.main, "use leaf;\nuse branch::value;\n").unwrap();
+    let leaf = fixture.main.with_file_name("leaf.omg");
+    let branch = fixture.main.with_file_name("branch.omg");
+    fs::write(&leaf, "pub const VALUE: u32 = 7;\n").unwrap();
+    fs::write(&branch, "module branch;\npub const value: u32 = 9;\n").unwrap();
+    let mut timings = CompileTimings::default();
+    let checkpoint = ImmutableSourceParseCheckpoint::prepare(&fixture.main, None, &mut timings)
+        .expect("discover direct and parent-module imports");
+    let (_, before) = checkpoint
+        .clone()
+        .assemble_targetless(None, &mut timings)
+        .expect("bind retained imports");
+    fs::remove_file(&leaf).unwrap();
+    fs::remove_file(&branch).unwrap();
+    let (_, after) = checkpoint
+        .assemble_targetless(None, &mut timings)
+        .expect("binding consumes the parsed snapshot, not fresh filesystem resolution");
+    assert_eq!(
+        before.source_scoped_top_level_bindings,
+        after.source_scoped_top_level_bindings
+    );
+    assert_eq!(after.source_scoped_top_level_bindings.len(), 2);
+}
+
+#[test]
+fn retained_parent_source_import_still_requires_a_module() {
+    let fixture = Fixture::new(false);
+    fs::remove_file(fixture.main.with_file_name("build.omg")).unwrap();
+    fs::write(&fixture.main, "use leaf::value;\n").unwrap();
+    fs::write(
+        fixture.main.with_file_name("leaf.omg"),
+        "pub const value: u32 = 7;\n",
+    )
+    .unwrap();
+    let mut timings = CompileTimings::default();
+    let checkpoint = ImmutableSourceParseCheckpoint::prepare(&fixture.main, None, &mut timings)
+        .expect("discover parent-source fallback");
+    let error = checkpoint
+        .assemble_targetless(None, &mut timings)
+        .err()
+        .expect("retaining a destination does not grant module identity");
+    assert!(
+        error
+            .iter()
+            .any(|error| error.message.contains("requires a declared module"))
+    );
+}
+
+#[test]
 fn separately_prepared_exact_children_have_identical_source_assembly() {
     let fixture = Fixture::new(false);
     let inputs = fixture.child_inputs(
@@ -162,6 +214,41 @@ fn separately_prepared_exact_children_have_identical_source_assembly() {
         child.generated_source_custody,
         direct.generated_source_custody,
     );
+}
+
+#[test]
+fn generated_imports_use_the_bundle_package_as_requester() {
+    let fixture = Fixture::new(false);
+    fs::write(
+        fixture.dependency.join("helper.omg"),
+        "pub const HELPER: u32 = 11;\n",
+    )
+    .unwrap();
+    let inputs = fixture.child_inputs(
+        target::TargetProfile::WindowsX64,
+        b"use helper;\npub machine generated_value() -> u64 { 7 }\n",
+    );
+    let mut timings = CompileTimings::default();
+    let checkpoint =
+        ImmutableSourceParseCheckpoint::prepare(&fixture.main, Some(&fixture.inputs), &mut timings)
+            .expect("prepare package source checkpoint");
+    let (_, assembled) = checkpoint
+        .for_exact_target("windows_x86_64", Some(&inputs))
+        .expect("select generated-source target")
+        .assemble(&mut timings)
+        .expect("generated imports resolve within their producing package");
+    let helper = fixture
+        .dependency
+        .join("helper.omg")
+        .canonicalize()
+        .unwrap();
+    let source = assembled
+        .sources
+        .files()
+        .find(|source| source.path == helper)
+        .expect("generated source's helper joined the frontier");
+    assert_eq!(source.package_identity, Some(identity(2)));
+    assert_eq!(assembled.generated_source_custody.len(), 1);
 }
 
 #[test]
