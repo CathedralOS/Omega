@@ -791,6 +791,16 @@ fn expression_candidates(
         }),
         ExpressionNode::Membership(membership) => {
             let members = expressions.name_path_members(membership.domain);
+            if !membership.domain_symbol.is_valid() && !membership.case_type_symbol.is_valid() {
+                // Symbol assignment retains failure rather than selecting a
+                // fallback. Rejoin ambiguity at this fallible diagnostic boundary.
+                crate::symbols::case_symbols_for_source(&program.symbols, members).map_err(
+                    |message| {
+                        Diagnostic::error(message)
+                            .with_source_span(path_span(members, expression_span))
+                    },
+                )?;
+            }
             if membership.domain_symbol.is_valid() {
                 candidates.push(Candidate {
                     expression,
@@ -802,9 +812,7 @@ fn expression_candidates(
                 if membership.case_type_symbol.is_valid() {
                     candidates.push(Candidate {
                         expression,
-                        source_span: members
-                            .first()
-                            .map_or(expression_span, |member| member.source_span()),
+                        source_span: path_span(&members[..members.len() - 1], expression_span),
                         kind: Kind::CaseReference,
                         target: CandidateTarget::Resolved(membership.case_type_symbol),
                     });

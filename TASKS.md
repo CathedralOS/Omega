@@ -994,8 +994,9 @@ Owners include
   `build-time-evaluation/src/const_initializers.rs`, and the shared generic
   evaluator. Remaining forms include computed aggregate/open-template indices,
   module sums/templates and their attachments, foreign/generic constant
-  attachments, trait defaults, operator homes, and qualified case membership.
-  Preserve exact lexical/package selection before evaluation, per-use exposure under specialization and owner-local imports.
+  attachments, trait defaults, operator homes and qualified case membership in
+  declared-domain proof facts. Preserve exact lexical/package selection before
+  evaluation, per-use exposure under specialization and owner-local imports.
   The [source pipeline map](omega-rust/psi/pipeline/README.md#resolution-and-closed-instance-normalization)
   owns the current probes.
 
@@ -1269,6 +1270,21 @@ Owners include
   multiple argument producers, self consumers and projected claims; **CML4**
   owns residual cleanup. Replace remaining flat guarded-call hoisting with the
   same evaluation graph, not another source-order family.
+
+  Case construction must produce an ordinary intermediate structural value,
+  followed by an observing membership operation with a Boolean result. Reuse
+  Terminal's `EstablishScalarCase`; return-only `ReturnCase` production does
+  not cover locals or nested operands. Preserve exact owner/case identity and
+  loans without turning membership into an affine-consuming dispatch.
+  Customer: extend `compiler --test module_machine_indices qualified_cases`
+  from checked evaluation to canonical Terminal and native execution for both
+  direct constructions and `local_is_empty`, including nonempty payloads and
+  same-leaf foreign-owner rejection. The macOS probe based on `0e6c25c4dc`
+  after namespace repair reached `scalar_bindings.rs`'s missing checked
+  expression/source-binding rejection for direct membership; the local form
+  had no checked scalar control plan. The producer owners are
+  `typed-trees-to-checked-trees/src/flow/terminal_unit/state_graph/returns.rs`
+  and the ordinary checked operation sequence, not a new source-shape family.
 
   Complete caller-specific saved-argument and result facts: nonliteral contract
   arithmetic, borrowed collection lengths, dependent/public-trait results and

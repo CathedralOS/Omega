@@ -48,6 +48,9 @@ mod bare_cases;
 #[path = "module_machine_indices/direct_structural_atoms.rs"]
 mod direct_structural_atoms;
 
+#[path = "module_machine_indices/qualified_cases.rs"]
+mod qualified_cases;
+
 #[path = "module_machine_indices/rational.rs"]
 mod rational;
 

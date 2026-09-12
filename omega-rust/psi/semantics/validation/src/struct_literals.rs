@@ -6,6 +6,11 @@
 //! (`Command::Say { text: ... }`). Literals whose head type is not a data
 //! definition in this program (or is generic, where member types depend on
 //! instantiation) are left to later layers.
+//!
+//! Bare case values obey construction obligations too. A case on the right of
+//! membership instead denotes a tag predicate: only exact subject/owner/case
+//! evidence permits skipping its construction checks. Invalid membership must
+//! reject, not be reinterpreted as equality between independently valid values.
 
 use crate::arithmetic_domains::ValueEnv;
 use diagnostics::Diagnostic;
@@ -247,6 +252,18 @@ fn scan_expression(
                 expression,
                 binary,
             ) {
+                // A failed nominal membership check is not ordinary equality.
+                // Payload-free cases can share a tag and leaf spelling across
+                // packages; neither is evidence that the subject has this owner.
+                if program.expression_table.authored_selection_occurrences(expression).any(|occurrence| {
+                    program.authored_declaration_selections().get(occurrence).is_some_and(|selection| {
+                        selection.kind() == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::CaseMembership
+                    })
+                }) {
+                    diagnostics.push(Diagnostic::error(
+                        "case membership must test a value of the exact declaring data type",
+                    ));
+                }
                 scan_expression(
                     program,
                     machine,

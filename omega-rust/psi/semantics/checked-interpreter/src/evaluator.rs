@@ -1170,6 +1170,8 @@ struct Frame {
     /// SIBLING state resolve it within this machine (rather than re-entering the machine's
     /// entry state, which would recurse forever).
     machine_symbol: SymbolHandle,
+    /// Exact state selected at entry; refreshed with the frame on every transition.
+    state_symbol: SymbolHandle,
     /// Value-call results computed while evaluating THIS state pass's transition guards,
     /// keyed by call-expression handle. A transition subject is evaluated ONCE per
     /// transition evaluation: the parser lowers `transition self.f(x) { true -> a

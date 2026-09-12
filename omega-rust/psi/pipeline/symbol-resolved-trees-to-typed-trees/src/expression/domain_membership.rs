@@ -41,7 +41,7 @@ fn lower_case_membership_expression_from_members(
     type_symbol: symbols::SymbolHandle,
     case_symbol: symbols::SymbolHandle,
 ) -> Option<typed::expression::ExpressionHandle> {
-    let [_type_name, _case_name] = domain_members else {
+    let [.., type_name, case_name] = domain_members else {
         return None;
     };
     if !type_symbol.is_valid() || !case_symbol.is_valid() {
@@ -63,7 +63,10 @@ fn lower_case_membership_expression_from_members(
     // The case reference must carry its symbols: the backend's guard tag
     // clamp keys the tag-only compare off a symbol-stamped `Type::Case` path.
     let mut members = arena::HandleSpan::empty();
-    for member in domain_members {
+    // The authored selection ledger keeps the full source path. This generated
+    // tag operand has exactly two semantic owners: the selected data and case.
+    // Namespace/package spellings must not become extra runtime path segments.
+    for member in [type_name, case_name] {
         target
             .expression_table
             .push_name_path_member(&mut members, lower_name(member));

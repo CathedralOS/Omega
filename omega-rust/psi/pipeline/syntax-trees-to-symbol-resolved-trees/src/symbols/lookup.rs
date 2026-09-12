@@ -46,6 +46,52 @@ pub(super) fn top_level_symbol_for_source(
         .unwrap_or_else(SymbolHandle::invalid)
 }
 
+/// Case selection shares ordinary source-aware carrier lookup with constructors.
+/// Package aliases are selectors, not symbol parents. Check case eligibility
+/// before precedence so a same-named carrier without that case cannot hide it.
+pub(crate) fn case_symbols_for_source(
+    symbols: &SymbolTable,
+    members: &[symbol_resolved_trees::name::DiagnosticName],
+) -> Result<Option<(SymbolHandle, SymbolHandle)>, String> {
+    let Some((case, owner_members)) = members.split_last() else {
+        return Ok(None);
+    };
+    if owner_members.is_empty() {
+        return Ok(None);
+    }
+    let owner_name = owner_members
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::");
+    let selected = symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
+        &owner_name,
+        &[SymbolKind::Data],
+        diagnostic_path_source_span(owner_members),
+        |owner| {
+            child_symbol_by_kinds(symbols, owner, &[SymbolKind::Variant], case.as_str()).is_valid()
+        },
+    );
+    let case_symbol =
+        |owner| child_symbol_by_kinds(symbols, owner, &[SymbolKind::Variant], case.as_str());
+    match selected {
+        SymbolLookup::Unique(owner) => Ok(Some((owner, case_symbol(owner)))),
+        SymbolLookup::NotFound => Ok(None),
+        SymbolLookup::Ambiguous { first, second } => {
+            let imports = symbols
+                .source_module_import_paths(diagnostic_path_source_span(members).source_id)
+                .collect::<Vec<_>>();
+            Err(format!(
+                "ambiguous case membership `{owner_name}::{}`: competing declarations `{}` and `{}`; source imports: {}",
+                case.as_str(),
+                symbols.display_path(case_symbol(first), "::"),
+                symbols.display_path(case_symbol(second), "::"),
+                imports.join(", "),
+            ))
+        }
+    }
+}
+
 /// Select the carrier of a complete constructor name through ordinary source
 /// visibility. A full data name and a case-owner prefix are competing meanings,
 /// never alternatives selected by the number of path segments.

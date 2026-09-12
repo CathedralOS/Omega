@@ -194,6 +194,32 @@ impl<'program> Evaluator<'program> {
                 }
                 let right =
                     self.eval_expression_with_destination(binary.right, destination, frame)?;
+                // Membership observes the already evaluated borrow's tag.
+                // Ordinary equality keeps reference operands for its selected
+                // operator; do not turn this into general implicit dereferencing.
+                let left = if matches!(left, Value::Ref(_))
+                    && self.current_machine(frame).is_some_and(|machine| {
+                        self.program
+                            .machine_states(machine)
+                            .iter()
+                            .find(|state| state.symbol == frame.state_symbol)
+                            .is_some_and(|state| {
+                                validation::has_exact_case_membership_meaning(
+                                    self.program,
+                                    machine,
+                                    Some(state),
+                                    handle,
+                                    &binary,
+                                )
+                            })
+                    }) {
+                    match left {
+                        Value::Ref(cell) => self.deref_cell(cell).borrow().clone(),
+                        value => value,
+                    }
+                } else {
+                    left
+                };
                 let unsigned_operands = matches!(
                     binary.operator,
                     BinaryOperator::Less
@@ -1466,7 +1492,12 @@ impl<'program> Evaluator<'program> {
         frame: &Frame,
     ) -> EvalResult<Value> {
         let type_name = literal.type_name.as_str();
-        let Some(data) = self.find_data_by_name(type_name) else {
+        let Some(data) = self
+            .program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == literal.type_symbol && literal.type_symbol.is_valid())
+        else {
             return trap(format!("unknown data type `{type_name}` in case literal"));
         };
         let Some(variant) =
@@ -1474,7 +1505,7 @@ impl<'program> Evaluator<'program> {
                 .data_members(data)
                 .iter()
                 .find_map(|member| match member {
-                    DataMember::Variant(variant) if variant.name.as_str() == case_name => {
+                    DataMember::Variant(variant) if Some(variant.symbol) == literal.case_symbol => {
                         Some(variant)
                     }
                     _ => None,
