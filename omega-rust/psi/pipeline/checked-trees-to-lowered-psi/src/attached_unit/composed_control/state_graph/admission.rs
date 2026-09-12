@@ -39,6 +39,7 @@ pub(in crate::attached_unit::composed_control) fn has_shared_graph_custody(
 }
 
 pub(in crate::attached_unit) struct AdmittedGraph<'a> {
+    pub(super) source_states: &'a [checked_trees::state::State],
     pub(in crate::attached_unit::composed_control) boundaries:
         Vec<(&'a CheckedBoundaryMachinePlan, String)>,
     pub(in crate::attached_unit::composed_control) internal_targets:
@@ -381,6 +382,7 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
         }
     }
     Ok(AdmittedGraph {
+        source_states,
         boundaries,
         internal_targets,
     })

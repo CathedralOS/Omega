@@ -5,7 +5,7 @@ use super::*;
 pub(in crate::attached_unit::composed_control) fn emit(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
-    _admitted: AdmittedGraph<'_>,
+    admitted: AdmittedGraph<'_>,
     terminal_machine: MachineId,
     parameters: Vec<StructuralParameterDeclaration>,
     scalar_parameters: Vec<ValueDeclaration>,
@@ -297,6 +297,25 @@ pub(in crate::attached_unit::composed_control) fn emit(
                              payload_values: &[(u32, ValueDeclaration)],
                              case_edge: bool|
          -> Result<SuccessorEdge, LoweringError> {
+            // Case dispatch consumes its subject separately. Ordinary edges
+            // retain their exact local remainder until selected operands finish.
+            let trivial_affine_discards = if case_edge {
+                Vec::new()
+            } else {
+                result_custody::successor_discards(
+                    checked,
+                    plan.machine,
+                    &admitted.source_states[position],
+                    state,
+                    edge,
+                )?
+                .into_iter()
+                .map(|ordinal| {
+                    let result = case_emission::result(state, ordinal, &operations)?;
+                    Ok(evaluation.current_structural_place(result.place))
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?
+            };
             operations.byte_lengths = inherited_lengths.clone();
             let target = plan
                 .states
@@ -484,7 +503,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
                         target,
                         arguments,
                         structural_arguments,
-                        trivial_affine_discards: Vec::new(),
+                        trivial_affine_discards,
                         residual_affine_discards: Vec::new(),
                     },
                 });
@@ -508,7 +527,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
                     target,
                     arguments,
                     structural_arguments,
-                    trivial_affine_discards: Vec::new(),
+                    trivial_affine_discards,
                 })
             }
         };
@@ -577,7 +596,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
                     target: edge.target,
                     arguments: edge.arguments,
                     structural_arguments: edge.structural_arguments,
-                    trivial_affine_discards: Vec::new(),
+                    trivial_affine_discards: edge.trivial_affine_discards,
                     residual_affine_discards: Vec::new(),
                 }
             }

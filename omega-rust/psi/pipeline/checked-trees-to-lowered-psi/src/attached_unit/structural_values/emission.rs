@@ -150,16 +150,10 @@ pub(crate) fn emit(
             "structural value place was not declared",
         ))?;
     let declaration = emission.temporary_places.remove(declaration);
-    if emission
-        .operations
-        .structural_values
-        .iter()
-        .any(|(ordinal, _)| *ordinal == result.binding_ordinal)
-    {
-        return unsupported("structural value binding was established twice");
-    }
-    emission.operations.structural_values.push((
-        result.binding_ordinal,
+    emission.evaluation.establish_structural_result(
+        checked,
+        state,
+        result,
         terminal_psi::StructuralOperationResult {
             place,
             structural_type,
@@ -168,64 +162,9 @@ pub(crate) fn emit(
             projected_qualifications: Vec::new(),
             claims: Vec::new(),
         },
-    ));
-    let mut local_symbol = symbols::SymbolHandle::invalid();
-    if let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
-        .statement_table
-        .statements(
-            crate::scalar_source_custody::authored_state(checked, state)?
-                .1
-                .statement_nodes,
-        )
-        .get(result.statement_index as usize)
-    {
-        local_symbol = local.symbol;
-        if emission
-            .evaluation
-            .structural_locals
-            .iter()
-            .any(|(symbol, _)| *symbol == local.symbol)
-        {
-            return unsupported("structural value repeats its local binding");
-        }
-        if structural_types.iter().any(|declaration| {
-            declaration.id == structural_type
-                && matches!(declaration.shape, StructuralTypeShape::Sum { .. })
-        }) {
-            let cases = crate::scalar_bindings::structural_cases::LocalCaseBinding::new(
-                checked,
-                local.symbol,
-                local.type_reference,
-                place,
-                structural_types,
-            )?;
-            emission.evaluation.local_cases.push(cases);
-        }
-        emission.evaluation.structural_locals.push((
-            local.symbol,
-            StructuralArgument {
-                place,
-                path: Vec::new(),
-                access: StructuralAccess::Owned,
-            },
-        ));
-    }
-    if multiplicity == StructuralMultiplicity::Affine {
-        emission.evaluation.structural_value_owners.push(
-            argument_evaluation::StructuralValueOwner {
-                symbol: local_symbol,
-                statement: result.statement_index,
-                value: terminal_psi::StructuralOperationResult {
-                    place,
-                    structural_type,
-                    multiplicity,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    claims: Vec::new(),
-                },
-            },
-        );
-    }
+        structural_types,
+        emission.operations,
+    )?;
     Ok(declaration)
 }
 

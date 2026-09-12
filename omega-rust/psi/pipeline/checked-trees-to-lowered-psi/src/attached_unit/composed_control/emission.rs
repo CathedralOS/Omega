@@ -709,6 +709,43 @@ pub(super) fn emit_call_operations(
             }
             _ => return unsupported("composed Unit operation escaped exact call custody"),
         }
+        if let CheckedUnitEffectOperationPlan::StructuralCall {
+            coordinate, result, ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+            coordinate, result, ..
+        } = operation
+        {
+            let occurrence = operations
+                .source_calls
+                .iter()
+                .find(|occurrence| {
+                    occurrence.source_state == state.state
+                        && occurrence.statement_index == coordinate.statement_index as usize
+                        && occurrence.call_ordinal == coordinate.call_ordinal as usize
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "structural call result lost its source occurrence",
+                ))?;
+            let produced = operations
+                .iter()
+                .find(|operation| operation.id == occurrence.terminal_operation)
+                .and_then(|operation| match &operation.result {
+                    OperationResult::Structural(result) => Some(result.clone()),
+                    _ => None,
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "structural call did not establish its result",
+                ))?;
+            evaluation.establish_structural_result(
+                checked,
+                state.state,
+                result,
+                produced,
+                &catalogs.structural_types,
+                operations,
+            )?;
+        }
     }
     Ok(())
 }

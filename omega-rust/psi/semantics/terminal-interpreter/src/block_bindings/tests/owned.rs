@@ -162,7 +162,12 @@ fn owned_execution(
 }
 
 fn assert_owned_transition(terminator: Terminator, multiplicity: StructuralMultiplicity) {
-    let mut execution = owned_execution(terminator, multiplicity);
+    assert_owned_execution(owned_execution(terminator, multiplicity));
+}
+
+fn assert_owned_execution(mut execution: TerminalExecution) {
+    let multiplicity =
+        execution.blocks[&BlockId::new(2).unwrap()].structural_parameters[0].multiplicity;
     let original = execution.structural_values.clone();
     let fields = execution.structural_scalar_fields.clone();
     let frontier = execution.live_affine_frontier.clone();
@@ -238,6 +243,92 @@ fn assert_owned_transition(terminator: Terminator, multiplicity: StructuralMulti
         4,
         "one edge, two field reads, one return; no replay"
     );
+}
+
+#[test]
+fn owned_record_result_handoff_preserves_backing_and_rejects_forged_producer() {
+    for call_produced in [false, true] {
+        let mut execution =
+            owned_execution(jump(owned_successor()), StructuralMultiplicity::Affine);
+        let machine_id = execution.current_machine;
+        let machine = execution
+            .machines
+            .get_mut(&execution.current_machine)
+            .unwrap();
+        // The fixture starts with already committed payloads. Replace their
+        // input declarations with exact completed operation-result sources;
+        // execution begins at the handoff, not at those preceding producers.
+        for parameter in std::mem::take(&mut machine.structural_parameters) {
+            let operation = OperationId::new(900 + u64::from(parameter.position)).unwrap();
+            machine
+                .structural_places
+                .iter_mut()
+                .find(|place| place.id == parameter.place)
+                .unwrap()
+                .kind = StructuralPlaceKind::OperationResult {
+                producer: operation,
+                structural_type: parameter.structural_type,
+            };
+            machine
+                .blocks
+                .get_mut(&machine.entry)
+                .unwrap()
+                .operations
+                .push(Operation {
+                    id: operation,
+                    result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                        place: parameter.place,
+                        structural_type: parameter.structural_type,
+                        multiplicity: parameter.multiplicity,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        claims: Vec::new(),
+                    }),
+                    kind: if call_produced {
+                        OperationKind::CallStructural {
+                            callee: machine_id,
+                            structural_arguments: Vec::new(),
+                            claim_transfers: Vec::new(),
+                            returned_claim_transfers: Vec::new(),
+                            requirement_obligations: Vec::new(),
+                            crash_continuations: Vec::new(),
+                            selected_evidence: Vec::new(),
+                        }
+                    } else {
+                        OperationKind::EstablishRecord { fields: Vec::new() }
+                    },
+                });
+        }
+        let machine = execution.machines.get_mut(&machine_id).unwrap();
+        let StructuralPlaceKind::OperationResult { producer, .. } =
+            &mut machine.structural_places[0].kind
+        else {
+            unreachable!();
+        };
+        let expected_producer = *producer;
+        *producer = OperationId::new(999).unwrap();
+        let previous = execution.structural_values.clone();
+        let frontier = execution.live_affine_frontier.clone();
+        let edge = owned_successor();
+        assert!(
+            execution
+                .prepare_block_bindings(edge.target, &edge.arguments, &edge.structural_arguments)
+                .is_err()
+        );
+        assert_eq!(execution.structural_values, previous);
+        assert_eq!(execution.live_affine_frontier, frontier);
+        let StructuralPlaceKind::OperationResult { producer, .. } = &mut execution
+            .machines
+            .get_mut(&machine_id)
+            .unwrap()
+            .structural_places[0]
+            .kind
+        else {
+            unreachable!();
+        };
+        *producer = expected_producer;
+        assert_owned_execution(execution);
+    }
 }
 
 #[test]

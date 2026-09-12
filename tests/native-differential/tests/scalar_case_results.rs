@@ -28,6 +28,9 @@ mod records;
 #[path = "scalar_case_results/record_reads.rs"]
 mod record_reads;
 
+#[path = "scalar_case_results/state_local_records.rs"]
+mod state_local_records;
+
 #[cfg(any(
     all(
         target_os = "linux",

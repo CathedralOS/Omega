@@ -35,7 +35,7 @@ pub(super) fn validate(
     ordinal: usize,
 ) -> Result<(), LoweringError> {
     validate_bindings(checked, plan, source, state, transition, edge, ordinal, &[])?;
-    validate_parameter_cleanup(checked, plan, source, state, edge)
+    validate_cleanup(checked, plan, source, state, edge)
 }
 
 /// Case dispatch validates local-result cleanup separately from parameter cleanup.
@@ -186,21 +186,7 @@ pub(super) fn validate_bindings(
             {
                 return unsupported("Unit graph result argument lost its actual local");
             }
-            validate_result_transfer_custody(
-                checked,
-                plan.machine,
-                state.state,
-                edge,
-                local,
-                result,
-                path.symbol,
-                checked
-                    .statement_table
-                    .statements(source.statement_nodes)
-                    .iter()
-                    .filter(|statement| matches!(statement, StatementNode::Transition(_)))
-                    .count(),
-            )?;
+            result_custody::validate(checked, plan.machine, source, local, result)?;
             continue;
         }
         let source_index = match transfer.source {
@@ -310,7 +296,7 @@ pub(super) fn validate_bindings(
     Ok(())
 }
 
-fn validate_parameter_cleanup(
+fn validate_cleanup(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
     source: &checked_trees::state::State,
@@ -337,17 +323,14 @@ fn validate_parameter_cleanup(
         {
             continue;
         }
-        let matching = edge.transfers.iter().filter(|transfer| {
-            let checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } = transfer.source else { return false; };
-            state.operations.iter().any(|operation| match operation {
-                CheckedUnitEffectOperationPlan::StructuralCall { result, .. } | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } if result.binding_ordinal == binding_ordinal => matches!(checked.statement_table.statements(source.statement_nodes).get(result.statement_index as usize), Some(checked_trees::statement::StatementNode::LocalData(local)) if event.root == facts::PlaceRoot::Symbol(local.symbol)),
-                _ => false,
-            })
+        let matching = state.operations.iter().filter_map(result_custody::result).filter(|result| {
+            matches!(checked.statement_table.statements(source.statement_nodes).get(result.statement_index as usize), Some(StatementNode::LocalData(local)) if event.root == facts::PlaceRoot::Symbol(local.symbol))
         }).count();
         if matching != 1 {
             return unsupported("Unit graph edge leaves an unaccounted local disposition");
         }
     }
+    result_custody::successor_discards(checked, plan.machine, source, state, edge)?;
     let cleanup = checked
         .facts
         .flow
@@ -395,80 +378,6 @@ pub(super) fn validate_fallback(
         .expressions_structurally_equal(first, second)
     {
         return unsupported("Unit graph branch labels inspect different source values");
-    }
-    Ok(())
-}
-
-fn validate_result_transfer_custody(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-    edge: &CheckedStructuralControlSuccessorPlan,
-    local: &checked_trees::statement::TableLocalData,
-    result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
-    target: symbols::SymbolHandle,
-    expected_edges: usize,
-) -> Result<(), LoweringError> {
-    use language_semantics::{
-        PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
-        PermissionProvenance,
-    };
-    let permissions = &checked.facts.flow.ownership;
-    let transfers = permissions
-        .permissions
-        .iter()
-        .filter(|(_, event)| {
-            event.machine_symbol == machine
-                && event.state_symbol == state
-                && event.root == facts::PlaceRoot::Symbol(local.symbol)
-                && event.kind == PermissionEventKind::Transfer
-        })
-        .count();
-    if transfers != expected_edges {
-        return unsupported("Unit graph result has an unaccounted ownership transfer");
-    }
-    let provenance = PermissionProvenance::Established {
-        machine_symbol: machine,
-        state_symbol: state,
-        source: PermissionEventSource::Statement {
-            statement_index: result.statement_index as usize,
-        },
-    };
-    for (kind, expected_source) in [
-        (
-            PermissionEventKind::Establish,
-            PermissionEventSource::Statement {
-                statement_index: result.statement_index as usize,
-            },
-        ),
-        (
-            PermissionEventKind::Transfer,
-            PermissionEventSource::Call {
-                statement_index: edge.statement_ordinal as usize,
-                call_ordinal: 0,
-                target_symbol: target,
-            },
-        ),
-        (
-            PermissionEventKind::AffineDrop,
-            PermissionEventSource::StateExit,
-        ),
-    ] {
-        let mut matching = permissions.permissions.iter().filter(|(_, event)| event.machine_symbol == machine && event.state_symbol == state && event.root == facts::PlaceRoot::Symbol(local.symbol) && event.kind == kind && (kind != PermissionEventKind::Transfer || matches!(event.source, PermissionEventSource::Call { statement_index, .. } | PermissionEventSource::Statement { statement_index } if statement_index == edge.statement_ordinal as usize)));
-        let (_, event) = matching.next().ok_or(LoweringError::Unsupported(
-            "Unit graph result has missing ownership evidence",
-        ))?;
-        if matching.next().is_some()
-            || event.source != expected_source
-            || event.multiplicity != result.multiplicity
-            || event.access != PermissionAccess::Owned
-            || event.claim_identity != PermissionClaimIdentity::Unknown
-            || event.provenance != provenance
-            || event.obligation_live
-            || !event.segments.is_empty()
-        {
-            return unsupported("Unit graph result ownership origin or transfer drifted");
-        }
     }
     Ok(())
 }

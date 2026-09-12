@@ -109,12 +109,16 @@ pub(in crate::attached_unit::composed_control) fn emit_call_operation(
             return unsupported("internal structural call result catalog missing");
         };
         if signature.type_identity != binding.type_identity
-            || signature.multiplicity != Multiplicity::Affine
-            || binding.multiplicity != Multiplicity::Affine
+            || signature.multiplicity != binding.multiplicity
             || !signature.qualifications.is_empty()
         {
             return unsupported("internal structural call result catalog drifted");
         }
+        let multiplicity = match signature.multiplicity {
+            Multiplicity::Affine => StructuralMultiplicity::Affine,
+            Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
+            _ => return unsupported("internal structural call requires retained linear custody"),
+        };
         let place = place_id(allocate_dense(next_place)?);
         let structural_type = lookup_type_id(type_ids, &signature.type_identity)?;
         result_places.push(StructuralPlaceDeclaration {
@@ -128,7 +132,7 @@ pub(in crate::attached_unit::composed_control) fn emit_call_operation(
             OperationResult::Structural(terminal_psi::StructuralOperationResult {
                 place,
                 structural_type,
-                multiplicity: StructuralMultiplicity::Affine,
+                multiplicity,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
                 claims: Vec::new(),

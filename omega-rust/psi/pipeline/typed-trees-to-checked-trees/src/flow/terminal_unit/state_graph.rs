@@ -3,6 +3,7 @@
 use super::*;
 
 mod closed_sum;
+mod local_results;
 pub(super) mod returns;
 
 #[cfg(test)]
@@ -124,7 +125,13 @@ pub(super) fn build(
             state,
             &facts.values.scalar_computations,
         )
-        .unwrap_or_default();
+        .unwrap_or_default()
+        .into_iter()
+        // Only the initial pure bindings belong to prefix initialization.
+        // The first computation/call and its suffix use ordinary sequencing,
+        // just as when an earlier structural local already requires that path.
+        .take_while(|binding| binding.value == CheckedScalarBindingValue::Expression)
+        .collect::<Vec<_>>();
         let binding_initializers = prefix_initializers(program, facts, state, &bindings)?;
         let binding_count = bindings.len();
         let terminator_index = statements
@@ -190,8 +197,9 @@ pub(super) fn build(
             return None;
         }
         let mut operations = sequence.operations;
-        // Named results remain live until the selected edge/dispatch consumes
-        // them. The complete disposition check below forbids dropped locals.
+        // Named results remain live through successor operand evaluation. The
+        // selected edge owns their exact transfer/disposal partition below;
+        // one global return-discard flag cannot express asymmetric successors.
         for operation in &mut operations {
             match operation {
                 CheckedUnitEffectOperationPlan::StructuralCall {
@@ -343,6 +351,15 @@ pub(super) fn build(
                 _ => return None,
             }
         };
+        let disposable_locals = if matches!(
+            terminator,
+            CheckedComposedUnitControlTerminatorPlan::Jump { .. }
+                | CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
+        ) {
+            crate::flow::terminal_cleanup::state_exit_result_locals(program, facts, machine, state)?
+        } else {
+            Vec::new()
+        };
         for operation in &operations {
             let result = match operation {
                 CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
@@ -354,8 +371,10 @@ pub(super) fn build(
                 edge.transfers.iter().filter(|transfer| matches!(transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal)).count() == 1
             };
             let consumed = match &terminator {
-                CheckedComposedUnitControlTerminatorPlan::Jump { successor } => transferred(successor),
-                CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, when_false, .. } => transferred(when_true) && transferred(when_false),
+                CheckedComposedUnitControlTerminatorPlan::Jump { successor } => transferred(successor)
+                    || local_results::permits_edge_disposal(program, state, result, &[successor], &disposable_locals),
+                CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, when_false, .. } => (transferred(when_true) && transferred(when_false))
+                    || local_results::permits_edge_disposal(program, state, result, &[when_true, when_false], &disposable_locals),
                 CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, cases } => matches!(subject.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal) && cases.iter().all(|case| !case.successor.transfers.iter().any(|transfer| matches!(transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal))),
                 CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result: returned } => matches!(returned.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal),
                 _ => false,

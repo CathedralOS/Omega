@@ -206,13 +206,13 @@ fn build_state_plan(
     state: &typed_trees::state::State,
 ) -> Option<CheckedStructuralControlStateCleanupPlan> {
     let parameters = program.state_parameters(state);
-    let transferred_results = wholly_transferred_result_locals(program, facts, machine, state)?;
+    let result_locals = state_exit_result_locals(program, facts, machine, state)?;
     let discard_parameters = checked_whole_affine_discard_parameters_excluding_results(
         program,
         facts,
         machine.symbol,
         state,
-        &transferred_results,
+        &result_locals,
     )?;
 
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -340,7 +340,7 @@ fn checked_whole_affine_discard_parameters_excluding_results(
     facts: &CheckFacts,
     machine: symbols::SymbolHandle,
     state: &typed_trees::state::State,
-    transferred_results: &[symbols::SymbolHandle],
+    result_locals: &[symbols::SymbolHandle],
 ) -> Option<Vec<(symbols::SymbolHandle, u32)>> {
     let parameters = program.state_parameters(state);
     let entry_claim_roots = facts
@@ -385,7 +385,7 @@ fn checked_whole_affine_discard_parameters_excluding_results(
                 && event.kind == PermissionEventKind::AffineDrop
         })
     {
-        if matches!(event.root, facts::PlaceRoot::Symbol(symbol) if transferred_results.contains(&symbol))
+        if matches!(event.root, facts::PlaceRoot::Symbol(symbol) if result_locals.contains(&symbol))
         {
             continue;
         }
@@ -424,10 +424,11 @@ fn checked_whole_affine_discard_parameters_excluding_results(
     Some(discard_parameters)
 }
 
-/// Separate fresh results only after every actual outgoing edge transfers the
-/// whole value. The retained cleanup row continues to describe parameters; an
-/// unhandled local, return, continuation, or duplicate transfer rejects instead.
-fn wholly_transferred_result_locals(
+/// Separate exact local result obligations from the parameter cleanup roster.
+/// Each ordinary successor either transfers the whole local or retains its
+/// state-exit disposal. The graph producer rejoins that partition to the actual
+/// result binding; this row does not turn local results into parameters.
+pub(super) fn state_exit_result_locals(
     program: &TypedTrees,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
@@ -475,17 +476,15 @@ fn wholly_transferred_result_locals(
             return None;
         };
         if local.symbol != symbol
-            || local.is_mutable
             || program.type_multiplicity(local.type_reference) != Multiplicity::Affine
-            || !(matches!(
-                program.expression_table.expression(local.initial_value),
-                typed_trees::expression::ExpressionNode::Call(_)
-            ) || validation::is_fresh_scalar_case_value(
-                program,
-                local.initial_value,
-                local.type_reference,
-            ))
+            || !program
+                .expression_table
+                .expression_is_valid(local.initial_value)
             || !validation::has_plain_owned_contents_with_numeric_constraints(
+                program,
+                local.type_reference,
+            )
+            || super::terminal_unit::types::type_graph_requires_nominal_drop(
                 program,
                 local.type_reference,
             )
@@ -523,6 +522,7 @@ fn wholly_transferred_result_locals(
             return None;
         }
         let mut edge_count = 0;
+        let mut transfer_count = 0;
         for (ordinal, statement) in statements.iter().enumerate().skip(statement_index + 1) {
             let StatementNode::Transition(transition) = statement else {
                 if matches!(statement, StatementNode::Expression(expression) if !matches!(program.expression_table.expression(*expression), typed_trees::expression::ExpressionNode::Call(_)))
@@ -571,7 +571,10 @@ fn wholly_transferred_result_locals(
                             .len()
                             == 1
                 });
-            let (_, parameter) = matching.next()?;
+            edge_count += 1;
+            let Some((_, parameter)) = matching.next() else {
+                continue;
+            };
             if matching.next().is_some()
                 || program.normalized_type_identity(parameter.type_reference)
                     != program.normalized_type_identity(local.type_reference)
@@ -600,7 +603,7 @@ fn wholly_transferred_result_locals(
             {
                 return None;
             }
-            edge_count += 1;
+            transfer_count += 1;
         }
         let retained_transfers = permissions
             .permissions
@@ -612,7 +615,23 @@ fn wholly_transferred_result_locals(
                     && event.kind == PermissionEventKind::Transfer
             })
             .count();
-        if edge_count == 0 || retained_transfers != edge_count {
+        if edge_count == 0 || retained_transfers != transfer_count {
+            return None;
+        }
+        if permissions.permissions.iter().any(|(_, event)| {
+            event.machine_symbol == machine.symbol
+                && event.state_symbol == state.symbol
+                && event.root == drop.root
+                && (!exact(event)
+                    || (event.kind == PermissionEventKind::AffineDrop
+                        && event.source != PermissionEventSource::StateExit)
+                    || !matches!(
+                        event.kind,
+                        PermissionEventKind::Establish
+                            | PermissionEventKind::Transfer
+                            | PermissionEventKind::AffineDrop
+                    ))
+        }) {
             return None;
         }
         results.push(symbol);

@@ -15,6 +15,12 @@ a one-shot invocation block followed by an ordinary parameterized state block.
 A persistent receiver keeps its invocation place; transferred views and scalar
 values use their state-edge bindings. Do not turn self into another per-edge
 view or overwrite invocation parameters to make a loop fit.
+
+Local results need not become successor parameters. result_custody.rs rejoins
+their exact establishment and authored transfer roster; each ordinary edge
+disposes its own remaining affine locals after evaluating successor arguments.
+That partition uses existing Terminal edge cleanup, not a global result-drop
+flag. Copy payloads retain dominance without acquiring disposal obligations.
 */
 
 /*
@@ -47,6 +53,7 @@ mod edges;
 mod emission;
 mod parameters;
 mod ranking;
+mod result_custody;
 mod returns;
 mod scalars;
 mod subslices;
