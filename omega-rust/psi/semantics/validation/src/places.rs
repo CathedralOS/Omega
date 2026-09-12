@@ -402,6 +402,8 @@ fn lexical_place_declaration_before(
 
 mod builtin_coordinates;
 mod exact_self_field;
+mod local_scalar_record_field;
+pub use local_scalar_record_field::{LocalScalarRecordField, local_scalar_record_field};
 mod member_paths;
 mod parameter_scoped;
 pub(crate) use parameter_scoped::parameter_scoped_type_reference;

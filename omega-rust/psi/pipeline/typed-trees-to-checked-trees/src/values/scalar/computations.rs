@@ -18,6 +18,7 @@ mod cases;
 mod dispatch;
 mod integers;
 mod normal_return;
+mod structural_fields;
 mod structural_values;
 #[cfg(test)]
 mod tests;
@@ -591,6 +592,10 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected_type: PrimitiveType,
     ) -> Option<CheckedScalarComputationHandle> {
+        if let Some(field) = self.local_scalar_record_field(expression) {
+            return (field.primitive_type == expected_type)
+                .then(|| self.structural_field(expression, field));
+        }
         if let ExpressionNode::Cast(cast) =
             self.program.expression_table.expression(expression).clone()
             && cast.semantic_domain.is_empty()

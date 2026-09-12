@@ -93,17 +93,10 @@ fn lower_integer_read(
     field: StructuralFieldId,
 ) -> Result<AbstractOperation, LoweringError> {
     let invalid = || LoweringError::InvalidIntegerStructuralField(operation.id);
-    let source = exact_parameter(machine, source).ok_or_else(invalid)?;
+    let structural_type = readable_source_type(machine, source).ok_or_else(invalid)?;
     let result = operation.result.scalar().ok_or_else(invalid)?;
-    if !matches!(
-        source.multiplicity,
-        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-    ) || !matches!(
-        source.access,
-        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-    ) || !has_empty_structural_custody(machine, source.place)
-        || !matches!(result.scalar_type, ScalarType::Integer(_))
-        || direct_relevant_scalar_field(structural_types, source.structural_type, field)
+    if !matches!(result.scalar_type, ScalarType::Integer(_))
+        || direct_relevant_scalar_field(structural_types, structural_type, field)
             != Some(result.scalar_type)
     {
         return Err(invalid());
@@ -117,6 +110,50 @@ fn lower_integer_read(
         source,
         field,
     })
+}
+
+fn readable_source_type(machine: &TerminalMachine, source: PlaceId) -> Option<StructuralTypeId> {
+    if machine
+        .entry_claims
+        .iter()
+        .any(|claim| claim.input == source)
+        || machine
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == source)
+    {
+        return None;
+    }
+    if let Some(parameter) = machine
+        .structural_parameters
+        .iter()
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .find(|parameter| parameter.place == source)
+    {
+        return (parameter.access != StructuralAccess::WriteOnlyBorrow
+            && parameter.multiplicity != StructuralMultiplicity::Linear
+            && parameter.qualifications.is_empty()
+            && parameter.projected_qualifications.is_empty())
+        .then_some(parameter.structural_type);
+    }
+    // The verified producer and availability checks retain the actual result root;
+    // it never acquires an incoming-parameter identity merely to be observed.
+    let result = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| operation.result.structural())
+        .find(|result| result.place == source)?;
+    (result.multiplicity != StructuralMultiplicity::Linear
+        && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.claims.is_empty())
+    .then_some(result.structural_type)
 }
 
 fn exact_parameter(

@@ -54,7 +54,8 @@ impl Evaluation {
             1,
         )
         .with_arrays(&self.arrays)
-        .with_cases(&self.cases);
+        .with_cases(&self.cases)
+        .with_fields(&self.record_fields);
         let mut arm = |destination: &CheckedScalarBranchDestination| {
             let CheckedScalarBranchDestination::Return {
                 statement_ordinal,

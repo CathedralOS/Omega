@@ -44,6 +44,7 @@ pub(in crate::flow::terminal_unit) fn reads_receiver(
         }
         let node = computations.nodes.get(handle);
         match &node.kind {
+            CheckedScalarComputationKind::StructuralField { .. } => {}
             CheckedScalarComputationKind::CaseMembership {
                 subject:
                     checked_trees::CheckedScalarComputationStructuralArgument::Place(_)

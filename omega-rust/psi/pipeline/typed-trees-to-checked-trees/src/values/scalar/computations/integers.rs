@@ -55,6 +55,17 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
     ) -> Option<IntegerOperand> {
+        if let Some(field) = self.local_scalar_record_field(expression) {
+            if !is_integer(field.primitive_type) {
+                return None;
+            }
+            return Some(IntegerOperand {
+                value: parameter(0, field.primitive_type),
+                value_source: ExpressionHandle::invalid(),
+                domain: ArithmeticDomain::Exact,
+                computation: self.structural_field(expression, field),
+            });
+        }
         if let ExpressionNode::Cast(cast) = self.program.expression_table.expression(expression)
             && (!cast.semantic_domain.is_empty()
                 || semantic_casts::result_type(self.program, self.state, cast.value).is_some_and(

@@ -3,6 +3,7 @@ use super::*;
 mod hostile;
 mod mixed_references;
 mod record_borrows;
+mod record_reads;
 mod reentry;
 mod widths;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};

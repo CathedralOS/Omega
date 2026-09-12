@@ -47,7 +47,7 @@ fn field_fixture(scalar_type: ScalarType) -> (AbstractFunction, TargetFunction) 
         ScalarType::Integer(_) => AbstractOperation::IntegerStructuralField {
             psi_operation,
             result,
-            source: parameter.clone(),
+            source: parameter.place,
             field,
         },
         ScalarType::IeeeFloat(_) => panic!("fixture covers integer and Boolean field reads"),
@@ -226,10 +226,8 @@ fn structural_field_membership_requires_unique_exact_parameter_declaration() {
         assert!(!retained(&duplicate, operation, &target));
         if let AbstractOperation::IntegerStructuralField { .. } = operation {
             for mutation in 0..4 {
-                let mut changed = operation.clone();
-                let AbstractOperation::IntegerStructuralField { source, .. } = &mut changed else {
-                    unreachable!()
-                };
+                let mut changed = function.clone();
+                let source = &mut changed.structural_parameters[0];
                 match mutation {
                     0 => source.structural_type = StructuralTypeId::new(2).unwrap(),
                     1 => source.access = StructuralAccess::Owned,
@@ -237,7 +235,7 @@ fn structural_field_membership_requires_unique_exact_parameter_declaration() {
                     _ => source.position = 1,
                 }
                 assert!(
-                    !retained(&function, &changed, &target),
+                    !retained(&changed, operation, &target),
                     "mutation {mutation}"
                 );
             }

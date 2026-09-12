@@ -21,6 +21,10 @@ pub(crate) struct StructuralSourceContract<'a> {
 }
 
 impl StructuralSourceContract<'_> {
+    pub(crate) fn is_unqualified(&self) -> bool {
+        self.qualifications.is_empty() && self.projected_qualifications.is_empty()
+    }
+
     pub(crate) fn carries_qualification(
         &self,
         path: &[terminal_psi::StructuralPathSegment],

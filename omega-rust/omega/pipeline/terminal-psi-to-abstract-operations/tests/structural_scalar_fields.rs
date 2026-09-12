@@ -251,6 +251,122 @@ fn lower(
 }
 
 #[test]
+fn owned_record_read_retains_its_actual_root_and_rejects_field_substitution() {
+    let mut module = structural_scalar_field_module();
+    let mut machine = module.machines.pop().unwrap();
+    module.entry = machine.id;
+    machine.attachment = None;
+    machine.structural_parameters.clear();
+    let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let structural_type = id::<StructuralTypeId>(2);
+    let place = id::<PlaceId>(50);
+    let producer = id::<OperationId>(41);
+    let initializer = id::<ValueId>(40);
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[1].shape else {
+        unreachable!()
+    };
+    fields[0].field_type = StructuralFieldType::Scalar(scalar_type);
+    machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
+        id: id::<ValueId>(3),
+        scalar_type,
+    });
+    machine.structural_places = vec![StructuralPlaceDeclaration {
+        id: place,
+        kind: StructuralPlaceKind::OperationResult {
+            producer,
+            structural_type,
+        },
+    }];
+    let block = &mut machine.blocks[0];
+    block.operations = vec![
+        Operation {
+            id: id::<OperationId>(40),
+            result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
+                id: initializer,
+                scalar_type,
+            }),
+            kind: OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(u64::MAX.into()),
+            },
+        },
+        Operation {
+            id: producer,
+            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                place,
+                structural_type,
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::EstablishScalarRecord {
+                fields: vec![terminal_psi::ScalarRecordFieldValue {
+                    field: id::<StructuralFieldId>(1),
+                    value: initializer,
+                }],
+            },
+        },
+        Operation {
+            id: id::<OperationId>(4),
+            result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
+                id: id::<ValueId>(4),
+                scalar_type,
+            }),
+            kind: OperationKind::IntegerStructuralField {
+                source: place,
+                field: id::<StructuralFieldId>(1),
+            },
+        },
+    ];
+    let Terminator::Return {
+        cleanup_actions, ..
+    } = &mut block.terminator
+    else {
+        unreachable!()
+    };
+    *cleanup_actions = vec![terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+        place,
+    )];
+    module.machines = vec![machine];
+    let semantic = encode_module(&module).expect("owned record read is canonical Terminal");
+    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+    )
+    .expect("owned read projects without an invented parameter");
+    let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+        input,
+        terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .expect("owned record read retains optimizer custody");
+    optimization_unit_semantics::validate_psi_optimization_unit(verified.unit()).unwrap();
+    let mut changed = verified.unit().clone();
+    let read = changed.functions[0].blocks[0]
+        .nodes
+        .iter_mut()
+        .find_map(|node| {
+            if let AbstractOperation::IntegerStructuralField { source, field, .. } =
+                &mut node.operation
+            {
+                assert_eq!(*source, place);
+                Some(field)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    *read = id::<StructuralFieldId>(99);
+    changed.identity = optimization_unit::recompute_psi_optimization_unit_identity(&changed);
+    assert!(matches!(optimization_unit_semantics::validate_psi_optimization_unit(&changed),
+        Err(optimization_unit_semantics::OptimizationUnitValidationError::InvalidIntegerStructuralField { .. })));
+}
+
+#[test]
 fn retains_exact_store_and_integer_field_read_custody() {
     let plan = lower(&structural_scalar_field_module())
         .expect("verified structural scalar operations lower exactly");
@@ -310,8 +426,11 @@ fn retains_exact_store_and_integer_field_read_custody() {
     assert_eq!(*psi_operation, id::<OperationId>(4));
     assert_eq!(result.value, id::<ValueId>(4));
     assert_eq!(result.scalar_type, integer_type());
-    assert_eq!(source, &realization.structural_parameters[0]);
-    assert_eq!(source.access, StructuralAccess::SharedBorrow);
+    assert_eq!(*source, realization.structural_parameters[0].place);
+    assert_eq!(
+        realization.structural_parameters[0].access,
+        StructuralAccess::SharedBorrow
+    );
     assert_eq!(*field, id::<StructuralFieldId>(1));
 }
 

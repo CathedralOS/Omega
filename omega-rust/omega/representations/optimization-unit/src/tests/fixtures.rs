@@ -200,7 +200,7 @@ pub(super) fn structural_scalar_fields_plan() -> AbstractOperationPlan {
                         value: read_value,
                         scalar_type,
                     },
-                    source: structural_parameter,
+                    source: structural_parameter.place,
                     field,
                 },
                 AbstractOperation::Return {

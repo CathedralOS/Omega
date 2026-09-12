@@ -30,6 +30,7 @@ pub(crate) struct Evaluation {
     pub(crate) local_cases: Vec<crate::scalar_bindings::structural_cases::LocalCaseBinding>,
     pub(crate) arrays: Vec<crate::scalar_computations::arrays::Slot>,
     pub(crate) cases: Vec<crate::scalar_computations::cases::Slot>,
+    pub(crate) record_fields: Vec<crate::scalar_computations::fields::Binding>,
     pub primitive_storage: Vec<(symbols::SymbolHandle, PlaceId, ScalarType)>,
     /// State-local storage has its own namespace; it is not an immutable slot.
     /// Other callers retain the ordinary dense source-prefix mapping.
@@ -257,6 +258,7 @@ impl Evaluation {
             local_cases: Vec::new(),
             arrays: Vec::new(),
             cases: Vec::new(),
+            record_fields: Vec::new(),
             primitive_storage: Vec::new(),
             scalar_bindings: None,
             structural_fields: Vec::new(),
@@ -469,7 +471,8 @@ impl Evaluation {
         let mut expansion =
             crate::scalar_computations::Expansion::new(checked, &qualifications, machine, 1)
                 .with_arrays(&self.arrays)
-                .with_cases(&self.cases);
+                .with_cases(&self.cases)
+                .with_fields(&self.record_fields);
         let entry_index = expansion.call_arguments(
             state,
             coordinate,
@@ -546,7 +549,8 @@ impl Evaluation {
         let mut expansion =
             crate::scalar_computations::Expansion::new(checked, &qualifications, machine, 1)
                 .with_arrays(&self.arrays)
-                .with_cases(&self.cases);
+                .with_cases(&self.cases)
+                .with_fields(&self.record_fields);
         let entry = expansion.retained_value(
             state,
             store.statement_index,

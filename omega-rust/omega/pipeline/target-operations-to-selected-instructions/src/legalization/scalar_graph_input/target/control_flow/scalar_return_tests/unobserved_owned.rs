@@ -186,24 +186,37 @@ fn unobserved_owned_arrivals_reject_substituted_bindings_cleanup_and_abi() {
 }
 
 #[test]
-fn owned_arrival_native_route_rejects_a_runtime_field_observer() {
+fn owned_arrival_field_read_requires_the_matching_native_graph() {
     let native = ::target::NativeTarget::macos_arm64();
-    let (mut plan, target, mut unit) = owned_fixture(native);
+    let (mut plan, target, _) = owned_fixture(native);
     let observation = AbstractOperation::IntegerStructuralField {
         psi_operation: operation(1),
         result: AbstractResult {
             value: value(3),
             scalar_type: ScalarType::Integer(u64_type()),
         },
-        source: plan.functions[0].block_entries[1].structural_parameters[0].clone(),
+        source: plan.functions[0].block_entries[1].structural_parameters[0].place,
         field: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
     };
-    plan.functions[0].operations[1] = observation.clone();
-    unit.functions[0].blocks[1].nodes[0].operation = observation;
-    assert!(
+    plan.functions[0].operations[1] = observation;
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &plan,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    let observed_target =
         abstract_operations_to_target_operations::lower_to_target_operations(&plan, native)
-            .is_err()
-    );
+            .expect("an established owned arrival supports an exact field read");
+    crate::legalization::scalar_graph_input::match_input(
+        &observed_target.functions[0],
+        &plan.functions[0],
+        &unit.functions[0],
+        &observed_target,
+        &plan,
+        &unit,
+    )
+    .expect("the current graph retains the field observation");
+    // The formerly unobserved graph cannot stand in for the changed program.
     assert!(
         crate::legalization::scalar_graph_input::match_input(
             &target.functions[0],

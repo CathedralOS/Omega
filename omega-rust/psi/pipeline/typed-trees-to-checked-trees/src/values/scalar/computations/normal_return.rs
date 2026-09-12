@@ -16,6 +16,7 @@ pub(super) fn boolean_result(
 ) -> Option<bool> {
     match &plans.nodes.get(computation).kind {
         CheckedScalarComputationKind::SelectedComparison { .. }
+        | CheckedScalarComputationKind::StructuralField { .. }
         | CheckedScalarComputationKind::CaseMembership { .. } => None,
         CheckedScalarComputationKind::Qualification { operand, .. } => {
             boolean_result(plans, *operand)

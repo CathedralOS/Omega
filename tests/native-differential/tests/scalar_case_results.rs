@@ -25,6 +25,9 @@ mod owned_selection;
 #[path = "scalar_case_results/records.rs"]
 mod records;
 
+#[path = "scalar_case_results/record_reads.rs"]
+mod record_reads;
+
 #[cfg(any(
     all(
         target_os = "linux",

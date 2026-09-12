@@ -52,6 +52,7 @@ fn guard_nodes(checked: &checked_trees::CheckedTrees) -> Vec<&CheckedScalarCompu
     while let Some(handle) = pending.pop() {
         let node = plans.nodes.get(handle);
         match &node.kind {
+            CheckedScalarComputationKind::StructuralField { .. } => {}
             CheckedScalarComputationKind::CaseMembership {
                 subject:
                     checked_trees::CheckedScalarComputationStructuralArgument::Place(_)

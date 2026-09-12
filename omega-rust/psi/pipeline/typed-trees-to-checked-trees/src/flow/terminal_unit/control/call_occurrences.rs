@@ -662,7 +662,8 @@ fn collect(
                 )?;
             }
         }
-        CheckedScalarComputationKind::Value(_) => {}
+        CheckedScalarComputationKind::Value(_)
+        | CheckedScalarComputationKind::StructuralField { .. } => {}
         CheckedScalarComputationKind::Call {
             source_call,
             call_ordinal,

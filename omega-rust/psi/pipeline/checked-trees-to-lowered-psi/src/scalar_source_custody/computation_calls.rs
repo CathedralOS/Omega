@@ -64,6 +64,30 @@ pub(crate) fn validate_computation_calls(
         let node = plans.nodes.get(handle);
         let authored_scope = operand_scopes::folded_match_scope(checked, authored_scope)?;
         match &node.kind {
+            CheckedScalarComputationKind::StructuralField {
+                source_expression,
+                subject,
+                field,
+            } => {
+                dispatch::source_scope(
+                    checked,
+                    machine,
+                    state,
+                    authored_scope,
+                    *source_expression,
+                    node.primitive_type,
+                )?;
+                crate::scalar_computations::fields::validate_source(
+                    checked,
+                    machine,
+                    state,
+                    statement,
+                    *source_expression,
+                    subject,
+                    *field,
+                    node.primitive_type,
+                )?;
+            }
             CheckedScalarComputationKind::CaseMembership {
                 source_expression,
                 subject,

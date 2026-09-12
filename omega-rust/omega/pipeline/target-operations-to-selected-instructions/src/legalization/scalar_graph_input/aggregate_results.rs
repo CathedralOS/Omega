@@ -28,6 +28,8 @@ pub(super) fn uses(function: &PsiOptimizationFunction, plan: &AbstractOperationP
                 matches!(
                     node.operation,
                     AbstractOperation::StructuralCaseMembership { .. }
+                        | AbstractOperation::IntegerStructuralField { .. }
+                        | AbstractOperation::BooleanStructuralField { .. }
                         | AbstractOperation::EstablishScalarRecord { .. }
                         | AbstractOperation::EstablishScalarArray { .. }
                         | AbstractOperation::EstablishScalarCase { .. }

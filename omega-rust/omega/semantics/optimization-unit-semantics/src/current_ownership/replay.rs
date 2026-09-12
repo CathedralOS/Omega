@@ -28,8 +28,10 @@ pub(super) fn validate_current_ownership_cfg(
             let node_index =
                 u32::try_from(node_index).expect("optimization-unit node position fits u32");
 
-            if let O::StructuralCase { source, .. } | O::StructuralCaseMembership { source, .. } =
-                &node.operation
+            if let O::StructuralCase { source, .. }
+            | O::StructuralCaseMembership { source, .. }
+            | O::IntegerStructuralField { source, .. }
+            | O::BooleanStructuralField { source, .. } = &node.operation
             {
                 let signature =
                     crate::unit_validation::structural_source_contract(function, *source, false)
@@ -51,25 +53,6 @@ pub(super) fn validate_current_ownership_cfg(
                         place: *source,
                     });
                 }
-            }
-
-            if let O::BooleanStructuralField { source, .. } = node.operation
-                && function
-                    .structural_parameters
-                    .iter()
-                    .find(|parameter| parameter.place == source)
-                    .is_none_or(|parameter| {
-                        parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                            && (!frontier.owned_places.contains_key(&source)
-                                || frontier.partial_custody_paths.contains_key(&source))
-                    })
-            {
-                return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
-                    machine: function.machine,
-                    block: block_id,
-                    node: node_index,
-                    place: source,
-                });
             }
 
             if let O::EstablishTrivialAffineLocal { place, .. } = &node.operation {

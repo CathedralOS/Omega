@@ -208,7 +208,7 @@ pub(crate) fn direct_realization_integer_structural_field_unit() -> PsiOptimizat
             value: result,
             scalar_type: integer,
         },
-        source,
+        source: source.place,
         field,
     };
     function.blocks[0]
