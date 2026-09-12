@@ -201,7 +201,8 @@ substituted call custody under canonical replay and one-unit fuel suspension.
 The Boolean-local branch in
 [`primitive_locals/boolean_control.rs`](../../../../tests/native-differential/tests/primitive_locals/boolean_control.rs)
 uses both Unit-returning and scalar-returning helpers through native publication
-and matching-host execution. The branch consumes the fresh read's exact value;
+and matching-host execution, including negated conditions after mutable and
+write-only borrowed calls. The branch consumes the fresh read's exact value;
 the native receiving checks still reject substituted or unavailable read homes.
 
 Immutable whole owned inputs retain their authored Affine or Unrestricted
