@@ -46,14 +46,18 @@ windows_x86_64 machine Filesystem::encode_open_options(&mut self) {
 
 // MSVCRT operations report -1 and retain detail in thread-local errno. Map its
 // EWOULDBLOCK value (140) onto the common portable classifier's canonical 35.
-windows_x86_64 machine Filesystem::native_error_code_i32(&mut self, result: i32) -> i32 {
+windows_x86_64 machine Filesystem::native_error_code_i32(&mut self, result: i32) -> i32
+reaches FilesystemHost
+{
     self.err_code = self.host.errno();
     transition self.err_code == 140 { true -> would_block() _ -> other() }
     state would_block(&mut self) -> i32 { 35 }
     state other(&mut self) -> i32 { self.err_code }
 }
 
-windows_x86_64 machine Filesystem::native_error_code_i64(&mut self, result: i64) -> i32 {
+windows_x86_64 machine Filesystem::native_error_code_i64(&mut self, result: i64) -> i32
+reaches FilesystemHost
+{
     self.err_code = self.host.errno();
     transition self.err_code == 140 { true -> would_block() _ -> other() }
     state would_block(&mut self) -> i32 { 35 }
@@ -153,7 +157,9 @@ invokes
 // subdirs, files }`). The same scan core tallies dirs (attribute bit 0x10)
 // vs files (everything else) while it counts; dots are skipped by NAME, so
 // no posix-style "subtract the two dot records" correction exists here.
-windows_x86_64 machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) -> DirStatsResult {
+windows_x86_64 machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) -> DirStatsResult
+reaches FilesystemHost
+{
     self.w_scan_count = 0;
     self.w_scan_dirs = 0;
     self.w_scan_files = 0;
@@ -355,7 +361,9 @@ terminates by fuel;
 // dominating conjunct in its own incoming transition whose shape MATCHES the
 // index expression (the posix impl's prover note). The `step` param is the
 // uniform call shape; unused.
-windows_x86_64 machine Filesystem::rda_step(&mut self, step: u64) {
+windows_x86_64 machine Filesystem::rda_step(&mut self, step: u64)
+reaches FilesystemHost
+{
     transition self.rda_depth == 0 { true -> rds_alldone() _ -> rds_seal() }
 
     state rds_alldone(&mut self) { self.rda_verdict = 0; }
@@ -629,7 +637,9 @@ windows_x86_64 machine Filesystem::w_restore_nul(&mut self, step: u64) {
 // base pointer is a valid C string because the seal NUL-terminated the
 // pattern. Result rides `w_find` (-1 on out-of-bounds, matching
 // INVALID_HANDLE_VALUE).
-windows_x86_64 machine Filesystem::w_find_open(&mut self, k: u64 in Wrapping) {
+windows_x86_64 machine Filesystem::w_find_open(&mut self, k: u64 in Wrapping)
+reaches FilesystemHost
+{
     transition k < 512 { true -> wfo_go(k) _ -> wfo_bad() }
     state wfo_go(&mut self, k: u64 in Wrapping) {
         self.w_find = self.host.find_first(self.w_path[0..k], &mut self.find_buf);
@@ -639,7 +649,9 @@ windows_x86_64 machine Filesystem::w_find_open(&mut self, k: u64 in Wrapping) {
 
 // Guarded remove of the FILE at w_path[0..k] (the joined child path;
 // NUL-terminated at k). Result rides `rda_rc`.
-windows_x86_64 machine Filesystem::w_remove_file_at(&mut self, k: u64 in Wrapping) {
+windows_x86_64 machine Filesystem::w_remove_file_at(&mut self, k: u64 in Wrapping)
+reaches FilesystemHost
+{
     transition k < 512 { true -> wrf_go(k) _ -> wrf_bad() }
     state wrf_go(&mut self, k: u64 in Wrapping) {
         self.rda_rc = self.host.remove_name(self.w_path[0..k]);
@@ -649,7 +661,9 @@ windows_x86_64 machine Filesystem::w_remove_file_at(&mut self, k: u64 in Wrappin
 
 // Guarded remove of the empty DIRECTORY at w_path[0..k]. Result rides
 // `rda_rc`.
-windows_x86_64 machine Filesystem::w_remove_dir_at(&mut self, k: u64 in Wrapping) {
+windows_x86_64 machine Filesystem::w_remove_dir_at(&mut self, k: u64 in Wrapping)
+reaches FilesystemHost
+{
     transition k < 512 { true -> wrd_go(k) _ -> wrd_bad() }
     state wrd_go(&mut self, k: u64 in Wrapping) {
         self.rda_rc = self.host.remove_dir_name(self.w_path[0..k]);
@@ -709,7 +723,9 @@ terminates by fuel;
 // skip dots by NAME; tally non-dot records (dirs by the attribute bit 0x10);
 // capture the target-indexed record's name + kind. Sets `w_scan_verdict`
 // (1 continue / 0 done). The `step` param is the uniform call shape; unused.
-windows_x86_64 machine Filesystem::w_scan_step(&mut self, step: u64) {
+windows_x86_64 machine Filesystem::w_scan_step(&mut self, step: u64)
+reaches FilesystemHost
+{
     transition self.w_scan_done == 1 { true -> ws_idle() _ -> ws_fetch() }
     state ws_idle(&mut self) { self.w_scan_verdict = 0; }
 

@@ -975,7 +975,9 @@ invokes
 // syscall wrappers use `last_error_i32`/`last_error_i64` instead: they carry
 // the negative syscall result explicitly into target-owned normalization and
 // never manufacture hidden libc state.
-machine Filesystem::last_error(&mut self) -> ErrorKind {
+machine Filesystem::last_error(&mut self) -> ErrorKind
+reaches FilesystemHost
+{
     // errno -> ErrorKind via a value-yielding `match` TERMINAL (assigned to a field,
     // then returned). EPERM (1) and EACCES (13) both surface as PermissionDenied.
     // Match desugars to branchless arithmetic over `code == pattern` (all ErrorKind
@@ -1090,6 +1092,7 @@ invokes
 machine Filesystem::mkall_walk(&mut self, path: &[u8] in Path, i: u64)
 terminates by (i, path.len) -> Nat::BoundedDistance;
 -> UnitResult
+reaches FilesystemHost
 {
     self.walk_rc = self.mkall_step(path, i);
     transition i < path.len {
@@ -1206,7 +1209,9 @@ machine Filesystem::mkall_put(&mut self, path: &[u8] in Path, i: u64, j: u64) {
 // the subslice is in bounds; called as a transition-target value call whose
 // arms hold no effects beyond this machine's own dispatch (statement-shape
 // sibling of mkall_step's original mkall_mk).
-machine Filesystem::mkall_issue(&mut self, i: u64) -> i32 {
+machine Filesystem::mkall_issue(&mut self, i: u64) -> i32
+reaches FilesystemHost
+{
     transition i < 255 {
         true -> issue_mk(i)
         false -> issue_skip()

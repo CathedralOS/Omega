@@ -140,7 +140,9 @@ data MacosGui {
 // - The window is centered and the app activated (`activateIgnoringOtherApps:`):
 //   a bare mach-o CAN show a window, but without activation it opens unfocused
 //   behind other windows and the samples' keyWindow focus gate never passes.
-machine MacosGui::window_create(&mut self, class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64 {
+machine MacosGui::window_create(&mut self, class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64
+reaches CoreGraphics + ObjectiveC
+{
     self.rx = F64::from_i32(x);
     self.ry = F64::from_i32(y);
     self.rw = F64::from_i32(width);
@@ -211,7 +213,9 @@ machine MacosGui::window_create(&mut self, class_name: [u8; 7], title: [u8; 11],
 // are ignored (the image view auto-scales; macOS is top-down like the source, so
 // NO row flip). `stride = source_width * 4` via an Exact widening then `<< 2`;
 // the full u32 source range shifted by two is representable in i64.
-machine MacosGui::blit(&mut self, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32 {
+machine MacosGui::blit(&mut self, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
+reaches CoreGraphics + ObjectiveC
+{
     let source_width_wide: i64 = source_width as i64;
     let source_height_wide: i64 = source_height as i64;
     self.fbw = source_width_wide;
@@ -253,7 +257,9 @@ machine MacosGui::get_dc(&mut self, window: u64) -> u64 {
 // the NSEvent in `self.evt` for `msg_dispatch`; returns 1 if an event was dequeued
 // (the sample's `have`), 0 otherwise. The Win32 `message: [u64;6]` buffer is unused
 // on macOS (the event is an NSEvent object, not a copied-out MSG struct).
-machine MacosGui::msg_peek(&mut self, message: [u64; 6]) -> u32 {
+machine MacosGui::msg_peek(&mut self, message: [u64; 6]) -> u32
+reaches ObjectiveC
+{
     // Cycle the rolling autorelease pool opened at window_create: the pop
     // drains the PREVIOUS peek's autoreleased NSEvent (already dispatched by
     // then), the push opens the scope this peek's event lands in. The date,
@@ -281,14 +287,18 @@ machine MacosGui::msg_translate(&mut self, message: [u64; 6]) -> u32 {
 // `Gui::msg_dispatch` — route the dequeued event back to the app: `[NSApp sendEvent:
 // self.evt]` (drives window dragging, the close button, key handling). Returns 0
 // (Win32 DispatchMessage's LRESULT; the sample ignores it).
-machine MacosGui::msg_dispatch(&mut self, message: [u64; 6]) -> u64 {
+machine MacosGui::msg_dispatch(&mut self, message: [u64; 6]) -> u64
+reaches ObjectiveC
+{
     self.rc = self.objc.send_scalar(self.app, self.dsel, self.evt);
     transition { _ -> ret() }
     state ret(&mut self) -> u64 { self.rc }
 }
 
 // `Gui::is_window` — liveness. `[window isVisible]` is a live, on-screen window.
-machine MacosGui::is_window(&mut self, window: u64) -> u32 {
+machine MacosGui::is_window(&mut self, window: u64) -> u32
+reaches ObjectiveC
+{
     self.rc = self.objc.send(window, self.vsel);
     self.r32 = narrow_u64_to_u32_wrapping(self.rc);
     transition { _ -> ret() }
@@ -297,7 +307,9 @@ machine MacosGui::is_window(&mut self, window: u64) -> u32 {
 
 // `Gui::window_destroy` — `[window close]`. (Not in the samples' hot path, but part
 // of the Win32 Gui trait; kept for completeness.)
-machine MacosGui::window_destroy(&mut self, window: u64) -> u32 {
+machine MacosGui::window_destroy(&mut self, window: u64) -> u32
+reaches ObjectiveC
+{
     self.sel = self.objc.register_selector("close");
     self.rc = self.objc.send_scalar(window, self.sel, 0);
     self.r32 = 1;
@@ -310,7 +322,9 @@ machine MacosGui::window_destroy(&mut self, window: u64) -> u32 {
 // global). `[NSApp keyWindow]` is THIS app's focused window — the NSWindow
 // pointer `window_create` returned when the app is frontmost and the window is
 // key, 0 otherwise — so the samples' `fw == hwnd` gate works unchanged.
-machine MacosGui::foreground_window(&mut self) -> u64 {
+machine MacosGui::foreground_window(&mut self) -> u64
+reaches ObjectiveC
+{
     self.rc = self.objc.send(self.app, self.ksel);
     transition { _ -> ret() }
     state ret(&mut self) -> u64 { self.rc }
@@ -397,7 +411,9 @@ machine MacosInput::map_keycode(&mut self, virtual_key: u32) -> u64 {
 // pick the result through pure arms. The query fires even for an unmapped VK
 // (65535 is no real keycode; the read-only query reports "not down" and the
 // sentinel arm discards it) because a host call may not live in an arm state.
-machine MacosInput::key_state(&mut self, virtual_key: u32) -> u64 {
+machine MacosInput::key_state(&mut self, virtual_key: u32) -> u64
+reaches CoreGraphics
+{
     self.keycode = self.map_keycode(virtual_key);
     self.rc = self.cg.event_source_key_state(1, self.keycode);
     transition self.keycode == 65535 { true -> not_down() _ -> ret() }
