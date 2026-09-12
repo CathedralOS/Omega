@@ -54,7 +54,7 @@ fn callable_boundary_arguments_keep_the_nominal_requirement_role() {
             }
             _ => panic!("authored callable-parameter root"),
         };
-        let (owner, requirement) = checked
+        let (owner, _) = checked
             .machine_parameter_signature(target)
             .expect("target retains its nominal callable parameter");
         assert_eq!(owner.symbol, machine.symbol);
@@ -95,20 +95,15 @@ fn callable_boundary_arguments_keep_the_nominal_requirement_role() {
             );
         }
         if result.is_empty() {
-            let plan = checked
-                .facts
-                .flow
-                .terminal_unit_effects
-                .for_machine(machine.symbol)
-                .expect("scalar-bearing callable boundary statement retains its Unit plan");
-            assert!(matches!(
-                plan.operations.first(),
-                Some(checked_trees::CheckedUnitEffectOperationPlan::BoundaryCall {
-                    target_machine, target_state, scalar_arguments, ..
-                }) if *target_machine == requirement.symbol
-                    && *target_state == requirement.symbol
-                    && scalar_arguments.len() == 2
-            ));
+            assert!(
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .for_machine(machine.symbol)
+                    .is_none(),
+                "authored nominal argument custody does not select an executable boundary"
+            );
         }
     }
 }
