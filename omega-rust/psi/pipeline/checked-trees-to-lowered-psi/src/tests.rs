@@ -1539,13 +1539,13 @@ fn program_entry_receipt_retains_two_granted_extent_roots_and_their_boundary_han
             }
 
             data ProgramLocalProducer {}
-            machine ProgramLocalProducer::handoff<machine Enter>(
+            machine ProgramLocalProducer::handoff(
                 image: Extent in Granted,
                 initial_storage: Extent in Granted
             )
-            where machine Enter satisfies ProgramStorageEntry::enter;
+            reaches ProgramStorageEntry invokes ProgramStorageEntry;
             {
-                Enter(image, initial_storage);
+                ProgramStorageEntry::enter(image, initial_storage);
             }
         "#,
     );
@@ -1653,7 +1653,7 @@ fn program_entry_receipt_retains_two_granted_extent_roots_and_their_boundary_han
         .boundary_machines
         .iter()
         .find(|candidate| candidate.id == *boundary)
-        .expect("generic ProgramStorage requirement remains a bodyless boundary");
+        .expect("explicit ProgramStorage requirement remains a bodyless boundary");
     assert_eq!(boundary.structural_parameters.len(), 2);
     assert_eq!(boundary.structural_parameters[0].position, 0);
     assert_eq!(boundary.structural_parameters[1].position, 1);

@@ -61,10 +61,10 @@ const STRUCTURAL_PROVIDER_SOURCE: &str = r#"
     }
 
     data Root {}
-    machine Root::enter<machine Enter>(extent: Extent in Granted)
-    where machine Enter satisfies ProgramEntry::enter;
+    machine Root::enter(extent: Extent in Granted)
+    reaches ProgramEntry invokes ProgramEntry;
     {
-        Enter(extent);
+        ProgramEntry::enter(extent);
     }
 "#;
 
@@ -106,13 +106,13 @@ const PROGRAM_STORAGE_PROVIDER_SOURCE: &str = r#"
     }
 
     data ProgramLocalProducer {}
-    machine ProgramLocalProducer::handoff<machine Enter>(
+    machine ProgramLocalProducer::handoff(
         image: Extent in Granted,
         initial_storage: Extent in Granted
     )
-    where machine Enter satisfies ProgramStorageEntry::enter;
+    reaches ProgramStorageEntry invokes ProgramStorageEntry;
     {
-        Enter(image, initial_storage);
+        ProgramStorageEntry::enter(image, initial_storage);
     }
 "#;
 

@@ -33,6 +33,15 @@ Scalar calls use the shared service catalog; inert callbacks retain authored rea
 without inventing boundary I/O. This closes concrete-row preservation, not the
 remaining portable original-telescope and exact-substitution replay obligation.
 
+Unit callbacks must also have an exact closed selection before publication.
+The focused Terminal command rejects an unresolved nominal binder as an entry,
+executes a closed quiet selection without host effects, and carries two linear
+claims through a closed generic ProgramEntry into its selected settlement body.
+Direct boundary calls retain both completion receipts; missing, duplicate,
+wrong-position, and reordered receipts reject independently. Provider installation
+coverage remains in the lowerer's `provider_candidates` integration target, using
+explicit boundary calls rather than projecting an unresolved generic binder.
+
 The same focused Terminal command also exercises bounded boundary calls through
 ordinary helpers. Reload and interpretation retain nominal service parents and
 fixed synchronous-invocation reach separately from the exact installation bound,
