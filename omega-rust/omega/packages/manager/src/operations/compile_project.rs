@@ -163,13 +163,13 @@ pub fn compile_prepared_local_project_for_native_with_observation<Observation>(
         build_dir: Some(build_dir),
         target_name: Some(target_profile.target_name().to_owned()),
     };
-    let trust_settlement = compiler::report_checked_compilation_observations(
-        &options,
-        artifact_policy,
-        &accepted_trust_admissions,
-        candidate.checked_root(),
-    )
-    .map_err(CompilePreparedLocalProjectNativeError::CheckedObservations)?;
+    let admission =
+        compiler::admit_checked_compilation(candidate.checked_root(), &accepted_trust_admissions)
+            .map_err(CompilePreparedLocalProjectNativeError::CheckedObservations)?;
+    admission
+        .write_observations(&options, artifact_policy)
+        .map_err(CompilePreparedLocalProjectNativeError::CheckedObservations)?;
+    let trust_settlement = admission.into_settlement();
     let observation = observe(candidate.checked_root());
     realize_accepted_reviewed_package_candidate_report_with_source_evaluated_imports_and_policy(
         candidate,

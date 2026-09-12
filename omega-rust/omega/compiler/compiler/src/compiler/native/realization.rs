@@ -28,7 +28,7 @@ pub(super) fn validate_terminal_authority_permissions(
 
 pub(super) fn prepare_terminal_artifact(
     checked: &crate::pipeline::CheckedCompilation,
-    admission: &super::admission::NativeOptimizationAdmission,
+    admission: &super::admission::NativeCompilationAdmission,
     optimization_selections: &OptimizationSelections,
 ) -> Result<PreparedTerminalNativeArtifact, Vec<Diagnostic>> {
     let entry_machine = admission.program_entry.machine_name().to_owned();
@@ -86,7 +86,7 @@ pub(super) fn prepare_terminal_artifact(
 
 pub(super) fn realize(
     checked: &crate::pipeline::CheckedCompilation,
-    admission: &super::admission::NativeOptimizationAdmission,
+    admission: &super::admission::NativeCompilationAdmission,
     profile: &proof_admission::AdmissionProfile,
     terminal_authority_permission_policy: native_realization::TerminalAuthorityPermissionPolicy,
     optimization_selections: &PostTerminalOptimizationSelections,

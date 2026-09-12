@@ -340,8 +340,8 @@ fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
     let request_path = repo_root.join("omega-rust/omega/compiler/compiler/src/compiler/request.rs");
     let optimization_path =
         repo_root.join("omega-rust/omega/compiler/compiler/src/compiler/optimization/mod.rs");
-    let native_report_path = repo_root
-        .join("omega-rust/omega/compiler/compiler/src/compiler/optimization/native_report/mod.rs");
+    let native_report_path =
+        repo_root.join("omega-rust/omega/compiler/compiler/src/compiler/native/prepared.rs");
     let driver = fs::read_to_string(&driver_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", driver_path.display()));
     let request = fs::read_to_string(&request_path)
@@ -364,15 +364,13 @@ fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
         "the compiler driver must admit every requested product through one request-owner entrance"
     );
     assert_eq!(
-        compact_driver
-            .matches("compile_checked_with_observations(&request)?")
-            .count(),
+        compact_driver.matches("check_request(&request)?").count(),
         0,
         "the common checked-Psi frontend now receives the optional prepared source checkpoint explicitly"
     );
     assert_eq!(
         compact_driver
-            .matches("compile_checked_with_observations(&request,prepared)?")
+            .matches("check_request(&request,prepared)?")
             .count(),
         1,
         "every single or batched child product must share one checked-Psi frontend continuation"
@@ -386,7 +384,7 @@ fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
     let mut ordered_driver = compact_driver.as_str();
     for stage in [
         "fncompile_validated(",
-        "compile_checked_with_observations(&request,prepared)?;",
+        "check_request(&request,prepared)?;",
         "matchrequest.requested_product(){",
     ] {
         let offset = ordered_driver.find(stage).unwrap_or_else(|| {
@@ -409,7 +407,7 @@ fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
         .map(|(_, native_arm)| native_arm)
         .expect("the common product stop must contain its native arm");
     native_arm
-        .find("optimization::native_report(request,checked).map(finalize_report)")
+        .find("native::compile(request,checked).map(finalize_report)")
         .expect("the native product arm must invoke its report owner");
     let checked_receipt = compact_optimization
         .find("NativeCompilationWithCheckedReceipt::new(checked,report)")
@@ -426,8 +424,7 @@ fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
     )
     .expect("read exact-target compilation");
     assert!(
-        without_ascii_whitespace(&targets)
-            .contains("optimization::prepare_native_report(request,checked)?"),
+        without_ascii_whitespace(&targets).contains("native::prepare(request,checked)?"),
         "the native batch route must delegate each child's Terminal preparation to the same owner"
     );
     assert!(
@@ -487,12 +484,12 @@ fn compiler_surface_and_reporting_close_driver_cleanup_contract() {
         );
     }
     assert!(
-        reporting.contains("if input.artifact_policy.emits_auxiliary_artifacts()"),
+        reporting.contains("if policy.emits_auxiliary_artifacts()"),
         "the checked-observation owner must retain the sole auxiliary-report policy branch"
     );
     assert_eq!(
         compact_driver
-            .matches("report_checked_observations(")
+            .matches("admission.write_observations(")
             .count(),
         1,
         "the driver must submit the complete checked result to one reporting operation"

@@ -10,6 +10,17 @@ continuation, and the Check / Terminal / Native product dispatch.
 [targets.rs](src/compiler/targets.rs) owns exact-target batching and immutable
 preparation reuse; every child returns through that same product continuation.
 
+Checked-only consumers supply one `CheckedCompileRequest` to `compile_to_checked`.
+Package inputs, build staging, session sponsors and replay evidence are request
+data, not alternate compilation entrypoints. The request enters the same prepared
+source continuation used by production and target batches.
+
+[Native compilation](src/compiler/native.rs) prepares and realizes the native
+product; it is not owned by optional optimization or report writing. Re-entry
+from retained Terminal Psi uses `RetainedNativeRealizationRequest`, with the
+receiving policy and image request supplied explicitly. `CompileReport` is the
+normal returned product record. Executable publication remains a later operation.
+
 ## Product boundaries and observations
 
 [Request validation](src/compiler/request.rs) checks the requested product and
@@ -36,10 +47,13 @@ checks still run where required by the product. Requested primary output and
 semantically required installation records are independent of this policy.
 An output-only check or retained-artifact compile need not create a build directory.
 
-[Checked observations](src/pipeline/reporting/checked_observations.rs) always
-reconstruct trust obligations, settle exact owner admissions, derive the report
-and validate its joins before the single writer-policy branch. Full mode writes
-trust first, ordered checked snapshots next and timing last. Checked results
+[Checked admission](src/compiler/admission.rs) reconstructs trust obligations,
+settles exact owner admissions, and validates the derived trust report without
+performing observation I/O. Its result borrows the exact checked program.
+[Observation writing](src/pipeline/reporting/checked_observations.rs) consumes that
+validated view: Full mode writes trust first, ordered checked snapshots next and
+timing last; OutputOnly writes nothing. A writer failure does not revise trust
+admission. Checked results
 retain first-seen ordered, repeated-stage-aggregated timing observations, but
 nondeterministic measurements do not enter semantic equality.
 

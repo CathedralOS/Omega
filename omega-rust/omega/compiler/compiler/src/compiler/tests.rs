@@ -43,6 +43,50 @@ impl Drop for MultiTargetFixture {
 }
 
 #[test]
+fn checked_admission_is_independent_of_observation_writing() {
+    let fixture = MultiTargetFixture::new(
+        "machine main() { }",
+        "machine build(builder: &mut Build) { }",
+    );
+    let checked = crate::compile_to_checked(crate::CheckedCompileRequest::new(&fixture.main, None))
+        .expect("check the fixture");
+    let output = fixture.root.join("observations");
+    let options = CompileOptions {
+        root_path: fixture.main.clone(),
+        build_dir: Some(output.clone()),
+        target_name: None,
+    };
+    let expected = admit_checked_compilation(&checked, &[])
+        .expect("admit without filesystem output")
+        .into_settlement();
+    assert!(!output.exists());
+    let admission = admit_checked_compilation(&checked, &[]).expect("repeat admission");
+    admission
+        .write_observations(&options, ArtifactEmissionPolicy::OutputOnly)
+        .expect("output-only does not create reports");
+    assert!(!output.exists());
+    fs::write(&output, "not a directory").expect("block the writer destination");
+    assert!(
+        admission
+            .write_observations(&options, ArtifactEmissionPolicy::Full)
+            .is_err()
+    );
+    assert_eq!(
+        admission.into_settlement(),
+        expected,
+        "failed observation output cannot alter the admission outcome"
+    );
+    fs::remove_file(&output).expect("remove the blocked destination");
+    let admission = admit_checked_compilation(&checked, &[]).expect("admit for full observations");
+    admission
+        .write_observations(&options, ArtifactEmissionPolicy::Full)
+        .expect("write already-admitted observations");
+    assert!(output.join("trust_report.md").is_file());
+    assert!(output.join("00_timings.html").is_file());
+    assert_eq!(admission.into_settlement(), expected);
+}
+
+#[test]
 fn exact_target_invocation_needs_no_authored_target_declaration() {
     let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()

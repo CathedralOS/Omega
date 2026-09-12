@@ -3,8 +3,8 @@
 use super::request::ValidatedCompileRequest;
 use super::{
     ExactTargetCompileOutcome, ExplicitTargetSet, MultiTargetCompileOutcomes,
-    MultiTargetCompileRequest, RequestedCompileProduct, TrustAdmissionSettlement,
-    compile_checked_with_observations, compile_validated,
+    MultiTargetCompileRequest, RequestedCompileProduct, TrustAdmissionSettlement, check_request,
+    compile_validated,
 };
 use diagnostics::Diagnostic;
 
@@ -67,15 +67,14 @@ fn compile_native_targets(
     let staged = children
         .into_iter()
         .map(|request| {
-            let (checked, trust_settlement) =
-                compile_checked_with_observations(&request, Some(prepared_source))?;
-            let prepared = super::optimization::prepare_native_report(request, checked)?;
+            let (checked, trust_settlement) = check_request(&request, Some(prepared_source))?;
+            let prepared = super::native::prepare(request, checked)?;
             Ok((prepared, trust_settlement))
         })
         .collect::<Vec<
             Result<
                 (
-                    super::optimization::PreparedNativeReport,
+                    super::native::PreparedNativeCompilation,
                     TrustAdmissionSettlement,
                 ),
                 Vec<Diagnostic>,
@@ -83,7 +82,7 @@ fn compile_native_targets(
         >>();
 
     let mut reusable_inputs = Vec::<(
-        super::optimization::NativeInputReuseKey,
+        super::native::NativeInputReuseKey,
         Result<native_realization::PreparedNativeRealizationInput, Vec<Diagnostic>>,
     )>::new();
     for (prepared, _) in staged.iter().filter_map(|result| result.as_ref().ok()) {

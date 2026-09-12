@@ -1,69 +1,36 @@
-//! Checked-compilation validation and optional observation emission.
-//!
-//! Trust reconstruction, admission settlement, and trust-report consistency
-//! checks are semantic validations and therefore run for every request. The
-//! observation policy controls only the single writer branch below.
+//! Optional writing of already-admitted checked-program observations.
 
-use crate::compiler::{ArtifactEmissionPolicy, CompileOptions};
-use crate::pipeline::CheckedCompilation;
+use crate::compiler::{ArtifactEmissionPolicy, CheckedAdmission, CompileOptions};
 use artifacts::ArtifactWriter;
 use diagnostics::Diagnostic;
 
-/// One complete checked observation request. Keeping the checked surface and
-/// owner-supplied trust policy together prevents the product driver from
-/// couriering individual report inputs or branching on observation policy.
-pub(crate) struct CheckedObservationInput<'a> {
-    pub(crate) options: &'a CompileOptions,
-    pub(crate) artifact_policy: ArtifactEmissionPolicy,
-    pub(crate) accepted_trust_admissions: &'a [trust_model::TrustAdmission],
-    pub(crate) checked: &'a CheckedCompilation,
-}
-
-/// Validate all checked trust evidence and optionally emit its observations.
-pub(crate) fn report_checked_observations(
-    input: CheckedObservationInput<'_>,
-) -> Result<trust_model::TrustAdmissionSettlement, Vec<Diagnostic>> {
-    let obligations = trust_model::reconstruct_trust_obligations(
-        &input.checked.typed,
-        input.checked,
-        input.checked.root_grants(),
-        input.checked.provider_plans(),
-        input.checked.selected_provider_plans(),
-        input.checked.accepted_template_classifications(),
-        input.checked.package_identity().is_some(),
-    )?;
-    let settlement =
-        trust_model::settle_trust_admissions(obligations, input.accepted_trust_admissions)
-            .map_err(|diagnostic| vec![diagnostic])?;
-    let trust_report = trust_model::reconstruct_trust_report(
-        input.checked,
-        input.checked.root_grants(),
-        input.checked.provider_plans(),
-        input.checked.selected_provider_plans(),
-        input.checked.accepted_template_classifications(),
-    )?;
-    trust_report
-        .validate()
-        .map_err(|diagnostic| vec![diagnostic])?;
-
-    if input.artifact_policy.emits_auxiliary_artifacts() {
-        let writer = ArtifactWriter::new(&input.options.build_dir())
-            .map_err(|diagnostic| vec![diagnostic])?;
-        writer
-            .write_trust_report(&trust_report)
-            .map_err(|diagnostic| vec![diagnostic])?;
-        crate::pipeline::artifacts::write_checked_snapshots(
-            &writer,
-            input.checked,
-            input.checked.selected_program_entry_machine(),
-            input.checked.selected_provider_plans(),
-            input.checked.task_activations(),
-            input.checked.component_progress(),
-        )?;
-        writer
-            .write_timings(input.checked.timings().phases())
-            .map_err(|diagnostic| vec![diagnostic])?;
+impl CheckedAdmission<'_> {
+    /// Write requested observations without changing admission or the program.
+    /// Output-only requests perform no observation filesystem operations.
+    pub fn write_observations(
+        &self,
+        options: &CompileOptions,
+        policy: ArtifactEmissionPolicy,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if policy.emits_auxiliary_artifacts() {
+            let writer =
+                ArtifactWriter::new(&options.build_dir()).map_err(|diagnostic| vec![diagnostic])?;
+            writer
+                .write_trust_report(self.trust_report())
+                .map_err(|diagnostic| vec![diagnostic])?;
+            let checked = self.checked();
+            crate::pipeline::artifacts::write_checked_snapshots(
+                &writer,
+                checked,
+                checked.selected_program_entry_machine(),
+                checked.selected_provider_plans(),
+                checked.task_activations(),
+                checked.component_progress(),
+            )?;
+            writer
+                .write_timings(checked.timings().phases())
+                .map_err(|diagnostic| vec![diagnostic])?;
+        }
+        Ok(())
     }
-
-    Ok(settlement)
 }
