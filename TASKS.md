@@ -66,11 +66,13 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   The same command on `e4b4aa39dd`/Windows reports 96 std diagnostics beginning
   with that same match-result custody rejection.
   Windows runtime controls in `omega-rust/omega/tests/package_commands/probe.rs`
-  also expose an import-free PE launch failure (loader error 193), reproduced
-  through ordinary native compilation on the same source. The `e4b4aa39dd`
-  package route compiles and preserves package custody; this separate image
-  failure remains with native publication. Keep both runtime controls enabled;
-  checked emission and interpretation alone do not establish Windows execution.
+  require a Windows normal-completion adapter for Unit entries: the native
+  entry currently returns the last scalar call's register value (7), while the
+  interpreter reports normal completion (0). The entry adapter in
+  `image-emission/src/hosted_unit_entry.rs` currently handles Darwin only.
+  Preserve the source Unit contract and independently validate the Windows
+  physical completion mapping; do not change all machine returns or mask the
+  divergence in the CLI. Both runtime controls must pass with exit 0.
 
 - **MACOS-APPLICATION-PUBLICATION.** Implement the
   [settled publication contract](wiki/spec/build/macos_application.md)

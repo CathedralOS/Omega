@@ -4,9 +4,10 @@
 //! PE keeps two alignments at once, and every section carries both a virtual
 //! size and a raw size because of it: `SECTION_ALIGNMENT` is 0x1000 in memory,
 //! `FILE_ALIGNMENT` is 0x200 on disk. `IMAGE_BASE` is 0x1_4000_0000 and `.text`
-//! always begins at RVA 0x1000. `.text` and `.rdata` are always emitted;
-//! `.data`, `.reloc` and `.bss` appear only when non-empty, so `section_count`
-//! is `2 + has_data + has_reloc + has_bss` and the header size depends on it.
+//! always begins at RVA 0x1000. Only `.text` is mandatory; `.rdata`, `.data`,
+//! `.reloc` and `.bss` appear only when non-empty. The header size depends on
+//! that section count. An absent import table must not leave an empty `.rdata`
+//! header at the next section's address or beyond the mapped image.
 //!
 //! Section flags are written as raw COFF characteristics: `.text` 0x6000_0020,
 //! `.rdata` 0x4000_0040, `.data` 0xc000_0040, `.bss` 0xc000_0080, and `.reloc`
@@ -79,6 +80,9 @@ mod layout;
 mod relocations;
 mod sections;
 
+#[cfg(test)]
+mod tests;
+
 use constants::TEXT_RVA;
 use entry::pe_entry_rva;
 use headers::{PeHeaderInput, write_dos_header, write_pe_headers, write_section_header};
@@ -146,15 +150,17 @@ pub fn emit_pe_x86_64_executable(
         sections.text_raw,
         0x6000_0020,
     );
-    write_section_header(
-        &mut bytes,
-        ".rdata",
-        sections.rdata_virtual_size,
-        sections.rdata_rva,
-        sections.rdata_raw_size,
-        sections.rdata_raw,
-        0x4000_0040,
-    );
+    if sections.has_rdata {
+        write_section_header(
+            &mut bytes,
+            ".rdata",
+            sections.rdata_virtual_size,
+            sections.rdata_rva,
+            sections.rdata_raw_size,
+            sections.rdata_raw,
+            0x4000_0040,
+        );
+    }
     if sections.has_data {
         write_section_header(
             &mut bytes,
@@ -194,9 +200,11 @@ pub fn emit_pe_x86_64_executable(
     bytes.resize(sections.text_raw, 0);
     bytes.extend(&image.memory.text);
     bytes.resize(sections.text_raw + sections.text_raw_size, 0);
-    bytes.resize(sections.rdata_raw, 0);
-    bytes.extend(&import_table.bytes);
-    bytes.resize(sections.rdata_raw + sections.rdata_raw_size, 0);
+    if sections.has_rdata {
+        bytes.resize(sections.rdata_raw, 0);
+        bytes.extend(&import_table.bytes);
+        bytes.resize(sections.rdata_raw + sections.rdata_raw_size, 0);
+    }
     if sections.has_data {
         bytes.resize(sections.data_raw, 0);
         bytes.extend(&image.memory.data);
