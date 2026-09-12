@@ -6,6 +6,9 @@ limits, not a different generated-source language.
 
 ## Entry points
 
+- [build_scope.rs](src/pipeline/build_scope.rs) binds request staging and sponsor
+  inputs to the package/root filesystem scope. It checks canonical Source metadata
+  before reopening review-only replay; it does not admit or execute the build.
 - [checked_entry.rs](src/pipeline/checked_entry.rs): `AdmittedBuildCheckpoint`
   couples the coherent frontend, admitted build, package verdict, and base source
   map. Execution verifies the returned build symbol. `try_seeded_extension`

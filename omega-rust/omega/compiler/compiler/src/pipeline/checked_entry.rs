@@ -987,74 +987,13 @@ fn compile_assembled_checked_child(
     } else {
         None
     };
-    if let Some(replay_record) = replay_record {
-        let expected_source_metadata = package_inputs
-            .map(|inputs| {
-                inputs
-                    .canonical_source_metadata(inputs.root())
-                    .map(|metadata| {
-                        crate::pipeline::build_config::BuildCanonicalSourceMetadataIdentity::new(
-                            metadata.policy_version(),
-                            *metadata.source_content_commitment(),
-                        )
-                    })
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "package-aware filesystem replay requires canonical Source metadata",
-                        )]
-                    })
-            })
-            .transpose()?;
-        if replay_record.canonical_source_metadata_identity() != expected_source_metadata {
-            return Err(vec![Diagnostic::error(
-                "build filesystem replay record does not match the current canonical Source metadata identity",
-            )]);
-        }
-    }
-    let filesystem_replay = replay_record
-        .map(|record| {
-            super::build_replay_record::rehydrate_review_only_build_filesystem_replay_record(
-                record,
-                super::BuildFilesystemReplayRecordLimits::new(
-                    record.canonical_bytes().len(),
-                    4_096,
-                ),
-            )
-            .map_err(|error| {
-                vec![Diagnostic::error(format!(
-                    "could not reopen build filesystem replay record: {error}"
-                ))]
-            })
-        })
-        .transpose()?;
-    let build_dir = build_dir.map(Path::to_path_buf).unwrap_or_else(|| {
-        root_path
-            .parent()
-            .filter(|parent| !parent.as_os_str().is_empty())
-            .map(|parent| parent.join("build"))
-            .unwrap_or_else(|| std::path::PathBuf::from("build"))
-    });
-    let mut build_machine_filesystem_scope = if let Some(inputs) = package_inputs {
-        crate::pipeline::build_config::BuildMachineFilesystemScope::for_package_root(
-            inputs
-                .package_root(inputs.root())
-                .expect("validated package inputs retain their root")
-                .to_path_buf(),
-            build_dir,
-            filesystem_sponsor,
-            inputs.canonical_source_metadata(inputs.root()).cloned(),
-        )
-    } else {
-        crate::pipeline::build_config::BuildMachineFilesystemScope::for_root(
-            root_path,
-            build_dir,
-            filesystem_sponsor,
-        )
-    };
-    if let Some(filesystem_replay) = filesystem_replay {
-        build_machine_filesystem_scope =
-            build_machine_filesystem_scope.with_replay(filesystem_replay);
-    }
+    let build_machine_filesystem_scope = super::build_scope::prepare_filesystem_scope(
+        root_path,
+        package_inputs,
+        build_dir,
+        filesystem_sponsor,
+        replay_record,
+    )?;
     let admitted_build = crate::pipeline::build_config::admit_build_program(
         frontend.typed(),
         frontend.build_source_id,
@@ -1076,9 +1015,8 @@ fn compile_assembled_checked_child(
     .execute()?;
     frontend = executed_frontend;
     let own_generated_sources = computed_build_config.generated_sources.clone();
-    let selected_build_machine_symbol = if computed_build_config.generated_sources.is_empty() {
-        computed_build_config.selected_build_machine_symbol
-    } else {
+    let selected_build_machine_symbol = computed_build_config.selected_build_machine_symbol;
+    if !computed_build_config.generated_sources.is_empty() {
         let package_inputs = package_inputs.ok_or_else(|| {
             vec![Diagnostic::error(
                 "generated-source final compilation requires package-aware source custody",
@@ -1129,8 +1067,7 @@ fn compile_assembled_checked_child(
             build_source_id,
             pending_pre_checks,
         };
-        computed_build_config.selected_build_machine_symbol
-    };
+    }
     let CheckedFrontend {
         typing,
         selected_target_machine_declarations,
@@ -1203,93 +1140,23 @@ fn compile_assembled_checked_child(
             )
         }),
     )?;
-    let settled_target_machines =
-        selected_target_machine_declarations.settle_provider_defaults(&typed)?;
-    let target_provider_defaults = settled_target_machines.provider_defaults;
-    // PRV4 provider selection mirrors the native pipeline: candidates remain
-    // separate by provider type and only the uniquely covering candidate may
-    // rewrite adapter calls in the interpreter program.
-    let evaluated_via_bindings = provider_planning::evaluated_via_bindings::evaluate_via_bindings(
-        &typed,
+    let super::provider_selection::CheckedProviderSelection {
+        provider_plans,
+        evaluated_via_bindings,
+        selected_provider_plan_facts,
+        selected_provider_provenance,
+        external_binding_rows,
+    } = super::provider_selection::settle_checked_providers(
+        &mut typed,
+        selected_target_machine_declarations,
         selected_target_profile,
         package_inputs,
+        &build_config.provider_selections,
+        &boundary_calling_plan_realizations,
     )?;
-    let derived_provider_plans =
-        crate::pipeline::provider_plans::derive_satisfies_plans_with_evaluated_bindings_and_target_machine_origins(
-            &typed,
-            target_name,
-            &evaluated_via_bindings,
-            &settled_target_machines.origins,
-        )?;
-    let provider_plans = derived_provider_plans
-        .iter()
-        .map(|derived| derived.plan.clone())
-        .collect::<Vec<_>>();
     let selected_native_target = selected_target_profile.map(target::TargetProfile::native_target);
     let provider_selection_target =
         selected_native_target.unwrap_or_else(target::NativeTarget::host);
-    let diagnostics = crate::pipeline::provider_plans::validate_derived_provider_plan_candidates(
-        &typed,
-        &evaluated_via_bindings,
-        &derived_provider_plans,
-    );
-    if !diagnostics.is_empty() {
-        return Err(diagnostics);
-    }
-    let selected_provider_plans =
-        crate::pipeline::provider_plans::select_provider_plans_with_provenance(
-            &derived_provider_plans,
-            provider_selection_target,
-            &target_provider_defaults,
-            &build_config.provider_selections,
-        )?;
-    let mut fused_service_erasures = Vec::new();
-    for selected in &selected_provider_plans {
-        let composition_mode = selected
-            .selected_by
-            .composition_mode()
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        if composition_mode != provider_planning::CompositionMode::Fused {
-            continue;
-        }
-        let requirement = selected.derived.provenance.schema.symbol();
-        if typed
-            .traits()
-            .iter()
-            .any(|definition| definition.is_boundary && definition.symbol == requirement)
-        {
-            fused_service_erasures.push(
-                typed_trees::typed_trees::FusedServiceErasureAuthorization {
-                    requirement,
-                    provider_plan_digest: *selected.derived.plan.identity_digest().as_bytes(),
-                },
-            );
-        }
-    }
-    typed
-        .bind_fused_service_erasures(fused_service_erasures)
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let selected_semantic_plans = selected_provider_plans
-        .iter()
-        .map(|selected| selected.derived.plan.clone())
-        .collect::<Vec<_>>();
-    crate::pipeline::provider_plans::validate_selected_synchronous_invocation_cycles(
-        &typed,
-        &selected_semantic_plans,
-    )?;
-    let external_binding_rows = provider_planning::plans::extract_native_external_binding_rows(
-        target_name,
-        provider_selection_target,
-        &selected_semantic_plans,
-        &boundary_calling_plan_realizations,
-        &typed,
-    )?;
-    let (selected_provider_plan_facts, selected_provider_provenance) =
-        crate::pipeline::provider_plans::selected_provider_plan_facts_with_provenance(
-            &typed,
-            &evaluated_via_bindings,
-            selected_provider_plans,
-        )?;
     let mut const_evaluation = const_evaluation::SelectedConstEvaluation::default();
     if !pending_pre_checks.is_empty() {
         validation::land_float_literal_destinations(&mut typed);
@@ -1525,6 +1392,8 @@ mod continuation_tests {
         assert!(request.replay_record.is_none());
         let targetless = super::compile_to_checked(request).expect("targetless request checks");
         assert_eq!(targetless.selected_target_profile(), None);
+        assert_eq!(targetless.selected_native_target(), None);
+        assert!(targetless.selected_program_entry().is_none());
         let exact = super::compile_to_checked(super::CheckedCompileRequest::new(
             &fixture.main,
             Some("windows_x86_64"),
@@ -1534,7 +1403,15 @@ mod continuation_tests {
             exact.selected_target_profile(),
             Some(target::TargetProfile::WindowsX64)
         );
+        assert_eq!(
+            exact.selected_native_target(),
+            Some(target::TargetProfile::WindowsX64.native_target())
+        );
         assert_eq!(targetless.source_file_count(), exact.source_file_count());
+        assert!(
+            !fixture.root.join("build").exists(),
+            "preparing a filesystem scope must not create staging without build execution"
+        );
     }
 
     #[test]

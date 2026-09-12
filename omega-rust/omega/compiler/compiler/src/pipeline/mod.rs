@@ -1,4 +1,5 @@
 mod artifacts;
+mod build_scope;
 pub(crate) use build_evaluation as build_config;
 pub(crate) use build_evaluation as build_replay_record;
 pub(crate) use provider_planning::calling_policy_plans;
@@ -10,6 +11,8 @@ mod optimization;
 mod package_declaration_admission;
 mod phase_transitions;
 mod project;
+#[path = "provider/selection.rs"]
+mod provider_selection;
 pub(crate) mod reporting;
 pub(crate) use provider_planning::approval as provider_approval;
 pub(crate) use provider_planning::plans as provider_plans;
