@@ -190,7 +190,11 @@ pub(crate) fn crash_routes(
                             context,
                             binders,
                             *expression,
-                            Some(fact_handle),
+                            // Crash predicates are ceiling guards, not established
+                            // requires/ensures facts with proof-place dependencies.
+                            // The rederived capsule and exact declaration selections
+                            // retain their custody; do not request nonexistent proof rows.
+                            None,
                             0,
                         )?,
                     ));

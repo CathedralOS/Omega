@@ -1,6 +1,48 @@
 use super::{Lexer, lower_syntax_trees, parse_syntax_trees};
 
 #[test]
+fn static_signature_contracts_bind_their_own_value_parameters() {
+    use symbol_resolved_trees::{
+        data::TypeParameterKind, domain::ProofFact, expression::ExpressionNode,
+    };
+    let source = r#"
+        domain u64::Small requires self < 10;
+        machine accepts<machine First, machine Second>()
+        where machine First(value: u64) requires value in Small;
+        where machine Second(value: u64) requires value in Small;
+        {}
+    "#;
+    let syntax = parse_syntax_trees(&Lexer::new(source).tokenize().unwrap()).unwrap();
+    let program = lower_syntax_trees(&syntax).unwrap();
+    let mut parameter_symbols = Vec::new();
+    for parameter in program.data_type_parameters(program.machines[0].type_parameters) {
+        let TypeParameterKind::Machine { contract } = &parameter.kind else {
+            panic!("machine parameter")
+        };
+        let signature = contract.structural().unwrap();
+        let expected = program.state_parameters(signature.parameters)[0].symbol;
+        assert!(expected.is_valid());
+        parameter_symbols.push(expected);
+        let contract = &program.signature_contracts(signature.contracts)[0];
+        let [ProofFact::Membership(membership)] = program.proof_facts(contract.facts) else {
+            panic!("membership fact")
+        };
+        let table = &program.tables.bodies.expressions;
+        let ExpressionNode::Name(path) = table.expression(membership.value) else {
+            panic!("parameter subject")
+        };
+        assert_eq!(path.symbol, expected);
+        assert_eq!(path.head_symbol, expected);
+        assert_eq!(
+            table.name_path_member_symbols(path.member_symbols),
+            [expected]
+        );
+    }
+    assert_eq!(parameter_symbols.len(), 2);
+    assert_ne!(parameter_symbols[0], parameter_symbols[1]);
+}
+
+#[test]
 fn contract_membership_values_use_exact_callable_parameters() {
     use symbol_resolved_trees::{domain::ProofFact, expression::ExpressionNode};
 

@@ -1,4 +1,5 @@
 use super::has_exact_case_membership_meaning;
+use super::has_exact_parameter_case_membership_meaning;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
@@ -42,6 +43,87 @@ fn is_exact_membership(program: &TypedTrees, expression: ExpressionHandle) -> bo
         panic!("membership comparison");
     };
     has_exact_case_membership_meaning(program, machine, Some(state), expression, comparison)
+}
+
+#[test]
+fn parameter_membership_requires_the_exact_declared_parameter_scope() {
+    let (program, member, foreign) = membership_program();
+    let parameters = program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
+    let foreign_parameters =
+        program.state_parameters(&program.machine_states(&program.machines()[1])[0]);
+    let ExpressionNode::Binary(comparison) = program.expression_table.expression(member) else {
+        panic!("membership comparison");
+    };
+    assert!(has_exact_parameter_case_membership_meaning(
+        &program, parameters, member, comparison
+    ));
+    assert!(!has_exact_parameter_case_membership_meaning(
+        &program,
+        &[],
+        member,
+        comparison
+    ));
+    assert!(!has_exact_parameter_case_membership_meaning(
+        &program,
+        foreign_parameters,
+        member,
+        comparison
+    ));
+    let mut same_carrier_foreign_parameters = foreign_parameters.to_vec();
+    same_carrier_foreign_parameters[0].type_reference = parameters[0].type_reference;
+    assert!(!has_exact_parameter_case_membership_meaning(
+        &program,
+        &same_carrier_foreign_parameters,
+        member,
+        comparison
+    ));
+    let ExpressionNode::Binary(foreign_comparison) = program.expression_table.expression(foreign)
+    else {
+        panic!("foreign membership comparison");
+    };
+    let mut wrong_carrier_parameters = foreign_parameters.to_vec();
+    wrong_carrier_parameters[0].type_reference = parameters[0].type_reference;
+    assert!(!has_exact_parameter_case_membership_meaning(
+        &program,
+        &wrong_carrier_parameters,
+        foreign,
+        foreign_comparison
+    ));
+}
+
+#[test]
+fn parameter_membership_rejects_conflicting_retained_root_symbols() {
+    let (mut program, member, _) = membership_program();
+    let parameters = program
+        .state_parameters(&program.machine_states(&program.machines()[0])[0])
+        .to_vec();
+    let ExpressionNode::Binary(comparison) = program.expression_table.expression(member) else {
+        panic!("membership comparison");
+    };
+    let comparison = *comparison;
+    let ExpressionNode::Name(subject) = program.expression_table.expression_mut(comparison.left)
+    else {
+        panic!("parameter subject");
+    };
+    subject.head_symbol = parameters[1].symbol;
+    assert!(!has_exact_parameter_case_membership_meaning(
+        &program,
+        &parameters,
+        member,
+        &comparison
+    ));
+    let ExpressionNode::Name(subject) = program.expression_table.expression_mut(comparison.left)
+    else {
+        panic!("parameter subject");
+    };
+    subject.head_symbol = subject.symbol;
+    subject.member_symbols = arena::HandleSpan::empty();
+    assert!(!has_exact_parameter_case_membership_meaning(
+        &program,
+        &parameters,
+        member,
+        &comparison
+    ));
 }
 
 #[test]

@@ -229,6 +229,16 @@ Optimizer revision/analysis reuse is tracked only in `TASKS_OPTIMIZER.md`.
 
 ## Automatic service reach
 
+Update the direct-boundary leaves in
+`omega-rust/omega/packages/review/evidence/tests/callable_policy/flows.rs` to
+declare their service reach, including the unreachable control; keep ordinary
+forwarding helpers unannotated.
+Control: `cargo nextest run -p package-evidence --test callable_policy flows:: --no-fail-fast`.
+On macOS these tests pass before `74b0e1c058` and fail after integration at
+`b63815455f`: the unchanged fixtures omit RootDir/Workspace declarations now required by
+`validation/src/effects.rs`. Both existing capability-flow assertions must pass
+without relaxing direct-boundary checking.
+
 Complete [static callback reach dependencies](wiki/spec/language/effects.md#static-callback-reach-dependencies)
 in Psi call-component normalization, specialization, exported contract identity,
 and Terminal evidence/replay. Nominal callback calls must retain bounded union
@@ -625,14 +635,17 @@ Owners include
   Extend the ordinary scalar-call sequencing path for direct boundary returns;
   the existing result-bearing producer still requires a local-result binding.
 
-  Package contract review still needs exact subject contexts for nominal case
-  membership in non-machine declarations, nested signatures and propositions;
-  reuse Psi's checked carrier/case relation rather than manufacturing a machine
-  owner or treating the classifier as a constructor. Machine-owned authored
-  membership and ordinary structural equality are distinct review expressions;
+  Package contract review still needs declaration-owned subject contexts for
+  nominal case membership in domain/data invariants and result guarantees.
+  Proposition source `pub proposition has_data(value: Message) = value in Message::Data;`
+  currently fails typing with `unknown domain Message::Data in executable membership expression`
+  (macOS probe on `b43980139c`, before review). Repair classifier resolution in
+  `symbol-resolved-trees-to-typed-trees/src/expression/table/lowerer.rs`, then
+  carry the same source through review and canonical recovery. Reuse Psi's exact
+  carrier/case relation; do not manufacture a machine owner from the classifier.
   `cargo nextest run -p package-evidence --test callable_policy case_membership --no-fail-fast`
-  exercises source capture and canonical recovery. Selected operator crash
-  invocations remain explicitly fenced in package projection.
+  is the existing source-to-recovery control. Selected operator crash invocations
+  remain explicitly fenced in package projection.
 
   Extend `facts/crash_entry_values.rs` beyond immutable stable-content roots to
   state arrivals, rebinding, mutable field versions and receiver/case projections,

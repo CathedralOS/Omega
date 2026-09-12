@@ -369,6 +369,8 @@ fn lexical_place_declaration_before(
 mod builtin_coordinates;
 mod exact_self_field;
 mod member_paths;
+mod parameter_scoped;
+pub(crate) use parameter_scoped::parameter_scoped_type_reference;
 mod projected_members;
 mod result_shape;
 pub use builtin_coordinates::place_has_builtin_coordinates;

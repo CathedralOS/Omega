@@ -56,53 +56,63 @@ pub(super) fn checked_case_classifier(
             context.subject_kind, context.subject_name,
         ))]
     };
-    let (machine_symbol, state_symbol) = match context.owner {
-        ContractProofFactOwner::Machine { machine_symbol } => (machine_symbol, None),
+    let machine_owner = match context.owner {
+        ContractProofFactOwner::Machine { machine_symbol } => Some((machine_symbol, None)),
         ContractProofFactOwner::MachineState {
             machine_symbol,
             state_symbol,
-        } => (machine_symbol, Some(state_symbol)),
-        _ => {
-            return Err(vec![Diagnostic::error(
-                "package case-membership projection requires a supported checked machine subject context",
-            )]);
-        }
+        } => Some((machine_symbol, Some(state_symbol))),
+        _ => None,
     };
-    let machine = exactly_one(
-        compilation
-            .machines()
-            .iter()
-            .filter(|machine| machine.symbol == machine_symbol),
-        context.subject_name,
-        "case-membership machine owner",
-    )?;
-    let state = state_symbol
-        .map(|symbol| {
-            exactly_one(
-                compilation
-                    .machine_states(machine)
-                    .iter()
-                    .filter(|state| state.symbol == symbol),
-                context.subject_name,
-                "case-membership state owner",
-            )
-        })
-        .transpose()?;
-    if !validation::has_exact_case_membership_meaning(
-        &compilation.typed,
-        machine,
-        state,
-        expression,
-        binary,
-    ) || compilation
-        .expression_table
-        .authored_selection_occurrences(expression)
-        .any(|occurrence| {
+    // Abstract signatures have real parameter custody without an executable
+    // machine. Pass that exact lexical scope to Psi instead of inventing an
+    // attachment or finding a same-spelled parameter elsewhere in the program.
+    let exact_meaning = if let Some((machine_symbol, state_symbol)) = machine_owner {
+        let machine = exactly_one(
             compilation
-                .authored_declaration_selections()
-                .get(occurrence)
-                .is_none_or(|selection| {
-                    selection.exposure() != context.selection_exposure
+                .machines()
+                .iter()
+                .filter(|machine| machine.symbol == machine_symbol),
+            context.subject_name,
+            "case-membership machine owner",
+        )?;
+        let state = state_symbol
+            .map(|symbol| {
+                exactly_one(
+                    compilation
+                        .machine_states(machine)
+                        .iter()
+                        .filter(|state| state.symbol == symbol),
+                    context.subject_name,
+                    "case-membership state owner",
+                )
+            })
+            .transpose()?;
+        validation::has_exact_case_membership_meaning(
+            &compilation.typed,
+            machine,
+            state,
+            expression,
+            binary,
+        )
+    } else {
+        validation::has_exact_parameter_case_membership_meaning(
+            &compilation.typed,
+            context.parameters,
+            expression,
+            binary,
+        )
+    };
+    if !exact_meaning
+        || compilation
+            .expression_table
+            .authored_selection_occurrences(expression)
+            .any(|occurrence| {
+                compilation
+                    .authored_declaration_selections()
+                    .get(occurrence)
+                    .is_none_or(|selection| {
+                        selection.exposure() != context.selection_exposure
                         // Generated tag tests may retain source-origin builtin rows,
                         // but must never erase a selected declared overload.
                         || (binary.operator == BinaryOperator::CaseMembership
@@ -111,8 +121,8 @@ pub(super) fn checked_case_classifier(
                                 != AuthoredDeclarationSelectionTarget::Intrinsic(
                                     AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
                                 ))
-                })
-        })
+                    })
+            })
     {
         return Err(rejected());
     }

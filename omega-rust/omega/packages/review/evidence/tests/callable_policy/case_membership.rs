@@ -17,6 +17,157 @@ crashes Abort left in Message::Data;
 "#;
 
 #[test]
+fn nested_signature_case_membership_retains_its_parameter_scope() {
+    for (parameter_type, subject) in [
+        ("Message", "value"),
+        ("&Message", "value"),
+        ("Wrapper", "value.message"),
+        ("[Message; 2]", "value[0]"),
+    ] {
+        let fixture = Fixture::local(&format!(
+            r#"
+pub data Message {{ case Empty; case Data(value: u8); }}
+pub data Wrapper {{ message: Message; }}
+pub machine accepts<machine Work>()
+where machine Work(value: {parameter_type}) crashes Abort {subject} in Message::Data;
+{{}}
+"#
+        ));
+        let policy = project(&fixture);
+        let expression = nested_guard(&policy);
+        let PackageReviewContractExpression::CaseMembership {
+            subject: captured,
+            case,
+        } = expression
+        else {
+            panic!("nested membership")
+        };
+        let parameter = PackageReviewContractExpression::Parameter(0);
+        match captured.as_ref() {
+            PackageReviewContractExpression::Member {
+                receiver,
+                member,
+                case_variant,
+            } => {
+                assert_eq!(subject, "value.message");
+                assert_eq!(receiver.as_ref(), &parameter);
+                assert_eq!(member.path(), "Wrapper::message");
+                assert!(case_variant.is_none());
+            }
+            PackageReviewContractExpression::Indexed {
+                meaning,
+                collection,
+                ..
+            } => {
+                assert_eq!(subject, "value[0]");
+                assert_eq!(*meaning, PackageReviewContractOperatorMeaning::Builtin);
+                assert_eq!(collection.as_ref(), &parameter);
+            }
+            other => {
+                assert_eq!(subject, "value");
+                assert_eq!(other, &parameter);
+            }
+        }
+        assert_eq!(case.path(), "Message::Data");
+        let baseline = package_evidence::project_checked_package_policy(
+            &fixture.checked,
+            fixture.target,
+            package_identity(),
+        )
+        .expect("nested membership composes into whole package policy");
+        let bytes = baseline.canonical_bytes().unwrap();
+        assert_eq!(
+            baseline,
+            PackagePolicyBaseline::recover_canonical(
+                &bytes,
+                PackagePolicyRecoveryLimits::default()
+            )
+            .unwrap()
+        );
+    }
+}
+
+fn nested_guard(policy: &PackagePolicyCallables) -> &PackageReviewContractExpression {
+    let PackagePolicyTypeParameterKind::Machine(contract) =
+        callable(policy, "accepts").type_parameters()[0].kind()
+    else {
+        panic!("static machine contract")
+    };
+    let signature = contract.structural().unwrap();
+    let [route] = signature.published_crash() else {
+        panic!("nested crash route")
+    };
+    let [PackagePolicyCrashGuard::Expression(expression)] = route.alternative_guards() else {
+        panic!("one nested expression")
+    };
+    expression
+}
+
+#[test]
+fn nested_membership_rejects_another_signatures_same_spelled_parameter() {
+    use typed_trees::expression::ExpressionNode;
+    let fixture = Fixture::local(
+        r#"
+pub data Message { case Empty; case Data(value: u8); }
+pub machine accepts<machine Work, machine Other>()
+where machine Work(value: Message) crashes Abort value in Message::Data;
+where machine Other(value: Message) crashes Abort value in Message::Empty;
+{}
+"#,
+    );
+    project(&fixture);
+    let subjects = fixture
+        .checked
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(handle, expression)| {
+            use language_semantics::declaration_selection::{
+                AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
+            };
+            if !fixture
+                .checked
+                .expression_table
+                .authored_selection_occurrences(handle)
+                .any(|occurrence| {
+                    fixture
+                        .checked
+                        .authored_declaration_selections()
+                        .get(occurrence)
+                        .is_some_and(|selection| {
+                            selection.kind() == AuthoredDeclarationSelectionKind::CaseMembership
+                                && selection.exposure()
+                                    == AuthoredDeclarationSelectionExposure::PublicInterface
+                        })
+                })
+            {
+                return None;
+            }
+            let ExpressionNode::Binary(binary) = expression else {
+                return None;
+            };
+            let ExpressionNode::Name(name) =
+                fixture.checked.expression_table.expression(binary.left)
+            else {
+                return None;
+            };
+            (fixture
+                .checked
+                .expression_table
+                .name_path_members(name.members)
+                .len()
+                == 1)
+                .then_some((binary.left, *name))
+        })
+        .collect::<Vec<_>>();
+    let [(first, _), (_, other)] = subjects.as_slice() else {
+        panic!("two membership subjects: {subjects:?}")
+    };
+    let mut altered = fixture.checked.clone();
+    *altered.typed.expression_table.expression_mut(*first) = ExpressionNode::Name(*other);
+    assert!(project_checked_callable_policy(&altered, fixture.target, package_identity()).is_err());
+}
+
+#[test]
 fn structural_sum_crash_contract_preserves_case_meaning_in_package_policy() {
     let fixture = Fixture::local(SOURCE);
     let policy = project(&fixture);

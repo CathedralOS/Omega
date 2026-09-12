@@ -209,6 +209,38 @@ pub fn has_exact_case_membership_meaning(
     expression: ExpressionHandle,
     comparison: &typed_trees::expression::TableBinaryExpression,
 ) -> bool {
+    exact_case_membership_meaning(program, expression, comparison, |subject, owner| {
+        membership_subject_matches_owner(
+            program,
+            Some((machine, state)),
+            subject,
+            owner,
+            |subject| operand_type(program, machine, state, subject),
+        )
+    })
+}
+
+/// Rejoin membership in an abstract signature's exact parameter scope. A
+/// parameter from another declaration cannot supply this subject's carrier.
+pub fn has_exact_parameter_case_membership_meaning(
+    program: &TypedTrees,
+    parameters: &[typed_trees::signature::StateParameter],
+    expression: ExpressionHandle,
+    comparison: &typed_trees::expression::TableBinaryExpression,
+) -> bool {
+    exact_case_membership_meaning(program, expression, comparison, |subject, owner| {
+        membership_subject_matches_owner(program, None, subject, owner, |subject| {
+            crate::places::parameter_scoped_type_reference(program, parameters, subject)
+        })
+    })
+}
+
+fn exact_case_membership_meaning(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    comparison: &typed_trees::expression::TableBinaryExpression,
+    subject_matches: impl FnOnce(ExpressionHandle, &DataDefinition) -> bool,
+) -> bool {
     if !program.expression_table.expression_is_valid(expression)
         || !program
             .expression_table
@@ -226,7 +258,7 @@ pub fn has_exact_case_membership_meaning(
     let Some(owner) = exact_case_reference_owner(program, comparison.right) else {
         return false;
     };
-    if !membership_subject_matches_owner(program, machine, state, comparison.left, owner) {
+    if !subject_matches(comparison.left, owner) {
         return false;
     }
     // Structural synthesis has an explicit tag operation, not an authored
@@ -314,10 +346,10 @@ pub fn exact_case_reference_owner(
 
 fn membership_subject_matches_owner(
     program: &TypedTrees,
-    machine: &Machine,
-    state: Option<&State>,
+    machine_context: Option<(&Machine, Option<&State>)>,
     subject: ExpressionHandle,
     owner: &DataDefinition,
+    subject_type: impl FnOnce(ExpressionHandle) -> Option<TypeReferenceHandle>,
 ) -> bool {
     // Membership observes the borrowed value's tag. Peel explicit borrowing
     // only for this nominal-owner check: ordinary operator lookup must retain
@@ -338,8 +370,13 @@ fn membership_subject_matches_owner(
     // construction and default-domain obligations remain separate checks.
     match program.expression_table.expression(subject) {
         ExpressionNode::Name(path)
-            if path.symbol == machine.symbol && path.head_symbol == machine.symbol =>
+            if machine_context.is_some_and(|(machine, _)| {
+                path.symbol == machine.symbol && path.head_symbol == machine.symbol
+            }) =>
         {
+            let Some((machine, state)) = machine_context else {
+                return false;
+            };
             // Attached `self` is rooted at the machine symbol, not the entry
             // parameter symbol. Rejoin that exact owner; its diagnostic name
             // alone cannot authorize a foreign receiver's tag observation.
@@ -393,7 +430,7 @@ fn membership_subject_matches_owner(
         }
         _ => {}
     }
-    let Some(subject_type) = operand_type(program, machine, state, subject)
+    let Some(subject_type) = subject_type(subject)
         .and_then(|reference| crate::places::unwrapped_type_reference(program, reference))
     else {
         return false;
