@@ -202,8 +202,7 @@ impl TerminalExecution {
                                     && source.qualifications.is_empty()
                                     && source.projected_qualifications.is_empty()
                             })
-                            || (case.is_some()
-                                && self.owned_case_result_matches(argument.place, parameter));
+                            || self.owned_result_matches(argument.place, parameter, case.is_some());
                     if !source_matches
                         || !matches!(
                             parameter.multiplicity,
@@ -315,10 +314,11 @@ impl TerminalExecution {
         })
     }
 
-    fn owned_case_result_matches(
+    fn owned_result_matches(
         &self,
         place: PlaceId,
         parameter: &StructuralParameterDeclaration,
+        scalar_case: bool,
     ) -> bool {
         let Some(machine) = self.machines.get(&self.current_machine) else {
             return false;
@@ -334,22 +334,35 @@ impl TerminalExecution {
         else {
             return false;
         };
+        // The committed record descriptor retains its runtime referent. This
+        // recognizes its exact producer, not a fresh payload or a copied loan.
+        // Case payloads use their existing distinct runtime representation.
         structural_type == parameter.structural_type
-            && machine.blocks.values().flat_map(|block| &block.operations).any(|operation| {
-                operation.id == producer
-                    && matches!(operation.kind,
-                        terminal_psi::OperationKind::EstablishScalarCase { .. }
-                            | terminal_psi::OperationKind::CallStructural { .. }
-                            | terminal_psi::OperationKind::CallStructuralWithScalarArguments { .. })
-                    && operation.result.structural().is_some_and(|result| {
-                        result.place == place
-                            && result.structural_type == structural_type
-                            && result.multiplicity == parameter.multiplicity
-                            && result.qualifications.is_empty()
-                            && result.projected_qualifications.is_empty()
-                            && result.claims.is_empty()
-                    })
-            })
+            && (scalar_case || self.plain_record_type(structural_type))
+            && machine
+                .blocks
+                .values()
+                .flat_map(|block| &block.operations)
+                .any(|operation| {
+                    operation.id == producer
+                        && match operation.kind {
+                            terminal_psi::OperationKind::EstablishScalarCase { .. } => scalar_case,
+                            terminal_psi::OperationKind::EstablishRecord { .. } => !scalar_case,
+                            terminal_psi::OperationKind::CallStructural { .. }
+                            | terminal_psi::OperationKind::CallStructuralWithScalarArguments {
+                                ..
+                            } => true,
+                            _ => false,
+                        }
+                        && operation.result.structural().is_some_and(|result| {
+                            result.place == place
+                                && result.structural_type == structural_type
+                                && result.multiplicity == parameter.multiplicity
+                                && result.qualifications.is_empty()
+                                && result.projected_qualifications.is_empty()
+                                && result.claims.is_empty()
+                        })
+                })
     }
 
     fn owned_block_source(&self, place: PlaceId) -> Option<&StructuralParameterDeclaration> {

@@ -588,7 +588,7 @@ fn validate_operand(
     Ok(plans.nodes.get(handle).primitive_type)
 }
 
-/// Locate only operands of actual match nodes beneath this statement's value.
+/// Locate only operands of actual constructors and matches beneath this value.
 /// A retained role cannot authorize reading an unrelated expression in the arena.
 pub(crate) fn operand_source(
     checked: &CheckedTrees,
@@ -613,6 +613,9 @@ pub(crate) fn operand_source(
             return unsupported("structural operand has cyclic authored scope");
         }
         visited.push(expression);
+        if !checked.expression_table.expression_is_valid(expression) {
+            return unsupported("structural operand has stale authored scope");
+        }
         if let CheckedScalarExpressionRole::StructuralValueField {
             expression: constructor,
             field_ordinal,
@@ -670,6 +673,22 @@ pub(crate) fn operand_source(
                 .ok_or(LoweringError::Unsupported(
                     "record operand has no scalar carrier",
                 ));
+        }
+        // A nested record's scalar fields belong to that constructor, not the
+        // enclosing field's ordinal. Reach them through authored field values
+        // before comparing the retained owner/ordinal above on the next visit.
+        if let ExpressionNode::StructLiteral(literal) =
+            checked.expression_table.expression(expression)
+        {
+            pending.extend(
+                checked
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .iter()
+                    .rev()
+                    .map(|field| field.value),
+            );
+            continue;
         }
         let ExpressionNode::Match(dispatch) = checked.expression_table.expression(expression)
         else {

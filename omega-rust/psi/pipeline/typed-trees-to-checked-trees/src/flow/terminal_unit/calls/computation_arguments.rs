@@ -338,17 +338,14 @@ fn shared_record_argument(
     };
     let mut shapes = ShapeCollector::new(program);
     let identity = shapes.add_type(reference, &[], &[])?;
-    let parameter_source = matches!(
-        source,
-        CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
-    );
     if identity != target_identity
         || !parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty()
-        || !shapes.types.values().all(|shape|
+        || !shapes.types.values().all(|shape| {
             matches!(&shape.shape, CheckedUnitStructuralTypeShape::Record { fields }
                 if fields.iter().all(|field| !field.relevance.is_erased()
-                    && (matches!(field.field_type, CheckedUnitStructuralFieldType::Scalar(_))
-                        || (parameter_source && matches!(field.field_type, CheckedUnitStructuralFieldType::Structural { .. }))))))
+                    && matches!(field.field_type, CheckedUnitStructuralFieldType::Scalar(_)
+                        | CheckedUnitStructuralFieldType::Structural { .. })))
+        })
     {
         return None;
     }

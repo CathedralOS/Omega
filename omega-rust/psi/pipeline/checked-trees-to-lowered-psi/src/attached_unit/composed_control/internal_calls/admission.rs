@@ -70,7 +70,10 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
                 || *target_contract_commitment != contract.commitment
                 || result.type_identity != signature.type_identity
                 || result.multiplicity != signature.multiplicity
-                || result.multiplicity != Multiplicity::Affine
+                || !matches!(
+                    result.multiplicity,
+                    Multiplicity::Affine | Multiplicity::Unrestricted
+                )
                 || !signature.qualifications.is_empty()
                 || result.statement_index != coordinate.statement_index
             {

@@ -1474,6 +1474,7 @@ pub(super) fn validate_structural_arguments(
             && actual_multiplicity == StructuralMultiplicity::Affine
             && (is_structural_call_result(caller, argument.place)
                 || super::record::plain_return_source(module, caller, argument.place)
+                || super::block_views::parameter(caller, argument.place).is_some()
                 || caller
                     .structural_parameters
                     .iter()

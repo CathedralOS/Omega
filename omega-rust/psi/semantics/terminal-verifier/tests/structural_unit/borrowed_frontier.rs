@@ -359,3 +359,137 @@ fn shared_views_of_owned_parameters_require_the_same_live_custody() {
         }
     }
 }
+
+#[test]
+fn shared_views_of_owned_block_parameters_preserve_exact_edge_custody() {
+    for boundary in [false, true] {
+        for scalar in [false, true] {
+            let mut module = shared_result_module(boundary, scalar, false);
+            let mut parameter = module.boundary_machines[2].structural_parameters[0].clone();
+            parameter.place = place_id(2);
+            // Owned boundary actuals do not admit block parameters. Consume
+            // through an ordinary owned call, then dispose the callee formal.
+            let mut consumer = module.machines[0].clone();
+            consumer.id = machine_id(3);
+            consumer.contract.id = contract_id(30);
+            consumer.entry = block_id(30);
+            let mut consumed_parameter = parameter.clone();
+            consumed_parameter.place = place_id(30);
+            consumer.structural_parameters = vec![consumed_parameter];
+            consumer.structural_places = vec![StructuralPlaceDeclaration {
+                id: place_id(30),
+                kind: StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: false,
+                },
+            }];
+            consumer.published_service_ceiling.clear();
+            consumer.blocks[0].id = block_id(30);
+            consumer.blocks[0].operations.clear();
+            consumer.blocks[0].terminator = Terminator::ReturnUnit {
+                edge: edge_id(30),
+                trivial_affine_discards: vec![place_id(30)],
+            };
+            module.machines.push(consumer);
+            let caller = &mut module.machines[0];
+            let mut input = parameter.clone();
+            input.place = place_id(1);
+            caller.structural_parameters = vec![input];
+            caller.structural_places[0].kind = StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            };
+            let mut successor = caller.blocks[0].clone();
+            successor.id = block_id(10);
+            successor.structural_parameters = vec![parameter];
+            successor.operations = caller.blocks[0].operations.split_off(1);
+            caller.blocks[0].operations.clear();
+            successor.operations.last_mut().unwrap().kind = OperationKind::CallUnit {
+                callee: machine_id(3),
+                arguments: Vec::new(),
+                structural_arguments: vec![StructuralArgument {
+                    place: place_id(2),
+                    path: Vec::new(),
+                    access: StructuralAccess::Owned,
+                }],
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            };
+            for operation in &mut successor.operations {
+                let arguments = match &mut operation.kind {
+                    OperationKind::CallUnit {
+                        structural_arguments,
+                        ..
+                    }
+                    | OperationKind::CallStructuralScalar {
+                        structural_arguments,
+                        ..
+                    }
+                    | OperationKind::BoundaryCall {
+                        structural_arguments,
+                        ..
+                    } => structural_arguments,
+                    _ => panic!("existing shared-read and consuming call fixture"),
+                };
+                for argument in arguments {
+                    argument.place = place_id(2);
+                }
+            }
+            caller.structural_places.push(StructuralPlaceDeclaration {
+                id: place_id(2),
+                kind: StructuralPlaceKind::BlockParameter {
+                    block: block_id(10),
+                    position: 0,
+                },
+            });
+            caller.blocks[0].terminator = Terminator::Jump {
+                edge: edge_id(10),
+                target: block_id(10),
+                arguments: Vec::new(),
+                structural_arguments: vec![StructuralArgument {
+                    place: place_id(1),
+                    path: Vec::new(),
+                    access: StructuralAccess::Owned,
+                }],
+                trivial_affine_discards: Vec::new(),
+                residual_affine_discards: Vec::new(),
+            };
+            caller.blocks.push(successor);
+            if !boundary {
+                module.root_service_reach.concrete.clear();
+            }
+            validate_module(&module)
+                .expect("whole affine block owner supplies repeated shared loans");
+            let mut consumed = module.clone();
+            consumed.machines[0].blocks[1].operations.swap(1, 2);
+            assert_eq!(
+                validate_module(&consumed).map(|_| ()),
+                Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+                    operation: operation_id(3),
+                    place: place_id(2)
+                })
+            );
+            for mutation in 0..2 {
+                let mut changed = module.clone();
+                let Terminator::Jump {
+                    structural_arguments,
+                    trivial_affine_discards,
+                    ..
+                } = &mut changed.machines[0].blocks[0].terminator
+                else {
+                    unreachable!()
+                };
+                if mutation == 0 {
+                    structural_arguments[0].access = StructuralAccess::SharedBorrow;
+                } else {
+                    trivial_affine_discards.push(place_id(1));
+                }
+                assert!(
+                    validate_module(&changed).is_err(),
+                    "edge cannot fabricate an owner from a loan or disposed root"
+                );
+            }
+        }
+    }
+}

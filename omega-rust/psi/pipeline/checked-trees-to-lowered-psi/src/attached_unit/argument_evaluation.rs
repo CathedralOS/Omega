@@ -68,6 +68,107 @@ pub(crate) struct StructuralValueOwner {
 }
 
 impl Evaluation {
+    /// Publish one completed structural result into the state's existing value
+    /// and local namespaces. Calls and constructors share the original home;
+    /// registration neither copies payload fields nor changes cleanup custody.
+    pub(crate) fn establish_structural_result(
+        &mut self,
+        checked: &CheckedTrees,
+        state: symbols::SymbolHandle,
+        result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+        produced: terminal_psi::StructuralOperationResult,
+        structural_types: &[StructuralTypeDeclaration],
+        operations: &mut OperationBuffer,
+    ) -> Result<(), LoweringError> {
+        let multiplicity = match result.multiplicity {
+            Multiplicity::Affine => StructuralMultiplicity::Affine,
+            Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
+            _ => return unsupported("structural result has unsupported local custody"),
+        };
+        let mut types = structural_types
+            .iter()
+            .filter(|declaration| declaration.id == produced.structural_type);
+        let declaration = types.next().ok_or(LoweringError::Unsupported(
+            "structural result type was not declared",
+        ))?;
+        if types.next().is_some()
+            || declaration.identity != result.type_identity
+            || produced.multiplicity != multiplicity
+            || !produced.qualifications.is_empty()
+            || !produced.projected_qualifications.is_empty()
+            || !produced.claims.is_empty()
+        {
+            return unsupported("structural result registration changed its exact custody");
+        }
+        if operations
+            .structural_values
+            .iter()
+            .any(|(ordinal, _)| *ordinal == result.binding_ordinal)
+        {
+            return unsupported("structural value binding was established twice");
+        }
+        let (_, source) = crate::scalar_source_custody::authored_state(checked, state)?;
+        let local = match checked
+            .statement_table
+            .statements(source.statement_nodes)
+            .get(result.statement_index as usize)
+        {
+            Some(checked_trees::statement::StatementNode::LocalData(local)) => Some(local),
+            Some(_) => None,
+            None => return unsupported("structural result lost its source statement"),
+        };
+        let mut local_symbol = symbols::SymbolHandle::invalid();
+        if let Some(local) = local {
+            if !local.symbol.is_valid()
+                || !checked
+                    .expression_table
+                    .expression_is_valid(local.initial_value)
+                || checked
+                    .normalized_type_identity(local.type_reference)
+                    .as_str()
+                    != result.type_identity
+                || checked.type_multiplicity(local.type_reference) != result.multiplicity
+                || self
+                    .structural_locals
+                    .iter()
+                    .any(|(symbol, _)| *symbol == local.symbol)
+            {
+                return unsupported("structural value repeats or substitutes its local binding");
+            }
+            local_symbol = local.symbol;
+            if matches!(declaration.shape, StructuralTypeShape::Sum { .. }) {
+                self.local_cases.push(
+                    crate::scalar_bindings::structural_cases::LocalCaseBinding::new(
+                        checked,
+                        local.symbol,
+                        local.type_reference,
+                        produced.place,
+                        structural_types,
+                    )?,
+                );
+            }
+            self.structural_locals.push((
+                local.symbol,
+                StructuralArgument {
+                    place: produced.place,
+                    path: Vec::new(),
+                    access: StructuralAccess::Owned,
+                },
+            ));
+        }
+        if multiplicity == StructuralMultiplicity::Affine {
+            self.structural_value_owners.push(StructuralValueOwner {
+                symbol: local_symbol,
+                statement: result.statement_index,
+                value: produced.clone(),
+            });
+        }
+        operations
+            .structural_values
+            .push((result.binding_ordinal, produced));
+        Ok(())
+    }
+
     /// Call operand resolvers retain authored result identities. Apply only
     /// transports that precede the operation; earlier calls keep their places.
     pub(crate) fn remap_transported_call_operands(&mut self, operations: &mut OperationBuffer) {
