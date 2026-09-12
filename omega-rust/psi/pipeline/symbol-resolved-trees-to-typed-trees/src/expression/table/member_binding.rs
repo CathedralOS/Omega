@@ -145,7 +145,19 @@ fn declared_symbol_type(
             let parameter = measure.parameter.as_ref()?;
             (parameter.symbol == symbol).then_some(&parameter.type_reference)
         }
-        SymbolKind::Parameter | SymbolKind::Local => {
+        // Value parameters also belong to abstract signatures and propositions,
+        // not only executable states. Their retained symbol is the declaration
+        // identity; requiring a machine state here loses otherwise resolved
+        // member receivers in nested contracts.
+        SymbolKind::Parameter => program
+            .tables
+            .declarations
+            .state_parameters
+            .iter()
+            .find_map(|(_, parameter)| {
+                (parameter.symbol == symbol).then_some(&parameter.type_reference)
+            }),
+        SymbolKind::Local => {
             let state = program
                 .tables
                 .declarations
@@ -153,20 +165,13 @@ fn declared_symbol_type(
                 .iter()
                 .find_map(|(_, state)| (state.symbol == declaration.parent).then_some(state))?;
             program
-                .state_parameters(state.parameters)
+                .state_statements(state.statements)
                 .iter()
-                .find(|parameter| parameter.symbol == symbol)
-                .map(|parameter| &parameter.type_reference)
-                .or_else(|| {
-                    program
-                        .state_statements(state.statements)
-                        .iter()
-                        .find_map(|statement| {
-                            let resolved::statement::Statement::LocalData(local) = statement else {
-                                return None;
-                            };
-                            (local.symbol == symbol).then_some(&local.type_reference)
-                        })
+                .find_map(|statement| {
+                    let resolved::statement::Statement::LocalData(local) = statement else {
+                        return None;
+                    };
+                    (local.symbol == symbol).then_some(&local.type_reference)
                 })
         }
         SymbolKind::Field => {

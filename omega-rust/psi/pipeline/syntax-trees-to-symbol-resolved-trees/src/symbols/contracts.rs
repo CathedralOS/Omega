@@ -13,6 +13,8 @@ use super::targets::assign_static_argument_symbols;
 /// arguments in the owning callable's scope. Machine contracts use entry
 /// parameters; state contracts use only that state's explicit parameters.
 /// Operator contracts use their own declared operand and generic binders.
+/// Static-machine signatures use their own parameter children, at every nesting
+/// depth; their contracts must not remain name-only for downstream consumers.
 /// Membership domain names retain their separate declaration lookup.
 pub(super) fn assign_contract_reference_symbols(
     program: &mut SymbolResolvedTrees,
@@ -149,6 +151,44 @@ pub(super) fn assign_contract_reference_symbols(
             state_parameters.span_or_empty(operator.parameters),
             operator.symbol,
             operator.contracts,
+            signature_contracts,
+            proof_facts,
+            expression_table,
+            child_type_references,
+        );
+    }
+
+    // Structural static-machine parameters already own real signature symbols
+    // and parameter children. Visit their arena once (including nested ones)
+    // using the same lexical expression resolver as other callable contracts.
+    // This scope has no executable receiver or enclosing value parameters.
+    for (_, parameter) in data_type_parameters.iter() {
+        let symbol_resolved_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind
+        else {
+            continue;
+        };
+        let Some(signature) = contract.structural() else {
+            continue;
+        };
+        let scope = MachineScope {
+            symbol: signature.symbol,
+            type_parameters: data_type_parameters.span_or_empty(signature.type_parameters),
+            attached_data: None,
+            attached_data_symbol: SymbolHandle::invalid(),
+            inherited_data_members: None,
+            owned_data: &[],
+            prior_statements: &[],
+            data_definitions,
+            data_members,
+            data_payload_fields: &tables.declarations.data_payload_fields,
+            type_constraints: &tables.types.constraints,
+        };
+        assign_contract_span(
+            symbols,
+            &scope,
+            state_parameters.span_or_empty(signature.parameters),
+            signature.symbol,
+            signature.contracts,
             signature_contracts,
             proof_facts,
             expression_table,

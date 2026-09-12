@@ -160,10 +160,19 @@ applications are not admitted by adding a review row. Contract/bundle migration
 must preserve exact occurrence, substitution, law/member, and witness joins;
 replacement encodings remain `PROOF-CONTRACT-MIGRATION` work.
 
-Nominal membership capture currently requires an actual checked machine or
-machine-state subject context supported by Psi's exact carrier validator.
-Non-machine declarations, nested signatures and propositions remain unsupported;
-the review capture must not invent a receiver environment from the classifier.
+Nominal membership capture uses Psi's exact carrier validator with either the
+real machine/state owner or the declaration's own parameter roster. Nested
+static-machine signature guards support direct, borrowed, field and builtin-index
+subjects without inventing an executable receiver. A same-spelled parameter from
+another signature cannot supply that scope. Domain/data subjects and result
+guarantees still need their own subject custody; proposition case classifiers
+remain blocked earlier in source typing. Declared indexing requires its exact
+application result, not an assumed collection element type.
+
+Crash predicates are ceiling guards, not established requires/ensures facts.
+Their projection checks the freshly rederived crash capsule, exact declaration
+selections and recursive operands without requesting proof-place dependency rows
+that the checked producer intentionally does not emit for guards.
 
 Outcome-specific guarantees retain exact result-data/case identity and canonical
 fact joined to their checked guarded owner. Ordering is not meaning, but moving
