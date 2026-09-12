@@ -14,6 +14,8 @@ mod generated;
 mod inspection;
 #[path = "package_commands/offline.rs"]
 mod offline;
+#[path = "package_commands/probe.rs"]
+mod probe;
 #[path = "package_commands/remote.rs"]
 mod remote;
 #[path = "package_commands/remote_authority.rs"]

@@ -215,29 +215,7 @@ fn dispatch() {
             std::process::exit(1);
         }
     } else if !settlement.is_exactly_admitted() {
-        for admission in settlement.unresolved() {
-            eprintln!(
-                "unresolved trust admission `{}` [{}]{}",
-                admission.commitment(),
-                admission.digest(),
-                admission
-                    .report_identity()
-                    .map(|identity| format!(" (report {identity:016x})"))
-                    .unwrap_or_default(),
-            );
-        }
-        for admission in settlement.unused() {
-            eprintln!(
-                "stale trust admission `{}` [{}]{}",
-                admission.commitment(),
-                admission.digest(),
-                admission
-                    .report_identity()
-                    .map(|identity| format!(" (report {identity:016x})"))
-                    .unwrap_or_default(),
-            );
-        }
-        eprintln!("run again with --accept-admissions to accept this exact set");
+        report_unsettled_admissions(settlement);
         std::process::exit(1);
     }
     if arguments.check_only {
@@ -256,6 +234,26 @@ fn dispatch() {
             }
         }
     }
+}
+
+fn report_unsettled_admissions(settlement: &compiler::TrustAdmissionSettlement) {
+    for (label, admissions) in [
+        ("unresolved", settlement.unresolved()),
+        ("stale", settlement.unused()),
+    ] {
+        for admission in admissions {
+            eprintln!(
+                "{label} trust admission `{}` [{}]{}",
+                admission.commitment(),
+                admission.digest(),
+                admission
+                    .report_identity()
+                    .map(|identity| format!(" (report {identity:016x})"))
+                    .unwrap_or_default(),
+            );
+        }
+    }
+    eprintln!("use omega --accept-admissions <root.omg> to accept this exact set");
 }
 
 struct CliArguments {

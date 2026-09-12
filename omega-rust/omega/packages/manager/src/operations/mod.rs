@@ -31,6 +31,7 @@ pub use check_project::{
 pub use compile_project::{
     CompilePreparedLocalProjectNativeError, PreparedLocalProjectNativeRequest,
     compile_prepared_local_project_for_native,
+    compile_prepared_local_project_for_native_with_observation,
 };
 pub use inspect_packages::{
     PackageInspectionError, PackageInspectionOptions, PackageInspectionOutcome, inspect_packages,
