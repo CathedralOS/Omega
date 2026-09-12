@@ -168,7 +168,7 @@ impl SummaryCrashBucket {
             .filter_map(|guard| match guard {
                 SummaryCrashRouteGuard::Truth => Some(SummaryCrashRouteGuard::Truth),
                 SummaryCrashRouteGuard::Predicate(predicate) => {
-                    let Some(identity) = super::operator_crashes::substitute_entry(
+                    let Some(identity) = super::crash_entry_values::substitute_entry(
                         &predicate.identity,
                         &arguments.identity,
                     ) else {
@@ -314,7 +314,7 @@ fn call_argument_substitution(
         argument_index = argument_index.saturating_add(1);
         let entry_identity = argument.and_then(|argument| {
             let (machine, state) = owner?;
-            super::operator_crashes::entry_operand(
+            super::crash_entry_values::entry_operand(
                 program,
                 machine.symbol,
                 state.symbol,
@@ -523,7 +523,7 @@ fn refine_published_crash_routes(
                                 target_parameter_names,
                                 Some(content_conservation),
                             );
-                            let Some(predicate) = super::operator_crashes::substitute_entry(
+                            let Some(predicate) = super::crash_entry_values::substitute_entry(
                                 &predicate,
                                 &substitution.identity,
                             ) else {

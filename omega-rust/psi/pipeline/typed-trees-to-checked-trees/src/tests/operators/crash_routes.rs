@@ -43,6 +43,71 @@ fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::D
 }
 
 #[test]
+fn operator_field_routes_preserve_immutable_owned_and_shared_entry_values() {
+    for carrier in ["Flag", "&Flag"] {
+        for operand in ["flag.enabled", "snapshot"] {
+            let source = format!(
+                "boundary operator == Comparison::equal(left: bool, right: bool) -> bool crashes Trap left;
+                 pub data Flag {{ enabled: bool; }}
+                 pub machine compare(flag: {carrier}, right: bool) -> bool crashes Trap flag.enabled {{
+                     let snapshot: bool = flag.enabled;
+                     {operand} == right
+                 }}"
+            );
+            check(&source).unwrap_or_else(|errors| panic!("{source}: {errors:?}"));
+        }
+    }
+}
+
+#[test]
+fn operator_field_routes_cannot_relabel_mutable_contents_as_entry() {
+    for parameter in ["mut flag: Flag", "flag: &mut Flag"] {
+        let source = |guard: &str| {
+            format!(
+            "boundary operator == Comparison::equal(left: bool, right: bool) -> bool crashes Trap left;
+             pub data Flag {{ enabled: bool; }}
+             pub machine compare({parameter}, right: bool) -> bool crashes Trap {guard} {{
+                 flag.enabled = true;
+                 flag.enabled == right
+             }}"
+        )
+        };
+        check(&source("")).expect("the unconditional ceiling covers the actual mutation");
+        let errors = check(&source("flag.enabled"))
+            .expect_err("current fields cannot inherit invocation-entry identity");
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains("uncovered Trap")),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn operator_field_entry_guard_does_not_survive_state_rearrival() {
+    let source = |guard: &str| {
+        format!(
+        "boundary operator == Comparison::equal(left: bool, right: bool) -> bool crashes Trap left;
+         pub data Flag {{ enabled: bool; }}
+         pub machine compare(flag: Flag, next: Flag, right: bool) -> bool crashes Trap {guard} {{
+             let observed: bool = flag.enabled == right;
+             transition {{ _ -> compare(next, flag, right) }}
+         }}"
+    )
+    };
+    check(&source("")).expect("unconditional crash contract covers every arrival");
+    let errors = check(&source("flag.enabled"))
+        .expect_err("reordered state arrivals are not invocation-entry fields");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("uncovered Trap")),
+        "{errors:?}"
+    );
+}
+
+#[test]
 fn selected_operator_crash_routes_require_same_cause_coverage() {
     for (cause, wrong) in [("Trap", "Abort"), ("Abort", "Trap")] {
         for body in ["left == right", "match left { right -> true, _ -> false }"] {

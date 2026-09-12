@@ -592,8 +592,9 @@ Owners include
   Extend the ordinary scalar-call sequencing path for direct boundary returns;
   the existing result-bearing producer still requires a local-result binding.
 
-  Extend captured-value-to-entry provenance to state arrivals, rebinding and
-  structural fields, including the separate named-operator use path. Unknown
+  Extend `facts/crash_entry_values.rs` beyond immutable plain-content roots to
+  state arrivals, rebinding, mutable field versions and receiver/case projections,
+  including the separate named-operator use path. Unknown
   provenance must remain conservative; current spelling/live storage is not a
   saved actual. This owns **MATCH-SELECTIVE-LOWERING**'s crash-qualified equality
   dependency and shares entry snapshots with **STATE-LOCAL-VALUE-FRONTIER**.

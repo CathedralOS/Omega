@@ -1,17 +1,19 @@
 //! Selected operator invocations have their own occurrence and operand custody.
 //! Their source crash routes never acquire fabricated ordinary-call coordinates.
 
+use super::crash_entry_values::{entry_operand, substitute_entry};
+
 use checked_trees::{
     CheckedCrashOperatorSite, CheckedOperatorFacts, CheckedOperatorOccurrence,
-    CheckedOperatorResolutionStatus, CheckedValueOrigin, CrashPredicateExpression,
-    CrashPredicateIdentity, CrashRouteBucket, CrashRouteGuard, FlowFacts,
+    CheckedOperatorResolutionStatus, CheckedValueOrigin, CrashPredicateIdentity, CrashRouteBucket,
+    CrashRouteGuard, FlowFacts,
 };
 use diagnostics::Diagnostic;
 use facts::FactPlan;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
+use typed_trees::expression::{ExpressionNode, MatchPattern};
 use typed_trees::signature::SignatureContractKind;
 
 pub(crate) fn build(
@@ -229,173 +231,4 @@ fn unreachable_match_arm(
         }
     }
     false
-}
-
-pub(super) fn entry_operand(
-    program: &TypedTrees,
-    machine_symbol: SymbolHandle,
-    state_symbol: SymbolHandle,
-    before_statement: usize,
-    expression: ExpressionHandle,
-) -> Option<CrashPredicateExpression> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Boolean(value) => Some(CrashPredicateExpression::Boolean(*value)),
-        ExpressionNode::Integer(value) => {
-            Some(CrashPredicateExpression::Integer(value.text().to_owned()))
-        }
-        ExpressionNode::Unary(unary)
-            if unary.operator == typed_trees::expression::UnaryOperator::LogicalNot =>
-        {
-            Some(CrashPredicateExpression::Unary {
-                operator: unary.operator as u8,
-                operand: Box::new(entry_operand(
-                    program,
-                    machine_symbol,
-                    state_symbol,
-                    before_statement,
-                    unary.operand,
-                )?),
-            })
-        }
-        ExpressionNode::Name(path) => {
-            if program
-                .expression_table
-                .name_path_members(path.members)
-                .len()
-                != 1
-            {
-                return None;
-            }
-            let machine = program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == machine_symbol)?;
-            let state = program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == state_symbol)?;
-            let preceding = program
-                .statement_table
-                .statements(state.statement_nodes)
-                .get(..before_statement)?;
-            for (ordinal, statement) in preceding.iter().enumerate() {
-                if let typed_trees::statement::StatementNode::LocalData(local) = statement
-                    && local.symbol == path.symbol
-                {
-                    if local.is_mutable
-                        || program
-                            .primitive_type_reference(local.type_reference)
-                            .is_none()
-                    {
-                        return None;
-                    }
-                    // This transports a fixed scalar value, not a current read
-                    // of its initializer. Every dependency must independently
-                    // be immutable and entry-relative; mutable initializers
-                    // are rejected even if their storage now has useful facts.
-                    // Decreasing the prefix also prevents recursive aliases.
-                    return entry_operand(
-                        program,
-                        machine_symbol,
-                        state_symbol,
-                        ordinal,
-                        local.initial_value,
-                    );
-                }
-            }
-            let entry_index = crate::checks::termination::named_transition_target_state_index(
-                program,
-                machine,
-                machine.symbol,
-            )?;
-            let entry = program.machine_states(machine).get(entry_index)?;
-            if state_symbol != entry.symbol
-                || entry_has_incoming_transition(program, machine, entry_index)
-            {
-                return None;
-            }
-            let (ordinal, _) =
-                program
-                    .state_parameters(entry)
-                    .iter()
-                    .enumerate()
-                    .find(|(_, parameter)| {
-                        parameter.symbol == path.symbol
-                            && !parameter.is_mutable
-                            && !parameter.is_self
-                            && program
-                                .primitive_type_reference(parameter.type_reference)
-                                .is_some()
-                    })?;
-            Some(CrashPredicateExpression::Parameter(
-                u32::try_from(ordinal).ok()?,
-            ))
-        }
-        _ => None,
-    }
-}
-
-fn entry_has_incoming_transition(
-    program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    entry_index: usize,
-) -> bool {
-    use typed_trees::statement::{StatementNode, TransitionTargetNode};
-
-    // Typed statement lowering flattens nested transition forms into states.
-    // Inspect ordinary targets and continuation targets, just as the existing
-    // termination graph does. A repeated immutable declaration is a fresh
-    // arrival value, not necessarily the original invocation-entry value.
-    program.machine_states(machine).iter().any(|state| {
-        program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .any(|statement| {
-                let StatementNode::Transition(transition) = statement else {
-                    return false;
-                };
-                [transition.target, transition.continuation]
-                    .into_iter()
-                    .filter(|target| target.is_valid())
-                    .any(|target| {
-                        let symbol = match program.statement_table.transition_target(target) {
-                            TransitionTargetNode::Named { path, .. } => path.symbol,
-                            TransitionTargetNode::SelfTarget => state.symbol,
-                            TransitionTargetNode::Value(_) | TransitionTargetNode::Terminal => {
-                                return false;
-                            }
-                        };
-                        crate::checks::termination::named_transition_target_state_index(
-                            program, machine, symbol,
-                        ) == Some(entry_index)
-                    })
-            })
-    })
-}
-
-pub(super) fn substitute_entry(
-    expression: &CrashPredicateExpression,
-    operands: &[Option<CrashPredicateExpression>],
-) -> Option<CrashPredicateExpression> {
-    Some(match expression {
-        CrashPredicateExpression::Parameter(ordinal) => operands.get(*ordinal as usize)?.clone()?,
-        CrashPredicateExpression::Boolean(_) | CrashPredicateExpression::Integer(_) => {
-            expression.clone()
-        }
-        CrashPredicateExpression::Binary {
-            operator,
-            left,
-            right,
-        } => CrashPredicateExpression::Binary {
-            operator: *operator,
-            left: Box::new(substitute_entry(left, operands)?),
-            right: Box::new(substitute_entry(right, operands)?),
-        },
-        CrashPredicateExpression::Unary { operator, operand } => CrashPredicateExpression::Unary {
-            operator: *operator,
-            operand: Box::new(substitute_entry(operand, operands)?),
-        },
-        _ => return None,
-    })
 }
