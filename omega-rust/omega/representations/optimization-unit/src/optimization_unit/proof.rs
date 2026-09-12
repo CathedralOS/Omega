@@ -23,10 +23,9 @@ pub struct AcceptedObligationFact {
 /// becoming interchangeable optimizer authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ProofQuestionOwner {
-    ScalarRangeInvariant {
+    ScalarBlockInvariant {
         machine: MachineId,
         header: BlockId,
-        parameter: ValueId,
         edge: EdgeId,
     },
     Operation {
@@ -54,7 +53,7 @@ pub enum ProofQuestionOwner {
 impl ProofQuestionOwner {
     pub const fn machine(self) -> MachineId {
         match self {
-            Self::ScalarRangeInvariant { machine, .. }
+            Self::ScalarBlockInvariant { machine, .. }
             | Self::Operation { machine, .. }
             | Self::CallRequires { machine, .. }
             | Self::NominalCleanupRequires { machine, .. }
@@ -233,7 +232,7 @@ pub fn proof_question_identity(
     canonical_certificate: bool,
 ) -> ProofQuestionIdentity {
     let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.psi-proof-question.v1\0");
+    canonical.extend_from_slice(b"omega.psi-proof-question.v2\0");
     canonical.extend_from_slice(terminal_psi.program_fingerprint.as_bytes());
     canonical.extend_from_slice(&terminal_psi.vocabulary_marker.get().to_le_bytes());
     canonical.extend_from_slice(&proof_bundle_fingerprint);
@@ -249,16 +248,14 @@ pub fn proof_question_identity(
 
 fn encode_proof_question_owner(bytes: &mut Vec<u8>, owner: ProofQuestionOwner) {
     match owner {
-        ProofQuestionOwner::ScalarRangeInvariant {
+        ProofQuestionOwner::ScalarBlockInvariant {
             machine,
             header,
-            parameter,
             edge,
         } => {
             bytes.push(5);
             bytes.extend_from_slice(&machine.get().to_le_bytes());
             bytes.extend_from_slice(&header.get().to_le_bytes());
-            bytes.extend_from_slice(&parameter.get().to_le_bytes());
             bytes.extend_from_slice(&edge.get().to_le_bytes());
         }
         ProofQuestionOwner::Operation { machine, operation } => {

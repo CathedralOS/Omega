@@ -4,7 +4,7 @@ use super::operation_encoding::*;
 use super::structural_encoding::*;
 use super::*;
 
-const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v25\0";
+const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v26\0";
 const STRUCTURAL_DOMAIN_CATALOG_IDENTITY_DOMAIN: &[u8] =
     b"omega.psi-optimization-structural-domain-catalog.v1\0";
 
@@ -135,16 +135,14 @@ fn encode_proof_question(bytes: &mut CanonicalBytes, question: &ProofQuestion) {
     bytes.bytes(question.terminal_psi.program_fingerprint.as_bytes());
     bytes.bytes(&question.proof_bundle_fingerprint);
     match question.owner {
-        ProofQuestionOwner::ScalarRangeInvariant {
+        ProofQuestionOwner::ScalarBlockInvariant {
             machine,
             header,
-            parameter,
             edge,
         } => {
             bytes.u8(5);
             bytes.id(machine);
             bytes.id(header);
-            bytes.id(parameter);
             bytes.id(edge);
         }
         ProofQuestionOwner::Operation { machine, operation } => {

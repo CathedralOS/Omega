@@ -127,7 +127,7 @@ fn module(scalar_call: bool) -> TerminalModule {
     caller.blocks[0].operations.push(call);
     TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: caller.id,
         structural_types: Vec::new(),

@@ -160,7 +160,7 @@ fn module_with(quotient_correspondences: Vec<RetainedQuotientCorrespondence>) ->
     let machine = MachineId::new(1).unwrap();
     TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),
@@ -228,7 +228,7 @@ fn quotient_correspondence_round_trips_and_enters_module_identity() {
     let module = module_with(vec![correspondence("Public::apply")]);
     validate_module_representation(&module).expect("representation replay");
     let bytes = encode_module(&module).expect("quotient correspondence encodes");
-    assert_eq!(&bytes[8..10], 92_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 93_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         terminal_psi::VocabularyMarker::CURRENT.get().to_le_bytes()

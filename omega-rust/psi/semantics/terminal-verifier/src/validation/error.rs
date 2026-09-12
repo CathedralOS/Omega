@@ -42,16 +42,14 @@ pub enum ModuleError {
         reason: &'static str,
     },
     InvalidScalarQualification(&'static str),
-    NonCanonicalScalarRangeInvariants,
-    InvalidScalarRangeInvariant {
+    NonCanonicalScalarBlockInvariants,
+    InvalidScalarBlockInvariant {
         machine: MachineId,
         header: BlockId,
-        parameter: ValueId,
     },
-    InvalidScalarRangeInvariantArrivals {
+    InvalidScalarBlockInvariantArrivals {
         machine: MachineId,
         header: BlockId,
-        parameter: ValueId,
     },
     InvalidByteSequenceWrite(OperationId),
     InvalidStructuralByteSequenceFieldStore(OperationId),

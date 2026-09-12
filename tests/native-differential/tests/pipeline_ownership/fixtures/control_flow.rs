@@ -18,7 +18,7 @@ pub(crate) fn conditional_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
     };
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),
@@ -147,7 +147,7 @@ pub(crate) fn constant_conditional_prune_artifact() -> (Vec<u8>, Vec<u8>) {
     };
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),
@@ -272,7 +272,7 @@ pub(crate) fn linear_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
     let target = BlockId::new(4_204).unwrap();
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),
@@ -390,7 +390,7 @@ pub(crate) fn adjacent_block_merge_artifact() -> (Vec<u8>, Vec<u8>) {
     };
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),
@@ -500,7 +500,7 @@ pub(crate) fn adjacent_conditional_merge_artifact() -> (Vec<u8>, Vec<u8>) {
     };
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),
@@ -632,7 +632,7 @@ pub(crate) fn path_qualified_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
     let condition = ValueId::new(4_307).unwrap();
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),

@@ -532,28 +532,32 @@ fn ordered_boolean_call_computations_reject_an_altered_operation() {
 }
 
 #[test]
-fn ordered_boolean_call_computations_retain_unfinished_branch_guarantees() {
-    // Retain the original source customer while the all-arrival proof join is
-    // unfinished. Source congruence is not authority to publish an unproved
-    // guarantee at a Terminal convergence. Replace this fence with the same
-    // artifact/roundtrip/execution acceptance when that evidence is available.
+fn ordered_boolean_call_computations_prove_branch_guarantees() {
     for input in [false, true] {
         for body in [
             "Host::finish(false); identity(false) || !identity(value)",
             "Host::finish(false); identity(!value) && identity(true)",
+            "Host::finish(false); !(identity(value) || identity(false))",
+            "Host::finish(false); identity(!(identity(value) && identity(true)))",
         ] {
             let source = boolean_guarantee_source(body, input).replace(
                 "ensures result == value\nreaches Host",
                 "ensures result == !value\nreaches Host",
             );
             let checked = checked_from_source(&source);
-            let result = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main");
-            assert!(
-                matches!(
-                    result,
-                    Err(checked_trees_to_lowered_psi::LoweringError::OperationProofUnavailable(_))
-                ),
-                "{body}: {result:?}"
+            let published = artifact(&checked);
+            let (status, observed) = execute(&published);
+            assert_eq!(
+                status,
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+            );
+            assert_eq!(
+                observed.arguments,
+                [
+                    vec![TerminalScalarValue::Boolean(false)],
+                    vec![TerminalScalarValue::Boolean(!input)]
+                ],
+                "{body}"
             );
         }
     }

@@ -40,14 +40,31 @@ Proof scheduling may cut edges only in its working graph, not executable
 semantics, and must not assume the omitted incoming facts at those targets.
 General invariant evidence must be checked before importing its conclusions.
 
-A scalar range invariant is a semantic row identifying a machine, cyclic header,
-integer block parameter, inclusive bounds, and one obligation for every actual
-incoming edge. Entry edges establish the range without assuming it; internal
-arrivals preserve it using the invariant as an induction hypothesis at the
-header and the actual successor substitution. The complete group is checked
-before its bounds become available downstream. Missing or duplicate arrivals,
-wrong parameters or carriers, and stale edge coordinates reject. Certificates
-use the existing flat proof bundle; their presence cannot select the roster.
+A scalar block invariant is a semantic row identifying a machine, destination
+block, scalar predicate, and one obligation for every actual incoming edge.
+There is one row per block; multiple assertions form a conjunction. Predicate
+scope contains only immutable scalar machine formals and destination scalar
+parameters. Storage observations, branch-local values, result pseudo-values,
+and opaque or structural predicates cannot gain scope through an assertion.
+The machine entry cannot carry a row: invocation is an implicit arrival, not an
+edge whose certificate can be supplied.
+
+Every arrival proves the predicate under simultaneous destination-parameter to
+actual-argument substitution, before destination hypotheses become available.
+At an acyclic destination, the checked predicate augments the intersection of
+ordinary incoming facts. At a cyclic scheduling cut, only checked invariant
+predicates enter as induction hypotheses; prefix facts are discarded. Initial
+and preserving arrivals, including cut edges, all remain proof obligations.
+Conjunctions expose their unconditional leaves as facts; disjunctions and
+implications remain whole. Arrival obligations still prove the full predicate.
+Inclusive integer ranges are ordinary conjunction predicates in this same
+roster, not a separate induction mechanism.
+
+The complete group and all operation obligations must check before the module
+grants authority. Missing or duplicate arrivals, wrong scope or carriers, and
+stale edge coordinates reject. Certificates use the existing flat proof bundle;
+their presence cannot select the roster. Structural-case arrival substitution
+is not implemented by this scalar roster and rejects explicitly.
 
 Invariant induction is distinct from ranking. A decreasing rank does not grant
 an arithmetic safety bound. Each partial operation still proves its own safety

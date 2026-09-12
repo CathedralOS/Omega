@@ -232,7 +232,7 @@ fn fixture() -> TerminalModule {
         ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).expect("valid integer type"));
     TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: Vec::new(),

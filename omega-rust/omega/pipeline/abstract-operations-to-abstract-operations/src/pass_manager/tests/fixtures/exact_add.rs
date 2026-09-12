@@ -42,7 +42,7 @@ pub(super) fn verified_exact_add_unit_with_right(
     };
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),

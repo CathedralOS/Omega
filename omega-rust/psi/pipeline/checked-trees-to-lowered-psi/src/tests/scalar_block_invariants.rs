@@ -11,8 +11,8 @@ fn fixture() -> LoweredPsi {
         }",
     );
     let mut lowered = lower_machine(&checked, "count").unwrap();
-    assert_eq!(lowered.semantic_module.scalar_range_invariants.len(), 1);
-    lowered.semantic_module.scalar_range_invariants.clear();
+    assert_eq!(lowered.semantic_module.scalar_block_invariants.len(), 1);
+    lowered.semantic_module.scalar_block_invariants.clear();
     lowered.proof_bundle = ProofBundle::default();
     lowered
 }
@@ -34,7 +34,7 @@ fn optional_inference_drops_an_entry_range_that_does_not_survive_the_backedge() 
         ScalarTerm::integer(integer, IntegerValue::Unsigned(4)).unwrap(),
     )];
     let original = lowered.semantic_module.clone();
-    crate::scalar_range_invariants::retain_provable(&mut lowered).unwrap();
+    crate::scalar_block_invariants::retain_provable(&mut lowered).unwrap();
     assert_eq!(lowered.semantic_module, original);
     finalize_operation_proofs(&mut lowered).unwrap();
     terminal_verifier::verify_module(
@@ -59,7 +59,7 @@ fn exhausted_optional_obligation_ids_do_not_reject_an_existing_program() {
     };
     *obligation = obligation_id(u64::MAX);
     let original = lowered.semantic_module.clone();
-    crate::scalar_range_invariants::retain_provable(&mut lowered).unwrap();
+    crate::scalar_block_invariants::retain_provable(&mut lowered).unwrap();
     assert_eq!(lowered.semantic_module, original);
     finalize_operation_proofs(&mut lowered).unwrap();
     terminal_verifier::verify_module(
@@ -75,7 +75,7 @@ fn optional_inference_preserves_retained_source_certificates() {
     let mut lowered = fixture();
     finalize_operation_proofs(&mut lowered).unwrap();
     let original_proofs = lowered.proof_bundle.clone();
-    crate::scalar_range_invariants::retain_provable(&mut lowered).unwrap();
+    crate::scalar_block_invariants::retain_provable(&mut lowered).unwrap();
     assert_eq!(lowered.proof_bundle, original_proofs);
     // If inference retained a compatible roster, its new arrivals still need
     // ordinary finalization; existing source certificates are never discarded.

@@ -37,7 +37,7 @@ fn verified_exact_self_division_or_remainder_unit(divide: bool) -> VerifiedPsiOp
     let goal = Proposition::LessOrEqual(one, ScalarTerm::value(operand, scalar_type));
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),
@@ -175,7 +175,7 @@ pub(in crate::pass_manager::tests) fn verified_exact_remainder_by_one_unit()
     };
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),
@@ -308,7 +308,7 @@ pub(in crate::pass_manager::tests) fn verified_exact_signed_remainder_by_negativ
     };
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),

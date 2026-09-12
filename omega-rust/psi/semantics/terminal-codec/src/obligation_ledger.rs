@@ -8,7 +8,7 @@ use std::collections::BTreeSet;
 
 use proof_admission::{AdmissionKind, AuthorizedAdmission, Obligation, ObligationClass};
 use semantic_vocabulary::{
-    AdmissionSiteId, BlockId, ContractId, EdgeId, EvidenceIdentity, MachineId, OperationId, ValueId,
+    AdmissionSiteId, BlockId, ContractId, EdgeId, EvidenceIdentity, MachineId, OperationId,
 };
 use sha2::{Digest, Sha256};
 use terminal_psi::{SemanticFingerprint, TerminalModule, TerminalPsiIdentity, VocabularyMarker};
@@ -24,7 +24,7 @@ use super::wire::{Reader, Writer};
 use super::{CodecError, decode_counted, terminal_psi_identity};
 
 const MAGIC: &[u8; 8] = b"PSIOBLG\0";
-const FORMAT_MARKER: u16 = 2;
+const FORMAT_MARKER: u16 = 3;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-obligation-ledger-fingerprint\0";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -234,16 +234,14 @@ fn decode_obligation(
 
 fn encode_owner(writer: &mut Writer, owner: ReconstructedTerminalObligationOwner) {
     match owner {
-        ReconstructedTerminalObligationOwner::ScalarRangeInvariant {
+        ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
             machine,
             header,
-            parameter,
             edge,
         } => {
             writer.u8(5);
             writer.id(machine);
             writer.id(header);
-            writer.id(parameter);
             writer.id(edge);
         }
         ReconstructedTerminalObligationOwner::Operation { machine, operation } => {
@@ -310,10 +308,9 @@ fn decode_owner(
             contract: reader.id::<ContractId>("ContractId")?,
             clause_position: reader.u32()?,
         },
-        5 => ReconstructedTerminalObligationOwner::ScalarRangeInvariant {
+        5 => ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
             machine: reader.id::<MachineId>("MachineId")?,
             header: reader.id::<BlockId>("BlockId")?,
-            parameter: reader.id::<ValueId>("ValueId")?,
             edge: reader.id::<EdgeId>("EdgeId")?,
         },
         tag => return Err(CodecError::InvalidTag("TerminalObligationOwner", tag)),
@@ -409,7 +406,7 @@ mod tests {
     fn fixture() -> TerminalModule {
         TerminalModule {
             scalar_qualifications: Default::default(),
-            scalar_range_invariants: Vec::new(),
+            scalar_block_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: MachineId::new(1).unwrap(),
             structural_types: Vec::new(),

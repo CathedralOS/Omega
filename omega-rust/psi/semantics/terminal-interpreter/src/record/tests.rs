@@ -10,7 +10,7 @@ use terminal_verifier::ProofBundle;
 fn unit_module() -> TerminalModule {
     TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(900).unwrap(),
         structural_types: Vec::new(),

@@ -916,7 +916,7 @@ pub(super) fn finish_module(
     let mut lowered = LoweredPsi {
         semantic_module: TerminalModule {
             scalar_qualifications: Default::default(),
-            scalar_range_invariants: Vec::new(),
+            scalar_block_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry,
             structural_types: catalogs.structural_types,

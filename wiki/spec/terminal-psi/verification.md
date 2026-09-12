@@ -144,15 +144,24 @@ logical ordering alone does not establish availability.
   every predecessor. A fact from one arm does not survive the join.
 - Cyclic reconvergence requires checked invariant establishment and preservation,
   not the acyclic merge rule.
-- Scalar range invariant arrival questions come from the semantic roster and
-  every actual incoming edge, independently of the supplied proof bundle. Each
-  question is the conjunction of the inclusive lower and upper bounds on the
-  actual successor argument. Establishment and preservation must both check
-  before the header's bounds may justify downstream safety obligations.
+- Scalar block invariant arrival questions come from the semantic predicate
+  roster and every actual incoming edge, independently of the proof bundle.
+  Each question is the exact simultaneous successor substitution of the scoped
+  predicate. Every arrival must check before the destination predicate can
+  justify downstream obligations. Integer ranges use this same predicate rule.
 - Each successor applies its own argument-to-parameter substitution.
 - A partial operation establishes its result equation only on its normal
   successor, after its safety obligation is discharged. That equation cannot
   prove the operation that creates it.
+
+The scalar block-predicate rule generalizes range induction to matching-token
+merges without introducing a union of path facts. Its ledger prerequisites are
+exact predicate formation/scope, exhaustive arrival reconstruction, checked
+arrival derivations, simultaneous substitution, and the existing cyclic cuts.
+No branch-local identity becomes a destination premise. The source-bound Rust
+implementation remains within the unfinished ledger-framework dependency;
+this implementation revision does not claim a proved universal composition
+theorem or change the accepting trust policy.
 
 Call coverage reconstructs one exact obligation for every callee `requires`
 clause. Instantiation independently checks arity, binder kinds/types,

@@ -1312,7 +1312,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     let mut lowered = LoweredPsi {
         semantic_module: TerminalModule {
             scalar_qualifications,
-            scalar_range_invariants: Vec::new(),
+            scalar_block_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: terminal_machine,
             structural_types: Vec::new(),

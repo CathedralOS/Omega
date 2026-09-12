@@ -6,7 +6,7 @@ mod declarations;
 mod outputs;
 mod quotient;
 mod recursion;
-mod scalar_range_invariants;
+mod scalar_block_invariants;
 mod values;
 
 pub use content::*;
@@ -15,5 +15,5 @@ pub use declarations::*;
 pub use outputs::*;
 pub use quotient::*;
 pub use recursion::*;
-pub use scalar_range_invariants::*;
+pub use scalar_block_invariants::*;
 pub use values::*;

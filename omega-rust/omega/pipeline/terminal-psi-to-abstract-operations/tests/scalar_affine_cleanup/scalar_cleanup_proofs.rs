@@ -291,7 +291,7 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
     );
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: vec![

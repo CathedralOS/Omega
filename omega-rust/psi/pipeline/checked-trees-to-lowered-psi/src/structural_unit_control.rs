@@ -609,7 +609,7 @@ pub(super) fn lower_structural_unit_control_machine(
     Ok(LoweredPsi {
         semantic_module: TerminalModule {
             scalar_qualifications: Default::default(),
-            scalar_range_invariants: Vec::new(),
+            scalar_block_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             structural_types,
@@ -979,7 +979,7 @@ fn lower_ranked_structural_unit_countdown(
     let mut lowered = LoweredPsi {
         semantic_module: TerminalModule {
             scalar_qualifications: Default::default(),
-            scalar_range_invariants: Vec::new(),
+            scalar_block_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             structural_types,
