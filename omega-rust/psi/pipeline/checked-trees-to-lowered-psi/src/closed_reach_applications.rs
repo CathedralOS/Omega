@@ -51,12 +51,9 @@ pub(crate) fn retain_closed_reach_applications(
         {
             return unsupported("closed reach application lost its complete portable telescope");
         }
-        if !parameters
-            .iter()
-            .any(|parameter| matches!(parameter.kind, TypeParameterKind::Machine { .. }))
-        {
-            continue;
-        }
+        // Type/const-only applications still specialize an original contract:
+        // their fixed dependency may include private-helper reach. An empty
+        // machine-binder set needs no alternate representation or replay rule.
         // Executable specialization currently retains no proposition arguments
         // or declaration-identity contract. Keep those existing routes outside
         // this closed application projection rather than fabricate positions.
@@ -156,6 +153,9 @@ pub(crate) fn retain_closed_reach_applications(
                             "closed reach selection has no checked contract row",
                         ))?;
                     let callee = exact_machine(source_machines, selected_machine.symbol)?;
+                    // A selected generic schema may produce several closed
+                    // callees with different tuples/rows. One binder-level
+                    // callee cannot stand in for those per-call applications.
                     if !reach.unresolved_installation_reaches.is_empty()
                         || (dependencies.contains(&(position as u32)) && callee.is_none())
                         || !checked.machine_type_parameters(selected_machine).is_empty()
