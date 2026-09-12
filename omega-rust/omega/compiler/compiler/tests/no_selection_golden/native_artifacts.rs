@@ -1,3 +1,4 @@
+use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
 use optimization_core::OptimizationReportRequest;
 
@@ -9,8 +10,11 @@ use super::support::{
 #[test]
 fn retained_native_bytes_and_metadata_match_every_target_golden() {
     for target in HOSTED_NATIVE_TARGETS {
-        let checked = compile_to_checked(&native_canary().join("main.omg"), Some(target))
-            .expect("the retained-artifact canary must pass source admission");
+        let checked = compile_to_checked(CheckedCompileRequest::new(
+            &native_canary().join("main.omg"),
+            Some(target),
+        ))
+        .expect("the retained-artifact canary must pass source admission");
         assert!(checked.optimization_selections().is_empty(), "{target}");
         assert_eq!(
             checked.optimization_report_request(),

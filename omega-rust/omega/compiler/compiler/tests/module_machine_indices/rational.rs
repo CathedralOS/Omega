@@ -1,6 +1,5 @@
-use super::{
-    Sources, assert_same_machine_types, compile, compile_to_checked_with_packages, root_inputs,
-};
+use super::{Sources, assert_same_machine_types, compile, compile_to_checked, root_inputs};
+use compiler::CheckedCompileRequest;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind;
 
 const FLAG: &str = "pub data Flag<const Enabled: bool> { value: u8; }";
@@ -88,8 +87,11 @@ fn anonymous_comparisons_cannot_hide_undefined_values_or_landed_operands() {
             &format!("{FLAG} {}", keep("keep", expression)),
         );
         assert!(
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .is_err(),
+            compile_to_checked(CheckedCompileRequest {
+                package_inputs: Some(root_inputs(&root)),
+                ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+            })
+            .is_err(),
             "{expression}"
         );
     }
@@ -117,11 +119,11 @@ fn anonymous_comparisons_keep_exact_selection_and_runtime_shadow_rejection() {
             root.join("main.omg"),
             &format!("{FLAG} {declarations} {}", keep("keep", expression)),
         );
-        let diagnostics =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err(
-                    "anonymous operands cannot invent builtin meaning under authored selection",
-                );
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("anonymous operands cannot invent builtin meaning under authored selection");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
                 .message
@@ -135,9 +137,11 @@ fn anonymous_comparisons_keep_exact_selection_and_runtime_shadow_rejection() {
             "{FLAG} const LIMIT: u64 = 2; machine keep(LIMIT: u64, value: Flag<(true || (1 / 2 < LIMIT))>) {{}}"
         ),
     );
-    let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect_err("runtime shadow remains a runtime operand");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("runtime shadow remains a runtime operand");
     assert!(
         diagnostics
             .iter()

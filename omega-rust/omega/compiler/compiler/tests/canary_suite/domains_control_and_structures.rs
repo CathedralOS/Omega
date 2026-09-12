@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[path = "../fixture_rosters/domains_control_and_structures.rs"]
 pub(super) mod fixture_roster;
@@ -57,7 +58,7 @@ fn runtime_i64_full_width_exit_canary_runs() {
 fn runtime_chained_string_append_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_CHAINED_STRING_APPEND_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("chained bounded-carrier append canary should check");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
@@ -93,7 +94,7 @@ fn runtime_chained_string_append_exit_canary_runs() {
 fn runtime_string_append_in_place_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_STRING_APPEND_IN_PLACE_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("descriptor text append-in-place canary should check");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
@@ -127,7 +128,7 @@ fn runtime_string_concat_two_fields_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_STRING_CONCAT_TWO_FIELDS_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("two-carrier text concat canary should compile to checked trees");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(
@@ -166,7 +167,7 @@ fn runtime_string_concat_two_fields_exit_canary_runs() {
 fn runtime_machine_string_append_in_place_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_MACHINE_STRING_APPEND_IN_PLACE_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("bounded-carrier append-in-place canary should check");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
@@ -235,7 +236,7 @@ fn runtime_call_value_canary_runs() {
     // the caller's carrier field in both execution engines.
     let canary = pass_canary(fixture_roster::RUNTIME_CALL_VALUE);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("bounded-carrier return-value canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -270,16 +271,17 @@ fn boundary_operator_domain_ensures_flow_to_mutable_operand() {
     // nevertheless establish the exact caller place for the next call.
     for &name in fixture_roster::BOUNDARY_DOMAIN_ESTABLISHMENT_PASS_CANARIES {
         let main_path = pass_canary(name).join("main.omg");
-        compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
-            panic!(
-                "boundary operator domain establishment should check for {name}:\n{}",
-                diagnostics
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            )
-        });
+        compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
+            .unwrap_or_else(|diagnostics| {
+                panic!(
+                    "boundary operator domain establishment should check for {name}:\n{}",
+                    diagnostics
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                )
+            });
     }
 }
 
@@ -1493,7 +1495,7 @@ fn runtime_param_domain_forward_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_PARAM_DOMAIN_FORWARD_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("param domain forward canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1536,7 +1538,7 @@ fn runtime_case_payload_domain_forward_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_CASE_PAYLOAD_DOMAIN_FORWARD_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("case payload domain forward canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1660,7 +1662,7 @@ fn runtime_enemy_clear_reentry_exit_canary_runs() {
 fn runtime_clear_carve_render_string_fields_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_CLEAR_CARVE_RENDER_STRING_FIELDS_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("runtime clear/carve/render carrier fields canary should check");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
@@ -1697,7 +1699,7 @@ fn runtime_clear_carve_render_string_fields_exit_canary_runs() {
 fn runtime_full_level_wrapper_lookup_string_field_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_FULL_LEVEL_WRAPPER_LOOKUP_STRING_FIELD_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("runtime full-level wrapper carrier lookup canary should check");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
@@ -2676,8 +2678,11 @@ fn runtime_tick_count_monotonic_exit_canary_runs() {
 #[test]
 fn runtime_gui_memory_dc_blit_canary_is_targetless_and_interprets() {
     let canary = pass_canary(fixture_roster::RUNTIME_GUI_MEMORY_DC_BLIT_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("memory-DC blit canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("memory-DC blit canary should compile to checked trees");
     assert_eq!(
         checked.selected_program_entry_machine(),
         None,
@@ -3380,8 +3385,11 @@ fn float_to_int_saturating_exit_canary_runs() {
         output.status.code(),
     );
     // The interpreter leg mirrors the same clamp arm.
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("saturating float->int canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("saturating float->int canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(outcome.exit_code, 70, "interp Saturating cast should clamp");
     let _ = fs::remove_dir_all(&build_dir);
@@ -3406,8 +3414,11 @@ fn float_to_int_unsigned_narrow_saturating_exit_canary_runs() {
         "expected all unsigned/narrow cast shapes to clamp (exit 70), got {:?}",
         output.status.code(),
     );
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("unsigned/narrow Saturating canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("unsigned/narrow Saturating canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
@@ -3437,8 +3448,11 @@ fn float_saturating_overflow_exit_canary_runs() {
         "expected the Saturating clamp semantics (exit 70), got {:?}",
         output.status.code(),
     );
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("saturating float overflow canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("saturating float overflow canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
@@ -3476,8 +3490,11 @@ fn float_trapping_overflow_traps_aborts() {
         !output.status.success(),
         "expected the overflow trap to terminate abnormally"
     );
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("trapping float overflow canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("trapping float overflow canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     let reason = outcome
         .error
@@ -3508,8 +3525,11 @@ fn assert_float_trapping_policy_canary_aborts(name: &str, reason_fragment: &str)
         !output.status.success(),
         "expected `{name}` to terminate abnormally"
     );
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("Trapping float policy canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("Trapping float policy canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     let reason = outcome
         .error
@@ -3576,8 +3596,11 @@ fn trapping_float_to_int_cast_traps_aborts() {
     );
 
     // The interpreter leg: same trap, spelled as an eval error.
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("trapping float->int cast canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("trapping float->int cast canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     let reason = outcome
         .error
@@ -3618,8 +3641,11 @@ fn trapping_float_to_narrow_int_cast_traps_aborts() {
         "in-range u8 conversion was wrong"
     );
     assert!(!output.status.success(), "u8 out-of-range cast must trap");
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("narrow Trapping canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("narrow Trapping canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     let reason = outcome
         .error
@@ -3673,8 +3699,11 @@ fn trapping_shift_count_traps_aborts() {
     );
 
     // The interpreter leg: same trap, spelled as an eval error.
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("trapping shift-count canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("trapping shift-count canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     let reason = outcome
         .error

@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 fn project(package: &TempPackage, combat_damage: u64) -> CheckedPackageReviewProjection {
     package.write(
@@ -12,11 +13,10 @@ fn project(package: &TempPackage, combat_damage: u64) -> CheckedPackageReviewPro
             &format!("module {module}; pub const DAMAGE: u64 = {value};"),
         );
     }
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("same-leaf module constants check in one managed package");
     project_checked_package_review(&checked).expect("capture exact public constant identities")
 }
@@ -98,11 +98,10 @@ fn public_float_identity_retains_format_bits_and_exact_package_owner() {
             "settings.omg",
             &format!("module settings; pub const SCALE: {carrier} = {literal};"),
         );
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("public floating declaration checks");
         project_checked_package_review(&checked).expect("floating public API capture")
     };

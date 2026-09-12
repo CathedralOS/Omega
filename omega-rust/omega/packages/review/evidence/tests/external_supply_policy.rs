@@ -2,6 +2,7 @@
 
 mod support;
 
+use compiler::CheckedCompileRequest;
 use package_evidence::encoding::PackagePolicyRecoveryLimits;
 use package_evidence::project_checked_external_supply_policy;
 use package_evidence::record::*;
@@ -43,11 +44,13 @@ fn project_with_foreign(
     } else {
         package_inputs(&package.0)
     };
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target::TargetProfile::WindowsX64.target_name()),
-        inputs,
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(
+            &package.0.join("main.omg"),
+            Some(target::TargetProfile::WindowsX64.target_name()),
+        )
+    })
     .unwrap_or_else(|diagnostics| panic!("lossless external source checks: {diagnostics:#?}"));
     let machine = checked
         .typed

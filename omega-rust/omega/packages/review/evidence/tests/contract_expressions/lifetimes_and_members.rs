@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn attached_self_members_use_the_exact_entry_formal_not_the_machine_root() {
@@ -22,11 +23,10 @@ requires self.value <= 10
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("attached self contract checks");
     let machine = checked
         .machines()
@@ -142,11 +142,10 @@ requires value.left == value.right
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("member precondition checks at its canonical entry");
     let machine = checked
         .machines()
@@ -235,11 +234,10 @@ requires tag<View<'{selected}, u64>>() == tag<View<'{selected}, u64>>()
         package.write("build.omg", build);
     }
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("lifetime-bearing nested type contract call should check");
         project_checked_package_review(&checked)
             .expect("nested lifetime arguments have canonical binder ordinals")
@@ -315,11 +313,10 @@ requires {left_receiver}.left == {right_receiver}.right
     original.write("build.omg", build);
     changed.write("build.omg", build);
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("member-path contract fixture should check");
         project_checked_package_review(&checked).expect("member-path package review")
     };
@@ -402,11 +399,10 @@ pub proposition balanced(pair: Pair) = pair.left == pair.right;
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("public nominal-member proposition should check");
     project_checked_package_review(&checked)
         .expect("untampered nominal-member selection custody should project");
@@ -479,11 +475,10 @@ pub proposition selects_computed_member(value: i32) =
             r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("computed nominal-member proposition should check");
         project_checked_package_review(&checked)
             .expect("computed nominal-member receiver should project")
@@ -535,11 +530,10 @@ pub proposition selects_case_member(value: i32) =
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &case_package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&case_package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&case_package.0)),
+        ..CheckedCompileRequest::new(&case_package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("computed case-member proposition should check");
     let case_review = project_checked_package_review(&checked)
         .expect("computed case-member receiver should project");
@@ -589,11 +583,10 @@ requires (Pair {{ left: value, right: value }}).{selected} == value
             ),
         );
         package.write("build.omg", build);
-        compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("computed nominal-member machine contract should check")
     };
 
@@ -647,11 +640,10 @@ requires (Outcome::Right { value: value }).value == value
 "#,
     );
     case_package.write("build.omg", build);
-    let case_checked = compile_to_checked_with_packages(
-        &case_package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&case_package.0),
-    )
+    let case_checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&case_package.0)),
+        ..CheckedCompileRequest::new(&case_package.0.join("main.omg"), Some(target))
+    })
     .expect("computed case-member machine contract should check");
     let case_review = project_checked_package_review(&case_checked)
         .expect("computed case-member machine contract should project");
@@ -694,11 +686,10 @@ requires (Pair { left: value, right: value }).left ==
 "#,
     );
     custody_package.write("build.omg", build);
-    let mut custody_checked = compile_to_checked_with_packages(
-        &custody_package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&custody_package.0),
-    )
+    let mut custody_checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&custody_package.0)),
+        ..CheckedCompileRequest::new(&custody_package.0.join("main.omg"), Some(target))
+    })
     .expect("computed-member custody fixture should check");
     let members = custody_checked
         .expression_table

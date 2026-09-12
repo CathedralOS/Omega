@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[path = "../fixture_rosters/task_runtime.rs"]
 pub(super) mod fixture_roster;
@@ -14,7 +15,11 @@ fn render(diagnostics: &[Diagnostic]) -> String {
 #[test]
 fn lifecycle_operations_conserve_the_linear_claim() {
     let pass = pass_canary(fixture_roster::CORE_TASK_LIFECYCLE_OPERATIONS);
-    let checked = compile_to_checked(&pass.join("main.omg"), None).unwrap_or_else(|diagnostics| {
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &pass.join("main.omg"),
+        None,
+    ))
+    .unwrap_or_else(|diagnostics| {
         panic!(
             "task lifecycle operations should conserve the claim:\n{}",
             render(&diagnostics)

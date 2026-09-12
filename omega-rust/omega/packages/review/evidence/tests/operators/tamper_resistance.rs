@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn operator_realization_rejects_post_check_reference_access_drift() {
@@ -25,11 +26,10 @@ requires observes(&mut input) == true
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let mut checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let mut checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("reference-bearing operator realization should check");
     let provider = checked
         .machines()
@@ -111,11 +111,10 @@ satisfies {selected}::identity
             ),
         );
         package.write("build.omg", build);
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("operator selection fixture should check");
         project_checked_package_review(&checked).expect("operator selection should project")
     };
@@ -196,11 +195,10 @@ ensures result == input
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let mut checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let mut checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("weaker operator realization control fixture should check");
     let stronger = checked
         .typed
@@ -266,11 +264,10 @@ ensures result == input
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let mut checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let mut checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("operator contract-custody fixture should check");
     let stronger = checked
         .typed
@@ -374,11 +371,10 @@ satisfies CheckedMath::identity
 "#,
     );
     private.write("build.omg", build);
-    let diagnostics = compile_to_checked_with_packages(
-        &private.0.join("main.omg"),
-        Some(target),
-        package_inputs(&private.0),
-    )
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&private.0)),
+        ..CheckedCompileRequest::new(&private.0.join("main.omg"), Some(target))
+    })
     .expect_err("compiler admission must reject a public satisfier of a private operator");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -412,11 +408,10 @@ satisfies CheckedMath::identity;
         let package = TempPackage::new();
         package.write("main.omg", source);
         package.write("build.omg", build);
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .unwrap_or_else(|diagnostics| panic!("{label} fixture should check: {diagnostics:?}"));
         let diagnostics = project_checked_package_review(&checked)
             .expect_err("unsupported operator realization must fail closed");
@@ -432,11 +427,10 @@ satisfies CheckedMath::identity;
         let package = TempPackage::new();
         package.write("main.omg", source);
         package.write("build.omg", build);
-        compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("operator admission-drift control fixture should check")
     };
 
@@ -600,11 +594,10 @@ satisfies CheckedMath::identity
 "#,
     );
     generic.write("build.omg", build);
-    let mut checked = compile_to_checked_with_packages(
-        &generic.0.join("main.omg"),
-        Some(target),
-        package_inputs(&generic.0),
-    )
+    let mut checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&generic.0)),
+        ..CheckedCompileRequest::new(&generic.0.join("main.omg"), Some(target))
+    })
     .expect("generic-tamper control fixture should check");
     let type_parameters = checked
         .typed
@@ -655,11 +648,10 @@ satisfies CheckedMath::identity
             .contains("realizes lifetime-parameterized operator")
     }));
 
-    let mut duplicate = compile_to_checked_with_packages(
-        &generic.0.join("main.omg"),
-        Some(target),
-        package_inputs(&generic.0),
-    )
+    let mut duplicate = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&generic.0)),
+        ..CheckedCompileRequest::new(&generic.0.join("main.omg"), Some(target))
+    })
     .expect("duplicate-realization control fixture should check");
     let machine_index = duplicate
         .typed
@@ -734,11 +726,10 @@ crashes Trap
             ),
         );
         package.write("build.omg", build);
-        compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
     };
 
     let checked = compile("input").expect("renamed exact crash route should refine the operator");

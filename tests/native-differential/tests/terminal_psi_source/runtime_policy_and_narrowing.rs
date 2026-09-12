@@ -1,9 +1,10 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[cfg(unix)]
 #[test]
 fn source_wrapping_add_matches_target_lowering() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("terminal-Psi integer policy source canary should compile");
     let lowered = lower_machine(&checked, "terminal_wrapping_add")
         .expect("source wrapping add should lower to terminal Psi");
@@ -24,7 +25,7 @@ fn source_wrapping_add_matches_target_lowering() {
 #[cfg(unix)]
 #[test]
 fn checked_source_ninth_parameter_reaches_the_host_stack_abi() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("terminal-Psi runtime-parameter source canary should compile");
     let lowered = lower_machine(&checked, "terminal_ninth_parameter")
         .expect("nine-parameter source machine should lower to terminal Psi");
@@ -63,7 +64,7 @@ fn checked_source_ninth_parameter_reaches_the_host_stack_abi() {
 
 #[test]
 fn checked_source_runtime_integer_policy_operations_survive_frontend_drop() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("terminal-Psi runtime arithmetic source canary should compile");
     let cases = [
         ("terminal_direct_integer_constant", vec![], 42_u128, 2_u64),
@@ -154,7 +155,7 @@ fn checked_source_runtime_integer_policy_operations_survive_frontend_drop() {
 
 #[test]
 fn checked_source_exact_literal_narrowing_relands_before_psi() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("exact literal narrowing source canary should compile");
     let lowered = lower_machine(&checked, "terminal_exact_literal_narrowing")
         .expect("exact literal narrowing should lower to terminal Psi");

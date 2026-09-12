@@ -5,6 +5,7 @@
 //! lose those inputs and could repeat build effects or acquire different sources.
 
 use checked_interpreter::InterpretOutcome;
+use compiler::CheckedCompileRequest;
 use compiler::{ArtifactEmissionPolicy, CompileOptions, CompileReport, CompileRequest};
 use diagnostics::Diagnostic;
 use package_manager::operations::{
@@ -45,8 +46,11 @@ pub(super) fn compile(
                 .with_accepted_trust_admissions(admissions),
         )?;
         let interpretation = interpret.then(|| {
-            compiler::compile_to_checked(&options.root_path, Some(target.target_name()))
-                .and_then(|checked| interpret_checked(&checked))
+            compiler::compile_to_checked(CheckedCompileRequest::new(
+                &options.root_path,
+                Some(target.target_name()),
+            ))
+            .and_then(|checked| interpret_checked(&checked))
         });
         (report, interpretation)
     };

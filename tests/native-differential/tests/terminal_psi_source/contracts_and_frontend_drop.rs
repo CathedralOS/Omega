@@ -5,19 +5,21 @@
 //! both checked trees and producer output before independent consumption.
 
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn checked_source_survives_frontend_drop_as_verified_psi() {
-    let checked = compile_to_checked(&source_canary(), None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "terminal-Psi source canary should compile:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "terminal-Psi source canary should compile:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
     let lowered = lower_machine(&checked, "terminal_constant")
         .expect("accepted source slice should lower to terminal Psi");
 
@@ -261,16 +263,17 @@ fn checked_source_survives_frontend_drop_as_verified_psi() {
 
 #[test]
 fn terminal_scalar_contract_consumes_normalized_checked_payloads() {
-    let checked = compile_to_checked(&source_canary(), None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "terminal-Psi source canary should compile:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "terminal-Psi source canary should compile:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
     let expected = lower_machine(&checked, "terminal_constant")
         .expect("the checked scalar contract should lower");
 
@@ -331,16 +334,17 @@ fn terminal_scalar_contract_consumes_normalized_checked_payloads() {
 
 #[test]
 fn terminal_scalar_body_consumes_normalized_payloads_with_checked_source_bindings() {
-    let checked = compile_to_checked(&source_canary(), None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "terminal-Psi source canary should compile:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "terminal-Psi source canary should compile:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
     let expected =
         lower_machine(&checked, "terminal_constant").expect("the checked scalar body should lower");
 
@@ -393,16 +397,17 @@ fn terminal_scalar_body_consumes_normalized_payloads_with_checked_source_binding
 
 #[test]
 fn terminal_scalar_control_rejoins_the_checked_plan_to_authored_statements() {
-    let checked = compile_to_checked(&source_canary(), None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "terminal-Psi source canary should compile:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "terminal-Psi source canary should compile:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
     let expected = lower_machine(&checked, "terminal_constant")
         .expect("the checked scalar control plan should lower");
     verify_module(
@@ -478,16 +483,17 @@ fn terminal_scalar_control_rejoins_the_checked_plan_to_authored_statements() {
 
 #[test]
 fn terminal_machine_selection_consumes_the_source_independent_checked_plan() {
-    let checked = compile_to_checked(&source_canary(), None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "terminal-Psi source canary should compile:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "terminal-Psi source canary should compile:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
     let expected = lower_machine(&checked, "terminal_constant")
         .expect("the checked machine selection should lower");
     let replacement_name = checked
@@ -524,16 +530,17 @@ fn terminal_machine_selection_consumes_the_source_independent_checked_plan() {
 
 #[test]
 fn terminal_production_requires_typed_custody_but_not_debug_presentation() {
-    let checked = compile_to_checked(&source_canary(), None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "terminal-Psi source canary should compile:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "terminal-Psi source canary should compile:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
     let expected = lower_machine(&checked, "terminal_constant")
         .expect("the complete checked terminal plan should lower");
 
@@ -556,16 +563,17 @@ fn terminal_production_requires_typed_custody_but_not_debug_presentation() {
 
 #[test]
 fn terminal_proposition_vocabulary_consumes_checked_proof_facts() {
-    let checked = compile_to_checked(&source_canary(), None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "terminal-Psi source canary should compile:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "terminal-Psi source canary should compile:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
     let expected = lower_machine(&checked, "terminal_constant")
         .expect("the checked proposition vocabulary should lower");
     assert!(!expected.semantic_module.proposition_declarations.is_empty());

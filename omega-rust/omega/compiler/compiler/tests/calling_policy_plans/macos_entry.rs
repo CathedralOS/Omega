@@ -5,7 +5,8 @@ use calling_conventions::{
     CallSignature, CallingPolicy, EntryStack, MachineRegime, Preemption, ValueShape,
     evaluate_ordinary_boundary_entry_plan,
 };
-use compiler::compile_to_checked_with_packages;
+use compiler::CheckedCompileRequest;
+use compiler::compile_to_checked;
 use provider_planning::calling_policy_plans::{BoundaryValueClass, evaluate_calling_policy_plan};
 use std::fs;
 
@@ -15,8 +16,11 @@ fn checked_contract(name: &str) -> compiler::CheckedCompilation {
     )
     .expect("real authored target contract");
     let (path, inputs) = write_callback_package(name, &source);
-    compile_to_checked_with_packages(&path, Some("macos_arm64"), inputs)
-        .expect("the real macOS entry contract and its calling applications check")
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&path, Some("macos_arm64"))
+    })
+    .expect("the real macOS entry contract and its calling applications check")
 }
 
 fn physical_signature() -> CallSignature {
@@ -194,8 +198,11 @@ boundary trait WrongMacosApplication: WrongStorage + Calling<MacosArm64> {}
 "#
     );
     let (path, inputs) = write_callback_package("macos-entry-record-rejection", &source);
-    let diagnostics = compile_to_checked_with_packages(&path, Some("macos_arm64"), inputs)
-        .expect_err("two floating fields have the same size but are not Extent's ABI shape");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&path, Some("macos_arm64"))
+    })
+    .expect_err("two floating fields have the same size but are not Extent's ABI shape");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message

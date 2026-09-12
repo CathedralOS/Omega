@@ -8,6 +8,7 @@
 mod fixture_roster;
 
 use checked_interpreter::{InterpretOutcome, interpret_entry};
+use compiler::CheckedCompileRequest;
 use compiler::{CheckedCompilation, CompileOptions, compile_to_checked};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -32,8 +33,11 @@ fn repo_root() -> PathBuf {
 
 fn compile_pass_to_checked(main: &Path) -> CheckedCompilation {
     let profile = target::TargetProfile::host();
-    compile_to_checked(main, Some(profile.target_name()))
-        .expect("recast pass fixture should reach checked trees")
+    compile_to_checked(CheckedCompileRequest::new(
+        main,
+        Some(profile.target_name()),
+    ))
+    .expect("recast pass fixture should reach checked trees")
 }
 
 fn compile_and_run(canary_rel: &str, tag: &str) -> std::process::Output {
@@ -119,7 +123,7 @@ fn fail_diagnostics(canary_rel: &str) -> String {
         .join("tests/omega/fail")
         .join(canary_rel)
         .join("main.omg");
-    compile_to_checked(&canary, None)
+    compile_to_checked(CheckedCompileRequest::new(&canary, None))
         .expect_err("recast safety canary must reject")
         .iter()
         .map(ToString::to_string)

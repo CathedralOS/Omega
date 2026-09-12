@@ -1,7 +1,8 @@
+use compiler::CheckedCompileRequest;
 use compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct,
     RetainedNativeRealizationRequest, SourceEvaluatedImportSettlement, compile,
-    compile_to_checked_with_packages, realize_retained_native_artifact,
+    compile_to_checked, realize_retained_native_artifact,
 };
 use effects::provider_plan::ProviderBinding;
 use installation_evidence::ProviderExecutionEvidence;
@@ -286,11 +287,10 @@ fn assert_custody_diagnostic(
 #[test]
 fn terminal_handoff_rejects_callbacks_outside_the_emitted_entry_closure() {
     let fixture = Fixture::new();
-    let checked = compile_to_checked_with_packages(
-        &fixture.main,
-        Some("windows_x86_64"),
-        fixture.package_inputs(),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(fixture.package_inputs()),
+        ..CheckedCompileRequest::new(&fixture.main, Some("windows_x86_64"))
+    })
     .expect("callback program should reach checked compilation");
     assert_eq!(checked.callback_placements().len(), 2);
     compile(fixture.request(RequestedCompileProduct::Check, "check"))

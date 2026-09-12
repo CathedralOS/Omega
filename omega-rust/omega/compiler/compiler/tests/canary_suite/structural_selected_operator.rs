@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[path = "../fixture_rosters/structural_selected_operator.rs"]
 pub(super) mod fixture_roster;
@@ -36,8 +37,11 @@ fn specialized_structural_fixed_operator_hosted_native_canary_compiles() {
 #[test]
 fn specialized_structural_fixed_operator_hosted_local_transfer_is_exact() {
     let canary = pass_canary(fixture_roster::SPECIALIZED_STRUCTURAL_FIXED_OPERATOR_HOSTED_NATIVE);
-    let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
-        .expect("hosted structural selection should check");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("linux_x86_64"),
+    ))
+    .expect("hosted structural selection should check");
     let main = checked
         .typed
         .machines()
@@ -198,8 +202,11 @@ fn specialized_structural_fixed_operator_hosted_local_transfer_rejects_drift() {
     }
 
     let canary = pass_canary(fixture_roster::SPECIALIZED_STRUCTURAL_FIXED_OPERATOR_HOSTED_NATIVE);
-    let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
-        .expect("hosted structural selection should check");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("linux_x86_64"),
+    ))
+    .expect("hosted structural selection should check");
     let main = checked
         .typed
         .machines()
@@ -295,8 +302,11 @@ fn specialized_structural_fixed_operator_hosted_local_transfer_rejects_drift() {
 fn specialized_structural_fixed_operator_unit_terminal_custody_canary_compiles() {
     let canary =
         pass_canary(fixture_roster::SPECIALIZED_STRUCTURAL_FIXED_OPERATOR_UNIT_TERMINAL_CUSTODY);
-    let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
-        .expect("structural fixed-token Unit custody canary should check");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("linux_x86_64"),
+    ))
+    .expect("structural fixed-token Unit custody canary should check");
     let consume = checked
         .typed
         .machines()
@@ -418,8 +428,11 @@ fn specialized_structural_fixed_operator_unit_terminal_custody_rejects_drift() {
 
     let canary =
         pass_canary(fixture_roster::SPECIALIZED_STRUCTURAL_FIXED_OPERATOR_UNIT_TERMINAL_CUSTODY);
-    let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
-        .expect("structural fixed-token Unit custody canary should check");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("linux_x86_64"),
+    ))
+    .expect("structural fixed-token Unit custody canary should check");
     let consume = checked
         .typed
         .machines()
@@ -540,8 +553,11 @@ fn specialized_mixed_structural_fixed_operator_hosted_native_reaches_d32() {
 fn specialized_mixed_structural_fixed_operator_arguments_are_exact() {
     let canary =
         pass_canary(fixture_roster::SPECIALIZED_MIXED_STRUCTURAL_FIXED_OPERATOR_HOSTED_NATIVE);
-    let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
-        .expect("hosted mixed structural/fixed-integer selection should check");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("linux_x86_64"),
+    ))
+    .expect("hosted mixed structural/fixed-integer selection should check");
     let consume = checked
         .typed
         .machines()
@@ -752,8 +768,11 @@ fn specialized_mixed_structural_fixed_operator_arguments_are_exact() {
 fn specialized_mixed_structural_result_operator_has_exact_checked_custody() {
     let canary =
         pass_canary(fixture_roster::SPECIALIZED_MIXED_STRUCTURAL_RESULT_OPERATOR_HOSTED_NATIVE);
-    let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
-        .expect("hosted mixed structural-result selection should check");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("linux_x86_64"),
+    ))
+    .expect("hosted mixed structural-result selection should check");
     let consume = checked
         .typed
         .machines()
@@ -877,8 +896,11 @@ fn specialized_mixed_structural_result_operator_hosted_native_reaches_d32() {
 fn specialized_mixed_structural_result_operator_has_exact_terminal_custody() {
     let canary =
         pass_canary(fixture_roster::SPECIALIZED_MIXED_STRUCTURAL_RESULT_OPERATOR_HOSTED_NATIVE);
-    let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
-        .expect("hosted mixed structural-result selection should check");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("linux_x86_64"),
+    ))
+    .expect("hosted mixed structural-result selection should check");
     let produced =
         terminal_production::produce_terminal_artifact_with_checked_boundary_operator_scope(
             &checked, "consume",
@@ -985,8 +1007,11 @@ fn specialized_mixed_structural_result_operator_rejects_terminal_custody_drift()
 
     let canary =
         pass_canary(fixture_roster::SPECIALIZED_MIXED_STRUCTURAL_RESULT_OPERATOR_HOSTED_NATIVE);
-    let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
-        .expect("hosted mixed structural-result selection should check");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("linux_x86_64"),
+    ))
+    .expect("hosted mixed structural-result selection should check");
     let consume = checked
         .typed
         .machines()
@@ -1071,8 +1096,11 @@ fn specialized_mixed_structural_fixed_operator_rejects_argument_drift() {
 
     let canary =
         pass_canary(fixture_roster::SPECIALIZED_MIXED_STRUCTURAL_FIXED_OPERATOR_HOSTED_NATIVE);
-    let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
-        .expect("hosted mixed structural/fixed-integer selection should check");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("linux_x86_64"),
+    ))
+    .expect("hosted mixed structural/fixed-integer selection should check");
     let consume = checked
         .typed
         .machines()

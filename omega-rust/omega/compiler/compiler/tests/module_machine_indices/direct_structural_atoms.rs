@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 fn keep(index: &str) -> String {
     format!(
@@ -135,9 +136,11 @@ fn direct_atom_constructor_selection_rejects_wrong_carrier_and_allows_package_pr
                 keep(expression)
             ),
         );
-        let errors =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err("equal layout does not establish exact constructor identity");
+        let errors = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("equal layout does not establish exact constructor identity");
         assert!(
             errors
                 .iter()
@@ -184,8 +187,10 @@ fn direct_rat_atoms_retain_canonicality_without_named_const_copy_permission() {
                 keep(&expression)
             ),
         );
-        let result =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root));
+        let result = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        });
         if let Some(expected) = expected {
             let errors = result.expect_err("noncanonical direct rational index must reject");
             assert!(
@@ -233,8 +238,11 @@ fn direct_atom_package_selection_requires_direct_dependency_and_public_carrier()
         PackageCompilationInputs::new_package(identity(1), sources.clone(), dependencies.clone())
             .unwrap()
     };
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect_err("transitive loading cannot authorize direct constructor selection");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("transitive loading cannot authorize direct constructor selection");
     dependencies.push(PackageDependencyBinding::new(
         identity(1),
         "leaf",
@@ -261,8 +269,11 @@ fn direct_atom_package_selection_requires_direct_dependency_and_public_carrier()
         leaf.join("settings.omg"),
         "module settings; data Value { value: u64; }",
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect_err("direct dependency does not expose private carrier");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("direct dependency does not expose private carrier");
 }
 
 #[test]
@@ -342,9 +353,11 @@ fn qualified_constructor_selection_preserves_same_leaf_ambiguity_and_nominal_mis
             root.join("main.omg"),
             &format!("{prefix} {}", keep(expression)),
         );
-        let errors =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err("qualification must not erase ambiguity or nominal mismatch");
+        let errors = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("qualification must not erase ambiguity or nominal mismatch");
         let expected = if expression.starts_with("(right::") {
             "different nominal carrier"
         } else {
@@ -390,8 +403,11 @@ fn qualified_constructor_selection_requires_direct_package_and_public_carrier() 
     let inputs =
         PackageCompilationInputs::new_package(identity(1), sources.clone(), dependencies.clone())
             .unwrap();
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect_err("a transitive dependency cannot authorize qualified construction");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a transitive dependency cannot authorize qualified construction");
     dependencies.push(PackageDependencyBinding::new(
         identity(1),
         "leaf",
@@ -411,8 +427,11 @@ fn qualified_constructor_selection_requires_direct_package_and_public_carrier() 
         leaf.join("settings.omg"),
         "module settings; data Value { count: u64; }",
     );
-    let errors = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect_err("direct package access does not authorize a private constructor");
+    let errors = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("direct package access does not authorize a private constructor");
     assert!(
         errors.iter().any(|error| error.message.contains("private")),
         "{errors:?}"
@@ -435,7 +454,10 @@ fn qualified_constructor_ambiguous_records_cannot_fall_back_to_a_unique_case() {
          data Choice { case Value; }
          machine make() -> Choice { Choice::Value {} }",
     );
-    let result = compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root));
+    let result = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    });
     assert!(
         result.is_err(),
         "ambiguous imported records must not become the unique root case"
@@ -459,7 +481,10 @@ fn qualified_constructor_ambiguous_case_owners_cannot_fall_back_to_a_unique_reco
         "use left::Choice; use right::Choice; use Choice;
          machine make() -> Choice::Value { Choice::Value {} }",
     );
-    let result = compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root));
+    let result = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    });
     assert!(
         result.is_err(),
         "ambiguous imported case owners must not become the unique record"
@@ -563,8 +588,10 @@ fn qualified_bare_cases_preserve_value_construction_obligations() {
             root.join("main.omg"),
             &format!("use settings; machine make() -> settings::Choice {{ {body} }}"),
         );
-        let result =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root));
+        let result = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        });
         match expected {
             None => {
                 result.expect("selected payload-free case is a value");
@@ -616,9 +643,11 @@ fn qualified_bare_cases_do_not_turn_equality_into_membership_or_erase_nominal_id
             "module settings; pub data Choice { case Empty; case Some(value: u32); }",
         );
         Sources::write(root.join("main.omg"), source);
-        let errors =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err("value expressions preserve constructor and lexical ownership");
+        let errors = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("value expressions preserve constructor and lexical ownership");
         assert!(
             errors.iter().any(|error| error.message.contains(expected)),
             "{errors:?}"
@@ -654,8 +683,11 @@ fn qualified_bare_case_selection_requires_direct_package_and_public_carrier() {
     let inputs =
         PackageCompilationInputs::new_package(identity(1), sources.clone(), dependencies.clone())
             .unwrap();
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect_err("a transitive dependency cannot authorize qualified construction");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a transitive dependency cannot authorize qualified construction");
     dependencies.push(PackageDependencyBinding::new(
         identity(1),
         "leaf",
@@ -675,8 +707,11 @@ fn qualified_bare_case_selection_requires_direct_package_and_public_carrier() {
         leaf.join("settings.omg"),
         "module settings; data Value { case Empty; }",
     );
-    let errors = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect_err("direct package access does not authorize a private constructor");
+    let errors = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("direct package access does not authorize a private constructor");
     assert!(
         errors.iter().any(|error| error.message.contains("private")),
         "{errors:?}"

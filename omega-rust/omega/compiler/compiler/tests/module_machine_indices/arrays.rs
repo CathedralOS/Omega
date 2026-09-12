@@ -1,8 +1,9 @@
 use super::{
     AuthoredDeclarationSelectionExposure, PackageCompilationInputs, PackageDependencyBinding,
-    PackageSourceBinding, Sources, assert_same_machine_types, compile,
-    compile_to_checked_with_packages, identity, machine_types, root_inputs, selections,
+    PackageSourceBinding, Sources, assert_same_machine_types, compile, compile_to_checked,
+    identity, machine_types, root_inputs, selections,
 };
+use compiler::CheckedCompileRequest;
 
 fn declarations(array_type: &str, value: &str) -> String {
     format!(
@@ -92,11 +93,10 @@ fn array_indices_reject_runtime_roots_in_root_and_module_machine_scopes() {
                             if module { "" } else { &machine }
                         ),
                     );
-                    let result = compile_to_checked_with_packages(
-                        &root.join("main.omg"),
-                        None,
-                        root_inputs(&root),
-                    );
+                    let result = compile_to_checked(CheckedCompileRequest {
+                        package_inputs: Some(root_inputs(&root)),
+                        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+                    });
                     if shadowed {
                         let diagnostics = result.expect_err("a runtime root is not a constant");
                         assert!(
@@ -221,8 +221,11 @@ fn module_array_imports_preserve_ambiguity_and_runtime_shadow_rejection() {
                 keep("keep", "SIZE")
             ),
         );
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect_err("equal values cannot resolve competing imported declarations");
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("equal values cannot resolve competing imported declarations");
     }
     for (imports, machine) in [
         (
@@ -242,9 +245,11 @@ fn module_array_imports_preserve_ambiguity_and_runtime_shadow_rejection() {
             root.join("main.omg"),
             &format!("{imports} {} {machine}", declarations("[u8; 2]", "[1, 2]")),
         );
-        let diagnostics =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err("runtime array operands cannot acquire module constant identity");
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("runtime array operands cannot acquire module constant identity");
         assert!(
             diagnostics
                 .iter()
@@ -305,8 +310,11 @@ fn module_array_indices_preserve_package_and_public_interface_authority() {
                 keep("keep", &format!("leaf::settings::{scope}SIZE"))
             ),
         );
-        compile_to_checked_with_packages(&root.join("main.omg"), None, indirect)
-            .expect_err("a loaded transitive array constant cannot be selected");
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(indirect),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("a loaded transitive array constant cannot be selected");
         dependencies.push(PackageDependencyBinding::new(
             identity(1),
             "leaf",
@@ -335,8 +343,11 @@ fn module_array_indices_preserve_package_and_public_interface_authority() {
             leaf.join("settings.omg"),
             &format!("module settings; pub data Sizes {{}} const {scope}SIZE: [u8; 2] = [1, 2];"),
         );
-        compile_to_checked_with_packages(&root.join("main.omg"), None, direct)
-            .expect_err("direct package reach does not expose a private array constant");
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(direct),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("direct package reach does not expose a private array constant");
     }
 }
 
@@ -365,8 +376,11 @@ fn module_array_indices_reject_malformed_values_and_wrong_carriers() {
             ),
         );
         assert!(
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .is_err(),
+            compile_to_checked(CheckedCompileRequest {
+                package_inputs: Some(root_inputs(&root)),
+                ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+            })
+            .is_err(),
             "{declared} = {value}"
         );
     }
@@ -496,9 +510,11 @@ fn module_scoped_arrays_validate_unused_attachment_owners_and_collisions() {
         ),
     ] {
         Sources::write(root.join("settings.omg"), source);
-        let diagnostics =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err("unused scoped array still owes attachment and value validity");
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("unused scoped array still owes attachment and value validity");
         assert!(
             diagnostics
                 .iter()
@@ -535,8 +551,11 @@ fn module_scoped_array_indices_keep_import_ambiguity_and_runtime_custody() {
                 keep("keep", "SIZE")
             ),
         );
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect_err("equal scoped values cannot resolve competing imports");
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("equal scoped values cannot resolve competing imports");
     }
     for machine in [
         "machine keep(first: u64, value: Indexed<first::Sizes::SIZE>) {}",
@@ -547,9 +566,11 @@ fn module_scoped_array_indices_keep_import_ambiguity_and_runtime_custody() {
             root.join("main.omg"),
             &format!("use first; {} {machine}", declarations("[u8; 2]", "[1, 2]")),
         );
-        let diagnostics =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err("runtime qualifier cannot acquire scoped constant identity");
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("runtime qualifier cannot acquire scoped constant identity");
         assert!(
             diagnostics
                 .iter()

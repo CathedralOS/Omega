@@ -1,6 +1,7 @@
 //! Exact source-to-compiler agreement for the first ordinary foreign-binding
 //! value surface.
 
+use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
 use language_core::DataSupplyMode;
 use source::SourceOrigin;
@@ -47,16 +48,17 @@ impl Drop for TemporaryProgram {
 #[test]
 fn imported_external_binding_vocabulary_has_the_exact_first_rung_shape() {
     let fixture = TemporaryProgram::new();
-    let checked = compile_to_checked(&fixture.main(), None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "the normative external-binding vocabulary should compile:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked = compile_to_checked(CheckedCompileRequest::new(&fixture.main(), None))
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "the normative external-binding vocabulary should compile:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
     let typed = &checked.typed;
 
     let dll_imports = typed

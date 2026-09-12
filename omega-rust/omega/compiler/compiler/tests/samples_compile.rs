@@ -69,7 +69,8 @@
 //!    nothing (a broken carrier render), so the renderers assert a glyph they draw.
 
 use build_declarations::{BuildDeclaration, extract_build_declaration};
-use compiler::{CompileOptions, compile_to_checked, compile_to_checked_with_packages};
+use compiler::CheckedCompileRequest;
+use compiler::{CompileOptions, compile_to_checked};
 use package_compilation::{
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
@@ -144,9 +145,12 @@ fn compile_sample_to_checked(
         .parent()
         .is_some_and(|project_root| project_root.join("build.omg").is_file())
     {
-        return compile_to_checked(root_path, target_name);
+        return compile_to_checked(CheckedCompileRequest::new(root_path, target_name));
     }
-    compile_to_checked_with_packages(root_path, target_name, sample_package_inputs(root_path))
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(sample_package_inputs(root_path)),
+        ..CheckedCompileRequest::new(root_path, target_name)
+    })
 }
 
 fn compile_check(
@@ -194,8 +198,10 @@ fn sample_native_package_inputs(
     if package_inputs.package_root(standard_library).is_none() {
         return Ok(package_inputs);
     }
-    let preliminary =
-        compile_to_checked_with_packages(root_path, target_name, package_inputs.clone())?;
+    let preliminary = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs.clone()),
+        ..CheckedCompileRequest::new(root_path, target_name)
+    })?;
     let has_standard_console = preliminary
         .selected_provider_plans()
         .plans()

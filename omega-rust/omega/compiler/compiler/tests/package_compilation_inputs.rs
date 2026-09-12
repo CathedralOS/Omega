@@ -1,11 +1,10 @@
 #[path = "package_compilation_inputs/selected_const_evaluation.rs"]
 mod selected_const_evaluation;
+use compiler::CheckedCompileRequest;
 use compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileRequest, ExplicitTargetSet,
     MultiTargetCompileRequest, RequestedCompileProduct, RetainedNativeRealizationRequest, compile,
-    compile_targets, compile_to_checked, compile_to_checked_with_packages,
-    compile_to_checked_with_packages_in_build_dir,
-    compile_to_checked_with_packages_in_sponsored_build_dir, realize_retained_native_artifact,
+    compile_targets, compile_to_checked, realize_retained_native_artifact,
     retained_terminal_report_from_checked_package,
 };
 use package_compilation::{
@@ -83,8 +82,11 @@ fn package_aware_import_cannot_mount_bundled_standard_library() {
     )
     .expect("root-only package graph should validate");
 
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect_err("package-aware compilation must not mount bundled std");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("package-aware compilation must not mount bundled std");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("omega::language::std::console")
@@ -113,8 +115,11 @@ data Readings {
     )
     .expect("root-only package graph should validate");
 
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect("FixedVec is a source-visible core carrier for ordinary packages");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("FixedVec is a source-visible core carrier for ordinary packages");
 }
 
 fn generated_source(relative_path: &[u8], bytes: &[u8]) -> build_output::PackageGeneratedSource {
@@ -180,9 +185,11 @@ pub machine consume_generated_value() -> u64 {
         .with_complete_dependency_generated_sources(vec![bundle])
         .expect("consumer should receive the complete dependency bundle");
 
-    let checked =
-        compile_to_checked_with_packages(&root.join("main.omg"), Some("windows_x86_64"), inputs)
-            .expect("retained generated dependency source should enter initial frontend loading");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("windows_x86_64"))
+    })
+    .expect("retained generated dependency source should enter initial frontend loading");
     assert!(
         !dependency
             .join(".omega/generated/generated_api.omg")
@@ -372,8 +379,11 @@ fn reconciled_bindings_ignore_build_dependency_discovery() {
     )
     .expect("reconciled bindings should validate");
 
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect("trusted package binding should be the only dependency authority");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("trusted package binding should be the only dependency authority");
 }
 
 #[test]
@@ -392,7 +402,7 @@ fn standalone_compilation_does_not_project_dependencies_from_build_syntax() {
     );
     TempTree::write(dependency.join("values.omg"), "const ANSWER: u32 = 42;\n");
 
-    let diagnostics = compile_to_checked(&root.join("main.omg"), None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&root.join("main.omg"), None))
         .expect_err("standalone compilation must not derive package aliases from build syntax");
     let rendered = diagnostics
         .iter()
@@ -445,8 +455,11 @@ machine build(builder: &mut Build) {
     )
     .expect("root-only package graph should validate");
 
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect("canonical dependency vocabulary should typecheck");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("canonical dependency vocabulary should typecheck");
 }
 
 #[test]
@@ -484,8 +497,11 @@ fn aliases_are_requester_local_and_dependency_imports_are_package_local() {
     )
     .expect("requester-local aliases should validate");
 
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect("requester-local and package-local imports should compile");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("requester-local and package-local imports should compile");
 }
 
 #[test]
@@ -528,8 +544,11 @@ machine Inspector::inspect(&self, observation: Observation, bytes: &[u8]) -> u64
     )
     .expect("dependency graph should validate");
 
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect("public dependency fields and intrinsic length should finalize");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("public dependency fields and intrinsic length should finalize");
     let selections = checked.authored_declaration_selections();
     assert!(selections.all_finalized(), "selections={selections:#?}");
     assert_eq!(
@@ -587,8 +606,11 @@ terminates by card -> Card::PowerOrder;
     )
     .expect("measure package graph should validate");
 
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect("measure-body member custody should rejoin its exact package declaration");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("measure-body member custody should rejoin its exact package declaration");
     assert!(
         checked.authored_declaration_selections().all_finalized(),
         "selections={:#?}",
@@ -659,9 +681,11 @@ linux_x86_64 machine Cursor::record_fits(&self) -> bool {
     )
     .expect("root-only package graph should validate");
 
-    let checked =
-        compile_to_checked_with_packages(&root.join("main.omg"), Some("linux_x86_64"), inputs)
-            .expect("collection length remains a builtin u64 operand beside foreign operators");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("linux_x86_64"))
+    })
+    .expect("collection length remains a builtin u64 operand beside foreign operators");
     assert!(
         checked.authored_declaration_selections().iter().any(|selection| {
             selection.kind()
@@ -702,8 +726,11 @@ data Main { bytes: [u8; array_length()]; }
     )
     .expect("root-only package graph should validate");
 
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect("toolchain float candidates are already confined package authority");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("toolchain float candidates are already confined package authority");
     assert!(checked.authored_declaration_selections().all_finalized());
     let main = checked
         .data_definitions()
@@ -764,9 +791,11 @@ fn authored_selection_requires_the_declaration_owner_as_a_direct_dependency() {
     )
     .expect("transitive package graph should validate structurally");
 
-    let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, transitive_only)
-            .expect_err("root may not select a transitive-only leaf declaration");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(transitive_only),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("root may not select a transitive-only leaf declaration");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("`root`")
@@ -791,8 +820,11 @@ fn authored_selection_requires_the_declaration_owner_as_a_direct_dependency() {
     )
     .expect("direct leaf admission should validate");
 
-    compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted)
-        .expect("direct dependency should admit the exact leaf declaration selection");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(directly_admitted),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("direct dependency should admit the exact leaf declaration selection");
 }
 
 #[test]
@@ -828,9 +860,11 @@ fn boundary_machine_signatures_are_public_package_selection_positions() {
         ],
     )
     .expect("transitive boundary-signature graph should validate structurally");
-    let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, transitive_only)
-            .expect_err("a boundary signature may not select a transitive-only type");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(transitive_only),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a boundary signature may not select a transitive-only type");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("`root`")
@@ -854,8 +888,11 @@ fn boundary_machine_signatures_are_public_package_selection_positions() {
         ],
     )
     .expect("direct boundary-signature graph should validate");
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted)
-        .expect("direct dependency should admit the boundary signature type");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(directly_admitted),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("direct dependency should admit the boundary signature type");
     assert!(checked.authored_declaration_selections().iter().any(|selection| {
         selection.exposure()
             == language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
@@ -880,8 +917,11 @@ fn boundary_machine_signatures_are_public_package_selection_positions() {
         Vec::new(),
     )
     .expect("root-only boundary-signature graph should validate structurally");
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, root_only)
-        .expect_err("a boundary signature may not expose a private same-package type");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_only),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a boundary signature may not expose a private same-package type");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -922,8 +962,11 @@ fn transparent_domain_alias_constituents_require_direct_package_admission() {
         ],
     )
     .expect("transitive alias graph should close");
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, transitive)
-        .expect_err("a domain alias may not select a transitive-only constituent");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(transitive),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a domain alias may not select a transitive-only constituent");
     assert!(
         diagnostics
             .iter()
@@ -941,8 +984,11 @@ fn transparent_domain_alias_constituents_require_direct_package_admission() {
         ],
     )
     .expect("direct alias graph should close");
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, direct)
-        .expect("direct admission should admit the alias constituent");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(direct),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("direct admission should admit the alias constituent");
     assert!(checked.authored_declaration_selections().iter().any(|selection| {
         selection.exposure()
             == language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
@@ -980,8 +1026,11 @@ established by HiddenIssues::issue;
         )
         .expect("root-only establishment graph should close")
     };
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, root_only())
-        .expect_err("a public domain may not authorize a private trait requirement");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_only()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a public domain may not authorize a private trait requirement");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -1008,8 +1057,11 @@ domain Ticket::Internal
 established by InternalIssues::hide;
 "#,
     );
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, root_only())
-        .expect("matching route visibility should admit exact establishment selections");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_only()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("matching route visibility should admit exact establishment selections");
     let rows = checked
         .authored_declaration_selections()
         .iter()
@@ -1096,8 +1148,11 @@ trait PrivateComposition: LeafPolicy {
         ],
     )
     .expect("transitive trait-composition graph should close");
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, transitive)
-        .expect_err("trait composition may not select a transitive-only trait");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(transitive),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("trait composition may not select a transitive-only trait");
     assert!(
         diagnostics
             .iter()
@@ -1115,8 +1170,11 @@ trait PrivateComposition: LeafPolicy {
         ],
     )
     .expect("direct trait-composition graph should close");
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, direct)
-        .expect("direct admission should admit trait composition");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(direct),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("direct admission should admit trait composition");
     let leaf_selections = checked
         .authored_declaration_selections()
         .iter()
@@ -1188,8 +1246,11 @@ boundary machine LeafData::boundary_extension(value: u64) -> u64;
         ],
     )
     .expect("transitive attached-carrier graph should close");
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, transitive)
-        .expect_err("an attached machine may not select a transitive-only carrier");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(transitive),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("an attached machine may not select a transitive-only carrier");
     assert!(
         diagnostics
             .iter()
@@ -1207,8 +1268,11 @@ boundary machine LeafData::boundary_extension(value: u64) -> u64;
         ],
     )
     .expect("direct attached-carrier graph should close");
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, direct)
-        .expect("direct admission should admit attached-machine carriers");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(direct),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("direct admission should admit attached-machine carriers");
     let carrier_selections = checked
         .authored_declaration_selections()
         .iter()
@@ -1291,8 +1355,11 @@ boundary machine boundary_apply(value: u64) -> u64
         ],
     )
     .expect("transitive satisfies graph should close");
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, transitive)
-        .expect_err("a machine may not satisfy a transitive-only requirement");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(transitive),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a machine may not satisfy a transitive-only requirement");
     assert!(
         diagnostics
             .iter()
@@ -1310,8 +1377,11 @@ boundary machine boundary_apply(value: u64) -> u64
         ],
     )
     .expect("direct satisfies graph should close");
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, direct)
-        .expect("direct admission should admit exact machine-satisfies edges");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(direct),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("direct admission should admit exact machine-satisfies edges");
     let root_selections = checked
         .authored_declaration_selections()
         .iter()
@@ -1390,8 +1460,11 @@ fn public_machine_satisfies_edges_reject_private_requirements() {
     };
 
     TempTree::write(root.join("main.omg"), &source("pub "));
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect_err("a public satisfier may not expose a private requirement");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a public satisfier may not expose a private requirement");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -1404,12 +1477,18 @@ fn public_machine_satisfies_edges_reject_private_requirements() {
     );
 
     TempTree::write(root.join("main.omg"), &source(""));
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect("a private satisfier may select its package-private requirement");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("a private satisfier may select its package-private requirement");
 
     TempTree::write(root.join("main.omg"), &source("boundary "));
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect_err("an exported boundary satisfier may not expose a private requirement");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("an exported boundary satisfier may not expose a private requirement");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -1472,8 +1551,11 @@ where machine Selected satisfies LeafPolicy::apply;
         ],
     )
     .expect("transitive nominal-requirement graph should close");
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, transitive)
-        .expect_err("a nominal machine parameter may not select a transitive-only requirement");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(transitive),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a nominal machine parameter may not select a transitive-only requirement");
     assert!(
         diagnostics
             .iter()
@@ -1491,8 +1573,11 @@ where machine Selected satisfies LeafPolicy::apply;
         ],
     )
     .expect("direct nominal-requirement graph should close");
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, direct)
-        .expect("direct admission should admit exact nominal machine-parameter requirements");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(direct),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("direct admission should admit exact nominal machine-parameter requirements");
     let root_selections = checked
         .authored_declaration_selections()
         .iter()
@@ -1557,8 +1642,11 @@ where machine Selected satisfies PrivatePolicy::apply;
     };
 
     TempTree::write(root.join("main.omg"), &source("pub "));
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect_err("a public nominal binder may not expose a private requirement");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a public nominal binder may not expose a private requirement");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -1571,12 +1659,18 @@ where machine Selected satisfies PrivatePolicy::apply;
     );
 
     TempTree::write(root.join("main.omg"), &source(""));
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect("a private nominal binder may select its package-private requirement");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("a private nominal binder may select its package-private requirement");
 
     TempTree::write(root.join("main.omg"), &source("boundary "));
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect_err("an exported boundary nominal binder may not expose a private requirement");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("an exported boundary nominal binder may not expose a private requirement");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -1611,8 +1705,11 @@ boundary machine choose_first(value: u64) -> u64 in First
         Vec::new(),
     )
     .expect("root-only overload graph should close");
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect("result dispatch should select one exact requirement overload");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("result dispatch should select one exact requirement overload");
     let machine = checked
         .machines()
         .iter()
@@ -1666,9 +1763,11 @@ machine misuse(resource: &mut Resource) {
     )
     .expect("root-only package graph should validate");
 
-    let checked_diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, inputs.clone())
-            .expect_err("package source may not invoke its reserved cleanup hook");
+    let checked_diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs.clone()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("package source may not invoke its reserved cleanup hook");
     assert!(
         checked_diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -1729,8 +1828,11 @@ pub machine consume(value: Token) {}
     )
     .expect("transitive package graph should validate structurally");
 
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect("carrying a transitive type through the direct dependency should be legal");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("carrying a transitive type through the direct dependency should be legal");
     let relay = checked
         .machines()
         .iter()
@@ -1788,9 +1890,11 @@ fn statement_call_requires_the_declaration_owner_as_a_direct_dependency() {
     )
     .expect("transitive package graph should validate structurally");
 
-    let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, transitive_only)
-            .expect_err("root may not issue a transitive-only statement call");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(transitive_only),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("root may not issue a transitive-only statement call");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("`root`")
@@ -1816,8 +1920,11 @@ fn statement_call_requires_the_declaration_owner_as_a_direct_dependency() {
     )
     .expect("direct leaf admission should validate");
 
-    compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted)
-        .expect("direct dependency should admit the leaf statement call");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(directly_admitted),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("direct dependency should admit the leaf statement call");
 }
 
 #[test]
@@ -1861,9 +1968,11 @@ where machine Selected()
     )
     .expect("transitive package graph should validate structurally");
 
-    let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, transitive_only)
-            .expect_err("root may not select transitive-only static arguments");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(transitive_only),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("root may not select transitive-only static arguments");
     assert!(
         diagnostics
             .iter()
@@ -1892,8 +2001,11 @@ where machine Selected()
     )
     .expect("direct leaf admission should validate");
 
-    compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted)
-        .expect("direct dependency should admit static type and machine arguments");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(directly_admitted),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("direct dependency should admit static type and machine arguments");
 }
 
 #[test]
@@ -1930,9 +2042,11 @@ fn public_type_selection_requires_the_declaration_owner_as_a_direct_dependency()
     )
     .expect("transitive package graph should validate structurally");
 
-    let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, transitive_only)
-            .expect_err("a public type may not select a transitive-only declaration");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(transitive_only),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a public type may not select a transitive-only declaration");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("`root`")
@@ -1957,8 +2071,11 @@ fn public_type_selection_requires_the_declaration_owner_as_a_direct_dependency()
     )
     .expect("direct leaf admission should validate");
 
-    compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted)
-        .expect("direct dependency should admit the public type selection");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(directly_admitted),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("direct dependency should admit the public type selection");
 }
 
 #[test]
@@ -1997,9 +2114,11 @@ requires value in u64::Trusted
     )
     .expect("transitive package graph should validate structurally");
 
-    let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, transitive_only)
-            .expect_err("public contract may not select a transitive-only domain");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(transitive_only),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("public contract may not select a transitive-only domain");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("`root`")
@@ -2025,8 +2144,11 @@ requires value in u64::Trusted
     )
     .expect("direct leaf admission should validate");
 
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted)
-        .expect("direct dependency should admit the public contract domain selection");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(directly_admitted),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("direct dependency should admit the public contract domain selection");
     assert!(checked.authored_declaration_selections().iter().any(|selection| {
         selection.kind()
             == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::DomainMembership
@@ -2076,9 +2198,11 @@ requires (value as u64 in Trusted) == 1
     )
     .expect("transitive package graph should validate structurally");
 
-    let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, transitive_only)
-            .expect_err("a qualification cast may not select a transitive-only domain");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(transitive_only),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a qualification cast may not select a transitive-only domain");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("`root`")
@@ -2104,8 +2228,11 @@ requires (value as u64 in Trusted) == 1
     )
     .expect("direct leaf admission should validate");
 
-    compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted)
-        .expect("direct dependency should admit the qualification-cast domain selection");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(directly_admitted),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("direct dependency should admit the qualification-cast domain selection");
 }
 
 #[test]
@@ -2142,9 +2269,11 @@ pub proposition root_zero() =
     )
     .expect("transitive package graph should validate structurally");
 
-    let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, transitive_only)
-            .expect_err("a public zero-value type may not select a transitive-only declaration");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(transitive_only),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a public zero-value type may not select a transitive-only declaration");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("`root`")
@@ -2170,8 +2299,11 @@ pub proposition root_zero() =
     )
     .expect("direct leaf admission should validate");
 
-    compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted)
-        .expect("direct dependency should admit the public zero-value type selection");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(directly_admitted),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("direct dependency should admit the public zero-value type selection");
 }
 
 #[test]
@@ -2230,8 +2362,11 @@ fn ordinary_declaration_visibility_gates_cross_package_selection() {
             .expect("direct dependency graph should validate")
         };
 
-        let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-            .expect_err("a direct dependency does not implicitly publish declarations");
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs()),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("a direct dependency does not implicitly publish declarations");
         assert!(
             diagnostics.iter().any(|diagnostic| {
                 diagnostic.message.contains(&format!("private {kind}"))
@@ -2241,9 +2376,13 @@ fn ordinary_declaration_visibility_gates_cross_package_selection() {
         );
 
         TempTree::write(leaf.join("leaf.omg"), public_leaf);
-        compile_to_checked_with_packages(&root.join("main.omg"), None, inputs()).unwrap_or_else(
-            |diagnostics| panic!("public {kind} should be selectable: {diagnostics:#?}"),
-        );
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs()),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("public {kind} should be selectable: {diagnostics:#?}")
+        });
     }
 }
 
@@ -2296,8 +2435,11 @@ pub machine choose<Element, Order: Element satisfies Ranked>(
         .expect("direct conformance dependency graph should validate")
     };
 
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect_err("a direct dependency does not publish a private conformance");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a direct dependency does not publish a private conformance");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("private conformance")
@@ -2307,9 +2449,13 @@ pub machine choose<Element, Order: Element satisfies Ranked>(
     );
 
     TempTree::write(leaf.join("leaf.omg"), &leaf_source("pub "));
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs()).unwrap_or_else(
-        |diagnostics| panic!("public conformance should be selectable: {diagnostics:#?}"),
-    );
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .unwrap_or_else(|diagnostics| {
+        panic!("public conformance should be selectable: {diagnostics:#?}")
+    });
 }
 
 #[test]
@@ -2337,8 +2483,11 @@ where Element satisfies Card::PowerOrder
     };
 
     TempTree::write(root.join("main.omg"), &source("", "pub "));
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect_err("a public interface cannot cite its package-private conformance");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a public interface cannot cite its package-private conformance");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -2350,12 +2499,18 @@ where Element satisfies Card::PowerOrder
     );
 
     TempTree::write(root.join("main.omg"), &source("pub ", "pub "));
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect("a public interface may cite its public conformance");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("a public interface may cite its public conformance");
 
     TempTree::write(root.join("main.omg"), &source("", "boundary "));
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect_err("a boundary interface cannot cite its package-private conformance");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a boundary interface cannot cite its package-private conformance");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -2367,8 +2522,11 @@ where Element satisfies Card::PowerOrder
     );
 
     TempTree::write(root.join("main.omg"), &source("", ""));
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect("a private implementation may cite its package-private conformance");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("a private implementation may cite its package-private conformance");
 }
 
 #[test]
@@ -2432,8 +2590,11 @@ ensures a == c
         .expect("direct quotient dependency graph should validate")
     };
 
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect_err("quotient formation may not consume a dependency's private proof evidence");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("quotient formation may not consume a dependency's private proof evidence");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("private conformance")
@@ -2443,10 +2604,13 @@ ensures a == c
     );
 
     TempTree::write(leaf.join("leaf.omg"), &leaf_source("pub "));
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .unwrap_or_else(|diagnostics| {
-            panic!("public quotient proof evidence should be selectable: {diagnostics:#?}")
-        });
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .unwrap_or_else(|diagnostics| {
+        panic!("public quotient proof evidence should be selectable: {diagnostics:#?}")
+    });
     use language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionExposure as Exposure, AuthoredDeclarationSelectionKind as Kind,
         AuthoredDeclarationSelectionTarget as Target,
@@ -2530,13 +2694,13 @@ pub machine erased<'item>(item: &'item Item) -> &'item dyn Shape {
         .expect("direct dynamic producer dependency graph should validate")
     };
 
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs()).unwrap_or_else(
-        |diagnostics| {
-            panic!(
-                "a public bare-dynamic return may carry private producer evidence: {diagnostics:#?}"
-            )
-        },
-    );
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .unwrap_or_else(|diagnostics| {
+        panic!("a public bare-dynamic return may carry private producer evidence: {diagnostics:#?}")
+    });
 
     TempTree::write(
         root.join("main.omg"),
@@ -2547,8 +2711,11 @@ machine inspect<'item>(item: &'item Item) -> i32 {
 }
 "#,
     );
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect_err("the receiver may not name the producer's private conformance");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("the receiver may not name the producer's private conformance");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("private conformance")
@@ -2575,8 +2742,11 @@ fn public_conformance_header_cannot_hide_private_carrier_or_trait() {
         root.join("main.omg"),
         "data Card {} pub trait Ranked {} pub PowerOrder: Card satisfies Ranked {}",
     );
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect_err("a public conformance cannot hide its private carrier");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a public conformance cannot hide its private carrier");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -2588,8 +2758,11 @@ fn public_conformance_header_cannot_hide_private_carrier_or_trait() {
         root.join("main.omg"),
         "pub data Card {} trait Ranked {} pub PowerOrder: Card satisfies Ranked {}",
     );
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect_err("a public conformance cannot hide its private trait");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a public conformance cannot hide its private trait");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -2640,8 +2813,11 @@ pub trait Ranked {{
         .expect("direct realization dependency graph should validate")
     };
 
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect_err("a conformance row cannot reference a dependency's private machine");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a conformance row cannot reference a dependency's private machine");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("private machine")
@@ -2651,9 +2827,13 @@ pub trait Ranked {{
     );
 
     TempTree::write(leaf.join("leaf.omg"), &leaf_source("pub "));
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs()).unwrap_or_else(
-        |diagnostics| panic!("public referenced realization should validate: {diagnostics:#?}"),
-    );
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .unwrap_or_else(|diagnostics| {
+        panic!("public referenced realization should validate: {diagnostics:#?}")
+    });
 }
 
 #[test]
@@ -2673,8 +2853,11 @@ fn carrier_qualified_declarations_own_visibility_independently() {
         )
         .expect("root-only package graph should validate")
     };
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect_err("a public domain may not hide a private carrier");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a public domain may not hide a private carrier");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -2688,8 +2871,11 @@ fn carrier_qualified_declarations_own_visibility_independently() {
         root.join("main.omg"),
         "data Token [copy] { value: u64; }\npub operator < Token::less(left: Token, right: Token) -> bool;\n",
     );
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect_err("a public operator may not hide a private carrier");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a public operator may not hide a private carrier");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -2728,8 +2914,11 @@ fn proposition_visibility_gates_public_and_cross_package_selection() {
         .expect("direct proposition dependency graph should validate")
     };
 
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect_err("a direct dependency does not publish its private proposition");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a direct dependency does not publish its private proposition");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("private proposition")
@@ -2739,8 +2928,11 @@ fn proposition_visibility_gates_public_and_cross_package_selection() {
     );
 
     TempTree::write(leaf.join("leaf.omg"), "pub proposition leaf_ready();\n");
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect("an explicitly public proposition should be nameable by a direct dependent");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("an explicitly public proposition should be nameable by a direct dependent");
 
     TempTree::write(
         root.join("main.omg"),
@@ -2752,8 +2944,11 @@ fn proposition_visibility_gates_public_and_cross_package_selection() {
         Vec::new(),
     )
     .expect("root-only package graph should validate");
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, root_only)
-        .expect_err("a public interface may not expose its package-private proposition");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_only),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a public interface may not expose its package-private proposition");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -2774,8 +2969,11 @@ fn proposition_visibility_gates_public_and_cross_package_selection() {
         Vec::new(),
     )
     .expect("root-only private implementation graph should validate");
-    compile_to_checked_with_packages(&root.join("main.omg"), None, root_only)
-        .expect("private implementation may select its package-private proposition");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_only),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("private implementation may select its package-private proposition");
 
     TempTree::write(
         root.join("main.omg"),
@@ -2787,8 +2985,11 @@ fn proposition_visibility_gates_public_and_cross_package_selection() {
         Vec::new(),
     )
     .expect("root-only transparent proposition graph should validate");
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, root_only)
-        .expect_err("a public transparent proposition may not hide a private endpoint");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_only),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a public transparent proposition may not hide a private endpoint");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -2828,8 +3029,11 @@ fn const_visibility_gates_public_and_cross_package_selection() {
         .expect("direct const dependency graph should validate")
     };
 
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect_err("a direct dependency does not publish its private const");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a direct dependency does not publish its private const");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("private const")
@@ -2839,8 +3043,11 @@ fn const_visibility_gates_public_and_cross_package_selection() {
     );
 
     TempTree::write(leaf.join("leaf.omg"), "pub const LEAF_LIMIT: u64 = 4;\n");
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect("an explicitly public const should be nameable by a direct dependent");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("an explicitly public const should be nameable by a direct dependent");
 
     TempTree::write(
         root.join("main.omg"),
@@ -2852,8 +3059,11 @@ fn const_visibility_gates_public_and_cross_package_selection() {
         Vec::new(),
     )
     .expect("root-only package graph should validate");
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, root_only)
-        .expect_err("a public interface may not expose its package-private const");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_only),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a public interface may not expose its package-private const");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -2874,8 +3084,11 @@ fn const_visibility_gates_public_and_cross_package_selection() {
         Vec::new(),
     )
     .expect("root-only private implementation graph should validate");
-    compile_to_checked_with_packages(&root.join("main.omg"), None, root_only)
-        .expect("private implementation may select its package-private const");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_only),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("private implementation may select its package-private const");
 
     TempTree::write(
         root.join("main.omg"),
@@ -2887,8 +3100,11 @@ fn const_visibility_gates_public_and_cross_package_selection() {
         Vec::new(),
     )
     .expect("root-only public const graph should validate structurally");
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, root_only)
-        .expect_err("a public const may not expose its package-private data type");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_only),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a public const may not expose its package-private data type");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("public const `TOKEN`")
@@ -2907,8 +3123,11 @@ fn const_visibility_gates_public_and_cross_package_selection() {
         Vec::new(),
     )
     .expect("root-only published public const graph should validate");
-    compile_to_checked_with_packages(&root.join("main.omg"), None, root_only)
-        .expect("a public const may expose an explicitly public structural data type");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_only),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("a public const may expose an explicitly public structural data type");
 }
 
 #[test]
@@ -2942,8 +3161,11 @@ fn operator_visibility_gates_public_and_cross_package_selection() {
         .expect("direct operator dependency graph should validate")
     };
 
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect_err("a direct dependency does not publish its private operator");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a direct dependency does not publish its private operator");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("private operator")
@@ -2956,8 +3178,11 @@ fn operator_visibility_gates_public_and_cross_package_selection() {
         leaf.join("leaf.omg"),
         "pub data Token [copy] { value: u64; }\npub operator < Token::less(left: Token, right: Token) -> bool;\n",
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
-        .expect("an explicitly public operator should be nameable by a direct dependent");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("an explicitly public operator should be nameable by a direct dependent");
 
     TempTree::write(
         root.join("main.omg"),
@@ -2969,8 +3194,11 @@ fn operator_visibility_gates_public_and_cross_package_selection() {
         Vec::new(),
     )
     .expect("root-only public operator interface should validate structurally");
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, root_only)
-        .expect_err("a public interface may not select its package-private operator");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_only),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a public interface may not select its package-private operator");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -2991,8 +3219,11 @@ fn operator_visibility_gates_public_and_cross_package_selection() {
         Vec::new(),
     )
     .expect("root-only private operator implementation should validate");
-    compile_to_checked_with_packages(&root.join("main.omg"), None, root_only)
-        .expect("private implementation may select its package-private operator");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_only),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("private implementation may select its package-private operator");
 }
 
 #[test]
@@ -3021,8 +3252,11 @@ terminates by power -> Card::PowerOrder;
         Vec::new(),
     )
     .expect("root-only ranking fixture should validate structurally");
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect("a public termination guarantee may use a same-package private ranking measure");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("a public termination guarantee may use a same-package private ranking measure");
 }
 
 #[test]
@@ -3067,9 +3301,11 @@ Primary: Good satisfies Marker;
     )
     .expect("transitive package graph should validate structurally");
 
-    let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, transitive_only.clone())
-            .expect_err("a public callable may not publish private conformance evidence");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(transitive_only.clone()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a public callable may not publish private conformance evidence");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("private conformance")
@@ -3093,9 +3329,11 @@ Primary: Good satisfies Marker;
     )
     .expect("direct leaf admission should validate");
 
-    let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted.clone())
-            .expect_err("a direct dependency does not publish its private conformance");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(directly_admitted.clone()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a direct dependency does not publish its private conformance");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("private conformance")
@@ -3112,9 +3350,11 @@ pub Primary: Good satisfies Marker;
 "#,
     );
 
-    let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, transitive_only)
-            .expect_err("public conformance evidence still requires its direct owner");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(transitive_only),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("public conformance evidence still requires its direct owner");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("`root`")
@@ -3125,8 +3365,11 @@ pub Primary: Good satisfies Marker;
         "unexpected diagnostics: {diagnostics:#?}"
     );
 
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted)
-        .expect("a direct dependency may select the dependency's public conformance");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(directly_admitted),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("a direct dependency may select the dependency's public conformance");
     assert!(checked.authored_declaration_selections().iter().any(|selection| {
         selection.kind()
             == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Conformance
@@ -3182,9 +3425,11 @@ GoodMarker: Good satisfies Marker;
     )
     .expect("transitive package graph should validate structurally");
 
-    let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, transitive_only.clone())
-            .expect_err("root may not infer a private leaf conformance");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(transitive_only.clone()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("root may not infer a private leaf conformance");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("private conformance")
@@ -3208,9 +3453,11 @@ GoodMarker: Good satisfies Marker;
     )
     .expect("direct leaf admission should validate");
 
-    let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted.clone())
-            .expect_err("direct dependency authority does not publish a private conformance");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(directly_admitted.clone()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("direct dependency authority does not publish a private conformance");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("private conformance")
@@ -3227,9 +3474,11 @@ pub GoodMarker: Good satisfies Marker;
 "#,
     );
 
-    let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, transitive_only)
-            .expect_err("public inferred evidence still requires a direct dependency");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(transitive_only),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("public inferred evidence still requires a direct dependency");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("`root`")
@@ -3240,8 +3489,11 @@ pub GoodMarker: Good satisfies Marker;
         "unexpected diagnostics: {diagnostics:#?}"
     );
 
-    compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted)
-        .expect("direct dependency should admit the public inferred leaf conformance");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(directly_admitted),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("direct dependency should admit the public inferred leaf conformance");
 }
 
 #[test]
@@ -3267,8 +3519,11 @@ where Element satisfies Good::Primary
     )
     .expect("root-only conformance fixture should validate structurally");
 
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect("same-package private implementation may select its private conformance");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("same-package private implementation may select its private conformance");
 }
 
 #[test]
@@ -3294,8 +3549,11 @@ where Element satisfies Good::Primary
     )
     .expect("root-only public-interface fixture should validate structurally");
 
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect_err("a public interface may not name a same-package private conformance");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a public interface may not name a same-package private conformance");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -3341,9 +3599,11 @@ fn const_generic_evaluation_requires_direct_authority_before_execution() {
     )
     .expect("transitive package graph should validate structurally");
 
-    let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, inputs.clone())
-            .expect_err("early const-generic execution may not select a transitive-only package");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs.clone()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("early const-generic execution may not select a transitive-only package");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("const-generic evaluation")
@@ -3357,8 +3617,11 @@ fn const_generic_evaluation_requires_direct_authority_before_execution() {
         root.join("main.omg"),
         "use middle::middle;\ndata FixedBuffer<const N: u64> { items: [u8; N]; }\ndata Main { buffer: FixedBuffer<middle_size()>; }\n",
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect("each machine in the build-time call closure may select its own direct dependency");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("each machine in the build-time call closure may select its own direct dependency");
 }
 
 #[test]
@@ -3390,10 +3653,11 @@ fn build_time_call_closure_rejects_internal_undeclared_package_selection() {
     )
     .expect("one-way direct dependency should validate structurally");
 
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect_err(
-            "dependency code may not select root declarations without dependency authority",
-        );
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("dependency code may not select root declarations without dependency authority");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("const-generic evaluation")
@@ -3440,8 +3704,11 @@ fn fixed_array_evaluation_requires_direct_authority_before_execution() {
     )
     .expect("transitive package graph should validate structurally");
 
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect_err("early fixed-array execution may not select a transitive-only package");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("early fixed-array execution may not select a transitive-only package");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("fixed-array length")
@@ -3465,8 +3732,11 @@ fn fixed_array_evaluation_requires_direct_authority_before_execution() {
         ],
     )
     .expect("direct fixed-array callee admission should validate structurally");
-    compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted)
-        .expect("direct package authority should admit fixed-array evaluation");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(directly_admitted),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("direct package authority should admit fixed-array evaluation");
 }
 
 #[test]
@@ -3514,8 +3784,11 @@ data Main { buffer: FixedBuffer<4>; }
     )
     .expect("transitive package graph should validate structurally");
 
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect_err("early const-domain execution may not select a transitive-only package");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("early const-domain execution may not select a transitive-only package");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("const domain fact evaluation")
@@ -3573,8 +3846,11 @@ pub machine LeafLayout::plan(&mut self, schema: Schema) -> Plan {
     )
     .expect("transitive package graph should validate structurally");
 
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect_err("early plan-laid execution may not select a transitive-only package");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("early plan-laid execution may not select a transitive-only package");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("plan-laid value type")
@@ -3598,8 +3874,11 @@ pub machine LeafLayout::plan(&mut self, schema: Schema) -> Plan {
         ],
     )
     .expect("direct policy admission should validate structurally");
-    compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted)
-        .expect("direct package authority should admit plan-laid policy execution");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(directly_admitted),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("direct package authority should admit plan-laid policy execution");
 }
 
 #[test]
@@ -3660,8 +3939,11 @@ pub machine LeafPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
     )
     .expect("transitive package graph should validate structurally");
 
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect_err("early placed-view execution may not select a transitive-only package");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("early placed-view execution may not select a transitive-only package");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("placement policy")
@@ -3684,8 +3966,11 @@ pub machine LeafPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
         ],
     )
     .expect("direct placement-policy admission should validate structurally");
-    compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted)
-        .expect("direct package authority should admit placed-view policy execution");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(directly_admitted),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("direct package authority should admit placed-view policy execution");
 }
 
 #[test]
@@ -3735,12 +4020,11 @@ machine build(builder: &mut Build) {
     .expect("transitive package graph should validate structurally");
 
     let checked_build = tree.0.join("checked-build");
-    let checked_diagnostics = compile_to_checked_with_packages_in_build_dir(
-        &root.join("main.omg"),
-        &checked_build,
-        None,
-        inputs.clone(),
-    )
+    let checked_diagnostics = compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(checked_build.to_owned()),
+        package_inputs: Some(inputs.clone()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
     .expect_err("checked package compilation must reject the transitive selection");
     assert!(
         checked_diagnostics
@@ -3814,8 +4098,11 @@ machine Provider::first() satisfies Pair::first via Binding::VtableField(first);
     )
     .expect("reconciled provider graph should validate");
 
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect("dependency provider should check");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("dependency provider should check");
     assert!(checked.authored_declaration_selections().iter().any(|selection| {
         selection.target()
             == language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Intrinsic(
@@ -3875,7 +4162,10 @@ machine Provider::first() satisfies Pair::first via Binding::VtableField(first);
     )
     .expect("one-package provider graph");
 
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
 }
 
 #[test]
@@ -3988,9 +4278,11 @@ machine Main::main(&mut self) { }
     )
     .expect("one-package target-default graph");
 
-    let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), Some("linux_x86_64"), inputs)
-            .expect_err("target defaults cannot authorize a deployment cut");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("linux_x86_64"))
+    })
+    .expect_err("target defaults cannot authorize a deployment cut");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -4048,8 +4340,11 @@ satisfies Convert::apply
     )
     .expect("reconciled operator-provider graph should validate");
 
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect("one family selection should select both exact overload plans");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("one family selection should select both exact overload plans");
     let plans = checked.selected_provider_plans().plans();
     assert_eq!(plans.len(), 2);
     assert!(
@@ -4096,8 +4391,11 @@ fn dependency_build_files_cannot_join_the_program() {
     )
     .expect("reconciled bindings should validate");
 
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect_err("dependency build file import must reject");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("dependency build file import must reject");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -4134,8 +4432,11 @@ fn dependency_import_symlink_escape_rejects() {
     )
     .expect("reconciled bindings should validate");
 
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect_err("symlink import escape must reject");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("symlink import escape must reject");
     assert!(
         diagnostics
             .iter()
@@ -4167,8 +4468,11 @@ fn root_build_companion_symlink_escape_rejects_before_loading() {
     )
     .expect("root package input should validate");
 
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect_err("root build companion escape must reject");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("root build companion escape must reject");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -4441,13 +4745,12 @@ fn reviewed_checked_package_continues_after_generated_source_staging_is_removed(
     let build_dir = session_root.join("reviewed-generated-root");
     let filesystem_sponsor =
         checked_interpreter::FilesystemSponsor::new(&session_root).expect("sponsor review session");
-    let checked = compile_to_checked_with_packages_in_sponsored_build_dir(
-        &root.join("main.omg"),
-        &build_dir,
-        Some("linux_x86_64"),
-        inputs,
-        filesystem_sponsor,
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(build_dir.to_owned()),
+        package_inputs: Some(inputs),
+        filesystem_sponsor: Some(filesystem_sponsor),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("linux_x86_64"))
+    })
     .expect("package review retains its generated source in checked custody");
     assert_eq!(
         checked
@@ -4476,8 +4779,11 @@ fn reviewed_checked_package_continues_after_generated_source_staging_is_removed(
         standalone_root.join("main.omg"),
         "pub data Standalone { value: u8; }\n",
     );
-    let standalone = compile_to_checked(&standalone_root.join("main.omg"), None)
-        .expect("standalone source checks without package custody");
+    let standalone = compile_to_checked(CheckedCompileRequest::new(
+        &standalone_root.join("main.omg"),
+        None,
+    ))
+    .expect("standalone source checks without package custody");
     let diagnostics = retained_terminal_report_from_checked_package(
         standalone_root.join("main.omg"),
         standalone,
@@ -4558,11 +4864,10 @@ machine Main::main(&mut self) {
         .expect("ordinary application and Console dependency graph")
     };
 
-    let candidate = compile_to_checked_with_packages(
-        &root.join("main.omg"),
-        Some("linux_x86_64"),
-        base_inputs(),
-    )
+    let candidate = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(base_inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("linux_x86_64"))
+    })
     .expect("candidate Console package should check before consumer acceptance");
     let (plan, retained) = candidate
         .selected_provider_plans()
@@ -4625,11 +4930,10 @@ machine Main::main(&mut self) {
         let stale_inputs = base_inputs()
             .with_accepted_semantic_bindings(vec![stale])
             .expect("stale binding remains graph-scoped input authority");
-        let diagnostics = compile_to_checked_with_packages(
-            &root.join("main.omg"),
-            Some("linux_x86_64"),
-            stale_inputs,
-        )
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(stale_inputs),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), Some("linux_x86_64"))
+        })
         .expect_err("stale accepted semantic authority must not survive settlement");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
@@ -4671,13 +4975,14 @@ machine Main::main(&mut self) {
                 "pub boundary trait Console {{\n    machine exit_process(return_code: i32)\n    reaches Console;\n}}\n\npub data ConsoleNativeProvider {{ }}\n{declaration}\n"
             ),
         );
-        let diagnostics = compile_to_checked_with_packages(
-            &root.join("main.omg"),
-            Some("linux_x86_64"),
-            base_inputs()
-                .with_accepted_semantic_bindings(vec![accepted.clone()])
-                .expect("negative binding remains graph-scoped authority"),
-        )
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(
+                base_inputs()
+                    .with_accepted_semantic_bindings(vec![accepted.clone()])
+                    .expect("negative binding remains graph-scoped authority"),
+            ),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), Some("linux_x86_64"))
+        })
         .expect_err("non-selected catalog origin must not consume accepted authority");
         assert!(
             diagnostics.iter().any(|diagnostic| {
@@ -4705,13 +5010,14 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
     via Binding::CompilerIntrinsic;
 "#,
     );
-    let legacy = compile_to_checked_with_packages(
-        &root.join("main.omg"),
-        Some("linux_x86_64"),
-        base_inputs()
-            .with_accepted_semantic_bindings(vec![accepted.clone()])
-            .expect("legacy-via binding remains graph-scoped authority"),
-    )
+    let legacy = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(
+            base_inputs()
+                .with_accepted_semantic_bindings(vec![accepted.clone()])
+                .expect("legacy-via binding remains graph-scoped authority"),
+        ),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("linux_x86_64"))
+    })
     .expect("legacy `via` remains semantically selectable during migration");
     let (legacy_plan, legacy_retained) = legacy
         .selected_provider_plans()
@@ -4753,11 +5059,10 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
         .into_retained_terminal_artifact()
         .expect("Terminal request retains its exact product")
     };
-    let checked_for_subject = compile_to_checked_with_packages(
-        &root.join("main.omg"),
-        Some("linux_x86_64"),
-        accepted_inputs.clone(),
-    )
+    let checked_for_subject = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(accepted_inputs.clone()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("linux_x86_64"))
+    })
     .expect("accepted Console package checks for production-subject substitution test");
     let mismatched_profile = target::TargetProfile::WindowsX64;
     let mismatched_subject = compilation_report::ProductionCompilationSubject::from_checked(
@@ -5169,8 +5474,11 @@ invokes filesystem;
         .expect("ordinary filesystem dependency graph")
     };
 
-    let candidate = compile_to_checked_with_packages(&root.join("main.omg"), None, base_inputs())
-        .expect("ordinary filesystem requirement should check without semantic authority");
+    let candidate = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(base_inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("ordinary filesystem requirement should check without semantic authority");
     assert!(
         candidate
             .resolved_semantic_binding(AcceptedSemanticBindingRole::FilesystemHostService)
@@ -5217,13 +5525,14 @@ invokes filesystem;
             .unwrap(),
         ),
     ] {
-        let diagnostics = compile_to_checked_with_packages(
-            &root.join("main.omg"),
-            None,
-            base_inputs()
-                .with_accepted_semantic_bindings(vec![stale])
-                .expect("stale binding still names a package in the closure"),
-        )
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(
+                base_inputs()
+                    .with_accepted_semantic_bindings(vec![stale])
+                    .expect("stale binding still names a package in the closure"),
+            ),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
         .expect_err("stale filesystem authority must not survive exact settlement");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
@@ -5233,13 +5542,14 @@ invokes filesystem;
         );
     }
 
-    let accepted_compilation = compile_to_checked_with_packages(
-        &root.join("main.omg"),
-        None,
-        base_inputs()
-            .with_accepted_semantic_bindings(vec![accepted.clone()])
-            .expect("exact accepted binding names the ordinary dependency"),
-    )
+    let accepted_compilation = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(
+            base_inputs()
+                .with_accepted_semantic_bindings(vec![accepted.clone()])
+                .expect("exact accepted binding names the ordinary dependency"),
+        ),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
     .expect("exact ordinary-package filesystem authority should settle");
     assert_eq!(
         accepted_compilation
@@ -5351,8 +5661,11 @@ machine Boot::launch(
         .expect("ordinary application and std dependency graph")
     };
 
-    let candidate = compile_to_checked_with_packages(&root.join("main.omg"), None, base_inputs())
-        .expect("semantic-only compilation can derive the exact UEFI schema candidate");
+    let candidate = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(base_inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("semantic-only compilation can derive the exact UEFI schema candidate");
     let binding = candidate
         .candidate_service_binding(
             AcceptedSemanticBindingRole::UefiX64ProgramEntry,
@@ -5361,11 +5674,10 @@ machine Boot::launch(
         )
         .expect("compiler should derive exact package-owned UEFI coordinates");
 
-    let diagnostics = compile_to_checked_with_packages(
-        &root.join("main.omg"),
-        Some("uefi_x86_64"),
-        base_inputs(),
-    )
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(base_inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("uefi_x86_64"))
+    })
     .expect_err("ordinary UEFI source requires exact consumer acceptance");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -5381,13 +5693,14 @@ machine Boot::launch(
         effects::provider_plan::ServiceSchemaDigest::from_digest([94; 32]),
     )
     .expect("stale row remains structurally valid input");
-    let diagnostics = compile_to_checked_with_packages(
-        &root.join("main.omg"),
-        Some("uefi_x86_64"),
-        base_inputs()
-            .with_accepted_semantic_bindings(vec![stale])
-            .expect("stale binding still names a package in the closure"),
-    )
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(
+            base_inputs()
+                .with_accepted_semantic_bindings(vec![stale])
+                .expect("stale binding still names a package in the closure"),
+        ),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("uefi_x86_64"))
+    })
     .expect_err("stale UEFI schema identity must reject");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -5396,13 +5709,14 @@ machine Boot::launch(
         "unexpected stale-binding diagnostics: {diagnostics:#?}",
     );
 
-    let accepted = compile_to_checked_with_packages(
-        &root.join("main.omg"),
-        Some("uefi_x86_64"),
-        base_inputs()
-            .with_accepted_semantic_bindings(vec![binding.clone()])
-            .expect("exact UEFI binding names the ordinary dependency"),
-    )
+    let accepted = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(
+            base_inputs()
+                .with_accepted_semantic_bindings(vec![binding.clone()])
+                .expect("exact UEFI binding names the ordinary dependency"),
+        ),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("uefi_x86_64"))
+    })
     .expect("exact ordinary-package UEFI schema should settle");
     assert_eq!(
         accepted
@@ -5456,11 +5770,10 @@ fn free_process_exit_helper_lowers_without_a_synthetic_attachment() {
         )],
     )
     .expect("ordinary process-exit dependency graph");
-    let checked = compile_to_checked_with_packages(
-        &process_exit_root.join("main.omg"),
-        Some("linux_x86_64"),
-        inputs,
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&process_exit_root.join("main.omg"), Some("linux_x86_64"))
+    })
     .expect("ordinary process-exit candidate should check");
 
     selected_dispatch::validate_fused_service_terminal_custody(
@@ -5572,11 +5885,10 @@ machine Main::main(&mut self) {
         )
         .expect("ordinary process-exit dependency graph")
     };
-    let exit_candidate = compile_to_checked_with_packages(
-        &exit_root.join("main.omg"),
-        Some("linux_x86_64"),
-        exit_inputs(),
-    )
+    let exit_candidate = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(exit_inputs()),
+        ..CheckedCompileRequest::new(&exit_root.join("main.omg"), Some("linux_x86_64"))
+    })
     .expect("ordinary process-exit candidate should check");
     let (console_plan, console_provenance) = exit_candidate
         .selected_provider_plans()

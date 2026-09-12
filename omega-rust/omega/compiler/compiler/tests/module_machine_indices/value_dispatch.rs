@@ -1,7 +1,8 @@
 use super::{
-    Sources, assert_same_machine_types, compile, compile_to_checked_with_packages, identity,
-    root_inputs, selections,
+    Sources, assert_same_machine_types, compile, compile_to_checked, identity, root_inputs,
+    selections,
 };
+use compiler::CheckedCompileRequest;
 
 fn keep(name: &str, carrier: &str, index: &str) -> String {
     format!(
@@ -237,11 +238,11 @@ fn match_indices_check_unselected_types_coverage_and_actual_landings() {
                 keep("keep", "Indexed", index),
             ),
         );
-        let diagnostics =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err(
-                    "selected success cannot erase static obligations or a demanded failure",
-                );
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("selected success cannot erase static obligations or a demanded failure");
         assert!(
             diagnostics
                 .iter()
@@ -265,9 +266,11 @@ fn match_indices_do_not_hide_runtime_names_or_authored_operators() {
                 "pub data Flag<const Enabled: bool> {{ value: u8; }} const ENABLED: bool = true; const OTHER: bool = false; {machine}"
             ),
         );
-        let diagnostics =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err("unselected runtime name cannot become a constant");
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("unselected runtime name cannot become a constant");
         assert!(
             diagnostics
                 .iter()
@@ -287,9 +290,11 @@ fn match_indices_do_not_hide_runtime_names_or_authored_operators() {
             ),
         ),
     );
-    let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect_err("unselected authored equality cannot acquire builtin meaning");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("unselected authored equality cannot acquire builtin meaning");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -338,8 +343,11 @@ fn unselected_match_arms_still_require_direct_public_package_access() {
     let indirect =
         PackageCompilationInputs::new_package(identity(1), sources.clone(), dependencies.clone())
             .unwrap();
-    compile_to_checked_with_packages(&root.join("main.omg"), None, indirect)
-        .expect_err("even a skipped value cannot select a loaded transitive dependency");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(indirect),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("even a skipped value cannot select a loaded transitive dependency");
     dependencies.push(PackageDependencyBinding::new(
         identity(1),
         "leaf",
@@ -368,8 +376,11 @@ fn unselected_match_arms_still_require_direct_public_package_access() {
         leaf.join("constants.omg"),
         "module constants; const OTHER: bool = false;",
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, direct)
-        .expect_err("a skipped arm cannot gain access to a private dependency constant");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(direct),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a skipped arm cannot gain access to a private dependency constant");
 }
 
 #[test]
@@ -387,9 +398,10 @@ fn skipped_anonymous_match_comparisons_cannot_hide_undefined_division() {
                 keep("keep", "Flag", expression),
             ),
         );
-        let Err(diagnostics) =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-        else {
+        let Err(diagnostics) = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        }) else {
             panic!("undefined anonymous arithmetic cannot acquire a comparison value");
         };
         assert!(
@@ -511,9 +523,10 @@ fn anonymous_match_divisor_proofs_preserve_undefined_and_unknown_cases() {
                 keep("keep", "Flag", expression),
             ),
         );
-        let Err(diagnostics) =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-        else {
+        let Err(diagnostics) = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        }) else {
             panic!("missing all-arm nonzero proof accepted: {expression}");
         };
         assert!(

@@ -1,4 +1,5 @@
 //! Validated function-text execution, not native artifact or provider publication.
+use compiler::CheckedCompileRequest;
 use std::path::Path;
 
 use native_realization::{compiler_baseline_request_v1, optimize_artifact_sections};
@@ -19,9 +20,10 @@ use terminal_psi::OperationKind;
 mod native_function;
 
 fn checked(path: &Path, target_name: &str) -> compiler::CheckedCompilation {
-    compiler::compile_to_checked(path, Some(target_name)).unwrap_or_else(|diagnostics| {
-        panic!("checked selected comparison for {target_name}: {diagnostics:#?}")
-    })
+    compiler::compile_to_checked(CheckedCompileRequest::new(path, Some(target_name)))
+        .unwrap_or_else(|diagnostics| {
+            panic!("checked selected comparison for {target_name}: {diagnostics:#?}")
+        })
 }
 
 fn text(

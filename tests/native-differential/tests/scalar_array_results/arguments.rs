@@ -1,5 +1,6 @@
 //! The complete module customer must transport owned payloads, not just construct them.
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn array_local_control_preserves_selected_returns_and_prefix_effects() {
@@ -126,7 +127,9 @@ fn narrow_integer_call_results_normalize_full_registers_with_owned_arrays() {
 fn transitive_source_array_arguments_and_returns_reach_native_execution() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../omega/pass/modules/module_array_constant_indices/main.omg");
-    let checked = compiler::compile_to_checked(&path, Some("macos_arm64")).unwrap();
+    let checked =
+        compiler::compile_to_checked(CheckedCompileRequest::new(&path, Some("macos_arm64")))
+            .unwrap();
     let entry = "transitive_computation_row";
     let artifact = terminal_production::produce_terminal_artifact(&checked, entry).unwrap();
     for target in [

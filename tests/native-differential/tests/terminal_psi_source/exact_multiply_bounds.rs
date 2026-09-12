@@ -1,8 +1,9 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn checked_source_exact_multiply_uses_known_factor_bound() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("known-factor exact-multiply source canary should compile");
     let lowered = lower_machine(&checked, "terminal_exact_multiply_known_right")
         .expect("known-factor exact multiplication should use its path bound");
@@ -103,7 +104,7 @@ fn checked_source_exact_multiply_uses_known_factor_bound() {
 
 #[test]
 fn checked_source_exact_multiply_uses_joint_runtime_bound() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("joint-bound exact-multiply source canary should compile");
     let lowered = lower_machine(&checked, "terminal_exact_multiply_joint_bound")
         .expect("joint-bound exact multiplication should use both path propositions");
@@ -159,7 +160,7 @@ fn checked_source_exact_multiply_uses_joint_runtime_bound() {
 
 #[test]
 fn checked_source_exact_multiply_uses_signed_positive_runtime_bound() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("signed joint-bound exact-multiply source canary should compile");
     let lowered = lower_machine(&checked, "terminal_exact_multiply_signed_positive_bound")
         .expect("signed joint-bound exact multiplication should use all path propositions");
@@ -219,7 +220,7 @@ fn checked_source_exact_multiply_uses_signed_positive_runtime_bound() {
 
 #[test]
 fn checked_source_exact_multiply_uses_signed_negative_runtime_bound() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("negative signed joint-bound exact-multiply source canary should compile");
     let lowered = lower_machine(&checked, "terminal_exact_multiply_signed_negative_bound").expect(
         "negative signed joint-bound exact multiplication should use all path propositions",
@@ -288,7 +289,7 @@ fn checked_source_exact_multiply_uses_signed_negative_runtime_bound() {
 
 #[test]
 fn checked_source_exact_multiply_uses_signed_runtime_negation_bound() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("runtime-negation exact-multiply source canary should compile");
     let lowered = lower_machine(&checked, "terminal_exact_multiply_signed_negation_bound")
         .expect("runtime-negation exact multiplication should use all path propositions");
@@ -348,7 +349,7 @@ fn checked_source_exact_multiply_uses_signed_runtime_negation_bound() {
 
 #[test]
 fn checked_source_exact_multiply_uses_all_signed_i64_runtime_bounds() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("signed i64 runtime-bound exact-multiply source canary should compile");
     let lowered = lower_machine(
         &checked,

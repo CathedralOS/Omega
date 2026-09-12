@@ -1,5 +1,6 @@
 use boundary_applications::{BoundaryApplication, BoundaryApplicationArgument};
-use compiler::compile_to_checked_with_packages;
+use compiler::CheckedCompileRequest;
+use compiler::compile_to_checked;
 use package_compilation::{
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
@@ -160,9 +161,11 @@ pub machine exercise_bounded(value: i32) -> i32 {
         Vec::new(),
     )
     .expect("producer package input is canonical");
-    let checked_producer =
-        compile_to_checked_with_packages(&producer.join("main.omg"), Some(target), producer_inputs)
-            .expect("producer symbolic generic applications check");
+    let checked_producer = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(producer_inputs),
+        ..CheckedCompileRequest::new(&producer.join("main.omg"), Some(target))
+    })
+    .expect("producer symbolic generic applications check");
     let producer_review = project_checked_package_review(&checked_producer)
         .expect("producer projects to package review");
 
@@ -179,9 +182,11 @@ pub machine exercise_bounded(value: i32) -> i32 {
         )],
     )
     .expect("cross-package input is canonical");
-    let checked_consumer =
-        compile_to_checked_with_packages(&consumer.join("main.omg"), Some(target), consumer_inputs)
-            .expect("consumer concrete generic applications check");
+    let checked_consumer = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(consumer_inputs),
+        ..CheckedCompileRequest::new(&consumer.join("main.omg"), Some(target))
+    })
+    .expect("consumer concrete generic applications check");
     let consumer_review = project_checked_package_review(&checked_consumer)
         .expect("consumer projects to package review");
     Some(ReviewedArtifacts {

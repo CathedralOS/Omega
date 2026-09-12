@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn declared_hardware_service_reach_does_not_infer_physical_authority() {
@@ -23,11 +24,10 @@ reaches MachineControl + PortIo + InterruptMaskControl + InterruptEntry + Extent
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let canonical_checked = compile_to_checked_with_packages(
-        &canonical.0.join("main.omg"),
-        Some(target),
-        package_inputs(&canonical.0),
-    )
+    let canonical_checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&canonical.0)),
+        ..CheckedCompileRequest::new(&canonical.0.join("main.omg"), Some(target))
+    })
     .expect("canonical hardware-authority fixture should check");
     let canonical_review = project_checked_package_review(&canonical_checked)
         .expect("canonical hardware-authority review should close");
@@ -79,11 +79,10 @@ reaches MachineControl + PortIo + InterruptMaskControl + InterruptEntry + Extent
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let lookalike_checked = compile_to_checked_with_packages(
-        &lookalike.0.join("main.omg"),
-        Some(target),
-        package_inputs(&lookalike.0),
-    )
+    let lookalike_checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&lookalike.0)),
+        ..CheckedCompileRequest::new(&lookalike.0.join("main.omg"), Some(target))
+    })
     .expect("package-owned hardware lookalikes should check as ordinary source");
     let lookalike_review = project_checked_package_review(&lookalike_checked)
         .expect("package-owned hardware-lookalike review should close");
@@ -110,11 +109,10 @@ fn representation_tcb_retains_private_opaque_data_as_unbound() {
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("opaque representation fixture should check");
     let review = project_checked_package_review(&checked)
         .expect("opaque representation review should close");
@@ -139,11 +137,10 @@ fn representation_tcb_retains_private_opaque_data_as_unbound() {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let control_checked = compile_to_checked_with_packages(
-        &control.0.join("main.omg"),
-        Some(target),
-        package_inputs(&control.0),
-    )
+    let control_checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&control.0)),
+        ..CheckedCompileRequest::new(&control.0.join("main.omg"), Some(target))
+    })
     .expect("ordinary private representation fixture should check");
     let control_review = project_checked_package_review(&control_checked)
         .expect("ordinary private representation review should close");
@@ -185,11 +182,10 @@ pub PublicTokenRepresentation:
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("public opaque-representation availability fixture should check");
     assert!(
         checked.opaque_representation_selections().is_empty(),
@@ -277,11 +273,10 @@ pub CopyTokenRepresentation:
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("selected copyable opaque fixture should check");
     let [selection] = checked.opaque_representation_selections() else {
         panic!("one selected copyable opaque representation")
@@ -465,11 +460,10 @@ boundary trait TransferEntry: Calling<TwoParameterPolicy> {
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("by-value opaque representation fixture should check");
     let review = project_checked_package_review(&checked)
         .expect("by-value opaque representation demand should project");
@@ -641,8 +635,11 @@ pub CopyTokenRepresentation:
         )],
     )
     .expect("root and representation dependency graph should validate");
-    let checked = compile_to_checked_with_packages(&root.0.join("main.omg"), Some(target), inputs)
-        .expect("root should select a dependency-owned copyable opaque");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.0.join("main.omg"), Some(target))
+    })
+    .expect("root should select a dependency-owned copyable opaque");
     let review = project_checked_package_review(&checked)
         .expect("the selecting package should retain the copy receipt");
     let receipt = review

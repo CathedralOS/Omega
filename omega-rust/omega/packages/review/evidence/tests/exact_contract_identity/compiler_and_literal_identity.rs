@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn review_projects_width_landed_float_literals_by_exact_bits() {
@@ -12,11 +13,10 @@ fn review_projects_width_landed_float_literals_by_exact_bits() {
             "build.omg",
             "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("width-landed float-literal contract should check");
         project_checked_package_review(&checked)
             .expect("width-landed float literal should have exact review identity")
@@ -69,11 +69,10 @@ fn float_contract_review_rejects_missing_checked_width_landing() {
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let mut checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let mut checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("float landing-tamper fixture should check");
     let float_expression = checked
         .expression_table
@@ -112,11 +111,10 @@ ensures result == 1.25
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("result-typed float contract should check");
     let review = project_checked_package_review(&checked)
         .expect("result-typed float contract should have exact review identity");
@@ -163,11 +161,10 @@ pub trait Measures {
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("trait and operator result-float contracts should check");
     project_checked_package_review(&checked)
         .expect("trait and operator result-float contracts should retain exact landings");
@@ -185,11 +182,10 @@ fn review_projects_exact_compiler_byte_sequence_predicate_identity() {
             "build.omg",
             "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("compiler-owned byte predicate should check");
         project_checked_package_review(&checked)
             .expect("compiler-owned byte predicate should have exact review identity")
@@ -243,11 +239,10 @@ fn review_projects_exact_compiler_builtin_function_identity() {
             "build.omg",
             "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("compiler builtin-function contract should check");
         project_checked_package_review(&checked)
             .expect("compiler builtin function should have exact review identity")
@@ -314,11 +309,10 @@ fn builtin_function_review_rejects_checked_target_symbol_tamper() {
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let mut checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let mut checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("builtin target-tamper fixture should check");
     let call_expression = checked
         .expression_table
@@ -357,11 +351,10 @@ fn review_projects_exact_raw_byte_literals_in_public_contracts() {
             "build.omg",
             "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("raw-byte contract literal should check");
         let review = project_checked_package_review(&checked)
             .expect("raw-byte contract literal should project exactly");
@@ -429,11 +422,10 @@ requires matrix({literal})
             r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("nested array contract fixture should check");
         project_checked_package_review(&checked)
             .expect("nested array contract expression should project in order")
@@ -485,11 +477,10 @@ requires values([source[0]])
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &nested.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&nested.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&nested.0)),
+        ..CheckedCompileRequest::new(&nested.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("array containing an indexed expression should check");
     let nested_review = project_checked_package_review(&checked)
         .expect("array containing an indexed expression should project");

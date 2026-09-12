@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn package_callable_wins_over_compiler_byte_predicate_spelling_in_review() {
@@ -15,11 +16,10 @@ requires
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("package callable lookalike should check as an ordinary call");
     let review = project_checked_package_review(&checked)
         .expect("package callable lookalike should retain nominal identity");
@@ -59,11 +59,10 @@ pub domain Packet::Ready
             "build.omg",
             "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
-        compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("public domain spoof fixture should check")
     };
     let assert_rejects = |checked: &_, expected: &str| {
@@ -230,11 +229,10 @@ pub domain Packet::Ready
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("public domain membership fixture should check");
     let review = project_checked_package_review(&checked)
         .expect("public domain membership review should close");
@@ -262,11 +260,10 @@ pub domain Packet::Ready
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let diagnostics = compile_to_checked_with_packages(
-        &private.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&private.0),
-    )
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&private.0)),
+        ..CheckedCompileRequest::new(&private.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect_err("ordinary visibility must reject a private domain in a public predicate");
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -297,11 +294,10 @@ fn public_domain_predicate_fact_order_is_canonical_but_content_changes_encoding(
     changed.write("build.omg", build);
 
     let encode = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("multi-fact public domain fixture should check");
         project_checked_package_review(&checked)
             .expect("multi-fact public domain review should close")

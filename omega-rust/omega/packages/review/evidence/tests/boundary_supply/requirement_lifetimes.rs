@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 const BUILD: &str = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
@@ -12,11 +13,10 @@ fn checked_and_external_exact_edges_publish_the_same_lifetime_partition() {
         let package = TempPackage::new();
         package.write("main.omg", source);
         package.write("build.omg", BUILD);
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("exact lifetime realization should check");
         project_checked_package_review(&checked).expect("exact lifetime edge should project")
     };

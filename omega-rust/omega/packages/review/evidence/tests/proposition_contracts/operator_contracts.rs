@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn review_projects_unused_public_operator_overloads_and_exact_contract_meaning() {
@@ -24,11 +25,10 @@ operator Token::hidden(value: Token) -> bool;
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("unused public operators should check");
     let review = project_checked_package_review(&checked)
         .expect("unused public operators should project directly from declarations");
@@ -176,11 +176,10 @@ pub operator Token::checked(value: Token, flag: bool) -> bool
             r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
-        compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("public operator crash fixture should check")
     };
     let project = |routes: &str| {

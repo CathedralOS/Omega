@@ -9,6 +9,7 @@
 //! runaway default -- OMEGA_INTERP_STEP_BUDGET raises it for this process
 //! (a dedicated test binary, so the env write races nothing).
 
+use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
 use std::path::PathBuf;
 
@@ -20,16 +21,18 @@ fn window_demo_runs_headless_to_native_exit() {
 
     let sample =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../samples/gui/window_demo/main.omg");
-    let checked = compile_to_checked(&sample, None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "window_demo should compile for the interpreter:\n{}",
-            diagnostics
-                .iter()
-                .map(|diagnostic| diagnostic.to_string())
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked = compile_to_checked(CheckedCompileRequest::new(&sample, None)).unwrap_or_else(
+        |diagnostics| {
+            panic!(
+                "window_demo should compile for the interpreter:\n{}",
+                diagnostics
+                    .iter()
+                    .map(|diagnostic| diagnostic.to_string())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        },
+    );
     let outcome = checked_interpreter::interpret_entry(&checked, "Main::main", &[]);
     assert_eq!(
         outcome.error, None,

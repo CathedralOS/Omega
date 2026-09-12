@@ -550,21 +550,30 @@ impl std::ops::DerefMut for CheckedCompilation {
     }
 }
 
-/// One owned request for the checked-Psi frontend. Public compatibility
-/// helpers differ only in how they populate this request; execution and option
-/// pairing have one implementation.
-struct CheckedCompileRequest {
-    root_path: std::path::PathBuf,
-    target_name: Option<String>,
-    package_inputs: Option<PackageCompilationInputs>,
-    build_dir: Option<std::path::PathBuf>,
-    filesystem_sponsor: Option<build_time_evaluation::BuildMachineFilesystemSponsor>,
-    evaluation_sponsor: Option<build_time_evaluation::BuildEvaluationSponsor>,
-    replay_record: Option<super::ReviewOnlyBuildFilesystemReplayRecord>,
+/// Owned inputs for checked-Psi compilation, without native publication authority.
+/// All requests use the same source identity, package admission, replay, and
+/// sponsored build execution checks.
+pub struct CheckedCompileRequest {
+    /// Physical source entrypoint.
+    pub root_path: std::path::PathBuf,
+    /// Explicit target selection; `None` preserves targetless semantic checking.
+    pub target_name: Option<String>,
+    /// Complete reconciled package graph; dependency declarations are not acquired.
+    pub package_inputs: Option<PackageCompilationInputs>,
+    /// Writable build staging root, separate from immutable package snapshots.
+    pub build_dir: Option<std::path::PathBuf>,
+    /// Caller-owned staging account shared across a review session.
+    pub filesystem_sponsor: Option<build_time_evaluation::BuildMachineFilesystemSponsor>,
+    /// Deterministic evaluator work account, independent of filesystem custody.
+    pub evaluation_sponsor: Option<build_time_evaluation::BuildEvaluationSponsor>,
+    /// Compiler-owned replay whose authored inputs and complete event stream must match.
+    /// Replaying this record grants no host filesystem authority.
+    pub replay_record: Option<super::ReviewOnlyBuildFilesystemReplayRecord>,
 }
 
 impl CheckedCompileRequest {
-    fn new(root_path: &Path, target_name: Option<&str>) -> Self {
+    /// Select source and optional target without package, sponsor, or replay inputs.
+    pub fn new(root_path: &Path, target_name: Option<&str>) -> Self {
         Self {
             root_path: root_path.to_owned(),
             target_name: target_name.map(str::to_owned),
@@ -682,122 +691,30 @@ impl PreparedCheckedSource {
     }
 }
 
-fn execute_checked_request(
+/// Compile source through checked Psi on the compiler worker stack.
+/// Returns checked semantics and selected build evidence, without backend lowering
+/// or native output. Build execution may stage generated sources in its admitted root.
+pub fn compile_to_checked(
     request: CheckedCompileRequest,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     crate::compiler::execution::run_on_compile_thread(move || {
-        compile_to_checked_inner_with_replay(
-            &request.root_path,
-            request.target_name.as_deref(),
-            request.package_inputs.as_ref(),
-            request.build_dir.as_deref(),
-            request.filesystem_sponsor,
-            request.evaluation_sponsor,
-            request.replay_record.as_ref(),
-        )
+        let selected_target_profile = request
+            .target_name
+            .as_deref()
+            .map(|target_name| target::TargetProfile::from_omega_target_name(Some(target_name)))
+            .transpose()
+            .map_err(|diagnostic| vec![diagnostic])?;
+        let prepared =
+            PreparedCheckedSource::prepare(&request.root_path, request.package_inputs.as_ref())?;
+        prepared.compile_child_with_replay(CheckedChildExecution {
+            selected_target_profile,
+            package_inputs: request.package_inputs.as_ref(),
+            build_dir: request.build_dir.as_deref(),
+            filesystem_sponsor: request.filesystem_sponsor,
+            evaluation_sponsor: request.evaluation_sponsor,
+            replay_record: request.replay_record.as_ref(),
+        })
     })
-}
-
-/// Runs ONLY the four frontend stages (lex/parse -> symbol resolution -> typing ->
-/// checking) and returns the in-memory `CheckedTrees` program. No backend lowering,
-/// no file output. The Psi checked-tree interpreter evaluates this transitional
-/// representation as a differential oracle for the native backend while terminal-Psi
-/// coverage grows.
-pub fn compile_to_checked(
-    root_path: &Path,
-    target_name: Option<&str>,
-) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    execute_checked_request(CheckedCompileRequest::new(root_path, target_name))
-}
-
-/// Checked-only compilation using a complete reconciled package graph. This
-/// is the evidence-producing frontend seam for package admission and never
-/// consults dependency rows in downloaded `build.omg` files.
-pub fn compile_to_checked_with_packages(
-    root_path: &Path,
-    target_name: Option<&str>,
-    package_inputs: PackageCompilationInputs,
-) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    let mut request = CheckedCompileRequest::new(root_path, target_name);
-    request.package_inputs = Some(package_inputs);
-    execute_checked_request(request)
-}
-
-/// Checked-only compilation whose build machine reconsumes one compiler-owned
-/// bounded filesystem replay record. The replay installs no host filesystem
-/// provider; authored build inputs and the complete event stream must match.
-pub fn compile_to_checked_with_replay_record(
-    root_path: &Path,
-    target_name: Option<&str>,
-    replay_record: super::ReviewOnlyBuildFilesystemReplayRecord,
-) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    let mut request = CheckedCompileRequest::new(root_path, target_name);
-    request.replay_record = Some(replay_record);
-    execute_checked_request(request)
-}
-
-/// Package-aware checked compilation whose build machine reconsumes one
-/// compiler-owned bounded filesystem replay record without host authority.
-pub fn compile_to_checked_with_packages_and_replay_record(
-    root_path: &Path,
-    target_name: Option<&str>,
-    package_inputs: PackageCompilationInputs,
-    replay_record: super::ReviewOnlyBuildFilesystemReplayRecord,
-) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    let mut request = CheckedCompileRequest::new(root_path, target_name);
-    request.package_inputs = Some(package_inputs);
-    request.replay_record = Some(replay_record);
-    execute_checked_request(request)
-}
-
-/// Package-aware checked compilation with a caller-owned writable build root.
-/// Resolver snapshots remain immutable; package admission and build execution
-/// must stage outputs in separate custody.
-pub fn compile_to_checked_with_packages_in_build_dir(
-    root_path: &Path,
-    build_dir: &Path,
-    target_name: Option<&str>,
-    package_inputs: PackageCompilationInputs,
-) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    let mut request = CheckedCompileRequest::new(root_path, target_name);
-    request.package_inputs = Some(package_inputs);
-    request.build_dir = Some(build_dir.to_owned());
-    execute_checked_request(request)
-}
-
-/// Package-aware checked compilation whose build machine consumes one
-/// caller-owned staging sponsor shared across a complete review session.
-pub fn compile_to_checked_with_packages_in_sponsored_build_dir(
-    root_path: &Path,
-    build_dir: &Path,
-    target_name: Option<&str>,
-    package_inputs: PackageCompilationInputs,
-    filesystem_sponsor: build_time_evaluation::BuildMachineFilesystemSponsor,
-) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    let mut request = CheckedCompileRequest::new(root_path, target_name);
-    request.package_inputs = Some(package_inputs);
-    request.build_dir = Some(build_dir.to_owned());
-    request.filesystem_sponsor = Some(filesystem_sponsor);
-    execute_checked_request(request)
-}
-
-/// Package-aware checked compilation with both compiler-owned review-session
-/// accounts. Filesystem custody and deterministic evaluator work remain
-/// separate resources with separate claims.
-pub fn compile_to_checked_with_packages_in_sponsored_build_session(
-    root_path: &Path,
-    build_dir: &Path,
-    target_name: Option<&str>,
-    package_inputs: PackageCompilationInputs,
-    filesystem_sponsor: build_time_evaluation::BuildMachineFilesystemSponsor,
-    evaluation_sponsor: build_time_evaluation::BuildEvaluationSponsor,
-) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    let mut request = CheckedCompileRequest::new(root_path, target_name);
-    request.package_inputs = Some(package_inputs);
-    request.build_dir = Some(build_dir.to_owned());
-    request.filesystem_sponsor = Some(filesystem_sponsor);
-    request.evaluation_sponsor = Some(evaluation_sponsor);
-    execute_checked_request(request)
 }
 
 /// Run the ordinary checked frontend for the typed terminal-component handoff
@@ -1027,30 +944,6 @@ fn try_seeded_extension(
         selected_target_machine_declarations,
         pending_pre_checks,
     ))
-}
-
-fn compile_to_checked_inner_with_replay(
-    root_path: &Path,
-    target_name: Option<&str>,
-    package_inputs: Option<&PackageCompilationInputs>,
-    build_dir: Option<&Path>,
-    filesystem_sponsor: Option<build_time_evaluation::BuildMachineFilesystemSponsor>,
-    evaluation_sponsor: Option<build_time_evaluation::BuildEvaluationSponsor>,
-    replay_record: Option<&super::ReviewOnlyBuildFilesystemReplayRecord>,
-) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    let selected_target_profile = target_name
-        .map(|target_name| target::TargetProfile::from_omega_target_name(Some(target_name)))
-        .transpose()
-        .map_err(|diagnostic| vec![diagnostic])?;
-    let prepared = PreparedCheckedSource::prepare(root_path, package_inputs)?;
-    prepared.compile_child_with_replay(CheckedChildExecution {
-        selected_target_profile,
-        package_inputs,
-        build_dir,
-        filesystem_sponsor,
-        evaluation_sponsor,
-        replay_record,
-    })
 }
 
 fn compile_assembled_checked_child(
@@ -1611,6 +1504,42 @@ mod continuation_tests {
     }
 
     #[test]
+    fn checked_request_preserves_targetless_and_exact_target_selection() {
+        let fixture = PreparedFixture::new();
+        fs::remove_file(fixture.root.join("build.omg")).expect("remove target-dependent build");
+        let request = super::CheckedCompileRequest::new(&fixture.main, None);
+        assert!(request.package_inputs.is_none());
+        assert!(request.build_dir.is_none());
+        assert!(request.filesystem_sponsor.is_none());
+        assert!(request.evaluation_sponsor.is_none());
+        assert!(request.replay_record.is_none());
+        let targetless = super::compile_to_checked(request).expect("targetless request checks");
+        assert_eq!(targetless.selected_target_profile(), None);
+        let exact = super::compile_to_checked(super::CheckedCompileRequest::new(
+            &fixture.main,
+            Some("windows_x86_64"),
+        ))
+        .expect("exact target request checks");
+        assert_eq!(
+            exact.selected_target_profile(),
+            Some(target::TargetProfile::WindowsX64)
+        );
+        assert_eq!(targetless.source_file_count(), exact.source_file_count());
+    }
+
+    #[test]
+    fn checked_request_rejects_unknown_target_before_source_preparation() {
+        let fixture = PreparedFixture::new();
+        let diagnostics = super::compile_to_checked(super::CheckedCompileRequest::new(
+            &fixture.root.join("absent.omg"),
+            Some("not-an-omega-target"),
+        ))
+        .expect_err("unknown target rejects before missing source is read");
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("not-an-omega-target"));
+    }
+
+    #[test]
     fn terminal_view_restores_boundary_calls_without_erasing_selected_operators() {
         use typed_trees::expression::ExpressionNode;
         use typed_trees::statement::StatementNode;
@@ -1634,8 +1563,11 @@ machine Main::main(&mut self) { self.sink.emit(7); }
 "#,
         )
         .unwrap();
-        let mut checked = super::compile_to_checked(&fixture.main, Some("macos_arm64"))
-            .expect("mixed selected execution should check");
+        let mut checked = super::compile_to_checked(super::CheckedCompileRequest::new(
+            &fixture.main,
+            Some("macos_arm64"),
+        ))
+        .expect("mixed selected execution should check");
         let main = checked
             .machines()
             .iter()
@@ -1706,7 +1638,11 @@ machine Main::main(&mut self) { self.sink.emit(7); }
     #[test]
     fn terminal_view_without_boundary_edits_borrows_checked_program() {
         let fixture = PreparedFixture::new();
-        let checked = super::compile_to_checked(&fixture.main, Some("macos_arm64")).unwrap();
+        let checked = super::compile_to_checked(super::CheckedCompileRequest::new(
+            &fixture.main,
+            Some("macos_arm64"),
+        ))
+        .unwrap();
         assert!(matches!(
             checked.terminal_production_trees().unwrap(),
             std::borrow::Cow::Borrowed(_)
@@ -1716,8 +1652,11 @@ machine Main::main(&mut self) { self.sink.emit(7); }
     #[test]
     fn prepared_source_checkpoint_preserves_standalone_child_identity_and_siblings() {
         let fixture = PreparedFixture::new();
-        let standalone = super::compile_to_checked(&fixture.main, Some("windows_x86_64"))
-            .expect("standalone Windows child should compile");
+        let standalone = super::compile_to_checked(super::CheckedCompileRequest::new(
+            &fixture.main,
+            Some("windows_x86_64"),
+        ))
+        .expect("standalone Windows child should compile");
         let main = fixture.main.clone();
         let (windows, linux, windows_again) =
             crate::compiler::execution::run_on_compile_thread(move || {

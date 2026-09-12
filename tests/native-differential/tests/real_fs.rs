@@ -25,6 +25,7 @@ use checked_interpreter::{
     FilesystemSponsorLimits, FsGrants, InterpretOptions, InterpretOutcome,
     evaluate_build_machine_with_filesystem_measured, interpret_entry, interpret_entry_with_options,
 };
+use compiler::CheckedCompileRequest;
 use compiler::{CheckedCompilation, compile_to_checked};
 use std::path::Path;
 
@@ -123,16 +124,18 @@ fn real_mode_stages_files_on_disk_and_hermetic_default_does_not() {
     let main_path = base.join("main.omg");
     std::fs::write(&main_path, staging_program(&base)).expect("write probe program");
 
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "real-fs probe compile failed:\n{}",
-            diagnostics
-                .iter()
-                .map(|d| d.to_string())
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None)).unwrap_or_else(
+        |diagnostics| {
+            panic!(
+                "real-fs probe compile failed:\n{}",
+                diagnostics
+                    .iter()
+                    .map(|d| d.to_string())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        },
+    );
 
     let staged = base.join("staging").join("asset.txt");
 
@@ -211,16 +214,18 @@ machine Main::main(&mut self) {{
     );
     let main_path = base.join("main.omg");
     std::fs::write(&main_path, source).expect("write duplicate-cursor probe");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "duplicate-cursor probe compile failed:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None)).unwrap_or_else(
+        |diagnostics| {
+            panic!(
+                "duplicate-cursor probe compile failed:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        },
+    );
 
     let real = interpret_with_options(
         &checked,
@@ -350,16 +355,18 @@ fn scoped_grants_enforce_read_and_write_roots() {
     let main_path = base.join("main.omg");
     std::fs::write(&main_path, grants_program(&base)).expect("write probe program");
 
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "grants probe compile failed:\n{}",
-            diagnostics
-                .iter()
-                .map(|d| d.to_string())
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None)).unwrap_or_else(
+        |diagnostics| {
+            panic!(
+                "grants probe compile failed:\n{}",
+                diagnostics
+                    .iter()
+                    .map(|d| d.to_string())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        },
+    );
 
     let outcome = interpret_with_options(
         &checked,
@@ -563,16 +570,18 @@ fn scoped_namespace_mutations_authorize_the_leaf_not_its_symlink_target() {
     let main_path = base.join("main.omg");
     std::fs::write(&main_path, namespace_leaf_grant_program(&base))
         .expect("write namespace-leaf probe");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "namespace-leaf probe compile failed:\n{}",
-            diagnostics
-                .iter()
-                .map(|diagnostic| diagnostic.to_string())
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None)).unwrap_or_else(
+        |diagnostics| {
+            panic!(
+                "namespace-leaf probe compile failed:\n{}",
+                diagnostics
+                    .iter()
+                    .map(|diagnostic| diagnostic.to_string())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        },
+    );
 
     let outcome = interpret_with_options(
         &checked,
@@ -730,16 +739,18 @@ fn scoped_wrapper_read_dir_count_enumerates_a_real_directory() {
     let main_path = base.join("main.omg");
     std::fs::write(&main_path, read_dir_program(&assets)).expect("write probe program");
 
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "read_dir probe compile failed:\n{}",
-            diagnostics
-                .iter()
-                .map(|d| d.to_string())
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None)).unwrap_or_else(
+        |diagnostics| {
+            panic!(
+                "read_dir probe compile failed:\n{}",
+                diagnostics
+                    .iter()
+                    .map(|d| d.to_string())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        },
+    );
 
     let outcome = interpret_with_options(
         &checked,
@@ -860,16 +871,18 @@ machine CrossDomainProbe::run(&mut self, build: &mut Build) {{
         ),
     )
     .expect("write preparation probe");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "filesystem preparation probe compile failed:\n{}",
-            diagnostics
-                .iter()
-                .map(|diagnostic| diagnostic.to_string())
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None)).unwrap_or_else(
+        |diagnostics| {
+            panic!(
+                "filesystem preparation probe compile failed:\n{}",
+                diagnostics
+                    .iter()
+                    .map(|diagnostic| diagnostic.to_string())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        },
+    );
     let options = || InterpretOptions {
         filesystem: FilesystemAccess::RealScoped(FsGrants {
             read_roots: vec![],
@@ -1078,16 +1091,18 @@ machine ResourceProbe::run(&mut self, build: &mut Build) {{
         ),
     )
     .expect("write sponsor probe");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "filesystem sponsor probe compile failed:\n{}",
-            diagnostics
-                .iter()
-                .map(|diagnostic| diagnostic.to_string())
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None)).unwrap_or_else(
+        |diagnostics| {
+            panic!(
+                "filesystem sponsor probe compile failed:\n{}",
+                diagnostics
+                    .iter()
+                    .map(|diagnostic| diagnostic.to_string())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        },
+    );
     let canonical_out = std::fs::canonicalize(&out).expect("canonicalize output root");
     let sponsor = FilesystemSponsor::with_limits(
         canonical_out,
@@ -1444,16 +1459,18 @@ fn real_provider_serves_the_full_virtual_op_set() {
         (parity_program(&base), 14)
     };
     std::fs::write(&main_path, program).expect("write probe program");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "parity probe compile failed:\n{}",
-            diagnostics
-                .iter()
-                .map(|d| d.to_string())
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None)).unwrap_or_else(
+        |diagnostics| {
+            panic!(
+                "parity probe compile failed:\n{}",
+                diagnostics
+                    .iter()
+                    .map(|d| d.to_string())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        },
+    );
 
     // REAL mode: the whole walk against real disk.
     let real = interpret_with_options(
@@ -1567,16 +1584,18 @@ machine Main::main(&mut self) {{
     );
     let main_path = base.join("main.omg");
     std::fs::write(&main_path, program).expect("write probe program");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "refusal probe compile failed:\n{}",
-            diagnostics
-                .iter()
-                .map(|d| d.to_string())
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None)).unwrap_or_else(
+        |diagnostics| {
+            panic!(
+                "refusal probe compile failed:\n{}",
+                diagnostics
+                    .iter()
+                    .map(|d| d.to_string())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        },
+    );
 
     let real = interpret_with_options(
         &checked,

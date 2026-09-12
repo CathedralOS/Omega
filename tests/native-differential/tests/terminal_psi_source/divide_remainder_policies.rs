@@ -1,8 +1,9 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn checked_source_exact_divide_uses_known_nonzero_divisor() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("known-divisor exact-divide source canary should compile");
     let lowered = lower_machine(&checked, "terminal_exact_divide_known_right")
         .expect("known nonzero exact division should lower");
@@ -86,7 +87,7 @@ fn checked_source_exact_divide_uses_known_nonzero_divisor() {
 
 #[test]
 fn checked_source_signed_exact_divide_truncates_toward_zero() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("signed exact-divide source canary should compile");
     let lowered = lower_machine(&checked, "terminal_exact_signed_divide_known_right")
         .expect("known signed exact division should lower");
@@ -122,7 +123,7 @@ fn checked_source_signed_exact_divide_truncates_toward_zero() {
 
 #[test]
 fn checked_source_exact_remainder_uses_known_nonzero_divisor() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("known-divisor exact-remainder source canary should compile");
     let lowered = lower_machine(&checked, "terminal_exact_remainder_known_right")
         .expect("known nonzero exact remainder should lower");
@@ -207,7 +208,7 @@ fn checked_source_exact_remainder_uses_known_nonzero_divisor() {
 
 #[test]
 fn checked_source_signed_exact_remainder_is_truncating() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("signed exact-remainder source canary should compile");
     let lowered = lower_machine(&checked, "terminal_exact_signed_remainder_known_right")
         .expect("known signed exact remainder should lower");
@@ -244,7 +245,7 @@ fn checked_source_signed_exact_remainder_is_truncating() {
 
 #[test]
 fn checked_source_wrapping_divide_uses_known_nonzero_divisor() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("known-divisor wrapping-divide source canary should compile");
     let lowered = lower_machine(&checked, "terminal_wrapping_divide_known_right")
         .expect("known nonzero wrapping division should lower");
@@ -387,7 +388,7 @@ fn checked_source_wrapping_divide_uses_known_nonzero_divisor() {
 
 #[test]
 fn exact_nonzero_rows_keep_the_canonical_divisor_question() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("known-divisor source canaries should compile");
     let u32_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
     for machine in [
@@ -449,7 +450,7 @@ fn exact_nonzero_rows_keep_the_canonical_divisor_question() {
 
 #[test]
 fn checked_source_signed_wrapping_divide_wraps_minimum_by_negative_one() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("signed wrapping-divide source canary should compile");
     let lowered = lower_machine(&checked, "terminal_signed_wrapping_divide_min")
         .expect("known signed wrapping division should lower");
@@ -486,7 +487,7 @@ fn checked_source_signed_wrapping_divide_wraps_minimum_by_negative_one() {
 
 #[test]
 fn checked_source_wrapping_remainder_uses_known_nonzero_divisor() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("known-divisor wrapping-remainder source canary should compile");
     let lowered = lower_machine(&checked, "terminal_wrapping_remainder_known_right")
         .expect("known nonzero wrapping remainder should lower");
@@ -639,7 +640,7 @@ fn checked_source_wrapping_remainder_uses_known_nonzero_divisor() {
 
 #[test]
 fn checked_source_signed_wrapping_remainder_returns_zero_for_minimum_by_negative_one() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("signed wrapping-remainder source canary should compile");
     let lowered = lower_machine(&checked, "terminal_signed_wrapping_remainder_min")
         .expect("known signed wrapping remainder should lower");
@@ -677,7 +678,7 @@ fn checked_source_signed_wrapping_remainder_returns_zero_for_minimum_by_negative
 
 #[test]
 fn checked_source_saturating_divide_uses_known_nonzero_divisor() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("known-divisor saturating-divide source canary should compile");
     let lowered = lower_machine(&checked, "terminal_saturating_divide_known_right")
         .expect("known nonzero saturating division should lower");
@@ -829,7 +830,7 @@ fn checked_source_saturating_divide_uses_known_nonzero_divisor() {
 
 #[test]
 fn checked_source_signed_saturating_divide_clamps_minimum_by_negative_one() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("signed saturating-divide source canary should compile");
     let lowered = lower_machine(&checked, "terminal_signed_saturating_divide_min")
         .expect("known signed saturating division should lower");
@@ -871,7 +872,7 @@ fn checked_source_signed_saturating_divide_clamps_minimum_by_negative_one() {
 
 #[test]
 fn checked_source_saturating_remainder_uses_known_nonzero_divisor() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("known-divisor saturating-remainder source canary should compile");
     let lowered = lower_machine(&checked, "terminal_saturating_remainder_known_right")
         .expect("known nonzero saturating remainder should lower");
@@ -1024,7 +1025,7 @@ fn checked_source_saturating_remainder_uses_known_nonzero_divisor() {
 
 #[test]
 fn checked_source_signed_saturating_remainder_returns_zero_for_minimum_by_negative_one() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("signed saturating-remainder source canary should compile");
     let lowered = lower_machine(&checked, "terminal_signed_saturating_remainder_min")
         .expect("known signed saturating remainder should lower");
@@ -1087,7 +1088,7 @@ fn checked_source_signed_saturating_i64_ordinary_divisors_execute_on_the_host() 
     );
     let source_path = scratch.0.join("main.omg");
     std::fs::write(&source_path, source).expect("write ordinary-divisor source variant");
-    let checked = compile_to_checked(&source_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_path, None))
         .expect("ordinary-divisor signed Saturating i64 source should compile");
     let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
     let argument = |value| TerminalScalarValue::Integer {
@@ -1158,7 +1159,7 @@ fn replace_machine_expression(
 
 #[test]
 fn checked_source_guarded_runtime_divisors_cross_every_fixed_integer_policy() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("guarded runtime-divisor source canaries should compile");
     let cases = [
         ("terminal_exact_divide_guarded_right", 4_u128),
@@ -1246,7 +1247,7 @@ fn checked_source_guarded_runtime_divisors_cross_every_fixed_integer_policy() {
 
 #[test]
 fn checked_source_guarded_negative_runtime_divisor_excludes_zero_and_negative_one() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("guarded negative runtime-divisor source canary should compile");
     let lowered = lower_machine(&checked, "terminal_exact_divide_guarded_negative_right")
         .expect("divisor <= -2 should lower exact signed division");
@@ -1295,7 +1296,7 @@ fn checked_source_guarded_negative_runtime_divisor_excludes_zero_and_negative_on
 
 #[test]
 fn checked_source_negative_one_range_uses_policy_appropriate_dividend_evidence() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("negative-one-range source canaries should compile");
     let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let argument = |value| TerminalScalarValue::Integer {

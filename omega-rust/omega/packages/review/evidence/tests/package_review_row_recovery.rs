@@ -1,4 +1,5 @@
-use compiler::compile_to_checked_with_packages;
+use compiler::CheckedCompileRequest;
+use compiler::compile_to_checked;
 use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
 use package_evidence::encoding::{
     PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION, PackageReviewCanonicalRowRecoveryLimits,
@@ -82,9 +83,11 @@ pub machine invoke_leaf()
         Vec::new(),
     )
     .expect("single-package graph");
-    let checked =
-        compile_to_checked_with_packages(&package.0.join("main.omg"), Some(target_name), inputs)
-            .expect("row recovery fixture should check");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target_name))
+    })
+    .expect("row recovery fixture should check");
     let review = project_checked_package_review(&checked).expect("fixture review should close");
     Some((
         review.target(),

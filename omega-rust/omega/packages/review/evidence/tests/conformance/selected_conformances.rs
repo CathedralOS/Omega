@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn review_projects_binder_free_conformance_requirements_without_fabricating_evidence() {
@@ -24,11 +25,10 @@ where Element satisfies Ranked
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("unbound conformance-requirement fixture should check before review");
     let review = project_checked_package_review(&checked)
         .expect("binder-free conformance requirement must project exactly");
@@ -79,11 +79,10 @@ where Element satisfies Good::Primary
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("selected-conformance fixture should check before review");
     let review = project_checked_package_review(&checked)
         .expect("exact non-generic selected conformance should project");
@@ -161,11 +160,10 @@ where Element satisfies Card::FullEncoding<'view, Card, Message, 7>
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("selected generic conformance fixture should check before review");
     let review = project_checked_package_review(&checked)
         .expect("the complete selected conformance application must project");
@@ -236,11 +234,10 @@ where Element satisfies Card::Scoped<'{lifetime}, Card, {output}>
     };
     let project = |source: String| {
         package.write("main.omg", &source);
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("selected generic conformance comparison fixture should check");
         project_checked_package_review(&checked)
             .expect("selected generic conformance comparison fixture should project")
@@ -285,11 +282,10 @@ where Element satisfies Card::Scoped<'{selected}, Card>
     };
     let project = |source: String| {
         package.write("main.omg", &source);
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("lifetime-bearing selected conformance should check");
         project_checked_package_review(&checked)
             .expect("selected lifetime substitution should project")
@@ -342,11 +338,10 @@ where Element satisfies Card::Encoding<Output, Rank>
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("forwarded selected conformance arguments should check");
     let review = project_checked_package_review(&checked)
         .expect("forwarded selected conformance arguments should project");
@@ -401,11 +396,10 @@ pub machine Main::inspect(&self) -> i32 {
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("private named dynamic selection should check in package-aware compilation");
     let [dynamic_selection] = checked.facts.dynamic_conformances.selections.as_slice() else {
         panic!("one exact checked dynamic conformance selection expected")

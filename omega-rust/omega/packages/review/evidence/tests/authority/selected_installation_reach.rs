@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 fn compile_selected_reach_fixture() -> compiler::CheckedCompilation {
     let target =
@@ -29,11 +30,10 @@ reaches PortIo
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("selected installation-reach fixture should check")
 }
 

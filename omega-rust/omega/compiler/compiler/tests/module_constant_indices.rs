@@ -1,4 +1,5 @@
-use compiler::{CheckedCompilation, compile_to_checked_with_packages};
+use compiler::CheckedCompileRequest;
+use compiler::{CheckedCompilation, compile_to_checked};
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionTarget,
 };
@@ -29,8 +30,11 @@ fn ambiguous_qualified_constant_index_cannot_fall_back_to_root_spelling() {
          data Main {{ value: Buffer<combat::SIZE>; }}"
         ),
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-        .expect_err("ambiguous qualified index cannot select the lexical constant map");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("ambiguous qualified index cannot select the lexical constant map");
 }
 
 #[test]
@@ -48,9 +52,11 @@ fn nested_constant_indices_preserve_each_live_use_exposure() {
         root.join("main.omg"),
         &format!("{declarations} {private_use}"),
     );
-    let checked =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect("private nested use does not inherit public template exposure");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("private nested use does not inherit public template exposure");
     assert_buffer_instances(&checked, &[2]);
     assert!(has_selection(
         &checked,
@@ -69,15 +75,20 @@ fn nested_constant_indices_preserve_each_live_use_exposure() {
         root.join("main.omg"),
         &format!("{declarations} {private_use} {public_use}"),
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-        .expect_err("a deduplicated nested instance cannot hide its public live use");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a deduplicated nested instance cannot hide its public live use");
     Sources::write(
         root.join("combat.omg"),
         "module combat; pub const SIZE: u64 = 2;",
     );
-    let checked =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect("public index permits both independently exposed nested uses");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("public index permits both independently exposed nested uses");
     assert_buffer_instances(&checked, &[2]);
     for exposure in [
         AuthoredDeclarationSelectionExposure::PrivateImplementation,
@@ -247,11 +258,10 @@ fn qualified_and_local_indices_keep_distinct_canonical_instances_and_array_lengt
              data Rooms {{ value: Buffer<rooms::SIZE>; }}"
             ),
         );
-        let checked = compile_to_checked_with_packages(
-            &root.join("main.omg"),
-            None,
-            root_inputs(&root),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
         .expect("qualified module indices select distinct constants rather than the root shadow");
         assert_buffer_instances(&checked, &[1, 2, 3]);
         for path in ["SIZE", "combat::SIZE", "rooms::SIZE"] {
@@ -286,9 +296,11 @@ fn leaf_imports_and_equal_named_values_share_one_canonical_application() {
          data Literal {{ value: Buffer<2>; }}"
         ),
     );
-    let checked =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect("same canonical values may deduplicate while their selections remain distinct");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("same canonical values may deduplicate while their selections remain distinct");
     assert_buffer_instances(&checked, &[2]);
     for path in ["combat::SIZE", "rooms::SIZE"] {
         assert!(has_selection(
@@ -313,14 +325,20 @@ fn named_index_carrier_is_checked_even_for_unused_const_binders() {
             root.join("combat.omg"),
             "module combat; const SIZE: u64 = 2;",
         );
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect("matching declared carrier is valid");
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect("matching declared carrier is valid");
         Sources::write(
             root.join("combat.omg"),
             "module combat; const SIZE: u32 = 2;",
         );
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect_err("fitting named u32 is not an anonymous u64 const argument");
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("fitting named u32 is not an anonymous u64 const argument");
     }
 }
 
@@ -336,8 +354,11 @@ fn public_index_exposure_cannot_erase_private_constant_selection() {
         root.join("main.omg"),
         &format!("use combat; {BUFFER} data Private {{ value: Buffer<combat::SIZE>; }}"),
     );
-    let checked =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root)).unwrap();
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .unwrap();
     assert!(has_selection(
         &checked,
         "combat::SIZE",
@@ -348,15 +369,20 @@ fn public_index_exposure_cannot_erase_private_constant_selection() {
         root.join("main.omg"),
         &format!("use combat; {BUFFER} pub data Public {{ value: Buffer<combat::SIZE>; }}"),
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-        .expect_err("normalization cannot publish a private named index");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("normalization cannot publish a private named index");
     Sources::write(
         root.join("combat.omg"),
         "module combat; pub const SIZE: u64 = 2;",
     );
-    let checked =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect("public constant closes the public application");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("public constant closes the public application");
     assert!(has_selection(
         &checked,
         "combat::SIZE",
@@ -383,8 +409,11 @@ fn ambiguous_leaf_indices_reject_independent_of_import_order() {
             root.join("main.omg"),
             &format!("{imports} {BUFFER} data Main {{ value: Buffer<SIZE>; }}"),
         );
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect_err("an ambiguous static index cannot choose a same-leaf declaration");
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("an ambiguous static index cannot choose a same-leaf declaration");
     }
 }
 
@@ -418,8 +447,11 @@ fn dependency_named_indices_require_direct_reach_and_public_visibility() {
     let inputs =
         PackageCompilationInputs::new_package(identity(1), sources.clone(), dependencies.clone())
             .unwrap();
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect_err("loaded transitive constants do not grant authored index authority");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("loaded transitive constants do not grant authored index authority");
     dependencies.push(PackageDependencyBinding::new(
         identity(1),
         "leaf",
@@ -430,8 +462,11 @@ fn dependency_named_indices_require_direct_reach_and_public_visibility() {
         root.join("main.omg"),
         &format!("use leaf::combat::SIZE; {BUFFER} data Main {{ value: Buffer<SIZE>; }}"),
     );
-    let checked =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, inputs.clone()).unwrap();
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs.clone()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .unwrap();
     assert_buffer_instances(&checked, &[2]);
     assert!(has_selection(
         &checked,
@@ -443,8 +478,11 @@ fn dependency_named_indices_require_direct_reach_and_public_visibility() {
         leaf.join("combat.omg"),
         "module combat; const SIZE: u64 = 2;",
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect_err("a direct edge cannot publish the dependency's private index");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a direct edge cannot publish the dependency's private index");
 }
 
 #[test]
@@ -467,9 +505,11 @@ fn compound_module_indices_keep_values_and_repeated_authored_selections() {
          data Repeated {{ value: Buffer<combat::SIZE + combat::SIZE>; }}"
         ),
     );
-    let checked =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect("compound indices preserve exact selected module values");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("compound indices preserve exact selected module values");
     assert_buffer_instances(&checked, &[1, 2, 3, 4]);
     for path in ["SIZE", "combat::SIZE", "rooms::SIZE"] {
         assert!(has_selection(
@@ -521,13 +561,16 @@ fn compound_integer_indices_obey_each_typed_operation_boundary() {
             root.join("main.omg"),
             &format!("{declarations} data Main {{ value: Buffer<SIZE + 0>; }}"),
         );
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect("same-carrier compound control is well formed");
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect("same-carrier compound control is well formed");
         Sources::write(
             root.join("main.omg"),
             &format!("{declarations} data Main {{ value: Buffer<{expression}>; }}"),
         );
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
+        compile_to_checked(CheckedCompileRequest { package_inputs: Some(root_inputs(&root)), ..CheckedCompileRequest::new(&root.join("main.omg"), None) })
             .expect_err(&format!("unsafe or incompatible {carrier} operation {expression} cannot be folded before checking"));
     }
     Sources::write(
@@ -538,8 +581,11 @@ fn compound_integer_indices_obey_each_typed_operation_boundary() {
         root.join("main.omg"),
         &format!("use constants::SIZE; {BUFFER} data Main {{ value: Buffer<SIZE + 0>; }}"),
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-        .expect_err("compound u32 result is not an anonymous u64 index");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("compound u32 result is not an anonymous u64 index");
 }
 
 #[test]
@@ -559,16 +605,21 @@ fn typed_compound_division_differs_from_anonymous_fractional_intermediates() {
          data Mixed {{ value: Buffer<SIZE + ((3 / 2) * 2)>; }}"
         ),
     );
-    let checked =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect("typed truncation and anonymous rational evaluation retain different meanings");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("typed truncation and anonymous rational evaluation retain different meanings");
     assert_buffer_instances(&checked, &[2, 3, 6]);
     Sources::write(
         root.join("main.omg"),
         &format!("use constants::SIZE; {BUFFER} data Main {{ value: Buffer<SIZE + (3 / 2)>; }}"),
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-        .expect_err("an anonymous fractional peer cannot land at the typed operand");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("an anonymous fractional peer cannot land at the typed operand");
 }
 
 #[test]
@@ -583,9 +634,11 @@ fn compound_index_exposure_keeps_private_constant_authority() {
         root.join("main.omg"),
         &format!("use combat; {BUFFER} data Private {{ value: Buffer<combat::SIZE + 1>; }}"),
     );
-    let checked =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect("private compound index use");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("private compound index use");
     assert_buffer_instances(&checked, &[3]);
     assert!(has_selection(
         &checked,
@@ -597,15 +650,20 @@ fn compound_index_exposure_keeps_private_constant_authority() {
         root.join("main.omg"),
         &format!("use combat; {BUFFER} pub data Public {{ value: Buffer<combat::SIZE + 1>; }}"),
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-        .expect_err("public compound application cannot erase a private operand");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("public compound application cannot erase a private operand");
     Sources::write(
         root.join("combat.omg"),
         "module combat; pub const SIZE: u64 = 2;",
     );
-    let checked =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect("public compound operand closes interface");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("public compound operand closes interface");
     assert_buffer_instances(&checked, &[3]);
     assert!(has_selection(
         &checked,
@@ -645,8 +703,11 @@ fn compound_dependency_indices_require_direct_public_selection() {
     let inputs =
         PackageCompilationInputs::new_package(identity(1), sources.clone(), dependencies.clone())
             .unwrap();
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect_err("loaded transitive operand is not admitted for early compound evaluation");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("loaded transitive operand is not admitted for early compound evaluation");
     dependencies.push(PackageDependencyBinding::new(
         identity(1),
         "leaf",
@@ -657,8 +718,11 @@ fn compound_dependency_indices_require_direct_public_selection() {
         root.join("main.omg"),
         &format!("use leaf::combat::SIZE; {BUFFER} data Main {{ value: Buffer<SIZE + 1>; }}"),
     );
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs.clone())
-        .expect("direct public compound operand");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs.clone()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("direct public compound operand");
     assert_buffer_instances(&checked, &[3]);
     assert!(has_selection(
         &checked,
@@ -670,8 +734,11 @@ fn compound_dependency_indices_require_direct_public_selection() {
         leaf.join("combat.omg"),
         "module combat; const SIZE: u64 = 2;",
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect_err("direct dependency does not authorize its private compound operand");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("direct dependency does not authorize its private compound operand");
 }
 
 #[test]
@@ -687,8 +754,11 @@ fn authored_compound_operator_cannot_be_executed_as_builtin_addition() {
         root.join("main.omg"),
         &format!("{declarations} data Main {{ value: Buffer<SIZE + 1>; }}"),
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-        .expect("builtin addition control");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("builtin addition control");
     Sources::write(
         root.join("main.omg"),
         &format!(
@@ -696,8 +766,11 @@ fn authored_compound_operator_cannot_be_executed_as_builtin_addition() {
          data Main {{ value: Buffer<SIZE + 1>; }}"
         ),
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-        .expect_err("unresolved authored addition cannot use token builtin meaning");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("unresolved authored addition cannot use token builtin meaning");
 }
 
 #[test]
@@ -728,8 +801,11 @@ fn private_compound_operands_reject_before_division_is_evaluated() {
         )],
     )
     .unwrap();
-    let failure = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect_err("private dependency operand cannot reach arithmetic");
+    let failure = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("private dependency operand cannot reach arithmetic");
     let diagnostic = format!("{failure:?}");
     assert!(diagnostic.contains("private"), "{diagnostic}");
     assert!(
@@ -745,9 +821,11 @@ fn private_compound_operands_reject_before_division_is_evaluated() {
         root.join("main.omg"),
         &format!("use combat; {BUFFER} pub data Public {{ value: Buffer<combat::SIZE / 0>; }}"),
     );
-    let failure =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect_err("public exposure of private operand rejects before arithmetic");
+    let failure = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("public exposure of private operand rejects before arithmetic");
     let diagnostic = format!("{failure:?}");
     assert!(diagnostic.contains("private"), "{diagnostic}");
     assert!(
@@ -771,14 +849,20 @@ fn machine_local_index_cannot_select_a_shadowed_module_constant() {
             "{declarations} machine inspect(input: u64) -> u8 {{ let SIZE: u64 = input; let buffer: Buffer<2> = Buffer {{ value: 7 }}; buffer.value }}"
         ),
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-        .expect("runtime local and literal static application coexist");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("runtime local and literal static application coexist");
     Sources::write(
         root.join("main.omg"),
         &format!(
             "{declarations} machine inspect(input: u64) -> u8 {{ let SIZE: u64 = input; let buffer: Buffer<SIZE + 0> = Buffer {{ value: 7 }}; buffer.value }}"
         ),
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-        .expect_err("data-only constant evaluation cannot replace a runtime lexical local");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("data-only constant evaluation cannot replace a runtime lexical local");
 }

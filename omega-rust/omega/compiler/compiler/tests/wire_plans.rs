@@ -4,6 +4,7 @@
 //! the wire codec selection. Byte identity is pinned by the wire run
 //! canaries; this test pins the PLAN ITSELF.
 
+use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
 use std::fs;
 use std::path::PathBuf;
@@ -36,7 +37,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).expect("program should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("program should compile");
     let schema = checked
         .typed
         .wire_schemas()
@@ -100,7 +102,7 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let diagnostics = compile_to_checked(&main_path, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect_err("a full-width authored tag must disagree with schema tag 1");
     let rendered = diagnostics
         .iter()

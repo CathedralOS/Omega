@@ -2,6 +2,7 @@
 //! vocabulary, build-time interpreter, and sealed normalized access model on
 //! one end-to-end path.
 
+use compiler::CheckedCompileRequest;
 use std::fs;
 use std::path::PathBuf;
 
@@ -16,7 +17,7 @@ use access_plans::{
 };
 use build_time_evaluation::{compute_access_plan, compute_layout_plan, compute_placement_plan};
 use checked_trees_to_lowered_psi::lower_machine;
-use compiler::{compile_to_checked, compile_to_checked_with_packages};
+use compiler::compile_to_checked;
 use extents::{
     AddressSpaceId, ExtentContentCustodyReceiptId, ExtentContentValidityReceiptId, ExtentLineageId,
     ExtentProvenanceId, ExtentProviderIssuance, ExtentRightId, ExtentRights, ExtentRootGrant,
@@ -433,8 +434,8 @@ data Main {}
 machine Main::main(&mut self) {}
 "#,
     );
-    let checked =
-        compile_to_checked(&main, None).expect("ordinary program should ignore accessor templates");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("ordinary program should ignore accessor templates");
     assert!(
         checked
             .typed
@@ -473,7 +474,8 @@ machine PairLayout::plan(&mut self, schema: Schema) -> Plan {
 "#
         ),
     );
-    let checked = compile_to_checked(&main, None).expect("inaccessible-seed source should check");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("inaccessible-seed source should check");
     let layout = compute_layout_plan(&checked.typed, "PairLayout::plan", "Pair")
         .expect("pair geometry should validate");
     let access = compute_access_plan(&checked.typed, "PairAccess::plan", "Pair", &layout)
@@ -499,17 +501,18 @@ machine PairLayout::plan(&mut self, schema: Schema) -> Plan {
 
 #[test]
 fn corpus_placed_policy_records_reach_checked_trees() {
-    compile_to_checked(
+    compile_to_checked(CheckedCompileRequest::new(
         &corpus_source(fixture_roster::PLACED_POLICY_CORE_RECORDS),
         None,
-    )
+    ))
     .expect("ordinary policy records should check without granting placement authority");
 }
 
 #[test]
 fn source_access_policy_evaluates_against_validated_layout() {
     let main = write_program("source-access", POLICY_SOURCE);
-    let checked = compile_to_checked(&main, None).expect("source policy should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("source policy should compile");
     let layout = compute_layout_plan(&checked.typed, "UartLayout::plan", "Registers")
         .expect("layout should validate before access evaluation");
     let access = compute_access_plan(&checked.typed, "UartAccess::plan", "Registers", &layout)
@@ -607,7 +610,8 @@ data Main {}
 machine Main::main(&mut self) {}
 "#,
     );
-    let legacy = compile_to_checked(&legacy, None).expect("legacy numbered schema should check");
+    let legacy = compile_to_checked(CheckedCompileRequest::new(&legacy, None))
+        .expect("legacy numbered schema should check");
     let retained = compute_layout_plan(&legacy.typed, "RetainedLayout::plan", "Registers")
         .expect("legacy numbered layout should validate");
     assert_eq!(retained.entries[0].field, "legacy_status");
@@ -641,7 +645,8 @@ data Main {}
 machine Main::main(&mut self) {}
 "#,
     );
-    let renamed = compile_to_checked(&renamed, None).expect("renamed numbered schema should check");
+    let renamed = compile_to_checked(CheckedCompileRequest::new(&renamed, None))
+        .expect("renamed numbered schema should check");
     let access = compute_access_plan(
         &renamed.typed,
         "RegisterAccess::plan",
@@ -726,7 +731,8 @@ machine Main::main(&mut self) {}
 #[test]
 fn source_placement_policy_normalizes_layout_access_and_reach_together() {
     let main = write_program("source-placement", POLICY_SOURCE);
-    let checked = compile_to_checked(&main, None).expect("source policy should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("source policy should compile");
     let placement = compute_placement_plan(&checked.typed, "UartPlacement::plan", "Registers")
         .expect("source placement policy should evaluate and normalize");
 
@@ -761,8 +767,8 @@ data Main {}
 "#,
     );
     let main = write_program("placed-view-accessors", &source);
-    let checked =
-        compile_to_checked(&main, None).expect("derived placed-view accessors should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("derived placed-view accessors should compile");
     let status_read = checked
         .typed
         .machines()
@@ -833,8 +839,11 @@ machine Inspector::inspect(
 }
 "#,
     );
-    let checked = compile_to_checked_with_packages(&main, None, inputs)
-        .expect("subordinate placed-view input should compile to checked custody");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&main, None)
+    })
+    .expect("subordinate placed-view input should compile to checked custody");
     let inspect = checked
         .typed
         .machines()
@@ -890,8 +899,11 @@ machine Inspector::inspect(
 }
 "#,
     );
-    let checked = compile_to_checked_with_packages(&main, None, inputs)
-        .expect("direct placed-view input should compile");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&main, None)
+    })
+    .expect("direct placed-view input should compile");
     let inspect = checked
         .typed
         .machines()
@@ -964,8 +976,11 @@ machine Inspector::inspect(
 ) {}
 "#,
     );
-    let checked = compile_to_checked_with_packages(&main, None, inputs)
-        .expect("direct placed-view input should compile");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&main, None)
+    })
+    .expect("direct placed-view input should compile");
     let inspect = checked
         .typed
         .machines()
@@ -1121,7 +1136,7 @@ data Main {}
 "#,
     );
     let main = write_program("placed-view-input-fences", &source);
-    let checked = compile_to_checked(&main, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect("open and non-checked placed-view declarations should remain fenced");
     for name in ["generic_inspect", "lifetime_inspect", "boundary_inspect"] {
         let machine = checked
@@ -1157,7 +1172,8 @@ data Main {}
 "#,
     );
     let main = write_program("placed-accessor-runtime-layout", &source);
-    let checked = compile_to_checked(&main, None).expect("derived placed accessors should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("derived placed accessors should compile");
     let [view] = checked.typed.placed_view_plans.as_slice() else {
         panic!("fixture should derive exactly one placed view")
     };
@@ -1239,8 +1255,8 @@ data Main {}
 "#,
     );
     let main = write_program("placed-view-exact-identities", &source);
-    let mut checked =
-        compile_to_checked(&main, None).expect("exact placed-view identities should compile");
+    let mut checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("exact placed-view identities should compile");
     let [view] = checked.typed.placed_view_plans.as_slice() else {
         panic!("fixture should derive exactly one placed view")
     };
@@ -1459,8 +1475,11 @@ machine inspect(view: &mut Placed<UartPlacement, Registers>) {
 }
 "#,
     );
-    let checked = compile_to_checked_with_packages(&main, None, inputs)
-        .expect("exported placed accessors should remain callable from a dependent package");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&main, None)
+    })
+    .expect("exported placed accessors should remain callable from a dependent package");
     let plan = checked
         .typed
         .placed_view_plans
@@ -1498,8 +1517,11 @@ fn placed_view_rejects_a_private_policy_from_a_dependency() {
         "machine inspect(view: &Placed<UartPlacement, Registers>) {}",
         &private_policy,
     );
-    let diagnostics = compile_to_checked_with_packages(&main, None, inputs)
-        .expect_err("a private dependency policy must not publish a placed shell");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&main, None)
+    })
+    .expect_err("a private dependency policy must not publish a placed shell");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -1515,8 +1537,11 @@ fn placed_view_rejects_a_private_schema_from_a_dependency() {
         "machine inspect(view: &Placed<UartPlacement, Registers>) {}",
         &private_schema,
     );
-    let diagnostics = compile_to_checked_with_packages(&main, None, inputs)
-        .expect_err("a private dependency schema must not publish a placed shell");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&main, None)
+    })
+    .expect_err("a private dependency schema must not publish a placed shell");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -1535,7 +1560,7 @@ fn placed_view_rejects_private_local_inputs_before_public_signature_erasure() {
             1,
         );
     let main = write_program("placed-view-private-public-signature", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("placed erasure must not launder a private input through a public signature");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -1621,9 +1646,11 @@ fn placed_view_schema_requires_direct_dependency_authority() {
         ],
     )
     .expect("transitive schema fixture should form a closed package graph");
-    let diagnostics =
-        compile_to_checked_with_packages(&root_directory.join("main.omg"), None, inputs)
-            .expect_err("a transitive-only schema must not survive placed type erasure");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root_directory.join("main.omg"), None)
+    })
+    .expect_err("a transitive-only schema must not survive placed type erasure");
     let rendered = diagnostics
         .iter()
         .map(|diagnostic| diagnostic.message.as_str())
@@ -1646,8 +1673,11 @@ pub data UartPlacement {}
 machine inspect(view: &Placed<UartPlacement, Registers>) {}
 "#,
     );
-    let diagnostics = compile_to_checked_with_packages(&main, None, inputs)
-        .expect_err("same-spelled package policies must not be joined by load order");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&main, None)
+    })
+    .expect_err("same-spelled package policies must not be joined by load order");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -1665,8 +1695,11 @@ machine inspect(view: &Placed<UartPlacement, Registers>) {
 }
 "#,
     );
-    let diagnostics = compile_to_checked_with_packages(&main, None, inputs)
-        .expect_err("binding-private access must remain in the nominal policy package");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&main, None)
+    })
+    .expect_err("binding-private access must remain in the nominal policy package");
     let rendered = diagnostics
         .iter()
         .map(|diagnostic| diagnostic.message.as_str())
@@ -1689,8 +1722,11 @@ machine inspect(view: &mut Placed<UartPlacement, Registers>) {
 }
 "#,
     );
-    let diagnostics = compile_to_checked_with_packages(&main, None, inputs)
-        .expect_err("a binding-private statement call must remain in the policy package");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&main, None)
+    })
+    .expect_err("a binding-private statement call must remain in the policy package");
     let rendered = diagnostics
         .iter()
         .map(|diagnostic| diagnostic.message.as_str())
@@ -1718,8 +1754,8 @@ data Main {}
 "#,
         );
     let main = write_program("placed-view-take", &source);
-    let checked =
-        compile_to_checked(&main, None).expect("destructive placed-view accessor should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("destructive placed-view accessor should compile");
     assert!(checked.typed.machines().iter().any(|machine| {
         machine.name.as_str() == "PlacedField<UartPlacement,Registers,status>::take"
     }));
@@ -1741,8 +1777,8 @@ data Main {}
 "#,
     );
     let main = write_program("placed-view-inaccessible", &source);
-    let diagnostics =
-        compile_to_checked(&main, None).expect_err("inaccessible fields must not project");
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect_err("inaccessible fields must not project");
     let rendered = diagnostics
         .iter()
         .map(|diagnostic| diagnostic.message.as_str())
@@ -1767,8 +1803,8 @@ data Main {}
 "#,
     );
     let main = write_program("placed-view-operation", &source);
-    let diagnostics =
-        compile_to_checked(&main, None).expect_err("write-only fields must not acquire read");
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect_err("write-only fields must not acquire read");
     let rendered = diagnostics
         .iter()
         .map(|diagnostic| diagnostic.message.as_str())
@@ -1794,7 +1830,7 @@ data Main {}
 "#,
     );
     let main = write_program("placed-view-atomic", &source);
-    let checked = compile_to_checked(&main, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect("the admitted atomic operation subset should compile");
     let field = checked
         .typed
@@ -1826,7 +1862,7 @@ data Main {}
 "#,
         );
     let main = write_program("placed-view-atomic-exchange-axes", &source);
-    let checked = compile_to_checked(&main, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect("non-observing decisive permission should remain a distinct plan fact");
     let field = checked
         .typed
@@ -1889,7 +1925,7 @@ fn compiler_atomic_compare_exchange_axes_retain_distinct_ordering_and_authorizat
                 "machine retain(view: &Placed<UartPlacement, Registers>) {}\n\ndata Main {}",
             );
         let main = write_program(&format!("placed-atomic-ordering-{permission}"), &source);
-        let checked = compile_to_checked(&main, None)
+        let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
             .expect("one observing compare-exchange permission should compile");
         let view = checked
             .typed
@@ -1942,7 +1978,7 @@ fn checked_atomic_resident_contract_replays_observing_axes_and_result_shapes() {
             "machine retain(view: &Placed<UartPlacement, Registers>) {}\n\ndata Main {}",
         );
     let main = write_program("placed-atomic-resident-contract", &source);
-    let mut checked = compile_to_checked(&main, None)
+    let mut checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect("copyable resident should retain both observing result contracts");
     let view_index = checked
         .typed
@@ -2013,7 +2049,7 @@ fn checked_atomic_resident_contract_replays_observing_axes_and_result_shapes() {
                 "machine retain(view: &Placed<UartPlacement, Registers>) {}\n\ndata Main {}",
             );
         let main = write_program(&format!("placed-atomic-resident-{permission}"), &source);
-        let checked = compile_to_checked(&main, None)
+        let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
             .expect("each observing permission forms one exact resident/result row");
         let resident = checked
             .typed
@@ -2170,7 +2206,7 @@ data Main {}
 machine Main::main(&mut self) {}
 "#;
     let main = write_program("checked-atomic-runtime-resident-join", source);
-    let checked = compile_to_checked(&main, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect("observing Atomic contract should reach checked custody");
     let view = checked
         .typed
@@ -2428,7 +2464,8 @@ machine Main::main(&mut self) {}
         )
         .replace("size_fixed: 8", "size_fixed: 16");
     let shifted_main = write_program("checked-atomic-runtime-resident-shifted", &shifted_source);
-    let shifted = compile_to_checked(&shifted_main, None).expect("shifted checked Atomic plan");
+    let shifted = compile_to_checked(CheckedCompileRequest::new(&shifted_main, None))
+        .expect("shifted checked Atomic plan");
     let shifted_view = shifted
         .typed
         .placed_view_plans
@@ -2588,7 +2625,7 @@ data Main {}
 "#,
         );
     let main = write_program("placed-view-atomic-families", &source);
-    compile_to_checked(&main, None)
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect("each individually admitted atomic operation family should compile");
 }
 
@@ -2605,7 +2642,7 @@ data Main {}
 "#,
     );
     let main = write_program("placed-view-atomic-leak", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("an atomic accessor must not coerce into its carried primitive");
     let rendered = diagnostics
         .iter()
@@ -2632,7 +2669,7 @@ data Main {}
 "#,
     );
     let main = write_program("placed-view-recast", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a placed view must not be reconstructed through recast");
     let rendered = diagnostics
         .iter()
@@ -2665,8 +2702,8 @@ data Main {}
 "#,
     );
     let main = write_program("placed-view-atomic-denied", &source);
-    let diagnostics =
-        compile_to_checked(&main, None).expect_err("the placement does not admit atomic store");
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect_err("the placement does not admit atomic store");
     let rendered = diagnostics
         .iter()
         .map(|diagnostic| diagnostic.message.as_str())
@@ -2701,7 +2738,7 @@ data Main {}
 "#,
         );
     let main = write_program("placed-view-atomic-width", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("placed atomics are currently limited to supported atomic primitives");
     let rendered = diagnostics
         .iter()
@@ -2738,7 +2775,8 @@ data Main {}
 "#,
     );
     let main = write_program("missing-access-slot", &source);
-    let checked = compile_to_checked(&main, None).expect("invalid policy source should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("invalid policy source should compile");
     let layout = compute_layout_plan(&checked.typed, "UartLayout::plan", "Registers")
         .expect("layout should validate");
     let error = compute_access_plan(&checked.typed, "Missing::plan", "Registers", &layout)
@@ -2787,7 +2825,8 @@ data Main {}
 machine Main::main(&mut self) {}
 "#,
     );
-    let checked = compile_to_checked(&main, None).expect("access policy source should type");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("access policy source should type");
     let layout = compute_layout_plan(&checked.typed, "ArrayLayout::plan", "Samples")
         .expect("the aggregate At layout should validate");
     let error = compute_access_plan(&checked.typed, "ArrayAccess::plan", "Samples", &layout)
@@ -2821,7 +2860,8 @@ data Main {}
 "#,
     );
     let main = write_program("forged-access-key", &source);
-    let checked = compile_to_checked(&main, None).expect("forged policy source should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("forged policy source should compile");
     let layout = compute_layout_plan(&checked.typed, "UartLayout::plan", "Registers")
         .expect("layout should validate");
     let error = compute_access_plan(&checked.typed, "Forged::plan", "Registers", &layout)
@@ -2835,7 +2875,8 @@ data Main {}
 #[test]
 fn access_evaluation_rejects_a_forged_layout_report() {
     let main = write_program("forged-layout-report", POLICY_SOURCE);
-    let checked = compile_to_checked(&main, None).expect("source policy should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("source policy should compile");
     let mut layout = compute_layout_plan(&checked.typed, "UartLayout::plan", "Registers")
         .expect("layout should validate");
     layout.offsets = Some(vec![0, 4, 6, 8, 17]);
@@ -2938,7 +2979,7 @@ data Main {}
 machine Main::main(&mut self) {}
 "#,
     );
-    let checked = compile_to_checked(&main, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect("both source-derived Stable placements should reach checked custody");
     let home = checked
         .typed
@@ -3182,7 +3223,7 @@ data Main {}
 machine Main::main(&mut self) {}
 "#,
     );
-    let checked = compile_to_checked(&main, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect("both source-derived External placements should reach checked custody");
     let home = checked
         .typed
@@ -3479,7 +3520,7 @@ data Main {}
 machine Main::main(&mut self) {}
 "#,
     );
-    let checked = compile_to_checked(&main, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect("source-derived Atomic placement should reach checked custody");
     let retained = checked
         .typed
@@ -3705,7 +3746,7 @@ data Main {}
 machine Main::main(&mut self) {}
 "#,
     );
-    let checked = compile_to_checked(&main, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect("source-derived destructive External placement should reach checked custody");
     let retained = checked
         .typed

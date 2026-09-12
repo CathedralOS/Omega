@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn review_projects_exact_conformance_bound_external_telescope() {
@@ -32,11 +33,10 @@ pub machine BoundProvider::identity<
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let mut checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let mut checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("exact conformance-bound top-level external supply should check");
     let review = project_checked_package_review(&checked)
         .expect("exact conformance-bound external supply should project");
@@ -112,11 +112,10 @@ pub machine BoundProvider::identity<
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &weaker_provider.0.join("main.omg"),
-        Some(target),
-        package_inputs(&weaker_provider.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&weaker_provider.0)),
+        ..CheckedCompileRequest::new(&weaker_provider.0.join("main.omg"), Some(target))
+    })
     .expect("the compiler currently accepts a weaker provider bound");
     let review = project_checked_package_review(&checked)
         .expect("a provider may omit a conformance precondition guaranteed by the requirement");
@@ -159,11 +158,10 @@ pub machine BoundProvider::identity<
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &stronger_provider.0.join("main.omg"),
-        Some(target),
-        package_inputs(&stronger_provider.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&stronger_provider.0)),
+        ..CheckedCompileRequest::new(&stronger_provider.0.join("main.omg"), Some(target))
+    })
     .expect("the compiler currently accepts a stronger provider conformance bound");
     let diagnostics = project_checked_package_review(&checked)
         .expect_err("package review must reject a provider-only conformance demand");
@@ -202,11 +200,10 @@ pub machine ConstProvider::identity<const Length: u64>(
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let mut checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let mut checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("alpha-renamed const top-level external supply should check");
     let review = project_checked_package_review(&checked)
         .expect("const top-level external supply should project exactly");
@@ -337,11 +334,10 @@ pub machine GenericProvider::identity<Value>(value: Value) -> Value
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("bounded generic top-level external supply should check");
     let review = project_checked_package_review(&checked)
         .expect("bounded generic top-level external supply should project exactly");
@@ -465,11 +461,10 @@ pub machine LifetimeProvider::observe<'borrow>(value: &'borrow u32)
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("generic top-level external supply should check");
     let review = project_checked_package_review(&checked)
         .expect("generic top-level external supply should project without installation");

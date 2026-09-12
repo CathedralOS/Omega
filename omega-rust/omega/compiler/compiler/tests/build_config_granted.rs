@@ -4,7 +4,8 @@
 #![allow(clippy::useless_format)]
 
 use checked_interpreter::FilesystemSponsor;
-use compiler::{compile_to_checked, compile_to_checked_with_packages_in_sponsored_build_dir};
+use compiler::CheckedCompileRequest;
+use compiler::compile_to_checked;
 use package_compilation::{
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
@@ -139,13 +140,12 @@ fn admitted_build_checkpoint_retains_configuration_and_execution_evidence() {
         .commit()
         .expect("commit build output root");
     set_canonical_source_tree_permissions(&project.root, true);
-    let checked = compile_to_checked_with_packages_in_sponsored_build_dir(
-        &project.main(),
-        &build_dir,
-        Some(profile.target_name()),
-        package_inputs(&project.root),
-        sponsor,
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(build_dir.to_owned()),
+        package_inputs: Some(package_inputs(&project.root)),
+        filesystem_sponsor: Some(sponsor),
+        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
+    })
     .expect("compiler-owned Build facets should execute and publish generated source");
     set_canonical_source_tree_permissions(&project.root, false);
 
@@ -519,13 +519,12 @@ fn generated_source_replays_direct_dependency_authority_after_the_checkpoint() {
     prepared_build_dir
         .commit()
         .expect("commit generated-authority output root");
-    let diagnostics = compile_to_checked_with_packages_in_sponsored_build_dir(
-        &application.join("main.omg"),
-        &build_dir,
-        Some(profile.target_name()),
-        package_inputs,
-        sponsor,
-    )
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(build_dir.to_owned()),
+        package_inputs: Some(package_inputs),
+        filesystem_sponsor: Some(sponsor),
+        ..CheckedCompileRequest::new(&application.join("main.omg"), Some(profile.target_name()))
+    })
     .expect_err(
         "generated scalar-const machine cannot select a transitive-only package declaration",
     );
@@ -585,13 +584,12 @@ machine build(builder: &mut Build) {
         .commit()
         .expect("commit generated-target output root");
     set_canonical_source_tree_permissions(&project.root, true);
-    let checked = compile_to_checked_with_packages_in_sponsored_build_dir(
-        &project.main(),
-        &build_dir,
-        Some(profile.target_name()),
-        package_inputs(&project.root),
-        sponsor,
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(build_dir.to_owned()),
+        package_inputs: Some(package_inputs(&project.root)),
+        filesystem_sponsor: Some(sponsor),
+        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
+    })
     .expect("generated target machines should continue from the retained frontend");
     set_canonical_source_tree_permissions(&project.root, false);
 
@@ -665,13 +663,12 @@ fn generated_local_instance_collection_preserves_build_symbol_and_source_custody
         .commit()
         .expect("commit build output root");
     set_canonical_source_tree_permissions(&project.root, true);
-    let checked = compile_to_checked_with_packages_in_sponsored_build_dir(
-        &project.main(),
-        &build_dir,
-        Some(profile.target_name()),
-        package_inputs(&project.root),
-        sponsor,
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(build_dir.to_owned()),
+        package_inputs: Some(package_inputs(&project.root)),
+        filesystem_sponsor: Some(sponsor),
+        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
+    })
     .expect("the exact generated local instance should continue from the retained frontend");
     set_canonical_source_tree_permissions(&project.root, false);
 
@@ -1323,13 +1320,12 @@ fn generated_base_owned_type_application_graph_preserves_build_symbol_and_source
         .commit()
         .expect("commit build output root");
     set_canonical_source_tree_permissions(&project.root, true);
-    let checked = compile_to_checked_with_packages_in_sponsored_build_dir(
-        &project.main(),
-        &build_dir,
-        Some(profile.target_name()),
-        package_inputs(&project.root),
-        sponsor,
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(build_dir.to_owned()),
+        package_inputs: Some(package_inputs(&project.root)),
+        filesystem_sponsor: Some(sponsor),
+        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
+    })
     .expect("the generated base-owned type graph should continue from the retained frontend");
     set_canonical_source_tree_permissions(&project.root, false);
 
@@ -1433,8 +1429,11 @@ fn authored_build_path_shape_has_no_compiler_root_authority() {
         ),
     );
 
-    let diagnostics = compile_to_checked(&project.main(), Some(profile.target_name()))
-        .expect_err("an authored BuildPath shape must not carry compiler root authority");
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some(profile.target_name()),
+    ))
+    .expect_err("an authored BuildPath shape must not carry compiler root authority");
     let rendered = diagnostics
         .iter()
         .map(|diagnostic| diagnostic.message.as_str())
@@ -1467,8 +1466,11 @@ reaches Console
         ),
     );
 
-    let diagnostics = compile_to_checked(&project.main(), Some(profile.target_name()))
-        .expect_err("runtime boundary services must not be admitted for build execution");
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some(profile.target_name()),
+    ))
+    .expect_err("runtime boundary services must not be admitted for build execution");
     let rendered = diagnostics
         .iter()
         .map(|diagnostic| diagnostic.message.as_str())

@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 fn root_inputs(root: &Path) -> PackageCompilationInputs {
     PackageCompilationInputs::new_package(
@@ -31,9 +32,11 @@ fn declaration_imports_join_the_loaded_module_not_the_file_name() {
         machine qualified_score() -> u64 { combat::damage() }
     "#,
     );
-    let checked =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect("module declarations, imported leaves, and qualified paths resolve");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("module declarations, imported leaves, and qualified paths resolve");
     let paths = checked.authored_declaration_selections().iter().filter_map(|selection| {
         let language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target() else {
             return None;
@@ -72,8 +75,11 @@ fn same_leaf_declarations_in_distinct_modules_are_not_duplicates() {
         machine second() -> u64 { rooms::value() }
     "#,
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-        .expect("different modules own different Point declarations");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("different modules own different Point declarations");
     TempTree::write(
         root.join("main.omg"),
         r#"
@@ -82,8 +88,11 @@ fn same_leaf_declarations_in_distinct_modules_are_not_duplicates() {
         data Ambiguous { value: Point; }
     "#,
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-        .expect_err("two imported Point declarations cannot select by traversal order");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("two imported Point declarations cannot select by traversal order");
 }
 
 #[test]
@@ -96,8 +105,11 @@ fn an_imported_file_cannot_fabricate_its_logical_module() {
         "data Damage { value: u64; }",
     ] {
         TempTree::write(root.join("combat.omg"), text);
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect_err("even an unused import must name its actual module declaration");
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("even an unused import must name its actual module declaration");
     }
 }
 
@@ -114,8 +126,10 @@ fn a_module_is_not_a_value_receiver() {
             root.join("main.omg"),
             &format!("use combat; machine score() -> u64 {{ {call} }}"),
         );
-        let result =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root));
+        let result = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        });
         if call.contains("::") {
             result.expect("static module selection resolves");
         } else {
@@ -133,8 +147,11 @@ fn a_module_is_not_a_nominal_data_type() {
         root.join("main.omg"),
         "use combat; data Invalid { value: combat; }",
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-        .expect_err("a namespace cannot supply a nominal data definition");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a namespace cannot supply a nominal data definition");
 }
 
 #[test]
@@ -146,9 +163,11 @@ fn module_statement_calls_retain_static_selection() {
         root.join("main.omg"),
         "use combat; machine example() { combat::emit(); }",
     );
-    let checked =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect("statement calls select module-owned machines");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("statement calls select module-owned machines");
     assert!(checked.authored_declaration_selections().iter().any(|selection| {
         matches!(selection.target(), language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
             if checked.symbols.display_path(target.selected_symbol(), "::").starts_with("combat::emit"))
@@ -188,7 +207,10 @@ fn package_aliases_and_visibility_survive_module_qualification() {
                 if public { "pub " } else { "" }
             ),
         );
-        let result = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs.clone());
+        let result = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs.clone()),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        });
         if public {
             let checked =
                 result.expect("requester-local alias selects its public module declaration");
@@ -212,8 +234,11 @@ fn package_aliases_and_visibility_survive_module_qualification() {
         root.join("main.omg"),
         "use dep::combat::Damage; data Unused {}",
     );
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect_err("an unused import still selects a private declaration");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("an unused import still selects a private declaration");
     assert!(
         diagnostics
             .iter()
@@ -253,8 +278,11 @@ fn package_alias_selects_public_declarations_in_other_loaded_dependency_sources(
         "use dep::combat::Damage;
          data Attack { damage: dep::combat::Damage; support: dep::support::Support; }",
     );
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs.clone())
-        .expect("a direct dependency alias qualifies its already-loaded public declarations");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs.clone()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("a direct dependency alias qualifies its already-loaded public declarations");
     assert!(checked.authored_declaration_selections().iter().any(|selection| {
         checked.symbols.source_file(selection.source_span())
             .is_some_and(|source| source.path == root.join("main.omg").canonicalize().expect("authored root source")) &&
@@ -267,9 +295,11 @@ fn package_alias_selects_public_declarations_in_other_loaded_dependency_sources(
         dependency.join("support.omg"),
         "module support; data Support { value: u64; }",
     );
-    let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, inputs.clone())
-            .expect_err("a package alias cannot expose a private sibling declaration");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs.clone()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a package alias cannot expose a private sibling declaration");
     assert!(
         diagnostics
             .iter()
@@ -284,8 +314,11 @@ fn package_alias_selects_public_declarations_in_other_loaded_dependency_sources(
         root.join("main.omg"),
         "use dep::combat::Damage; data Attack { support: Support; }",
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect_err("dependency-local imports do not expose leaves in the requester");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("dependency-local imports do not expose leaves in the requester");
 }
 
 #[test]
@@ -319,8 +352,11 @@ fn package_alias_cannot_select_a_loaded_transitive_lookalike() {
         ],
     )
     .expect("a direct dependency and its own private dependency edge");
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect_err("a package alias cannot acquire an already-loaded transitive declaration");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a package alias cannot acquire an already-loaded transitive declaration");
 }
 
 #[test]
@@ -356,8 +392,11 @@ fn identical_module_paths_in_different_packages_keep_exact_owners() {
         ],
     )
     .expect("two direct dependencies");
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect("package aliases distinguish otherwise equal module paths");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("package aliases distinguish otherwise equal module paths");
     for owner in [identity(2), identity(3)] {
         assert!(checked.authored_declaration_selections().iter().any(|selection| {
             matches!(selection.target(), language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
@@ -397,8 +436,11 @@ fn qualified_module_selection_requires_a_direct_dependency() {
     let transitive =
         PackageCompilationInputs::new_package(identity(1), sources.clone(), dependencies.clone())
             .expect("transitive graph");
-    compile_to_checked_with_packages(&root.join("main.omg"), None, transitive)
-        .expect_err("loading a transitive module cannot grant selection authority");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(transitive),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("loading a transitive module cannot grant selection authority");
     dependencies.push(PackageDependencyBinding::new(
         identity(1),
         "leaf",
@@ -410,6 +452,9 @@ fn qualified_module_selection_requires_a_direct_dependency() {
         root.join("main.omg"),
         "use middle::bridge; use leaf::combat; machine score() -> u64 { leaf::combat::damage() }",
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, direct)
-        .expect("explicit direct dependency admits the public module machine");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(direct),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("explicit direct dependency admits the public module machine");
 }

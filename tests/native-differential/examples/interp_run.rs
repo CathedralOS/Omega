@@ -2,6 +2,7 @@
 //! selects the host target's authored `ProgramEntry`, interprets it, forwards its
 //! stdout/stderr, and exits with its exit code.
 
+use compiler::CheckedCompileRequest;
 use std::io::{Read, Write};
 use std::path::Path;
 
@@ -18,8 +19,8 @@ fn main() {
         .expect("read stdin");
 
     let target = target::TargetProfile::host().target_name();
-    let checked =
-        compile_to_checked(Path::new(&path), Some(target)).unwrap_or_else(|diagnostics| {
+    let checked = compile_to_checked(CheckedCompileRequest::new(Path::new(&path), Some(target)))
+        .unwrap_or_else(|diagnostics| {
             for diagnostic in &diagnostics {
                 eprintln!("{diagnostic}");
             }

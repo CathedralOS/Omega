@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 const TYPES: &str = r#"use omega::language::core::representation;
 pub boundary data Token;
@@ -138,11 +139,10 @@ machine build(builder: &mut Build) {{
         let inputs =
             PackageCompilationInputs::new_package(package_identity(), sources, dependencies)
                 .unwrap();
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            inputs,
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("representation policy source should check without native emission");
         Self {
             checked,

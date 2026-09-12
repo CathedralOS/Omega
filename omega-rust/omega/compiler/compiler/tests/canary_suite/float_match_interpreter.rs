@@ -1,10 +1,14 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn selected_float_match_interpreter_preserves_ieee_values_and_effect_order() {
     let canary = pass_canary("expressions/match_float_interpretation");
-    let checked = compile_to_checked(&canary.join("main.omg"), Some("macos_arm64"))
-        .expect("float interpretation customer checks with exact providers");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("macos_arm64"),
+    ))
+    .expect("float interpretation customer checks with exact providers");
     for format in ["32", "64"] {
         for (case, expected) in [
             ("first", 7),
@@ -27,8 +31,11 @@ fn selected_float_match_interpreter_preserves_ieee_values_and_effect_order() {
 #[test]
 fn selected_float_match_interpreter_rejects_integer_runtime_substitution() {
     let canary = pass_canary("expressions/match_float_interpretation");
-    let checked = compile_to_checked(&canary.join("main.omg"), Some("macos_arm64"))
-        .expect("floating projection customer checks with exact providers");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("macos_arm64"),
+    ))
+    .expect("floating projection customer checks with exact providers");
     for machine in ["projection32", "projection64"] {
         let positive = checked_interpreter::interpret_entry(&checked, machine, &[]);
         assert_eq!(
@@ -76,8 +83,11 @@ fn selected_float_match_interpreter_rejects_integer_runtime_substitution() {
 #[test]
 fn selected_float_match_interpreter_rejects_stale_or_substituted_execution_custody() {
     let canary = pass_canary("expressions/match_float_patterns");
-    let checked = compile_to_checked(&canary.join("main.omg"), Some("macos_arm64"))
-        .expect("float match customer checks");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("macos_arm64"),
+    ))
+    .expect("float match customer checks");
     let positive = checked_interpreter::interpret_entry(&checked, "launch", &[]);
     assert_eq!(
         positive.error, None,

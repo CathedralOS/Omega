@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 use package_evidence::record::PackageReviewTraitCompositionKind;
 
 #[test]
@@ -29,11 +30,10 @@ pub boundary trait Service<Value>: Parent<Value> {
     second.write("build.omg", build);
 
     let compile = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("public-trait fixture should check");
         project_checked_package_review(&checked).expect("public-trait review should close")
     };
@@ -184,11 +184,10 @@ pub trait Child<'child>: Parent<'child> { }
     changed.write("build.omg", build);
 
     let compile = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("public lifetime fixture should check");
         project_checked_package_review(&checked).expect("public lifetime review should close")
     };
@@ -282,11 +281,10 @@ fn public_trait_lifetime_declarations_validate_before_review() {
             "build.omg",
             "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
-        let diagnostics = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect_err("invalid parent lifetime application must reject");
         assert!(
             diagnostics

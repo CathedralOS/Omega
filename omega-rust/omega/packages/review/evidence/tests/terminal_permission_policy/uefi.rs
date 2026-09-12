@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn ordinary_uefi_permission_retains_calling_meaning_omitted_from_accepted_schema_digest() {
@@ -46,9 +47,11 @@ machine Boot::launch(&mut self, image: Extent in Granted, initial_storage: Exten
         )],
     )
     .unwrap();
-    let candidate =
-        compile_to_checked_with_packages(&root.0.join("main.omg"), None, inputs.clone())
-            .expect("ordinary UEFI semantic-only candidate");
+    let candidate = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs.clone()),
+        ..CheckedCompileRequest::new(&root.0.join("main.omg"), None)
+    })
+    .expect("ordinary UEFI semantic-only candidate");
     let role = AcceptedSemanticBindingRole::UefiX64ProgramEntry;
     let binding = candidate
         .candidate_service_binding(role, standard_package, "UefiApplication")
@@ -73,13 +76,14 @@ machine Boot::launch(&mut self, image: Extent in Granted, initial_storage: Exten
             TerminalAuthorityDisposition::from_classes([]),
         )])
         .unwrap();
-    let checked = compile_to_checked_with_packages(
-        &root.0.join("main.omg"),
-        Some("uefi_x86_64"),
-        inputs
-            .with_accepted_semantic_bindings(vec![binding.clone()])
-            .unwrap(),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(
+            inputs
+                .with_accepted_semantic_bindings(vec![binding.clone()])
+                .unwrap(),
+        ),
+        ..CheckedCompileRequest::new(&root.0.join("main.omg"), Some("uefi_x86_64"))
+    })
     .expect("accepted ordinary UEFI target compilation without native emission");
     let definition = checked
         .traits()

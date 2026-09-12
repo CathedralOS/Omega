@@ -1,6 +1,7 @@
 //! Generated source consumes retained authored constants after admitted build execution.
 
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn generated_bodies_use_retained_module_constants_after_build_execution() {
@@ -28,13 +29,15 @@ fn generated_bodies_use_retained_module_constants_after_build_execution() {
     std::fs::create_dir(&build_dir).unwrap();
     prepared.commit().unwrap();
     set_canonical_source_tree_permissions(&project.root, true);
-    let checked = compile_to_checked_with_packages_in_sponsored_build_dir(
-        &project.main(),
-        &build_dir,
-        Some(target::TargetProfile::host().target_name()),
-        package_inputs(&project.root),
-        sponsor,
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(build_dir.to_owned()),
+        package_inputs: Some(package_inputs(&project.root)),
+        filesystem_sponsor: Some(sponsor),
+        ..CheckedCompileRequest::new(
+            &project.main(),
+            Some(target::TargetProfile::host().target_name()),
+        )
+    })
     .expect("generated bodies reuse the exact admitted base constants");
     checked.verify_current_source_consumption().unwrap();
     let artifacts = ["generated", "generated_row"].map(|name| {
@@ -99,13 +102,15 @@ fn generated_record_arguments_rejoin_retained_declarations() {
     std::fs::create_dir(&build_dir).unwrap();
     prepared.commit().unwrap();
     set_canonical_source_tree_permissions(&project.root, true);
-    let checked = compile_to_checked_with_packages_in_sponsored_build_dir(
-        &project.main(),
-        &build_dir,
-        Some(target::TargetProfile::host().target_name()),
-        package_inputs(&project.root),
-        sponsor,
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(build_dir.to_owned()),
+        package_inputs: Some(package_inputs(&project.root)),
+        filesystem_sponsor: Some(sponsor),
+        ..CheckedCompileRequest::new(
+            &project.main(),
+            Some(target::TargetProfile::host().target_name()),
+        )
+    })
     .expect("generated templates use exact retained argument declarations");
     checked.verify_current_source_consumption().unwrap();
     let instances = checked

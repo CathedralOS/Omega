@@ -1,8 +1,8 @@
 use build_declarations::{BuildDeclaration, extract_build_declaration};
+use compiler::CheckedCompileRequest;
 use compiler::{
     ArtifactEmissionPolicy, CheckedCompilation, CompileOptions as CompilerOptions, CompileReport,
-    CompileRequest, RequestedCompileProduct, compile_to_checked as compile_standalone_to_checked,
-    compile_to_checked_with_packages,
+    CompileRequest, RequestedCompileProduct, compile_to_checked,
 };
 use package_compilation::{
     AcceptedSemanticBindingRole, PackageCompilationInputs, PackageDependencyBinding,
@@ -2814,7 +2814,11 @@ const ROOTED_TARGET_BACKEND_PASS_CANARIES: &[(&str, &str)] = &[
 ];
 
 fn check_canary(canary_dir: &Path) -> Result<(), Vec<Diagnostic>> {
-    compile_to_checked(&canary_dir.join("main.omg"), None).map(|_| ())
+    compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary_dir.join("main.omg"),
+        None,
+    ))
+    .map(|_| ())
 }
 
 static CANARY_UMBRELLA_LOCK: Mutex<()> = Mutex::new(());
@@ -3052,8 +3056,10 @@ fn reviewed_repository_fixture_package_inputs(
     // every admitted row is then derived from and replayed against the exact
     // preliminary checked graph. This is not evidence that an audit occurred
     // and is not production accepted-lock recovery.
-    let preliminary =
-        compile_to_checked_with_packages(root_path, target_name, package_inputs.clone())?;
+    let preliminary = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs.clone()),
+        ..CheckedCompileRequest::new(root_path, target_name)
+    })?;
     let mut bindings = Vec::new();
     if accepts_filesystem {
         bindings.push(
@@ -3084,16 +3090,14 @@ fn reviewed_repository_fixture_package_inputs(
         })
 }
 
-fn compile_to_checked(
-    root_path: &Path,
-    target_name: Option<&str>,
+fn compile_reviewed_repository_fixture(
+    mut request: CheckedCompileRequest,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    match reviewed_repository_fixture_package_inputs(root_path, target_name)? {
-        Some(package_inputs) => {
-            compile_to_checked_with_packages(root_path, target_name, package_inputs)
-        }
-        None => compile_standalone_to_checked(root_path, target_name),
-    }
+    request.package_inputs = reviewed_repository_fixture_package_inputs(
+        &request.root_path,
+        request.target_name.as_deref(),
+    )?;
+    compile_to_checked(request)
 }
 
 fn sample_project(path: &str) -> PathBuf {
@@ -3217,15 +3221,18 @@ fn executable_name() -> &'static str {
 #[test]
 fn boundary_equality_recast_witness_compiles_to_checked_trees() {
     let canary = pass_canary(fixture_roster::BOUNDARY_EQUALITY_RECAST_WITNESS_COMPILE);
-    compile_to_checked(&canary.join("main.omg"), None)
+    compile_reviewed_repository_fixture(CheckedCompileRequest::new(&canary.join("main.omg"), None))
         .expect("boundary equality/recast witness should reach checked trees");
 }
 
 #[test]
 fn task_runtime_machine_selection_builds_omega_activation_sidecar() {
     let canary = pass_canary(fixture_roster::TASK_RUNTIME_MACHINE_SELECTION_COMPILE);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("core task-runtime machine selection should reach checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("core task-runtime machine selection should reach checked trees");
     let activations = checked.task_activations().as_slice();
 
     assert_eq!(

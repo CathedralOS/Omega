@@ -1,3 +1,4 @@
+use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
 use effects::provider_plan::ProviderBinding;
 use std::fs;
@@ -61,17 +62,20 @@ data Main {}
 machine Main::main(&mut self) {}
 "#,
     );
-    let checked =
-        compile_to_checked(&fixture.main(), Some("windows_x86_64")).unwrap_or_else(|diagnostics| {
-            panic!(
-                "ordinary via binding should compile:\n{}",
-                diagnostics
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            )
-        });
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &fixture.main(),
+        Some("windows_x86_64"),
+    ))
+    .unwrap_or_else(|diagnostics| {
+        panic!(
+            "ordinary via binding should compile:\n{}",
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
 
     assert_eq!(checked.evaluated_via_bindings().rows().len(), 1);
     let imports = checked
@@ -227,17 +231,20 @@ data Main {}
 machine Main::main(&mut self) {}
 "#,
     );
-    let checked =
-        compile_to_checked(&fixture.main(), Some("linux_x86_64")).unwrap_or_else(|diagnostics| {
-            panic!(
-                "ordinary syscall via binding should compile:\n{}",
-                diagnostics
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            )
-        });
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &fixture.main(),
+        Some("linux_x86_64"),
+    ))
+    .unwrap_or_else(|diagnostics| {
+        panic!(
+            "ordinary syscall via binding should compile:\n{}",
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
 
     let [evaluated_row] = checked.evaluated_via_bindings().rows() else {
         panic!("one evaluated syscall row expected");
@@ -300,8 +307,9 @@ machine Main::main(&mut self) {{}}
 "#,
         );
         let fixture = TemporaryProgram::new(&source);
-        let diagnostics = compile_to_checked(&fixture.main(), Some(target))
-            .expect_err("invalid ordinary syscall binding must reject");
+        let diagnostics =
+            compile_to_checked(CheckedCompileRequest::new(&fixture.main(), Some(target)))
+                .expect_err("invalid ordinary syscall binding must reject");
         assert!(
             diagnostics
                 .iter()
@@ -336,8 +344,11 @@ data Main {}
 machine Main::main(&mut self) {}
 "#,
     );
-    let diagnostics = compile_to_checked(&fixture.main(), Some("linux_x86_64"))
-        .expect_err("local Binding lookalike must reject");
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(
+        &fixture.main(),
+        Some("linux_x86_64"),
+    ))
+    .expect_err("local Binding lookalike must reject");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic

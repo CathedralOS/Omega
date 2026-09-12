@@ -1,5 +1,6 @@
 use super::*;
-use compiler::compile_to_checked_with_packages;
+use compiler::CheckedCompileRequest;
+use compiler::compile_to_checked;
 use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
 use std::path::PathBuf;
 
@@ -47,11 +48,10 @@ pub machine Other::check(&self) {}
         Vec::new(),
     )
     .unwrap();
-    let checked = compile_to_checked_with_packages(
-        &directory.0.join("main.omg"),
-        Some("windows_x86_64"),
-        inputs,
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&directory.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .unwrap();
     let machine = checked
         .machines()

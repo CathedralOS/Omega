@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn public_machine_visibility_survives_checked_compilation_and_strict_empty_contracts() {
@@ -10,11 +11,10 @@ fn public_machine_visibility_survives_checked_compilation_and_strict_empty_contr
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("public machine should check");
     let machine = checked
         .machines()
@@ -108,11 +108,10 @@ invokes waiting;
     for (label, source, expected_messages) in cases {
         let package = TempPackage::new();
         package.write("main.omg", source);
-        let diagnostics = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            None,
-            package_inputs(&package.0),
-        )
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), None)
+        })
         .unwrap_err();
         for expected in expected_messages {
             assert!(
@@ -159,11 +158,10 @@ invokes Host;
     invoking.write("build.omg", build);
 
     let compile = |package: &TempPackage| {
-        compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("invocation comparison fixture should check")
     };
     let quiet = project_checked_package_review(&compile(&quiet)).expect("quiet review");

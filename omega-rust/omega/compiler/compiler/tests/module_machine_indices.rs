@@ -1,4 +1,5 @@
-use compiler::{CheckedCompilation, compile_to_checked_with_packages};
+use compiler::CheckedCompileRequest;
+use compiler::{CheckedCompilation, compile_to_checked};
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelection, AuthoredDeclarationSelectionExposure,
     AuthoredDeclarationSelectionTarget,
@@ -148,9 +149,11 @@ fn runtime_machine_bindings_are_not_global_constant_arguments() {
         Sources::write(root.join("main.omg"), &format!("{declarations} {literal}"));
         compile(&root, root_inputs(&root));
         Sources::write(root.join("main.omg"), &format!("{declarations} {shadowed}"));
-        let diagnostics =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err("runtime SIZE must not become the imported constant's canonical value");
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("runtime SIZE must not become the imported constant's canonical value");
         assert!(
             diagnostics
                 .iter()
@@ -218,8 +221,11 @@ fn public_machine_signatures_and_private_body_indices_keep_distinct_exposure() {
             keep("keep", "constants::SIZE + 1")
         ),
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-        .expect_err("a private constant cannot appear in a public machine's normalized signature");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a private constant cannot appear in a public machine's normalized signature");
     Sources::write(
         root.join("constants.omg"),
         "module constants; pub const SIZE: u64 = 2;",
@@ -274,9 +280,11 @@ fn machine_index_evaluation_preserves_declared_carriers_and_intermediate_overflo
             root.join("main.omg"),
             &format!("use constants::SIZE; {BUFFER} {}", keep("keep", expression)),
         );
-        let diagnostics =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err("machine type index cannot erase the selected carrier");
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("machine type index cannot erase the selected carrier");
         assert!(
             diagnostics
                 .iter()
@@ -319,8 +327,11 @@ fn machine_indices_require_direct_public_package_selection() {
             keep("keep", "constants::SIZE + 1")
         ),
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, indirect)
-        .expect_err("loaded transitive constants cannot enter machine indices");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(indirect),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("loaded transitive constants cannot enter machine indices");
     dependencies.push(PackageDependencyBinding::new(
         identity(1),
         "leaf",
@@ -345,8 +356,11 @@ fn machine_indices_require_direct_public_package_selection() {
         leaf.join("constants.omg"),
         "module constants; const SIZE: u64 = 2;",
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, direct)
-        .expect_err("a direct dependency does not expose private machine index constants");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(direct),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a direct dependency does not expose private machine index constants");
 }
 
 #[test]
@@ -367,7 +381,7 @@ fn root_only_constant_indices_respect_runtime_parameter_and_prior_local_shadows(
             Sources::write(root.join("main.omg"), &format!("{BUFFER} const SIZE: u64 = 2; {literal}"));
             compile(&root, root_inputs(&root));
             Sources::write(root.join("main.omg"), &format!("{BUFFER} const SIZE: u64 = 2; {shadowed}"));
-            let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
+            let diagnostics = compile_to_checked(CheckedCompileRequest { package_inputs: Some(root_inputs(&root)), ..CheckedCompileRequest::new(&root.join("main.omg"), None) })
                 .expect_err("root-only evaluation must retain runtime lexical bindings");
             assert!(diagnostics.iter().any(|diagnostic| diagnostic.message.contains("machine index operand must select a constant in its original lexical scope")), "{diagnostics:?}");
         }
@@ -495,9 +509,11 @@ fn qualified_named_indices_preserve_runtime_qualifier_root_shadowing() {
                 "use constants; {BUFFER} machine keep(constants: u64, value: Buffer<{index}>) -> Buffer<{index}> {{ value }}"
             ),
         );
-        let diagnostics =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err("a qualified Named argument must not flatten away its lexical root");
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("a qualified Named argument must not flatten away its lexical root");
         assert!(
             diagnostics
                 .iter()
@@ -573,9 +589,11 @@ fn domain_cast_indices_use_the_original_machine_lexical_scope() {
             "{declarations} machine keep(SIZE: u64, value: u64) -> u64 in Indexed<3> {{ let local: u64 in Indexed<3> = (value as u64 in Indexed<SIZE + 1>); local }}"
         ),
     );
-    let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect_err("cast index must not fold a runtime parameter as the imported constant");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("cast index must not fold a runtime parameter as the imported constant");
     assert!(
         diagnostics
             .iter()
@@ -660,8 +678,11 @@ fn root_inputs(root: &Path) -> PackageCompilationInputs {
     .unwrap()
 }
 fn compile(root: &Path, inputs: PackageCompilationInputs) -> CheckedCompilation {
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect("machine index fixture checks")
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("machine index fixture checks")
 }
 struct Sources(PathBuf);
 impl Sources {

@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[path = "../fixture_rosters/content_text_and_carriers.rs"]
 pub(super) mod fixture_roster;
@@ -161,8 +162,11 @@ fn authorized_route_establishment_canaries() {
 #[test]
 fn extent_root_provider_adapter_compiles() {
     let canary = pass_canary(fixture_roster::EXTENT_ROOT_PROVIDER_ADAPTER);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("the core Extent projection should survive checked lowering");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("the core Extent projection should survive checked lowering");
     let granted = checked
         .domain_definitions()
         .iter()
@@ -287,8 +291,11 @@ fn content_conservation_contract_is_normalized_and_reported() {
     let source = fs::read_to_string(canary.join("main.omg")).expect("content canary source");
     assert!(source.contains("old(&whole)"));
     assert!(!source.contains("entry(&whole)"));
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("the exact old/separate conservation contract should check");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("the exact old/separate conservation contract should check");
     let [plan] = checked
         .facts
         .qualifications
@@ -383,8 +390,11 @@ fn carry_permission_provider_adapter_compiles_with_exact_artifacts() {
 #[test]
 fn empty_domain_explicit_as_qualifies_vacuously() {
     let canary = pass_canary(fixture_roster::VACUOUS_DOMAIN_QUALIFICATION);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("an empty domain should accept explicit compiler-derived qualification");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("an empty domain should accept explicit compiler-derived qualification");
     let uses = &checked.facts.qualifications.vacuous_uses;
     assert_eq!(uses.len(), 3, "every explicit `as` use must be retained");
     assert_eq!(uses[0].domain, uses[1].domain);
@@ -1310,7 +1320,7 @@ fn runtime_carrier_byte_write_width_coercion_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_CARRIER_BYTE_WRITE_WIDTH_COERCION);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("carrier byte-write coercion canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(

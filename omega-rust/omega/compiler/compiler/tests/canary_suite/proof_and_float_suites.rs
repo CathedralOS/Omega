@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[path = "../fixture_rosters/proof_and_float_suites.rs"]
 pub(super) mod fixture_roster;
@@ -521,8 +522,11 @@ fn exact_float_to_int_proof_canaries() {
 #[test]
 fn generic_float_builtins_retain_exact_provider_evidence() {
     let canary = pass_canary(fixture_roster::ARITHMETIC_RUNTIME_FLOAT_MIN_MAX_ABS_CLAMP_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("generic float builtins should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("generic float builtins should compile to checked trees");
     let uses = checked
         .facts
         .operators
@@ -1243,7 +1247,7 @@ fn runtime_total_order_satisfiers_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::FLOAT_RUNTIME_TOTAL_ORDER_SATISFIERS_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("total-order satisfier canary should compile to checked trees");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(
@@ -1325,7 +1329,7 @@ fn build_runtime_float_semantics_twins_agree() {
 
     let canary = pass_canary(fixture_roster::FLOAT_BUILD_RUNTIME_SEMANTICS_TWINS);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("float semantic twins should compile and evaluate their array length");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
@@ -1500,8 +1504,11 @@ fn linux_arm64_float_semantic_edge_twin_retains_artifact_evidence() {
     .expect("write Linux AArch64 semantic-edge build source");
     let main_path = source_dir.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, Some("linux_arm64"))
-        .expect("Linux AArch64 float twin should compile and evaluate its array length");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &main_path,
+        Some("linux_arm64"),
+    ))
+    .expect("Linux AArch64 float twin should compile and evaluate its array length");
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
     for provider_plan_report_fingerprint in checked
@@ -1690,8 +1697,11 @@ fn linux_x64_baseline_float_semantic_edge_twin_retains_artifact_evidence() {
     ));
     let _ = fs::remove_dir_all(&scratch);
 
-    let checked = compile_to_checked(&main_path, Some("linux_x86_64"))
-        .expect("baseline x86 float twin should compile and evaluate its array length");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &main_path,
+        Some("linux_x86_64"),
+    ))
+    .expect("baseline x86 float twin should compile and evaluate its array length");
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
     for provider_plan_report_fingerprint in checked
@@ -1873,8 +1883,11 @@ fn windows_x64_baseline_float_semantic_edge_twin_retains_artifact_evidence() {
     ));
     let _ = fs::remove_dir_all(&scratch);
 
-    let checked = compile_to_checked(&main_path, Some("windows_x86_64"))
-        .expect("baseline Windows x64 float twin should compile and evaluate its array length");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &main_path,
+        Some("windows_x86_64"),
+    ))
+    .expect("baseline Windows x64 float twin should compile and evaluate its array length");
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
     for provider_plan_report_fingerprint in checked

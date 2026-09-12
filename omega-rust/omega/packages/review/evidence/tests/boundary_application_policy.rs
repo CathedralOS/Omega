@@ -1,6 +1,7 @@
 //! Receipt-free D29 relationships derived from checked compiler consumers.
 mod support;
 
+use compiler::CheckedCompileRequest;
 use package_evidence::record::*;
 use package_evidence::{
     project_checked_boundary_application_policy, project_checked_callable_policy,
@@ -16,11 +17,10 @@ fn compile(source: &str) -> (TempPackage, CheckedCompilation) {
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .unwrap_or_else(|diagnostics| panic!("D29 source should check: {diagnostics:#?}"));
     (package, checked)
 }

@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn package_bare_cases_share_brace_constructor_identity_and_authority() {
@@ -124,8 +125,11 @@ fn bare_case_values_preserve_payload_defaults_shadowing_and_nominal_type() {
             )],
         )
         .unwrap();
-        let errors = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-            .expect_err("a bare value must retain constructor obligations");
+        let errors = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("a bare value must retain constructor obligations");
         assert!(
             errors.iter().any(|error| error.message.contains(expected)),
             "{errors:?}"
@@ -161,8 +165,11 @@ fn bare_package_cases_cannot_escape_local_shadow_or_nominal_destination() {
             )],
         )
         .unwrap();
-        let errors = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-            .expect_err("case construction cannot bypass lexical or nominal identity");
+        let errors = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("case construction cannot bypass lexical or nominal identity");
         assert!(
             errors
                 .iter()
@@ -200,12 +207,17 @@ fn bare_package_case_authority_requires_direct_dependency_and_public_carrier() {
         PackageDependencyBinding::new(identity(1), "middle", identity(2)),
         PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
     ];
-    compile_to_checked_with_packages(
-        &root.join("main.omg"),
-        None,
-        PackageCompilationInputs::new_package(identity(1), sources.clone(), dependencies.clone())
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(
+            PackageCompilationInputs::new_package(
+                identity(1),
+                sources.clone(),
+                dependencies.clone(),
+            )
             .unwrap(),
-    )
+        ),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
     .expect_err("transitive loading grants no direct selection authority");
     dependencies.push(PackageDependencyBinding::new(
         identity(1),
@@ -221,11 +233,12 @@ fn bare_package_case_authority_requires_direct_dependency_and_public_carrier() {
         leaf.join("settings.omg"),
         "module settings; data Value { case Empty; }",
     );
-    let errors = compile_to_checked_with_packages(
-        &root.join("main.omg"),
-        None,
-        PackageCompilationInputs::new_package(identity(1), sources, dependencies).unwrap(),
-    )
+    let errors = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(
+            PackageCompilationInputs::new_package(identity(1), sources, dependencies).unwrap(),
+        ),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
     .expect_err("direct dependency does not expose a private carrier");
     assert!(
         errors.iter().any(|error| error.message.contains("private")),
@@ -262,9 +275,10 @@ fn assert_bare_case_ambiguity(constants: bool) {
             "use left::Choice; use right::Choice; data Choice { case Value; }
              machine make() -> Choice { Choice::Value }",
         );
-        let Err(errors) =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-        else {
+        let Err(errors) = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        }) else {
             panic!("ambiguous declarations cannot become the unique root case");
         };
         assert!(
@@ -294,8 +308,11 @@ fn bare_case_namespace_cannot_capture_a_generic_binder() {
             ),
         );
         assert!(
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .is_err(),
+            compile_to_checked(CheckedCompileRequest {
+                package_inputs: Some(root_inputs(&root)),
+                ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+            })
+            .is_err(),
             "a binder cannot be reinterpreted as a module namespace"
         );
     }
@@ -319,8 +336,10 @@ fn bare_case_namespace_cannot_capture_a_conformance_binder() {
                  }}"
             ),
         );
-        let result =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root));
+        let result = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        });
         if binder == "Selected" {
             result.expect("an unrelated conformance binder permits module case construction");
         } else {
@@ -352,8 +371,10 @@ fn bare_case_namespace_cannot_capture_a_named_state() {
                  }}"
             ),
         );
-        let result =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root));
+        let result = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        });
         if state == "finish" {
             result.expect("an unrelated named state permits module case construction");
         } else {
@@ -424,9 +445,10 @@ fn qualified_constant_cannot_share_a_case_carrier_namespace() {
         root.join("main.omg"),
         "use values; machine make() -> values::Choice { values::Choice::Empty }",
     );
-    let Err(errors) =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-    else {
+    let Err(errors) = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    }) else {
         panic!("a constant and case carrier cannot share the same qualified namespace");
     };
     assert!(
@@ -445,9 +467,10 @@ fn bare_case_value_equality_does_not_replace_payload_sum_membership() {
     let source = "data Sequence { case Empty; case Cons(head: u64, tail: Sequence); }
         machine empty(value: &Sequence) -> bool { value == Sequence::Empty }";
     Sources::write(root.join("main.omg"), source);
-    let Err(errors) =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-    else {
+    let Err(errors) = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    }) else {
         panic!("payload-bearing sum value equality requires its declared conformance");
     };
     assert!(

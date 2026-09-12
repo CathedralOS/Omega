@@ -1,6 +1,7 @@
 //! The concrete Console provider owns its writer and native byte leaves.
 
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn selected_console_adapters_use_only_requirement_arguments() {
@@ -11,8 +12,11 @@ fn selected_console_adapters_use_only_requirement_arguments() {
         "linux_x86_64",
         "linux_arm64",
     ] {
-        let checked = compile_to_checked(&canary.join("main.omg"), Some(target))
-            .unwrap_or_else(|diagnostics| panic!("{target}: {diagnostics:#?}"));
+        let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+            &canary.join("main.omg"),
+            Some(target),
+        ))
+        .unwrap_or_else(|diagnostics| panic!("{target}: {diagnostics:#?}"));
         let plan = checked
             .selected_provider_plans()
             .plans()
@@ -131,8 +135,11 @@ fn selected_console_writer_preserves_checked_output_on_each_target() {
         "linux_x86_64",
         "linux_arm64",
     ] {
-        let checked = compile_to_checked(&canary.join("main.omg"), Some(target))
-            .unwrap_or_else(|diagnostics| panic!("{target}: {diagnostics:#?}"));
+        let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+            &canary.join("main.omg"),
+            Some(target),
+        ))
+        .unwrap_or_else(|diagnostics| panic!("{target}: {diagnostics:#?}"));
         let outcome = interpret(&checked, &[]);
         assert_eq!(
             outcome.error, None,

@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn review_projects_trait_requirement_identity_machine_parameter() {
@@ -13,11 +14,10 @@ fn review_projects_trait_requirement_identity_machine_parameter() {
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("public requirement-identity fixture should check");
     let review = project_checked_package_review(&checked)
         .expect("closed requirement-identity parameter should project");
@@ -120,11 +120,10 @@ pub machine identity<Element, Other, Evidence: Element satisfies Ranked<u64>>(va
     changed_argument.write("build.omg", build);
 
     let review = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("generic conformance-binder fixture should check");
         project_checked_package_review(&checked)
             .expect("generic conformance-binder review should close")
@@ -216,11 +215,10 @@ where proposition {relation}({left}: {carrier}, {right}: {right_type});
         package.write("build.omg", build);
     }
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("public proposition-parameter trait should check");
         project_checked_package_review(&checked)
             .expect("proposition-parameter signatures have canonical review rows")
@@ -283,11 +281,10 @@ where proposition Relation(const value: Carrier);
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("non-default proposition parameter mode currently reaches checked IR");
     let diagnostics = project_checked_package_review(&checked).unwrap_err();
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -383,11 +380,10 @@ where proposition {alternate}(first: {carrier}, second: {carrier});
         package.write("build.omg", build);
     }
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("generic proposition contract endpoint should check");
         project_checked_package_review(&checked)
             .expect("generic proposition contract endpoint should project exactly")
@@ -456,11 +452,10 @@ where proposition Relation(left: Carrier, right: Carrier);
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let diagnostics = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect_err("named generic proposition evidence must fail before checked lowering");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic

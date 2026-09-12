@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn public_callable_signatures_are_exact_and_lifetime_alpha_normalized() {
@@ -42,11 +43,10 @@ pub machine identity<Element [copy]>(value: Element) -> Element { value }
     changed.write("build.omg", build);
 
     let review = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("public callable signature fixture should check");
         project_checked_package_review(&checked).expect("callable signature review should close")
     };
@@ -126,11 +126,10 @@ pub machine inspect(
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("closed compiler-domain fixture should check");
     let review = project_checked_package_review(&checked)
         .expect("closed compiler domains should project without textual fallback");
@@ -207,11 +206,10 @@ pub data Reading {
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("structured const package fixture should check");
     let review = project_checked_package_review(&checked)
         .expect("structured const value should project through closed identity");

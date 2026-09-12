@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn review_projects_root_boundary_and_build_authority() {
@@ -39,11 +40,10 @@ crashes Abort
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("package fixture should check");
     let observations = checked
         .build_observation_summary()
@@ -408,11 +408,10 @@ reaches MachineControl + PortIo
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("ordinary public export fixture should check before package review");
     let diagnostics = project_checked_package_review(&checked)
         .expect_err("an ordinary public export cannot retain an unresolved installation row");
@@ -449,11 +448,10 @@ machine ping_leaf() satisfies Host::ping via Binding::DllImport("omega-test", "h
         ),
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("plan-name provider grant fixture should check");
     let review = project_checked_package_review(&checked)
         .expect("plan-name provider grant should project exactly");
@@ -482,11 +480,10 @@ machine ping_leaf() satisfies Host::ping via Binding::DllImport("omega-test", "h
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let unchecked_grant = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let unchecked_grant = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("otherwise identical provider fixture without a grant should check");
     let ungranted_review = project_checked_package_review(&unchecked_grant)
         .expect("ungranted selected provider should still project");
@@ -517,11 +514,10 @@ fn review_projects_exact_accepted_boundary_contracts() {
             r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("accepted boundary claim should check");
         project_checked_package_review(&checked).expect("accepted boundary contract review")
     };

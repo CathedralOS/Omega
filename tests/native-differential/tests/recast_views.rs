@@ -4,6 +4,7 @@
 mod fixture_roster;
 
 use checked_interpreter::{InterpretOutcome, interpret_entry};
+use compiler::CheckedCompileRequest;
 use compiler::{CheckedCompilation, compile_to_checked};
 use std::path::{Path, PathBuf};
 
@@ -25,16 +26,17 @@ fn mutable_equivalent_domain_recast_preserves_the_established_fact() {
         .join("tests/omega/pass")
         .join(fixture_roster::RUNTIME_MUTABLE_EQUIVALENT_DOMAIN_RECAST_EXIT)
         .join("main.omg");
-    let checked = compile_to_checked(&main, None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "equivalent-domain recast should compile:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked =
+        compile_to_checked(CheckedCompileRequest::new(&main, None)).unwrap_or_else(|diagnostics| {
+            panic!(
+                "equivalent-domain recast should compile:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
     let outcome = interpret(&checked, b"");
     assert!(
         !outcome.is_error(),
@@ -50,16 +52,17 @@ fn mutable_equivalent_range_recast_preserves_the_established_fact() {
         .join("tests/omega/pass")
         .join(fixture_roster::RUNTIME_MUTABLE_EQUIVALENT_RANGE_RECAST_EXIT)
         .join("main.omg");
-    let checked = compile_to_checked(&main, None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "equivalent-range recast should compile:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked =
+        compile_to_checked(CheckedCompileRequest::new(&main, None)).unwrap_or_else(|diagnostics| {
+            panic!(
+                "equivalent-range recast should compile:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
     let outcome = interpret(&checked, b"");
     assert!(
         !outcome.is_error(),
@@ -75,16 +78,17 @@ fn bool_representation_recasts_preserve_aliasing_and_facts() {
         .join("tests/omega/pass")
         .join(fixture_roster::RUNTIME_BOOL_REPRESENTATION_RECAST_EXIT)
         .join("main.omg");
-    let checked = compile_to_checked(&main, None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "bool representation recasts should compile:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked =
+        compile_to_checked(CheckedCompileRequest::new(&main, None)).unwrap_or_else(|diagnostics| {
+            panic!(
+                "bool representation recasts should compile:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
     let outcome = interpret(&checked, b"");
     assert!(
         !outcome.is_error(),
@@ -100,16 +104,17 @@ fn shared_domain_weakening_preserves_the_source_value() {
         .join("tests/omega/pass")
         .join(fixture_roster::RUNTIME_SHARED_DOMAIN_WEAKENING_RECAST_EXIT)
         .join("main.omg");
-    let checked = compile_to_checked(&main, None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "shared domain weakening should compile:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked =
+        compile_to_checked(CheckedCompileRequest::new(&main, None)).unwrap_or_else(|diagnostics| {
+            panic!(
+                "shared domain weakening should compile:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
     let outcome = interpret(&checked, b"");
     assert!(
         !outcome.is_error(),
@@ -125,16 +130,17 @@ fn float_range_recasts_preserve_aliasing_and_interval_facts() {
         .join("tests/omega/pass")
         .join(fixture_roster::RUNTIME_FLOAT_RANGE_REPRESENTATION_RECAST_EXIT)
         .join("main.omg");
-    let checked = compile_to_checked(&main, None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "same-carrier float range recasts should compile:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked =
+        compile_to_checked(CheckedCompileRequest::new(&main, None)).unwrap_or_else(|diagnostics| {
+            panic!(
+                "same-carrier float range recasts should compile:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
     let outcome = interpret(&checked, b"");
     assert!(
         !outcome.is_error(),
@@ -150,16 +156,17 @@ fn shared_record_float_range_weakening_preserves_the_leaf_value() {
         .join("tests/omega/pass")
         .join(fixture_roster::RUNTIME_SHARED_RECORD_FLOAT_RANGE_WEAKENING_EXIT)
         .join("main.omg");
-    let checked = compile_to_checked(&main, None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "shared record float-range weakening should compile:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked =
+        compile_to_checked(CheckedCompileRequest::new(&main, None)).unwrap_or_else(|diagnostics| {
+            panic!(
+                "shared record float-range weakening should compile:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
     let outcome = interpret(&checked, b"");
     assert!(
         !outcome.is_error(),
@@ -175,16 +182,17 @@ fn mutable_equivalent_record_recast_preserves_aliasing_and_facts() {
         .join("tests/omega/pass")
         .join(fixture_roster::RUNTIME_MUTABLE_EQUIVALENT_RECORD_RECAST_EXIT)
         .join("main.omg");
-    let checked = compile_to_checked(&main, None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "equivalent-record recast should compile:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked =
+        compile_to_checked(CheckedCompileRequest::new(&main, None)).unwrap_or_else(|diagnostics| {
+            panic!(
+                "equivalent-record recast should compile:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
     let outcome = interpret(&checked, b"");
     assert!(
         !outcome.is_error(),
@@ -200,16 +208,17 @@ fn aggregate_slice_recasts_preserve_repeated_leaf_facts_and_aliasing() {
         .join("tests/omega/pass")
         .join(fixture_roster::RUNTIME_AGGREGATE_SLICE_REPRESENTATION_RECAST_EXIT)
         .join("main.omg");
-    let checked = compile_to_checked(&main, None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "aggregate slice representation recast should compile:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked =
+        compile_to_checked(CheckedCompileRequest::new(&main, None)).unwrap_or_else(|diagnostics| {
+            panic!(
+                "aggregate slice representation recast should compile:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
     let outcome = interpret(&checked, b"");
     assert!(
         !outcome.is_error(),
@@ -225,16 +234,17 @@ fn interior_slice_recasts_preserve_dynamic_tail_length_and_aliasing() {
         .join("tests/omega/pass")
         .join(fixture_roster::RUNTIME_INTERIOR_SLICE_VIEW_MUTABLE_WRITE_EXIT)
         .join("main.omg");
-    let checked = compile_to_checked(&main, None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "interior slice recast should compile:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked =
+        compile_to_checked(CheckedCompileRequest::new(&main, None)).unwrap_or_else(|diagnostics| {
+            panic!(
+                "interior slice recast should compile:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
     let outcome = interpret(&checked, b"");
     assert!(
         !outcome.is_error(),

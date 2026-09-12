@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn review_projects_exact_concrete_type_arguments_in_contract_calls() {
@@ -22,11 +23,10 @@ ensures result == tag<{selected_type}>();
     package.write("build.omg", build);
     changed.write("build.omg", build);
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("effect-free static type contract call should check");
         project_checked_package_review(&checked)
             .expect("a direct concrete type argument has a canonical contract row")
@@ -91,11 +91,10 @@ ensures result == constant<{selected_value}>();
     package.write("build.omg", build);
     changed.write("build.omg", build);
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("effect-free const-generic contract call should check");
         project_checked_package_review(&checked)
             .expect("a direct integer const argument has a canonical contract row")
@@ -161,11 +160,10 @@ ensures result == constant<LIMIT, OTHER>();
             ),
         );
         package.write("build.omg", build);
-        compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("named const static contract argument should check")
     };
 
@@ -297,11 +295,10 @@ ensures result == selected<ENABLED>();
             ),
         );
         package.write("build.omg", build);
-        compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("named Boolean const static contract argument should check")
     };
     let static_arguments = |review: &CheckedPackageReviewProjection| {
@@ -440,11 +437,10 @@ ensures result == selected<SELECTED, ACTIVE>();
             ),
         );
         package.write("build.omg", build);
-        compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("named structured const static contract argument should check")
     };
     let static_argument = |review: &CheckedPackageReviewProjection| {
@@ -577,11 +573,10 @@ ensures result == constant<LIMIT>();
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let diagnostics = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect_err("a public contract must not expose a private named const");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -651,11 +646,10 @@ requires constant<{selected_const}>() == constant<{selected_const}>()
         package.write("build.omg", build);
     }
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("forwarded type and const contract arguments should check");
         project_checked_package_review(&checked)
             .expect("forwarded type and const binders have canonical review rows")
@@ -736,11 +730,10 @@ ensures result == tag<Wrapper<{nested_type}>>();
     package.write("build.omg", build);
     changed.write("build.omg", build);
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("nested static type contract call should check");
         project_checked_package_review(&checked)
             .expect("a recursive generic data argument has a canonical contract row")
@@ -821,11 +814,10 @@ ensures result == tag<Card, {selected}<Card>>();
     original.write("build.omg", build);
     changed.write("build.omg", build);
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("closed generic conformance contract argument should check");
         assert_eq!(
             checked
@@ -921,11 +913,10 @@ ensures result == tag<Card, FieldOrder<Card, {rank}>>();
     original.write("build.omg", build);
     changed.write("build.omg", build);
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("integer-const conformance contract argument should check");
         project_checked_package_review(&checked)
             .expect("integer-const conformance contract argument should project")
@@ -1012,11 +1003,10 @@ ensures result == tag<Card, FieldOrder<Card, RANK, MARKER>>();
     original.write("build.omg", build);
     changed.write("build.omg", build);
     let compile = |package: &TempPackage| {
-        compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("named canonical const conformance arguments should check")
     };
     let checked = compile(&original);
@@ -1172,11 +1162,10 @@ ensures result == tag<Card, FieldOrder<Card, {selected}>>();
         package.write("build.omg", build);
     }
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("forwarded-const conformance contract argument should check");
         project_checked_package_review(&checked)
             .expect("a forwarded const binder has an exact closed-conformance review row")
@@ -1252,11 +1241,10 @@ ensures result == tag<Card, FieldOrder<Card, 7>>();
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let mut checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let mut checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("integer-const conformance occurrence fixture should check");
     let retained = &mut checked
         .facts
@@ -1305,11 +1293,10 @@ ensures result == tag<Card, Slot<Card>>();
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("machine-parameterized conformance contract argument should check");
     let diagnostics = project_checked_package_review(&checked)
         .expect_err("a machine target argument must not be mislabeled as a type");
@@ -1343,11 +1330,10 @@ ensures result == tag<Card, FieldOrder<Card>>();
 "#,
     );
     let compile = || {
-        compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("closed generic conformance occurrence fixture should check")
     };
 

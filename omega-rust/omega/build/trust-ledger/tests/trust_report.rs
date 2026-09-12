@@ -2,6 +2,7 @@
 //! selected-provider grants may create receipts; domains and unmatched strings
 //! are not trust subjects.
 
+use compiler::CheckedCompileRequest;
 use compiler::{CompileOptions, compile_to_checked};
 
 #[test]
@@ -240,7 +241,7 @@ machine Main::exercise(&mut self) {}
     )
     .expect("write main.omg");
 
-    let checked = compile_to_checked(&project.join("main.omg"), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&project.join("main.omg"), None))
         .expect("accepted claim should reach checked facts");
     let accepted = checked
         .typed
@@ -1178,7 +1179,7 @@ machine Main::exercise(&mut self) {}
     )
     .expect("write main.omg");
 
-    let checked = compile_to_checked(&project.join("main.omg"), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&project.join("main.omg"), None))
         .expect("calling-policy provider should check");
     let expected_selected_closure = checked.selected_provider_plans().report_fingerprint();
     let tick = checked

@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn review_projects_collection_length_as_an_exact_compiler_intrinsic() {
@@ -13,11 +14,10 @@ fn review_projects_collection_length_as_an_exact_compiler_intrinsic() {
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("public collection-length proposition should check");
     let length_selection = checked
         .authored_declaration_selections()
@@ -73,11 +73,10 @@ fn review_rejoins_unary_contract_operator_to_its_exact_compiler_intrinsic() {
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("public unary proposition should check");
     let inverted = checked
         .propositions()
@@ -170,11 +169,10 @@ requires buffer.len > 0
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("same-spelled package field contract should check");
     let review = project_checked_package_review(&checked)
         .expect("same-spelled package field should retain nominal review identity");
@@ -231,11 +229,10 @@ requires (value as {target_type}) == 1
     u16_cast.write("build.omg", build);
     u32_cast.write("build.omg", build);
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("exact widening cast contract should check");
         project_checked_package_review(&checked).expect("cast contract package review")
     };
@@ -303,11 +300,10 @@ requires (value as u16 in Tagged) == 1
 "#,
     );
     public.write("build.omg", build);
-    let checked = compile_to_checked_with_packages(
-        &public.0.join("main.omg"),
-        Some(target),
-        package_inputs(&public.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&public.0)),
+        ..CheckedCompileRequest::new(&public.0.join("main.omg"), Some(target))
+    })
     .expect("public semantic-domain cast contract should check");
     let review = project_checked_package_review(&checked).expect("public domain cast review");
     let compare = review
@@ -347,11 +343,10 @@ requires (value as u16 in Hidden) == 1
 "#,
     );
     private.write("build.omg", build);
-    let diagnostics = compile_to_checked_with_packages(
-        &private.0.join("main.omg"),
-        Some(target),
-        package_inputs(&private.0),
-    )
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&private.0)),
+        ..CheckedCompileRequest::new(&private.0.join("main.omg"), Some(target))
+    })
     .expect_err("checked visibility must reject a private semantic domain in a public contract");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic

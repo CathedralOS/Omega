@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[path = "../fixture_rosters/generics_and_dependent_facts.rs"]
 pub(super) mod fixture_roster;
@@ -10,8 +11,11 @@ fn declared_range_inference_returns_the_selected_endpoint() {
     };
 
     let canary = pass_canary("generics/declared_range_endpoint_inference");
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("computed declared endpoints select closed calls");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("computed declared endpoints select closed calls");
     let admission = BuildTimeAdmissionPlan::infer(&checked.typed);
     for (name, arguments, expected) in [
         ("inferred", vec![BuildTimeValue::Int(0)], 256),
@@ -185,7 +189,7 @@ fn zii_string_host_write_exit_canary_runs() {
     // A ZII bounded carrier reaches the host adapter as an empty borrowed view.
     let canary = pass_canary(fixture_roster::ZII_STRING_HOST_WRITE_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("ZII carrier host-write canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(outcome.exit_code, 70);
@@ -216,7 +220,7 @@ fn zii_default_string_equality_exit_canary_runs() {
     // non-empty-literal leg must not read beyond its zero length.
     let canary = pass_canary(fixture_roster::ZII_DEFAULT_STRING_EQUALITY_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("ZII carrier equality canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -250,8 +254,11 @@ fn runtime_owned_string_byte_view_exit_canary_runs() {
     // interpreter shares the same byte cell; neither path passes the owned
     // String directly as a byte-slice argument.
     let canary = pass_canary(fixture_roster::RUNTIME_OWNED_STRING_BYTE_VIEW_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("owned String byte-view canary should check");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("owned String byte-view canary should check");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(
         interpreted.error, None,
@@ -303,7 +310,7 @@ fn runtime_text_not_equals_exit_canary_runs() {
     // (the negation flag was ignored and != behaved as == on both ISAs).
     let canary = pass_canary(fixture_roster::RUNTIME_TEXT_NOT_EQUALS_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("carrier text not-equals canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -337,7 +344,7 @@ fn runtime_text_equals_boolean_operand_exit_canary_runs() {
     // x15 collided with the right pool's first pick and read garbage).
     let canary = pass_canary(fixture_roster::RUNTIME_TEXT_EQUALS_BOOLEAN_OPERAND_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("carrier text boolean-operand canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -372,7 +379,7 @@ fn case_literal_texteq_terminal_exit_canary_runs() {
     // clobber the write's target base (x15, not x16).
     let canary = pass_canary(fixture_roster::CASE_LITERAL_TEXTEQ_TERMINAL_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("carrier texteq terminal canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -407,7 +414,7 @@ fn case_literal_texteq_field_store_exit_canary_runs() {
     // poisoned). Exit 70 proves content delivery, not just compilation.
     let canary = pass_canary(fixture_roster::CASE_LITERAL_TEXTEQ_FIELD_STORE_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("carrier texteq field-store canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -441,7 +448,7 @@ fn runtime_text_equals_value_positions_exit_canary_runs() {
     // leg that broke.
     let canary = pass_canary(fixture_roster::RUNTIME_TEXT_EQUALS_VALUE_POSITIONS_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("carrier text value-position canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -730,7 +737,7 @@ fn runtime_gui_foreground_window_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_GUI_FOREGROUND_WINDOW_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("gui foreground-window canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -845,8 +852,11 @@ fn runtime_generic_value_call_exit_canary_runs() {
 #[test]
 fn trait_generic_bound_static_dispatch_canary_runs() {
     let canary = pass_canary(fixture_roster::TRAIT_GENERIC_BOUND_STATIC_DISPATCH);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("bounded generic call should specialize to its nominal conformance");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("bounded generic call should specialize to its nominal conformance");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 1);
@@ -876,8 +886,11 @@ fn trait_generic_bound_static_dispatch_canary_runs() {
 #[test]
 fn runtime_generic_param_position_inference_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_GENERIC_PARAM_POSITION_INFERENCE_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("borrowed-place parameter inference canary should check");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("borrowed-place parameter inference canary should check");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 70);
@@ -906,8 +919,11 @@ fn runtime_generic_param_position_inference_exit_canary_runs() {
 #[test]
 fn runtime_generic_multiple_specializations_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_GENERIC_MULTIPLE_SPECIALIZATIONS_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("multiple generic-machine specialization tuples should check");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("multiple generic-machine specialization tuples should check");
     assert_eq!(
         checked
             .machine_specializations
@@ -952,8 +968,11 @@ fn runtime_generic_enum_payload_exit_canary_runs() {
     // matched, and destructured natively -- the Option<T> shape. Its erased evidence payload
     // remains semantic but takes no runtime storage. Exit 70 via the material payload.
     let canary = pass_canary(fixture_roster::RUNTIME_GENERIC_ENUM_PAYLOAD_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("generic enum payload canary should reach checked semantics");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("generic enum payload canary should reach checked semantics");
     let interpreted = checked_interpreter::interpret_entry(&checked, "Main::main", &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 70);
@@ -1147,8 +1166,11 @@ fn closed_indexed_domain_canaries() {
                 .join("\n")
         )
     });
-    let checked = compile_to_checked(&pass.join("main.omg"), None)
-        .expect("closed indexed qualifications should survive checked lowering");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &pass.join("main.omg"),
+        None,
+    ))
+    .expect("closed indexed qualifications should survive checked lowering");
     let uses = &checked.facts.qualifications.vacuous_uses;
     assert_eq!(
         uses.len(),
@@ -1285,8 +1307,11 @@ fn std_units_package_conversion_and_operator_canaries() {
     }
 
     let pass = pass_canary(fixture_roster::RUNTIME_STD_UNITS_EXIT);
-    let checked = compile_to_checked(&pass.join("main.omg"), None)
-        .expect("shipped named units, conversions, and operators should check");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &pass.join("main.omg"),
+        None,
+    ))
+    .expect("shipped named units, conversions, and operators should check");
     assert!(
         checked
             .facts
@@ -1345,8 +1370,11 @@ fn std_units_package_conversion_and_operator_canaries() {
 #[test]
 fn open_computed_quantity_result_canary_runs() {
     let canary = pass_canary(fixture_roster::OPEN_COMPUTED_QUANTITY_RESULT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("generic computed index result should check");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("generic computed index result should check");
     let selections = checked
         .open_index_normalizations
         .iter()
@@ -1413,8 +1441,11 @@ fn open_computed_quantity_result_canary_runs() {
 #[test]
 fn open_index_exact_local_fact_canary_runs() {
     let canary = pass_canary(fixture_roster::OPEN_INDEX_LOCAL_FACT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("an exact active equality should discharge open index compatibility");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("an exact active equality should discharge open index compatibility");
     let conditions = checked
         .facts
         .index_compatibility
@@ -2453,8 +2484,11 @@ fn runtime_bounded_product_index_exit_canary_runs() {
     // R3: runtime dims coupled only by `requires rows * cols <= 12`; the
     // product rule store-proves the ranged temp and the index rides it.
     let canary = pass_canary(fixture_roster::RUNTIME_BOUNDED_PRODUCT_INDEX_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("bounded-product canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("bounded-product canary should compile to checked trees");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(interpreted.error, None, "should interpret cleanly");
     assert_eq!(

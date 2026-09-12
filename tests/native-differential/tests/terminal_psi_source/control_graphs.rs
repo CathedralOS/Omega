@@ -1,8 +1,9 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn checked_source_nested_jump_expressions_reach_terminal_and_target_lowering() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("computed nested-jump source canary should compile");
     let lowered = lower_machine(&checked, "terminal_nested_jump_expression")
         .expect("an unconditional nested jump may compute its arguments");
@@ -70,7 +71,7 @@ fn checked_source_nested_jump_expressions_reach_terminal_and_target_lowering() {
 
 #[test]
 fn checked_source_conditional_edge_expressions_execute_only_on_the_selected_arm() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("computed conditional-edge source canary should compile");
     let lowered = lower_machine(&checked, "terminal_conditional_edge_expression")
         .expect("conditional edges may compute bindings in selected-arm blocks");
@@ -162,7 +163,7 @@ fn checked_source_conditional_edge_expressions_execute_only_on_the_selected_arm(
 
 #[test]
 fn checked_source_short_circuit_guard_keeps_computed_bindings_arm_local() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("short-circuit computed-edge source canary should compile");
     let lowered = lower_machine(&checked, "terminal_short_circuit_edge_expression")
         .expect("short-circuit guards should route into selected binding blocks");
@@ -258,7 +259,7 @@ fn checked_source_short_circuit_guard_keeps_computed_bindings_arm_local() {
 
 #[test]
 fn checked_source_mixed_scalar_boolean_short_circuit_preserves_selected_fuel() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("mixed-scalar Boolean short-circuit canary should compile");
     let lowered = lower_machine(&checked, "terminal_mixed_scalar_boolean_short_circuit")
         .expect("mixed-scalar Boolean short-circuit graph should lower");
@@ -315,7 +316,7 @@ fn checked_source_mixed_scalar_boolean_short_circuit_preserves_selected_fuel() {
 #[cfg(unix)]
 #[test]
 fn source_closed_integer_chain_matches_target_lowering() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("terminal-Psi closed integer-chain canary should compile");
     let lowered = lower_machine(&checked, "terminal_closed_integer_chain")
         .expect("closed integer state chain should lower");
@@ -335,7 +336,7 @@ fn source_closed_integer_chain_matches_target_lowering() {
 
 #[test]
 fn source_runtime_arithmetic_retains_target_parameter_abi_and_provenance() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("terminal-Psi runtime arithmetic source canary should compile");
     let lowered = [
         ("terminal_runtime_wrapping_add", 1_usize),

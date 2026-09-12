@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[path = "module_constants/lexical_aggregate_values.rs"]
 mod lexical_aggregate_values;
@@ -54,9 +55,11 @@ fn module_constants_retain_local_qualified_and_imported_declaration_identity() {
              machine second() -> u64 {{ rooms::DAMAGE }}"
             ),
         );
-        let checked =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect("module constants remain distinct in both source discovery orders");
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect("module constants remain distinct in both source discovery orders");
         let selections = constant_selections(&checked);
         for path in ["combat::DAMAGE", "rooms::DAMAGE"] {
             assert!(
@@ -100,8 +103,11 @@ fn public_module_constants_keep_exact_dependency_owners() {
         ],
     )
     .unwrap();
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect("qualified constants select exact direct dependency owners");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("qualified constants select exact direct dependency owners");
     let selections = constant_selections(&checked);
     for owner in [identity(2), identity(3)] {
         assert!(
@@ -138,15 +144,20 @@ fn private_module_constant_import_rejects_even_when_unused() {
             dependency.join("combat.omg"),
             "module combat; pub const DAMAGE: u64 = 7;",
         );
-        compile_to_checked_with_packages(&root.join("main.omg"), None, inputs.clone())
-            .expect("public constant import has an otherwise valid source fixture");
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs.clone()),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect("public constant import has an otherwise valid source fixture");
         TempTree::write(
             dependency.join("combat.omg"),
             "module combat; const DAMAGE: u64 = 7;",
         );
-        let diagnostics =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, inputs.clone())
-                .expect_err("using or merely importing a private constant cannot publish it");
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs.clone()),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("using or merely importing a private constant cannot publish it");
         assert!(
             diagnostics
                 .iter()
@@ -186,8 +197,11 @@ fn module_constant_selection_does_not_gain_transitive_dependency_authority() {
     let transitive =
         PackageCompilationInputs::new_package(identity(1), sources.clone(), dependencies.clone())
             .unwrap();
-    compile_to_checked_with_packages(&root.join("main.omg"), None, transitive)
-        .expect_err("a loaded transitive constant retains its declaration selection boundary");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(transitive),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a loaded transitive constant retains its declaration selection boundary");
     dependencies.push(PackageDependencyBinding::new(
         identity(1),
         "leaf",
@@ -198,8 +212,11 @@ fn module_constant_selection_does_not_gain_transitive_dependency_authority() {
         "use middle::bridge; use leaf::combat::DAMAGE; machine value() -> u64 { DAMAGE }",
     );
     let direct = PackageCompilationInputs::new_package(identity(1), sources, dependencies).unwrap();
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, direct)
-        .expect("a direct edge authorizes the public constant");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(direct),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("a direct edge authorizes the public constant");
     assert!(
         constant_selections(&checked).contains(&("combat::DAMAGE".to_owned(), Some(identity(3))))
     );
@@ -223,8 +240,11 @@ fn ambiguous_module_constant_leaves_reject_in_both_import_orders() {
             root.join("main.omg"),
             &format!("{imports} machine value() -> u64 {{ DAMAGE }}"),
         );
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect_err("ambiguous constants cannot select by declaration traversal order");
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("ambiguous constants cannot select by declaration traversal order");
     }
 }
 
@@ -239,9 +259,11 @@ fn lexical_values_shadow_module_constants_without_selecting_them() {
          machine local() -> u64 { let DAMAGE: u64 = 9; DAMAGE }",
     );
     TempTree::write(root.join("main.omg"), "use combat; data Main {}");
-    let checked =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect("lexical values precede constants in module lookup");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("lexical values precede constants in module lookup");
     assert!(
         constant_selections(&checked).is_empty(),
         "shadowed constant is not an authored selection"
@@ -303,7 +325,7 @@ fn public_float_constants_retain_landed_identity_and_exact_import_owner() {
         )],
     )
     .expect("one direct dependency");
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+    let checked = compile_to_checked(CheckedCompileRequest { package_inputs: Some(inputs), ..CheckedCompileRequest::new(&root.join("main.omg"), None) })
         .expect("public floating constants retain exact declaration identity without becoming generic atoms");
     let encoding = |name: &str| {
         let declaration = checked
@@ -390,11 +412,11 @@ fn public_float_declarations_do_not_admit_floating_generic_indices() {
                 "use settings; data Pick<const V: f32> {{ marker: u8; }} machine keep(value: Pick<{argument}>) -> Pick<{argument}> {{ value }}"
             ),
         );
-        let errors =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err(
-                    "a public declaration encoding does not make Float a canonical index carrier",
-                );
+        let errors = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("a public declaration encoding does not make Float a canonical index carrier");
         assert!(
             errors.iter().any(
                 |error| error.message.contains("not eligible as a const index")
@@ -421,11 +443,11 @@ fn public_float_declarations_do_not_admit_machine_or_domain_indices() {
         "use settings; domain<T, const V: f32> T::Scaled<V>; machine keep(value: u64 in Scaled<settings::SCALE>) -> u64 in Scaled<settings::SCALE> { value }",
     ] {
         TempTree::write(root.join("main.omg"), source);
-        let errors =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err(
-                    "public Float identity is not a proof-static atom even for an unused binder",
-                );
+        let errors = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("public Float identity is not a proof-static atom even for an unused binder");
         assert!(
             errors.iter().any(
                 |error| error.message.contains("no eligible canonical value")
@@ -449,9 +471,11 @@ fn public_float_identity_requires_literals_with_matching_landings() {
             root.join("main.omg"),
             &format!("pub const VALUE: f32 = {initializer};"),
         );
-        let errors =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err("declaration encoding preserves literal landing limits");
+        let errors = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("declaration encoding preserves literal landing limits");
         assert!(
             errors
                 .iter()
@@ -486,9 +510,11 @@ fn nominal_constant_bodies_preserve_qualified_and_imported_carriers() {
              data Choice [copy] {{ case Empty; case Some(value: Value); }}
              machine keep() -> {carrier} {{ let first: {carrier} = {value}; let second: {carrier} = {value}; second }}"
         ));
-        let checked =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect("nominal constant keeps declaration-site constructors through checking");
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect("nominal constant keeps declaration-site constructors through checking");
         let machine = checked
             .machines()
             .iter()
@@ -638,7 +664,12 @@ fn nominal_constant_bodies_reject_wrong_carriers_and_private_selection() {
                 use_site.replace("settings::", "library::settings::")
             ),
         );
-        if compile_to_checked_with_packages(&root.join("main.omg"), None, inputs.clone()).is_ok() {
+        if compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs.clone()),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .is_ok()
+        {
             incorrectly_accepted.push((declaration, use_site));
         }
     }
@@ -678,8 +709,11 @@ fn nominal_constant_bodies_do_not_gain_transitive_package_selection() {
     let indirect =
         PackageCompilationInputs::new_package(identity(1), sources.clone(), dependencies.clone())
             .unwrap();
-    compile_to_checked_with_packages(&root.join("main.omg"), None, indirect)
-        .expect_err("loaded initializer and carrier grant no transitive selection");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(indirect),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("loaded initializer and carrier grant no transitive selection");
     dependencies.push(PackageDependencyBinding::new(
         identity(1),
         "leaf",
@@ -690,8 +724,11 @@ fn nominal_constant_bodies_do_not_gain_transitive_package_selection() {
         root.join("main.omg"),
         "use middle::bridge; use leaf::settings; machine keep()->leaf::settings::Value { leaf::settings::VALUE }",
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, direct)
-        .expect("direct dependency and public declarations grant exact body selection");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(direct),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("direct dependency and public declarations grant exact body selection");
 }
 
 #[test]
@@ -706,6 +743,9 @@ fn nominal_constant_bodies_preserve_empty_array_fields() {
         root.join("main.omg"),
         "use settings; machine keep()->settings::Value { settings::VALUE }",
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-        .expect("constant eligibility preserves empty arrays within exact copy carriers");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("constant eligibility preserves empty arrays within exact copy carriers");
 }

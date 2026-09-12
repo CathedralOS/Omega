@@ -14,14 +14,7 @@ pub use compiler::{
     realize_retained_native_artifact, retained_terminal_report_from_checked_package,
     validate_lowered_ieee_float_comparison_custody,
 };
-pub use pipeline::checked_entry::{
-    CheckedCompilation, compile_to_checked, compile_to_checked_with_packages,
-    compile_to_checked_with_packages_and_replay_record,
-    compile_to_checked_with_packages_in_build_dir,
-    compile_to_checked_with_packages_in_sponsored_build_dir,
-    compile_to_checked_with_packages_in_sponsored_build_session,
-    compile_to_checked_with_replay_record,
-};
+pub use pipeline::checked_entry::{CheckedCompilation, CheckedCompileRequest, compile_to_checked};
 pub use pipeline::x86_fma_plan_association::CheckedX86ScalarFmaPlanAssociation;
 pub(crate) use source_files_to_tokens as lexer;
 pub(crate) use tokens_to_syntax_trees as parser;

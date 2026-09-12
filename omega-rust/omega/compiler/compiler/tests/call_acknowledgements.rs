@@ -1,3 +1,4 @@
+use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
 use language_semantics::CallOperationalAcknowledgementOrigin;
 use std::fs;
@@ -20,7 +21,7 @@ fn write_program(name: &str, source: &str) -> PathBuf {
 
 fn compile_error(name: &str, source: &str) -> String {
     let main_path = write_program(name, source);
-    let diagnostics = compile_to_checked(&main_path, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect_err("call acknowledgement violation must reject compilation");
     let rendered = diagnostics
         .iter()
@@ -60,7 +61,7 @@ machine Main::main(&mut self) { }
 #[test]
 fn exact_acknowledgements_cover_all_four_operational_envelopes() {
     let main_path = write_program("four-envelopes", FOUR_ENVELOPES);
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("all four exact acknowledgement combinations should compile");
     let calls = checked.facts.flow.control.calls.iter().collect::<Vec<_>>();
     assert_eq!(calls.len(), 4);
@@ -143,7 +144,8 @@ fn suspension_rejects_nested_position_while_blocking_may_nest() {
             "machine nested(value_source: &mut Value) -> u64 reaches Value blocks; {\n    let value: u64 = 1 + block value_source.get();\n    value\n}",
         );
     let main_path = write_program("nested-block", &nested_block);
-    compile_to_checked(&main_path, None).expect("blocking-only call may nest");
+    compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("blocking-only call may nest");
     let _ = fs::remove_dir_all(main_path.parent().expect("temporary program directory"));
 }
 
@@ -178,7 +180,8 @@ machine terminal(value_source: &mut Value) -> u64 reaches Value suspends; {
 machine Main::main(&mut self) { }
 "#;
     let main_path = write_program("direct-positions", source);
-    compile_to_checked(&main_path, None).expect("all direct suspension positions should compile");
+    compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("all direct suspension positions should compile");
     let _ = fs::remove_dir_all(main_path.parent().expect("temporary program directory"));
 }
 
@@ -194,7 +197,7 @@ machine caller(worker: &mut Worker) {
 machine Main::main(&mut self) { }
 "#;
     let main_path = write_program("local-checked-narrowing", source);
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("a locally checked empty body should narrow its authored operational ceiling");
     let calls = checked
         .facts
@@ -231,7 +234,7 @@ fn task_start_acknowledges_only_the_start_operation_not_the_target_machine() {
         .join("../../../../tests/omega/pass")
         .join(fixtures::TASK_RUNTIME_MACHINE_SELECTION_COMPILE)
         .join("main.omg");
-    let checked = compile_to_checked(&canary, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&canary, None))
         .expect("task-start canary should compile with unmarked immediate start calls");
     let start_symbols = checked
         .task_activations()
@@ -285,8 +288,8 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked =
-        compile_to_checked(&canary, None).expect("synthesized equality-call canary should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&canary, None))
+        .expect("synthesized equality-call canary should compile");
     let synthesized = checked
         .facts
         .flow

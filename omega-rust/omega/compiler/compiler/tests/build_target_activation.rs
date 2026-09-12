@@ -1,7 +1,7 @@
+use compiler::CheckedCompileRequest;
 use compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct,
-    RetainedNativeRealizationRequest, compile, compile_to_checked,
-    compile_to_checked_with_packages, realize_retained_native_artifact,
+    RetainedNativeRealizationRequest, compile, compile_to_checked, realize_retained_native_artifact,
 };
 use package_compilation::{
     BuildDeclarationKind, PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
@@ -105,12 +105,15 @@ fn package_inputs_with_standard_library(
 }
 
 fn diagnostic_text(project: &TempProject) -> String {
-    compile_to_checked(&project.main(), Some("windows_x86_64"))
-        .expect_err("immutable target violation must reject")
-        .into_iter()
-        .map(|diagnostic| diagnostic.message)
-        .collect::<Vec<_>>()
-        .join("\n")
+    compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("windows_x86_64"),
+    ))
+    .expect_err("immutable target violation must reject")
+    .into_iter()
+    .map(|diagnostic| diagnostic.message)
+    .collect::<Vec<_>>()
+    .join("\n")
 }
 
 #[test]
@@ -128,8 +131,11 @@ fn exact_target_is_source_visible_and_drives_build_evaluation() {
     }"#,
     ));
 
-    let checked = compile_to_checked(&project.main(), Some("windows_x86_64"))
-        .expect("the selected target must be an ordinary readable Omega value");
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("windows_x86_64"),
+    ))
+    .expect("the selected target must be an ordinary readable Omega value");
     assert_eq!(
         checked.selected_target_profile(),
         Some(target::TargetProfile::WindowsX64)
@@ -139,8 +145,11 @@ fn exact_target_is_source_visible_and_drives_build_evaluation() {
         checked.application_intent(),
         Some(build_evaluation::HostedApplicationIntent::Gui)
     );
-    let other = compile_to_checked(&project.main(), Some("macos_arm64"))
-        .expect("the macOS selection must execute its own authored branch");
+    let other = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("macos_arm64"),
+    ))
+    .expect("the macOS selection must execute its own authored branch");
     assert_eq!(
         other.application_intent(),
         Some(build_evaluation::HostedApplicationIntent::Console)
@@ -161,8 +170,9 @@ fn checked_build_preserves_hosted_intent_without_interpreting_raw_pe_words() {
             "    builder.subsystem = Subsystem::{subsystem};"
         )));
         for target in ["macos_arm64", "windows_x86_64", "linux_x86_64"] {
-            let checked = compile_to_checked(&project.main(), Some(target))
-                .expect("authored subsystem must survive the ordinary checked route");
+            let checked =
+                compile_to_checked(CheckedCompileRequest::new(&project.main(), Some(target)))
+                    .expect("authored subsystem must survive the ordinary checked route");
             assert_eq!(
                 checked.application_intent(),
                 intent,
@@ -176,10 +186,16 @@ fn checked_build_preserves_hosted_intent_without_interpreting_raw_pe_words() {
 #[test]
 fn legacy_and_canonical_cli_spellings_select_the_same_canonical_profile() {
     let project = TempProject::new(&exact_target_build(""));
-    let legacy = compile_to_checked(&project.main(), Some("windows_x64"))
-        .expect("legacy CLI alias should normalize before source selection");
-    let canonical = compile_to_checked(&project.main(), Some("windows_x86_64"))
-        .expect("canonical CLI spelling should compile");
+    let legacy = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("windows_x64"),
+    ))
+    .expect("legacy CLI alias should normalize before source selection");
+    let canonical = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("windows_x86_64"),
+    ))
+    .expect("canonical CLI spelling should compile");
 
     assert_eq!(
         legacy.selected_target_profile(),
@@ -204,7 +220,8 @@ fn targetless_checking_retains_no_synthetic_target() {
         "machine build(builder: &mut Build) { builder.application(\"targetless\"); }\n",
     );
 
-    let checked = compile_to_checked(&project.main(), None).expect("targetless check should pass");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&project.main(), None))
+        .expect("targetless check should pass");
     assert_eq!(checked.selected_target_profile(), None);
 }
 
@@ -271,15 +288,21 @@ machine build(builder: &mut Build) { }
 #[test]
 fn exact_x86_build_must_opt_in_before_fma_admission_exists() {
     let baseline = TempProject::new(&exact_target_build(""));
-    let checked = compile_to_checked(&baseline.main(), Some("windows_x86_64"))
-        .expect("generic x86 baseline must remain available");
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &baseline.main(),
+        Some("windows_x86_64"),
+    ))
+    .expect("generic x86 baseline must remain available");
     assert_eq!(checked.x86_scalar_fma_provider(), None);
 
     let opted_in = TempProject::new(&exact_target_build(
         "    builder.x86_deployment_features = X86DeploymentFeatures::AvxFma3;",
     ));
-    let checked = compile_to_checked(&opted_in.main(), Some("windows_x86_64"))
-        .expect("exact x86 build may select the canonical AVX+FMA3 deployment pair");
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &opted_in.main(),
+        Some("windows_x86_64"),
+    ))
+    .expect("exact x86 build may select the canonical AVX+FMA3 deployment pair");
     let provider = checked
         .x86_scalar_fma_provider()
         .expect("explicit feature selection must retain one admitted provider");
@@ -299,11 +322,13 @@ fn exact_x86_build_must_opt_in_before_fma_admission_exists() {
 fn exact_x86_fma_demand_fails_closed_without_feature_admission() {
     let main = pass_canary_main(fixtures::NAMED_PROVIDER_FUSED_MULTIPLY_ADD_EXIT);
     for target in ["linux_x86_64", "windows_x86_64"] {
-        let diagnostics = compile_to_checked_with_packages(
-            &main,
-            Some(target),
-            package_inputs_with_standard_library(&main, "named-provider-fused-multiply-add-exit"),
-        )
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs_with_standard_library(
+                &main,
+                "named-provider-fused-multiply-add-exit",
+            )),
+            ..CheckedCompileRequest::new(&main, Some(target))
+        })
         .expect_err("an exact-profile x86 FMA demand requires explicit deployment admission")
         .into_iter()
         .map(|diagnostic| diagnostic.message)
@@ -336,11 +361,13 @@ fn admitted_x86_fma_demand_retains_exact_plan_associations() {
         ),
     ] {
         let main = pass_canary_main(fixtures::X86_FMA_PLAN_ASSOCIATION);
-        let checked = compile_to_checked_with_packages(
-            &main,
-            Some(target),
-            package_inputs_with_standard_library(&main, "x86-fma-plan-association"),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs_with_standard_library(
+                &main,
+                "x86-fma-plan-association",
+            )),
+            ..CheckedCompileRequest::new(&main, Some(target))
+        })
         .unwrap_or_else(|diagnostics| panic!("{target} FMA admission failed: {diagnostics:?}"));
         let provider = checked
             .x86_scalar_fma_provider()
@@ -453,11 +480,10 @@ machine Main::emit(&mut self) {
         ),
     );
     let package_inputs = package_inputs_with_standard_library(&project.main(), "target-activation");
-    let preliminary = compile_to_checked_with_packages(
-        &project.main(),
-        Some("linux_x86_64"),
-        package_inputs.clone(),
-    )
+    let preliminary = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs.clone()),
+        ..CheckedCompileRequest::new(&project.main(), Some("linux_x86_64"))
+    })
     .expect("derive the exact mixed fixture provider plans");
     let console_binding = console_acceptance::candidate_console_exit_binding(
         &preliminary,
@@ -848,11 +874,13 @@ machine Main::main(&mut self) {
 #[test]
 fn aarch64_fma_demand_is_not_an_x86_feature_association() {
     let main = pass_canary_main(fixtures::NAMED_PROVIDER_FUSED_MULTIPLY_ADD_EXIT);
-    let checked = compile_to_checked_with_packages(
-        &main,
-        Some("linux_arm64"),
-        package_inputs_with_standard_library(&main, "named-provider-fused-multiply-add-exit"),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs_with_standard_library(
+            &main,
+            "named-provider-fused-multiply-add-exit",
+        )),
+        ..CheckedCompileRequest::new(&main, Some("linux_arm64"))
+    })
     .expect("AArch64 FMA remains admitted by its own target realization");
     assert_eq!(checked.x86_scalar_fma_provider(), None);
     assert!(checked.x86_scalar_fma_plan_associations().is_empty());
@@ -867,10 +895,16 @@ fn x86_fma_build_admission_binds_the_exact_selected_profile() {
 }
 "#,
     );
-    let linux = compile_to_checked(&project.main(), Some("linux_x86_64"))
-        .expect("Linux x86 deployment selection");
-    let windows = compile_to_checked(&project.main(), Some("windows_x86_64"))
-        .expect("Windows x86 deployment selection");
+    let linux = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("linux_x86_64"),
+    ))
+    .expect("Linux x86 deployment selection");
+    let windows = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("windows_x86_64"),
+    ))
+    .expect("Windows x86 deployment selection");
     let linux = linux.x86_scalar_fma_provider().expect("Linux admission");
     let windows = windows
         .x86_scalar_fma_provider()
@@ -890,12 +924,15 @@ fn non_x86_profile_rejects_x86_deployment_feature_selection() {
 }
 "#,
     );
-    let diagnostics = compile_to_checked(&project.main(), Some("linux_arm64"))
-        .expect_err("an AArch64 profile cannot admit x86 deployment features")
-        .into_iter()
-        .map(|diagnostic| diagnostic.message)
-        .collect::<Vec<_>>()
-        .join("\n");
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("linux_arm64"),
+    ))
+    .expect_err("an AArch64 profile cannot admit x86 deployment features")
+    .into_iter()
+    .map(|diagnostic| diagnostic.message)
+    .collect::<Vec<_>>()
+    .join("\n");
 
     assert!(
         diagnostics.contains(
@@ -914,7 +951,7 @@ fn targetless_build_cannot_mint_x86_deployment_feature_admission() {
 }
 "#,
     );
-    let diagnostics = compile_to_checked(&project.main(), None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&project.main(), None))
         .expect_err("targetless checking has no deployment feature field")
         .into_iter()
         .map(|diagnostic| diagnostic.message)

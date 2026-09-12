@@ -1,5 +1,6 @@
 use super::*;
 use compiler::CheckedCompilation;
+use compiler::CheckedCompileRequest;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
@@ -35,9 +36,11 @@ fn root_aggregate_values_substitute_only_after_lexical_selection() {
              machine prior(input: {carrier}) -> {carrier} {{ let AGG: {carrier} = input; let observed: {carrier} = AGG; observed }}
              machine later(input: {carrier}) -> {carrier} {{ let before: {carrier} = AGG; let AGG: {carrier} = input; let after: {carrier} = AGG; before }}"
         ));
-        let checked =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect("root aggregate permits legal lexical shadows");
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect("root aggregate permits legal lexical shadows");
         assert_eq!(
             value_shape(&checked, local_value(&checked, "later", "before")),
             expected
@@ -81,9 +84,11 @@ fn root_aggregate_constructor_owner_survives_a_module_consumer_shadow() {
         root.join("consumer.omg"),
         "module consumer; machine read(Pair: u64) -> Pair { let observed: Pair = AGG; observed }",
     );
-    let checked =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect("module consumer selects a root-owned aggregate constant");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("module consumer selects a root-owned aggregate constant");
     let value = local_value(&checked, "consumer::read", "observed");
     assert_eq!(value_shape(&checked, value), "Pair{11}");
     let ExpressionNode::StructLiteral(literal) = checked.typed.expression_table.expression(value)

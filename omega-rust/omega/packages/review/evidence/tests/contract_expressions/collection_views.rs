@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 fn compile_collection_view(expression: &str) -> CheckedCompilation {
     let package = TempPackage::new();
@@ -16,11 +17,10 @@ requires valid_utf8({expression})
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("public collection-view contract should check")
 }
 
@@ -229,11 +229,10 @@ pub proposition calls_package(value: &Wrapper) = as_slice(value);
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("package collection-view lookalike should check");
     let review = project_checked_package_review(&checked)
         .expect("package collection-view lookalike should project nominally");

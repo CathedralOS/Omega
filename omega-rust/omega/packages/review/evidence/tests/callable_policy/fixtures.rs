@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 pub(super) struct Fixture {
     pub checked: CheckedCompilation,
@@ -61,11 +62,10 @@ impl Fixture {
             PackageCompilationInputs::new_package(package_identity(), sources, dependencies)
                 .unwrap();
         let target = TargetProfile::WindowsX64;
-        let checked = compile_to_checked_with_packages(
-            &root.0.join("main.omg"),
-            Some(target.target_name()),
-            inputs,
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs),
+            ..CheckedCompileRequest::new(&root.0.join("main.omg"), Some(target.target_name()))
+        })
         .unwrap_or_else(|diagnostics| panic!("callable policy fixture checks: {diagnostics:#?}"));
         Self {
             checked,

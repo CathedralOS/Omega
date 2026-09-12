@@ -1,5 +1,6 @@
 use build_declarations::BuildDeclarationError;
-use compiler::{compile_to_checked, compile_to_checked_with_packages};
+use compiler::CheckedCompileRequest;
+use compiler::compile_to_checked;
 use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
 use semantic_vocabulary::PackageKeyIdentity;
 use std::fs;
@@ -49,7 +50,8 @@ fn absent_build_machine_retains_no_symbol_or_standalone_package_identity() {
     let project = TempProject::new();
     project.write("main.omg", "const ANSWER: u32 = 42;\n");
 
-    let checked = compile_to_checked(&project.main(), None).expect("program should check");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&project.main(), None))
+        .expect("program should check");
 
     assert_eq!(checked.selected_build_machine_symbol(), None);
     assert_eq!(checked.package_identity(), None);
@@ -64,7 +66,8 @@ fn present_build_machine_retains_its_exact_checked_symbol() {
         "machine build(builder: &mut Build) { builder.application(\"checked-build-symbol\"); }\n",
     );
 
-    let checked = compile_to_checked(&project.main(), None).expect("build program should check");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&project.main(), None))
+        .expect("build program should check");
     let build = checked
         .typed
         .machines()
@@ -92,7 +95,7 @@ machine build(builder: &mut Build) {
 "#,
     );
 
-    let checked = compile_to_checked(&project.main(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&project.main(), None))
         .expect("the canonical root must compose an ordinary free helper contract");
     assert!(checked.selected_build_machine_symbol().is_some());
 }
@@ -103,7 +106,7 @@ fn selected_free_build_without_a_project_role_rejects_with_shared_diagnostic() {
     project.write("main.omg", "const ANSWER: u32 = 42;\n");
     project.write("build.omg", "machine build(builder: &mut Build) { }\n");
 
-    let diagnostics = compile_to_checked(&project.main(), None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&project.main(), None))
         .expect_err("a selected free build root must declare its project role");
     let missing_kind = BuildDeclarationError::MissingBuildDeclaration.to_string();
     assert!(
@@ -123,7 +126,7 @@ fn selected_scoped_build_rejects_with_directed_migration_diagnostic() {
         "machine Owner::build(&mut self, builder: &mut Build) { }\n",
     );
 
-    let diagnostics = compile_to_checked(&project.main(), None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&project.main(), None))
         .expect_err("a selected scoped build root must never receive build authority");
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -154,7 +157,7 @@ fn imported_file_named_build_is_not_a_project_build_root() {
         "machine Helper::build(&mut self, builder: &mut Build) { }\n",
     );
 
-    let checked = compile_to_checked(&project.main(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&project.main(), None))
         .expect("an imported build.omg must remain ordinary program source");
     let root_build = checked
         .typed
@@ -185,7 +188,7 @@ fn exact_build_source_receives_toolchain_build_while_program_build_remains_ordin
 "#,
     );
 
-    let checked = compile_to_checked(&project.main(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&project.main(), None))
         .expect("program and toolchain Build declarations must occupy exact source contexts");
     let builds = checked
         .typed
@@ -272,7 +275,7 @@ fn source_scoped_toolchain_binding_does_not_hide_ordinary_duplicates() {
 "#,
     );
 
-    let diagnostics = compile_to_checked(&project.main(), None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&project.main(), None))
         .expect_err("two ordinary program Build declarations must still conflict");
     assert!(
         diagnostics
@@ -298,8 +301,11 @@ fn package_aware_checked_compilation_retains_the_reconciled_root_identity() {
     )
     .expect("root package inputs should validate");
 
-    let checked = compile_to_checked_with_packages(&project.main(), None, inputs)
-        .expect("package-aware program should check");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&project.main(), None)
+    })
+    .expect("package-aware program should check");
 
     assert_eq!(checked.package_identity(), Some(root_identity));
     assert_eq!(checked.selected_build_machine_symbol(), None);
@@ -317,7 +323,7 @@ machine Helper::build(&mut self, builder: &mut Build) { }
 "#,
     );
 
-    let diagnostics = compile_to_checked(&project.main(), None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&project.main(), None))
         .expect_err("a scoped build in selected build.omg must reject before selection");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic

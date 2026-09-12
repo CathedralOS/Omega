@@ -1,5 +1,6 @@
 //! Runtime fixture acceptance is explicit, target-bound and separate from checking.
 use super::*;
+use compiler::CheckedCompileRequest;
 
 fn byte_identity(
     checked: &compiler::CheckedCompilation,
@@ -23,13 +24,19 @@ fn byte_identity(
 fn native_sample_console_acceptance_binds_the_exact_selected_target() {
     let root = repo_root().join("samples/cli/basics/cli_mvp/main.omg");
     for target in ["linux_x86_64", "linux_arm64", "macos_arm64"] {
-        let unaccepted =
-            compile_to_checked_with_packages(&root, Some(target), sample_package_inputs(&root))
-                .unwrap();
+        let unaccepted = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(sample_package_inputs(&root)),
+            ..CheckedCompileRequest::new(&root, Some(target))
+        })
+        .unwrap();
         assert_eq!(byte_identity(&unaccepted), None);
         let accepted = sample_native_package_inputs(&root, Some(target)).unwrap();
         assert_eq!(accepted.accepted_semantic_bindings().count(), 1);
-        let checked = compile_to_checked_with_packages(&root, Some(target), accepted).unwrap();
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(accepted),
+            ..CheckedCompileRequest::new(&root, Some(target))
+        })
+        .unwrap();
         assert_eq!(
             byte_identity(&checked),
             Some(effects::CompilerIntrinsicExecutionIdentity::HostedWriteByteI32)
@@ -37,7 +44,11 @@ fn native_sample_console_acceptance_binds_the_exact_selected_target() {
     }
     let linux_binding = sample_native_package_inputs(&root, Some("linux_arm64")).unwrap();
     assert!(
-        compile_to_checked_with_packages(&root, Some("macos_arm64"), linux_binding).is_err(),
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(linux_binding),
+            ..CheckedCompileRequest::new(&root, Some("macos_arm64"))
+        })
+        .is_err(),
         "acceptance of another selected target must not authorize this plan"
     );
 }

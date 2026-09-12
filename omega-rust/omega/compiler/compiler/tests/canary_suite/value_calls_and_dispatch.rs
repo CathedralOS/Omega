@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[path = "../fixture_rosters/value_calls_and_dispatch.rs"]
 pub(super) mod fixture_roster;
@@ -27,8 +28,11 @@ fn assert_native_exit_code(
 #[test]
 fn runtime_indexed_copy_aggregate_handoff_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_INDEXED_COPY_AGGREGATE_HANDOFF_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("runtime-indexed copy-aggregate handoff should reach checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("runtime-indexed copy-aggregate handoff should reach checked trees");
     let stdin = [5, 27, 33, 44, b'\n'];
     let interpreted = interpret(&checked, &stdin);
     assert_eq!(
@@ -75,8 +79,11 @@ fn runtime_indexed_copy_aggregate_handoff_exit_canary_runs() {
 #[test]
 fn runtime_mutable_call_before_transition_args_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_MUTABLE_CALL_BEFORE_TRANSITION_ARGS_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("mutable-call statement-order canary should reach checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("mutable-call statement-order canary should reach checked trees");
     let stdin = [5, 27, 33, 44, b'\n'];
     let interpreted = interpret(&checked, &stdin);
     assert_eq!(
@@ -124,8 +131,11 @@ fn runtime_mutable_call_before_transition_args_exit_canary_runs() {
 fn runtime_referenced_local_outlives_sibling_guard_call_exit_canary_runs() {
     let canary =
         pass_canary(fixture_roster::RUNTIME_REFERENCED_LOCAL_OUTLIVES_SIBLING_GUARD_CALL_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("referenced-local sibling-guard canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("referenced-local sibling-guard canary should compile to checked trees");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(interpreted.error, None, "should interpret cleanly");
     assert_eq!(
@@ -709,7 +719,7 @@ fn borrow_carrying_data_field_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::BORROW_CARRYING_DATA_FIELD_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("borrow-carrying data canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1081,8 +1091,11 @@ fn runtime_local_named_dyn_devirtualized_exit_canary_runs() {
 fn runtime_local_named_dyn_pass_through_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_LOCAL_NAMED_DYN_PASS_THROUGH_EXIT);
     for target in ["linux_x86_64", "linux_arm64"] {
-        let checked = compile_to_checked(&canary.join("main.omg"), Some(target))
-            .expect("forwarded fixture should reach checked provider custody");
+        let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+            &canary.join("main.omg"),
+            Some(target),
+        ))
+        .expect("forwarded fixture should reach checked provider custody");
         let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
             checked
                 .selected_provider_plans()
@@ -1156,18 +1169,20 @@ fn assert_forwarded_dynamic_result_canary(
     let _ = native_expectation;
     let canary = pass_canary(fixture);
     for target in ["linux_x86_64", "linux_arm64"] {
-        let checked = compile_to_checked(&canary.join("main.omg"), Some(target)).unwrap_or_else(
-            |diagnostics| {
-                panic!(
-                    "{description} should reach checked descriptor custody for {target}:\n{}",
-                    diagnostics
-                        .iter()
-                        .map(|diagnostic| diagnostic.message.as_str())
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                )
-            },
-        );
+        let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+            &canary.join("main.omg"),
+            Some(target),
+        ))
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "{description} should reach checked descriptor custody for {target}:\n{}",
+                diagnostics
+                    .iter()
+                    .map(|diagnostic| diagnostic.message.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
         assert_eq!(
             checked
                 .facts
@@ -1566,8 +1581,11 @@ fn runtime_local_named_dyn_unit_multi_hop_return_canary_runs() {
 fn runtime_local_named_dyn_rebound_direct_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_LOCAL_NAMED_DYN_REBOUND_DIRECT_EXIT);
     for target in ["linux_x86_64", "linux_arm64"] {
-        let checked = compile_to_checked(&canary.join("main.omg"), Some(target))
-            .expect("rebound fixture should reach checked provider custody");
+        let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+            &canary.join("main.omg"),
+            Some(target),
+        ))
+        .expect("rebound fixture should reach checked provider custody");
         let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
             checked
                 .selected_provider_plans()
@@ -2028,7 +2046,7 @@ fn runtime_alias_indexed_read_through_transition_exit_canary_runs() {
 fn runtime_dispatch_binary_call_argument_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_DISPATCH_BINARY_CALL_ARGUMENT_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("binary-local call-argument canary should compile to checked trees");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
@@ -2103,7 +2121,7 @@ fn runtime_dispatch_result_field_binding_exit_canary_runs() {
 fn runtime_trailing_state_mut_param_phase_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_TRAILING_STATE_MUT_PARAM_PHASE_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("threaded mutable receiver phase canary should compile to checked trees");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
@@ -2197,8 +2215,11 @@ fn runtime_dispatch_float_terminal_exit_canary_runs() {
 #[test]
 fn runtime_value_machine_receiver_field_postentry_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_VALUE_MACHINE_RECEIVER_FIELD_POSTENTRY_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("receiver-field postentry canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("receiver-field postentry canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(outcome.error, None, "should interpret cleanly");
     assert_eq!(outcome.exit_code, 70, "interp oracle should exit 70");
@@ -2551,7 +2572,7 @@ fn runtime_multiarm_same_named_locals_exit_canary_runs() {
 fn runtime_multiarm_texteq_local_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_MULTIARM_TEXTEQ_LOCAL_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("multi-arm carrier text-equality local canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -2589,7 +2610,7 @@ fn runtime_multiarm_texteq_local_exit_canary_runs() {
 fn runtime_pre_guard_texteq_local_guard_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_PRE_GUARD_TEXTEQ_LOCAL_GUARD_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("pre-guard carrier text-equality canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -2626,7 +2647,7 @@ fn runtime_pre_guard_texteq_local_guard_exit_canary_runs() {
 fn runtime_pre_guard_texteq_local_arg_forward_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_PRE_GUARD_TEXTEQ_LOCAL_ARG_FORWARD_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("forwarded carrier text-equality local canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -3696,7 +3717,7 @@ fn runtime_slice_indexed_binary_rmw_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_SLICE_INDEXED_BINARY_RMW_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("slice indexed binary RMW canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -3748,7 +3769,7 @@ fn runtime_mut_ref_forward_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_MUT_REF_FORWARD_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("mut-ref forward canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -3796,7 +3817,7 @@ fn runtime_local_slice_forward_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_LOCAL_SLICE_FORWARD_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("local-slice forward canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -3843,7 +3864,7 @@ fn f32_guard_const_arith_landed_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::F32_GUARD_CONST_ARITH_LANDED_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("f32 guard const-arith canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -3887,7 +3908,7 @@ fn f32_arg_const_arith_landed_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::F32_ARG_CONST_ARITH_LANDED_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("f32 arg const-arith canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(

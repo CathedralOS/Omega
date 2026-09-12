@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn empty_boundary_body_is_checked_callable_and_remains_directly_invocable() {
@@ -24,11 +25,10 @@ pub machine caller() reaches FilesystemHost {
 "#,
     );
 
-    let candidate = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let candidate = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("an explicit empty boundary body remains executable");
     let accepted = candidate
         .candidate_service_binding(
@@ -37,13 +37,14 @@ pub machine caller() reaches FilesystemHost {
             "FilesystemHost",
         )
         .expect("derive exact filesystem authority candidate");
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0)
-            .with_accepted_semantic_bindings(vec![accepted])
-            .expect("accepted binding names the exact fixture package"),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(
+            package_inputs(&package.0)
+                .with_accepted_semantic_bindings(vec![accepted])
+                .expect("accepted binding names the exact fixture package"),
+        ),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("exact filesystem authority should settle");
     let review =
         project_checked_package_review(&checked).expect("empty boundary body review should close");
@@ -78,11 +79,10 @@ fn package_review_rejects_impossible_supply_body_combinations() {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("ordinary package should check");
 
     let mut missing_body = checked.clone();

@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[path = "../fixture_rosters/layouts_and_pending.rs"]
 pub(super) mod fixture_roster;
@@ -40,8 +41,11 @@ fn plan_laid_value_field_exit_canary_runs() {
 #[test]
 fn plan_laid_erased_field_is_semantic_but_not_physical() {
     let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_ERASED_FIELD_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("plan-laid erased field should reach checked semantics");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("plan-laid erased field should reach checked semantics");
 
     let semantic = checked
         .typed
@@ -106,8 +110,11 @@ fn plan_laid_erased_field_is_semantic_but_not_physical() {
 #[test]
 fn distinct_closed_erased_generic_sums_run_with_exact_identities() {
     let canary = pass_canary(fixture_roster::RUNTIME_DISTINCT_CLOSED_ERASED_SUMS_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("distinct closed erased sums should reach checked semantics");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("distinct closed erased sums should reach checked semantics");
 
     for expected in ["Maybe<i32>", "Maybe<bool>"] {
         let definition = checked
@@ -164,8 +171,11 @@ fn distinct_closed_erased_generic_sums_run_with_exact_identities() {
 #[test]
 fn mixed_closed_generic_erasure_runs_with_common_and_payload_fields() {
     let canary = pass_canary(fixture_roster::RUNTIME_MIXED_GENERIC_ERASED_SUM_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("mixed closed erased sum should reach checked semantics");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("mixed closed erased sum should reach checked semantics");
     let definition = checked
         .typed
         .data_definitions()
@@ -203,8 +213,11 @@ fn mixed_closed_generic_erasure_runs_with_common_and_payload_fields() {
 #[test]
 fn generic_erased_literals_use_exact_call_and_return_contexts() {
     let canary = pass_canary(fixture_roster::RUNTIME_GENERIC_EXACT_CALL_RETURN_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("exact call/return contexts should reach checked semantics");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("exact call/return contexts should reach checked semantics");
     assert_eq!(interpret(&checked, &[]).exit_code, 70);
 
     let build_dir = std::env::temp_dir().join(format!(
@@ -232,8 +245,11 @@ fn generic_erased_literals_use_exact_call_and_return_contexts() {
 #[test]
 fn wire_erased_field_is_semantic_but_not_encoded() {
     let canary = pass_canary(fixture_roster::RUNTIME_WIRE_ERASED_FIELD_ROUNDTRIP_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("wire erased field should reach checked semantics");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("wire erased field should reach checked semantics");
     let schema = checked
         .typed
         .wire_schemas()
@@ -303,8 +319,11 @@ fn wire_erased_field_is_semantic_but_not_encoded() {
 #[test]
 fn nested_wire_erased_field_is_not_encoded() {
     let canary = pass_canary(fixture_roster::RUNTIME_WIRE_NESTED_ERASED_FIELD_ROUNDTRIP_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("nested erased wire field should reach checked semantics");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("nested erased wire field should reach checked semantics");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(interpreted.error, None, "nested wire interpreter error");
     assert_eq!(interpreted.exit_code, 70);
@@ -335,7 +354,7 @@ fn nested_wire_erased_field_is_not_encoded() {
 fn plan_laid_compact_bits_exit_canary_runs_and_cross_compiles() {
     let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_COMPACT_BITS_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("compact-bit plan-laid canary should compile to checked trees");
     assert_eq!(
         interpret(&checked, &[]).exit_code,
@@ -381,8 +400,11 @@ fn plan_laid_compact_bits_exit_canary_runs_and_cross_compiles() {
 #[test]
 fn plan_laid_integer_at_projection_exit_canary_runs_and_cross_compiles() {
     let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_INTEGER_AT_PROJECTION_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("IntegerAt projection canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("IntegerAt projection canary should compile to checked trees");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(
         interpreted.exit_code, 70,
@@ -461,8 +483,11 @@ fn plan_laid_integer_at_total_write_exit_canary_runs_and_cross_compiles() {
 #[test]
 fn plan_laid_integer_at_proved_write_exit_canary_runs_and_cross_compiles() {
     let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_INTEGER_AT_PROVED_WRITE_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("proved-fit IntegerAt mutation canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("proved-fit IntegerAt mutation canary should compile to checked trees");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(
         interpreted.exit_code, 72,
@@ -595,7 +620,7 @@ fn plan_laid_record_view_exit_canary_runs() {
     // narrowing; native packing would read the gaps and exit 71.
     let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_RECORD_VIEW_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("plan-laid record-view canary should compile to checked trees");
     assert_eq!(
         interpret(&checked, &[]).exit_code,
@@ -637,7 +662,7 @@ fn plan_laid_record_view_exit_canary_runs() {
 fn plan_laid_fixed_array_record_view_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_FIXED_ARRAY_VIEW_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("plan-laid fixed-array view should compile to checked trees");
     assert_eq!(
         interpret(&checked, &[]).exit_code,
@@ -681,7 +706,7 @@ fn plan_laid_fixed_array_record_view_exit_canary_runs() {
 fn plan_laid_fixed_array_mutable_view_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_FIXED_ARRAY_MUTABLE_WRITE_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("mutable plan-laid fixed-array view should compile to checked trees");
     assert_eq!(
         interpret(&checked, &[]).exit_code,
@@ -731,7 +756,7 @@ fn plan_laid_nested_fixed_array_mutable_view_exit_canary_runs() {
     let canary =
         pass_canary(fixture_roster::RUNTIME_PLAN_LAID_NESTED_FIXED_ARRAY_MUTABLE_WRITE_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("mutable plan-laid nested-array view should compile to checked trees");
     assert_eq!(interpret(&checked, &[]).exit_code, 70);
 
@@ -771,7 +796,7 @@ fn plan_laid_nested_fixed_array_mutable_view_exit_canary_runs() {
 fn plan_laid_nested_record_mutable_view_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_NESTED_RECORD_MUTABLE_WRITE_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("mutable plan-laid nested-record view should compile to checked trees");
     assert_eq!(interpret(&checked, &[]).exit_code, 70);
 
@@ -806,8 +831,11 @@ fn plan_laid_nested_record_mutable_view_exit_canary_runs() {
 #[test]
 fn plan_laid_fixed_record_array_mutable_view_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_RECORD_ARRAY_MUTABLE_WRITE_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("mutable plan-laid fixed-record-array view should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("mutable plan-laid fixed-record-array view should compile to checked trees");
     assert_eq!(interpret(&checked, &[]).exit_code, 70);
 
     let scratch = std::env::temp_dir().join(format!(
@@ -842,7 +870,7 @@ fn plan_laid_fixed_record_array_mutable_view_exit_canary_runs() {
 fn plan_laid_mutable_record_view_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_RECORD_MUTABLE_WRITE_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("mutable plan-laid record view should compile to checked trees");
     assert_eq!(
         interpret(&checked, &[]).exit_code,

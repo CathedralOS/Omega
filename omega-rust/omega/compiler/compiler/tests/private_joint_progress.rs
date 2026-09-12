@@ -1,4 +1,5 @@
 use checked_trees::CheckedTrees;
+use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
 use language_semantics::{
     MachineTerminationPlan, ProgressPremise, ProgressSubject, TerminationGuarantee,
@@ -50,9 +51,12 @@ impl Drop for Project {
 
 fn checked(source: &str) -> CheckedTrees {
     let project = Project::new(source);
-    compile_to_checked(&project.0.join("main.omg"), None)
-        .expect("progress fixture must reach checked trees")
-        .into_program()
+    compile_to_checked(CheckedCompileRequest::new(
+        &project.0.join("main.omg"),
+        None,
+    ))
+    .expect("progress fixture must reach checked trees")
+    .into_program()
 }
 
 fn machine<'program>(program: &'program CheckedTrees, name: &str) -> &'program Machine {

@@ -1,6 +1,7 @@
 //! Early ordinary evaluation and deferred selected evaluation share each source interval.
 
 use super::*;
+use compiler::CheckedCompileRequest;
 
 const FLOAT_LENGTH: &str = r#"
 use omega::language::core::float_operations;
@@ -90,11 +91,10 @@ machine build(builder: &mut Build) {
 }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &root.join("main.omg"),
-        Some("linux_x86_64"),
-        application_inputs(&root),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(application_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("linux_x86_64"))
+    })
     .expect("ordinary Build inputs evaluate before unrelated selected lengths resume");
     assert_eq!(
         checked
@@ -143,13 +143,12 @@ machine build(builder: &mut Build) {{
     fs::create_dir(&session).expect("create build session");
     let session = session.canonicalize().expect("canonical build session");
     let sponsor = checked_interpreter::FilesystemSponsor::new(&session).expect("session sponsor");
-    let checked = compile_to_checked_with_packages_in_sponsored_build_dir(
-        &root.join("main.omg"),
-        &session.join("output"),
-        Some("linux_x86_64"),
-        application_inputs(&root),
-        sponsor,
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(session.join("output").to_owned()),
+        package_inputs: Some(application_inputs(&root)),
+        filesystem_sponsor: Some(sponsor),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("linux_x86_64"))
+    })
     .expect("root and generated selected evaluation retain their original plan intervals");
     assert_eq!(
         checked
@@ -203,11 +202,10 @@ machine build(builder: &mut Build) {
 }
 "#,
     );
-    let diagnostics = compile_to_checked_with_packages(
-        &root.join("main.omg"),
-        Some("linux_x86_64"),
-        application_inputs(&root),
-    )
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(application_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("linux_x86_64"))
+    })
     .expect_err("Build cannot default an unresolved selected array to Unit");
     assert!(
         diagnostics
@@ -238,9 +236,11 @@ fn selected_lengths_retain_machine_parameter_result_and_local_slots() {
         Vec::new(),
     )
     .expect("one package");
-    let checked =
-        compile_to_checked_with_packages(&root.join("main.omg"), Some("linux_x86_64"), inputs)
-            .expect("selected lengths compose in ordinary receiving type positions");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("linux_x86_64"))
+    })
+    .expect("selected lengths compose in ordinary receiving type positions");
     let machine = checked
         .machines()
         .iter()
@@ -305,9 +305,11 @@ fn selected_lengths_retain_trait_requirement_parameter_and_result_slots() {
         Vec::new(),
     )
     .expect("one package");
-    let checked =
-        compile_to_checked_with_packages(&root.join("main.omg"), Some("linux_x86_64"), inputs)
-            .expect("selected lengths preserve the exact ordinary requirement slots");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("linux_x86_64"))
+    })
+    .expect("selected lengths preserve the exact ordinary requirement slots");
     let definition = checked
         .traits()
         .iter()

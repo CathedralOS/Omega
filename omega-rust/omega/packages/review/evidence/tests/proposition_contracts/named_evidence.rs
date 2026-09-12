@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn review_projects_named_witness_interfaces_through_transparent_aliases() {
@@ -38,11 +39,10 @@ requires evidence: forwarded<i32>(1)
     aliased.write("build.omg", build);
 
     let compile = |package: &TempPackage| {
-        compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("named witness fixture should check")
     };
     let direct_checked = compile(&direct);
@@ -229,11 +229,10 @@ pub proposition right_fact() evidence Evidence;
     first.write("build.omg", build);
     second.write("build.omg", build);
     let encode = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("named evidence lane fixture should check");
         project_checked_package_review(&checked)
             .expect("named evidence lane review")
@@ -277,11 +276,10 @@ requires selected<{binding}.modulus>()
     original.write("build.omg", build);
     renamed.write("build.omg", build);
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("proof-static projection fixture should check");
         project_checked_package_review(&checked).expect("proof-static projection review")
     };

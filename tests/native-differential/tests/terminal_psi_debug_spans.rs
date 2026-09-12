@@ -2,6 +2,7 @@
 mod fixture_roster;
 
 use checked_trees_to_lowered_psi::lower_machine;
+use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
 use semantic_vocabulary::{ContractId, EdgeId, ObligationId, OperationId};
 use std::path::{Path, PathBuf};
@@ -49,7 +50,7 @@ fn obligation_site(sites: &[DebugSite], obligation: ObligationId) -> &DebugSite 
 fn terminal_operations_and_jumps_retain_exact_authored_sites() {
     let source_path = source_canary();
     let source = std::fs::read_to_string(&source_path).expect("source canary should be readable");
-    let checked = compile_to_checked(&source_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_path, None))
         .expect("terminal-Psi integer policy source canary should compile");
     let lowered = lower_machine(&checked, "terminal_wrapping_add")
         .expect("source wrapping add should lower to terminal Psi");

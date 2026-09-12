@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn public_trait_operational_envelope_is_exact_review_shape() {
@@ -22,11 +23,10 @@ pub boundary trait Worker {
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("public trait suspension fixture should check");
     let review = project_checked_package_review(&checked)
         .expect("public trait operational review should close");
@@ -85,11 +85,10 @@ pub boundary trait SchedulerAdmission {
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("public trait termination fixture should check");
     let review = project_checked_package_review(&checked)
         .expect("public trait termination review should close");
@@ -150,11 +149,10 @@ pub boundary trait SchedulerRuntime {
 "#,
     );
 
-    let diagnostics = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect_err("ordinary visibility must reject a private profile in a public trait contract");
     assert!(
         diagnostics.iter().any(|diagnostic| {

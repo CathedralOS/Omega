@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn public_data_and_numbered_wire_shape_changes_change_comparison_encoding() {
@@ -18,11 +19,10 @@ fn public_data_and_numbered_wire_shape_changes_change_comparison_encoding() {
     second.write("build.omg", build);
 
     let encode = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("public-shape fixture should check");
         project_checked_package_review(&checked)
             .expect("public-shape review should close")
@@ -44,11 +44,10 @@ fn public_quotient_identity_binds_carrier_and_relation_but_not_proof_implementat
             &public_quotient_source(carrier, relation, evidence, reverse_relation),
         );
         package.write("build.omg", build);
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("public quotient fixture should check");
         project_checked_package_review(&checked).expect("public quotient review should close")
     };
@@ -112,11 +111,10 @@ fn public_quotient_review_rederives_formation_instead_of_trusting_typed_metadata
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let mut checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let mut checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("public quotient fixture should check");
     let evidence_symbol = checked
         .conformances()
@@ -175,11 +173,10 @@ fn public_quotient_package_compilation_requires_a_public_relation() {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let diagnostics = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect_err("a public quotient cannot omit its relation semantics from review");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic

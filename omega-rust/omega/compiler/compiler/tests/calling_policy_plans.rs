@@ -1,5 +1,6 @@
 use calling_conventions::{CallSignature, CallingPolicy, ValueShape};
-use compiler::{compile_to_checked, compile_to_checked_with_packages};
+use compiler::CheckedCompileRequest;
+use compiler::compile_to_checked;
 use package_compilation::{
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
@@ -43,17 +44,23 @@ fn write_project(name: &str, source: &str, build: &str) -> PathBuf {
 }
 
 fn compile_project_negative(name: &str, source: &str, build: &str) -> String {
-    compile_to_checked(&write_project(name, source, build), None)
-        .expect_err("negative opaque representation project must reject")
-        .iter()
-        .map(|diagnostic| diagnostic.message.as_str())
-        .collect::<Vec<_>>()
-        .join("\n")
+    compile_to_checked(CheckedCompileRequest::new(
+        &write_project(name, source, build),
+        None,
+    ))
+    .expect_err("negative opaque representation project must reject")
+    .iter()
+    .map(|diagnostic| diagnostic.message.as_str())
+    .collect::<Vec<_>>()
+    .join("\n")
 }
 
 fn compile_std_negative(name: &str, source: &str) -> String {
     let (path, package_inputs) = write_callback_package(name, source);
-    let result = compile_to_checked_with_packages(&path, Some("windows_x86_64"), package_inputs);
+    let result = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs),
+        ..CheckedCompileRequest::new(&path, Some("windows_x86_64"))
+    });
     result
         .expect_err("negative callback source canary must reject")
         .iter()
@@ -163,8 +170,11 @@ satisfies CallingPolicy::plan
         vec![PackageDependencyBinding::new(consumer, "policy", policy)],
     )
     .expect("two-package policy graph");
-    compile_to_checked_with_packages(&main, Some("uefi_x86_64"), inputs)
-        .expect("a dependent package can author a policy using the public calling vocabulary");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&main, Some("uefi_x86_64"))
+    })
+    .expect("a dependent package can author a policy using the public calling vocabulary");
 }
 
 const POLICY: &str = r#"
@@ -357,9 +367,11 @@ fn target_selected_callback_policy_consumes_two_closed_layout_demands() {
     );
     let (main_path, package_inputs) =
         write_callback_package("materialization-closure", CALLBACK_MATERIALIZATION_POLICY);
-    let checked =
-        compile_to_checked_with_packages(&main_path, Some("windows_x86_64"), package_inputs)
-            .expect("target-selected registrar should consume both exact closed layout demands");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs),
+        ..CheckedCompileRequest::new(&main_path, Some("windows_x86_64"))
+    })
+    .expect("target-selected registrar should consume both exact closed layout demands");
     let registrar = checked
         .typed
         .traits()
@@ -514,9 +526,11 @@ data Main { }
 "#,
         );
     let (main_path, package_inputs) = write_callback_package("inline-callback-catalog", &source);
-    let checked =
-        compile_to_checked_with_packages(&main_path, Some("windows_x86_64"), package_inputs)
-            .expect("registrar should consume both slots through its named inline child");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs),
+        ..CheckedCompileRequest::new(&main_path, Some("windows_x86_64"))
+    })
+    .expect("registrar should consume both slots through its named inline child");
     let registrar = checked
         .typed
         .traits()
@@ -639,9 +653,11 @@ data Main { }
 fn direct_callback_parameter_is_interleaved_without_a_source_runtime_argument() {
     let source = callback_fixture_source("direct_callback_parameter.omg");
     let (main_path, package_inputs) = write_callback_package("direct-callback", &source);
-    let checked =
-        compile_to_checked_with_packages(&main_path, Some("windows_x86_64"), package_inputs)
-            .expect("target closure should place the declared direct callback parameter");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs),
+        ..CheckedCompileRequest::new(&main_path, Some("windows_x86_64"))
+    })
+    .expect("target closure should place the declared direct callback parameter");
     let registrar = checked
         .typed
         .traits()
@@ -873,9 +889,11 @@ fn opaque_movement_retains_native_ordinal_after_direct_callback_insertion() {
 "#,
     )
     .expect("write callback opaque-representation selection");
-    let checked =
-        compile_to_checked_with_packages(&main_path, Some("windows_x86_64"), package_inputs)
-            .expect("opaque registrar parameter should close around the direct callback");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs),
+        ..CheckedCompileRequest::new(&main_path, Some("windows_x86_64"))
+    })
+    .expect("opaque registrar parameter should close around the direct callback");
     let opaque = checked
         .data_definitions()
         .iter()
@@ -937,9 +955,11 @@ fn direct_callback_parameter_requires_a_bodyless_boundary_requirement() {
         .replace("boundary trait HookRegistrar", "trait HookRegistrar");
     let (main_path, package_inputs) =
         write_callback_package("direct-callback-nonboundary", &source);
-    let diagnostics =
-        compile_to_checked_with_packages(&main_path, Some("windows_x86_64"), package_inputs)
-            .expect_err("a non-boundary trait cannot declare a native callback parameter");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs),
+        ..CheckedCompileRequest::new(&main_path, Some("windows_x86_64"))
+    })
+    .expect_err("a non-boundary trait cannot declare a native callback parameter");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -955,9 +975,11 @@ fn direct_callback_parameter_requires_its_exact_nominal_binder() {
     );
     let (main_path, package_inputs) =
         write_callback_package("direct-callback-missing-binder", &source);
-    let diagnostics =
-        compile_to_checked_with_packages(&main_path, Some("windows_x86_64"), package_inputs)
-            .expect_err("a direct callback cannot infer or invent its binder");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs),
+        ..CheckedCompileRequest::new(&main_path, Some("windows_x86_64"))
+    })
+    .expect_err("a direct callback cannot infer or invent its binder");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -1475,7 +1497,8 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         INTERRUPT_POLICY,
         INTERRUPT_REPRESENTATION_BUILD,
     );
-    let checked = compile_to_checked(&main_path, None).expect("interrupt policy should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("interrupt policy should compile");
     let restore = checked
         .typed
         .machines()
@@ -1964,7 +1987,7 @@ fn selected_opaque_representation_supplies_nested_general_layout() {
         &source,
         INTERRUPT_REPRESENTATION_BUILD,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("selected opaque representation should close nested layout");
     let layouts = layout::build_layout_plan(
         &checked,
@@ -2003,8 +2026,8 @@ fn opaque_result_rejoins_its_exact_result_placement() {
         &source,
         INTERRUPT_REPRESENTATION_BUILD,
     );
-    let checked =
-        compile_to_checked(&main_path, None).expect("opaque result policy should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("opaque result policy should compile");
     let selection = retained_interrupt_representation(&checked);
     let mut result_movements = 0;
 
@@ -2058,7 +2081,7 @@ fn nested_opaque_path_ignores_an_identically_shaped_ordinary_field() {
         &source,
         INTERRUPT_REPRESENTATION_BUILD,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("nested opaque representation policy should compile");
     let selection = retained_interrupt_representation(&checked);
     let mut nested_movements = 0;
@@ -2146,7 +2169,7 @@ fn repeated_opaque_values_rejoin_distinct_equal_layout_occurrences() {
         &source,
         INTERRUPT_REPRESENTATION_BUILD,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("repeated opaque representation policy should compile");
     let selection = retained_interrupt_representation(&checked);
     let realization = checked
@@ -2224,7 +2247,7 @@ fn distinct_opaque_values_with_equal_layout_retain_distinct_nominal_markers() {
         "    >();\n    builder.select_representation<\n        ShadowAcknowledgement,\n        ShadowAckRepresentation\n    >();",
     );
     let main_path = write_project("interrupt-equal-opaque-movement", &source, &build);
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("equal-layout opaque representation policy should compile");
     let opaque_symbols = ["InterruptAcknowledgement", "ShadowAcknowledgement"].map(|name| {
         checked
@@ -2326,7 +2349,7 @@ fn reference_only_opaque_boundary_retains_unused_selection_without_demanding_one
         &source,
         "machine build(builder: &mut Build) { builder.application(\"interrupt-entry\"); }",
     );
-    let unselected = compile_to_checked(&unselected, None)
+    let unselected = compile_to_checked(CheckedCompileRequest::new(&unselected, None))
         .expect("a reference-only opaque pointee must not demand representation closure");
     assert!(unselected.opaque_representation_selections().is_empty());
     let inspect = unselected
@@ -2385,7 +2408,7 @@ fn reference_only_opaque_boundary_retains_unused_selection_without_demanding_one
         &source,
         INTERRUPT_REPRESENTATION_BUILD,
     );
-    let selected = compile_to_checked(&selected, None)
+    let selected = compile_to_checked(CheckedCompileRequest::new(&selected, None))
         .expect("an unused valid selection remains activation policy");
     let selected_application = retained_interrupt_representation(&selected).application();
     assert!(
@@ -2405,7 +2428,7 @@ fn reference_only_opaque_boundary_retains_unused_selection_without_demanding_one
         &source,
         &alternate_build,
     );
-    let alternate = compile_to_checked(&alternate, None)
+    let alternate = compile_to_checked(CheckedCompileRequest::new(&alternate, None))
         .expect("an alternate unused valid selection remains activation policy");
     let [alternate_selection] = alternate.opaque_representation_selections() else {
         panic!("one alternate unused opaque-representation selection")
@@ -2495,27 +2518,27 @@ fn changing_the_selected_opaque_conformance_reissues_the_calling_application() {
             .expect("TimerRoot calling application")
     }
 
-    let first = compile_to_checked(
+    let first = compile_to_checked(CheckedCompileRequest::new(
         &write_project(
             "interrupt-representation-identity-first",
             INTERRUPT_POLICY,
             INTERRUPT_REPRESENTATION_BUILD,
         ),
         None,
-    )
+    ))
     .expect("first representation application");
     let alternate_source =
         INTERRUPT_POLICY.replace("PicAckRepresentation:", "AlternatePicAckRepresentation:");
     let alternate_build = INTERRUPT_REPRESENTATION_BUILD
         .replace("PicAckRepresentation", "AlternatePicAckRepresentation");
-    let alternate = compile_to_checked(
+    let alternate = compile_to_checked(CheckedCompileRequest::new(
         &write_project(
             "interrupt-representation-identity-alternate",
             &alternate_source,
             &alternate_build,
         ),
         None,
-    )
+    ))
     .expect("alternate representation application");
 
     let first_selection = retained_interrupt_representation(&first);
@@ -2537,7 +2560,8 @@ fn changing_the_selected_opaque_conformance_reissues_the_calling_application() {
 #[test]
 fn source_policy_receives_signature_and_publishes_only_validated_acceptance() {
     let main_path = write_program("accepted", POLICY);
-    let checked = compile_to_checked(&main_path, None).expect("policy program should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("policy program should compile");
 
     let validated = evaluate_calling_policy_plan(
         &checked.typed,
@@ -2584,7 +2608,8 @@ fn source_policy_receives_signature_and_publishes_only_validated_acceptance() {
 #[test]
 fn source_policy_rejection_preserves_the_authored_reason() {
     let main_path = write_program("rejected", POLICY);
-    let checked = compile_to_checked(&main_path, None).expect("policy program should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("policy program should compile");
 
     let error = evaluate_calling_policy_plan(
         &checked.typed,
@@ -2621,8 +2646,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#;
     let main_path = write_program("full-width-value", source);
-    let checked =
-        compile_to_checked(&main_path, None).expect("full-width u64 policy should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("full-width u64 policy should compile");
     let error = evaluate_calling_policy_plan(
         &checked.typed,
         "FullWidthPolicy::plan",
@@ -2640,7 +2665,7 @@ machine Main::main(&mut self) { }
 fn rejected_calling_relationship_is_a_compile_diagnostic() {
     let source = POLICY.replace("machine tick();", "machine tick() -> i64;");
     let main_path = write_program("relationship-rejected", &source);
-    let diagnostics = compile_to_checked(&main_path, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect_err("a rejected Calling<C> relationship must fail compilation");
     let rendered = diagnostics
         .iter()
@@ -2798,7 +2823,7 @@ data Main { }
 machine Main::main(&mut self) { }
 "#;
     let main_path = write_program("erased-boundary-record", source);
-    let diagnostics = compile_to_checked(&main_path, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect_err("the observing policy deliberately rejects after checking its input graph");
     let rendered = diagnostics
         .iter()
@@ -2824,7 +2849,7 @@ fn erased_case_data_remains_rejected_as_an_unclassified_sum_shape() {
         "data Evidence { case Only; }\ndata Choice { case None; case Some(value: i32, proof [erased]: Evidence); }\n\nboundary trait Tick: Calling<NoResultPolicy> {\n    machine tick(value: Choice);\n}",
     );
     let main_path = write_program("erased-boundary-sum", &source);
-    let diagnostics = compile_to_checked(&main_path, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect_err("case-bearing data has no public calling-policy graph shape yet");
     let rendered = diagnostics
         .iter()
@@ -2848,7 +2873,8 @@ fn policy_source_identity_is_absent_from_the_published_fingerprint() {
     let fingerprint = |name: &str| {
         let source = POLICY.replace("NoResultPolicy", name);
         let main_path = write_program(name, &source);
-        let checked = compile_to_checked(&main_path, None).expect("policy program should compile");
+        let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+            .expect("policy program should compile");
         let tick = checked
             .typed
             .traits()
@@ -2903,7 +2929,7 @@ data Main { }
 machine Main::main(&mut self) { }
 "#;
     let main_path = write_program("same-named-requirement-overloads", source);
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("same-named exact requirement overloads should each evaluate their policy");
     let overloaded = checked
         .typed
@@ -2941,7 +2967,8 @@ fn generic_boundary_conformance_selects_and_publishes_its_policy_instance() {
         "boundary trait Tick<C>: Calling<C>\nwhere C satisfies CallingPolicy\n{\n    machine tick(&mut self);\n}\n\ndata TickProvider { count: i64; }\nTickProviderTick: TickProvider satisfies Tick<NoResultPolicy>;\nmachine TickProvider::tick(&mut self) satisfies Tick<NoResultPolicy>::tick {\n    self.count = 1;\n}",
     );
     let main_path = write_program("generic-boundary-policy", &source);
-    let checked = compile_to_checked(&main_path, None).expect("generic policy instance compiles");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("generic policy instance compiles");
     let tick = checked
         .typed
         .traits()
@@ -2986,7 +3013,8 @@ fn uninstantiated_generic_boundary_does_not_publish_an_abi() {
         "boundary trait Tick<C>: Calling<C>\nwhere C satisfies CallingPolicy\n{",
     );
     let main_path = write_program("uninstantiated-generic-boundary", &source);
-    let checked = compile_to_checked(&main_path, None).expect("generic declaration compiles");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("generic declaration compiles");
     let tick = checked
         .typed
         .traits()
@@ -3111,7 +3139,7 @@ data Main { }
 machine Main::main(&mut self) { }
 "#;
     let main_path = write_program("recursive-shape", source);
-    let diagnostics = compile_to_checked(&main_path, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect_err("the observing policy deliberately rejects after checking its input graph");
     let rendered = diagnostics
         .iter()
@@ -3236,7 +3264,7 @@ data Main { }
 machine Main::main(&mut self) { }
 "#;
     let main_path = write_program("stored-integer-shape", source);
-    let diagnostics = compile_to_checked(&main_path, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect_err("the observing policy deliberately rejects after checking the physical shape");
     let rendered = diagnostics
         .iter()

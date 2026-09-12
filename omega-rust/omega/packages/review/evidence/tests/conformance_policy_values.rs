@@ -2,6 +2,7 @@
 
 mod support;
 
+use compiler::CheckedCompileRequest;
 use package_evidence::project_checked_conformance_policy;
 use package_evidence::record::PackagePolicyConformanceConstArgument;
 use support::*;
@@ -15,11 +16,10 @@ fn checked(source: &str) -> (TempPackage, CheckedCompilation) {
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("conformance policy fixture checks");
     (package, checked)
 }

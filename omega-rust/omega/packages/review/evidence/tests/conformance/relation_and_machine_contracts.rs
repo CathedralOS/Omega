@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn review_projects_composed_relation_laws_with_forwarded_proposition_family() {
@@ -36,11 +37,10 @@ where proposition Relation(left: Carrier, right: Carrier);
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("composed relation laws should check");
     let review = project_checked_package_review(&checked)
         .expect("composed relation laws should have exact package-review rows");
@@ -85,11 +85,10 @@ where proposition OtherRelation(value: Carrier);
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("generic proposition spoof fixture should check before mutation");
     project_checked_package_review(&checked).expect("unmodified generic proposition review");
 
@@ -210,11 +209,10 @@ requires value == value;
     changed.write("build.omg", build);
 
     let review = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("higher-order static-machine fixture should check");
         project_checked_package_review(&checked)
             .expect("higher-order static-machine contract should project")
@@ -306,11 +304,10 @@ where machine Selected satisfies Handler::call;
     let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     package.write("build.omg", build);
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("nominal static-machine fixture should check");
     let review = project_checked_package_review(&checked)
         .expect("public nominal static-machine contract should project");
@@ -343,11 +340,10 @@ where machine Selected satisfies Hidden::call;
 "#,
     );
     hidden.write("build.omg", build);
-    let diagnostics = compile_to_checked_with_packages(
-        &hidden.0.join("main.omg"),
-        Some(target),
-        package_inputs(&hidden.0),
-    )
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&hidden.0)),
+        ..CheckedCompileRequest::new(&hidden.0.join("main.omg"), Some(target))
+    })
     .expect_err("public authored selection should reject a private nominal requirement");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -377,11 +373,10 @@ where machine Sample(index: u64) -> u64;
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("public proof-data static-machine fixture should check");
     let review = project_checked_package_review(&checked)
         .expect("public proof-data static-machine contract should project");

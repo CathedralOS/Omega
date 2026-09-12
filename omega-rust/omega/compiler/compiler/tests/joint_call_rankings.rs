@@ -1,3 +1,4 @@
+use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
 use std::fs;
 use std::path::PathBuf;
@@ -31,12 +32,19 @@ impl Drop for Project {
 
 fn checks(source: &str) {
     let project = Project::new(source);
-    compile_to_checked(&project.0.join("main.omg"), None).expect("joint ranking must check");
+    compile_to_checked(CheckedCompileRequest::new(
+        &project.0.join("main.omg"),
+        None,
+    ))
+    .expect("joint ranking must check");
 }
 
 fn rejects_cycle(source: &str) {
     let project = Project::new(source);
-    let diagnostics = match compile_to_checked(&project.0.join("main.omg"), None) {
+    let diagnostics = match compile_to_checked(CheckedCompileRequest::new(
+        &project.0.join("main.omg"),
+        None,
+    )) {
         Ok(_) => panic!("unsound joint ranking was accepted"),
         Err(diagnostics) => diagnostics,
     };
@@ -255,9 +263,12 @@ fn joint_witness_does_not_publish_an_exported_guarantee() {
             .replace("data Main", "pub data Main")
             .replace("data Progress", "pub data Progress"),
     );
-    let checked = compile_to_checked(&project.0.join("main.omg"), None)
-        .expect("exported joint ranking must check")
-        .into_program();
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &project.0.join("main.omg"),
+        None,
+    ))
+    .expect("exported joint ranking must check")
+    .into_program();
     for name in ["Main::scan_a", "Main::scan_b"] {
         let machine = checked
             .machines()
@@ -371,9 +382,12 @@ machine peel(n: ProofNat, payload: Other) -> ProofNat {
 }
 "#;
     let project = Project::new(source);
-    let checked = compile_to_checked(&project.0.join("main.omg"), None)
-        .expect("acyclic proof payload method must check")
-        .into_program();
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &project.0.join("main.omg"),
+        None,
+    ))
+    .expect("acyclic proof payload method must check")
+    .into_program();
     let callee = checked
         .machines()
         .iter()
@@ -429,9 +443,12 @@ fn authored_joint_termination_guarantees_seed_progress_summaries() {
             authored_count,
         );
         let project = Project::new(&source);
-        let checked = compile_to_checked(&project.0.join("main.omg"), None)
-            .expect("ranked SCC with authored termination must check")
-            .into_program();
+        let checked = compile_to_checked(CheckedCompileRequest::new(
+            &project.0.join("main.omg"),
+            None,
+        ))
+        .expect("ranked SCC with authored termination must check")
+        .into_program();
         for name in ["Main::scan_a", "Main::scan_b"] {
             let machine = checked
                 .machines()
