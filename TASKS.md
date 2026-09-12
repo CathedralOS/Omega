@@ -615,10 +615,14 @@ Owners include
   Extend the ordinary scalar-call sequencing path for direct boundary returns;
   the existing result-bearing producer still requires a local-result binding.
 
-  Package contract review must retain generated case-tag observations distinctly
-  from value equality. `package-evidence`'s contract operator projection rejects
-  `CaseMembership` until its review vocabulary and canonical recovery carry that
-  meaning; source/Terminal acceptance alone does not close package projection.
+  Package contract review still needs exact subject contexts for nominal case
+  membership in non-machine declarations, nested signatures and propositions;
+  reuse Psi's checked carrier/case relation rather than manufacturing a machine
+  owner or treating the classifier as a constructor. Machine-owned authored
+  membership and ordinary structural equality are distinct review expressions;
+  `cargo nextest run -p package-evidence --test callable_policy case_membership --no-fail-fast`
+  exercises source capture and canonical recovery. Selected operator crash
+  invocations remain explicitly fenced in package projection.
 
   Extend `facts/crash_entry_values.rs` beyond immutable stable-content roots to
   state arrivals, rebinding, mutable field versions and receiver/case projections,

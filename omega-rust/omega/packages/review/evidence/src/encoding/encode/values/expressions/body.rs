@@ -116,6 +116,13 @@ pub(super) fn encode_contract_expression_body(
             encoder.tag("nominal", 5);
             encoder.field("identity", |encoder| encode_nominal(encoder, identity))?;
         }
+        PackageReviewContractExpression::CaseMembership { subject, case } => {
+            encoder.tag("case_membership", 22);
+            encoder.field("subject", |encoder| {
+                encode_contract_expression(encoder, subject)
+            })?;
+            encoder.field("case", |encoder| encode_nominal(encoder, case))?;
+        }
         PackageReviewContractExpression::Reference { access, target } => {
             encoder.tag("reference", 20);
             encoder.field("access", |encoder| {

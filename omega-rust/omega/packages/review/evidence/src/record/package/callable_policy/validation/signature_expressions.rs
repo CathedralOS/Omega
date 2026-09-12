@@ -32,6 +32,10 @@ pub(in crate::record) fn expression(
             }
         }
         Expression::Nominal(value) => nominal(value)?,
+        Expression::CaseMembership { subject, case } => {
+            expression(subject, scope, nesting + 1)?;
+            nominal(case)?;
+        }
         Expression::ZeroValue(value) => value_type(value)?,
         Expression::Array(elements) => {
             for element in elements {
@@ -208,4 +212,48 @@ pub(in crate::record) fn static_argument(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn membership_requires_a_scoped_subject_and_exact_classifier_owner() {
+        let scope = Scope {
+            outer: None,
+            statics: &[],
+            policy_statics: &[],
+            proposition_binders: &[],
+            static_offset: 0,
+            lifetimes: 0,
+            parameters: 1,
+            nonself_parameters: 1,
+            has_self: false,
+            result: false,
+            domain_subject: false,
+        };
+        let owner = PackageReviewNominalOwner::Package(
+            semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]).unwrap(),
+        );
+        let membership =
+            |position, owner, path: &str| PackageReviewContractExpression::CaseMembership {
+                subject: Box::new(PackageReviewContractExpression::Parameter(position)),
+                case: PackageReviewNominalIdentity {
+                    owner,
+                    path: path.to_owned(),
+                },
+            };
+        assert!(expression(&membership(0, owner, "Message::Data"), &scope, 0).is_ok());
+        assert!(expression(&membership(1, owner, "Message::Data"), &scope, 0).is_err());
+        assert!(expression(&membership(0, owner, ""), &scope, 0).is_err());
+        assert!(
+            expression(
+                &membership(0, PackageReviewNominalOwner::Unresolved, "Message::Data"),
+                &scope,
+                0,
+            )
+            .is_err()
+        );
+    }
 }

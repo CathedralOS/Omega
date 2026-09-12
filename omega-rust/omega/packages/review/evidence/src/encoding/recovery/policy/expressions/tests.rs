@@ -143,6 +143,10 @@ fn every_expression_variant_roundtrips_exactly() {
         Expression::Result,
         Expression::GenericBinder(4),
         Expression::Nominal(identity("Value")),
+        Expression::CaseMembership {
+            subject: operand(),
+            case: identity("Message::Data"),
+        },
         Expression::Unary {
             operator: PackageReviewContractUnaryOperator::BitwiseNot,
             operand: operand(),
@@ -277,6 +281,81 @@ fn every_expression_variant_roundtrips_exactly() {
 }
 
 #[test]
+fn case_membership_retains_subject_and_exact_classifier_without_value_equality() {
+    let value = PackageReviewContractExpression::CaseMembership {
+        subject: operand(),
+        case: identity("Message::Data"),
+    };
+    let bytes = encoded_expression(&value);
+    assert_eq!(recovered_expression(&bytes).unwrap(), value);
+    for alternate in [
+        PackageReviewContractExpression::CaseMembership {
+            subject: Box::new(PackageReviewContractExpression::Parameter(2)),
+            case: identity("Message::Data"),
+        },
+        PackageReviewContractExpression::CaseMembership {
+            subject: operand(),
+            case: identity("Other::Data"),
+        },
+        PackageReviewContractExpression::CaseMembership {
+            subject: operand(),
+            case: PackageReviewNominalIdentity {
+                owner: PackageReviewNominalOwner::Package(
+                    semantic_vocabulary::PackageKeyIdentity::from_digest([2; 32]).unwrap(),
+                ),
+                path: "Message::Data".to_owned(),
+            },
+        },
+        PackageReviewContractExpression::Binary {
+            meaning: PackageReviewContractOperatorMeaning::Builtin,
+            operator: PackageReviewContractBinaryOperator::Equal,
+            left: operand(),
+            right: Box::new(PackageReviewContractExpression::Nominal(identity(
+                "Message::Data",
+            ))),
+        },
+    ] {
+        let alternate_bytes = encoded_expression(&alternate);
+        assert_ne!(alternate_bytes, bytes);
+        assert_eq!(recovered_expression(&alternate_bytes).unwrap(), alternate);
+    }
+    for length in 0..bytes.len() {
+        assert!(recovered_expression(&bytes[..length]).is_err());
+    }
+    let mut trailing = bytes.clone();
+    trailing.push(0);
+    assert_eq!(recovered_expression(&trailing), Err(Error::TrailingBytes));
+    let mut unresolved = bytes;
+    // Tag + subject parameter tag/u32 precede the classifier owner tag.
+    unresolved[6] = 2;
+    assert_eq!(
+        recovered_expression(&unresolved),
+        Err(Error::InvalidIdentity)
+    );
+}
+
+#[test]
+fn case_membership_recovery_shares_expression_depth_and_owned_storage_limits() {
+    let value = PackageReviewContractExpression::CaseMembership {
+        subject: operand(),
+        case: identity("Message::Data"),
+    };
+    let bytes = encoded_expression(&value);
+    let limits = PackagePolicyRecoveryLimits {
+        maximum_owned_bytes: 0,
+        ..PackagePolicyRecoveryLimits::default()
+    };
+    let mut reader = Reader::new(&bytes, limits).unwrap();
+    assert!(expression(&mut reader).is_err());
+    let mut deep = vec![22; 256];
+    deep.push(3);
+    assert_eq!(
+        recovered_expression(&deep),
+        Err(Error::NestingLimitExceeded)
+    );
+}
+
+#[test]
 fn all_call_target_variants_preserve_evidence_and_static_arguments() {
     let mut targets = BuiltinFunction::ALL
         .iter()
@@ -354,7 +433,7 @@ fn recursive_expression_and_static_argument_text_preserve_nested_meaning() {
 #[test]
 fn unknown_expression_tags_enum_values_and_builtin_ordinals_reject() {
     for bytes in [
-        vec![22],
+        vec![23],
         vec![255],
         vec![0, 2],
         vec![7, 2],

@@ -1,5 +1,7 @@
 //! Receipt-free callable meaning derived from actual checked source.
 
+#[path = "callable_policy/case_membership.rs"]
+mod case_membership;
 #[path = "callable_policy/crash.rs"]
 mod crash;
 #[path = "callable_policy/fixtures.rs"]

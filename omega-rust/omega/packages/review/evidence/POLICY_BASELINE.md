@@ -86,8 +86,12 @@ equality partition. Published reach, invocation and operational promises remain
 distinct from retained checked summaries; public suspension and blocking
 summaries conservatively use their published ceilings. Typed crash guards retain foreign owners,
 including within nested static signatures. Progress premises retain their
-entry-relative subject, projections and establishment requirements. Inferred
-crash causes come from the checker's conservative body-summary owner; unavailable
+entry-relative subject, projections and establishment requirements. Nominal
+membership retains a recursive subject and exact case classifier separately
+from construction and selected equality. Source-free recovery checks the
+subject's lexical scope and classifier identity; it does not reconstruct the
+foreign data declaration or independently prove the membership proposition.
+Inferred crash causes come from the checker's conservative body-summary owner; unavailable
 closure summaries remain explicitly unknown rather than becoming crash-free.
 The exact entry mutation frame retains completeness without private state coordinates.
 Caller-local flow facts and the reachable-machine flow union remain separate;
