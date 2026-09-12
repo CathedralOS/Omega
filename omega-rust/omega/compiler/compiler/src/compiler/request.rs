@@ -1,6 +1,6 @@
 //! One invocation owns shared input and independently configured target products.
 
-use crate::compiler::{ArtifactEmissionPolicy, CompileOptions, OptimizationRollback};
+use crate::{ArtifactEmissionPolicy, CompileOptions, OptimizationRollback};
 use diagnostics::Diagnostic;
 use package_compilation::{
     PackageCompilationInputs, PackageCompilationSourceInputs, PackageCompilationTargetInputs,
@@ -27,7 +27,7 @@ pub(super) struct SharedCompileInputs {
     pub(super) root_path: PathBuf,
     pub(super) requested_product: RequestedCompileProduct,
     pub(super) artifact_policy: ArtifactEmissionPolicy,
-    package_sources: Option<Arc<PackageCompilationSourceInputs>>,
+    pub(super) package_sources: Option<Arc<PackageCompilationSourceInputs>>,
 }
 
 /// Target-local policy, generated inputs and output placement. Source roots and

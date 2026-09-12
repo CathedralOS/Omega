@@ -628,12 +628,25 @@ impl CheckedChildExecution<'_> {
 impl PreparedCheckedSource {
     pub(crate) fn prepare(
         root_path: &Path,
-        package_inputs: Option<&PackageCompilationInputs>,
+        package_sources: Option<
+            std::sync::Arc<package_compilation::PackageCompilationSourceInputs>,
+        >,
     ) -> Result<Self, Vec<Diagnostic>> {
+        // Source discovery accepts no target attachments. Adapt the shared graph
+        // to the frontend's package-routing view without consulting a child.
+        let package_inputs = package_sources
+            .map(|sources| PackageCompilationInputs::from_parts(sources, Default::default()))
+            .transpose()
+            .map_err(|errors| {
+                errors
+                    .into_iter()
+                    .map(|error| Diagnostic::error(error.to_string()))
+                    .collect::<Vec<_>>()
+            })?;
         let mut shared_timings = CompileTimings::default();
         let source_checkpoint = ImmutableSourceParseCheckpoint::prepare(
             root_path,
-            package_inputs,
+            package_inputs.as_ref(),
             &mut shared_timings,
         )?;
         Ok(Self {
@@ -643,7 +656,7 @@ impl PreparedCheckedSource {
         })
     }
 
-    pub(crate) fn compile_for_terminal(
+    pub(crate) fn check(
         self,
         options: &super::CompileOptions,
         package_inputs: Option<&PackageCompilationInputs>,
@@ -704,8 +717,13 @@ pub fn compile_to_checked(
             .map(|target_name| target::TargetProfile::from_omega_target_name(Some(target_name)))
             .transpose()
             .map_err(|diagnostic| vec![diagnostic])?;
-        let prepared =
-            PreparedCheckedSource::prepare(&request.root_path, request.package_inputs.as_ref())?;
+        let prepared = PreparedCheckedSource::prepare(
+            &request.root_path,
+            request
+                .package_inputs
+                .as_ref()
+                .map(PackageCompilationInputs::source_inputs),
+        )?;
         prepared.compile_child_with_replay(CheckedChildExecution {
             selected_target_profile,
             package_inputs: request.package_inputs.as_ref(),

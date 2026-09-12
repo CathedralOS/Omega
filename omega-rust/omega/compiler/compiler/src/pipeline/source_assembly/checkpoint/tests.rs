@@ -311,3 +311,30 @@ fn single_use_checkpoint_moves_syntax_storage_for_exact_and_targetless_children(
         );
     }
 }
+
+#[test]
+fn target_repetition_shares_frontier_and_moves_final_arenas() {
+    let fixture = Fixture::new(false);
+    fs::write(&fixture.main, "const ANSWER: u32 = 42;\n").unwrap();
+    fs::remove_file(fixture.main.with_file_name("build.omg")).unwrap();
+    for target_count in [1, 3] {
+        let mut timings = CompileTimings::default();
+        let checkpoint = ImmutableSourceParseCheckpoint::prepare(&fixture.main, None, &mut timings)
+            .expect("prepare shared source");
+        let original_roots = checkpoint
+            .source_storage
+            .syntax_trees
+            .root_item_handles()
+            .as_ptr();
+        for (target_index, child) in std::iter::repeat_n(checkpoint, target_count).enumerate() {
+            let (_, assembled) = child
+                .assemble_targetless(None, &mut timings)
+                .expect("assemble child");
+            assert_eq!(
+                assembled.syntax_trees.root_item_handles().as_ptr() == original_roots,
+                target_index + 1 == target_count,
+                "only the final child moves the original arenas, including a singleton request",
+            );
+        }
+    }
+}

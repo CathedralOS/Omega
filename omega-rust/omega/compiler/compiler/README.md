@@ -6,10 +6,16 @@ not implement package loading, build evaluation, transformation algorithms or
 visualization semantics. See the [pipeline map](../../../pipeline.md).
 
 [compiler.rs](src/compiler.rs) owns request admission, the shared checked
-continuation, and the Check / Terminal / Native product dispatch.
+continuation, and the Check / Terminal / Native product dispatch. Its single public
+function runs one target loop: checking, trust admission, observations, then the
+requested product. There is no stateless wrapper object, finalizer callback, or
+second native scheduler.
 It prepares immutable source once, then drives each target's ordinary continuation.
-[Native targets](src/compiler/native/targets.rs) group exactly reusable Terminal
-inputs before distinct native lowering, including when there is only one target.
+[Native input reuse](src/compiler/native/input_reuse.rs) retains exactly matching
+Terminal inputs as each target reaches realization. It does not retain every
+child's checked trees until a second scheduling pass. Product reports belong to
+their product owners; [package.rs](src/compiler/package.rs) owns package-custody
+checks without calling back into the coordinator.
 
 Checked-only consumers supply one `CheckedCompileRequest` to `compile_to_checked`.
 Package inputs, build staging, session sponsors and replay evidence are request
@@ -103,8 +109,8 @@ source checkpoint before joining generated bundles,
 generated-only imports or selected target imports. Prepared checked input shares
 the source frontier and parse timings, not mutable semantic/build state, sponsor,
 evaluation replay or target authority. The ordinary one-target route uses the
-same child continuation. The last (including only) child consumes the prepared
-checkpoint instead of cloning behind a retained coordinator owner.
+same child continuation. A consuming repetition iterator moves the last
+(including only) checkpoint instead of cloning behind a retained coordinator owner.
 [Generated source](generated_source.md) owns append
 custody; [checked settlement](checked_settlement.md) owns its later ordered joins.
 

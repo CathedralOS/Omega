@@ -736,7 +736,7 @@ fn standalone_source_profile_analysis_stays_retired() {
 
 fn compiler_product_coordinator_source(root: &std::path::Path) -> String {
     let source = root.join("omega-rust/omega/compiler/compiler/src");
-    ["compiler.rs", "compiler/native/targets.rs"]
+    ["compiler.rs", "compiler/native/input_reuse.rs"]
         .map(|path| std::fs::read_to_string(source.join(path)).expect("read product coordinator"))
         .join("\n")
 }
@@ -822,9 +822,7 @@ fn checked_observations_consume_admission_without_owning_it() {
         coordinator.matches("admission.write_observations(").count(),
         1
     );
-    let admit = coordinator
-        .find("let admission = admit_checked_compilation(")
-        .unwrap();
+    let admit = coordinator.find("admit_checked_compilation(").unwrap();
     let observe = coordinator.find("admission.write_observations(").unwrap();
     assert!(
         admit < observe,
@@ -1270,7 +1268,9 @@ fn production_subject_projection_is_report_owned() {
     let driver = compiler_product_coordinator_source(&root);
     let native_optimization = std::fs::read_to_string(compiler.join("compiler/native.rs"))
         .expect("read native optimization join");
-    let product_stops = format!("{driver}\n{native_optimization}");
+    let terminal = std::fs::read_to_string(compiler.join("compiler/terminal_product.rs"))
+        .expect("read Terminal product owner");
+    let product_stops = format!("{driver}\n{native_optimization}\n{terminal}");
     let projection =
         std::fs::read_to_string(compiler.join("pipeline/reporting/production_subject.rs"))
             .expect("read production-subject report projection");
@@ -2554,15 +2554,15 @@ fn retained_native_product_enters_only_terminal_realization() {
     let request = std::fs::read_to_string(&request_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", request_path.display()));
     assert!(
-        driver.contains("check_request(&request, source)")
+        driver.contains("source?.check(target.options(), target.package_inputs())?")
             && driver.contains("RequestedCompileProduct::NativeArtifact =>")
-            && driver.contains("native::compile_targets(request.targets, prepared)")
-            && driver.contains("super::prepare(request, checked)")
+            && driver.contains("native::prepare(target, checked)")
+            && driver.contains("native_inputs.realize(terminal)?")
             && native.contains("NativeCompilationWithCheckedReceipt::new(checked, report)"),
         "NativeArtifact must stop the canonical driver at native realization while retaining its exact checked/native invocation join"
     );
     assert_eq!(
-        driver.matches("prepared.compile_for_terminal(").count(),
+        driver.matches("source?.check(").count(),
         1,
         "production products must share one checked-Psi frontend"
     );

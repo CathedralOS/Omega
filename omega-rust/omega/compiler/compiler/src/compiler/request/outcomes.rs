@@ -1,4 +1,4 @@
-use crate::compiler::CompileReport;
+use crate::CompileReport;
 use diagnostics::Diagnostic;
 use target::TargetProfile;
 

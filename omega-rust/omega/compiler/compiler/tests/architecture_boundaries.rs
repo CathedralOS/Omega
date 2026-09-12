@@ -303,7 +303,7 @@ fn compiler_driver_delegates_terminal_product_semantics_to_one_owner() {
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", owner_path.display()));
 
     assert!(
-        driver.contains("terminal_product::produce_retained_terminal_artifact("),
+        driver.contains("terminal_product::compile_report("),
         "the compiler driver must stop Terminal production through its named product owner"
     );
     for forbidden in [
@@ -371,7 +371,7 @@ fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
         "all product counts must acquire their shared source through one preparation"
     );
     assert!(
-        compact_driver.contains("check_request(&target,prepared).and_then("),
+        compact_driver.contains("source?.check(target.options(),target.package_inputs())?"),
         "checked and Terminal children must continue from the prepared source"
     );
     assert!(
@@ -380,9 +380,12 @@ fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
     );
     let mut ordered_driver = compact_driver.as_str();
     for stage in [
-        "fncompile_request(",
+        "pubfncompile(",
         "request.validate_for_execution()?;",
         "PreparedCheckedSource::prepare(",
+        "source?.check(",
+        "admit_checked_compilation(",
+        "admission.write_observations(",
         "matchrequest.shared.requested_product{",
     ] {
         let offset = ordered_driver.find(stage).unwrap_or_else(|| {
@@ -405,8 +408,8 @@ fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
         .map(|(_, native_arm)| native_arm)
         .expect("the common product stop must contain its native arm");
     native_arm
-        .find("native::compile_targets(request.targets,prepared)")
-        .expect("every native product count must invoke the same prepared target owner");
+        .find("native::prepare(target,checked)")
+        .expect("each native product must prepare its own checked Terminal input");
     let checked_receipt = compact_optimization
         .find("NativeCompilationWithCheckedReceipt::new(checked,report)")
         .expect("the native report owner must retain checked/report custody validation");
@@ -417,21 +420,23 @@ fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
         report_assembly < checked_receipt,
         "native report assembly must precede checked/report custody validation"
     );
-    let targets = fs::read_to_string(
-        repo_root.join("omega-rust/omega/compiler/compiler/src/compiler/native/targets.rs"),
-    )
-    .expect("read exact-target compilation");
     assert!(
-        without_ascii_whitespace(&targets).contains("super::prepare(request,checked)")
-            && without_ascii_whitespace(&targets).contains("check_request(&request,source)"),
-        "the native batch route must delegate each child's Terminal preparation to the same owner"
+        compact_driver.contains("native_inputs.realize(terminal)?")
+            && compact_driver.contains("std::iter::repeat_n(source,target_count)")
+            && compact_driver.contains("request.targets.into_iter().zip(sources)"),
+        "one target loop must own source consumption and invocation-local native reuse"
     );
-    assert!(
-        compact_driver.contains("outcomes.push(compile_target(last,prepared))")
-            && without_ascii_whitespace(&targets)
-                .contains("staged.push(prepare_target(last,prepared_source))"),
-        "the final child must consume the source checkpoint, not copy behind a retained coordinator owner"
-    );
+    for retired in [
+        "let finish: fn",
+        "fn check_request(",
+        "fn compile_request(",
+        "require_package_custody",
+    ] {
+        assert!(
+            !driver.contains(retired),
+            "coordinator must not recover hidden policy `{retired}`"
+        );
+    }
     assert!(
         !request.contains("validate_for_native_execution"),
         "the request owner must expose one production admission operation"
@@ -456,13 +461,13 @@ fn compiler_surface_and_reporting_close_driver_cleanup_contract() {
 
     assert_eq!(
         compact_compiler.matches("pubfncompile(").count(),
-        2,
-        "the compiler surface must remain one typed operation exposed as the Compiler method and its free-function facade"
+        1,
+        "the compiler surface must expose one typed compile operation, not duplicate facades"
     );
     assert!(
-        compact_compiler.contains("pubfncompile(self,request:CompileRequest)")
+        !compact_compiler.contains("pubstructCompiler")
             && compact_compiler.contains("pubfncompile(request:CompileRequest)"),
-        "both production facades must accept the same complete CompileRequest"
+        "compile must accept the complete request without a stateless wrapper object"
     );
     for retired in [
         "compile_with_",

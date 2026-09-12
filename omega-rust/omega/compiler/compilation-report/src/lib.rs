@@ -463,6 +463,17 @@ pub struct CompileReport {
 }
 
 impl CompileReport {
+    /// A completed check with no retained artifact or executable publication.
+    pub fn check_only(root_path: PathBuf, source_file_count: usize) -> Result<Self, &'static str> {
+        Self::checked(
+            root_path,
+            source_file_count,
+            false,
+            CompileOutputKind::CheckOnly,
+            None,
+        )
+    }
+
     pub fn checked(
         root_path: PathBuf,
         source_file_count: usize,

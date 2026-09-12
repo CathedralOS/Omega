@@ -3,6 +3,27 @@
 use diagnostics::Diagnostic;
 pub(super) mod float_comparisons;
 
+/// Produce a retained Terminal product and its ordinary compiler report.
+pub(super) fn compile_report(
+    root_path: std::path::PathBuf,
+    checked: crate::CheckedCompilation,
+    profile: &proof_admission::AdmissionProfile,
+    rollback: &crate::OptimizationRollback,
+) -> Result<crate::CompileReport, Vec<Diagnostic>> {
+    let production_subject = crate::pipeline::reporting::project_production_subject(&checked)?;
+    let source_file_count = checked.source_file_count();
+    let rollback = rollback.settle(checked.optimization_selections());
+    let artifact = produce_retained_terminal_artifact(&checked, profile, rollback.effective())?;
+    crate::CompileReport::from_retained_terminal_artifact(
+        root_path,
+        source_file_count,
+        artifact,
+        production_subject,
+    )
+    .and_then(|report| report.with_terminal_optimization_rollback(rollback.into_receipt()))
+    .map_err(|message| vec![Diagnostic::error(message)])
+}
+
 /// Rejoin a checked-source inspection product to its exact selected IEEE
 /// comparison meanings. Portable verification alone cannot establish this
 /// source/provider association, and this check grants no native execution.

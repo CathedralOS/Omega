@@ -1,6 +1,6 @@
 //! Optional writing of already-admitted checked-program observations.
 
-use crate::compiler::{ArtifactEmissionPolicy, CheckedAdmission, CompileOptions};
+use crate::{ArtifactEmissionPolicy, CheckedAdmission, CompileOptions};
 use artifacts::ArtifactWriter;
 use diagnostics::Diagnostic;
 
