@@ -229,13 +229,19 @@ impl ExitScalars<'_, '_> {
         else {
             return false;
         };
+        // Immutable identity proves Boolean equality without choosing true or
+        // false. Ordering remains integral; floating equality is not reflexive.
         if parameter.is_mutable
             || parameter.is_self
             || parameter.is_const
             || !self
                 .program
                 .primitive_type_reference(parameter.type_reference)
-                .is_some_and(|primitive| primitive.accepts_integer_literal())
+                .is_some_and(|primitive| {
+                    primitive.accepts_integer_literal()
+                        || (primitive == typed_trees::types::PrimitiveType::Bool
+                            && binary.operator == BinaryOperator::Equal)
+                })
             || self
                 .program
                 .primitive_type_reference(parameter.type_reference)

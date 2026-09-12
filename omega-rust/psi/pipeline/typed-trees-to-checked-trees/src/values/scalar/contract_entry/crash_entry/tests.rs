@@ -76,12 +76,12 @@ fn structural_entry_roots_preserve_access_independent_authored_and_dense_positio
             "{root}"
         );
         assert!(
-            super::super::lower_machine_entry_scalar_contract_expression(
+            crate::values::lower_scalar_contract_predicate(
                 &program,
                 &CheckedOperatorFacts::default(),
                 &program.machines()[0],
                 requirement(&program),
-                &[]
+                false
             )
             .is_none()
         );
@@ -398,16 +398,16 @@ fn integer_entry_comparisons_reuse_total_landing_and_boolean_composition() {
                 predicate,
             );
             assert!(read(&program).is_some(), "{primitive}: {predicate}");
-            assert!(
-                super::super::lower_machine_entry_scalar_contract_expression(
+            assert_eq!(
+                crate::values::lower_scalar_contract_predicate(
                     &program,
                     &CheckedOperatorFacts::default(),
                     &program.machines()[0],
                     requirement(&program),
-                    &[],
-                )
-                .is_none(),
-                "numeric support must not widen the separate Boolean-only fallback"
+                    false,
+                ),
+                read(&program),
+                "scalar and crash predicates share the same primitive meaning"
             );
         }
     }
@@ -696,15 +696,15 @@ fn integer_entry_fields_reuse_fixed_carrier_landing_and_total_comparisons() {
             let program = numeric_field(primitive, "&Input", predicate);
             assert!(read(&program).is_some(), "{primitive}: {predicate}");
             assert!(
-                super::super::lower_machine_entry_scalar_contract_expression(
+                crate::values::lower_scalar_contract_predicate(
                     &program,
                     &CheckedOperatorFacts::default(),
                     &program.machines()[0],
                     requirement(&program),
-                    &[],
+                    false,
                 )
                 .is_none(),
-                "separate scalar Boolean fallback remains closed to fields"
+                "scalar contract namespace remains closed to structural fields"
             );
         }
     }

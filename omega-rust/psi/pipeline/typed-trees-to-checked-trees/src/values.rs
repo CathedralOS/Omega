@@ -56,10 +56,10 @@ pub(crate) use scalar::scalar_qualified_call_expression;
 pub(crate) use scalar::{
     CallArrayConstruction, build_checked_scalar_expression_plans,
     build_checked_value_computation_plans, call_array_constructions,
-    evaluate_closed_boolean_expression, is_scalar_return_call, lower_integer_contract_predicate,
+    evaluate_closed_boolean_expression, is_scalar_return_call,
     lower_integer_parameter_range_requirements, lower_machine_entry_boolean_expression,
-    lower_machine_entry_crash_contract_expression, lower_machine_entry_scalar_contract_expression,
-    lower_machine_parameter_boolean_expression, lower_signature_crash_contract_expression,
+    lower_machine_entry_crash_contract_expression, lower_machine_parameter_boolean_expression,
+    lower_scalar_contract_predicate, lower_signature_crash_contract_expression,
     lower_state_scalar_expression, lower_unit_scalar_argument, nested_structural_call_return_type,
     operator_is_builtin, resolve_structural_parameter_path,
     retain_nested_structural_call_arguments, scalar_expression_type,

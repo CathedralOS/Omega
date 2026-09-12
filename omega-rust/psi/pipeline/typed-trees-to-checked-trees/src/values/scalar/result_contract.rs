@@ -1,77 +1,62 @@
-//! Checked integer contract predicates, separate from execution expressions.
+//! Scalar contract predicates share logical structure and exact entry/result
+//! identities. They are not body expressions: mutable entry snapshots are
+//! available to requires, while normal guarantees cannot reread them as old
+//! values. Integer leaves keep their contextual landing and operator owner.
 
 use super::*;
 
 /// The caller supplies a predicate from this machine's exact contract clause.
 /// Entry scalar parameters precede the reserved ensures-only result position.
-pub(crate) fn lower_integer_contract_predicate(
+pub(crate) fn lower_scalar_contract_predicate(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
     machine: &typed_trees::machine::Machine,
     expression: ExpressionHandle,
     allow_result: bool,
 ) -> Option<CheckedBooleanExpression> {
-    let entry = program.machine_states(machine).first()?;
-    let parameters = program.state_parameters(entry);
-    if parameters
-        .iter()
-        .any(|parameter| parameter.is_self || parameter.is_const)
-    {
-        return None;
+    ContractPredicates {
+        program,
+        operators,
+        machine,
+        parameters: contract_entry::authored_entry_parameters(program, machine)?,
+        allow_result,
+        remaining: 4096,
     }
-    let scalar_count = parameters
-        .iter()
-        .filter(|parameter| {
-            program
-                .primitive_type_reference(parameter.type_reference)
-                .is_some()
-        })
-        .count();
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    if operators.uses.iter().any(|(_, operator)| {
-        operator.expression == expression
-            && operator.status != CheckedOperatorResolutionStatus::BuiltinFallback
-    }) {
-        return None;
-    }
-    if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
-        let left = Box::new(lower_integer_contract_predicate(
-            program,
-            operators,
-            machine,
-            binary.left,
-            allow_result,
-        )?);
-        let right = Box::new(lower_integer_contract_predicate(
-            program,
-            operators,
-            machine,
-            binary.right,
-            allow_result,
-        )?);
-        return Some(if binary.operator == BinaryOperator::And {
-            CheckedBooleanExpression::And { left, right }
-        } else {
-            CheckedBooleanExpression::Or { left, right }
-        });
-    }
-    let subject = |expression| {
+    .boolean(expression, 0)
+}
+
+struct ContractPredicates<'program> {
+    program: &'program TypedTrees,
+    operators: &'program CheckedOperatorFacts,
+    machine: &'program typed_trees::machine::Machine,
+    parameters: &'program [StateParameter],
+    allow_result: bool,
+    remaining: usize,
+}
+
+impl ContractPredicates<'_> {
+    fn subject(&self, expression: ExpressionHandle) -> Option<(usize, TypeReferenceHandle)> {
+        let program = self.program;
         let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
             return None;
         };
-        if let Some((position, parameter)) = parameters.iter().enumerate().find(|(_, parameter)| {
-            parameter.symbol.is_valid()
-                && parameter.symbol == path.symbol
-                && path.head_symbol == parameter.symbol
-        }) {
+        if let Some((position, parameter)) =
+            self.parameters.iter().enumerate().find(|(_, parameter)| {
+                parameter.symbol == path.symbol && path.head_symbol == parameter.symbol
+            })
+        {
+            if parameter.is_self
+                || parameter.is_const
+                || !matches!(program.expression_table.name_path_members(path.members), [name] if name == &parameter.name)
+            {
+                return None;
+            }
             // An ensures name denotes the post-state, not an implicit old(...).
-            if allow_result && parameter.is_mutable {
+            if self.allow_result && parameter.is_mutable {
                 return None;
             }
             program.primitive_type_reference(parameter.type_reference)?;
-            let scalar_position = parameters[..position]
+            let scalar_position = self.parameters[..position]
                 .iter()
                 .filter(|parameter| {
                     program
@@ -83,23 +68,142 @@ pub(crate) fn lower_integer_contract_predicate(
         }
         // Equal spelling or carrier does not establish result ownership. This
         // occurrence must belong to this machine's exact authored ensures.
-        (allow_result
+        let entry = program.machine_states(self.machine).first()?;
+        (self.allow_result
             && validation::reserved_result_owner(program, expression)
-                == Some((machine.symbol, entry.return_type)))
-        .then_some((scalar_count, entry.return_type))
-    };
-    let subjects = [binary.left, binary.right].map(|expression| {
-        let (position, type_reference) = subject(expression)?;
-        let primitive_type = program.primitive_type_reference(type_reference)?;
-        Some((
-            CheckedScalarExpression::Parameter {
-                position,
-                primitive_type,
-            },
-            type_reference,
-        ))
-    });
-    lower_integer_contract_comparison(program, operators, machine.symbol, expression, subjects)
+                == Some((self.machine.symbol, entry.return_type)))
+        .then(|| {
+            (
+                self.parameters
+                    .iter()
+                    .filter(|parameter| {
+                        program
+                            .primitive_type_reference(parameter.type_reference)
+                            .is_some()
+                    })
+                    .count(),
+                entry.return_type,
+            )
+        })
+    }
+
+    fn boolean_type(&self, expression: ExpressionHandle) -> Option<TypeReferenceHandle> {
+        if matches!(
+            self.program.expression_table.expression(expression),
+            ExpressionNode::Name(_)
+        ) {
+            return self.subject(expression).map(|(_, reference)| reference);
+        }
+        self.program
+            .type_reference_table
+            .named_references()
+            .find_map(|(reference, symbol, _)| {
+                (self.program.symbols.builtin_type_atom(symbol)
+                    == Some(symbols::BuiltinTypeAtom::Bool))
+                .then_some(reference)
+            })
+    }
+
+    fn boolean(
+        &mut self,
+        expression: ExpressionHandle,
+        depth: usize,
+    ) -> Option<CheckedBooleanExpression> {
+        if depth >= 64
+            || self.remaining == 0
+            || !self
+                .program
+                .expression_table
+                .expression_is_valid(expression)
+        {
+            return None;
+        }
+        self.remaining -= 1;
+        let program = self.program;
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Boolean(value) => Some(CheckedBooleanExpression::Constant(*value)),
+            ExpressionNode::Name(_) => {
+                let (position, reference) = self.subject(expression)?;
+                (program.primitive_type_reference(reference) == Some(PrimitiveType::Bool))
+                    .then_some(CheckedBooleanExpression::Parameter { position })
+            }
+            ExpressionNode::Unary(unary)
+                if unary.operator == UnaryOperator::LogicalNot
+                    && operator_is_builtin(self.operators, expression) =>
+            {
+                Some(CheckedBooleanExpression::Not(Box::new(
+                    self.boolean(unary.operand, depth + 1)?,
+                )))
+            }
+            ExpressionNode::Binary(binary) if operator_is_builtin(self.operators, expression) => {
+                let subjects = [binary.left, binary.right].map(|expression| {
+                    let (position, reference) = self.subject(expression)?;
+                    Some((
+                        CheckedScalarExpression::Parameter {
+                            position,
+                            primitive_type: program.primitive_type_reference(reference)?,
+                        },
+                        reference,
+                    ))
+                });
+                if let Some(comparison) = lower_integer_contract_comparison(
+                    program,
+                    self.operators,
+                    self.machine.symbol,
+                    expression,
+                    subjects,
+                ) {
+                    return Some(comparison);
+                }
+                if !matches!(
+                    binary.operator,
+                    BinaryOperator::And
+                        | BinaryOperator::Or
+                        | BinaryOperator::Equal
+                        | BinaryOperator::NotEqual
+                ) {
+                    return None;
+                }
+                let left = Box::new(self.boolean(binary.left, depth + 1)?);
+                let right = Box::new(self.boolean(binary.right, depth + 1)?);
+                Some(match binary.operator {
+                    BinaryOperator::And => CheckedBooleanExpression::And { left, right },
+                    BinaryOperator::Or => CheckedBooleanExpression::Or { left, right },
+                    BinaryOperator::Equal | BinaryOperator::NotEqual => {
+                        let spelling = if binary.operator == BinaryOperator::Equal {
+                            language_core::OperatorSpelling::Equal
+                        } else {
+                            language_core::OperatorSpelling::NotEqual
+                        };
+                        // Children have been checked as Boolean predicates. Keep
+                        // exact formal types for overload selection; the reserved
+                        // result is not an unknown wildcard operand.
+                        let types = [
+                            Some(self.boolean_type(binary.left)?),
+                            Some(self.boolean_type(binary.right)?),
+                        ];
+                        if !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                            program,
+                            self.machine.symbol,
+                            expression,
+                            spelling,
+                            &types,
+                        ) {
+                            return None;
+                        }
+                        let equality = CheckedBooleanExpression::Equal { left, right };
+                        if binary.operator == BinaryOperator::Equal {
+                            equality
+                        } else {
+                            CheckedBooleanExpression::Not(Box::new(equality))
+                        }
+                    }
+                    _ => return None,
+                })
+            }
+            _ => None,
+        }
+    }
 }
 
 /// Subject readers retain their own namespace custody. Comparison selection,

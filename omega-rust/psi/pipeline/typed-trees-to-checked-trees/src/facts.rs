@@ -1250,17 +1250,6 @@ fn build_closed_scalar_value_contract_plan(
         else {
             return None;
         };
-        if let Some(predicate) = crate::values::lower_integer_contract_predicate(
-            program,
-            operators,
-            machine,
-            *expression,
-            contract.kind == SignatureContractKind::Ensures,
-        ) {
-            return Some(checked_trees::ClosedScalarContractValue::Predicate(
-                predicate,
-            ));
-        }
         let ExpressionNode::Binary(binary) = program.expression_table.expression(*expression)
         else {
             return None;
@@ -1309,22 +1298,19 @@ fn build_closed_scalar_value_contract_plan(
 
     let lower_clause = |contract: &typed_trees::signature::SignatureContract| {
         lower_closed_clause(contract).or_else(|| {
-            // Keep the established literal encoding and post-state guarantees.
-            // Only requirements may use the invocation-entry Boolean namespace.
-            if contract.kind != SignatureContractKind::Requires {
-                return None;
-            }
+            // Preserve legacy closed literal encoding, then read compositional
+            // scalar predicates in their exact entry or normal-result namespace.
             let [ProofFact::Expression(expression)] =
                 program.proof_facts.span_or_empty(contract.facts)
             else {
                 return None;
             };
-            crate::values::lower_machine_entry_scalar_contract_expression(
+            crate::values::lower_scalar_contract_predicate(
                 program,
                 operators,
                 machine,
                 *expression,
-                &[],
+                contract.kind == SignatureContractKind::Ensures,
             )
             .map(checked_trees::ClosedScalarContractValue::Predicate)
         })

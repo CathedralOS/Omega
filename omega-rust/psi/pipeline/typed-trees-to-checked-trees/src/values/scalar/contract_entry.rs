@@ -7,40 +7,37 @@ mod crash_entry;
 pub(crate) use crash_entry::lower_machine_entry_crash_contract_expression;
 pub(crate) use crash_entry::lower_signature_crash_contract_expression;
 
-/// Requires-only fallback for scalar Boolean formals in an exact entry namespace.
-/// Unlike the shared structural crash reader, this boundary cannot recover a source name
-/// from its spelling or introduce a result/body-local namespace.
-pub(crate) fn lower_machine_entry_scalar_contract_expression(
-    program: &TypedTrees,
-    operators: &CheckedOperatorFacts,
+/// The structural crash reader additionally needs a closed signature. This is
+/// execution eligibility, not the identity of a concrete scalar contract leaf
+/// on a generic declaration awaiting application.
+pub(super) fn entry_parameters<'program>(
+    program: &'program TypedTrees,
     machine: &typed_trees::machine::Machine,
-    expression: ExpressionHandle,
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
-) -> Option<CheckedBooleanExpression> {
-    let parameters = entry_parameters(program, machine)?;
-    let entry = program.machine_states(machine).first()?;
-    lower_scalar_entry_expression(
-        program,
-        operators,
-        machine,
-        entry,
-        parameters,
-        expression,
-        exact_integer_casts,
-    )
+) -> Option<&'program [StateParameter]> {
+    let parameters = authored_entry_parameters(program, machine)?;
+    if !program.machine_type_parameters(machine).is_empty()
+        || !machine.lifetime_parameters.is_empty()
+        || !machine.conformance_bounds.is_empty()
+        || program.data_definitions().iter().any(|owner| {
+            owner.symbol == machine.attached_data_symbol
+                && (!program.data_type_parameters(owner).is_empty()
+                    || !owner.lifetime_parameters.is_empty())
+        })
+    {
+        return None;
+    }
+    Some(parameters)
 }
 
-/// Both readers use the same exact invocation namespace; their admitted leaf
-/// kinds remain separate because closed scalar contracts cannot carry fields.
-fn entry_parameters<'program>(
+/// Scalar contracts and structural crash predicates share exact authored
+/// machine/state/formal identity, without borrowing each other's leaf vocabulary
+/// or eligibility policy. Unread type parameters do not erase concrete clauses.
+pub(super) fn authored_entry_parameters<'program>(
     program: &'program TypedTrees,
     machine: &typed_trees::machine::Machine,
 ) -> Option<&'program [StateParameter]> {
     if !machine.symbol.is_valid()
         || program.symbols.get(machine.symbol).kind != symbols::SymbolKind::Machine
-        || !program.machine_type_parameters(machine).is_empty()
-        || !machine.lifetime_parameters.is_empty()
-        || !machine.conformance_bounds.is_empty()
         || program
             .machines()
             .iter()
@@ -62,8 +59,6 @@ fn entry_parameters<'program>(
             if owners.next().is_some()
                 || program.symbols.get(owner.symbol).kind != symbols::SymbolKind::Data
                 || owner.name.as_str() != name.as_str()
-                || !program.data_type_parameters(owner).is_empty()
-                || !owner.lifetime_parameters.is_empty()
             {
                 return None;
             }
@@ -89,93 +84,6 @@ fn entry_parameters<'program>(
         }
     }
     Some(parameters)
-}
-
-fn lower_scalar_entry_expression(
-    program: &TypedTrees,
-    operators: &CheckedOperatorFacts,
-    machine: &typed_trees::machine::Machine,
-    entry: &typed_trees::state::State,
-    parameters: &[StateParameter],
-    expression: ExpressionHandle,
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
-) -> Option<CheckedBooleanExpression> {
-    // Check the handle graph before invoking recursive semantic queries.
-    let mut pending = vec![(expression, false)];
-    let mut active = Vec::new();
-    let mut complete = Vec::new();
-    let mut operations = Vec::new();
-    while let Some((expression, leaving)) = pending.pop() {
-        if leaving {
-            active.pop();
-            complete.push(expression);
-            continue;
-        }
-        if !program.expression_table.expression_is_valid(expression) || active.contains(&expression)
-        {
-            return None;
-        }
-        if complete.contains(&expression) {
-            continue;
-        }
-        active.push(expression);
-        pending.push((expression, true));
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Name(path) => {
-                let members = program.expression_table.name_path_members(path.members);
-                if !path.symbol.is_valid()
-                    || path.head_symbol != path.symbol
-                    || members.len() != 1
-                    || parameters
-                        .iter()
-                        .filter(|parameter| parameter.symbol == path.symbol)
-                        .count()
-                        != 1
-                    || !parameters.iter().any(|parameter| {
-                        parameter.symbol == path.symbol
-                            && !parameter.is_self
-                            && !parameter.is_const
-                            && parameter.name.as_str() == members[0].as_str()
-                            && program.primitive_type_reference(parameter.type_reference)
-                                == Some(PrimitiveType::Bool)
-                    })
-                {
-                    return None;
-                }
-            }
-            // Numeric clauses keep their existing landing, totality and
-            // operator-custody reader. This fallback only adds Boolean facts.
-            ExpressionNode::Boolean(_) => {}
-            ExpressionNode::Binary(binary) => {
-                operations.push(expression);
-                pending.extend([(binary.right, false), (binary.left, false)]);
-            }
-            ExpressionNode::Unary(unary) => {
-                operations.push(expression);
-                pending.push((unary.operand, false));
-            }
-            _ => return None,
-        }
-    }
-    if operations
-        .iter()
-        .any(|expression| !operator_is_builtin(operators, *expression))
-        || !validation::has_builtin_bound_expression_meaning(
-            program,
-            machine,
-            Some(entry),
-            expression,
-        )
-    {
-        return None;
-    }
-    lower_machine_entry_boolean_expression(
-        program,
-        operators,
-        machine,
-        expression,
-        exact_integer_casts,
-    )
 }
 
 pub(crate) fn lower_machine_entry_boolean_expression(
@@ -329,12 +237,12 @@ mod tests {
         program: &TypedTrees,
         expression: ExpressionHandle,
     ) -> Option<CheckedBooleanExpression> {
-        lower_machine_entry_scalar_contract_expression(
+        lower_scalar_contract_predicate(
             program,
             &CheckedOperatorFacts::default(),
             &program.machines()[0],
             expression,
-            &[],
+            false,
         )
     }
 
@@ -349,6 +257,86 @@ mod tests {
                 "{requirement_text}"
             );
         }
+    }
+
+    #[test]
+    fn scalar_contracts_keep_concrete_predicates_on_generic_declarations() {
+        let program = typed(
+            "machine value<T>(input: u16) -> u16\nrequires input < 256u16\nensures result == input\n{ input }",
+        );
+        let machine = &program.machines()[0];
+        assert!(!program.machine_type_parameters(machine).is_empty());
+        for clause in program.machine_contracts(machine) {
+            let [typed_trees::domain::ProofFact::Expression(expression)] =
+                program.proof_facts.span_or_empty(clause.facts)
+            else {
+                panic!("predicate")
+            };
+            assert!(
+                lower_scalar_contract_predicate(
+                    &program,
+                    &CheckedOperatorFacts::default(),
+                    machine,
+                    *expression,
+                    clause.kind == typed_trees::signature::SignatureContractKind::Ensures
+                )
+                .is_some()
+            );
+        }
+        assert!(
+            entry_parameters(&program, machine).is_none(),
+            "structural crash eligibility remains closed"
+        );
+        for source in [
+            "data Box<T> {} machine Box::value(flag: bool) -> bool requires flag { flag }",
+            "machine value<T>(flag: bool) -> bool requires flag { flag }",
+        ] {
+            let program = typed(source);
+            assert!(scalar_requirement(&program, requirement(&program)).is_some());
+            assert!(entry_parameters(&program, &program.machines()[0]).is_none());
+        }
+    }
+
+    #[test]
+    fn boolean_result_predicates_keep_contract_owner_and_poststate_namespace() {
+        let program = typed(
+            "machine value(input: bool) -> bool ensures result == input { input } machine other(input: bool) -> bool ensures result == input { input }",
+        );
+        let root = requirement(&program);
+        let operators = CheckedOperatorFacts::default();
+        let machine = &program.machines()[0];
+        assert_eq!(
+            lower_scalar_contract_predicate(&program, &operators, machine, root, true),
+            Some(CheckedBooleanExpression::Equal {
+                left: Box::new(CheckedBooleanExpression::Parameter { position: 1 }),
+                right: Box::new(CheckedBooleanExpression::Parameter { position: 0 })
+            })
+        );
+        assert!(
+            lower_scalar_contract_predicate(&program, &operators, machine, root, false).is_none()
+        );
+        assert!(
+            lower_scalar_contract_predicate(
+                &program,
+                &operators,
+                &program.machines()[1],
+                root,
+                true
+            )
+            .is_none()
+        );
+        let mutable =
+            typed("machine value(mut input: bool) -> bool ensures result == input { input }");
+        assert!(
+            lower_scalar_contract_predicate(
+                &mutable,
+                &operators,
+                &mutable.machines()[0],
+                requirement(&mutable),
+                true
+            )
+            .is_none()
+        );
     }
 
     #[test]
@@ -456,8 +444,6 @@ mod tests {
     #[test]
     fn scalar_entry_requirement_rejects_unresolved_or_non_owned_boolean_leaves() {
         for source in [
-            "data Box<T> {} machine Box::value(flag: bool) -> bool requires flag { flag }",
-            "machine value<T>(flag: bool) -> bool requires flag { flag }",
             "machine value(flag: &bool) -> bool requires flag { true }",
             "data Box { flag: bool; } machine Box::value(&self) -> bool requires self.flag { true }",
         ] {
