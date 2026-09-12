@@ -620,6 +620,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "domains/bodyless_internal_state_forwarding",
     "dependent/value_rebinding_cycle_call_frame_preserves_disjoint_fact_compile",
     "generics/const_data_param",
+    "generics/closed_sum_case_membership",
     "generics/const_machine_value_params",
     "generics/declared_range_endpoint_inference",
     "generics/generic_data_instantiation",

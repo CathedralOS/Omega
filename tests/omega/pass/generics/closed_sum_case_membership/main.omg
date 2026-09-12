@@ -1,0 +1,18 @@
+data Evidence { case Only; }
+data Maybe<T> {
+    case None;
+    case Some(value: T, proof [erased]: Evidence);
+}
+
+machine zero_is_none<T>()
+ensures
+    zero_value<Maybe<T>>() in Maybe::None
+{}
+
+machine inspect() -> i32 {
+    let maybe: Maybe<i32> = Maybe::Some { value: 7 };
+    transition maybe {
+        Maybe::Some { value, proof as _ } -> value
+        Maybe::None -> 0
+    }
+}

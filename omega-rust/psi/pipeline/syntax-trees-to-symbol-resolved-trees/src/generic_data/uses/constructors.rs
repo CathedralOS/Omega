@@ -48,8 +48,9 @@ pub(in crate::generic_data) fn relabel_data_literal_for_expected_type(
                 .iter()
                 .any(|member| matches!(member, DataMember::Variant(variant) if variant.name == *case))
         {
+            let carrier_span = literal_base.source_span();
             let case = case.clone();
-            let path = closed_sum_path(syntax, expected_name.as_str(), case);
+            let path = closed_sum_path(syntax, expected_name.as_str(), carrier_span, case);
             syntax.expressions.replace_expression(
                 expression,
                 ExpressionNode::Name(path),

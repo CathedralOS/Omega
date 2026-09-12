@@ -101,6 +101,7 @@ pub(crate) fn finalize_authored_expression_selections(
     pending: &[PendingAuthoredExpression],
     pending_proof_memberships: &[PendingAuthoredProofMembership],
 ) -> Result<(), Diagnostic> {
+    normalize_case_membership_facts(program, pending_proof_memberships)?;
     for pending_expression in pending {
         if program
             .tables
@@ -149,6 +150,17 @@ pub(crate) fn finalize_authored_expression_selections(
     finalize_expression_groups(program, authored_expressions)?;
 
     for pending in pending_proof_memberships {
+        if let symbol_resolved_trees::domain::ProofFact::Expression(expression) =
+            program.tables.declarations.proof_facts.get(pending.fact)
+            && matches!(program.tables.bodies.expressions.expression(*expression),
+                ExpressionNode::Membership(membership)
+                    if !membership.domain_symbol.is_valid()
+                        && membership.case_type_symbol.is_valid()
+                        && membership.case_symbol.is_valid())
+        {
+            // The ordinary expression pass retained both case selections.
+            continue;
+        }
         let symbol_resolved_trees::domain::ProofFact::Membership(membership) =
             program.tables.declarations.proof_facts.get(pending.fact)
         else {
@@ -208,6 +220,65 @@ pub(crate) fn finalize_authored_expression_selections(
         record_unattached_candidate(program, candidate)?;
     }
 
+    Ok(())
+}
+
+fn normalize_case_membership_facts(
+    program: &mut SymbolResolvedTrees,
+    pending: &[PendingAuthoredProofMembership],
+) -> Result<(), Diagnostic> {
+    for pending in pending {
+        let symbol_resolved_trees::domain::ProofFact::Membership(membership) =
+            program.tables.declarations.proof_facts.get(pending.fact)
+        else {
+            continue;
+        };
+        let membership = *membership;
+        if membership.domain_symbol.is_valid() || membership.authored_domain_selection.is_some() {
+            continue;
+        }
+        let members = program.domain_path_members(membership.domain);
+        let source_span = path_span(members, SourceSpan::default());
+        let Some((case_type_symbol, case_symbol)) =
+            crate::symbols::case_symbols_for_source(&program.symbols, members)
+                .map_err(|message| Diagnostic::error(message).with_source_span(source_span))?
+        else {
+            continue;
+        };
+        let members = members.to_vec();
+        let fact_span = program
+            .proof_fact_source_span(pending.fact)
+            .unwrap_or(source_span);
+        let expressions = &mut program.tables.bodies.expressions;
+        let partition = expressions.compiler_selection_partition(membership.value);
+        let mut domain = arena::HandleSpan::empty();
+        for member in members {
+            expressions.push_name_path_member(&mut domain, member);
+        }
+        // Case domains use the same selected membership expression in proof
+        // facts and executable expressions. This retains both authored owners
+        // instead of publishing an unresolved declared-domain receipt.
+        let expression = expressions.insert(ExpressionNode::Membership(
+            symbol_resolved_trees::expression::TableMembershipExpression {
+                value: membership.value,
+                domain,
+                domain_symbol: SymbolHandle::invalid(),
+                case_type_symbol,
+                case_symbol,
+            },
+        ));
+        expressions.set_source_span(expression, fact_span);
+        expressions.set_authored_expression_exposure(expression, pending.exposure);
+        if let Some(partition) = partition {
+            expressions.set_compiler_selection_partition(expression, partition);
+        }
+        *program
+            .tables
+            .declarations
+            .proof_facts
+            .get_mut(pending.fact) =
+            symbol_resolved_trees::domain::ProofFact::Expression(expression);
+    }
     Ok(())
 }
 

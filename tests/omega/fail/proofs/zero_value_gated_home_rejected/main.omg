@@ -12,7 +12,7 @@ where
 
 machine zero_is_none()
 ensures
-    zero_value<Gated>() == Gated::None
+    zero_value<Gated>() in Gated::None
 {
 }
 

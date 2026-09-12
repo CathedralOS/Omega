@@ -444,6 +444,7 @@ fn operand_type_at_depth(
             declared_place_type_raw(program, machine, state, expression)
         }
         ExpressionNode::Cast(cast) => Some(cast.target_type),
+        ExpressionNode::ZeroValue(type_reference) => Some(*type_reference),
         ExpressionNode::Binary(binary) => {
             let spelling = match binary.operator {
                 BinaryOperator::Add => OperatorSpelling::Add,
