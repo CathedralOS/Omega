@@ -562,6 +562,32 @@ fn scan_expression_calls_at_position(
                 machine.name.as_str(), state.name.as_str(),
             )));
         }
+        // Static paths cannot continue through a runtime binding. Dot fields
+        // remain Member expressions; synthesized runtime Names have one member.
+        // Reuse the exact root reconstructed above, including a retained leaf
+        // when the head is absent, so malformed custody cannot hide the binding.
+        if program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            > 1
+            && crate::locals::state_binding_type(
+                program,
+                machine,
+                state,
+                writable_roots.statements,
+                root,
+                name,
+            )
+            .is_some()
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` state `{}` uses a static path through runtime binding `{name}`; \
+                 use `.` to select a field or callable through a value",
+                machine.name.as_str(),
+                state.name.as_str(),
+            )));
+        }
     }
     // Unknown TWO-segment path (`Type::Case`, `Trait::NAME`): the sibling of the
     // bare-name check above. A LEGITIMATE qualified case (`Signal::Green`) or a
@@ -991,3 +1017,6 @@ fn scan_expression_calls_at_position(
         }
     }
 }
+
+#[cfg(test)]
+mod name_suffix_tests;

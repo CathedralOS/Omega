@@ -234,6 +234,27 @@ impl<'base> ConstantSelection<'base> {
         Ok((definition, case))
     }
 
+    /// Bare Names retain value-prefix precedence before specialization changes
+    /// their lookup metadata. The shared resolver distinguishes absence from
+    /// unique or ambiguous constants; braces remain ordinary constructors.
+    pub(super) fn bare_case<'syntax>(
+        &self,
+        syntax: &'syntax SyntaxTrees,
+        name: &Identifier,
+    ) -> Result<Option<(&'syntax DataDefinition, Identifier)>, String> {
+        let Some((owner, _, case)) =
+            crate::symbols::bare_case_type(&self.symbols, name.as_str(), name.source_span())?
+        else {
+            return Ok(None);
+        };
+        let definition = self.data_declaration(syntax, name, owner)?;
+        let mut span = name.source_span();
+        if span.span.end >= case.len() {
+            span.span.start = span.span.end - case.len();
+        }
+        Ok(Some((definition, Identifier::new(case, span))))
+    }
+
     fn data_declaration<'syntax>(
         &self,
         syntax: &'syntax SyntaxTrees,

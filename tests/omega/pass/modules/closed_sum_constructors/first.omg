@@ -1,0 +1,3 @@
+module first;
+pub data Choice<T> { case Empty; case Full(value: T); }
+pub data Packet<T> { stamp: u8; case Empty; case Full(value: T); }

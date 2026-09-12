@@ -310,7 +310,7 @@ pub(in crate::generic_data) fn consider_generic_spelling(
     if prior.is_none() {
         instantiations.push(Instantiation {
             synthetic_name,
-            base_name: base,
+            declaration: Handle::invalid(),
             template: base_info.declaration,
             argument_handles,
             argument_identity,

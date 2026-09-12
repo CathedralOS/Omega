@@ -12,7 +12,8 @@ use super::super::*;
 /// remains resolver-owned and fail closed here.
 pub(in crate::generic_data) fn relabel_closed_data_uses_in_exact_calls_and_returns(
     syntax: &mut SyntaxTrees,
-    synthesized_origins: &HashMap<String, String>,
+    instances: &[Instantiation],
+    selection: Option<&constant_selection::ConstantSelection>,
 ) {
     let mut signatures = HashMap::<String, Option<Vec<TypeReferenceHandle>>>::new();
     let mut attached_signatures =
@@ -134,7 +135,53 @@ pub(in crate::generic_data) fn relabel_closed_data_uses_in_exact_calls_and_retur
                 })
             })
             .unwrap_or_default();
-        for statement in &statements {
+        for (index, statement) in statements.iter().enumerate() {
+            let frontier = ConstructorFrontier {
+                parameters: state.parameters,
+                prior_statements: &statements[..index],
+            };
+            let mut reachable = HashSet::new();
+            collect_statement_expression_handles(syntax, *statement, &mut reachable);
+            let mut reachable = reachable.into_iter().collect::<Vec<_>>();
+            reachable.sort_unstable_by_key(|handle| handle.arena_index());
+            let calls = reachable
+                .into_iter()
+                .filter_map(|handle| match syntax.expressions.expression(handle) {
+                    ExpressionNode::Call(call) if !call.receiver.is_valid() => {
+                        Some((call.target.clone(), call.arguments, None))
+                    }
+                    ExpressionNode::Call(call) => exact_expression_receiver_owner(
+                        syntax,
+                        call.receiver,
+                        attached_data.as_deref(),
+                        &local_owner_types,
+                        &self_field_owner_types,
+                    )
+                    .map(|owner| (call.target.clone(), call.arguments, Some(owner))),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            for (target, arguments, owner) in calls {
+                let parameters = if let Some(owner) = owner {
+                    attached_signatures.get(&(owner, target.as_str().to_owned()))
+                } else {
+                    signatures.get(target.as_str())
+                };
+                let Some(Some(parameters)) = parameters else {
+                    continue;
+                };
+                let arguments = syntax.expressions.expression_handles(arguments).to_vec();
+                for (argument, expected_type) in arguments.into_iter().zip(parameters) {
+                    relabel_data_literal_for_expected_type(
+                        syntax,
+                        argument,
+                        *expected_type,
+                        instances,
+                        selection,
+                        &frontier,
+                    );
+                }
+            }
             match syntax.tables.statements.statement(*statement) {
                 StatementNode::Expression(value)
                     if state.return_type.is_valid() && Some(*statement) == final_statement =>
@@ -143,7 +190,9 @@ pub(in crate::generic_data) fn relabel_closed_data_uses_in_exact_calls_and_retur
                         syntax,
                         *value,
                         state.return_type,
-                        synthesized_origins,
+                        instances,
+                        selection,
+                        &frontier,
                     );
                 }
                 StatementNode::Call(call) => {
@@ -176,7 +225,9 @@ pub(in crate::generic_data) fn relabel_closed_data_uses_in_exact_calls_and_retur
                             syntax,
                             argument,
                             *expected_type,
-                            synthesized_origins,
+                            instances,
+                            selection,
+                            &frontier,
                         );
                     }
                 }
@@ -192,55 +243,14 @@ pub(in crate::generic_data) fn relabel_closed_data_uses_in_exact_calls_and_retur
                                 syntax,
                                 *value,
                                 state.return_type,
-                                synthesized_origins,
+                                instances,
+                                selection,
+                                &frontier,
                             );
                         }
                     }
                 }
                 _ => {}
-            }
-        }
-
-        let mut reachable = HashSet::new();
-        for statement in statements {
-            collect_statement_expression_handles(syntax, statement, &mut reachable);
-        }
-        let calls = syntax
-            .expressions
-            .iter_expressions()
-            .filter(|(handle, _)| reachable.contains(&handle.arena_index()))
-            .filter_map(|(_, expression)| match expression {
-                ExpressionNode::Call(call) if !call.receiver.is_valid() => {
-                    Some((call.target.clone(), call.arguments, None))
-                }
-                ExpressionNode::Call(call) => exact_expression_receiver_owner(
-                    syntax,
-                    call.receiver,
-                    attached_data.as_deref(),
-                    &local_owner_types,
-                    &self_field_owner_types,
-                )
-                .map(|owner| (call.target.clone(), call.arguments, Some(owner))),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        for (target, arguments, owner) in calls {
-            let parameters = if let Some(owner) = owner {
-                attached_signatures.get(&(owner, target.as_str().to_owned()))
-            } else {
-                signatures.get(target.as_str())
-            };
-            let Some(Some(parameters)) = parameters else {
-                continue;
-            };
-            let arguments = syntax.expressions.expression_handles(arguments).to_vec();
-            for (argument, expected_type) in arguments.into_iter().zip(parameters) {
-                relabel_data_literal_for_expected_type(
-                    syntax,
-                    argument,
-                    *expected_type,
-                    synthesized_origins,
-                );
             }
         }
     }

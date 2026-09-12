@@ -23,12 +23,12 @@ pub(super) struct PendingRewrite {
 }
 
 /// One discovered instantiation: the base generic definition and the argument
-/// type references spelled for it, plus the plain name of the record to
-/// synthesize.
+/// type references spelled for it and its materialized declaration. The name
+/// is only lookup metadata; the live item and argument tuple own identity.
 #[derive(Clone)]
 pub(super) struct Instantiation {
     pub(super) synthetic_name: String,
-    pub(super) base_name: String,
+    pub(super) declaration: syntax_trees::item::ItemHandle,
     pub(super) template: syntax_trees::item::ItemHandle,
     pub(super) argument_handles: Vec<TypeReferenceHandle>,
     pub(super) argument_identity: Vec<ClosedArgumentIdentity>,

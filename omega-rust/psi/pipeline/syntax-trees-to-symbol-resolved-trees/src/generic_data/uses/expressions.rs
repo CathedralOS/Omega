@@ -6,34 +6,35 @@ pub(in crate::generic_data) fn concrete_machine_expression_handles(
     syntax: &SyntaxTrees,
 ) -> HashSet<u32> {
     let mut handles = HashSet::new();
-    for item in syntax.root_items() {
-        let Item::Machine(machine) = item else {
-            continue;
-        };
-        if !machine.type_parameters.is_empty()
-            || machine.attached_data.as_ref().is_some_and(|attached| {
-                syntax.root_items().any(|item| {
-                    matches!(item, Item::Data(definition)
-                        if definition.name == *attached && !definition.type_parameters.is_empty())
-                })
-            })
-        {
-            continue;
-        }
-        for state in syntax.tables.items.state_handles(machine.states) {
-            let state = syntax.tables.items.state(*state);
-            for statement in syntax.tables.items.statements(state.statements) {
-                collect_statement_expression_handles(syntax, *statement, &mut handles);
-            }
+    for state in concrete_machine_state_handles(syntax) {
+        let state = syntax.items.state(state);
+        for statement in syntax.items.statements(state.statements) {
+            collect_statement_expression_handles(syntax, *statement, &mut handles);
         }
     }
     handles
+        .into_iter()
+        .map(|handle| handle.arena_index())
+        .collect()
+}
+
+pub(in crate::generic_data) fn concrete_machine_state_handles(
+    syntax: &SyntaxTrees,
+) -> Vec<syntax_trees::item::StateHandle> {
+    syntax.root_items().filter_map(|item| {
+        let Item::Machine(machine) = item else { return None; };
+        if !machine.type_parameters.is_empty() || machine.attached_data.as_ref().is_some_and(|attached|
+            syntax.root_items().any(|item| matches!(item, Item::Data(data) if data.name == *attached && !data.type_parameters.is_empty()))) {
+            return None;
+        }
+        Some(syntax.items.state_handles(machine.states))
+    }).flatten().copied().collect()
 }
 
 pub(in crate::generic_data) fn collect_statement_expression_handles(
     syntax: &SyntaxTrees,
     statement: syntax_trees::statement::StatementHandle,
-    handles: &mut HashSet<u32>,
+    handles: &mut HashSet<ExpressionHandle>,
 ) {
     use syntax_trees::statement::{TransitionGuardNode, TransitionTargetNode};
     match syntax.tables.statements.statement(statement) {
@@ -85,9 +86,9 @@ pub(in crate::generic_data) fn collect_statement_expression_handles(
 pub(in crate::generic_data) fn collect_expression_handles(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
-    handles: &mut HashSet<u32>,
+    handles: &mut HashSet<ExpressionHandle>,
 ) {
-    if !expression.is_valid() || !handles.insert(expression.arena_index()) {
+    if !expression.is_valid() || !handles.insert(expression) {
         return;
     }
     match syntax.expressions.expression(expression) {
@@ -148,5 +149,25 @@ pub(in crate::generic_data) fn collect_expression_handles(
         | ExpressionNode::SelfValue
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => {}
+    }
+}
+
+/// Advisory constructor rewriting borrows the actual value frontier. A captured
+/// Name remains authored syntax for the ordinary resolver; no binding is chosen
+/// here. Callers visit concrete machines, whose template binders are already gone.
+pub(in crate::generic_data) struct ConstructorFrontier<'a> {
+    pub parameters: HandleSpan<syntax_trees::item::StateParameterHandle>,
+    pub prior_statements: &'a [syntax_trees::statement::StatementHandle],
+}
+
+impl ConstructorFrontier<'_> {
+    pub fn captures(&self, syntax: &SyntaxTrees, path: HandleSpan<Identifier>) -> bool {
+        let Some(head) = syntax.expressions.identifier_path_members(path).first() else {
+            return false;
+        };
+        self.prior_statements.iter().rev().any(|statement| matches!(
+            syntax.statements.statement(*statement), StatementNode::LocalData(local) if local.name == *head
+        )) || syntax.items.state_parameters(self.parameters).iter().any(|parameter|
+            syntax.items.state_parameter(*parameter).name == *head)
     }
 }

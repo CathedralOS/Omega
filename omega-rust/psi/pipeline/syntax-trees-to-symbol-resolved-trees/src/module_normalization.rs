@@ -136,8 +136,7 @@ pub(crate) fn validate_with_const_resolution_mode(
             Item::Data(data)
                 if !data.type_parameters.is_empty()
                     && module_sources.contains(&data.name.source_span().source_id)
-                    && (syntax.items.data_members(data.members).iter().any(|member| matches!(member, syntax_trees::item::DataMember::Variant(_)))
-                        || matches!(data.name.as_str(), "IntervalSet" | "CountedQuantity")) =>
+                    && matches!(data.name.as_str(), "IntervalSet" | "CountedQuantity") =>
             {
                 Some((
                     &data.name,

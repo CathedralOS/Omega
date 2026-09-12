@@ -8,7 +8,8 @@ use super::super::*;
 /// another closed instance of the same generic sum exists in the program.
 pub(in crate::generic_data) fn relabel_closed_sum_memberships_from_local_types(
     syntax: &mut SyntaxTrees,
-    synthesized_origins: &HashMap<String, String>,
+    instances: &[Instantiation],
+    selection: Option<&constant_selection::ConstantSelection>,
 ) {
     let concrete_states = syntax
         .root_items()
@@ -29,19 +30,16 @@ pub(in crate::generic_data) fn relabel_closed_sum_memberships_from_local_types(
 
     for (state_handle, attached_data) in concrete_states {
         let state = syntax.tables.items.state(state_handle).clone();
-        let mut local_types = HashMap::<String, String>::new();
+        let mut local_types = HashMap::<String, TypeReferenceHandle>::new();
         for parameter in syntax.tables.items.state_parameters(state.parameters) {
             let parameter = syntax.tables.items.state_parameter(*parameter);
-            if let Some(type_name) = named_type_name(syntax, parameter.type_reference) {
-                local_types.insert(parameter.name.as_str().to_owned(), type_name);
-            }
+            local_types.insert(parameter.name.as_str().to_owned(), parameter.type_reference);
         }
         let statements = syntax.tables.items.statements(state.statements).to_vec();
         for statement in &statements {
             if let StatementNode::LocalData(local) = syntax.tables.statements.statement(*statement)
-                && let Some(type_name) = named_type_name(syntax, local.type_reference)
             {
-                local_types.insert(local.name.as_str().to_owned(), type_name);
+                local_types.insert(local.name.as_str().to_owned(), local.type_reference);
             }
         }
         let self_field_types = attached_data
@@ -56,9 +54,7 @@ pub(in crate::generic_data) fn relabel_closed_sum_memberships_from_local_types(
                             .iter()
                             .filter_map(|member| match member {
                                 DataMember::Field(field) => {
-                                    named_type_name(syntax, field.type_reference).map(|type_name| {
-                                        (field.name.as_str().to_owned(), type_name)
-                                    })
+                                    Some((field.name.as_str().to_owned(), field.type_reference))
                                 }
                                 _ => None,
                             })
@@ -76,7 +72,7 @@ pub(in crate::generic_data) fn relabel_closed_sum_memberships_from_local_types(
         let replacements = syntax
             .expressions
             .iter_expressions()
-            .filter(|(handle, _)| reachable.contains(&handle.arena_index()))
+            .filter(|(handle, _)| reachable.contains(handle))
             .filter_map(|(handle, expression)| {
                 let ExpressionNode::Membership(membership) = expression else {
                     return None;
@@ -99,26 +95,32 @@ pub(in crate::generic_data) fn relabel_closed_sum_memberships_from_local_types(
                     }
                     _ => return None,
                 };
-                let base = synthesized_origins.get(closed)?;
-                let [domain_base, case] = syntax
+                let instance = expected_instance(syntax, instances, selection, *closed)?;
+                // Destructure lowering currently retains the two-part case path.
+                let [_, _] = syntax
                     .expressions
                     .identifier_path_members(membership.domain)
                 else {
                     return None;
                 };
-                (domain_base.as_str() == base).then(|| {
-                    (
-                        handle,
-                        membership.value,
-                        closed.clone(),
-                        domain_base.source_span(),
-                        case.clone(),
-                    )
-                })
+                let name = constructor_path_name(syntax, membership.domain)?;
+                let (owner, case) = selected_constructor(syntax, selection, &name)?;
+                if owner != instance.template {
+                    return None;
+                }
+                let case = case?;
+                let closed = closed_constructor_carrier(syntax, selection, instance, &name, true)?;
+                Some((
+                    handle,
+                    membership.value,
+                    closed,
+                    constructor_carrier_span(syntax, membership.domain)?,
+                    case,
+                ))
             })
             .collect::<Vec<_>>();
         for (handle, value, closed, carrier_span, case) in replacements {
-            let domain = closed_sum_path(syntax, &closed, carrier_span, case);
+            let domain = closed_sum_path(syntax, closed, carrier_span, case);
             syntax.expressions.replace_expression(
                 handle,
                 ExpressionNode::Membership(syntax_trees::expression::TableMembershipExpression {
@@ -152,123 +154,112 @@ pub(in crate::generic_data) fn named_type_name(
 /// context above. Generic template bodies remain parameterized declarations.
 pub(in crate::generic_data) fn relabel_unique_closed_sum_paths(
     syntax: &mut SyntaxTrees,
-    synthesized_sum_instances: &HashMap<String, String>,
+    instances: &[Instantiation],
+    selection: Option<&constant_selection::ConstantSelection>,
 ) {
-    if synthesized_sum_instances.is_empty() {
-        return;
-    }
-
-    let concrete_expressions = concrete_machine_expression_handles(syntax);
-    let variants = generic_sum_variant_names(syntax, synthesized_sum_instances);
-    let replacements = syntax
-        .expressions
-        .iter_expressions()
-        .filter(|(handle, _)| concrete_expressions.contains(&handle.arena_index()))
-        .filter_map(|(handle, expression)| {
-            let (path, kind) = match expression {
-                ExpressionNode::Name(path) => (*path, SumPathExpressionKind::Name),
-                ExpressionNode::Membership(membership) => (
-                    membership.domain,
-                    SumPathExpressionKind::Membership(membership.value),
-                ),
-                ExpressionNode::StructLiteral(literal) => {
-                    let (carrier, case) = literal.constructor_name.as_str().rsplit_once("::")?;
-                    if !variants
-                        .get(carrier)
-                        .is_some_and(|names| names.contains(case))
+    for state in concrete_machine_state_handles(syntax) {
+        let state = syntax.items.state(state).clone();
+        let statements = syntax.items.statements(state.statements).to_vec();
+        for (index, statement) in statements.iter().enumerate() {
+            let frontier = ConstructorFrontier {
+                parameters: state.parameters,
+                prior_statements: &statements[..index],
+            };
+            let mut expressions = HashSet::new();
+            collect_statement_expression_handles(syntax, *statement, &mut expressions);
+            let mut expressions = expressions.into_iter().collect::<Vec<_>>();
+            expressions.sort_unstable_by_key(|handle| handle.arena_index());
+            let replacements = expressions
+                .into_iter()
+                .filter_map(|handle| {
+                    let expression = syntax.expressions.expression(handle);
+                    if let ExpressionNode::Name(path) = expression
+                        && frontier.captures(syntax, *path)
                     {
                         return None;
                     }
-                    let closed = synthesized_sum_instances.get(carrier)?;
-                    return Some((
-                        handle,
-                        SumPathExpressionKind::StructLiteral(literal.clone()),
-                        closed.clone(),
-                        literal.constructor_name.source_span(),
-                        Identifier::new(case, literal.constructor_name.source_span()),
-                    ));
-                }
-                _ => return None,
-            };
-            let [base, case] = syntax.expressions.identifier_path_members(path) else {
-                return None;
-            };
-            let closed = synthesized_sum_instances.get(base.as_str())?;
-            if !variants
-                .get(base.as_str())
-                .is_some_and(|names| names.contains(case.as_str()))
-            {
-                return None;
-            }
-            Some((
-                handle,
-                kind,
-                closed.clone(),
-                base.source_span(),
-                case.clone(),
-            ))
-        })
-        .collect::<Vec<_>>();
-
-    for (handle, kind, closed, carrier_span, case) in replacements {
-        let replacement = match kind {
-            SumPathExpressionKind::Name => {
-                ExpressionNode::Name(closed_sum_path(syntax, &closed, carrier_span, case))
-            }
-            SumPathExpressionKind::Membership(value) => {
-                ExpressionNode::Membership(syntax_trees::expression::TableMembershipExpression {
-                    value,
-                    domain: closed_sum_path(syntax, &closed, carrier_span, case),
+                    let (name, kind, carrier_span) = match expression {
+                        ExpressionNode::Name(path) => (
+                            constructor_path_name(syntax, *path)?,
+                            SumPathExpressionKind::Name,
+                            constructor_carrier_span(syntax, *path)?,
+                        ),
+                        ExpressionNode::Membership(membership) => {
+                            let [_, _] = syntax
+                                .expressions
+                                .identifier_path_members(membership.domain)
+                            else {
+                                return None;
+                            };
+                            (
+                                constructor_path_name(syntax, membership.domain)?,
+                                SumPathExpressionKind::Membership(membership.value),
+                                constructor_carrier_span(syntax, membership.domain)?,
+                            )
+                        }
+                        ExpressionNode::StructLiteral(literal) => (
+                            literal.constructor_name.clone(),
+                            SumPathExpressionKind::StructLiteral(literal.clone()),
+                            literal.constructor_name.source_span(),
+                        ),
+                        _ => return None,
+                    };
+                    let (template, case) = if matches!(kind, SumPathExpressionKind::Name) {
+                        selected_case_value(syntax, selection, &name)?
+                    } else {
+                        selected_constructor(syntax, selection, &name)?
+                    };
+                    let case = case?;
+                    let mut candidates = instances
+                        .iter()
+                        .filter(|instance| instance.template == template);
+                    let instance = candidates.next()?;
+                    if candidates.next().is_some() {
+                        return None;
+                    }
+                    let closed =
+                        closed_constructor_carrier(syntax, selection, instance, &name, true)?;
+                    Some((handle, kind, closed, carrier_span, case))
                 })
+                .collect::<Vec<_>>();
+            for (handle, kind, closed, carrier_span, case) in replacements {
+                let replacement = match kind {
+                    SumPathExpressionKind::Name => {
+                        ExpressionNode::Name(closed_sum_path(syntax, closed, carrier_span, case))
+                    }
+                    SumPathExpressionKind::Membership(value) => ExpressionNode::Membership(
+                        syntax_trees::expression::TableMembershipExpression {
+                            value,
+                            domain: closed_sum_path(syntax, closed, carrier_span, case),
+                        },
+                    ),
+                    SumPathExpressionKind::StructLiteral(mut literal) => {
+                        literal.constructor_name = Identifier::new(
+                            format!("{closed}::{case}"),
+                            literal.constructor_name.source_span(),
+                        );
+                        ExpressionNode::StructLiteral(literal)
+                    }
+                };
+                syntax.expressions.replace_expression(handle, replacement);
             }
-            SumPathExpressionKind::StructLiteral(mut literal) => {
-                literal.constructor_name = Identifier::new(
-                    format!("{closed}::{case}"),
-                    literal.constructor_name.source_span(),
-                );
-                ExpressionNode::StructLiteral(literal)
-            }
-        };
-        syntax.expressions.replace_expression(handle, replacement);
+        }
     }
-}
-
-pub(in crate::generic_data) fn generic_sum_variant_names(
-    syntax: &SyntaxTrees,
-    instances: &HashMap<String, String>,
-) -> HashMap<String, HashSet<String>> {
-    syntax
-        .root_items()
-        .filter_map(|item| match item {
-            Item::Data(definition) if instances.contains_key(definition.name.as_str()) => Some((
-                definition.name.as_str().to_owned(),
-                syntax
-                    .items
-                    .data_members(definition.members)
-                    .iter()
-                    .filter_map(|member| match member {
-                        DataMember::Variant(variant) => Some(variant.name.as_str().to_owned()),
-                        _ => None,
-                    })
-                    .collect(),
-            )),
-            _ => None,
-        })
-        .collect()
 }
 
 pub(in crate::generic_data) fn closed_sum_path(
     syntax: &mut SyntaxTrees,
-    closed: &str,
+    closed: Identifier,
     carrier_span: source::SourceSpan,
     case: Identifier,
 ) -> HandleSpan<Identifier> {
     let mut path = HandleSpan::empty();
     // Specialization changes the selected carrier, not its authored occurrence.
     // Membership checking rejoins this carrier receipt with the case receipt.
-    syntax
-        .expressions
-        .append_identifier_path_member_to_span(&mut path, Identifier::new(closed, carrier_span));
+    syntax.expressions.append_identifier_path_member_to_span(
+        &mut path,
+        Identifier::new(closed.as_str(), carrier_span),
+    );
     syntax
         .expressions
         .append_identifier_path_member_to_span(&mut path, case);

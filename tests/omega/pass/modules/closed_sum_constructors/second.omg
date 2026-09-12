@@ -1,0 +1,2 @@
+module second;
+pub data Choice<T> { case Empty; case Full(value: T); }
