@@ -220,7 +220,7 @@ pub(crate) fn admit_dynamic_continuation<'a>(
                         edge.statement_ordinal,
                     )
                     .is_some()
-                || !exact_stored_local_drop(checked, plan, local)
+                || !exact_stored_local_drop(checked, plan, &stored.storage)
             {
                 return unsupported(
                     "stored dynamic continuation local cleanup drifted after checking",
@@ -264,9 +264,23 @@ pub(crate) fn admit_dynamic_continuation<'a>(
 fn exact_stored_local_drop(
     checked: &CheckedTrees,
     plan: &checked_trees::CheckedDynamicScalarCallPlan,
-    local: symbols::SymbolHandle,
+    storage: &checked_trees::DynamicDescriptorStorageFact,
 ) -> bool {
-    let drops = checked
+    // Descriptor storage establishes an affine local even though its borrowed
+    // payload carries no linear debt and needs no executable destructor. Rejoin
+    // its no-code disposal to that exact establishment, not the old untracked
+    // Unknown provenance. Any intervening move, replacement, projected claim,
+    // or additional dying root needs its own cleanup plan rather than this pair.
+    let root = facts::PlaceRoot::Symbol(storage.destination_binding);
+    let source = language_semantics::PermissionEventSource::Statement {
+        statement_index: storage.statement_index,
+    };
+    let provenance = language_semantics::PermissionProvenance::Established {
+        machine_symbol: plan.caller_machine,
+        state_symbol: plan.caller_state,
+        source,
+    };
+    let mut events = checked
         .facts
         .flow
         .ownership
@@ -275,27 +289,28 @@ fn exact_stored_local_drop(
         .filter(|(_, event)| {
             event.machine_symbol == plan.caller_machine
                 && event.state_symbol == plan.caller_state
-                && event.source == language_semantics::PermissionEventSource::StateExit
-                && event.kind == language_semantics::PermissionEventKind::AffineDrop
+                && (event.root == root
+                    || (event.source == language_semantics::PermissionEventSource::StateExit
+                        && event.kind == language_semantics::PermissionEventKind::AffineDrop))
         })
-        .map(|(_, event)| event)
-        .collect::<Vec<_>>();
-    let [drop] = drops.as_slice() else {
+        .map(|(_, event)| event);
+    let (Some(establishment), Some(drop), None) = (events.next(), events.next(), events.next())
+    else {
         return false;
     };
-    drop.root == facts::PlaceRoot::Symbol(local)
-        && drop.access == language_semantics::PermissionAccess::Owned
-        && drop.multiplicity == Multiplicity::Affine
-        && drop.claim_identity == language_semantics::PermissionClaimIdentity::Unknown
-        && drop.provenance == language_semantics::PermissionProvenance::Unknown
-        && !drop.obligation_live
-        && checked
-            .facts
-            .flow
-            .ownership
-            .segments
-            .span_or_empty(drop.segments)
-            .is_empty()
+    establishment.kind == language_semantics::PermissionEventKind::Establish
+        && establishment.source == source
+        && drop.kind == language_semantics::PermissionEventKind::AffineDrop
+        && drop.source == language_semantics::PermissionEventSource::StateExit
+        && [establishment, drop].into_iter().all(|event| {
+            event.root == root
+                && event.access == language_semantics::PermissionAccess::Owned
+                && event.multiplicity == Multiplicity::Affine
+                && event.claim_identity == language_semantics::PermissionClaimIdentity::Unknown
+                && event.provenance == provenance
+                && !event.obligation_live
+                && event.segments.is_empty()
+        })
 }
 
 pub(super) fn exact_attachment<'a>(
