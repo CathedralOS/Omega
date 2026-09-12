@@ -236,11 +236,16 @@ pub(super) fn lower_integer_contract_comparison(
         BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
         _ => return None,
     };
-    let operand_types = subjects
-        .each_ref()
-        .map(|subject| subject.as_ref().map(|(_, type_reference)| *type_reference));
-    // An exactly typed subject supplies contextual literal landing. Literal-only
-    // tautologies retain their existing closed-value representation instead.
+    let operand_types =
+        [(binary.left, &subjects[0]), (binary.right, &subjects[1])].map(|(expression, subject)| {
+            subject
+                .as_ref()
+                .map(|(_, type_reference)| *type_reference)
+                .or_else(|| validation::landed_integer_literal_type_reference(program, expression))
+        });
+    // A typed subject or already-landed literal supplies contextual landing.
+    // Keep literal comparisons as predicates too: folding their value here
+    // would lose the selected operator and carrier needed by source replay.
     let contextual_type = operand_types.into_iter().flatten().next()?;
     let contextual_primitive = program.primitive_type_reference(contextual_type)?;
     if !is_integer(contextual_primitive) {

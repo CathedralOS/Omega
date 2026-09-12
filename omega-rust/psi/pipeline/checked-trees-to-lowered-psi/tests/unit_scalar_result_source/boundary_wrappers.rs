@@ -349,10 +349,13 @@ fn ordered_scalar_completion_proves_normal_result_guarantees() {
 }
 
 fn boolean_guarantee_source(body: &str, input: bool) -> String {
-    normal_guarantee_source(body)
+    // Retype the fixture declarations before inserting the customer's body;
+    // an authored i32 literal inside that body must keep its integer suffix.
+    normal_guarantee_source("BODY_PLACEHOLDER")
         .replace("i32", "bool")
         .replace("requires value >= 1", "requires value == value")
         .replace("Scalar::measure(70)", &format!("Scalar::measure({input})"))
+        .replace("BODY_PLACEHOLDER", body)
 }
 
 #[test]
@@ -385,6 +388,138 @@ fn ordered_boolean_completion_preserves_normal_result_guarantees() {
                 ]
             );
         }
+    }
+}
+
+#[test]
+fn ordered_boolean_completion_preserves_folded_source_meaning() {
+    for input in [false, true] {
+        for (expression, guarantee, expected) in [
+            ("!false", "result == !false", true),
+            ("true && value", "result == value", input),
+            ("false || value", "result == value", input),
+            ("value == true", "result == (value == true)", input),
+            ("!(!value)", "result == !(!value)", input),
+            ("true || value", "result == true", true),
+            ("false && value", "result == false", false),
+            ("1u8 < 2u8", "result == (1u8 < 2u8)", true),
+            ("2u16 > 1u16", "result == (2u16 > 1u16)", true),
+            ("1i32 >= 2i32", "result == (1i32 >= 2i32)", false),
+            ("2i16 <= 2i16", "result == (2i16 <= 2i16)", true),
+            ("1u32 != 2u32", "result == (1u32 != 2u32)", true),
+            ("1u8 == 2u8", "result == (1u8 == 2u8)", false),
+        ] {
+            let source =
+                boolean_guarantee_source(&format!("Host::finish(false); {expression}"), input)
+                    .replace(
+                        "ensures result == value\nreaches Host",
+                        &format!("ensures {guarantee}\nreaches Host"),
+                    );
+            let published = artifact(&checked_from_source(&source));
+            let (status, observed) = execute(&published);
+            assert_eq!(
+                status,
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+            );
+            assert_eq!(
+                observed.arguments,
+                [false, expected].map(|value| vec![TerminalScalarValue::Boolean(value)])
+            );
+        }
+    }
+}
+
+#[test]
+fn literal_boolean_guards_still_require_every_arrival_proof() {
+    for body in ["true && value", "false || value"] {
+        let source = boolean_guarantee_source(&format!("Host::finish(false); {body}"), true);
+        let published = artifact(&checked_from_source(&source));
+        let module = decode_module(&published.0).unwrap();
+        let proof = decode_proof_bundle(&published.1).unwrap();
+        assert_eq!(module.scalar_block_invariants.len(), 1);
+        let invariant = &module.scalar_block_invariants[0];
+        let obligations = terminal_verifier::reconstruct_operation_obligations(&module).unwrap();
+        assert!(obligations.iter().any(|obligation| {
+            matches!(obligation.owner,
+                terminal_verifier::ReconstructedTerminalObligationOwner::ScalarBlockInvariant { .. })
+                && obligation.semantic_axioms.contains(&semantic_vocabulary::Proposition::Falsehood)
+        }), "impossible arrival retains its own proof question");
+        for arrival in &invariant.arrivals {
+            let mut changed = proof.clone();
+            changed
+                .evidence
+                .retain(|evidence| evidence.obligation != arrival.obligation);
+            assert_eq!(changed.evidence.len() + 1, proof.evidence.len());
+            assert!(
+                terminal_verifier::verify_module(&module, &changed, &AdmissionProfile::default(),)
+                    .is_err()
+            );
+        }
+    }
+}
+
+#[test]
+fn literal_comparison_guarantees_reject_changed_source_meaning() {
+    use checked_trees::{CheckedBooleanExpression as Boolean, ClosedScalarContractValue as Clause};
+    use numerics::literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
+
+    let source = boolean_guarantee_source("Host::finish(false); 1u8 < 2u8", true).replace(
+        "ensures result == value\nreaches Host",
+        "ensures result == (1u8 < 2u8)\nreaches Host",
+    );
+    let original = checked_from_source(&source);
+    artifact(&original);
+    let target = original
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Scalar::measure")
+        .unwrap()
+        .symbol;
+    for mutation in 0..3 {
+        let mut changed = original.clone();
+        let contract = changed
+            .facts
+            .contract_plans
+            .machines
+            .iter_mut()
+            .find(|contract| contract.machine == target)
+            .unwrap();
+        let mut guarantees = contract.closed_scalar_values.ensures().to_vec();
+        let Some(Clause::Predicate(Boolean::Equal { right, .. })) = &mut guarantees[0] else {
+            panic!("result equality");
+        };
+        let Boolean::IntegerComparison { kind, left, .. } = right.as_mut() else {
+            panic!("retained comparison");
+        };
+        match mutation {
+            0 | 1 => {
+                **left = CheckedScalarExpression::IntegerLiteral {
+                    literal: IntegerLiteral::from_value(if mutation == 0 { 0 } else { 1 })
+                        .with_landing(IntegerLanding {
+                            landed_type: if mutation == 0 {
+                                LandedIntegerType::U8
+                            } else {
+                                LandedIntegerType::U16
+                            },
+                            domain: numerics::arithmetic::ArithmeticDomain::Exact,
+                        }),
+                };
+            }
+            2 => *kind = checked_trees::CheckedIntegerComparisonKind::LessOrEqual,
+            _ => unreachable!(),
+        }
+        contract.closed_scalar_values = checked_trees::ClosedScalarValueContractPlan::new(
+            contract.closed_scalar_values.requires().to_vec(),
+            guarantees,
+            contract.closed_scalar_values.has_crash_clauses(),
+            contract.closed_scalar_values.has_outcome_specific_clauses(),
+        );
+        // Changed value/kind can still denote true, but semantic agreement is
+        // not custody of the authored operator and its exact literal operands.
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+            "mutation {mutation}"
+        );
     }
 }
 
