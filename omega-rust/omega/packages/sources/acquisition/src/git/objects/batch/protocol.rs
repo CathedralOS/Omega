@@ -10,10 +10,12 @@ use super::super::{GitBlobBytes, GitTreeEntry, GitTreeEntryKind};
 
 pub(super) fn git_batch_request_bytes(entries: &[GitTreeEntry]) -> Vec<u8> {
     let mut bytes = Vec::new();
-    for entry in entries
-        .iter()
-        .filter(|entry| !matches!(&entry.kind, GitTreeEntryKind::Tree))
-    {
+    for entry in entries.iter().filter(|entry| {
+        matches!(
+            &entry.kind,
+            GitTreeEntryKind::File { .. } | GitTreeEntryKind::Symlink { .. }
+        )
+    }) {
         bytes.extend_from_slice(entry.oid.as_bytes());
         bytes.push(b'\n');
     }
@@ -24,12 +26,17 @@ pub(crate) fn git_batch_output_limit(
     entries: &[GitTreeEntry],
     limits: LocalSourceLimits,
 ) -> Result<usize, SourceResolveError> {
+    for entry in entries {
+        entry.validate_source_entry()?;
+    }
     let mut payload_bytes = 0_u64;
     let mut output_bytes = 0_usize;
-    for entry in entries
-        .iter()
-        .filter(|entry| !matches!(&entry.kind, GitTreeEntryKind::Tree))
-    {
+    for entry in entries.iter().filter(|entry| {
+        matches!(
+            &entry.kind,
+            GitTreeEntryKind::File { .. } | GitTreeEntryKind::Symlink { .. }
+        )
+    }) {
         payload_bytes =
             payload_bytes
                 .checked_add(entry.size)
@@ -74,13 +81,18 @@ pub(crate) fn assign_git_batch_output(
     entries: &mut [GitTreeEntry],
     output: Vec<u8>,
 ) -> Result<(), SourceResolveError> {
+    for entry in entries.iter() {
+        entry.validate_source_entry()?;
+    }
     let mut remaining = output.as_slice();
     let mut offset = 0_usize;
     let mut ranges = Vec::with_capacity(entries.len());
-    for entry in entries
-        .iter()
-        .filter(|entry| !matches!(&entry.kind, GitTreeEntryKind::Tree))
-    {
+    for entry in entries.iter().filter(|entry| {
+        matches!(
+            &entry.kind,
+            GitTreeEntryKind::File { .. } | GitTreeEntryKind::Symlink { .. }
+        )
+    }) {
         let Some(header_end) = remaining.iter().position(|byte| *byte == b'\n') else {
             return Err(git_tree_invalid(
                 entry.oid.as_bytes(),
@@ -135,11 +147,18 @@ pub(crate) fn assign_git_batch_output(
     let batch = Arc::new(output);
     for (entry, range) in entries
         .iter_mut()
-        .filter(|entry| !matches!(&entry.kind, GitTreeEntryKind::Tree))
+        .filter(|entry| {
+            matches!(
+                &entry.kind,
+                GitTreeEntryKind::File { .. } | GitTreeEntryKind::Symlink { .. }
+            )
+        })
         .zip(ranges)
     {
         match &mut entry.kind {
-            GitTreeEntryKind::Tree => unreachable!("tree rows are excluded from blob assignment"),
+            GitTreeEntryKind::Tree | GitTreeEntryKind::Gitlink => {
+                unreachable!("only blobs can receive payload bytes")
+            }
             GitTreeEntryKind::File { bytes, .. } => {
                 *bytes = GitBlobBytes {
                     batch: Arc::clone(&batch),

@@ -268,6 +268,7 @@ fn select_declarations(
                     "requested declaration path is absent from the Git tree",
                 )
             })?;
+            entry.validate_source_entry()?;
             if !matches!(&entry.kind, GitTreeEntryKind::File { .. }) {
                 return Err(git_tree_invalid(
                     path,
@@ -293,6 +294,7 @@ fn project_member(
                 "requested member tree is absent from the Git tree",
             )
         })?;
+        root.validate_source_entry()?;
         if !matches!(&root.kind, GitTreeEntryKind::Tree) {
             return Err(git_tree_invalid(
                 &request.member_tree_path,
@@ -313,6 +315,9 @@ fn project_member(
         } else {
             continue;
         };
+        // Check the original path before stripping the member prefix: a
+        // forbidden component in that prefix is still selected source content.
+        entry.validate_source_entry()?;
         let projected_depth = projected_path
             .split(|byte| *byte == b'/')
             .count()

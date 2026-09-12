@@ -711,3 +711,71 @@ fn git_object_rejection_precedes_snapshot_staging() {
         "destination preflight failure must not create a cache or snapshot path"
     );
 }
+
+#[test]
+fn inert_gitlink_graph_keeps_exact_identity_and_refuses_source_consumption() {
+    let oid = "1111111111111111111111111111111111111111";
+    let mut payload = b"160000 dependency\0".to_vec();
+    payload.extend_from_slice(&[0x11; 20]);
+    let blob = git_object_identity(b"blob", b"", GitObjectIdAlgorithm::Sha1).unwrap();
+    payload.extend_from_slice(b"100644 dependency.toml\0");
+    payload.extend_from_slice(&decode_git_object_id(&blob, GitObjectIdAlgorithm::Sha1).unwrap());
+    let tree = git_object_identity(b"tree", &payload, GitObjectIdAlgorithm::Sha1).unwrap();
+    let listing =
+        format!("160000 commit {oid} -\tdependency\0100644 blob {blob} 0\tdependency.toml\0");
+    let entries =
+        parse_git_tree_graph_entries(listing.as_bytes(), Path::new("repository")).unwrap();
+    authenticate_git_tree_graph(&tree, &entries).unwrap();
+    assert!(git_batch_output_limit(&entries, LocalSourceLimits::default()).is_err());
+    assert!(assign_git_batch_output(&mut entries.clone(), Vec::new()).is_err());
+    let mut forged = entries.clone();
+    forged[0].oid = "2222222222222222222222222222222222222222".to_owned();
+    assert!(authenticate_git_tree_graph(&tree, &forged).is_err());
+    assert!(
+        parse_git_tree_entries(
+            listing.as_bytes(),
+            Path::new("repository"),
+            LocalSourceLimits::default()
+        )
+        .is_err()
+    );
+    let graph = super::graph::AuthenticatedGitTreeGraph::authenticate(&tree, entries).unwrap();
+    for path in [b"dependency".to_vec(), b"dependency/build.omg".to_vec()] {
+        assert!(select_regular_files(&graph, vec![path], LocalSourceLimits::default()).is_err());
+    }
+    assert!(
+        GitTreeProjectionPlan::from_graph(
+            &graph,
+            &GitTreeProjectionRequest::new([], Vec::new()),
+            LocalSourceLimits::default()
+        )
+        .is_err()
+    );
+    for (mode, kind, size) in [
+        ("160000", "blob", "-"),
+        ("100644", "commit", "-"),
+        ("160000", "commit", "1"),
+    ] {
+        let malformed = format!("{mode} {kind} {oid} {size}\tdependency\0");
+        assert!(
+            parse_git_tree_graph_entries(malformed.as_bytes(), Path::new("repository")).is_err()
+        );
+    }
+}
+
+#[test]
+fn selected_manifest_directory_prefix_is_not_hidden_by_projection() {
+    let child = git_object_identity(b"tree", b"", GitObjectIdAlgorithm::Sha1).unwrap();
+    let mut payload = b"40000 .GiTmOdUlEs\0".to_vec();
+    payload.extend_from_slice(&decode_git_object_id(&child, GitObjectIdAlgorithm::Sha1).unwrap());
+    let tree = git_object_identity(b"tree", &payload, GitObjectIdAlgorithm::Sha1).unwrap();
+    let listing = format!("040000 tree {child} -\t.GiTmOdUlEs\0");
+    let entries =
+        parse_git_tree_graph_entries(listing.as_bytes(), Path::new("repository")).unwrap();
+    let graph = super::graph::AuthenticatedGitTreeGraph::authenticate(&tree, entries).unwrap();
+    let request = GitTreeProjectionRequest::new([], b".GiTmOdUlEs".to_vec());
+    assert!(matches!(
+        GitTreeProjectionPlan::from_graph(&graph, &request, LocalSourceLimits::default()),
+        Err(SourceResolveError::GitSubmodulesUnsupported { .. })
+    ));
+}

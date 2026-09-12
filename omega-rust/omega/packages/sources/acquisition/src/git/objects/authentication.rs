@@ -17,7 +17,7 @@ use super::{GitTreeEntry, GitTreeEntryKind};
 
 #[derive(Debug)]
 enum AuthenticatedGitTreeNode {
-    Blob {
+    Leaf {
         mode: &'static [u8],
         oid: String,
     },
@@ -137,7 +137,7 @@ pub(crate) fn authenticate_git_tree_payloads(
     let algorithm = git_object_algorithm(expected_tree)?;
     for entry in entries {
         match &entry.kind {
-            GitTreeEntryKind::Tree => {}
+            GitTreeEntryKind::Tree | GitTreeEntryKind::Gitlink => {}
             GitTreeEntryKind::File { bytes, .. } => {
                 verify_git_object_identity(&entry.oid, b"blob", bytes.as_slice(), algorithm)?;
             }
@@ -178,23 +178,27 @@ fn insert_authenticated_git_components(
     };
     if rest.is_empty() {
         let node = match entry.kind {
+            GitTreeEntryKind::Gitlink => AuthenticatedGitTreeNode::Leaf {
+                mode: b"160000".as_slice(),
+                oid: entry.oid.clone(),
+            },
             GitTreeEntryKind::Tree => AuthenticatedGitTreeNode::Tree {
                 expected_oid: entry.oid.clone(),
                 directory: AuthenticatedGitDirectory::default(),
             },
             GitTreeEntryKind::File {
                 executable: false, ..
-            } => AuthenticatedGitTreeNode::Blob {
+            } => AuthenticatedGitTreeNode::Leaf {
                 mode: b"100644".as_slice(),
                 oid: entry.oid.clone(),
             },
             GitTreeEntryKind::File {
                 executable: true, ..
-            } => AuthenticatedGitTreeNode::Blob {
+            } => AuthenticatedGitTreeNode::Leaf {
                 mode: b"100755".as_slice(),
                 oid: entry.oid.clone(),
             },
-            GitTreeEntryKind::Symlink { .. } => AuthenticatedGitTreeNode::Blob {
+            GitTreeEntryKind::Symlink { .. } => AuthenticatedGitTreeNode::Leaf {
                 mode: b"120000".as_slice(),
                 oid: entry.oid.clone(),
             },
@@ -235,7 +239,7 @@ fn authenticate_git_directory(
     let mut payload = Vec::new();
     for (name, node) in ordered {
         let (mode, oid) = match node {
-            AuthenticatedGitTreeNode::Blob { mode, oid } => (*mode, oid.clone()),
+            AuthenticatedGitTreeNode::Leaf { mode, oid } => (*mode, oid.clone()),
             AuthenticatedGitTreeNode::Tree {
                 expected_oid,
                 directory,
