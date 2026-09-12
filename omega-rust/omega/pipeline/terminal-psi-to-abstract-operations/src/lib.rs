@@ -13,9 +13,10 @@ mod provider_installation;
 mod shared;
 
 pub use artifact::{
-    ArtifactLoweringError, lower_artifact_sections, lower_artifact_sections_for_native_realization,
-    lower_artifact_sections_for_optimization, lower_artifact_sections_with_placed_view_inputs,
-    lower_replay_artifact_sections, lower_replay_artifact_sections_for_optimization,
+    ArtifactLoweringError, VerifiedNativeArtifactInput, lower_artifact_sections,
+    lower_artifact_sections_for_native_realization, lower_artifact_sections_for_optimization,
+    lower_artifact_sections_with_placed_view_inputs, lower_replay_artifact_sections,
+    lower_replay_artifact_sections_for_optimization,
 };
 pub use lowering::LoweringError;
 pub use optimization::{

@@ -125,7 +125,7 @@ fn produce_for_entry(source: &str, entry_name: &str, ranked: bool) -> CanonicalT
     )
     .expect("Natural and unranked cycles use the same verified native entrance");
     assert_eq!(
-        abstracted.functions.len(),
+        abstracted.plan().functions.len(),
         module.machines.len(),
         "native lowering retains the verified function roster"
     );

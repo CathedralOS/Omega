@@ -78,6 +78,35 @@ fn unit_machine_is_a_value_less_normal_return() {
 }
 
 #[test]
+fn optimizer_transition_moves_the_existing_checked_evidence() {
+    let module = proof_recursive_module();
+    let bundle = proof_recursive_bundle(&module);
+    let profile = AdmissionProfile::default();
+    let verified = verify_module(&module, &bundle, &profile).expect("ordinary admission");
+    assert!(!verified.proof_bundle().recursive_components.is_empty());
+    let evidence_storage = verified.proof_bundle().recursive_components.as_ptr();
+    let expected = terminal_verifier::verify_module_for_optimization(&module, &bundle, &profile)
+        .expect("independent optimizer admission");
+
+    let optimizable = verified.into_optimization().expect("optimizer eligibility");
+    assert!(std::ptr::eq(optimizable.module(), &module));
+    assert_eq!(
+        optimizable.proof_bundle().recursive_components.as_ptr(),
+        evidence_storage
+    );
+    assert_eq!(optimizable.proof_bundle(), expected.proof_bundle());
+    assert_eq!(
+        optimizable.reconstructed_obligations(),
+        expected.reconstructed_obligations()
+    );
+    assert_eq!(optimizable.accepted_facts(), expected.accepted_facts());
+    assert_eq!(
+        optimizable.structural_frontiers(),
+        expected.structural_frontiers()
+    );
+}
+
+#[test]
 fn exact_proof_recursive_component_is_verified_as_one_grouped_certificate() {
     let module = proof_recursive_module();
     let bundle = proof_recursive_bundle(&module);
@@ -509,6 +538,20 @@ fn straight_line_integer_contract_is_reconstructed_and_verified() {
     assert_eq!(verified.module(), &fixture.module);
     assert_eq!(verified.accepted_facts().len(), 1);
     assert_eq!(verified.accepted_facts()[0].obligation, fixture.obligation);
+    let fact_storage = verified.accepted_facts().as_ptr();
+    let optimizable = verified.into_optimization().expect("optimizer eligibility");
+    assert_eq!(optimizable.accepted_facts().as_ptr(), fact_storage);
+    let independent = terminal_verifier::verify_module_for_optimization(
+        &fixture.module,
+        &fixture.proof_bundle(),
+        &AdmissionProfile::default(),
+    )
+    .expect("independent optimizer admission");
+    assert_eq!(optimizable.accepted_facts(), independent.accepted_facts());
+    assert_eq!(
+        optimizable.reconstructed_obligations(),
+        independent.reconstructed_obligations()
+    );
 }
 
 #[test]

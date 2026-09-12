@@ -15,6 +15,12 @@ No checked tree, StateGraph, or caller-created module substitutes for the
 canonical artifact. Unsupported vocabulary rejects at admission or lowering;
 provider installation is not permission to drop an unsupported result.
 
+Native admission returns `VerifiedNativeArtifactInput`: one abstract program and
+its checked optimizer context. It decodes and reconstructs proofs once, lowers
+through ordinary native authority, then checks optimizer eligibility while moving
+the already-verified state. These admission gates remain distinct; optimizer-only
+input cannot be promoted into native authority or paired with an unrelated plan.
+
 Image-writer storage must not be relabeled as compiler-authored object data.
 For example, Mach-O replay derives aligned eight-byte lazy-binding pointer slots
 from exact imports/relocations. Installation's text/immutable-data projection
