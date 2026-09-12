@@ -61,7 +61,7 @@ comparison; historical recovery also honors the network restriction.
 
 `operations::review_package_change` checks an already-resolved candidate for an
 exact target, rejects outstanding ordinary contract obligations in any package,
-and compares its full policy against an optional accepted lock section. Missing
+and compares its risk-bearing projection against an optional accepted lock section. Missing
 baseline means fresh review; unavailable old source is not needed for comparison.
 The resulting `PackageChangeReview` exposes compiler findings and the ordinary
 editable review document's input, without a reconstruction question, native
@@ -69,7 +69,7 @@ artifact, or evidence-promotion prerequisite.
 
 After resolving the exact comparison, `propose_lock_target` requires all choices
 to accept, rechecks retained source snapshots and selections, and constructs the
-proposed target from complete candidate policy and direct decision history.
+proposed target from compact candidate acceptance rows and direct decision history.
 Rejected, foreign, or stale choices cannot produce a proposal through this
 operation. The result remains an unwritten `PackageLockTarget`, not permission
 to publish. `publish_reviewed_package_change` joins the staged edit and all
@@ -111,8 +111,8 @@ not modified by this operation.
 
 Its package-aware native operation consumes a `PreparedLocalProject` carrying
 the source closure and accepted `omega.lock` section for one exact target.
-It compiles the final production review and compares its complete normalized
-policy with that accepted baseline. Matching requirements need no second
+It compiles the final production review and compares its exact risk-bearing
+projection with retained acceptance. Matching requirements need no second
 approval file. Missing acceptance or decision-requiring changes direct the user
 to ordinary `omega update` review; native compilation never writes acceptance.
 Source-only changes remain available in the comparison and ordinary package
@@ -195,17 +195,18 @@ recreated compiler conflict. It preserves acceptance and rejection as trusted
 project records, without making either fresh authorization or audit evidence.
 
 `lock::PackageLock` composes that history with the immutable source graph and
-one complete typed `PackagePolicyBaseline` for every source package. Exact target
+one inert `PackagePolicyAcceptance` for every source package. Exact target
 sections are sorted by canonical target identity and must agree on the same
 target-independent source graph. Each baseline matches its source package and
 target; decisions match the complete target-bound source subject. These are
 inert project records, not fresh compiler authorization.
 
-Evidence enumerates every concrete retained package owner, including owners
-inside canonical type/callable identities; the manager requires membership in
-the exact transitive source graph. Foreign symbolic boundary demands also join
-the owning baseline's exact operator telescope. Neither check requires direct
-dependency edges or public availability of arbitrary carried declarations.
+Acceptance retains complete readable canonical rows for admission-claim and
+external-realization callables, external supplies, dangerous capabilities, and
+terminal permissions. It is not a recovered `PackagePolicyBaseline` or fresh
+compiler evidence. The complete API, ordinary checked callables, provider tables,
+representations, semantic dependencies, and symbolic demands remain in fresh
+whole-candidate checking and audit, not in the lock.
 
 The versioned `omega.lock` text embeds the canonical source, named policy, and
 historical-decision sections verbatim, using explicit byte lengths. No whole
@@ -254,7 +255,7 @@ the complete graph through the ordinary candidate-review entrance. It preserves
 required semantic-binding discovery/final checking and generated-source handoffs;
 it does not reuse old compiler analysis or add another replay/promotion step.
 The result keeps the borrowed accepted target beside the fresh source closure
-and compiler review set. Full normalized policy comparison joins exact package
+and compiler review set. Compact acceptance comparison joins exact package
 keys, immutable resolutions, and target, then reports changed package keys in
 canonical source order. Same-spelled names do not merge packages. An unchanged
 policy is equality with recorded project policy, not renewed certification or
@@ -265,7 +266,7 @@ refresh or an implicitly chosen candidate.
 `review::compare_package_policy_changes` compares an optional accepted target
 with a freshly checked candidate and its exact current source closure. An absent
 baseline is explicit initial review. Comparison joins the union of exact package
-keys and complete evidence-owned policy rows, including removed packages whose
+keys and complete canonical risk-bearing rows, including removed packages whose
 old source no longer exists. Old and new resolutions and dependency paths remain
 separate; a removed package has no invented candidate source or path. Same-named
 packages from different source lineages do not merge.
@@ -298,6 +299,11 @@ normalized policies, and fresh candidate compiler/source/build commitments bind
 the versioned comparison fingerprints; historical policy is never adapted into
 a fabricated compiler review or execution receipt. Both graphs share resource
 ceilings rather than receiving a fresh budget per package.
+
+Rebuildable API and representation changes alone require no approval. Risk-row
+changes, source replacements, and root-role changes retain their exact decision
+coverage. Source changes remain audit recommendations; neither comparison nor
+historical lock recovery compiles old source.
 
 `review::resolve_package_policy_decisions` consumes that report and the digest
 retained with the project's choices. Each required row, root-role change, and

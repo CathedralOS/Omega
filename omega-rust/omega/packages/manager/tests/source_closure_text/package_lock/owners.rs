@@ -121,7 +121,20 @@ fn lock_rejects_absent_owners_inside_canonical_types_and_callable_coordinates() 
             .unwrap(),
     ])
     .unwrap();
-    let lock_text = lock.canonical_text().unwrap();
+    let mut lock_text = lock
+        .canonical_text()
+        .unwrap()
+        .replacen("omega_lock 2\n", "omega_lock 1\n", 1)
+        .replace("acceptances ", "baselines ");
+    for (full, compact) in baselines.iter().zip(lock.targets()[0].baselines()) {
+        let original = compact.canonical_text().unwrap();
+        let legacy = full.canonical_text().unwrap();
+        lock_text = lock_text.replacen(
+            &format!("acceptance {}\n{original}", original.len()),
+            &format!("baseline {}\n{legacy}", legacy.len()),
+            1,
+        );
+    }
     assert_eq!(
         PackageLock::recover_text(&lock_text, PackageLockRecoveryLimits::default()).unwrap(),
         lock

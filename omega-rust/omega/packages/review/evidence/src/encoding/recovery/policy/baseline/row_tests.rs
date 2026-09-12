@@ -3,6 +3,37 @@ use super::tests::fixture;
 use super::*;
 mod rich;
 
+#[test]
+fn compact_acceptance_is_exact_risk_subset_without_encoding_unrelated_api() {
+    let policy = fixture();
+    let expected: Vec<_> = rows(&policy)
+        .0
+        .into_iter()
+        .filter(PackagePolicyRow::initial_requires_decision)
+        .collect();
+    let (actual, usage) = policy
+        .acceptance_rows_with_limits(PackagePolicyRowLimits::default())
+        .unwrap();
+    assert!(!actual.is_empty());
+    assert_eq!(actual, expected);
+    assert_eq!(actual.len(), usage.rows());
+    let mut changed = policy.clone();
+    // An audit-sized public constant must not consume the acceptance encoding
+    // budget or change consent. The fresh full projection still retains it.
+    changed.public_api.consts[0].canonical_value_encoding = "x".repeat(1024 * 1024);
+    let limits = PackagePolicyRowLimits {
+        maximum_rows: usage.rows(),
+        maximum_owned_bytes: usage.owned_bytes(),
+        maximum_sequence_elements: usage.sequence_elements(),
+        ..Default::default()
+    };
+    assert_eq!(
+        changed.acceptance_rows_with_limits(limits).unwrap().0,
+        actual
+    );
+    assert!(changed.canonical_rows_with_limits(limits).is_err());
+}
+
 fn rows(policy: &PackagePolicyBaseline) -> (Vec<PackagePolicyRow>, PackagePolicyRowUsage) {
     policy
         .canonical_rows_with_limits(PackagePolicyRowLimits::default())
@@ -37,7 +68,7 @@ fn complete_rows_are_named_lossless_and_leave_existing_baseline_bytes_unchanged(
     );
     assert!(constant.canonical_text().contains("42"));
     assert!(!constant.initial_requires_decision());
-    assert!(constant.update_requires_decision());
+    assert!(!constant.update_requires_decision());
     let header = projected
         .iter()
         .find(|row| row.kind() == PackagePolicyRowKind::Header)

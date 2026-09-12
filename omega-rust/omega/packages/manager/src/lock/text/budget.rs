@@ -4,35 +4,17 @@ use super::super::{
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, PackageLockError as Error,
     PackageLockRecoveryLimits,
 };
-use super::{MAXIMUM_DECISION_BYTES, MAXIMUM_POLICY_TEXT_BYTES};
+use super::MAXIMUM_DECISION_BYTES;
+use crate::lock::PackagePolicyAcceptance;
 use crate::resolution::graph::CanonicalSourceClosureSubject;
-use package_evidence::{
-    encoding::{PackagePolicyRecoveryLimits, PackagePolicyTextRecoveryLimits},
-    record::PackagePolicyBaseline,
-};
+use semantic_vocabulary::PackageKeyIdentity;
+use target::TargetProfile;
 
 pub(super) struct Budget {
     remaining: PackageLockRecoveryLimits,
 }
 
 impl Budget {
-    pub(super) fn target_membership(
-        &mut self,
-        target: &super::super::PackageLockTarget,
-    ) -> Result<(), Error> {
-        let usage = super::super::validation::policy_source_membership(
-            target,
-            self.remaining.maximum_owned_bytes,
-            self.remaining.maximum_identity_nodes,
-        )?;
-        self.owned(usage.owned_bytes)?;
-        count(
-            &mut self.remaining.maximum_identity_nodes,
-            usage.identity_nodes,
-        )?;
-        Ok(())
-    }
-
     pub(super) fn new(limits: PackageLockRecoveryLimits) -> Self {
         Self { remaining: limits }
     }
@@ -74,7 +56,38 @@ impl Budget {
         Ok(source)
     }
 
-    pub(super) fn baseline(&mut self, text: &str) -> Result<PackagePolicyBaseline, Error> {
+    pub(super) fn baseline(
+        &mut self,
+        text: &str,
+        package: PackageKeyIdentity,
+        target: TargetProfile,
+    ) -> Result<PackagePolicyAcceptance, Error> {
+        let (baseline, owned) = super::acceptance::read(
+            text,
+            package,
+            target,
+            self.remaining.maximum_policy_elements,
+            self.remaining.maximum_owned_bytes,
+        )?;
+        self.owned(owned)?;
+        count(
+            &mut self.remaining.maximum_policy_elements,
+            baseline.rows().len(),
+        )?;
+        Ok(baseline)
+    }
+
+    // Read-only migration of the one known historical snapshot schema. The
+    // existing evidence decoder checks its full structure before projection.
+    pub(super) fn snapshot(
+        &mut self,
+        text: &str,
+        source: &CanonicalSourceClosureSubject,
+    ) -> Result<PackagePolicyAcceptance, Error> {
+        use package_evidence::{
+            encoding::{PackagePolicyRecoveryLimits, PackagePolicyTextRecoveryLimits},
+            record::PackagePolicyBaseline,
+        };
         let limits = PackagePolicyRecoveryLimits::new(
             4 * 1024 * 1024,
             4 * 1024 * 1024,
@@ -82,9 +95,9 @@ impl Budget {
             self.remaining.maximum_owned_bytes,
             128,
         );
-        let (baseline, usage) = PackagePolicyBaseline::recover_text_with_usage(
+        let (policy, usage) = PackagePolicyBaseline::recover_text_with_usage(
             text,
-            PackagePolicyTextRecoveryLimits::new(MAXIMUM_POLICY_TEXT_BYTES, limits),
+            PackagePolicyTextRecoveryLimits::new(super::MAXIMUM_POLICY_TEXT_BYTES, limits),
         )
         .map_err(Error::Policy)?;
         self.owned(usage.owned_bytes())?;
@@ -92,7 +105,42 @@ impl Budget {
             &mut self.remaining.maximum_policy_elements,
             usage.sequence_elements(),
         )?;
-        Ok(baseline)
+        let membership = policy
+            .validate_package_membership(
+                |identity| {
+                    source
+                        .packages()
+                        .iter()
+                        .any(|package| package.key().identity() == identity)
+                },
+                package_evidence::encoding::PackagePolicyMembershipLimits::new(
+                    self.remaining.maximum_owned_bytes,
+                    self.remaining.maximum_identity_nodes,
+                    128,
+                ),
+            )
+            .map_err(Error::PolicySourceMembership)?;
+        self.owned(membership.owned_bytes())?;
+        count(
+            &mut self.remaining.maximum_identity_nodes,
+            membership.identity_nodes(),
+        )?;
+        let (acceptance, projected) = PackagePolicyAcceptance::project(
+            &policy,
+            package_evidence::record::PackagePolicyRowLimits {
+                maximum_rows: self.remaining.maximum_policy_elements,
+                maximum_owned_bytes: self.remaining.maximum_owned_bytes,
+                maximum_sequence_elements: self.remaining.maximum_policy_elements,
+                ..Default::default()
+            },
+        )
+        .map_err(Error::Encoding)?;
+        self.owned(projected.owned_bytes())?;
+        count(
+            &mut self.remaining.maximum_policy_elements,
+            projected.sequence_elements(),
+        )?;
+        Ok(acceptance)
     }
 
     pub(super) fn decisions(

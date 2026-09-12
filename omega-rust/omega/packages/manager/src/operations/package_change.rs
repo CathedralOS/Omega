@@ -94,9 +94,12 @@ impl PackageChangeReview {
                 .reviews
                 .review(package.key())
                 .expect("comparison checked complete source coverage");
-            baselines.push(review.policy().clone());
+            baselines.push(
+                crate::lock::PackagePolicyAcceptance::from_policy(review.policy())
+                    .map_err(PackageChangeError::Lock)?,
+            );
         }
-        PackageLockTarget::from_parts(source, baselines, decisions)
+        PackageLockTarget::from_acceptances(source, baselines, decisions)
             .map_err(PackageChangeError::Lock)
     }
 }

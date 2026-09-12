@@ -54,10 +54,12 @@ pub(super) fn packages(
         let baseline =
             old.map(|_| &accepted.expect("old package has baseline").baselines()[old_index]);
         let review = new.map(|_| reviews[new_index]);
-        let old_rows = baseline
-            .map(|value| projection::rows(key, value, budget))
-            .transpose()?
-            .unwrap_or_default();
+        let retained = baseline.map_or(&[][..], |value| value.rows());
+        budget.slots::<crate::lock::PackageAcceptanceRow>(retained.len())?;
+        for row in retained {
+            budget.context(row.canonical_text().len())?;
+        }
+        let old_rows = retained.to_vec();
         let new_rows = review
             .map(|value| projection::rows(key, value.policy(), budget))
             .transpose()?
@@ -79,18 +81,12 @@ pub(super) fn packages(
             })
             .transpose()?;
         let candidate_path = new.map(|_| new_paths.path(key, budget)).transpose()?;
-        let audit_present = new_rows
-            .iter()
-            .any(|row| row.audit_recommended_when_present());
-        let rows = merge::rows(old_rows, new_rows, old.is_some(), budget)?;
-        if baseline
-            .zip(review)
-            .is_some_and(|(old, new)| (old == new.policy()) != rows.is_empty())
-        {
-            return Err(PackagePolicyChangeError::IncompleteRowProjection {
-                package: Box::new(key.clone()),
+        let audit_present = !new_rows.is_empty()
+            || review.is_some_and(|review| {
+                !review.policy().slack_uses().is_empty()
+                    || !review.policy().representation().demands().is_empty()
             });
-        }
+        let rows = merge::rows(old_rows, new_rows, old.is_some(), budget)?;
         budget.key(key)?;
         let source_changed =
             old.map(|value| value.resolution()) != new.map(|value| value.resolution());

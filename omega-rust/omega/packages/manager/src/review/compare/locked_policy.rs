@@ -1,4 +1,4 @@
-//! Complete normalized policy equality, independent of legacy conflict rows.
+//! Exact retained acceptance equality against fresh compiler policy.
 
 use crate::declarations::PackageKey;
 use crate::lock::PackageLockTarget;
@@ -15,11 +15,13 @@ pub enum LockedPolicyComparisonError {
     PackageIdentityMismatch { package: PackageKey },
     TargetMismatch { package: PackageKey },
     AllocationFailed,
+    Acceptance(crate::lock::PackageLockError),
 }
 
 impl fmt::Display for LockedPolicyComparisonError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (package, reason) = match self {
+            Self::Acceptance(error) => return error.fmt(formatter),
             Self::MissingReview { package } => (package, "has no fresh compiler review"),
             Self::UnexpectedReview { package } => {
                 (package, "is absent from the retained source graph")
@@ -113,7 +115,9 @@ pub fn compare_locked_package_policies(
         let review = review.ok_or_else(|| LockedPolicyComparisonError::MissingReview {
             package: source.key().clone(),
         })?;
-        if baseline != review.policy() {
+        let fresh = crate::lock::PackagePolicyAcceptance::from_policy(review.policy())
+            .map_err(LockedPolicyComparisonError::Acceptance)?;
+        if baseline != &fresh {
             changed.push(source.key().clone());
         }
     }

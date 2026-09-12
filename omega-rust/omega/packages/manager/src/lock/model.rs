@@ -5,12 +5,12 @@ use crate::resolution::graph::CanonicalSourceClosureSubject;
 use package_evidence::record::PackagePolicyBaseline;
 use target::TargetProfile;
 
-/// Source pins, complete normalized policy, and historical project choices for
+/// Source pins, exact acceptance obligations, and historical project choices for
 /// one exact target. This inert record is not fresh publication authorization.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageLockTarget {
     pub(super) source: CanonicalSourceClosureSubject,
-    pub(super) baselines: Vec<PackagePolicyBaseline>,
+    pub(super) baselines: Vec<super::PackagePolicyAcceptance>,
     pub(super) decisions: HistoricalPackagePolicyDecisions,
 }
 
@@ -23,25 +23,44 @@ impl PackageLockTarget {
         baselines: Vec<PackagePolicyBaseline>,
         decisions: HistoricalPackagePolicyDecisions,
     ) -> Result<Self, Error> {
+        // Validate incoming full policy before discarding reconstruction-only
+        // associations. Compact rows are consent, never recovered compiler IR.
+        if baselines.len() != source.packages().len() {
+            return Err(Error::BaselineCoverage);
+        }
+        let limits = PackageLockRecoveryLimits::default();
+        super::validation::policy_source_membership(
+            &source,
+            &baselines,
+            limits.maximum_owned_bytes,
+            limits.maximum_identity_nodes,
+        )?;
+        let baselines = baselines
+            .iter()
+            .map(super::PackagePolicyAcceptance::from_policy)
+            .collect::<Result<_, _>>()?;
+        Self::from_acceptances(source, baselines, decisions)
+    }
+
+    /// Compose retained consent without reconstructing or cloning old compiler policy.
+    pub fn from_acceptances(
+        source: CanonicalSourceClosureSubject,
+        baselines: Vec<super::PackagePolicyAcceptance>,
+        decisions: HistoricalPackagePolicyDecisions,
+    ) -> Result<Self, Error> {
         let value = Self {
             source,
             baselines,
             decisions,
         };
         value.validate()?;
-        let limits = PackageLockRecoveryLimits::default();
-        super::validation::policy_source_membership(
-            &value,
-            limits.maximum_owned_bytes,
-            limits.maximum_identity_nodes,
-        )?;
         Ok(value)
     }
 
     pub fn source(&self) -> &CanonicalSourceClosureSubject {
         &self.source
     }
-    pub fn baselines(&self) -> &[PackagePolicyBaseline] {
+    pub fn baselines(&self) -> &[super::PackagePolicyAcceptance] {
         &self.baselines
     }
     pub fn decisions(&self) -> &HistoricalPackagePolicyDecisions {

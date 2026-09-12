@@ -3,12 +3,12 @@ use super::{
     PackagePolicyRowChange,
     limits::{Budget, row_bytes},
 };
-use package_evidence::record::PackagePolicyRow;
+use crate::lock::PackageAcceptanceRow;
 use std::cmp::Ordering;
 
 pub(super) fn rows(
-    baseline: Vec<PackagePolicyRow>,
-    candidate: Vec<PackagePolicyRow>,
+    baseline: Vec<PackageAcceptanceRow>,
+    candidate: Vec<PackageAcceptanceRow>,
     existing_package: bool,
     budget: &mut Budget,
 ) -> Result<Vec<PackagePolicyRowChange>, Error> {
@@ -49,24 +49,24 @@ pub(super) fn rows(
         let requires_decision = if existing_package {
             previous
                 .as_ref()
-                .is_some_and(PackagePolicyRow::update_requires_decision)
+                .is_some_and(PackageAcceptanceRow::update_requires_decision)
                 || current
                     .as_ref()
-                    .is_some_and(PackagePolicyRow::update_requires_decision)
+                    .is_some_and(PackageAcceptanceRow::update_requires_decision)
         } else {
             current
                 .as_ref()
-                .is_some_and(PackagePolicyRow::initial_requires_decision)
+                .is_some_and(PackageAcceptanceRow::initial_requires_decision)
         };
         // Introduction is a change from absence. Representation choices need
         // that audit recommendation even without a previous package contract;
         // unchanged presence is a separate, narrower audit classification.
         let audit_recommended = previous
             .as_ref()
-            .is_some_and(PackagePolicyRow::audit_recommended_on_change)
+            .is_some_and(PackageAcceptanceRow::audit_recommended_on_change)
             || current
                 .as_ref()
-                .is_some_and(PackagePolicyRow::audit_recommended_on_change);
+                .is_some_and(PackageAcceptanceRow::audit_recommended_on_change);
         result.push(PackagePolicyRowChange {
             baseline: previous,
             candidate: current,
@@ -79,7 +79,7 @@ pub(super) fn rows(
     Ok(result)
 }
 
-fn compare(old: Option<&PackagePolicyRow>, new: Option<&PackagePolicyRow>) -> Ordering {
+fn compare(old: Option<&PackageAcceptanceRow>, new: Option<&PackageAcceptanceRow>) -> Ordering {
     match (old, new) {
         (Some(old), Some(new)) => (old.kind(), old.key_bytes()).cmp(&(new.kind(), new.key_bytes())),
         (Some(_), None) => Ordering::Less,
@@ -88,9 +88,12 @@ fn compare(old: Option<&PackagePolicyRow>, new: Option<&PackagePolicyRow>) -> Or
     }
 }
 fn walk(
-    old: &[PackagePolicyRow],
-    new: &[PackagePolicyRow],
-    mut visit: impl FnMut(Option<&PackagePolicyRow>, Option<&PackagePolicyRow>) -> Result<(), Error>,
+    old: &[PackageAcceptanceRow],
+    new: &[PackageAcceptanceRow],
+    mut visit: impl FnMut(
+        Option<&PackageAcceptanceRow>,
+        Option<&PackageAcceptanceRow>,
+    ) -> Result<(), Error>,
 ) -> Result<(), Error> {
     let (mut left, mut right) = (0, 0);
     while left < old.len() || right < new.len() {

@@ -1,8 +1,9 @@
 # Package acceptance
 
 The package service resolves and installs source dependencies, checks their
-complete supported graph, and compares compiler-derived authority, public API,
-and assumptions with project acceptance. Native emission is a separate operation.
+complete supported graph, and compares compiler-derived authority and assumptions
+with project acceptance. Fresh audit also exposes the complete public API and
+representation findings. Native emission is a separate operation.
 [Build declarations](../build/declarations.md) owns graph and package identity;
 [compiler-derived review](review.md) owns the report's completeness and identity.
 
@@ -31,19 +32,24 @@ owns the physical format.
 
 1. Resolve the complete candidate and exact sources.
 2. Check it, including generated source and transitive authority.
-3. Compare findings against the accepted lock baseline.
+3. Compare the exact risk-bearing projection against compact lock acceptance.
 4. Resolve required decisions for that exact comparison.
 5. Publish the declaration/lock pair with interruption recovery.
 
 New dangerous authority or explicit trust-bearing assumptions require acceptance.
 Fully checked candidates without blocking findings need no approval ceremony.
 Capability/assumption changes, including removals, use the comparison policy;
-public API and source replacement remain visible. Unchanged dangerous authority
+source replacements and root-role changes also require decisions. Rebuildable
+public API, ordinary checked-callable, provider-selection, representation, and
+semantic-dependency changes alone do not require approval. Fresh compiler checks
+and audit still retain those findings; source changes remain visible.
+Unchanged dangerous authority
 recommends code audit, not recurring approval: identical permissions do not imply
 identical behavior. A source diff is an audit aid, not a security control.
 
 Missing old source limits code review, not comparison against normalized accepted
-policy. Recommend standalone candidate audit. Missing lock means fresh complete
+policy. No old-source compiler analysis is needed or performed for comparison.
+Recommend standalone candidate audit. Missing lock means fresh complete
 review; malformed or unsupported locks reject with recovery guidance rather than
 silently becoming an empty acceptance. Locked compilation does not refresh tags
 or branches. Source-plus-alias changes may be removal/addition without guessed
@@ -93,8 +99,8 @@ code—not host attestation or ambient desktop isolation. Extra compiler/native
 receipts belong to their artifacts or concrete caches, not ordinary lock acceptance.
 
 Native preparation compares fresh findings against the same accepted project
-baseline. Unchanged accepted policy needs no second native approval file; unmatched
-findings use ordinary package review. This does not waive compiler proof checks,
+acceptance projection. Unchanged accepted policy needs no second native approval
+file; unmatched risk-bearing rows use ordinary package review. This does not waive compiler proof checks,
 build-execution grants, or independently supplied receiving permission policy.
 
 Acceptance binds permission and assumption meaning, not diagnostic wording or
@@ -109,6 +115,8 @@ explicit acceptance.
 
 Compare both complete source graphs and targets, including removed packages,
 directional root-role changes, and replacements at exact requester/purpose/alias edges.
+For each package compare complete canonical acceptance rows, including removals;
+do not substitute digest equality or a partial permission summary for row meaning.
 Each required change needs one decision; advisory-only rows have none. Preserve
 exact displayed old/new policy, resolutions, dependency paths, and the complete
 comparison identity. A decision for another comparison cannot authorize this one.

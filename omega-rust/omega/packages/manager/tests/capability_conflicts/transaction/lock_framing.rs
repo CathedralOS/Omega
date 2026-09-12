@@ -7,9 +7,9 @@ fn rejects(text: &str) {
 }
 
 pub(super) fn assert_canonical_framing(text: &str) {
-    assert!(text.starts_with("omega_lock 1\ntargets 2\n"));
-    rejects(&text.replacen("omega_lock 1\n", "omega_lock 99\n", 1));
-    rejects(&text.replacen("omega_lock 1\n", "omega_lock 01\n", 1));
+    assert!(text.starts_with("omega_lock 2\ntargets 2\n"));
+    rejects(&text.replacen("omega_lock 2\n", "omega_lock 99\n", 1));
+    rejects(&text.replacen("omega_lock 2\n", "omega_lock 02\n", 1));
     rejects(&text.replace('\n', "\r\n"));
     rejects(&format!("{text}\n"));
     rejects(&format!("{text}end\n"));
@@ -21,7 +21,13 @@ pub(super) fn assert_canonical_framing(text: &str) {
     rejects(&text.replacen(target, "target linux_x86_64", 1));
     rejects(&text.replacen("end_target\n", "end_unknown\n", 1));
 
-    for label in ["targets", "source", "baselines", "baseline", "decisions"] {
+    for label in [
+        "targets",
+        "source",
+        "acceptances",
+        "acceptance",
+        "decisions",
+    ] {
         let prefix = format!("{label} ");
         let line = text.lines().find(|line| line.starts_with(&prefix)).unwrap();
         let count: usize = line[prefix.len()..].parse().unwrap();
@@ -52,7 +58,7 @@ pub(super) fn assert_canonical_framing(text: &str) {
     );
     rejects(&split_character);
 
-    for length in [0, "omega_lock 1\n".len() - 1, text.len() - 1] {
+    for length in [0, "omega_lock 2\n".len() - 1, text.len() - 1] {
         rejects(&text[..length]);
     }
     for (length, _) in text.match_indices('\n').step_by(53) {

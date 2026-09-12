@@ -369,16 +369,28 @@ fn identical_edit_bytes_from_another_project_and_wrong_transaction_root_reject()
 
 #[test]
 fn edited_lock_and_changed_policy_with_the_same_source_pin_reject_stale_review() {
-    let (tree, replacement, staged, _) = fixture(PURE);
+    let (tree, replacement, staged, _) = fixture(ASSUMPTION);
     let accepted = propose(&review(&tree, "accepted", None));
     let (_, accepted_text) = write_lock(&tree, vec![accepted.clone()]);
     let checked = review_stage(&tree, &staged, TARGET, Some(&accepted));
     let choices = decisions(&checked, "accept");
-    let mut baselines = accepted.baselines().to_vec();
+    let mut baselines: Vec<_> = accepted
+        .source()
+        .packages()
+        .iter()
+        .map(|package| {
+            checked
+                .reviews()
+                .review(package.key())
+                .unwrap()
+                .policy()
+                .clone()
+        })
+        .collect();
     let text = baselines[0].canonical_text().unwrap();
-    assert!(text.contains("string \"VALUE\"\n"));
+    assert!(text.contains("trusted_zero"));
     baselines[0] = PackagePolicyBaseline::recover_text(
-        &text.replace("string \"VALUE\"\n", "string \"RENAMED_VALUE\"\n"),
+        &text.replace("trusted_zero", "trusted_else"),
         PackagePolicyTextRecoveryLimits::default(),
     )
     .unwrap();

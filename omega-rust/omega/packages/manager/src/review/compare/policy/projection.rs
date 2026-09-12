@@ -1,8 +1,9 @@
 use super::{PackagePolicyChangeError as Error, limits::Budget};
 use crate::declarations::PackageKey;
+use crate::lock::PackageAcceptanceRow;
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
-use package_evidence::record::{PackagePolicyBaseline, PackagePolicyRow};
+use package_evidence::record::PackagePolicyBaseline;
 
 pub(super) fn candidate<'a>(
     candidate: &'a CompilerIssuedPackageReviewSet,
@@ -83,15 +84,16 @@ pub(super) fn rows(
     package: &PackageKey,
     policy: &PackagePolicyBaseline,
     budget: &mut Budget,
-) -> Result<Vec<PackagePolicyRow>, Error> {
-    let (rows, usage) = policy
-        .canonical_rows_with_limits(budget.row_limits())
-        .map_err(|error| Error::Projection {
-            package: Box::new(package.clone()),
-            error,
-        })?;
+) -> Result<Vec<PackageAcceptanceRow>, Error> {
+    let (acceptance, usage) =
+        crate::lock::PackagePolicyAcceptance::project(policy, budget.row_limits()).map_err(
+            |error| Error::Projection {
+                package: Box::new(package.clone()),
+                error,
+            },
+        )?;
     budget.projected(usage)?;
-    Ok(rows)
+    Ok(acceptance.into_rows())
 }
 
 fn invalid(package: &PackageKey, reason: &'static str) -> Error {

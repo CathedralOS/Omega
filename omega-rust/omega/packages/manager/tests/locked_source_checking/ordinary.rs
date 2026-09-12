@@ -33,7 +33,7 @@ fn fixture(tree: &Tree) -> (PackageLock, PackageRootSourceRequest) {
         package(&tree.path(&format!("sources/{directory}")), "same-name", "");
         fs::write(
             tree.path(&format!("sources/{directory}/main.omg")),
-            "pub const LIMIT: u64 = 7;\n",
+            "boundary machine LIMIT() -> u64 ensures result == 7;\n",
         )
         .unwrap();
     }
@@ -78,7 +78,10 @@ fn fresh_reviews_report_only_the_exact_package_with_changed_retained_policy() {
         .zip(checked.accepted().baselines())
     {
         let review = checked.reviews().review(source.key()).unwrap();
-        assert_eq!(review.policy(), accepted);
+        assert_eq!(
+            &package_manager::lock::PackagePolicyAcceptance::from_policy(review.policy()).unwrap(),
+            accepted
+        );
         assert_eq!(review.resolution(), source.resolution());
     }
 
@@ -90,27 +93,30 @@ fn fresh_reviews_report_only_the_exact_package_with_changed_retained_policy() {
         .position(|source| source.key().name().as_str() == "same-name")
         .unwrap();
     let key = accepted.source().packages()[index].key().clone();
-    let mut baselines = accepted.baselines().to_vec();
-    assert_eq!(baselines[index].public_consts().len(), 1);
-    assert_eq!(
-        baselines[index].public_consts()[0].identity().path(),
-        "LIMIT"
-    );
+    let mut baselines: Vec<_> = accepted
+        .source()
+        .packages()
+        .iter()
+        .map(|source| {
+            checked
+                .reviews()
+                .review(source.key())
+                .unwrap()
+                .policy()
+                .clone()
+        })
+        .collect();
     let policy_text = baselines[index].canonical_text().unwrap();
-    let original_name = "string \"LIMIT\"\n";
-    assert_eq!(policy_text.matches(original_name).count(), 1);
-    // This is an edited inert public API record, not forged compiler evidence.
-    // Exact scalar replacement leaves every owner and unrelated field intact.
-    let altered_text = policy_text.replace(original_name, "string \"RENAMED_LIMIT\"\n");
+    let original_name = "LIMIT";
+    assert!(policy_text.contains(original_name));
+    // This is edited historical consent, not forged compiler evidence.
+    // Equal-length renaming preserves the canonical signature's string lengths.
+    let altered_text = policy_text.replace(original_name, "OTHER");
     baselines[index] = PackagePolicyBaseline::recover_text(
         &altered_text,
         PackagePolicyTextRecoveryLimits::default(),
     )
     .unwrap();
-    assert_eq!(
-        baselines[index].public_consts()[0].identity().path(),
-        "RENAMED_LIMIT"
-    );
     let altered = roundtrip(
         PackageLockTarget::from_parts(
             accepted.source().clone(),
@@ -215,7 +221,7 @@ fn a_readable_baseline_does_not_suppress_current_compilation_failure() {
     // A project can edit pins and retain stale analysis. Format recovery does
     // not certify that analysis; checking must still reject the invalid body.
     let lock = roundtrip(
-        PackageLockTarget::from_parts(
+        PackageLockTarget::from_acceptances(
             source,
             accepted.target(TARGET).unwrap().baselines().to_vec(),
             decisions,
@@ -312,10 +318,13 @@ fn independent_compiler_reviews_require_exact_target_resolution_and_coverage() {
         .position(|source| source.key() == advanced.graph().root())
         .unwrap();
     assert_eq!(
-        advanced_reviews
-            .review(advanced.graph().root())
-            .unwrap()
-            .policy(),
+        &package_manager::lock::PackagePolicyAcceptance::from_policy(
+            advanced_reviews
+                .review(advanced.graph().root())
+                .unwrap()
+                .policy()
+        )
+        .unwrap(),
         &accepted.baselines()[index],
         "this implementation body edit leaves normalized public policy unchanged"
     );

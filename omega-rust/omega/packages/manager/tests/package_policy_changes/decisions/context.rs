@@ -108,6 +108,7 @@ fn removed_package_choices_resolve_without_its_old_source_or_cache() {
         " builder.depend_as(\"dependency\", Source::Path { location: \"../old\" });\n",
     );
     package(&tree.path("sources/old"), "removed-package", "");
+    fs::write(tree.path("sources/old/main.omg"), ASSUMPTIONS).unwrap();
     let lock = {
         let (closure, reviews) = candidate(&tree, "accepted");
         lock_from_reviews(&closure, &reviews)
@@ -164,12 +165,16 @@ fn removed_package_choices_resolve_without_its_old_source_or_cache() {
 fn root_role_choices_are_required_in_both_directions_and_sort_before_rows() {
     let tree = Tree::new();
     let main = "data Main { }\nmachine Main::main(&mut self) { }\n";
-    source(&tree, &format!("{main}pub const VALUE: u64 = 7;\n"), "");
+    source(
+        &tree,
+        &format!("{main}boundary machine trusted() -> u64 ensures result == 7;\n"),
+        "",
+    );
     let (package_sources, package_reviews) = candidate(&tree, "package-role");
     let package_lock = lock_from_reviews(&package_sources, &package_reviews);
     fs::write(
         tree.path("sources/root/main.omg"),
-        format!("{main}pub const VALUE: u64 = 8;\n"),
+        format!("{main}boundary machine trusted() -> u64 ensures result == 8;\n"),
     )
     .unwrap();
     fs::write(

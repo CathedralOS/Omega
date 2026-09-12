@@ -103,7 +103,7 @@ fn invalid_proof_and_service_reach_remain_compiler_failures() {
 }
 
 #[test]
-fn scoped_build_generated_sources_reach_the_proposed_policy() {
+fn scoped_build_generated_sources_reach_fresh_audit_without_expanding_consent() {
     let tree = Tree::new();
     source(
         &tree,
@@ -127,14 +127,23 @@ fn scoped_build_generated_sources_reach_the_proposed_policy() {
         .find(|package| package.key() == root)
         .unwrap()
         .rows();
-    assert!(rows.iter().any(|row| {
-        row.kind() == PackagePolicyRowKind::PublicData
-            && row
-                .candidate()
-                .unwrap()
-                .canonical_text()
-                .contains("Generated")
-    }));
+    assert!(rows.is_empty());
+    assert!(
+        checked
+            .reviews()
+            .review(root)
+            .unwrap()
+            .policy()
+            .canonical_text()
+            .unwrap()
+            .contains("Generated")
+    );
+    assert!(
+        proposed
+            .baselines()
+            .iter()
+            .all(|acceptance| acceptance.rows().is_empty())
+    );
     let root_review = checked.reviews().review(root).unwrap();
     let observation = root_review.build_observation_summary().unwrap();
     let expected_log = b"generated package data\n";

@@ -5,7 +5,7 @@ use super::{
     HEADER, MAXIMUM_DECISION_BYTES, MAXIMUM_POLICY_TEXT_BYTES, MAXIMUM_SOURCE_BYTES,
     budget::Budget, framing::Reader,
 };
-use package_evidence::record::PackagePolicyBaseline;
+use crate::lock::PackagePolicyAcceptance;
 use target::TargetProfile;
 
 impl PackageLock {
@@ -16,14 +16,23 @@ impl PackageLock {
         if text.len() > limits.maximum_bytes {
             return Err(Error::ByteLimitExceeded);
         }
-        let body = text.strip_prefix(HEADER).ok_or(Error::UnsupportedVersion)?;
+        // A known v1 snapshot can be projected without reacquiring or compiling
+        // its source. Unknown schemas never get guessed-equivalent acceptance.
+        let (body, snapshot) = if let Some(body) = text.strip_prefix(HEADER) {
+            (body, false)
+        } else if let Some(body) = text.strip_prefix("omega_lock 1\n") {
+            (body, true)
+        } else {
+            return Err(Error::UnsupportedVersion);
+        };
         let mut reader = Reader::new(body);
         let count = reader.count("targets", limits.maximum_targets)?;
         if count == 0 {
             return Err(Error::EmptyTargets);
         }
         // Reject impossible framing before requesting semantic storage.
-        if count > body.len() / "target \nsource 0\nbaselines 0\ndecisions 0\nend_target\n".len() {
+        if count > body.len() / "target \nsource 0\nacceptances 0\ndecisions 0\nend_target\n".len()
+        {
             return Err(Error::InvalidFraming);
         }
         let mut budget = Budget::new(limits);
@@ -53,18 +62,31 @@ impl PackageLock {
             {
                 return Err(Error::SourceGraphMismatch);
             }
-            let count = reader.count("baselines", source.packages().len())?;
+            let count = reader.count(
+                if snapshot { "baselines" } else { "acceptances" },
+                source.packages().len(),
+            )?;
             if count != source.packages().len() {
                 return Err(Error::BaselineCoverage);
             }
-            budget.entries::<PackagePolicyBaseline>(count)?;
+            budget.entries::<PackagePolicyAcceptance>(count)?;
             let mut baselines = Vec::new();
             baselines
                 .try_reserve_exact(count)
                 .map_err(|_| Error::AllocationFailed)?;
             for package in source.packages() {
-                let baseline =
-                    budget.baseline(reader.section("baseline", MAXIMUM_POLICY_TEXT_BYTES)?)?;
+                let baseline = if snapshot {
+                    budget.snapshot(
+                        reader.section("baseline", MAXIMUM_POLICY_TEXT_BYTES)?,
+                        &source,
+                    )?
+                } else {
+                    budget.baseline(
+                        reader.section("acceptance", MAXIMUM_POLICY_TEXT_BYTES)?,
+                        package.key().identity(),
+                        profile,
+                    )?
+                };
                 if baseline.package() != package.key().identity() {
                     return Err(Error::BaselineCoverage);
                 }
@@ -84,7 +106,6 @@ impl PackageLock {
                 decisions,
             };
             target.validate()?;
-            budget.target_membership(&target)?;
             targets.push(target);
         }
         reader.expect("end")?;

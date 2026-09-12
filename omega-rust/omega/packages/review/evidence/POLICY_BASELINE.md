@@ -1,7 +1,7 @@
 # Normalized policy baseline
 
-This is the implementation contract for compiler-derived policy retained by
-the package lock. It is reference material, not a list of prerequisites for
+This is the implementation contract for the complete compiler-derived policy
+model used by fresh checking and audit. It is reference material, not a list of prerequisites for
 install/update. The project trusts whoever lands accepted policy; these
 records do not certify acceptance or prove an audit.
 
@@ -127,23 +127,15 @@ The text format has its own version and expansion limit; binary reconstruction
 and typed recovery share one owned-storage budget. Source graph/pin and
 historical-decision composition remain with the manager.
 
-The manager's versioned lock envelope composes those three canonical texts in
-sorted exact-target sections. Each section binds one complete baseline per
-source package in source order and historical decisions against that exact
-target-bound source subject. Target sections must retain the same immutable
-source graph. Child text remains verbatim under byte-length delimiters, so
-ordinary source and policy changes remain diffable. Recovery validates the
-outer grammar and all child associations with aggregate limits for requested
-owned storage, target/package/request rows, policy elements, semantic identity
-traversal nodes, and decisions. Evidence enumerates concrete package owners
-through the complete policy, including canonical type/callable identities;
-the manager checks their membership in the exact transitive source graph.
-Foreign symbolic boundary demands join the owning baseline's exact boundary
-operator and Type-only telescope. These consistency checks neither require
-direct dependency edges for carried types nor certify arbitrary foreign
-declaration availability or fresh audit truth.
-Recovering these inert records requires no source checkout or compiler run;
-it is separate from acquiring pinned content and publishing a transaction.
+The manager's lock instead retains a separate inert `PackagePolicyAcceptance`
+per source package: exact canonical rows for admission-claim and external-
+realization callables, external supplies, dangerous capabilities, and terminal
+permissions. Complete readable row meanings survive, but the full public API,
+ordinary callables, selected providers, representation policy, source-semantic
+dependencies, and symbolic demands do not. These remain fresh compiler/audit
+facts. Lock recovery neither reconstructs this complete model nor compiles old
+source; historical acceptance is never adapted into fresh compiler evidence.
+The lock owner specifies its framing, source joins, and resource accounting.
 
 Complete-policy decision history retains the exact comparison identity,
 candidate source-subject association, optional prior source association, and

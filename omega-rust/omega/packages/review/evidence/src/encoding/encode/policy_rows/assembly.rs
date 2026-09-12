@@ -42,6 +42,40 @@ pub(super) fn count(policy: &PackagePolicyBaseline) -> Result<usize, PackageRevi
         })
 }
 
+pub(super) fn acceptance_count(
+    policy: &PackagePolicyBaseline,
+) -> Result<usize, PackageReviewEncodingError> {
+    [
+        policy
+            .callables
+            .callables
+            .iter()
+            .filter(|callable| {
+                matches!(
+                    callable.supply,
+                    PackageReviewCallableSupply::AdmissionClaim
+                        | PackageReviewCallableSupply::ExternalRealization
+                )
+            })
+            .count(),
+        policy.external_supplies.len(),
+        policy.dangerous_capabilities.len(),
+    ]
+    .into_iter()
+    .chain(
+        policy
+            .terminal_permissions
+            .services
+            .iter()
+            .map(|service| service.permissions.len()),
+    )
+    .try_fold(0usize, |total, count| {
+        total
+            .checked_add(count)
+            .ok_or_else(|| rejected("acceptance row count overflows"))
+    })
+}
+
 pub(super) fn project(
     builder: &mut Builder,
     policy: &PackagePolicyBaseline,

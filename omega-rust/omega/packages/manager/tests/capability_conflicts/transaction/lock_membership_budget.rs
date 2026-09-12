@@ -1,9 +1,8 @@
-//! Semantic-owner work is charged across every baseline and target section.
+//! Compact consent rows are charged across every target section.
 
-use package_evidence::encoding::PackagePolicyMembershipLimits;
 use package_manager::lock::{PackageLock, PackageLockRecoveryLimits};
 
-pub(super) fn assert_aggregate_identity_boundary(lock: &PackageLock, text: &str) {
+pub(super) fn assert_aggregate_acceptance_boundary(lock: &PackageLock, text: &str) {
     let per_target = lock
         .targets()
         .iter()
@@ -11,47 +10,41 @@ pub(super) fn assert_aggregate_identity_boundary(lock: &PackageLock, text: &str)
             target
                 .baselines()
                 .iter()
-                .map(|baseline| {
-                    baseline
-                        .validate_package_membership(
-                            |identity| {
-                                target
-                                    .source()
-                                    .packages()
-                                    .iter()
-                                    .any(|package| package.key().identity() == identity)
-                            },
-                            PackagePolicyMembershipLimits::default(),
-                        )
-                        .unwrap()
-                        .identity_nodes()
-                })
+                .map(|baseline| baseline.rows().len())
                 .sum::<usize>()
         })
         .collect::<Vec<_>>();
     let exact = per_target.iter().sum::<usize>();
     let largest_target = *per_target.iter().max().unwrap();
-    assert!(largest_target > 0);
+    if exact == 0 {
+        let limits = PackageLockRecoveryLimits {
+            maximum_policy_elements: 0,
+            ..Default::default()
+        };
+        assert_eq!(PackageLock::recover_text(text, limits).unwrap(), *lock);
+        assert_eq!(lock.canonical_text_with_limits(limits).unwrap(), text);
+        return;
+    }
     assert!(exact > largest_target);
     let limits = PackageLockRecoveryLimits {
-        maximum_identity_nodes: exact,
+        maximum_policy_elements: exact,
         ..PackageLockRecoveryLimits::default()
     };
     assert_eq!(PackageLock::recover_text(text, limits).unwrap(), *lock);
     assert_eq!(lock.canonical_text_with_limits(limits).unwrap(), text);
-    for maximum_identity_nodes in [0, exact - 1, largest_target] {
+    for maximum_policy_elements in [0, exact - 1, largest_target] {
         let limited = PackageLockRecoveryLimits {
-            maximum_identity_nodes,
+            maximum_policy_elements,
             ..limits
         };
         assert!(PackageLock::recover_text(text, limited).is_err());
         assert!(lock.canonical_text_with_limits(limited).is_err());
     }
-    for (target, maximum_identity_nodes) in lock.targets().iter().zip(per_target) {
+    for (target, maximum_policy_elements) in lock.targets().iter().zip(per_target) {
         let child = PackageLock::from_targets(vec![target.clone()]).unwrap();
         let child_text = child.canonical_text().unwrap();
         let child_limits = PackageLockRecoveryLimits {
-            maximum_identity_nodes,
+            maximum_policy_elements,
             ..limits
         };
         assert_eq!(

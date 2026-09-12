@@ -69,7 +69,10 @@ fn assert_round_trip(review: &PackageChangeReview, proposed: PackageLockTarget) 
     for (baseline, package) in proposed.baselines().iter().zip(source.packages()) {
         assert_eq!(
             baseline,
-            review.reviews().review(package.key()).unwrap().policy()
+            &package_manager::lock::PackagePolicyAcceptance::from_policy(
+                review.reviews().review(package.key()).unwrap().policy()
+            )
+            .unwrap()
         );
     }
     assert_eq!(
@@ -158,6 +161,7 @@ fn updates_use_retained_baselines_after_old_sources_disappear() {
         " builder.depend(Source::Path { location: \"../old\" });\n",
     );
     package(&tree.path("sources/old"), "removed-package", "");
+    fs::write(tree.path("sources/old/main.omg"), ASSUMPTION).unwrap();
     let accepted = propose(&review(&tree, "old", None));
     let old_key = accepted
         .source()

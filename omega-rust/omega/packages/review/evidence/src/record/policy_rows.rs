@@ -4,7 +4,7 @@ mod limits;
 pub use limits::{PackagePolicyRowLimits, PackagePolicyRowUsage};
 
 /// Independent of legacy review rows and of the complete baseline grammar.
-pub const PACKAGE_POLICY_ROW_VERSION: u16 = 1;
+pub const PACKAGE_POLICY_ROW_VERSION: u16 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackagePolicyRowKind {
@@ -87,33 +87,6 @@ impl PackagePolicyRowKind {
         }
     }
 
-    pub const fn update_requires_decision(self) -> bool {
-        match self {
-            Self::Header
-            | Self::RepresentationTarget
-            | Self::RepresentationDeclaration
-            | Self::RepresentationAvailability
-            | Self::RepresentationSelection
-            | Self::RepresentationDemand
-            | Self::DangerousSlack => false,
-            Self::PublicTrait
-            | Self::PublicConformance
-            | Self::PublicDomain
-            | Self::PublicProposition
-            | Self::PublicConst
-            | Self::PublicOperator
-            | Self::PublicData
-            | Self::Callable
-            | Self::SelectedProviderAssociation
-            | Self::TerminalService
-            | Self::TerminalPermission
-            | Self::ExternalSupply
-            | Self::DangerousCapability
-            | Self::SemanticDependency
-            | Self::SymbolicBoundaryDemand => true,
-        }
-    }
-
     pub const fn audit_recommended_on_change(self) -> bool {
         match self {
             Self::RepresentationDeclaration
@@ -169,11 +142,14 @@ impl PackagePolicyRow {
     pub fn canonical_text(&self) -> &str {
         &self.canonical_text
     }
+    pub fn into_canonical_text(self) -> String {
+        self.canonical_text
+    }
     pub const fn initial_requires_decision(&self) -> bool {
         self.initial_requires_decision
     }
     pub const fn update_requires_decision(&self) -> bool {
-        self.kind.update_requires_decision()
+        self.initial_requires_decision
     }
     pub const fn audit_recommended_when_present(&self) -> bool {
         self.audit_recommended_when_present

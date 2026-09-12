@@ -193,7 +193,12 @@ fn retained_filesystem_authority_recommends_audit_for_repeated_source_upgrades()
             .unwrap()
             .baselines()
             .iter()
-            .any(|baseline| { !baseline.dangerous_capabilities().is_empty() })
+            .any(|baseline| {
+                baseline
+                    .rows()
+                    .iter()
+                    .any(|row| row.kind() == PackagePolicyRowKind::DangerousCapability)
+            })
     );
 }
 
