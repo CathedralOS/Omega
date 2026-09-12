@@ -49,9 +49,9 @@ pub(super) fn validate(
         let machine_block = machine_blocks
             .get(&block.id)
             .ok_or(OptimizedResolvedSelectedFormLayoutError::RootMismatch)?;
-        let instructions = roster::instructions(block);
-        if machine_block.instructions.len() != instructions.len()
-            || candidate_block.instructions.len() != instructions.len()
+        let instruction_count = block.instructions.len() + 1;
+        if machine_block.instructions.len() != instruction_count
+            || candidate_block.instructions.len() != instruction_count
             || candidate_block.block != block.id
             || candidate_block.offset != layout.block_offsets[&block.id]
             || candidate_block.byte_count != layout.block_sizes[&block.id]
@@ -59,8 +59,7 @@ pub(super) fn validate(
             return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
         }
         let mut instruction_offset = candidate_block.offset;
-        for ((instruction, machine_instruction), candidate_row) in instructions
-            .into_iter()
+        for ((instruction, machine_instruction), candidate_row) in roster::instructions(block)
             .zip(&machine_block.instructions)
             .zip(&candidate_block.instructions)
         {

@@ -9,11 +9,28 @@ pub(super) fn derive(
     let invalid =
         || OptimizedResolvedSelectedFormLayoutError::UnsupportedFunctionShape(function.machine);
     let count = function.blocks.len();
-    let entry = function
+    // Keep storage positions independent of external block identities. Sorting
+    // this compact association once avoids scans per successor and does not
+    // allocate up to the largest (possibly sparse) identifier.
+    let mut positions: Vec<_> = function
         .blocks
         .iter()
-        .position(|block| block.id == function.entry_block)
-        .ok_or_else(invalid)?;
+        .enumerate()
+        .map(|(position, block)| (block.id, position))
+        .collect();
+    if !positions.is_sorted_by_key(|(identity, _)| *identity) {
+        positions.sort_unstable_by_key(|(identity, _)| *identity);
+    }
+    if positions.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        return Err(invalid());
+    }
+    let position_of = |identity| {
+        positions
+            .binary_search_by_key(&identity, |(identity, _)| *identity)
+            .ok()
+            .map(|position| positions[position].1)
+    };
+    let entry = position_of(function.entry_block).ok_or_else(invalid)?;
     if policy == SelectedFunctionLayoutPolicy::SingleEntryBlockV1
         && (count != 1
             || !matches!(
@@ -26,12 +43,6 @@ pub(super) fn derive(
     let mut following = vec![None; count];
     let mut preceding = vec![None; count];
     for (source, block) in function.blocks.iter().enumerate() {
-        if function.blocks[..source]
-            .iter()
-            .any(|other| other.id == block.id)
-        {
-            return Err(invalid());
-        }
         let successor = match &block.terminator {
             SelectedTerminator::ConditionalBranch { when_zero, .. } => Some(when_zero),
             SelectedTerminator::ConditionalBranchU64LessThan { when_not_less, .. }
@@ -43,11 +54,7 @@ pub(super) fn derive(
             | SelectedTerminator::HostedExitProcess { .. } => None,
         };
         if let Some(successor) = successor {
-            let destination = function
-                .blocks
-                .iter()
-                .position(|block| block.id == successor.block)
-                .ok_or_else(invalid)?;
+            let destination = position_of(successor.block).ok_or_else(invalid)?;
             if destination == source || preceding[destination].replace(source).is_some() {
                 return Err(invalid());
             }

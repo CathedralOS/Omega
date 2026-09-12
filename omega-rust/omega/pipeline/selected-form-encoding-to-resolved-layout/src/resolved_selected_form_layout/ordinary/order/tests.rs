@@ -119,3 +119,60 @@ fn conflicting_or_cyclic_fallthrough_is_not_silently_reordered() {
         );
     }
 }
+
+#[test]
+fn sparse_unsorted_identities_preserve_storage_order_and_fallthrough() {
+    let mut graph = function(vec![branch(0, 1, 2), returned(1), returned(2)]);
+    graph.entry_block = SelectedBlockId(100);
+    graph.blocks[0].id = SelectedBlockId(100);
+    graph.blocks[1].id = SelectedBlockId(u32::MAX);
+    graph.blocks[2].id = SelectedBlockId(7);
+    graph.blocks[0].terminator = branch(0, u32::MAX, 7);
+    assert_eq!(order(&graph), vec![100, 7, u32::MAX]);
+}
+
+#[test]
+fn malformed_block_rosters_reject() {
+    let mut duplicate = function(vec![returned(0), returned(1)]);
+    duplicate.blocks[1].id = duplicate.blocks[0].id;
+    let mut missing_entry = function(vec![returned(0)]);
+    missing_entry.entry_block = SelectedBlockId(9);
+    for graph in [
+        function(Vec::new()),
+        duplicate,
+        missing_entry,
+        function(vec![branch(0, 1, 9), returned(1)]),
+        function(vec![branch(0, 1, 0), returned(1)]),
+        function(vec![returned(0), branch(1, 0, 0)]),
+    ] {
+        assert!(
+            derive(
+                &graph,
+                SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
+fn many_disconnected_roots_and_reverse_fallthrough_chains_keep_canonical_order() {
+    let count = 4096;
+    let graph = function((0..count).map(returned).collect());
+    assert_eq!(order(&graph), (0..count).collect::<Vec<_>>());
+
+    let mut graph = function(
+        (0..count)
+            .map(|source| {
+                if source <= 1 {
+                    returned(source)
+                } else {
+                    branch(source, 0, source - 1)
+                }
+            })
+            .collect(),
+    );
+    graph.entry_block = SelectedBlockId(count - 1);
+    let expected: Vec<_> = (1..count).rev().chain(std::iter::once(0)).collect();
+    assert_eq!(order(&graph), expected);
+}

@@ -1,6 +1,7 @@
 //! Independently reconstruct canonical fallthrough adjacency and complete coverage.
 use super::super::super::{OptimizedResolvedSelectedFormLayoutError, SelectedFunctionLayoutPolicy};
 use selected_instructions::{SelectedBlock, SelectedBlockId, SelectedFunction, SelectedTerminator};
+use std::collections::BTreeMap;
 
 pub(super) fn derive(
     function: &SelectedFunction,
@@ -19,54 +20,44 @@ pub(super) fn derive(
     {
         return Err(invalid());
     }
+    let mut positions = BTreeMap::new();
     for (position, block) in function.blocks.iter().enumerate() {
-        if function.blocks[..position]
-            .iter()
-            .any(|other| other.id == block.id)
-        {
-            return Err(invalid());
-        }
-        if let Some(destination) = fallthrough(block)
-            && (destination == block.id
-                || !function.blocks.iter().any(|other| other.id == destination))
-        {
-            return Err(invalid());
-        }
-        let incoming = function
-            .blocks
-            .iter()
-            .filter(|source| fallthrough(source) == Some(block.id))
-            .count();
-        if incoming > 1 || (block.id == entry.id && incoming != 0) {
+        if positions.insert(block.id, position).is_some() {
             return Err(invalid());
         }
     }
+    let mut has_incoming = vec![false; function.blocks.len()];
+    for block in &function.blocks {
+        if let Some(destination) = fallthrough(block) {
+            let position = *positions.get(&destination).ok_or_else(invalid)?;
+            if destination == block.id
+                || destination == entry.id
+                || std::mem::replace(&mut has_incoming[position], true)
+            {
+                return Err(invalid());
+            }
+        }
+    }
+    let mut roots = function
+        .blocks
+        .iter()
+        .enumerate()
+        .filter_map(|(position, block)| {
+            (!has_incoming[position] && block.id != entry.id).then_some(block)
+        });
+    let mut visited = vec![false; function.blocks.len()];
     let mut order = Vec::with_capacity(function.blocks.len());
     let mut next = Some(entry);
     while let Some(block) = next {
-        if order
-            .iter()
-            .any(|previous: &&SelectedBlock| previous.id == block.id)
-        {
+        let position = positions[&block.id];
+        if std::mem::replace(&mut visited[position], true) {
             return Err(invalid());
         }
         order.push(block);
         next = if let Some(destination) = fallthrough(block) {
-            Some(
-                function
-                    .blocks
-                    .iter()
-                    .find(|candidate| candidate.id == destination)
-                    .ok_or_else(invalid)?,
-            )
+            Some(&function.blocks[*positions.get(&destination).ok_or_else(invalid)?])
         } else {
-            function.blocks.iter().find(|candidate| {
-                !order.iter().any(|previous| previous.id == candidate.id)
-                    && !function
-                        .blocks
-                        .iter()
-                        .any(|source| fallthrough(source) == Some(candidate.id))
-            })
+            roots.next()
         };
     }
     if order.len() != function.blocks.len() {
@@ -87,3 +78,10 @@ fn fallthrough(block: &SelectedBlock) -> Option<SelectedBlockId> {
         | SelectedTerminator::HostedExitProcess { .. } => None,
     }
 }
+
+// Exercise independent reconstruction against the same raw graph expectations,
+// never against the producer's answer.
+#[cfg(test)]
+#[allow(clippy::duplicate_mod)] // The suite binds `super::derive` to this independent checker.
+#[path = "../../ordinary/order/tests.rs"]
+mod tests;

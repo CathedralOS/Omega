@@ -37,7 +37,7 @@ pub(super) fn collect_pre_layout_rows<'a>(
     Ok(collected)
 }
 
-pub(super) fn instructions(block: &SelectedBlock) -> Vec<&SelectedInstruction> {
+pub(super) fn instructions(block: &SelectedBlock) -> impl Iterator<Item = &SelectedInstruction> {
     block
         .instructions
         .iter()
@@ -49,5 +49,4 @@ pub(super) fn instructions(block: &SelectedBlock) -> Vec<&SelectedInstruction> {
             | SelectedTerminator::Return { instruction, .. }
             | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
         }))
-        .collect()
 }
