@@ -281,6 +281,11 @@ fn field_shape(
 ) -> Option<ValueShape> {
     match field {
         StructuralFieldType::Scalar(scalar) => scalar_shape(*scalar),
+        // Geometry follows the carrier, not the restriction's endpoints.
+        // Store admission below still requires separate restricted-field evidence.
+        StructuralFieldType::BoundedInteger(bounds) => {
+            scalar_shape(ScalarType::Integer(bounds.integer_type()))
+        }
         StructuralFieldType::IeeeFloat(format) => scalar_shape(ScalarType::IeeeFloat(*format)),
         StructuralFieldType::Structural(nested) => shape_inner(*nested, declarations, active),
         _ => None,

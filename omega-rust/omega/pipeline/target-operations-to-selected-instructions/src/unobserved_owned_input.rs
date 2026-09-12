@@ -39,7 +39,11 @@ pub(crate) fn plain_type(
             StructuralTypeShape::Record { fields } => {
                 for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
                     match field.field_type {
-                        StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_) => {}
+                        // Retain the complete bound in the structural contract.
+                        // No-observation eligibility grants no mutation authority.
+                        StructuralFieldType::Scalar(_)
+                        | StructuralFieldType::BoundedInteger(_)
+                        | StructuralFieldType::IeeeFloat(_) => {}
                         StructuralFieldType::Structural(nested) => pending.push(nested),
                         _ => return false,
                     }
