@@ -125,8 +125,11 @@ windows_x86_64 machine binding() -> Binding<12, 11, 0> {{
 machine ping_leaf() satisfies Host::ping via binding();
 "#,
         ));
-        let checked = compile_to_checked(&fixture.main(), Some("windows_x86_64"))
-            .expect("match result supplies the exact constructor destinations");
+        let checked = compile_to_checked(compiler::CheckedCompileRequest::new(
+            &fixture.main(),
+            Some("windows_x86_64"),
+        ))
+        .expect("match result supplies the exact constructor destinations");
         let bindings = checked
             .provider_plans()
             .iter()
@@ -171,8 +174,11 @@ windows_x86_64 machine binding() -> Binding<12, 11, 0> {
 }
 "#,
     );
-    let diagnostics = compile_to_checked(&fixture.main(), Some("windows_x86_64"))
-        .expect_err("selective execution does not waive source type obligations");
+    let diagnostics = compile_to_checked(compiler::CheckedCompileRequest::new(
+        &fixture.main(),
+        Some("windows_x86_64"),
+    ))
+    .expect_err("selective execution does not waive source type obligations");
     assert!(
         diagnostics.iter().any(
             |diagnostic| diagnostic.message.contains("has 5 source byte(s)")
