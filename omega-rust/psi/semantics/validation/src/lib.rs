@@ -148,8 +148,9 @@ pub use definition_facts::build_definition_fact_plan;
 use diagnostics::Diagnostic;
 pub use effect_inference::{
     declared_machine_invocations, declared_signature_invocations,
-    has_self_forwarded_boundary_parameter, infer_operational_may, infer_service_reaches,
-    infer_synchronous_invocations, invocation_target_label,
+    fixed_installation_boundary_service_reach, has_self_forwarded_boundary_parameter,
+    infer_operational_may, infer_service_reaches, infer_synchronous_invocations,
+    invocation_target_label,
 };
 pub use effects::{validate_asm_discharge, validate_behavior_plan};
 pub use expression_types::argument_matches_type_reference_handle as checked_argument_matches_type_reference;

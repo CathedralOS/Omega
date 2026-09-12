@@ -7,6 +7,8 @@ mod contract;
 
 #[cfg(test)]
 mod block_parameter_tests;
+#[cfg(test)]
+mod boundary_reach_tests;
 
 pub(super) use contract::{
     encode_crash_cause, encode_crash_predicate, encode_crash_route_bucket,
@@ -116,6 +118,7 @@ pub(super) fn encode_boundary_machine(
         &declaration.content_guarantees,
         encode_boundary_content_guarantee,
     );
+    encode_ids(bytes, &declaration.fixed_service_reach);
     encode_ids(bytes, &declaration.published_service_ceiling);
 }
 

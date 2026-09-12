@@ -72,6 +72,7 @@ pub(super) fn boundary_qualification_verified() -> VerifiedPsiOptimizationUnit {
         },
     ];
     module.boundary_machines = vec![terminal_psi::BoundaryMachineDeclaration {
+        fixed_service_reach: Vec::new(),
         id: boundary,
         identity: "test::consume_qualification".into(),
         attachment: None,
@@ -183,6 +184,7 @@ pub(super) fn partial_path_boundary_qualification_verified() -> VerifiedPsiOptim
         },
     ];
     module.boundary_machines = vec![terminal_psi::BoundaryMachineDeclaration {
+        fixed_service_reach: Vec::new(),
         id: boundary,
         identity: "test::consume_projected_qualification".into(),
         attachment: None,

@@ -79,6 +79,10 @@ pub struct BoundaryMachineDeclaration {
     /// one only through the successful `BoundaryCall` operation that selected
     /// this declaration.
     pub content_guarantees: Vec<BoundaryContentGuarantee>,
+    /// Fixed concrete contribution, unaffected by installation selection.
+    /// Strictly ordered and parent-closed; its union with a selected requirement's
+    /// unresolved bound forms the published ceiling, without erasing overlap.
+    pub fixed_service_reach: Vec<ServiceId>,
     /// Strictly ordered normalized published ceiling.
     pub published_service_ceiling: Vec<ServiceId>,
 }

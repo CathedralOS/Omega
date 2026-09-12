@@ -21,6 +21,7 @@ fn routes(value: u64) -> Vec<CrashRouteBucket> {
 fn boundary_fixture() -> TerminalModule {
     let mut module = fixture();
     module.boundary_machines = vec![BoundaryMachineDeclaration {
+        fixed_service_reach: Vec::new(),
         id: boundary_machine_id(1),
         identity: "test::guarded_boundary".into(),
         attachment: None,

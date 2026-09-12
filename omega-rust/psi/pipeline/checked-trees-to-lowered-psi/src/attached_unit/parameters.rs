@@ -382,6 +382,25 @@ pub(crate) fn lower_declared_service_reach(
     Ok(declared)
 }
 
+pub(crate) fn lower_fixed_boundary_service_reach(
+    checked: &CheckedTrees,
+    boundary: &CheckedBoundaryMachinePlan,
+    service_ids: &[(ServiceReachId, ServiceId)],
+) -> Result<Vec<ServiceId>, LoweringError> {
+    let source =
+        validation::fixed_installation_boundary_service_reach(&checked.typed, boundary.state)
+            .ok_or(LoweringError::Unsupported(
+                "fixed boundary reach has no exact typed requirement",
+            ))?;
+    let mut fixed = source
+        .iter()
+        .map(|service| lookup_service_id(service_ids, *service))
+        .collect::<Result<Vec<_>, _>>()?;
+    fixed.sort();
+    fixed.dedup();
+    Ok(fixed)
+}
+
 pub(crate) fn lower_published_service_ceiling(
     rows: &language_semantics::ServiceReachRowTable,
     contract: ServiceReachPlan,

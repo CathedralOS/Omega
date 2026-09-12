@@ -367,6 +367,21 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             &services,
             ServiceCeilingOwner::Boundary(boundary.id),
         )?;
+        validate_service_ceiling(
+            &boundary.fixed_service_reach,
+            &services,
+            ServiceCeilingOwner::BoundaryFixed(boundary.id),
+        )?;
+        if let Some(service) = boundary
+            .fixed_service_reach
+            .iter()
+            .find(|service| !boundary.published_service_ceiling.contains(service))
+        {
+            return Err(ModuleError::FixedBoundaryServiceOutsidePublishedCeiling {
+                boundary: boundary.id,
+                service: *service,
+            });
+        }
         let mut requirements = BTreeSet::new();
         for requirement in &boundary.requires {
             if !requirements.insert(*requirement) {
@@ -1503,6 +1518,7 @@ pub enum ServiceCeilingOwner {
     Machine(MachineId),
     MachineDeclared(MachineId),
     Boundary(BoundaryMachineId),
+    BoundaryFixed(BoundaryMachineId),
     RootConcrete,
     InstallationReach(usize),
 }

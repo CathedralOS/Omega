@@ -144,6 +144,7 @@ fn produced_partial_module(ordinary: bool, nested: bool) -> TerminalModule {
     } else {
         module.machines[0].structural_parameters.clear();
         module.boundary_machines.push(BoundaryMachineDeclaration {
+            fixed_service_reach: Vec::new(),
             id: boundary_id(1),
             identity: "produce_pair".into(),
             attachment: None,

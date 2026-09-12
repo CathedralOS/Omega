@@ -47,6 +47,58 @@ fn dependency<'a>(
 const CONTRACT: &str = "boundary trait Console {}\ntrait Task { machine run() reaches Console; }\n";
 
 #[test]
+fn fixed_boundary_basis_uses_exact_requirement_and_keeps_overlapping_services() {
+    let program = typed(
+        r#"
+        boundary trait Audit {}
+        boundary trait Console {}
+        boundary trait Installer: Audit {
+            machine step() invokes Console; reaches <= Installer + Console;
+        }
+        trait Ordinary { machine step() reaches Console; }
+        boundary trait Fixed { machine step() reaches Console; }
+        machine ordinary() reaches Console {}
+    "#,
+    );
+    let requirement = |name| {
+        let owner = program
+            .traits()
+            .iter()
+            .find(|owner| owner.name.as_str() == name)
+            .expect("trait");
+        program.trait_machine_signatures(owner)[0].symbol
+    };
+    let fixed = fixed_installation_boundary_service_reach(&program, requirement("Installer"))
+        .expect("exact boundary requirement");
+    let names = fixed
+        .iter()
+        .map(|service| {
+            program
+                .service_reaches
+                .definition(*service)
+                .expect("service")
+                .name
+                .as_str()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(names, ["Audit", "Console", "Installer"]);
+    assert_eq!(
+        fixed_installation_boundary_service_reach(&program, requirement("Fixed")),
+        Some(Vec::new())
+    );
+    assert!(fixed_installation_boundary_service_reach(&program, requirement("Ordinary")).is_none());
+    let machine = &program.machines()[0];
+    assert!(
+        fixed_installation_boundary_service_reach(
+            &program,
+            program.machine_states(machine)[0].symbol
+        )
+        .is_none()
+    );
+    assert!(fixed_installation_boundary_service_reach(&program, SymbolHandle::default()).is_none());
+}
+
+#[test]
 fn nominal_dependencies_substitute_per_call_and_preserve_structural_rows() {
     let program = typed(&format!("{CONTRACT}
         machine relay<Element, machine Forward>() where machine Forward satisfies Task::run; {{ Forward(); }}

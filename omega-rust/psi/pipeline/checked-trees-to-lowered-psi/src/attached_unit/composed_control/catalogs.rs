@@ -288,6 +288,11 @@ fn lower_catalogs(
                 &checked.facts.qualifications.content.conservation_plans,
                 boundary.state,
             )?,
+            fixed_service_reach: lower_fixed_boundary_service_reach(
+                checked,
+                boundary,
+                &service_ids,
+            )?,
             published_service_ceiling: lower_published_service_ceiling(
                 &checked.facts.service_reaches.rows,
                 boundary.contract_service_reach,

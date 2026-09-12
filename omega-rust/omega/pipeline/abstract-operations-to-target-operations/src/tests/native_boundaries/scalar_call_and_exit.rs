@@ -7,6 +7,7 @@ fn checked_scalar_call_and_literal_exit_compose_in_one_shared_unit_body() {
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
     let exit_value = ValueId::new(970).unwrap();
     plan.boundary_machines.push(BoundaryMachineDeclaration {
+        fixed_service_reach: Vec::new(),
         id: boundary,
         identity: "Console::exit_process(i32)->Unit".into(),
         attachment: None,

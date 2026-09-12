@@ -87,9 +87,20 @@ pub(super) fn validate_root_service_reach_exact(
                         },
                     )?;
                     if let Some(dependency) = dependencies.get(declaration.identity.as_str()) {
-                        if declaration.published_service_ceiling != dependency.upper_bound {
+                        // Fixed contributions survive provider selection, including
+                        // services also present in the requirement's upper bound.
+                        let published = declaration
+                            .fixed_service_reach
+                            .iter()
+                            .chain(&dependency.upper_bound)
+                            .copied()
+                            .collect::<BTreeSet<_>>()
+                            .into_iter()
+                            .collect::<Vec<_>>();
+                        if declaration.published_service_ceiling != published {
                             return Err(ModuleError::InstallationReachBoundaryMismatch(*boundary));
                         }
+                        concrete.extend(declaration.fixed_service_reach.iter().copied());
                         used_dependencies.insert(declaration.identity.as_str());
                     } else {
                         concrete.extend(declaration.published_service_ceiling.iter().copied());

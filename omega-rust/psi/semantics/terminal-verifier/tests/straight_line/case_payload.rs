@@ -205,6 +205,7 @@ fn selected_bounded_boundary_result_supplies_both_checked_call_requirements() {
     };
     cases[0].trivial_affine_discards.push(source.place);
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        fixed_service_reach: Vec::new(),
         crash_routes: Vec::new(),
         id: boundary,
         identity: "Input::observe".into(),

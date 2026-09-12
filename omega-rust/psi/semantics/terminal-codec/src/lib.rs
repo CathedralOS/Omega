@@ -123,7 +123,7 @@ use terminal_verifier::{ModuleError, validate_module_representation};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 90;
+const FORMAT_MARKER: u16 = 91;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -482,6 +482,7 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
             }
         }
         require_known_services(module, &boundary.published_service_ceiling)?;
+        require_known_services(module, &boundary.fixed_service_reach)?;
     }
     for candidate in &module.provider_candidates {
         if candidate.requirement_identity.is_empty()

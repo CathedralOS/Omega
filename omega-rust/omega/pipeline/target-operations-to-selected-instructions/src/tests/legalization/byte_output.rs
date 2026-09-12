@@ -54,6 +54,7 @@ pub(super) fn fixture(
     source
         .boundary_machines
         .push(terminal_psi::BoundaryMachineDeclaration {
+            fixed_service_reach: Vec::new(),
             id: boundary,
             identity: "Console::write_byte(i32)->Unit".into(),
             attachment: None,
