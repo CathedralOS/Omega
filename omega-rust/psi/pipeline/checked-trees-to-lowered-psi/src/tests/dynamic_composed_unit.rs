@@ -880,6 +880,117 @@ fn lowers_stored_dynamic_result_into_console_effect_control() {
     );
 }
 
+#[test]
+fn stored_dynamic_cleanup_requires_exact_affine_establishment_and_disposal() {
+    use language_semantics::{PermissionEventKind, PermissionEventSource, PermissionProvenance};
+
+    let checked = checked_source(STORED_DYNAMIC_INTEGER_CONTROL_SOURCE);
+    let stored = &checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .dynamic_dispatch
+        .stored_scalar_calls[0];
+    let local = stored.storage.destination_binding;
+    let events = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter(|(_, event)| {
+            event.machine_symbol == stored.call.caller_machine
+                && event.state_symbol == stored.call.caller_state
+                && event.root == facts::PlaceRoot::Symbol(local)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(events.len(), 2, "local establishment and disposal");
+    assert_eq!(events[0].1.kind, PermissionEventKind::Establish);
+    assert_eq!(events[1].1.kind, PermissionEventKind::AffineDrop);
+    let provenance = PermissionProvenance::Established {
+        machine_symbol: stored.call.caller_machine,
+        state_symbol: stored.call.caller_state,
+        source: PermissionEventSource::Statement {
+            statement_index: stored.storage.statement_index,
+        },
+    };
+    let mut reversed = checked.clone();
+    *reversed
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .get_mut(events[0].0) = events[1].1.clone();
+    *reversed
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .get_mut(events[1].0) = events[0].1.clone();
+    assert_eq!(
+        unsupported_message(&reversed),
+        "stored dynamic continuation local cleanup drifted after checking"
+    );
+    for (handle, event) in events {
+        assert_eq!(event.provenance, provenance);
+        let mutations: &[fn(&mut checked_trees::FlowPermissionEventFact)] = &[
+            |event| event.provenance = PermissionProvenance::Unknown,
+            |event| {
+                event.provenance = PermissionProvenance::Established {
+                    machine_symbol: event.machine_symbol,
+                    state_symbol: event.state_symbol,
+                    source: PermissionEventSource::StateEntry,
+                }
+            },
+            |event| event.obligation_live = true,
+            |event| event.multiplicity = language_semantics::Multiplicity::Linear,
+            |event| event.access = language_semantics::PermissionAccess::Shared,
+            |event| event.kind = PermissionEventKind::Transfer,
+            |event| event.source = PermissionEventSource::StateEntry,
+            |event| event.state_symbol = symbols::SymbolHandle::default(),
+            |event| event.root = facts::PlaceRoot::Symbol(symbols::SymbolHandle::default()),
+            |event| {
+                event.claim_identity = language_semantics::PermissionClaimIdentity::Established {
+                    machine_symbol: event.machine_symbol,
+                    state_symbol: event.state_symbol,
+                    source: event.source,
+                    ordinal: 0,
+                }
+            },
+            |event| event.segments = arena::HandleSpan::from_parts(arena::Handle::invalid(), 1),
+        ];
+        for mutate in mutations {
+            let mut tampered = checked.clone();
+            mutate(tampered.facts.flow.ownership.permissions.get_mut(handle));
+            assert_eq!(
+                unsupported_message(&tampered),
+                "stored dynamic continuation local cleanup drifted after checking"
+            );
+        }
+        let mut duplicate = checked.clone();
+        duplicate
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .insert(event.clone());
+        assert_eq!(
+            unsupported_message(&duplicate),
+            "stored dynamic continuation local cleanup drifted after checking"
+        );
+        for kind in [PermissionEventKind::Transfer, PermissionEventKind::Consume] {
+            let mut extra = checked.clone();
+            let mut extra_event = event.clone();
+            extra_event.kind = kind;
+            extra.facts.flow.ownership.permissions.insert(extra_event);
+            assert_eq!(
+                unsupported_message(&extra),
+                "stored dynamic continuation local cleanup drifted after checking"
+            );
+        }
+    }
+}
+
 fn direct_plan(
     checked: &checked_trees::CheckedTrees,
 ) -> &checked_trees::CheckedDynamicScalarCallPlan {
