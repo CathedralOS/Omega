@@ -36,10 +36,10 @@ mod machine_data;
 mod machine_parameters;
 mod machine_specialization_identity;
 mod operators;
-mod owned_storage;
-pub use owned_storage::{
+mod storage_contents;
+pub use storage_contents::{
     has_plain_owned_contents, has_plain_owned_contents_with_numeric_constraints,
-    has_plain_owned_contents_with_substitutions,
+    has_plain_owned_contents_with_substitutions, has_stable_observable_contents,
 };
 mod placed_views;
 mod places;
