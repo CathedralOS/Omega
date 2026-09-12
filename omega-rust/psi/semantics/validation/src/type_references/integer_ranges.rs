@@ -80,5 +80,4 @@ pub fn closed_integer_range_bound(
         return value.to_integer_exact();
     }
     crate::arithmetic_domains::closed_integer_expression_value(program, expression)
-        .map(BigInt::from_i64)
 }

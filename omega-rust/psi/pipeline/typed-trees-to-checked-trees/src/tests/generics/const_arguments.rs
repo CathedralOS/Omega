@@ -51,6 +51,8 @@ fn declared_range_checks_use_the_same_exact_arithmetic_as_inference() {
         ("7u64 / 2 * 2", 6),
         ("1u64 * (7 / 2 * 2)", 7),
         ("7u64 % 2", 1),
+        ("18446744073709551615u64 % 512u64", 511),
+        ("9223372036854775808u64 + 256 - 9223372036854775808u64", 256),
     ] {
         let source = format!(
             "machine accept(value: u64[0..={bound}]) -> u64 {{ value }}
@@ -76,6 +78,38 @@ fn declared_range_checks_use_the_same_exact_arithmetic_as_inference() {
         "machine accept(value: u64[0..=7u64 + 1 / 2]) -> u64 { value }",
     ] {
         assert!(check(source).is_err(), "unexpected acceptance: {source}");
+    }
+}
+
+#[test]
+fn full_width_static_bounds_do_not_waive_operand_or_intermediate_landing() {
+    for bound in [
+        "18446744073709551615u64 + 1 - 1",
+        "9223372036854775808u64 * 2 / 2",
+        "0u64 + 18446744073709551616",
+    ] {
+        let source = format!(
+            "machine bound<const N: u64>(value: u64[0..=N]) -> u64 {{ N }}
+            machine invalid(value: u64[0..={bound}]) -> u64 {{ bound(value) }}"
+        );
+        assert!(
+            check(&source).is_err(),
+            "invalid typed endpoint accepted: {source}"
+        );
+    }
+    for expression in [
+        "input < 18446744073709551616",
+        "18446744073709551616 > input",
+    ] {
+        let source = format!("machine compare(input: u64) -> bool {{ {expression} }}");
+        let diagnostics = check(&source)
+            .expect_err("a comparison bound cannot authorize oversized operand landing");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("cannot land exactly in `u64`")),
+            "{source}: {diagnostics:?}"
+        );
     }
 }
 

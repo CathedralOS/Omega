@@ -2,6 +2,8 @@ machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
 
 machine inferred(value: u64[0..=256]) -> u64 { upper_bound(value) }
 machine computed(value: u64[0..=128 + 128]) -> u64 { upper_bound(value) }
+machine full_width(value: u64[0..=18446744073709551615u64 % 512u64]) -> u64 { upper_bound(value) }
+machine wide_intermediate(value: u64[0..=9223372036854775808u64 + 256 - 9223372036854775808u64]) -> u64 { upper_bound(value) }
 machine computed_exclusive(value: u64[0..128 * 2 + 1]) -> u64 { upper_bound(value) }
 machine fractional(value: u64[0..=1 / 2 * 512]) -> u64 { upper_bound(value) }
 machine call_fractional() -> u64 { fractional(256) }

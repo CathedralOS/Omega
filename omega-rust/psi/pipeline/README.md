@@ -217,10 +217,14 @@ bounded readers convert only that result. The authored roots remain intact for
 operator selection and fractional-origin warnings. Thus `1 / 2 * 512` supplies
 the same bound 256 to inference and to an actual call accepting 256.
 
-Closed builtin typed arithmetic reuses immutable integer analysis, preserving
-its carrier checks and integer division/remainder. Named computations, open
-symbolic endpoints, full-width compatibility intervals and exact type equations
-remain open; context-free typed evaluation refuses matching selected trait
+Closed builtin typed arithmetic reuses immutable integer analysis and the shared
+fixed-width kernels, preserving carrier checks and integer division/remainder.
+Exact constant points survive full-width unsigned intermediates independently
+of the signed compatibility interval; each operand still lands and each typed
+operation must fit before a later cancellation. The same customer exercises
+inferred bounds 511 and 256 through these wide computations. Named computations,
+open symbolic endpoints, full-width variable compatibility intervals and exact
+type equations remain open; context-free typed evaluation refuses matching selected trait
 operators until the endpoint has direct owner context.
 `generic_data/arguments.rs` still excludes range-qualified arguments from its
 slug path, and constrained-shell substitution is not general decomposition.

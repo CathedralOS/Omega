@@ -1,7 +1,15 @@
 //! Bounds valid for every evaluation of immutable, builtin integer expressions.
+//!
+//! Closed constants retain their exact integer beside the compatibility interval.
+//! A u64 intermediate may exceed that interval's signed window and later return
+//! to it; losing the point would lose valid static endpoints. Fixed-width kernels
+//! still check each typed operation and operand landing, before interval fallback.
+//! Declared singleton ranges on parameters/fields do not become static values.
 
 use super::*;
 use language_core::OperatorSpelling;
+use numerics::bignum::BigInt;
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use symbols::SymbolHandle;
 
 mod fields;
@@ -79,10 +87,9 @@ pub fn immutable_integer_expression_bounds(
 pub(crate) fn closed_integer_expression_value(
     program: &TypedTrees,
     expression: ExpressionHandle,
-) -> Option<i64> {
+) -> Option<BigInt> {
     let value = bounds(program, SymbolHandle::invalid(), None, expression)?;
-    let (low, high) = (value.interval.low?, value.interval.high?);
-    (low == high).then_some(low)
+    value.constant_value
 }
 
 /// Retain one-sided carrier bounds when projecting an exact builtin guard.
@@ -125,8 +132,35 @@ pub(super) fn builtin_comparison_intervals(
 
 struct Bounds {
     interval: Interval,
+    constant_value: Option<BigInt>,
     primitive: Option<PrimitiveType>,
     type_reference: Option<TypeReferenceHandle>,
+}
+
+impl Bounds {
+    fn constant(
+        value: BigInt,
+        primitive: Option<PrimitiveType>,
+        type_reference: Option<TypeReferenceHandle>,
+    ) -> Self {
+        let interval = match value.to_i64() {
+            Some(value) => Interval::constant(value),
+            None if value.is_negative() => Interval {
+                low: None,
+                high: Some(i64::MIN),
+            },
+            None => Interval {
+                low: Some(i64::MAX),
+                high: None,
+            },
+        };
+        Self {
+            interval,
+            constant_value: Some(value),
+            primitive,
+            type_reference,
+        }
+    }
 }
 
 fn type_bounds(program: &TypedTrees, type_reference: TypeReferenceHandle) -> Option<Bounds> {
@@ -135,6 +169,7 @@ fn type_bounds(program: &TypedTrees, type_reference: TypeReferenceHandle) -> Opt
     Some(Bounds {
         interval: enforced_declared_range(program, type_reference)
             .map_or(carrier, |range| range.intersect(carrier)),
+        constant_value: None,
         primitive: Some(primitive),
         type_reference: Some(type_reference),
     })
@@ -156,12 +191,11 @@ fn bounds(
             crate::literals::has_anonymous_operator_meaning(program, expression)
         })
     {
-        let value = evaluated.value.to_integer_exact()?.to_i64()?;
-        return Some(Bounds {
-            interval: Interval::constant(value),
-            primitive: None,
-            type_reference: None,
-        });
+        return Some(Bounds::constant(
+            evaluated.value.to_integer_exact()?,
+            None,
+            None,
+        ));
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(literal) => {
@@ -190,11 +224,11 @@ fn bounds(
                 }
                 None => None,
             };
-            Some(Bounds {
-                interval,
+            Some(Bounds::constant(
+                literal.value_bignum()?,
                 primitive,
                 type_reference,
-            })
+            ))
         }
         ExpressionNode::Name(path) if path.symbol.is_valid() && path.head_symbol == path.symbol => {
             let parameter = program
@@ -258,6 +292,55 @@ fn bounds(
                 return None;
             }
             let primitive = left.primitive.or(right.primitive)?;
+            let integer = IntegerType::new(
+                if primitive.is_signed_integer() {
+                    IntegerSign::Signed
+                } else {
+                    IntegerSign::Unsigned
+                },
+                u16::try_from(integer_bit_width(primitive)?).ok()?,
+            )
+            .ok()?;
+            // Validate each known operand, including beside a variable operand:
+            // the interval's unbounded u64 ceiling cannot check actual landing.
+            let land = |value: &BigInt| {
+                let value = if primitive.is_signed_integer() {
+                    IntegerValue::Signed(i128::from(value.to_i64()?))
+                } else {
+                    IntegerValue::Unsigned(u128::from(value.to_u64()?))
+                };
+                integer.admits(value).then_some(value)
+            };
+            let left_constant = match &left.constant_value {
+                Some(value) => Some(land(value)?),
+                None => None,
+            };
+            let right_constant = match &right.constant_value {
+                Some(value) => Some(land(value)?),
+                None => None,
+            };
+            // Arithmetic results retain the carrier, not operand refinements.
+            let mut result_type = left.type_reference.or(right.type_reference)?;
+            while let TypeReferenceNode::Constrained { base_type, .. } =
+                program.type_reference_table.type_reference(result_type)
+            {
+                result_type = *base_type;
+            }
+            if let (Some(left), Some(right)) = (left_constant, right_constant) {
+                let result = match binary.operator {
+                    BinaryOperator::Add => integer.exact_add(left, right),
+                    BinaryOperator::Subtract => integer.exact_sub(left, right),
+                    BinaryOperator::Multiply => integer.exact_mul(left, right),
+                    BinaryOperator::Divide => integer.exact_div(left, right),
+                    BinaryOperator::Modulo => integer.exact_rem(left, right),
+                    _ => return None,
+                }?;
+                let value = match result {
+                    IntegerValue::Signed(value) => BigInt::from_i128(value),
+                    IntegerValue::Unsigned(value) => BigInt::from_u128(value),
+                };
+                return Some(Bounds::constant(value, Some(primitive), Some(result_type)));
+            }
             let carrier = primitive_range(primitive)?;
             // Anonymous operands land at the already-typed operation. A small
             // result is not evidence that an out-of-range operand can land.
@@ -311,16 +394,9 @@ fn bounds(
                 BinaryOperator::Modulo => left.interval.modulo(right.interval),
                 _ => return None,
             };
-            // A parent must still see this result's selected integer carrier.
-            // Operand refinements do not survive the arithmetic operation.
-            let mut result_type = left.type_reference.or(right.type_reference)?;
-            while let TypeReferenceNode::Constrained { base_type, .. } =
-                program.type_reference_table.type_reference(result_type)
-            {
-                result_type = *base_type;
-            }
             carrier.contains(interval).then_some(Bounds {
                 interval,
+                constant_value: None,
                 primitive: Some(primitive),
                 type_reference: Some(result_type),
             })

@@ -8,7 +8,9 @@
 //! Endpoints include the parser's inclusive-end conversion. Closed anonymous
 //! arithmetic uses the shared exact numeric evaluator and canonical const leaves,
 //! so inference cannot truncate fractions or overflow an intermediate carrier.
-//! Named/typed computations still need their own evaluation custody; neither
+//! Closed builtin typed arithmetic retains exact constant points and checks
+//! each fixed-width operation before interval projection. Named computations and
+//! owner-sensitive selections still need their own evaluation custody; neither
 //! flow bounds nor type display strings establish a static endpoint.
 
 use symbols::SymbolHandle;
