@@ -1,14 +1,25 @@
 use super::*;
 
 #[test]
-fn selected_operator_crash_evidence_is_fenced_in_review_and_callable_policy() {
-    for (operator_contract, caller_contract) in [
-        ("crashes Trap", "crashes Trap"),
-        ("crashes Abort", "crashes Abort"),
-        ("crashes Trap false", ""),
+fn selected_operator_crash_evidence_projects_through_review_and_callable_policy() {
+    for (operator_contract, caller_contract, cause) in [
+        (
+            "crashes Trap",
+            "crashes Trap",
+            PackageReviewCrashCause::Trap,
+        ),
+        (
+            "crashes Abort",
+            "crashes Abort",
+            PackageReviewCrashCause::Abort,
+        ),
     ] {
         let fixture = Fixture::local(&format!(
             "boundary operator == Comparison::equal(left: i32, right: i32) -> bool {operator_contract};
+             pub data ComparisonProvider {{}}
+             machine ComparisonProvider::equal_impl(left: i32, right: i32) -> bool
+             satisfies Comparison::equal
+             {{ transition {{ _ -> true }} }}
              pub machine compare(left: i32, right: i32) -> bool {caller_contract} {{ left == right }}"
         ));
         assert!(
@@ -19,23 +30,87 @@ fn selected_operator_crash_evidence_is_fenced_in_review_and_callable_policy() {
                 .has_crash_qualified_uses(&fixture.checked.typed)
         );
         let review = package_evidence::project_checked_package_review(&fixture.checked)
-            .err()
-            .expect("operator crash review projection remains unsupported");
+            .expect("operator crash review projection");
+        let compare = review
+            .callables()
+            .iter()
+            .find(|callable| callable.identity().path().contains("compare"))
+            .expect("compare callable review row");
+        let [site] = compare.checked_crash().checked_operators() else {
+            panic!("one selected operator crash site: {compare:#?}")
+        };
+        assert!(site.selected_operator().path().contains("equal"));
+        let [published] = site.published() else {
+            panic!("one published operator route: {site:#?}")
+        };
+        assert_eq!(published.cause(), cause);
+        assert_eq!(
+            published.alternative_guards(),
+            &[PackageReviewCrashRouteGuard::Truth]
+        );
+        assert_eq!(site.surviving(), site.published());
         let policy =
             project_checked_callable_policy(&fixture.checked, fixture.target, package_identity())
-                .err()
-                .expect("operator crash callable policy remains unsupported");
-        for diagnostics in [review, policy] {
-            assert!(
-                diagnostics.iter().any(|diagnostic| {
-                    diagnostic.message.contains(
-                "selected operator crash invocations have no package evidence projection support"
-            )
-                }),
-                "{operator_contract}: {diagnostics:#?}"
-            );
-        }
+                .expect("operator crash callable policy");
+        let crash = callable(&policy, "compare").checked_crash();
+        assert_eq!(
+            crash.interface(),
+            PackageReviewCrashInterface::PublishedCeiling
+        );
+        let [route] = crash.published() else {
+            panic!("one published caller route: {crash:#?}")
+        };
+        assert_eq!(route.cause(), cause);
+        assert_eq!(
+            route.alternative_guards(),
+            &[PackagePolicyCrashGuard::Truth]
+        );
+        assert_eq!(crash.inferred(), &PackagePolicyInferredCrash::Unknown);
     }
+}
+
+#[test]
+fn discharged_selected_operator_crash_retains_its_site_without_an_inferred_cause() {
+    let fixture = Fixture::local(
+        "boundary operator == Comparison::equal(left: i32, right: i32) -> bool crashes Trap false;
+         pub data ComparisonProvider {}
+         machine ComparisonProvider::equal_impl(left: i32, right: i32) -> bool
+         satisfies Comparison::equal
+         { transition { _ -> true } }
+         pub machine compare(left: i32, right: i32) -> bool { left == right }",
+    );
+    assert!(
+        fixture
+            .checked
+            .facts
+            .operators
+            .has_crash_qualified_uses(&fixture.checked.typed)
+    );
+    let review = package_evidence::project_checked_package_review(&fixture.checked)
+        .expect("discharged operator crash review projection");
+    let compare = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path().contains("compare"))
+        .expect("compare callable review row");
+    let [site] = compare.checked_crash().checked_operators() else {
+        panic!("a proved discharge still retains the site row: {compare:#?}")
+    };
+    assert_eq!(site.published().len(), 1);
+    assert!(site.surviving().is_empty());
+    let policy =
+        project_checked_callable_policy(&fixture.checked, fixture.target, package_identity())
+            .expect("discharged operator crash callable policy");
+    let crash = callable(&policy, "compare").checked_crash();
+    assert_eq!(
+        crash.interface(),
+        PackageReviewCrashInterface::PublishedCeiling
+    );
+    assert!(crash.published().is_empty());
+    assert_eq!(
+        crash.inferred(),
+        &PackagePolicyInferredCrash::Complete { causes: Vec::new() }
+    );
 }
 
 #[test]

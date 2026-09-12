@@ -9,11 +9,13 @@ mod tests;
 use super::super::semantics::declarations::nominal_identity;
 use crate::record::{
     PackageReviewCrash, PackageReviewCrashCall, PackageReviewCrashCause,
-    PackageReviewCrashInterface, PackageReviewCrashRoute, PackageReviewCrashRouteGuard,
-    PackageReviewCrashSite,
+    PackageReviewCrashInterface, PackageReviewCrashOperatorSite, PackageReviewCrashRoute,
+    PackageReviewCrashRouteGuard, PackageReviewCrashSite,
 };
 use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
+
+mod operator_projection;
 
 pub(super) use expressions::project_boolean_expression;
 use permissions::{project_crash_predicate, project_crash_predicates, project_permission_claim};
@@ -22,15 +24,6 @@ pub(crate) fn project_crash(
     compilation: &CheckedCompilation,
     plan: &checked_trees::CrashPlan,
 ) -> Result<PackageReviewCrash, Vec<Diagnostic>> {
-    if compilation
-        .facts
-        .operators
-        .has_crash_qualified_uses(&compilation.typed)
-    {
-        return Err(vec![Diagnostic::error(
-            "selected operator crash invocations have no package evidence projection support",
-        )]);
-    }
     let interface = match plan.interface() {
         checked_trees::CrashInterface::InternalInferred => {
             PackageReviewCrashInterface::InternalInferred
@@ -90,6 +83,29 @@ pub(crate) fn project_crash(
     checked_calls.sort();
     checked_calls.dedup();
 
+    let mut checked_operators = plan
+        .checked_operators()
+        .iter()
+        .map(|operator| {
+            let location = operator.location(&compilation.facts);
+            Ok(PackageReviewCrashOperatorSite {
+                state: nominal_identity(compilation, location.state())?,
+                statement_ordinal: location.statement_ordinal(),
+                selected_operator: nominal_identity(compilation, operator.selected_operator())?,
+                published: operator_projection::project_operator_crash_routes(
+                    compilation,
+                    operator.published(),
+                ),
+                surviving: operator_projection::project_operator_crash_routes(
+                    compilation,
+                    operator.surviving(),
+                ),
+            })
+        })
+        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    checked_operators.sort();
+    checked_operators.dedup();
+
     Ok(PackageReviewCrash {
         interface,
         published,
@@ -109,6 +125,7 @@ pub(crate) fn project_crash(
             .transpose()?,
         checked_sites,
         checked_calls,
+        checked_operators,
     })
 }
 

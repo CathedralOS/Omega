@@ -249,6 +249,15 @@ pub struct PackageReviewCrashCall {
     pub(crate) surviving_buckets: Vec<PackageReviewCrashRoute>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewCrashOperatorSite {
+    pub(crate) state: PackageReviewNominalIdentity,
+    pub(crate) statement_ordinal: u32,
+    pub(crate) selected_operator: PackageReviewNominalIdentity,
+    pub(crate) published: Vec<PackageReviewCrashRoute>,
+    pub(crate) surviving: Vec<PackageReviewCrashRoute>,
+}
+
 impl PackageReviewCrashCall {
     pub fn state(&self) -> &PackageReviewNominalIdentity {
         &self.state
@@ -283,6 +292,28 @@ impl PackageReviewCrashCall {
     }
 }
 
+impl PackageReviewCrashOperatorSite {
+    pub fn state(&self) -> &PackageReviewNominalIdentity {
+        &self.state
+    }
+
+    pub const fn statement_ordinal(&self) -> u32 {
+        self.statement_ordinal
+    }
+
+    pub fn selected_operator(&self) -> &PackageReviewNominalIdentity {
+        &self.selected_operator
+    }
+
+    pub fn published(&self) -> &[PackageReviewCrashRoute] {
+        &self.published
+    }
+
+    pub fn surviving(&self) -> &[PackageReviewCrashRoute] {
+        &self.surviving
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewCrash {
     pub(crate) interface: PackageReviewCrashInterface,
@@ -290,6 +321,7 @@ pub struct PackageReviewCrash {
     pub(crate) structural_runtime_requirements: Option<Vec<PackageReviewBooleanExpression>>,
     pub(crate) checked_sites: Vec<PackageReviewCrashSite>,
     pub(crate) checked_calls: Vec<PackageReviewCrashCall>,
+    pub(crate) checked_operators: Vec<PackageReviewCrashOperatorSite>,
 }
 
 impl PackageReviewCrash {
@@ -311,6 +343,10 @@ impl PackageReviewCrash {
 
     pub fn checked_calls(&self) -> &[PackageReviewCrashCall] {
         &self.checked_calls
+    }
+
+    pub fn checked_operators(&self) -> &[PackageReviewCrashOperatorSite] {
+        &self.checked_operators
     }
 }
 

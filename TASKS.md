@@ -700,8 +700,13 @@ Owners include
   value/effect custody; do not replay initializers or callee bodies to recover
   a tag after its evaluation point.
   `cargo nextest run -p package-evidence --test callable_policy case_membership --no-fail-fast`
-  is the existing source-to-recovery control. Selected operator crash invocations
-  remain explicitly fenced in package projection.
+  is the existing source-to-recovery control. Selected operator crash
+  invocations now project through both package crash projections: review emits
+  per-site rows (exact selected operator, caller state/statement, published and
+  surviving buckets; an empty surviving set is a proved discharge) via
+  `capture/behavior/crash/operator_projection.rs`, and callable policy consumes
+  the same retained rows at cause level. Regression:
+  `cargo nextest run -p package-evidence --test callable_policy --no-fail-fast`.
 
   Extend `facts/crash_entry_values.rs` beyond immutable stable-content roots to
   state arrivals, rebinding, mutable field versions and receiver/case projections,
@@ -711,10 +716,18 @@ Owners include
   dependency and shares entry snapshots with **STATE-LOCAL-VALUE-FRONTIER**.
 
   Acceptance: source `operators/crash_routes` and crash-qualified float controls
-  retain exact surviving-route evidence through independent Terminal replay,
-  execution and package projections. Safe uses discharge each route; changed
-  guards, captures, substitutions, sites and stale writes reject. Preserve
-  examined/discharged routes and caller coverage, not only the final cause set.
+  retain exact surviving-route evidence through independent Terminal replay and
+  execution; package projections already carry the site rows. Safe uses
+  discharge each route; changed guards, captures, substitutions, sites and stale
+  writes reject. Preserve examined/discharged routes and caller coverage, not
+  only the final cause set. The replay gap is concrete: the Terminal verifier
+  reconstructs call crash continuations only from an ordinary callee's
+  `contract.crash_routes`, operator surviving routes are invocation-specific
+  and may carry no portable `scalar_expression` after conservative `Truth`
+  widening, and boundary operator declarations do not yet carry a replayable
+  Terminal crash contract; direct lowering rejects selected operator crash uses
+  at `checked-trees-to-lowered-psi/src/lib.rs`. Copying checked rows onto
+  `MachineContract` alone would not establish replay meaning.
 
 - **PROOF-KERNEL-CORE.** Build the common mathematical term/declaration model
   and independent checker in Psi, under the

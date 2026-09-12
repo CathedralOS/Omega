@@ -3,11 +3,12 @@ use crate::encoding::PackageReviewEncodingError;
 use crate::record::{
     PackageReviewArithmeticDomain, PackageReviewBooleanExpression, PackageReviewCrash,
     PackageReviewCrashCall, PackageReviewCrashCause, PackageReviewCrashInterface,
-    PackageReviewCrashPredicate, PackageReviewCrashRoute, PackageReviewCrashRouteGuard,
-    PackageReviewCrashSite, PackageReviewIeeeFloatComparisonKind, PackageReviewIntegerBinaryKind,
-    PackageReviewIntegerComparisonKind, PackageReviewPermissionClaim,
-    PackageReviewPermissionSource, PackageReviewPrimitiveType, PackageReviewScalarExpression,
-    PackageReviewStructuralParameterField, PackageReviewStructuralPredicatePathSegment,
+    PackageReviewCrashOperatorSite, PackageReviewCrashPredicate, PackageReviewCrashRoute,
+    PackageReviewCrashRouteGuard, PackageReviewCrashSite, PackageReviewIeeeFloatComparisonKind,
+    PackageReviewIntegerBinaryKind, PackageReviewIntegerComparisonKind,
+    PackageReviewPermissionClaim, PackageReviewPermissionSource, PackageReviewPrimitiveType,
+    PackageReviewScalarExpression, PackageReviewStructuralParameterField,
+    PackageReviewStructuralPredicatePathSegment,
 };
 
 use super::expressions::encode_contract_expression;

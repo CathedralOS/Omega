@@ -16,7 +16,19 @@ pub(crate) fn encode_crash(
         |encoder, requirements| encoder.sequence(requirements, encode_boolean_expression),
     )?;
     encoder.sequence(&crash.checked_sites, encode_crash_site)?;
-    encoder.sequence(&crash.checked_calls, encode_crash_call)
+    encoder.sequence(&crash.checked_calls, encode_crash_call)?;
+    encoder.sequence(&crash.checked_operators, encode_crash_operator_site)
+}
+
+pub(crate) fn encode_crash_operator_site(
+    encoder: &mut Encoder,
+    site: &PackageReviewCrashOperatorSite,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_nominal(encoder, &site.state)?;
+    encoder.u32(site.statement_ordinal);
+    encode_nominal(encoder, &site.selected_operator)?;
+    encoder.sequence(&site.published, encode_crash_route)?;
+    encoder.sequence(&site.surviving, encode_crash_route)
 }
 
 pub(crate) fn encode_crash_route(
