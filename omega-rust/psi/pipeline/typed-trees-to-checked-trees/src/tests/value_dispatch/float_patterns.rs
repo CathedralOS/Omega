@@ -74,8 +74,7 @@ fn float_patterns_require_a_selected_equality() {
         "boundary operator == Float::equal(left: f64, right: f64) -> bool;",
     ] {
         let diagnostics = check(&source("f32", declarations, "identity(first)"))
-            .err()
-            .expect("float comparisons have no implicit builtin provider");
+            .expect_err("float comparisons have no implicit builtin provider");
         assert!(
             diagnostics
                 .iter()
@@ -91,8 +90,7 @@ fn ambiguous_float_pattern_equality_does_not_choose_a_provider() {
     let declarations =
         format!("{EQUALITY}\nboundary operator == Other::equal(left: f32, right: f32) -> bool;");
     let diagnostics = check(&source("f32", &declarations, "identity(first)"))
-        .err()
-        .expect("two matching equality declarations are ambiguous");
+        .expect_err("two matching equality declarations are ambiguous");
     assert!(
         diagnostics
             .iter()
@@ -105,8 +103,7 @@ fn ambiguous_float_pattern_equality_does_not_choose_a_provider() {
 fn selected_float_pattern_equality_must_return_boolean() {
     let declarations = "boundary operator == Float::equal(left: f32, right: f32) -> u64;";
     let diagnostics = check(&source("f32", declarations, "identity(first)"))
-        .err()
-        .expect("a numeric result cannot select a match arm");
+        .expect_err("a numeric result cannot select a match arm");
     assert!(
         diagnostics
             .iter()
@@ -120,8 +117,7 @@ fn float_pattern_equality_requirements_are_not_skipped() {
     let declarations =
         "boundary operator == Float::equal(left: f32, right: f32) -> bool requires false;";
     let diagnostics = check(&source("f32", declarations, "identity(first)"))
-        .err()
-        .expect("implicit comparisons owe the selected declaration requirements");
+        .expect_err("implicit comparisons owe the selected declaration requirements");
     assert!(
         diagnostics
             .iter()
@@ -300,8 +296,7 @@ fn float_equality_requires_use_the_comparison_invocation_context() {
         "{declarations}
         machine choose(value: f32, first: f32, second: f32) -> u64 {body}"
     ))
-    .err()
-    .expect("the same operands without proof do not discharge requires");
+    .expect_err("the same operands without proof do not discharge requires");
     assert!(
         diagnostics
             .iter()
@@ -318,8 +313,7 @@ fn crash_qualified_float_equality_requires_same_cause_ceiling() {
         &source("f32", declarations, "identity(first)")
             .replace("machine choose(", "pub machine choose("),
     )
-    .err()
-    .expect("a selected crash contract cannot disappear at an implicit comparison");
+    .expect_err("a selected crash contract cannot disappear at an implicit comparison");
     assert!(
         diagnostics
             .iter()
