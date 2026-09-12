@@ -39,6 +39,13 @@ dependency; structural callbacks retain their fixed requirement row. Wire tests
 reject changed bounds, missing binders/receipts/markers, and redirected calls to
 same-shaped, same-reach callbacks.
 
+Type/const-only applications retain their fixed-only dependency through the same
+projection. Isolated identity callbacks also use that producer path before
+optimization and publication. Their complete telescope can retain an unused
+Console callback's bound and selected contract without emitting its body or
+adding its reach to the identity callback. Source-free interpretation returns
+the input, while removing that unused selection's bound still rejects.
+
 These are ordinary semantic inputs, not optional proof sidecars. The original
 source-to-contract projection remains producer-trusted: existing commitment
 digests identify provenance but are not independently checkable projection

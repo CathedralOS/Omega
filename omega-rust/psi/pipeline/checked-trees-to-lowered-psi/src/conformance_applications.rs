@@ -454,9 +454,18 @@ mod tests {
         let selection = crate::machine_dispatch::select_terminal_machine(&checked, "Main::main")
             .expect("dynamic root selection");
         let root = selection.machine;
-        let lowered = crate::machine_dispatch::lower_selected_machine(&checked, selection)
+        let mut lowered = crate::machine_dispatch::lower_selected_machine(&checked, selection)
             .expect("dynamic root and ordinary callee lower");
         let owners = lowered.exact_sources.expect("exact dynamic source owners");
+        // This fixture enters below ordinary publication's custody passes.
+        // Include the fixed-only reach application before comparing products.
+        crate::closed_reach_applications::retain_closed_reach_applications(
+            &checked,
+            &owners,
+            &lowered.terminal.source_call_occurrences,
+            &mut lowered.terminal.semantic_module,
+        )
+        .expect("retain generic callee reach");
         (checked, lowered.terminal.semantic_module, owners, root)
     }
 

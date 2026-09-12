@@ -275,6 +275,8 @@ selected public rows, and two-sided emitted-call joins after source discard.
 Run the README's Cargo/nextest commands on macOS ARM64 to exercise that boundary.
 Producer ownership is `checked-trees-to-lowered-psi/src/closed_reach_applications.rs`;
 reload checks are `terminal-verifier/src/validation/reach_applications.rs`.
+The same projection covers fixed-only type/const applications and isolated
+identity callbacks, including unused selected contracts without emitted bodies.
 Resume with portable coverage for inlined/missing callees, generic selected
 schemas, and unresolved installation selections, then independently checkable
 original-contract projection openings. The retained template/specialization

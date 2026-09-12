@@ -1524,7 +1524,7 @@ pub fn lower_bounded_callback_identity_machine(
             "bounded callback body must be the exact one-state u64 identity-return cohort",
         );
     }
-    let lowered = lower_selected_scalar_graph_machine(checked, source_machine, graph)?;
+    let mut lowered = lower_selected_scalar_graph_machine(checked, source_machine, graph)?;
     // Isolated callback production is another public lowering entrance, not
     // permission to omit the selected generic body's application custody.
     let specialization_instances = checked
@@ -1538,6 +1538,15 @@ pub fn lower_bounded_callback_identity_machine(
         &specialization_instances,
     )
     .map_err(LoweringError::Unsupported)?;
+    // Callback isolation changes the publication root, not the selected body's
+    // contract custody. Reuse the ordinary projection with this exact owner;
+    // unused selections need not invent executable callback bodies.
+    closed_reach_applications::retain_closed_reach_applications(
+        checked,
+        &[(source_machine, lowered.semantic_module.entry)],
+        &lowered.source_call_occurrences,
+        &mut lowered.semantic_module,
+    )?;
     terminal_verifier::validate_module(&lowered.semantic_module)
         .map_err(LoweringError::InvalidTerminalModule)?;
     let [machine] = lowered.semantic_module.machines.as_slice() else {
