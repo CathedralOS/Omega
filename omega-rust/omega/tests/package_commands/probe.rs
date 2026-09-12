@@ -163,3 +163,58 @@ fn standalone_probe_preserves_focused_compilation_and_reads_admissions() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("malformed"));
     assert!(!fixture.path("root/omega.lock").exists());
 }
+
+#[test]
+fn native_probe_keeps_transitive_package_bindings_and_retained_output() {
+    let fixture = application();
+    std::fs::create_dir(fixture.path("dependency/leaf")).unwrap();
+    fixture.write(
+        "dependency/leaf/build.omg",
+        "machine build(builder: &mut Build) { builder.package(\"leaf\"); }\n",
+    );
+    fixture.write(
+        "dependency/leaf/main.omg",
+        "pub machine leaf_value() -> i32 { 43 }\n",
+    );
+    fixture.write("dependency/build.omg", "machine build(builder: &mut Build) { builder.package(\"arithmetic-kernels\"); builder.depend(Source::Path { location: \"leaf\" }); }\n");
+    fixture.write(
+        "dependency/main.omg",
+        "use leaf::main;\npub machine value() -> i32 { leaf_value() }\n",
+    );
+    accept(&fixture, "linux_x86_64");
+    let before = fixture.accepted_files();
+    let output = fixture.omega(&["run", "--keep", "--target", "linux_x86_64", "main.omg"]);
+    assert_status(&output, 0);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let directory = stderr
+        .lines()
+        .find_map(|line| {
+            line.strip_prefix("compiled for target `linux_x86_64` OK (")
+                .and_then(|line| line.strip_suffix(')'))
+        })
+        .expect("retained artifact location");
+    let directory = std::path::Path::new(directory);
+    assert!(directory.join("omega-program").is_file());
+    assert!(directory.starts_with(std::env::temp_dir()));
+    assert!(
+        directory
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("omega-probe-")
+    );
+    std::fs::remove_dir_all(directory).unwrap();
+    assert_eq!(fixture.accepted_files(), before);
+}
+
+#[test]
+fn native_probe_rejects_changed_dependency_without_refreshing_acceptance() {
+    let fixture = application();
+    accept(&fixture, "linux_x86_64");
+    fixture.write("dependency/main.omg", "pub machine value() -> i32 { 8 }\n");
+    let before = fixture.accepted_files();
+    let output = fixture.omega(&["run", "--target", "linux_x86_64", "main.omg"]);
+    assert_status(&output, 200);
+    assert!(String::from_utf8_lossy(&output.stderr).contains("omega update"));
+    assert_eq!(fixture.accepted_files(), before);
+}
