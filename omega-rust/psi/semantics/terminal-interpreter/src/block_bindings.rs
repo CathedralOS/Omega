@@ -25,14 +25,22 @@ pub(super) struct BlockBindings {
     byte_sequences: BTreeMap<PlaceId, ByteSequenceBinding>,
     affine_sources: BTreeSet<PlaceId>,
     affine_destinations: BTreeSet<StructuralAffineDiscard>,
+    record_payload: Vec<(super::StructuralScalarRuntimeField, TerminalScalarValue)>,
+    identity_cursor: Option<u64>,
 }
 
 impl BlockBindings {
     /// All operands have been captured, including descriptors whose source
     /// places are also destinations. Updating one destination cannot affect
-    /// another binding. Snapshotting descriptor metadata does not duplicate
-    /// affine custody or copy field/primitive backing storage.
+    /// another binding. Affine and borrowed descriptors retain their backing;
+    /// owned unrestricted records publish independent staged payloads.
     pub(super) fn commit(self, execution: &mut TerminalExecution) {
+        execution
+            .local_structural_identities
+            .commit_cursor(self.identity_cursor);
+        execution
+            .structural_scalar_fields
+            .extend(self.record_payload);
         for source in self.affine_sources {
             execution.structural_values.remove(&source);
             execution.scalar_case_values.remove(&source);
@@ -294,7 +302,7 @@ impl TerminalExecution {
         } else {
             structural_arguments
         };
-        let structural = bind_structural_arguments(descriptor_parameters, &resolved_arguments)?;
+        let mut structural = bind_structural_arguments(descriptor_parameters, &resolved_arguments)?;
         let mut affine_destinations = bind_affine_frontier(descriptor_parameters, &structural)?;
         affine_destinations.extend(case_destinations);
         // Existing borrowed-byte bindings retain their exact checks. Owned
@@ -304,6 +312,12 @@ impl TerminalExecution {
             descriptor_arguments,
             &resolved_arguments,
         )?;
+        let mut identity_cursor = self.local_structural_identities.cursor();
+        let record_payload = self.stage_owned_record_arguments(
+            descriptor_parameters,
+            &mut structural,
+            &mut identity_cursor,
+        )?;
         Ok(BlockBindings {
             scalars,
             structural,
@@ -311,6 +325,8 @@ impl TerminalExecution {
             byte_sequences,
             affine_sources,
             affine_destinations,
+            record_payload,
+            identity_cursor,
         })
     }
 

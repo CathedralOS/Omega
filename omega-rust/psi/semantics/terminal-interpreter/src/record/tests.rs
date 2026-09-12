@@ -7,6 +7,8 @@ use terminal_codec::{encode_module, encode_proof_bundle};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::*;
 use terminal_verifier::ProofBundle;
+
+mod owned_successor;
 fn unit_module() -> TerminalModule {
     TerminalModule {
         scalar_qualifications: Default::default(),

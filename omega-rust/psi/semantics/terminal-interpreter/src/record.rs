@@ -137,6 +137,24 @@ impl TerminalExecution {
         parameters: &[StructuralParameterDeclaration],
         values: &mut BTreeMap<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
     ) -> Result<(), TerminalInterpretError> {
+        let mut cursor = self.local_structural_identities.cursor();
+        let payload = self.stage_owned_record_arguments(parameters, values, &mut cursor)?;
+        self.local_structural_identities.commit_cursor(cursor);
+        self.structural_scalar_fields.extend(payload);
+        Ok(())
+    }
+
+    /// Stage independent payloads for each owned unrestricted occurrence. The
+    /// supplied descriptors and allocation cursor belong to the caller's
+    /// uncommitted transaction; source fields remain untouched even in swaps.
+    pub(super) fn stage_owned_record_arguments(
+        &self,
+        parameters: &[StructuralParameterDeclaration],
+        values: &mut BTreeMap<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
+        cursor: &mut Option<u64>,
+    ) -> Result<Vec<(StructuralScalarRuntimeField, TerminalScalarValue)>, TerminalInterpretError>
+    {
+        let mut payload = Vec::new();
         for parameter in parameters {
             if parameter.access != StructuralAccess::Owned
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted
@@ -150,32 +168,31 @@ impl TerminalExecution {
                 TerminalInterpretError::VerifiedStructuralPlaceMissing(parameter.place),
             )?;
             let source = StructuralRuntimePlace::from(&*value);
-            let identity = self.local_structural_identities.allocate()?;
-            let payload = self
-                .structural_scalar_fields
-                .iter()
-                .filter(|(field, _)| {
-                    field.parent.opaque_identity == source.opaque_identity
-                        && field.parent.path.starts_with(&source.path)
-                })
-                .map(|(field, scalar)| {
-                    (
-                        StructuralScalarRuntimeField {
-                            parent: StructuralRuntimePlace {
-                                opaque_identity: identity,
-                                path: field.parent.path[source.path.len()..].to_vec(),
+            let identity = self.local_structural_identities.allocate_staged(cursor)?;
+            payload.extend(
+                self.structural_scalar_fields
+                    .iter()
+                    .filter(|(field, _)| {
+                        field.parent.opaque_identity == source.opaque_identity
+                            && field.parent.path.starts_with(&source.path)
+                    })
+                    .map(|(field, scalar)| {
+                        (
+                            StructuralScalarRuntimeField {
+                                parent: StructuralRuntimePlace {
+                                    opaque_identity: identity,
+                                    path: field.parent.path[source.path.len()..].to_vec(),
+                                },
+                                field: field.field,
                             },
-                            field: field.field,
-                        },
-                        *scalar,
-                    )
-                })
-                .collect::<Vec<_>>();
-            self.structural_scalar_fields.extend(payload);
+                            *scalar,
+                        )
+                    }),
+            );
             value.opaque_identity = identity;
             value.path.clear();
         }
-        Ok(())
+        Ok(payload)
     }
 
     pub(super) fn retire_unrestricted_records(&mut self) {

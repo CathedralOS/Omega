@@ -55,9 +55,9 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   is retained under the application's ignored `build/verification/`; record the
   owning diagnostic before expanding compiler work. Initialization is explicit
   and requires private repository access during in-house development.
-  With compiler `26b7fe994b` on macOS ARM64, Python 3.13 and
+  With compiler `db680c7e47` on macOS ARM64, Python 3.13 and
   `RUST_MIN_STACK=67108864`, the native invocation completes ordinary package
-  acceptance, then exits 200 at Terminal production after 209.677 seconds:
+  acceptance, then exits 200 at Terminal production after 206.933 seconds:
   `InvalidUnitMachinePlan` for `Main::main`, with reason
   `attached Unit closure is missing a checked transitive machine plan`.
   The application is at `7a272a896c85`
@@ -69,6 +69,19 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   local identities require ordinary update/review when relocated; see its README.
   Geometry execution remains unverified. The existing harness timeout option
   permits the measured package passes without changing compiler checking.
+
+  Scope checkpoint: two supporting milestones have left this application
+  failure unchanged. Before another implementation milestone, identify the exact
+  authored Main state/operation that loses its checked plan, versus transitive
+  closure pruning. Available reports currently stop at package review; use a
+  temporary targeted producer trace if needed, not maintained tracing machinery.
+  Source inspection finds remaining mutable-local setter/read and explicitly
+  projected shared-argument fences under
+  `typed-trees-to-checked-trees/src/flow/terminal_unit/`, in `state_graph.rs` and
+  `calls/computation_arguments.rs`; these are candidates, not an observed
+  first-failure verdict. Compare consolidation into ordinary sequencing and
+  original record homes against deferring the integration. Do not start another
+  isolated getter/setter variant or weaken custody checks to move admission.
 
   Reuse the ordinary structural-value/evaluation path in
   `checked-trees-to-lowered-psi/src/attached_unit/structural_values/record.rs`

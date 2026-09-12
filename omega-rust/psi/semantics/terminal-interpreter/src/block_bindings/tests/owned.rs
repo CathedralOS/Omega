@@ -165,12 +165,46 @@ fn assert_owned_transition(terminator: Terminator, multiplicity: StructuralMulti
     assert_owned_execution(owned_execution(terminator, multiplicity));
 }
 
+fn assert_record_binding(
+    execution: &TerminalExecution,
+    destination: u64,
+    source: &TerminalStructuralValue,
+    multiplicity: StructuralMultiplicity,
+) {
+    let actual = &execution.structural_values[&PlaceId::new(destination).unwrap()];
+    if multiplicity == StructuralMultiplicity::Affine {
+        assert_eq!(actual, source);
+    } else {
+        assert_ne!(actual.opaque_identity, source.opaque_identity);
+        assert_eq!(actual.structural_type, source.structural_type);
+        assert_eq!(actual.qualifications, source.qualifications);
+        let payload = |value: &TerminalStructuralValue| {
+            execution
+                .structural_scalar_fields
+                .iter()
+                .filter(|(field, _)| {
+                    field.parent.opaque_identity == value.opaque_identity
+                        && field.parent.path.starts_with(&value.path)
+                })
+                .map(|(field, scalar)| {
+                    (
+                        (field.parent.path[value.path.len()..].to_vec(), field.field),
+                        *scalar,
+                    )
+                })
+                .collect::<BTreeMap<_, _>>()
+        };
+        assert_eq!(payload(actual), payload(source));
+    }
+}
+
 fn assert_owned_execution(mut execution: TerminalExecution) {
     let multiplicity =
         execution.blocks[&BlockId::new(2).unwrap()].structural_parameters[0].multiplicity;
     let original = execution.structural_values.clone();
     let fields = execution.structural_scalar_fields.clone();
     let frontier = execution.live_affine_frontier.clone();
+    let cursor = execution.local_structural_identities.cursor();
     let mut meter = TerminalFuelMeter::with_allowance(0);
     assert!(matches!(
         execution.resume(&mut meter).unwrap(),
@@ -178,6 +212,13 @@ fn assert_owned_execution(mut execution: TerminalExecution) {
     ));
     assert_eq!(execution.structural_values, original);
     assert_eq!(execution.live_affine_frontier, frontier);
+    assert_eq!(execution.local_structural_identities.cursor(), cursor);
+    assert_eq!(execution.structural_scalar_fields, fields);
+    assert!(matches!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(_)
+    ));
+    assert_eq!(execution.local_structural_identities.cursor(), cursor);
     meter.replenish(1).unwrap();
     assert!(matches!(
         execution.resume(&mut meter).unwrap(),
@@ -192,9 +233,11 @@ fn assert_owned_execution(mut execution: TerminalExecution) {
         }
     );
     for (destination, source) in [(3, 2), (4, 1)] {
-        assert_eq!(
-            execution.structural_values[&PlaceId::new(destination).unwrap()],
-            original[&PlaceId::new(source).unwrap()]
+        assert_record_binding(
+            &execution,
+            destination,
+            &original[&PlaceId::new(source).unwrap()],
+            multiplicity,
         );
         assert_eq!(
             execution
@@ -203,10 +246,15 @@ fn assert_owned_execution(mut execution: TerminalExecution) {
             multiplicity == StructuralMultiplicity::Unrestricted
         );
     }
-    assert_eq!(
-        execution.structural_scalar_fields, fields,
-        "descriptor transfer preserves referent-keyed field contents"
+    assert!(
+        fields
+            .iter()
+            .all(|(field, value)| execution.structural_scalar_fields.get(field) == Some(value)),
+        "source payload remains unchanged"
     );
+    if multiplicity == StructuralMultiplicity::Affine {
+        assert_eq!(execution.structural_scalar_fields, fields);
+    }
     assert_eq!(
         execution.values[&ValueId::new(1).unwrap()],
         TerminalScalarValue::Boolean(false)
@@ -276,6 +324,7 @@ fn owned_record_result_handoff_preserves_backing_and_rejects_forged_producer() {
                 .operations
                 .push(Operation {
                     id: operation,
+                    static_reach_binding: None,
                     result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
                         place: parameter.place,
                         structural_type: parameter.structural_type,
@@ -392,9 +441,11 @@ fn owned_backedge_swaps_live_destination_roots_simultaneously() {
         bindings.validate_discards(&execution, &[], &[]).unwrap();
         bindings.commit(&mut execution);
         for (destination, source) in [(3, 4), (4, 3)] {
-            assert_eq!(
-                execution.structural_values[&PlaceId::new(destination).unwrap()],
-                previous[&PlaceId::new(source).unwrap()]
+            assert_record_binding(
+                &execution,
+                destination,
+                &previous[&PlaceId::new(source).unwrap()],
+                multiplicity,
             );
         }
         assert_eq!(
@@ -405,7 +456,14 @@ fn owned_backedge_swaps_live_destination_roots_simultaneously() {
                 4
             }
         );
-        assert_eq!(execution.structural_scalar_fields, fields);
+        assert!(
+            fields
+                .iter()
+                .all(|(field, value)| execution.structural_scalar_fields.get(field) == Some(value))
+        );
+        if multiplicity == StructuralMultiplicity::Affine {
+            assert_eq!(execution.structural_scalar_fields, fields);
+        }
         assert_eq!(
             execution.live_affine_frontier.len(),
             if multiplicity == StructuralMultiplicity::Affine {
@@ -418,7 +476,128 @@ fn owned_backedge_swaps_live_destination_roots_simultaneously() {
 }
 
 #[test]
-fn unrestricted_successors_may_duplicate_and_reuse_the_original_descriptor() {
+fn unrestricted_copy_staging_failure_leaves_backing_and_identity_cursor_unchanged() {
+    for exhausted in [false, true] {
+        let mut execution = owned_execution(
+            jump(owned_successor()),
+            StructuralMultiplicity::Unrestricted,
+        );
+        if exhausted {
+            // One fresh identity can be staged, but the second must fail.
+            execution
+                .local_structural_identities
+                .commit_cursor(Some(u64::MAX));
+        }
+        let values = execution.structural_values.clone();
+        let fields = execution.structural_scalar_fields.clone();
+        let frontier = execution.live_affine_frontier.clone();
+        let cursor = execution.local_structural_identities.cursor();
+        let edge = owned_successor();
+        let prepared = execution.prepare_block_bindings(
+            edge.target,
+            &edge.arguments,
+            &edge.structural_arguments,
+        );
+        if exhausted {
+            assert!(matches!(
+                prepared,
+                Err(TerminalInterpretError::StructuralIdentityExhausted)
+            ));
+        } else {
+            let prepared = prepared.unwrap();
+            assert!(
+                prepared
+                    .validate_discards(&execution, &[PlaceId::new(999).unwrap()], &[])
+                    .is_err()
+            );
+        }
+        assert_eq!(execution.structural_values, values);
+        assert_eq!(execution.structural_scalar_fields, fields);
+        assert_eq!(execution.live_affine_frontier, frontier);
+        assert_eq!(execution.local_structural_identities.cursor(), cursor);
+    }
+}
+
+#[test]
+fn unrestricted_owned_successor_copies_nested_payload_before_later_source_write() {
+    let mut execution = owned_execution(
+        jump(owned_successor()),
+        StructuralMultiplicity::Unrestricted,
+    );
+    let nested = StructuralTypeId::new(2).unwrap();
+    let root = StructuralTypeId::new(1).unwrap();
+    let nested_field = StructuralFieldId::new(3).unwrap();
+    execution.structural_types.insert(
+        nested,
+        terminal_psi::StructuralTypeDeclaration {
+            id: nested,
+            identity: "nested".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: nested_field,
+                    identity: "payload".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Scalar(unsigned(0).scalar_type()),
+                }],
+            },
+        },
+    );
+    let StructuralTypeShape::Record { fields } =
+        &mut execution.structural_types.get_mut(&root).unwrap().shape
+    else {
+        unreachable!();
+    };
+    fields.push(StructuralFieldDeclaration {
+        id: StructuralFieldId::new(4).unwrap(),
+        identity: "child".into(),
+        relevance: BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Structural(nested),
+    });
+    let mut edge = owned_successor();
+    edge.structural_arguments[1] = edge.structural_arguments[0].clone();
+    let source = execution.structural_values[&edge.structural_arguments[0].place].clone();
+    let field = StructuralScalarRuntimeField {
+        parent: StructuralRuntimePlace {
+            opaque_identity: source.opaque_identity,
+            path: vec!["child".into()],
+        },
+        field: nested_field,
+    };
+    execution
+        .structural_scalar_fields
+        .insert(field.clone(), unsigned(81));
+    let bindings = execution
+        .prepare_block_bindings(edge.target, &edge.arguments, &edge.structural_arguments)
+        .unwrap();
+    bindings.validate_discards(&execution, &[], &[]).unwrap();
+    bindings.commit(&mut execution);
+    execution
+        .structural_scalar_fields
+        .insert(field, unsigned(99));
+    let mut identities = BTreeSet::from([source.opaque_identity]);
+    for place in [3, 4] {
+        let copied = &execution.structural_values[&PlaceId::new(place).unwrap()];
+        let copied_field = StructuralScalarRuntimeField {
+            parent: StructuralRuntimePlace {
+                opaque_identity: copied.opaque_identity,
+                path: vec!["child".into()],
+            },
+            field: nested_field,
+        };
+        assert_eq!(
+            execution.structural_scalar_fields[&copied_field],
+            unsigned(81),
+            "later source write must not change the copied successor"
+        );
+        assert!(
+            identities.insert(copied.opaque_identity),
+            "each owned occurrence needs independent backing"
+        );
+    }
+}
+
+#[test]
+fn unrestricted_successors_copy_each_occurrence_and_keep_the_original_available() {
     let mut execution = owned_execution(
         jump(owned_successor()),
         StructuralMultiplicity::Unrestricted,
@@ -432,9 +611,11 @@ fn unrestricted_successors_may_duplicate_and_reuse_the_original_descriptor() {
     bindings.validate_discards(&execution, &[], &[]).unwrap();
     bindings.commit(&mut execution);
     for place in [3, 4] {
-        assert_eq!(
-            execution.structural_values[&PlaceId::new(place).unwrap()],
-            original[&PlaceId::new(2).unwrap()]
+        assert_record_binding(
+            &execution,
+            place,
+            &original[&PlaceId::new(2).unwrap()],
+            StructuralMultiplicity::Unrestricted,
         );
     }
     for (place, value) in &original {
@@ -450,9 +631,11 @@ fn unrestricted_successors_may_duplicate_and_reuse_the_original_descriptor() {
         .unwrap();
     bindings.validate_discards(&execution, &[], &[]).unwrap();
     bindings.commit(&mut execution);
-    assert_eq!(
-        execution.structural_values[&PlaceId::new(4).unwrap()],
-        original[&PlaceId::new(1).unwrap()]
+    assert_record_binding(
+        &execution,
+        4,
+        &original[&PlaceId::new(1).unwrap()],
+        StructuralMultiplicity::Unrestricted,
     );
     assert!(execution.live_affine_frontier.is_empty());
 }
