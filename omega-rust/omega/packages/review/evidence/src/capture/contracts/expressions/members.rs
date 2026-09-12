@@ -223,6 +223,15 @@ pub(crate) fn contract_member_path_root(
     context: &ContractProjectionContext<'_>,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<facts::PlaceRoot> {
+    if let Some((owner, _)) = validation::reserved_result_owner(&compilation.typed, expression) {
+        // The result has no parameter symbol. Rejoin the exact authored
+        // postcondition owner before matching its retained semantic place rows.
+        return matches!(context.owner,
+            checked_trees::ContractProofFactOwner::Machine { machine_symbol }
+            | checked_trees::ContractProofFactOwner::MachineState { machine_symbol, .. }
+                if machine_symbol == owner)
+        .then_some(facts::PlaceRoot::Expression(expression));
+    }
     let typed_trees::expression::ExpressionNode::Name(path) =
         compilation.expression_table.expression(expression)
     else {

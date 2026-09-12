@@ -23,6 +23,7 @@ impl<'a> CaseObservation<'a> {
         exit: &'a FlowExitFact,
         contexts: &'a [FactContextHandle],
         requirement: &facts::Fact,
+        call_frames: Option<&validation::CallFrameResolver<'_>>,
     ) -> Option<Self> {
         let FactPayload::ContractBooleanExpression {
             fact, expression, ..
@@ -70,6 +71,21 @@ impl<'a> CaseObservation<'a> {
             .machine_states(machine)
             .iter()
             .find(|state| state.symbol == exit.state_symbol)?;
+        let returned = exit_return_expression(program, exit);
+        let mut returned_nodes = Vec::new();
+        crate::monomorphization::collect_expression_tree(program, returned, &mut returned_nodes);
+        // The call-frame query covers calls, not atomic destinations or
+        // selected operator implementations. Those must not be mistaken for
+        // an empty write frame when rereading an earlier constructor operand.
+        let has_unframed_writes = returned_nodes.iter().any(|expression| {
+            matches!(
+                program.expression_table.expression(*expression),
+                ExpressionNode::Atomic(_)
+            )
+        }) || facts.operators.uses.iter().any(|(_, operator)| {
+            operator.status != checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                && returned_nodes.contains(&operator.expression)
+        });
         Some(CaseObservation {
             program,
             facts,
@@ -77,6 +93,13 @@ impl<'a> CaseObservation<'a> {
             contexts,
             machine,
             state,
+            return_has_no_writes: !has_unframed_writes
+                && call_frames.is_some_and(|frames| {
+                    frames
+                        .expression_write_frame(machine, returned)
+                        .into_complete_paths()
+                        .is_some_and(|paths| paths.is_empty())
+                }),
         })
     }
 }
@@ -88,6 +111,7 @@ pub(super) struct CaseObservation<'a> {
     contexts: &'a [FactContextHandle],
     machine: &'a Machine,
     state: &'a State,
+    return_has_no_writes: bool,
 }
 
 impl CaseObservation<'_> {
@@ -102,9 +126,11 @@ impl CaseObservation<'_> {
             Some(self.state),
             expression,
             binary,
-        ) || !validation::reserved_result_owner(self.program, binary.left)
-            .is_some_and(|(owner, _)| owner == self.machine.symbol)
-        {
+        ) {
+            return None;
+        }
+        let subject = validation::reserved_result_place(self.program, binary.left)?;
+        if subject.machine_symbol != self.machine.symbol {
             return None;
         }
         let ExpressionNode::Name(case) = self.program.expression_table.expression(binary.right)
@@ -112,9 +138,9 @@ impl CaseObservation<'_> {
             return None;
         };
         let returned = exit_return_expression(self.program, self.exit);
-        if self.returned_case(returned, case.symbol, true, 0) {
+        if self.returned_case(returned, &subject.segments, case.symbol, true, true, 0) {
             Some(true)
-        } else if self.returned_case(returned, case.symbol, false, 0) {
+        } else if self.returned_case(returned, &subject.segments, case.symbol, false, true, 0) {
             Some(false)
         } else {
             None
@@ -124,8 +150,10 @@ impl CaseObservation<'_> {
     fn returned_case(
         &self,
         expression: ExpressionHandle,
+        projection: &[PlaceSegment],
         case: SymbolHandle,
         required: bool,
+        can_read_live: bool,
         depth: usize,
     ) -> bool {
         if depth >= 128
@@ -135,6 +163,62 @@ impl CaseObservation<'_> {
                 .expression_is_valid(expression)
         {
             return false;
+        }
+        if let ExpressionNode::Match(dispatch) =
+            self.program.expression_table.expression(expression)
+        {
+            // Join the same observation across all independently produced
+            // alternatives without importing an unselected arm's predicates.
+            let arms = self.program.expression_table.match_arms(dispatch.arms);
+            return !arms.is_empty()
+                && arms.iter().all(|arm| {
+                    self.returned_case(
+                        arm.value,
+                        projection,
+                        case,
+                        required,
+                        can_read_live,
+                        depth + 1,
+                    )
+                });
+        }
+        if let Some((segment, rest)) = projection.split_first() {
+            if let ExpressionNode::StructLiteral(literal) =
+                self.program.expression_table.expression(expression)
+            {
+                let PlaceSegment::Field { symbol } = segment else {
+                    return false;
+                };
+                if self.program.symbols.get(*symbol).parent != literal.type_symbol {
+                    return false;
+                }
+                let mut fields = self
+                    .program
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .iter()
+                    .filter(|field| field.field_symbol == *symbol);
+                let Some(field) = fields.next() else {
+                    return false;
+                };
+                if fields.next().is_some() {
+                    return false;
+                }
+                // A constructor retains each field's evaluated value. Later
+                // fields can mutate a source read by an earlier field, so exit
+                // predicates may justify that earlier read only with a complete
+                // no-write frame. A directly constructed nominal tag needs no
+                // such storage premise.
+                return self.returned_case(
+                    field.value,
+                    rest,
+                    case,
+                    required,
+                    can_read_live && self.return_has_no_writes,
+                    depth + 1,
+                );
+            }
+            return can_read_live && self.live_case(expression, projection, case, required, depth);
         }
         let owner = self.program.symbols.get(case).parent;
         let Some(data) = self
@@ -168,47 +252,39 @@ impl CaseObservation<'_> {
                 });
                 actual_owner.symbol == owner && payload_free && (path.symbol == case) == required
             }
-            ExpressionNode::Match(dispatch) => {
-                // A common result observation may join independently produced
-                // alternatives. No unselected arm's predicate is imported.
-                let arms = self.program.expression_table.match_arms(dispatch.arms);
-                !arms.is_empty()
-                    && arms
-                        .iter()
-                        .all(|arm| self.returned_case(arm.value, case, required, depth + 1))
-            }
-            _ => {
-                let Some(subject) = self.stable_place(expression) else {
-                    return false;
-                };
-                self.contexts.iter().any(|context| {
-                    self.facts
-                        .semantic
-                        .context_view(self.facts.semantic.contexts.get(*context))
-                        .facts()
-                        .any(|fact| {
-                            let (expression, value) = match fact.payload {
-                                FactPayload::BooleanValue { expression, value } => {
-                                    (expression, value)
-                                }
-                                FactPayload::BooleanExpression(expression)
-                                | FactPayload::ContractBooleanExpression { expression, .. } => {
-                                    (expression, true)
-                                }
-                                _ => return false,
-                            };
-                            self.live_predicate(
-                                expression,
-                                value,
-                                &subject,
-                                case,
-                                required,
-                                depth + 1,
-                            )
-                        })
-                })
-            }
+            _ => can_read_live && self.live_case(expression, &[], case, required, depth),
         }
+    }
+
+    fn live_case(
+        &self,
+        expression: ExpressionHandle,
+        projection: &[PlaceSegment],
+        case: SymbolHandle,
+        required: bool,
+        depth: usize,
+    ) -> bool {
+        let Some(mut subject) = self.stable_place(expression) else {
+            return false;
+        };
+        subject.segments.extend_from_slice(projection);
+        self.contexts.iter().any(|context| {
+            self.facts
+                .semantic
+                .context_view(self.facts.semantic.contexts.get(*context))
+                .facts()
+                .any(|fact| {
+                    let (expression, value) = match fact.payload {
+                        FactPayload::BooleanValue { expression, value } => (expression, value),
+                        FactPayload::BooleanExpression(expression)
+                        | FactPayload::ContractBooleanExpression { expression, .. } => {
+                            (expression, true)
+                        }
+                        _ => return false,
+                    };
+                    self.live_predicate(expression, value, &subject, case, required, depth + 1)
+                })
+        })
     }
 
     fn stable_place(&self, expression: ExpressionHandle) -> Option<CanonicalPlace> {
@@ -288,6 +364,98 @@ mod tests {
     use super::*;
 
     #[test]
+    fn result_field_observation_requires_a_complete_return_write_frame() {
+        let source = "data Message { case Empty; case Data(value: u8); }
+            data Wrapper { message: Message; later: bool; }
+            machine make(value: Message) -> Wrapper requires value in Message::Data;
+            ensures result.message in Message::Data;
+            { Wrapper { message: value, later: 1 == 1 } }";
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+        let typed =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let checked = crate::lower_typed_trees(typed).unwrap();
+        let exit = checked
+            .facts
+            .flow
+            .control
+            .exits
+            .iter()
+            .next()
+            .unwrap()
+            .1
+            .clone();
+        let contract = checked
+            .facts
+            .proof
+            .contract_fact_refs
+            .span_or_empty(exit.ensures)[0]
+            .fact;
+        let source_fact = checked.facts.proof.contract_facts.get(contract).fact;
+        let requirement = *checked.facts.semantic.facts.iter().find(|(_, fact)| {
+            matches!(fact.payload, FactPayload::ContractBooleanExpression { fact, .. } if fact == source_fact)
+        }).unwrap().1;
+        let preserves_live_reads = |checked: &checked_trees::CheckedTrees| {
+            let frames = validation::CallFrameResolver::new(&checked.typed).unwrap();
+            CaseObservation::for_requirement(
+                &checked.typed,
+                &checked.facts,
+                &exit,
+                &[],
+                &requirement,
+                Some(&frames),
+            )
+            .unwrap()
+            .return_has_no_writes
+        };
+        assert!(preserves_live_reads(&checked));
+        let ExpressionNode::StructLiteral(literal) = checked
+            .typed
+            .expression_table
+            .expression(exit_return_expression(&checked.typed, &exit))
+        else {
+            panic!("returned aggregate")
+        };
+        let later = checked
+            .typed
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .find(|field| field.name.as_str() == "later")
+            .unwrap()
+            .value;
+        let mut selected = checked.clone();
+        selected
+            .facts
+            .operators
+            .uses
+            .append(checked_trees::CheckedOperatorUseFact {
+                expression: later,
+                status: checked_trees::CheckedOperatorResolutionStatus::Resolved,
+                ..Default::default()
+            });
+        assert!(!preserves_live_reads(&selected));
+        let mut atomic = checked.clone();
+        let operand = atomic
+            .typed
+            .expression_table
+            .insert(ExpressionNode::Boolean(false));
+        *atomic.typed.expression_table.expression_mut(later) =
+            ExpressionNode::Atomic(typed_trees::expression::TableAtomicExpression {
+                value: operand,
+                result: operand,
+                ordering: language_core::atomic::AtomicOrderingPlan::Swap(
+                    language_core::atomic::MemoryOrdering::NoOrdering,
+                ),
+                result_custody: language_core::atomic::AtomicExpressionResultCustody::Scalar,
+            });
+        assert!(!preserves_live_reads(&atomic));
+    }
+
+    #[test]
     fn result_case_observation_rejects_reassociated_fact_and_exit_owners() {
         let source = "data Message { case Empty; case Data(value: u8); }
             machine first() -> Message ensures result in Message::Data; { Message::Data { value: 1 } }
@@ -325,8 +493,15 @@ mod tests {
             panic!("Boolean requirement");
         };
         let observe = |exit: &FlowExitFact, requirement: &facts::Fact| {
-            CaseObservation::for_requirement(&checked.typed, &checked.facts, exit, &[], requirement)
-                .and_then(|observer| observer.observe(expression))
+            CaseObservation::for_requirement(
+                &checked.typed,
+                &checked.facts,
+                exit,
+                &[],
+                requirement,
+                None,
+            )
+            .and_then(|observer| observer.observe(expression))
         };
         assert_eq!(observe(first, &requirement), Some(true));
         let mut changed = first.clone();

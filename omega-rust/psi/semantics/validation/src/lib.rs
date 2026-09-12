@@ -13,7 +13,7 @@ mod content_conservation;
 mod content_projections;
 mod contract_entailment;
 mod contract_results;
-pub use contract_results::reserved_result_owner;
+pub use contract_results::{ReservedResultPlace, reserved_result_owner, reserved_result_place};
 mod data;
 mod declaration_visibility;
 mod default_domains;

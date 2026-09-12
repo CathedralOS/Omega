@@ -138,6 +138,27 @@ fn contract_expression_place(
         return None;
     }
 
+    if let Some(result) = validation::reserved_result_place(program, expression) {
+        let owner_matches = match contract.owner {
+            ContractProofFactOwner::Machine { machine_symbol }
+            | ContractProofFactOwner::MachineState { machine_symbol, .. } => {
+                machine_symbol == result.machine_symbol
+            }
+            _ => false,
+        };
+        if contract.kind != ContractProofFactKind::Ensures || !owner_matches {
+            return None;
+        }
+        // Reserved results have no source binder symbol. Keep their exact
+        // occurrence root and declared field coordinates, rather than an opaque
+        // expression with unresolved fields that review cannot reconstruct.
+        let mut place = facts.append_expression_place(result.root);
+        for segment in result.segments {
+            place = append_place_segment(facts, place, segment);
+        }
+        return Some(place);
+    }
+
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner) => {
             contract_expression_place(program, facts, contract, inner.target)

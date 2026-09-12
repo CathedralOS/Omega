@@ -921,7 +921,7 @@ fn collect_contract_facts(
     }
 }
 
-fn collect_expression_tree(
+pub(crate) fn collect_expression_tree(
     program: &TypedTrees,
     expression: ExpressionHandle,
     handles: &mut Vec<ExpressionHandle>,

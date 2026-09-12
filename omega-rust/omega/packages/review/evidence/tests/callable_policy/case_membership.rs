@@ -17,6 +17,102 @@ crashes Abort left in Message::Data;
 "#;
 
 #[test]
+fn projected_result_case_membership_retains_the_declared_field() {
+    let fixture = Fixture::local(
+        r#"
+pub data Message { case Empty; case Data(value: u8); }
+pub data Wrapper { message: Message; }
+pub machine make() -> Wrapper
+ensures result.message in Message::Data;
+{ Wrapper { message: Message::Data { value: 1 } } }
+"#,
+    );
+    let policy = project(&fixture);
+    let [contract] = callable(&policy, "make").contracts() else {
+        panic!("one guarantee");
+    };
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::CaseMembership {
+        subject,
+        case,
+    }) = contract.fact()
+    else {
+        panic!("field tag guarantee")
+    };
+    let PackageReviewContractExpression::Member {
+        receiver,
+        member,
+        case_variant,
+    } = subject.as_ref()
+    else {
+        panic!("declared result field")
+    };
+    assert_eq!(receiver.as_ref(), &PackageReviewContractExpression::Result);
+    assert_eq!(member.path(), "Wrapper::message");
+    assert_eq!(case.path(), "Message::Data");
+    assert_eq!(*case_variant, None);
+    assert_eq!(
+        member.owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    let baseline = package_evidence::project_checked_package_policy(
+        &fixture.checked,
+        fixture.target,
+        package_identity(),
+    )
+    .expect("projected result composes into whole package policy");
+    assert_eq!(
+        baseline,
+        PackagePolicyBaseline::recover_canonical(
+            &baseline.canonical_bytes().unwrap(),
+            PackagePolicyRecoveryLimits::default(),
+        )
+        .unwrap()
+    );
+
+    let (expression, field) = fixture
+        .checked
+        .expression_table
+        .iter_expressions()
+        .find_map(|(handle, node)| {
+            let typed_trees::expression::ExpressionNode::Member(member) = node else {
+                return None;
+            };
+            let result = validation::reserved_result_place(&fixture.checked.typed, handle)?;
+            let [facts::PlaceSegment::Field { symbol }] = result.segments.as_slice() else {
+                return None;
+            };
+            (member.member.as_str() == "message").then_some((handle, *symbol))
+        })
+        .expect("exact result field occurrence");
+    let mut missing = fixture.checked.clone();
+    let coordinates = missing
+        .facts
+        .semantic
+        .place_segments
+        .iter()
+        .filter_map(|(handle, segment)| {
+            (*segment == (facts::PlaceSegment::Field { symbol: field })).then_some(handle)
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        !coordinates.is_empty(),
+        "retained dependency coordinates exist"
+    );
+    for handle in coordinates {
+        *missing.facts.semantic.place_segments.get_mut(handle) = facts::PlaceSegment::default();
+    }
+    assert!(project_checked_callable_policy(&missing, fixture.target, package_identity()).is_err());
+    let mut foreign = fixture.checked.clone();
+    let typed_trees::expression::ExpressionNode::Member(member) =
+        foreign.typed.expression_table.expression_mut(expression)
+    else {
+        panic!("member")
+    };
+    member.member_symbol = fixture.checked.machines()[0].symbol;
+    assert!(project_checked_callable_policy(&foreign, fixture.target, package_identity()).is_err());
+}
+
+#[test]
 fn result_case_membership_retains_the_declared_result_carrier() {
     let fixture = Fixture::local(
         r#"

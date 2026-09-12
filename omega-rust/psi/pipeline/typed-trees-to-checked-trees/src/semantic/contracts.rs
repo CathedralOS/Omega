@@ -46,7 +46,22 @@ pub(super) fn append_contract_semantic_facts(
                     first.expect("a non-empty dependency set must append a fact")
                 }
             }
-            ContractProofFactKind::Ensures => facts.append_fact(declaration_fact),
+            ContractProofFactKind::Ensures => {
+                let fact = facts.append_fact(declaration_fact);
+                // Keep declaration-owned dependency coordinates for review,
+                // just as requires retain their read subjects. These remain
+                // obligations: do not append an assumption context or import
+                // the extra rows into an executable exit's premises.
+                for place in places::contract_fact_dependency_places(program, facts, contract) {
+                    if !facts.fact_place_equals(declaration_fact.place, place) {
+                        facts.append_fact(Fact {
+                            place: FactPlace::Place(place),
+                            ..declaration_fact
+                        });
+                    }
+                }
+                fact
+            }
         };
         let contract_index = usize::try_from(contract_handle.arena_index())
             .expect("contract fact handle index overflow");

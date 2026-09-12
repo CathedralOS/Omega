@@ -219,9 +219,9 @@ pub fn has_exact_case_membership_meaning(
                 operand_type(program, machine, state, subject).or_else(|| {
                     // Reserved result spelling has meaning only at its exact
                     // authored postcondition occurrence in this machine.
-                    crate::reserved_result_owner(program, subject)
-                        .filter(|(owner, _)| *owner == machine.symbol)
-                        .map(|(_, result_type)| result_type)
+                    crate::reserved_result_place(program, subject)
+                        .filter(|place| place.machine_symbol == machine.symbol)
+                        .map(|place| place.type_reference)
                 })
             },
         )

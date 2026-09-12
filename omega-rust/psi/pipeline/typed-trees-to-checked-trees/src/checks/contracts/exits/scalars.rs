@@ -54,8 +54,14 @@ pub(super) fn proves<'program>(
     if evaluator.proves_immutable_result_comparison(expression) {
         return true;
     }
-    let cases =
-        super::cases::CaseObservation::for_requirement(program, facts, exit, contexts, requirement);
+    let cases = super::cases::CaseObservation::for_requirement(
+        program,
+        facts,
+        exit,
+        contexts,
+        requirement,
+        call_frames,
+    );
     evaluate_with_atoms(
         program,
         expression,

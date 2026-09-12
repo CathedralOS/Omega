@@ -167,7 +167,10 @@ subjects without inventing an executable receiver. A same-spelled parameter from
 another signature cannot supply that scope. A reserved `result` rejoins its exact
 authored postcondition occurrence and owning machine's declared return carrier;
 an equal carrier on another machine or a shadowing parameter is not that result.
-Domain/data subjects and projected result subjects still need their own custody.
+Ordinary result field paths retain that root and exact declaration-owned field
+coordinates, checked against both semantic dependency rows and member selections.
+Domain/data subjects and result projections through indexes, case payloads or
+unsubstituted generic carriers still need their own custody.
 Legacy `proposition` declarations
 remain subject to the [proof-contract migration](../../../../../wiki/spec/proofs/contracts.md#delivery-obligations);
 their implementation fences are not requests to expand the retired surface.

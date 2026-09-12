@@ -8,6 +8,94 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::TypeReferenceHandle;
 
+/// Temporary interpretation of an exact authored result occurrence and its
+/// declaration-owned field coordinates, without inventing a storage symbol.
+#[derive(Debug, Clone)]
+pub struct ReservedResultPlace {
+    pub machine_symbol: symbols::SymbolHandle,
+    pub root: ExpressionHandle,
+    pub type_reference: TypeReferenceHandle,
+    pub segments: Vec<facts::PlaceSegment>,
+}
+
+/// Resolve ordinary field projections rooted at the reserved contract result.
+/// Both the root and complete projection must occur in the same owning ensures.
+pub fn reserved_result_place(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<ReservedResultPlace> {
+    let mut root = expression;
+    let mut members = Vec::new();
+    loop {
+        if !program.expression_table.expression_is_valid(root) || members.len() >= 128 {
+            return None;
+        }
+        match program.expression_table.expression(root) {
+            ExpressionNode::Member(member) if member.case_variant.is_none() => {
+                members.push(member);
+                root = member.receiver;
+            }
+            ExpressionNode::Name(_) => break,
+            _ => return None,
+        }
+    }
+    let (machine_symbol, mut type_reference) = reserved_result_owner(program, root)?;
+    if expression != root
+        && contract_occurrence_owner(program, root, expression)? != (machine_symbol, type_reference)
+    {
+        return None;
+    }
+    let mut segments = Vec::with_capacity(members.len());
+    for member in members.into_iter().rev() {
+        let receiver = crate::places::unwrapped_type_reference(program, type_reference)?;
+        // A generic base alone does not instantiate its field telescope. Named
+        // specializations already carry the producer's concrete declaration.
+        let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(receiver)
+        else {
+            return None;
+        };
+        if !symbol.is_valid() || program.symbols.get(*symbol).kind != symbols::SymbolKind::Data {
+            return None;
+        }
+        let mut declarations = program
+            .data_definitions()
+            .iter()
+            .filter(|data| data.symbol == *symbol);
+        let data = declarations.next()?;
+        if declarations.next().is_some() {
+            return None;
+        }
+        let field = crate::places::exact_data_member_field(
+            program,
+            data,
+            member.member_symbol,
+            member.member.as_str(),
+            None,
+        )?;
+        let declaration = program.symbols.get(field.symbol);
+        if declaration.kind != symbols::SymbolKind::Field
+            || declaration.parent != data.symbol
+            || program.symbols.name(field.symbol) != field.name.as_str()
+            || !program
+                .type_reference_table
+                .contains_type_reference(field.type_reference)
+        {
+            return None;
+        }
+        segments.push(facts::PlaceSegment::Field {
+            symbol: field.symbol,
+        });
+        type_reference = field.type_reference;
+    }
+    Some(ReservedResultPlace {
+        machine_symbol,
+        root,
+        type_reference,
+        segments,
+    })
+}
+
 pub(crate) fn type_reference(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -38,6 +126,14 @@ pub fn reserved_result_owner(
         return None;
     }
 
+    contract_occurrence_owner(program, expression, expression)
+}
+
+fn contract_occurrence_owner(
+    program: &TypedTrees,
+    root: ExpressionHandle,
+    expression: ExpressionHandle,
+) -> Option<(symbols::SymbolHandle, TypeReferenceHandle)> {
     let mut owner = None;
     for machine in program.machines() {
         let Some(entry) = program.machine_states(machine).first() else {
@@ -71,7 +167,7 @@ pub fn reserved_result_owner(
                     }
                 }
             }
-            if !nodes.contains(&expression) {
+            if !nodes.contains(&expression) || !nodes.contains(&root) {
                 continue;
             }
             // Spelling is only the reserved-form discriminator. The full
@@ -98,6 +194,146 @@ pub fn reserved_result_owner(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const PROJECTED_RESULT: &str = "data Message { case Empty; case Data(value: u8); }
+        data Inner { message: Message; }
+        data Wrapper { inner: Inner; }
+        data Foreign { message: Message; }
+        machine make() -> Wrapper ensures result.inner.message in Message::Data;
+        { Wrapper { inner: Inner { message: Message::Data { value: 1 } } } }";
+
+    fn projected_occurrence(program: &TypedTrees) -> ExpressionHandle {
+        program.expression_table.iter_expressions().find_map(|(handle, expression)| {
+            matches!(expression, ExpressionNode::Member(member) if member.member.as_str() == "message")
+                .then_some(handle)
+        }).expect("authored message projection")
+    }
+
+    #[test]
+    fn nested_result_fields_retain_exact_root_owner_and_coordinates() {
+        let program = typed(PROJECTED_RESULT);
+        let expression = projected_occurrence(&program);
+        let place = reserved_result_place(&program, expression).unwrap();
+        assert_eq!(place.machine_symbol, program.machines()[0].symbol);
+        assert_eq!(place.segments.len(), 2);
+        let mut expected_owner = program
+            .data_definitions()
+            .iter()
+            .find(|data| data.name.as_str() == "Wrapper")
+            .unwrap()
+            .symbol;
+        for segment in &place.segments {
+            let facts::PlaceSegment::Field { symbol } = segment else {
+                panic!("ordinary field");
+            };
+            assert_eq!(program.symbols.get(*symbol).parent, expected_owner);
+            let field = program
+                .data_members
+                .iter()
+                .find_map(|(_, member)| match member {
+                    typed_trees::data::DataMember::Field(field) if field.symbol == *symbol => {
+                        Some(field)
+                    }
+                    _ => None,
+                })
+                .unwrap();
+            expected_owner = program
+                .type_reference_table
+                .type_symbol(field.type_reference);
+        }
+        assert_eq!(program.symbols.name(expected_owner), "Message");
+        assert_eq!(
+            program
+                .type_reference_table
+                .type_symbol(place.type_reference),
+            expected_owner
+        );
+        assert_eq!(reserved_result_owner(&program, expression), None);
+        let root = reserved_result_place(&program, place.root).unwrap();
+        assert!(root.segments.is_empty());
+        assert_ne!(root.type_reference, place.type_reference);
+    }
+
+    #[test]
+    fn projected_result_rejects_unauthored_graft_and_foreign_selection() {
+        let program = typed(PROJECTED_RESULT);
+        let expression = projected_occurrence(&program);
+        let mut grafted = program.clone();
+        let forged = grafted
+            .expression_table
+            .insert(program.expression_table.expression(expression).clone());
+        assert!(reserved_result_place(&grafted, forged).is_none());
+        let foreign = program
+            .data_definitions()
+            .iter()
+            .find(|data| data.name.as_str() == "Foreign")
+            .unwrap();
+        let typed_trees::data::DataMember::Field(foreign_field) = &program.data_members(foreign)[0]
+        else {
+            panic!("foreign field");
+        };
+        for symbol in [foreign_field.symbol, program.machines()[0].symbol] {
+            let mut altered = program.clone();
+            let ExpressionNode::Member(member) =
+                altered.expression_table.expression_mut(expression)
+            else {
+                panic!("member");
+            };
+            member.member_symbol = symbol;
+            assert!(reserved_result_place(&altered, expression).is_none());
+        }
+    }
+
+    #[test]
+    fn projected_result_rejects_forged_field_row_owner_and_stale_type() {
+        let program = typed(PROJECTED_RESULT);
+        let expression = projected_occurrence(&program);
+        let inner = program
+            .data_definitions()
+            .iter()
+            .find(|data| data.name.as_str() == "Inner")
+            .unwrap();
+        let foreign = program
+            .data_definitions()
+            .iter()
+            .find(|data| data.name.as_str() == "Foreign")
+            .unwrap();
+        let typed_trees::data::DataMember::Field(foreign_field) = &program.data_members(foreign)[0]
+        else {
+            panic!("foreign field");
+        };
+        for corrupt_owner in [true, false] {
+            let mut altered = program.clone();
+            let ExpressionNode::Member(member) =
+                altered.expression_table.expression_mut(expression)
+            else {
+                panic!("member");
+            };
+            member.member_symbol = symbols::SymbolHandle::invalid();
+            let typed_trees::data::DataMember::Field(field) =
+                altered.data_members.get_mut(inner.members.start())
+            else {
+                panic!("inner field");
+            };
+            if corrupt_owner {
+                field.symbol = foreign_field.symbol;
+            } else {
+                field.type_reference = TypeReferenceHandle::invalid();
+            }
+            assert!(reserved_result_place(&altered, expression).is_none());
+        }
+    }
+
+    #[test]
+    fn projected_result_respects_shadowing_and_ensures_scope() {
+        for source in [
+            "data Wrapper { message: u8; } machine value(result: Wrapper) -> Wrapper ensures result.message == 1; { result }",
+            "data Wrapper { message: u8; } machine value() -> Wrapper requires result.message == 1; { Wrapper { message: 1 } }",
+        ] {
+            let program = typed(source);
+            assert!(reserved_result_place(&program, projected_occurrence(&program)).is_none());
+        }
+    }
 
     fn typed(source: &str) -> TypedTrees {
         let tokens = source_files_to_tokens::Lexer::new(source)

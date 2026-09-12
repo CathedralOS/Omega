@@ -632,7 +632,9 @@ Owners include
   the existing result-bearing producer still requires a local-result binding.
 
   Package contract review still needs declaration-owned subject contexts for
-  nominal case membership in domain/data invariants and projected result subjects.
+  nominal case membership in domain/data invariants. Result projections through
+  indexes, case payloads and generic field substitution still need their exact
+  carrier/value custody beyond ordinary declaration-owned field paths.
   Reuse Psi's exact carrier/case relation; do not manufacture a machine owner
   from the classifier. The retired `proposition` declaration surface belongs to
   **PROOF-CONTRACT-MIGRATION**, not an independent membership-extension task.
