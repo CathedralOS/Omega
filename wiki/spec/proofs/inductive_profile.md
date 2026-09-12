@@ -3,9 +3,10 @@
 ## Scope and checking authority
 
 This is the selected extension of the [predicative reference core](foundation.md).
-It adds relevant identity, a two-element type and W-types. Indexed families are
-checked derived constructions, not a second primitive inductive-declaration
-mechanism. It adds no source keyword, anonymous machine or authored `-> Prop`.
+It adds typed function eta, relevant identity, a two-element type and W-types.
+Indexed families are checked derived constructions, not a second primitive
+inductive-declaration mechanism. It adds no source keyword, anonymous machine
+or authored `-> Prop`.
 Source-level mathematical binders remain [separately open](../../../OWNER_QUESTIONS.md#mathematical-binders).
 
 The rules below are requirements, not evidence of completed implementation or
@@ -17,6 +18,36 @@ All notation here is kernel mathematics. `=` below is the relevant identity
 type; `≡` is definitional conversion. Level variables are explicit and checked.
 The reference core's formation, substitution, conversion and strict-layer rules
 remain in force. These additions grant no universe resizing or equality reflection.
+
+## Typed function eta
+
+Extend conversion with dependent-function eta at one checked function type:
+
+```text
+Γ ⊢ f : Π(x : A). B(x)             x is fresh for Γ and f
+────────────────────────────────────────────────────────
+Γ ⊢ (x ↦ f(x)) ≡ f : Π(x : A). B(x)
+```
+
+The premise includes well-formedness of the dependent function type. Both
+terms must check at that same type, with the same domain, dependent codomain and
+level application. The rule applies to every Π sort combination admitted by
+the reference core; it creates no additional function types or elimination
+permissions. When this function type is strict, equality of its inhabitants is
+already covered by irrelevance.
+
+Typedness is load-bearing. This is a conversion judgment, not an unrestricted
+syntactic rewrite deleting any wrapper shaped like `x ↦ f(x)`. It grants neither
+function extensionality (equality from pointwise proofs), equality reflection,
+K/UIP nor new mathematical assumptions. Assumption closure remains independent
+of conversion. No source lambda, anonymous machine, function-pointer identity
+rule or runtime optimization is introduced.
+
+This is an explicit extension to the reference core's function beta and pair eta.
+Its combined justification must cover substitution, preservation, normalization
+and decidable conversion, including relevant/strict contexts and checked levels.
+The conversion algorithm must be justified against the typed judgment; success
+in another proof assistant is not that justification.
 
 ## Primitive rules
 
@@ -98,15 +129,13 @@ theorem. Do not import that extra assumption into the basic construction.
 Transplantation must justify the rules in this exact theory, including strict
 contexts, universes, substitution and conversion.
 
-**Undetermined conversion dependency:** that construction rebuilds a child
-function as `b ↦ (fst(g(b)),snd(g(b)))`. The reference core's pair eta reduces
-this to `b ↦ g(b)`, but its published rules do not supply function eta reducing
-that function to `g`. The cited constructor-computation proof therefore cannot
-be transferred unchanged. The [function-eta decision](../../../OWNER_QUESTIONS.md#indexed-encoding-function-eta)
-must settle an explicit conversion extension or an eta-free construction before
-this indexed eliminator's definitional computation is admitted. Function eta
-is not function extensionality, and neither is silently imported here. The W
-primitive and the requirement for checked indexed computation remain selected.
+The construction rebuilds a child function as `b ↦ (fst(g(b)),snd(g(b)))`.
+Pair eta identifies this with `b ↦ g(b)`; the selected typed function eta closes
+it to `g`, even when `g` is an arbitrary variable. This conversion dependency
+and its justification cost are part of the profile, not an imported Coq default.
+Concrete instances may already compute without this step; the requirement is
+the general dependent computation judgment. Merely replacing that judgment with
+a propositional law would change the contract, and such a law itself needs proof.
 
 ## Declaration correspondence and strict logic
 
@@ -145,6 +174,14 @@ data. Include case type equalities and payload couplings. Check dependent
 induction and constructor computation, plus negative recursion, invalid universe
 constraints and unauthorized strict elimination. The current proof-rule count
 is not the definition of the derivation-family customer.
+
+For constructor computation, expose the constructor but keep its supplied child
+function arbitrary (neutral), not only an already-expanded lambda. Include
+dependent motives, fresh-binder renaming and all admitted Π sort combinations.
+Reject mismatched function types and variable capture; eta alone must not turn
+pointwise equality evidence into function equality. The eliminator need not
+reduce on an entirely neutral tree. Successful concrete evaluation is not a
+substitute for the general constructor-computation check.
 
 Justification includes the added kernel rules, the indexed scheme and its
 applications; no single example discharges preservation, conversion decidability

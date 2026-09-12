@@ -612,10 +612,10 @@ Owners include
   formation, constructor, dependent-induction and computation correspondence,
   then independently check its declaration applications. Structural round trips
   do not establish meaning. General source punctuation is not a kernel blocker.
-  **OWNER-BLOCKED, indexed conversion only:** resolve the
-  [function-eta dependency](OWNER_QUESTIONS.md#indexed-encoding-function-eta)
-  before admitting the cited indexed eliminator's definitional computation.
-  Reference-core, identity/W checking and assumption closure can proceed.
+  Implement [typed function eta](wiki/spec/proofs/inductive_profile.md#typed-function-eta)
+  in conversion, preserving exact Π types, freshness, levels and admitted sort
+  combinations. Justify substitution, preservation, normalization and decidable
+  conversion for the combined rules; no untyped wrapper-deletion shortcut.
   Acceptance: independently checked universe-polymorphic dependent functions
   and pairs, strict same-statement conversion and relevant witness separation;
   malformed universes, capture-changing substitution and illegal elimination
@@ -627,8 +627,11 @@ Owners include
 
   Demonstrate Vector length indices, derivation context/conclusion indices,
   mutual and nested strictly-positive families with definitional constructor
-  computation. Reject malformed encodings, negative recursion, bad universes
-  and illegal strict elimination; separate source invalidity, unsupported valid
+  computation with a visible constructor and arbitrary neutral child function,
+  not only concrete lambdas. Include dependent motives and capture/type-mismatch
+  controls; pointwise equality alone grants no function equality. Reject malformed
+  encodings, negative recursion, bad universes and illegal strict elimination;
+  separate source invalidity, unsupported valid
   encoding and producer defects. Measure term size, retained storage and checking
   cost in the application checker, not an assumed nested bootstrap environment.
   Complete rule/encoding metatheory and implementation evidence before claiming
@@ -702,7 +705,7 @@ Owners include
 
   Bounded current-rule production and the selected kernel profile are actionable.
   General certificates depend on `PROOF-KERNEL-CORE`'s rule and encoding evidence,
-  including its narrow indexed-conversion decision where needed. Common checking
+  including the selected typed-eta conversion justification. Common checking
   authority is settled in the [publication contract](wiki/spec/proofs/publication.md).
   Retain closure over complete checked declaration dependencies,
   including statement/type references surviving neither erasure nor final normal

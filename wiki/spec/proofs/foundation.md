@@ -20,14 +20,14 @@ The impredicative variant and implementation-specific extensions are not silentl
 part of this selection.
 
 The [W-based inductive profile](inductive_profile.md) supplies the selected
-relevant identity, two-element type, W rules and derived indexed encoding.
+typed function eta, relevant identity, two-element type, W rules and derived
+indexed encoding.
 [Set quotients](quotients.md#set-quotient-foundation) use an explicit assumption-bearing
 interface, without new kernel reduction rules. These choices are settled;
 their combined metatheory, checked encodings and implementation remain required
 before claiming a complete verified profile. The reference paper does not supply
-those results automatically. The indexed construction's
-[function-eta dependency](../../../OWNER_QUESTIONS.md#indexed-encoding-function-eta)
-is undetermined; no extra conversion rule is implicitly admitted. Source
+those results automatically. [Typed function eta](inductive_profile.md#typed-function-eta)
+is an explicit conversion extension, not function extensionality. Source
 elaboration and PCC integration have separately named owners. The existing Rust
 and bootstrap checkers do not implement this general core yet.
 
@@ -224,7 +224,7 @@ ledger. Each example needs a valid derivation and an invalid control:
 
 These are discriminating controls, not a proof of consistency or mathematical
 completeness. [Source punctuation](../../../OWNER_QUESTIONS.md#mathematical-binders)
-and the indexed encoding's function-eta dependency remain open. The
+remains open. The
 [application PCC contract](publication.md) fixes the common
 checking authority and separate receiver-owned obligation interpretation;
 implementation must supply their exact rules and soundness evidence.

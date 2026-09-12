@@ -13,7 +13,7 @@ Failure to prove a statement is not proof of its negation.
 
 This chapter teaches the intended model. The [foundation](../spec/proofs/foundation.md)
 selects dependent mathematics, proof-relevant identity and strict logical proofs;
-its [remaining source and conversion questions](../spec/proofs/contracts.md#open-joins) are explicit.
+its [remaining source forms](../spec/proofs/contracts.md#open-joins) are explicit.
 The current [source automation](../../omega-rust/psi/semantics/validation/README.md#source-proof-automation)
 implements a bounded fragment. Schematic examples below do not claim complete
 compiler support or supply omitted proofs.
@@ -363,8 +363,16 @@ with indexed families derived by checked constructions. This supports targets
 such as vectors indexed by length and derivations indexed by their assumptions
 and conclusion. Authors still use ordinary data and proof machines, not W-type
 syntax. The [inductive profile](../spec/proofs/inductive_profile.md) specifies
-the required rules and the remaining conversion decision; checked encodings and
-full implementation coverage remain required.
+the selected rules; checked encodings and full implementation coverage remain
+required. These are mathematical trees, not a required heap layout: vectors can
+still use contiguous storage and loops can still lower to back-edges.
+
+The checker identifies a mathematical function `f` with its trivial forwarding
+wrapper `x ↦ f(x)` at the same function type. This is *typed function eta*;
+it prevents the encoding's split-and-rebuild operations from leaving a spurious
+distinction when reasoning about an arbitrary function. It does not identify
+arbitrary functions from proofs that their outputs agree, and introduces no
+source syntax or runtime rewrite requirement.
 
 A proof machine recurses under the ordinary `terminates by` rule. Transition
 cases provide case analysis; the smaller recursive call provides the induction
