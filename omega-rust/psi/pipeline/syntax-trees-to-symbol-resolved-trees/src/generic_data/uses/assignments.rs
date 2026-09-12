@@ -2,52 +2,13 @@
 
 use super::super::*;
 
-/// Give a bare generic record literal the exact closed instance selected by an
-/// explicitly typed local. This is contextual elaboration, not inference: only
-/// `let value: Box<i32> = Box { ... }` (and record literals nested beneath that
-/// known destination shape) are rewritten. Calls, returns, assignments, generic
-/// sums, and literals without an annotated local destination remain untouched.
-pub(in crate::generic_data) fn relabel_closed_data_uses_in_annotated_locals(
-    syntax: &mut SyntaxTrees,
-    synthesized_origins: &HashMap<String, String>,
-) {
-    let locals = syntax
-        .root_items()
-        .filter_map(|item| match item {
-            Item::Machine(machine) if machine.type_parameters.is_empty() => Some(machine),
-            _ => None,
-        })
-        .flat_map(|machine| syntax.tables.items.state_handles(machine.states))
-        .flat_map(|state| {
-            let state = syntax.tables.items.state(*state);
-            syntax.tables.items.statements(state.statements)
-        })
-        .filter_map(
-            |statement| match syntax.tables.statements.statement(*statement) {
-                StatementNode::LocalData(local) if local.initial_value.is_valid() => {
-                    Some((local.type_reference, local.initial_value))
-                }
-                _ => None,
-            },
-        )
-        .collect::<Vec<_>>();
-
-    for (expected_type, expression) in locals {
-        relabel_data_literal_for_expected_type(
-            syntax,
-            expression,
-            expected_type,
-            synthesized_origins,
-        );
-    }
-}
-
 /// An assignment target is another explicit destination type. Relabel a bare
 /// generic literal only when that type is available directly from a local or
 /// an attached data field; computed targets remain fail-closed.
 pub(in crate::generic_data) fn relabel_closed_data_uses_in_exact_assignments(
     syntax: &mut SyntaxTrees,
-    synthesized_origins: &HashMap<String, String>,
+    instances: &[Instantiation],
+    selection: Option<&constant_selection::ConstantSelection>,
 ) {
     let concrete_states = syntax
         .root_items()
@@ -103,16 +64,26 @@ pub(in crate::generic_data) fn relabel_closed_data_uses_in_exact_assignments(
             })
             .unwrap_or_default();
 
-        let assignments = statements
-            .iter()
-            .filter_map(
-                |statement| match syntax.tables.statements.statement(*statement) {
-                    StatementNode::Assignment(assignment) => Some(*assignment),
-                    _ => None,
-                },
-            )
-            .collect::<Vec<_>>();
-        for assignment in assignments {
+        for (index, statement) in statements.iter().enumerate() {
+            let frontier = ConstructorFrontier {
+                parameters: state.parameters,
+                prior_statements: &statements[..index],
+            };
+            let assignment = match syntax.statements.statement(*statement) {
+                StatementNode::LocalData(local) => {
+                    relabel_data_literal_for_expected_type(
+                        syntax,
+                        local.initial_value,
+                        local.type_reference,
+                        instances,
+                        selection,
+                        &frontier,
+                    );
+                    continue;
+                }
+                StatementNode::Assignment(assignment) => *assignment,
+                _ => continue,
+            };
             let expected_type = match syntax.expressions.expression(assignment.target) {
                 ExpressionNode::Name(path) => {
                     let [name] = syntax.expressions.identifier_path_members(*path) else {
@@ -135,7 +106,9 @@ pub(in crate::generic_data) fn relabel_closed_data_uses_in_exact_assignments(
                     syntax,
                     assignment.value,
                     expected_type,
-                    synthesized_origins,
+                    instances,
+                    selection,
+                    &frontier,
                 );
             }
         }

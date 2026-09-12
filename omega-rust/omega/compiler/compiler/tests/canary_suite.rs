@@ -348,6 +348,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "dependent/valuation_order_cycle",
     "expressions/match_float_patterns",
     "expressions/match_float_interpretation",
+    "modules/closed_sum_constructors",
     "modules/computed_constant_initializers",
     "expressions/declared_operator_match_result",
     "expressions/anonymous_numeric_match_subject",

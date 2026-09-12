@@ -38,6 +38,8 @@ mod fact_division_tests;
 mod module_constant_tests;
 #[cfg(test)]
 mod remainder_tests;
+#[cfg(test)]
+mod sum_constructor_tests;
 
 use arguments::*;
 use const_evaluation::*;

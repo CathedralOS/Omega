@@ -227,8 +227,6 @@ pub(super) fn desugar_generic_data_instances_with_selection(
     // >=1 Generic node to Named (permanent) or stops, and the distinct concrete
     // spellings are finite.
     let mut synthesized: Vec<Instantiation> = Vec::new();
-    let mut synthesized_origins: HashMap<String, String> = HashMap::new();
-    let mut synthesized_sum_instances: HashMap<String, HashSet<String>> = HashMap::new();
     loop {
         let positions = collect_type_reference_positions(syntax);
         let mut rewrites: Vec<PendingRewrite> = Vec::new();
@@ -251,30 +249,15 @@ pub(super) fn desugar_generic_data_instances_with_selection(
         if rewrites.is_empty() {
             break; // no more monomorphizable generic spellings
         }
-        for instance in &instantiations {
-            let base_info = &generic_data[&instance.template];
-            if !matches!(
-                generic_data_shape(syntax, base_info),
-                Some(GenericDataShape::PureSum | GenericDataShape::MixedSum)
-            ) {
-                continue;
-            }
-            synthesized_sum_instances
-                .entry(instance.base_name.clone())
-                .or_default()
-                .insert(instance.synthetic_name.clone());
-        }
         // Synthesize each not-yet-built instance: the base's members cloned with
         // the type parameters substituted for the arguments.
         for instance in &instantiations {
-            synthesized_origins.insert(instance.synthetic_name.clone(), instance.base_name.clone());
             if synthesized.iter().any(|prior| {
                 prior.template == instance.template
                     && prior.argument_identity == instance.argument_identity
             }) {
                 continue;
             }
-            synthesized.push(instance.clone());
             let base_info = &generic_data[&instance.template];
             let substitution: HashMap<String, TypeReferenceHandle> = base_info
                 .parameter_names
@@ -429,7 +412,7 @@ pub(super) fn desugar_generic_data_instances_with_selection(
                 }
                 count += 1;
             }
-            syntax.push_root_item(Item::Data(DataDefinition {
+            let declaration = syntax.push_root_item(Item::Data(DataDefinition {
                 // The closed instance is compiler-generated, but its mandatory
                 // derivation origin is the exact authored generic declaration.
                 // Retain that span under the synthetic semantic spelling so
@@ -448,6 +431,10 @@ pub(super) fn desugar_generic_data_instances_with_selection(
                 members: HandleSpan::from_parts(first, count),
                 quotient: None,
             }));
+
+            let mut materialized = instance.clone();
+            materialized.declaration = declaration;
+            synthesized.push(materialized);
 
             // CONTAINER instance: clone each attached machine with the type
             // parameters substituted (Phase 2 slice 1). The clone copies from
@@ -507,6 +494,15 @@ pub(super) fn desugar_generic_data_instances_with_selection(
                             .tables
                             .type_references
                             .replace_type_reference(handle, replacement);
+                        // Substitution of an already closed argument carries
+                        // its application, just as ordinary syntax copying does.
+                        let application =
+                            syntax.type_references.generic_application_origin(*argument);
+                        if application.is_valid() {
+                            syntax
+                                .type_references
+                                .retain_generic_application_origin(handle, application);
+                        }
                     }
                 }
                 for (handle, element_type, name) in syntax
@@ -569,17 +565,10 @@ pub(super) fn desugar_generic_data_instances_with_selection(
         }
     }
 
-    relabel_closed_data_uses_in_annotated_locals(syntax, &synthesized_origins);
-    relabel_closed_data_uses_in_exact_assignments(syntax, &synthesized_origins);
-    relabel_closed_data_uses_in_exact_calls_and_returns(syntax, &synthesized_origins);
-    relabel_closed_sum_memberships_from_local_types(syntax, &synthesized_origins);
-    let unique_sum_instances = synthesized_sum_instances
-        .into_iter()
-        .filter_map(|(base, instances)| {
-            (instances.len() == 1).then(|| (base, instances.into_iter().next().unwrap()))
-        })
-        .collect();
-    relabel_unique_closed_sum_paths(syntax, &unique_sum_instances);
+    relabel_closed_data_uses_in_exact_assignments(syntax, &synthesized, selection);
+    relabel_closed_data_uses_in_exact_calls_and_returns(syntax, &synthesized, selection);
+    relabel_closed_sum_memberships_from_local_types(syntax, &synthesized, selection);
+    relabel_unique_closed_sum_paths(syntax, &synthesized, selection);
 
     normalize_generic_template_const_expressions(syntax, &const_values, warnings)
         .map_err(|diagnostic| vec![diagnostic])?;

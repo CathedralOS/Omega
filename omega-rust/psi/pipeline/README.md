@@ -277,7 +277,7 @@ have checked-source coverage. Constant substitution
 uses exact module/package selection after lexical name assignment and retains
 the selected declaration at the original use. This is not completion of the
 [module/name contract](../../../wiki/spec/language/modules.md):
-foreign/generic constant attachments, sum and specialized template normalization,
+foreign/generic constant attachments and specialized template normalization,
 template attachments, trait defaults,
 operator homes, qualified case membership in declared-domain proof facts,
 and the remaining declaration forms still need exact
@@ -312,19 +312,27 @@ initializer. This keeps constructor selection in the declaring source and
 deep-copies aggregate children at each use without re-reading the base source;
 the [generated-source continuation](../../omega/compiler/compiler/generated_source.md)
 retains its exercising compiler command.
-Closed ordinary record applications select their exact module-owned template
+Closed ordinary record and sum applications select their exact module-owned template
 and complete argument tuple. Nominal arguments retain declaration identity,
 including nested applications and arrays; repeated qualification or narrow
 imports of the same declaration share one instance. Each authored use retains
 its own selection authority, and typed lowering independently checks its
 application against the generated carrier's retained origin. Same-leaf templates
 and arguments in different modules remain distinct.
+Constructors rejoin that same template and argument tuple, including copied
+nested applications and common/payload fields. Materialized declaration handles
+carry the instance relationship; generated display names are lookup metadata.
+The statement walk retains parameters and preceding locals before relabeling a
+constructor, and bare paths also retain ordinary constant-prefix precedence.
+Static `::` paths cannot project through runtime bindings; value projections
+remain ordinary `.` expressions. Check the sum customer with
+`omega --check tests/omega/pass/modules/closed_sum_constructors/main.omg`.
 The `package_compilation_inputs::module_generic_data` probes cover these
 checked-source relationships and rejection of private or transitive-only access.
 Generated-source normalization borrows the retained resolved predecessor for
 nominal argument and domain selection. It does not synthesize retained templates
 or expand the continuation's flat, root-owned nominal declaration boundary.
-Unsupported scoped constants, module-owned sum and specialized templates,
+Unsupported scoped constants, module-owned specialized templates,
 template attachments, traits, conformances, domains, and operators still reject
 before their bare-name transforms.
 Closed data applications select named constant indices through the shared

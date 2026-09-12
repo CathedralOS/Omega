@@ -1,0 +1,30 @@
+use first;
+use second;
+
+machine make() -> first::Choice<u64> {
+    first::Choice::Full { value: 7 }
+}
+machine make_boolean() -> first::Choice<bool> {
+    first::Choice::Full { value: true }
+}
+machine empty() -> second::Choice<u64> {
+    second::Choice::Empty
+}
+machine other() -> second::Choice<u64> {
+    second::Choice::Full { value: 9 }
+}
+machine packet() -> first::Packet<u64> {
+    first::Packet::Full { value: 11, stamp: 2 }
+}
+machine keep(value: first::Choice<u64>) -> first::Choice<u64> {
+    let forwarded: first::Choice<u64> = value;
+    forwarded
+}
+machine forward_call() -> first::Choice<u64> {
+    let value: first::Choice<u64> = make();
+    keep(value)
+}
+
+machine nested() -> first::Choice<second::Choice<u64>> {
+    first::Choice::Full { value: second::Choice::Full { value: 13 } }
+}
