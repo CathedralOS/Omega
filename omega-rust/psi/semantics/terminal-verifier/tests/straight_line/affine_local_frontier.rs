@@ -28,6 +28,7 @@ fn branched_locals() -> TerminalModule {
             },
         });
         machine.blocks[0].operations.push(Operation {
+            static_reach_binding: None,
             id: OperationId::new(901 + ordinal).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishTrivialAffineLocal { destination },

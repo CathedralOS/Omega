@@ -29,6 +29,7 @@ fn immutable_subslice_source_retains_both_bounds_and_store_capacity() {
     machine.blocks[0].operations.insert(
         3,
         Operation {
+            static_reach_binding: None,
             id: id(5),
             result: OperationResult::Structural(StructuralOperationResult {
                 place: id(3),
@@ -50,6 +51,7 @@ fn immutable_subslice_source_retains_both_bounds_and_store_capacity() {
     machine.blocks[0].operations.insert(
         4,
         Operation {
+            static_reach_binding: None,
             id: id(6),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

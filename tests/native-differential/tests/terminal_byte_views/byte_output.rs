@@ -52,6 +52,7 @@ fn byte_output_module() -> TerminalModule {
     }];
     machine.result = TerminalMachineResult::Unit;
     machine.blocks[0].operations = vec![Operation {
+        static_reach_binding: None,
         id: OperationId::new(7).unwrap(),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {

@@ -237,6 +237,7 @@ pub(super) fn emit_structural(
         claims: Vec::new(),
     };
     operations.push(Operation {
+        static_reach_binding: None,
         id,
         result: OperationResult::Structural(returned.clone()),
         kind: OperationKind::CallStructuralWithScalarArguments {

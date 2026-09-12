@@ -175,6 +175,7 @@ fn indexed_store_call_module(read_index: u64) -> TerminalModule {
     caller.blocks[0].operations.insert(
         0,
         Operation {
+            static_reach_binding: None,
             id: operation_id(5),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {

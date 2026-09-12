@@ -171,6 +171,7 @@ pub(super) fn emit(
     });
     let producer = operations.allocate();
     operations.push(Operation {
+        static_reach_binding: None,
         id: producer,
         result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
             place: destination,

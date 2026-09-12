@@ -123,6 +123,7 @@ fn fixture() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: id(1),
                 attachment: None,
@@ -143,6 +144,7 @@ fn fixture() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: vec![
                         Operation {
+                            static_reach_binding: None,
                             id: id(1),
                             result: OperationResult::Scalar(local),
                             kind: OperationKind::BooleanNot {
@@ -150,6 +152,7 @@ fn fixture() -> TerminalModule {
                             },
                         },
                         Operation {
+                            static_reach_binding: None,
                             id: id(2),
                             result: OperationResult::Scalar(call_result),
                             kind: OperationKind::Call {
@@ -160,6 +163,7 @@ fn fixture() -> TerminalModule {
                             },
                         },
                         Operation {
+                            static_reach_binding: None,
                             id: id(3),
                             result: OperationResult::Scalar(second_call_result),
                             kind: OperationKind::Call {
@@ -185,6 +189,7 @@ fn fixture() -> TerminalModule {
                 },
             },
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: id(2),
                 attachment: None,

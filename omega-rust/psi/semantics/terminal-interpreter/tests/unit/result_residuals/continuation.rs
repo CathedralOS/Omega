@@ -42,6 +42,7 @@ fn module(ordinary: bool, nested: bool, complete_transfer: bool) -> TerminalModu
     caller.blocks[0].operations.insert(
         0,
         Operation {
+            static_reach_binding: None,
             id: operation_id(10),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -74,6 +75,7 @@ fn module(ordinary: bool, nested: bool, complete_transfer: bool) -> TerminalModu
             scalar_type,
         }],
         operations: vec![Operation {
+            static_reach_binding: None,
             id: operation_id(11),
             result: OperationResult::Unit,
             kind: OperationKind::BoundaryCall {

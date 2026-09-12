@@ -8,6 +8,7 @@ pub(super) fn module(bytes: Vec<u8>, byte_index: u64, nested: bool) -> TerminalM
     reader.result = TerminalMachineResult::Scalar(scalar(29, 64));
     reader.blocks[1].operations.truncate(1);
     reader.blocks[1].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(16),
         result: OperationResult::Scalar(scalar(16, 64)),
         kind: OperationKind::IntegerWiden {
@@ -26,6 +27,7 @@ pub(super) fn module(bytes: Vec<u8>, byte_index: u64, nested: bool) -> TerminalM
         cleanup_actions: Vec::new(),
     };
     let call = |ordinal, callee, argument, place| Operation {
+        static_reach_binding: None,
         id: operation_id(ordinal),
         result: OperationResult::Scalar(scalar(ordinal, 64)),
         kind: OperationKind::CallStructuralScalar {

@@ -71,6 +71,7 @@ pub(super) fn lower_payloadless_guarded_call_return_machine(
         "guarded payloadless callee attachment is absent",
     ))?;
     let caller = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: Some(attachment),
@@ -108,6 +109,7 @@ pub(super) fn lower_payloadless_guarded_call_return_machine(
             id: block_id(1),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: operation_id(1),
                 result: terminal_psi::OperationResult::Structural(
                     terminal_psi::StructuralOperationResult {
@@ -152,6 +154,7 @@ pub(super) fn lower_payloadless_guarded_call_return_machine(
         .any(|selection| selection.tail_use.is_some())
     {
         module.machines.push(TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine_id(3),
             attachment: Some(attachment),

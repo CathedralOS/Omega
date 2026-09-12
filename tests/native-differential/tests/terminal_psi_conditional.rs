@@ -14,6 +14,7 @@ use terminal_verifier::{ProofBundle, verify_module};
 fn conditional_fixed_bound_uses_the_maximum_path_not_the_sum() {
     let mut module = conditional_module(VocabularyMarker::CURRENT);
     module.machines[0].blocks[1].operations.push(Operation {
+        static_reach_binding: None,
         id: OperationId::new(1).unwrap(),
         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -110,6 +111,7 @@ fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: MachineId::new(1).unwrap(),
             attachment: None,

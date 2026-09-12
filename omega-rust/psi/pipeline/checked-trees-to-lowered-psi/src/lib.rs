@@ -105,6 +105,7 @@ mod attached_unit;
 mod boolean_control;
 mod boundary_scalar_return;
 mod call_source_custody;
+mod closed_reach_applications;
 mod conformance_applications;
 mod content_conservation;
 mod contract_predicates;
@@ -1287,6 +1288,12 @@ pub fn lower_machine(
         &specialization_instances,
     )
     .map_err(LoweringError::Unsupported)?;
+    closed_reach_applications::retain_closed_reach_applications(
+        checked,
+        &direct_float_source_machines,
+        &lowered.source_call_occurrences,
+        &mut lowered.semantic_module,
+    )?;
     retain_selected_placed_view_inputs(
         checked,
         selection.machine,

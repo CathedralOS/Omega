@@ -1630,7 +1630,7 @@ fn validate_structural_signature(
     Ok(())
 }
 
-fn validate_service_ceiling(
+pub(super) fn validate_service_ceiling(
     ceiling: &[ServiceId],
     services: &BTreeMap<ServiceId, &terminal_psi::ServiceDeclaration>,
     owner: ServiceCeilingOwner,

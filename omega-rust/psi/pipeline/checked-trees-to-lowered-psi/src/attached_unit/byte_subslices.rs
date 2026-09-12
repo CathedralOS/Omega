@@ -228,6 +228,7 @@ pub(super) fn emit(
     let place = place_id(allocate_dense(next_place)?);
     let producer = operations.allocate();
     operations.push(Operation {
+        static_reach_binding: None,
         id: producer,
         result: OperationResult::Structural(StructuralOperationResult {
             place,

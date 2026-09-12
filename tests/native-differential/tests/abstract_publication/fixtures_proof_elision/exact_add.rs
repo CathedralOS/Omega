@@ -46,6 +46,7 @@ pub(in super::super) fn exact_add_verified_with_result(
                 parameters: Vec::new(),
                 operations: vec![
                     Operation {
+                        static_reach_binding: None,
                         id: OperationId::new(1_018).unwrap(),
                         result: OperationResult::Scalar(declaration(left)),
                         kind: OperationKind::IntegerConstant {
@@ -53,6 +54,7 @@ pub(in super::super) fn exact_add_verified_with_result(
                         },
                     },
                     Operation {
+                        static_reach_binding: None,
                         id: OperationId::new(1_019).unwrap(),
                         result: OperationResult::Scalar(declaration(right)),
                         kind: OperationKind::IntegerConstant {
@@ -60,6 +62,7 @@ pub(in super::super) fn exact_add_verified_with_result(
                         },
                     },
                     Operation {
+                        static_reach_binding: None,
                         id: OperationId::new(1_020).unwrap(),
                         result: OperationResult::Scalar(declaration(computed)),
                         kind: OperationKind::ExactIntegerAdd {

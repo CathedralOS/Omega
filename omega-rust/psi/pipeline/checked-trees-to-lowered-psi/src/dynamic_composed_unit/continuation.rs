@@ -258,6 +258,7 @@ pub(super) fn lower(
     let mut caller_operations = Vec::new();
     if let Some(id) = descriptor_store_operation {
         caller_operations.push(Operation {
+            static_reach_binding: None,
             id,
             result: OperationResult::Unit,
             kind: OperationKind::StoreDynamicDescriptor {
@@ -266,6 +267,7 @@ pub(super) fn lower(
         });
     }
     caller_operations.push(Operation {
+        static_reach_binding: None,
         id: call_operation,
         result: OperationResult::Scalar(call_result),
         kind: call_kind,
@@ -358,6 +360,7 @@ pub(super) fn lower(
     lowered.semantic_module.machines.insert(
         0,
         TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: caller_machine,
             attachment: Some(caller_attachment),

@@ -763,6 +763,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
         );
     }
     let mut machine = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: crate::attached_unit::lower_declared_service_reach(
             checked,
             plan.machine,

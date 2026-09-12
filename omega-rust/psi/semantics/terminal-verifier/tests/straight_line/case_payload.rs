@@ -100,6 +100,7 @@ fn bounded_payload_module() -> TerminalModule {
     }];
     receiver.contract.requires = payload_bounds(1);
     module.machines[0].blocks[1].operations.push(Operation {
+        static_reach_binding: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -184,6 +185,7 @@ fn selected_bounded_boundary_result_supplies_both_checked_call_requirements() {
         structural_type: source.structural_type,
     };
     machine.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: producer,
         result: OperationResult::Structural(StructuralOperationResult {
             place: source.place,
@@ -362,6 +364,7 @@ fn bounded_integer_record_constructor_remains_fail_closed() {
         qualifications: Default::default(),
     });
     machine.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation,
         result: OperationResult::Structural(StructuralOperationResult {
             place,
@@ -619,6 +622,7 @@ fn forwarded_call_module() -> TerminalModule {
         trivial_affine_discards: Vec::new(),
     };
     module.machines[0].blocks[1].operations.push(Operation {
+        static_reach_binding: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -719,6 +723,7 @@ fn selected_case_payload_observation_expires_after_owned_call() {
     };
     let callee = &mut module.machines[1];
     callee.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: OperationId::new(2).unwrap(),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {

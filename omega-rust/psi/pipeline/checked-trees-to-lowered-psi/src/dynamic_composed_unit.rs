@@ -264,6 +264,7 @@ fn lower_dynamic_composed_unit_machine(
         lower_caller_store_operations(plan, &caller_self, &structural_types, &type_ids)?;
     if has_descriptor_store {
         caller_operations.push(Operation {
+            static_reach_binding: None,
             id: operation_id(1),
             result: OperationResult::Unit,
             kind: OperationKind::StoreDynamicDescriptor {
@@ -272,6 +273,7 @@ fn lower_dynamic_composed_unit_machine(
         });
     }
     caller_operations.push(Operation {
+        static_reach_binding: None,
         id: call_operation,
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -347,6 +349,7 @@ fn lower_dynamic_composed_unit_machine(
             quotient_correspondences: Vec::new(),
             machines: {
                 let mut machines = vec![TerminalMachine {
+                    closed_reach_application: None,
                     declared_service_reach: Vec::new(),
                     id: caller_machine,
                     attachment: Some(caller_attachment),
@@ -1604,6 +1607,7 @@ fn materialize_forwarded_helper_for_source(
     let (_, requirement_slot) = dynamic_parameter_interface(application, selected_row)?;
     let scalar_type = terminal_scalar_type(plan.result.primitive_type)?;
     Ok(TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: ids.machine,
         attachment: None,
@@ -1627,6 +1631,7 @@ fn materialize_forwarded_helper_for_source(
             id: ids.block,
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: ids.operation,
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -2074,6 +2079,7 @@ fn materialize_dynamic_realizations(
                 ))?;
             let result_value = value_id(allocate_dense(next_value)?);
             Ok(TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: realization.machine,
                 attachment: Some(source_type),
@@ -2521,6 +2527,7 @@ fn lower_caller_store_operations(
     };
     Ok(vec![
         Operation {
+            static_reach_binding: None,
             id: operation_id(1),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -2530,6 +2537,7 @@ fn lower_caller_store_operations(
             kind: constant,
         },
         Operation {
+            static_reach_binding: None,
             id: operation_id(2),
             result: OperationResult::Unit,
             kind: OperationKind::StructuralScalarFieldStore {
@@ -2595,6 +2603,7 @@ fn lower_realization_operations(
             return unsupported("direct dynamic realization Boolean field is absent or ambiguous");
         };
         operations.push(Operation {
+            static_reach_binding: None,
             id: operation,
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -2643,6 +2652,7 @@ fn lower_realization_operations(
             return unsupported("direct dynamic realization integer field is absent or ambiguous");
         };
         operations.push(Operation {
+            static_reach_binding: None,
             id: operation,
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -2739,6 +2749,7 @@ fn lower_realization_store_operation(
     let store_operation = operation_id(allocate_dense(next_operation)?);
     Ok(vec![
         Operation {
+            static_reach_binding: None,
             id: constant_operation,
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -2748,6 +2759,7 @@ fn lower_realization_store_operation(
             kind: constant,
         },
         Operation {
+            static_reach_binding: None,
             id: store_operation,
             result: OperationResult::Unit,
             kind: OperationKind::StructuralScalarFieldStore {

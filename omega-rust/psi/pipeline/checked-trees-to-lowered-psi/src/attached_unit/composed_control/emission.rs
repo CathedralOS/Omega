@@ -201,6 +201,7 @@ pub(in crate::attached_unit) fn emit_callable_body(
         Vec::new()
     };
     let mut machine = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: crate::attached_unit::lower_declared_service_reach(
             checked,
             plan.machine,
@@ -583,6 +584,7 @@ pub(super) fn emit_call_operations(
             )?;
             let id = operations.allocate();
             operations.push(Operation {
+                static_reach_binding: None,
                 id,
                 result: OperationResult::Unit,
                 kind,
@@ -624,6 +626,7 @@ pub(super) fn emit_call_operations(
             )?;
             let id = operations.allocate();
             operations.push(Operation {
+                static_reach_binding: None,
                 id,
                 result: OperationResult::Unit,
                 kind,
@@ -643,6 +646,7 @@ pub(super) fn emit_call_operations(
             )?;
             let id = operations.allocate();
             operations.push(Operation {
+                static_reach_binding: None,
                 id,
                 result: OperationResult::Unit,
                 kind,
@@ -833,6 +837,7 @@ pub(super) fn emit_boundary_call_operation(
         *target_machine,
     )?;
     operations.push(Operation {
+        static_reach_binding: None,
         id: call_id,
         result,
         kind: OperationKind::BoundaryCall {

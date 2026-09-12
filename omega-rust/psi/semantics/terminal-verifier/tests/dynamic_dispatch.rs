@@ -189,6 +189,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: caller,
                 attachment: None,
@@ -208,6 +209,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
                     id: id::<BlockId>(1),
                     parameters: Vec::new(),
                     operations: vec![Operation {
+                        static_reach_binding: None,
                         id: operation,
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -231,6 +233,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
                 contract: empty_contract(1),
             },
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: realization,
                 attachment: None,
@@ -254,6 +257,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
                     id: id::<BlockId>(2),
                     parameters: Vec::new(),
                     operations: vec![Operation {
+                        static_reach_binding: None,
                         id: id::<OperationId>(2),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -387,6 +391,7 @@ fn parameter_dynamic_dispatch_module() -> TerminalModule {
         crash_continuations: Vec::new(),
     };
     module.machines.push(TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: helper,
         attachment: None,
@@ -410,6 +415,7 @@ fn parameter_dynamic_dispatch_module() -> TerminalModule {
             id: id::<BlockId>(3),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: helper_operation,
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),

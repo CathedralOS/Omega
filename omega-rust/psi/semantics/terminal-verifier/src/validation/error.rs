@@ -37,6 +37,10 @@ pub enum SuspensionCallPlanError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModuleError {
+    InvalidClosedReachApplication {
+        machine: MachineId,
+        reason: &'static str,
+    },
     InvalidScalarQualification(&'static str),
     NonCanonicalScalarRangeInvariants,
     InvalidScalarRangeInvariant {

@@ -419,6 +419,7 @@ fn scalar_call_module(scalar_type: ScalarType, constant_kind: OperationKind) -> 
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: machine_id(1),
                 attachment: None,
@@ -442,6 +443,7 @@ fn scalar_call_module(scalar_type: ScalarType, constant_kind: OperationKind) -> 
                     parameters: Vec::new(),
                     operations: vec![
                         Operation {
+                            static_reach_binding: None,
                             id: operation_id(1),
                             result: terminal_psi::OperationResult::Scalar(scalar_declaration(
                                 caller_constant,
@@ -450,6 +452,7 @@ fn scalar_call_module(scalar_type: ScalarType, constant_kind: OperationKind) -> 
                             kind: constant_kind,
                         },
                         Operation {
+                            static_reach_binding: None,
                             id: operation_id(2),
                             result: terminal_psi::OperationResult::Scalar(scalar_declaration(
                                 call_result,
@@ -472,6 +475,7 @@ fn scalar_call_module(scalar_type: ScalarType, constant_kind: OperationKind) -> 
                 contract: empty_contract(1),
             },
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: machine_id(2),
                 attachment: None,

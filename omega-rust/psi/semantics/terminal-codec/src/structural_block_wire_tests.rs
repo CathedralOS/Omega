@@ -48,6 +48,7 @@ fn unit_module() -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: id::<MachineId>(1),
             attachment: None,
@@ -133,6 +134,7 @@ fn primitive_local_operations_round_trip_with_exact_result_and_operand_identitie
         });
         machine.blocks[0].operations = vec![
             Operation {
+                static_reach_binding: None,
                 id: id(31),
                 result: OperationResult::Structural(StructuralOperationResult {
                     place: id(23),
@@ -145,6 +147,7 @@ fn primitive_local_operations_round_trip_with_exact_result_and_operand_identitie
                 kind: OperationKind::EstablishPrimitiveLocal { value: id(11) },
             },
             Operation {
+                static_reach_binding: None,
                 id: id(32),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -393,6 +396,7 @@ fn unit_byte_field_module() -> TerminalModule {
         trivial_affine_discards: Vec::new(),
     };
     module.machines[0].blocks[0].operations = vec![Operation {
+        static_reach_binding: None,
         id: id(1),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {

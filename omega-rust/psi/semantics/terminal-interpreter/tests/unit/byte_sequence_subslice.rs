@@ -59,6 +59,7 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
     };
     helper.blocks[1].operations = vec![
         Operation {
+            static_reach_binding: None,
             id: operation_id(12),
             result: result(4),
             kind: OperationKind::ByteSequenceSubslice {
@@ -71,6 +72,7 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
         },
         integer(14, 64, 0),
         Operation {
+            static_reach_binding: None,
             id: operation_id(13),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
@@ -110,6 +112,7 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
             parameters: Vec::new(),
             operations: vec![
                 Operation {
+                    static_reach_binding: None,
                     id: operation_id(30),
                     result: OperationResult::Scalar(scalar(30, 64)),
                     kind: OperationKind::ByteSequenceLength {
@@ -118,6 +121,7 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
                 },
                 length_effect(34, 30),
                 Operation {
+                    static_reach_binding: None,
                     id: operation_id(31),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -142,6 +146,7 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
             parameters: Vec::new(),
             operations: vec![
                 Operation {
+                    static_reach_binding: None,
                     id: operation_id(35),
                     result: result(6),
                     kind: OperationKind::ByteSequenceSubslice {
@@ -153,6 +158,7 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
                     },
                 },
                 Operation {
+                    static_reach_binding: None,
                     id: operation_id(36),
                     result: OperationResult::Scalar(scalar(36, 64)),
                     kind: OperationKind::ByteSequenceLength {
@@ -160,6 +166,7 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
                     },
                 },
                 Operation {
+                    static_reach_binding: None,
                     id: operation_id(37),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -191,6 +198,7 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
             parameters: Vec::new(),
             operations: vec![
                 Operation {
+                    static_reach_binding: None,
                     id: operation_id(32),
                     result: OperationResult::Scalar(scalar(32, 8)),
                     kind: OperationKind::ByteSequenceRead {
@@ -361,6 +369,7 @@ fn subslice_boundary_receives_only_the_window_and_preserves_caller_continuation(
         module.machines[1].blocks[1].operations.insert(
             1,
             Operation {
+                static_reach_binding: None,
                 id: operation_id(15),
                 result: OperationResult::Unit,
                 kind: OperationKind::BoundaryCall {
@@ -412,6 +421,7 @@ fn subslice_rejects_fake_wrong_source_later_sibling_and_reobserved_lengths() {
     for placement in 0..5 {
         let mut changed = base.clone();
         let mut length = Operation {
+            static_reach_binding: None,
             id: operation_id(15),
             result: OperationResult::Scalar(scalar(15, 64)),
             kind: OperationKind::ByteSequenceLength {
@@ -665,6 +675,7 @@ fn subslice_types_and_borrowed_return_are_not_implicitly_supported() {
     signed.machines[1].blocks[0].operations.insert(
         0,
         Operation {
+            static_reach_binding: None,
             id: operation_id(15),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

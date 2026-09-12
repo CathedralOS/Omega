@@ -661,6 +661,7 @@ mod tests {
             suspension_call_plans: Vec::new(),
             quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: machine,
                 attachment: None,
@@ -821,6 +822,7 @@ mod tests {
         module.machines[0].published_service_ceiling = vec![service];
         module.machines[0].blocks[0].operations = vec![
             Operation {
+                static_reach_binding: None,
                 id: id(2, OperationId::new),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -846,6 +848,7 @@ mod tests {
                 },
             },
             Operation {
+                static_reach_binding: None,
                 id: id(1, OperationId::new),
                 result: OperationResult::Unit,
                 kind: OperationKind::PortWrite {

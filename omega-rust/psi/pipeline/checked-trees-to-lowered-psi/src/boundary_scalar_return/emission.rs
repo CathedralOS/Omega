@@ -208,6 +208,7 @@ pub(crate) fn emit_boundary_scalar_return(
         *target_machine,
     )?;
     let operation = Operation {
+        static_reach_binding: None,
         id: operation_id,
         result: terminal_psi::OperationResult::Scalar(call_result),
         kind: OperationKind::BoundaryCall {
@@ -265,6 +266,7 @@ pub(crate) fn emit_boundary_scalar_return(
     });
     evaluation.blocks.sort_by_key(|block| block.id);
     let machine = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: crate::attached_unit::lower_declared_service_reach(
             checked,
             plan.machine,

@@ -147,6 +147,7 @@ fn owned_backedge_rejoins_the_rebound_frontier_and_cannot_reuse_invocation_custo
         terminator: machine.blocks[1].terminator.clone(),
     };
     machine.blocks[1].operations.push(Operation {
+        static_reach_binding: None,
         id: id::<OperationId>(5),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -214,6 +215,7 @@ fn ordinary_calls_consume_the_block_owner_without_invalidating_prior_scalar_snap
     let body = &mut module.machines[0].blocks[1];
     let place = body.structural_parameters[0].place;
     body.operations.push(Operation {
+        static_reach_binding: None,
         id: id::<OperationId>(5),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {

@@ -166,6 +166,7 @@ impl emission::Emission<'_, '_, '_> {
             },
         });
         self.operations.push(Operation {
+            static_reach_binding: None,
             id: operation,
             result: OperationResult::Structural(StructuralOperationResult {
                 place,

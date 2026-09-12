@@ -32,6 +32,7 @@ fn produced_partial_module() -> TerminalModule {
     caller.blocks[0].operations.insert(
         0,
         Operation {
+            static_reach_binding: None,
             id: operation_id(2),
             result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
                 place: place_id(1),

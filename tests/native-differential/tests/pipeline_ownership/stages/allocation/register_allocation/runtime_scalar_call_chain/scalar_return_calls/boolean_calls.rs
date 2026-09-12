@@ -52,6 +52,7 @@ fn boolean_call_artifact(inverted: bool) -> (Vec<u8>, Vec<u8>) {
     let branch_condition = if inverted {
         let result = ValueId::new(29_001).unwrap();
         prefix.push(Operation {
+            static_reach_binding: None,
             id: OperationId::new(29_001).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

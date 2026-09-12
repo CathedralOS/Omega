@@ -159,6 +159,11 @@ pub(in crate::attached_unit::composed_control) fn emit_call_operation(
             },
         )
     };
-    operations.push(Operation { id, result, kind });
+    operations.push(Operation {
+        static_reach_binding: None,
+        id,
+        result,
+        kind,
+    });
     Ok(())
 }

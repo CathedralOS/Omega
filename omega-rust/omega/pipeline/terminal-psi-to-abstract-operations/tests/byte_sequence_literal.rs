@@ -65,6 +65,7 @@ fn byte_sequence_length_retains_exact_source_result_type_and_rejects_drift() {
     module.machines[0].blocks[0].operations.insert(
         1,
         Operation {
+            static_reach_binding: None,
             id: operation_id(3),
             result: OperationResult::Scalar(terminal_psi::ValueDeclaration {
                 qualifications: Default::default(),
@@ -242,6 +243,7 @@ fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine_id(1),
             attachment: None,
@@ -268,6 +270,7 @@ fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
                 parameters: Vec::new(),
                 operations: vec![
                     Operation {
+                        static_reach_binding: None,
                         id: operation_id(1),
                         result: OperationResult::Unit,
                         kind: OperationKind::EstablishByteSequenceLiteral {
@@ -276,6 +279,7 @@ fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
                         },
                     },
                     Operation {
+                        static_reach_binding: None,
                         id: operation_id(2),
                         result: OperationResult::Unit,
                         kind: OperationKind::BoundaryCall {

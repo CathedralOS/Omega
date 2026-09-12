@@ -44,6 +44,7 @@ fn module() -> TerminalModule {
         },
     });
     machine.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: producer,
         result: OperationResult::Structural(StructuralOperationResult {
             place,
@@ -203,6 +204,7 @@ fn constructed_scalar_record_block_transport_retains_exact_source_contract() {
 
 fn read() -> Operation {
     Operation {
+        static_reach_binding: None,
         id: OperationId::new(2).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             id: ValueId::new(3).unwrap(),
@@ -343,6 +345,7 @@ fn runtime_scalar_record_shared_getter_preserves_exclusive_overlap_rejection() {
         })
         .collect();
     getter.blocks[0].operations = vec![Operation {
+        static_reach_binding: None,
         id: OperationId::new(12).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             id: ValueId::new(13).unwrap(),
@@ -360,6 +363,7 @@ fn runtime_scalar_record_shared_getter_preserves_exclusive_overlap_rejection() {
         cleanup_actions: Vec::new(),
     };
     let call = Operation {
+        static_reach_binding: None,
         id: OperationId::new(2).unwrap(),
         result: read().result,
         kind: OperationKind::CallStructuralScalar {

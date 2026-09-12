@@ -54,6 +54,7 @@ mod proof_recursion;
 mod propositions;
 mod quotient_correspondence;
 mod ranked_scc;
+mod reach_applications;
 pub(crate) mod record;
 mod root_service_reach;
 pub(crate) mod scalar_array;
@@ -873,6 +874,7 @@ fn validate_module_with_policy(
     validate_proposition_vocabulary(module)?;
     validate_structural_foundation(module)?;
     validate_closed_conformance_applications(module)?;
+    reach_applications::validate_closed_reach_applications(module)?;
     float_meaning::validate_float_meaning_projections(module)?;
     quotient_correspondence::validate_quotient_correspondences(module, policy)?;
 

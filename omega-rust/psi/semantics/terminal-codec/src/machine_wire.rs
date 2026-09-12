@@ -69,6 +69,7 @@ pub(super) fn encode_machine(
     }
     encode_service_ceiling(writer, &machine.declared_service_reach)?;
     encode_service_ceiling(writer, &machine.published_service_ceiling)?;
+    super::reach_application_wire::encode(writer, machine.closed_reach_application.as_ref())?;
     writer.len("content entry claims", machine.content_entry_claims.len())?;
     for binding in &machine.content_entry_claims {
         encode_content_entry_claim(writer, binding)?;
@@ -141,6 +142,7 @@ pub(super) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine,
     })?;
     let declared_service_reach = decode_ids(reader, "ServiceId")?;
     let published_service_ceiling = decode_ids(reader, "ServiceId")?;
+    let closed_reach_application = super::reach_application_wire::decode(reader)?;
     let count = reader.count()?;
     let mut content_entry_claims = Vec::new();
     for _ in 0..count {
@@ -174,6 +176,7 @@ pub(super) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine,
         entry_claims,
         declared_service_reach,
         published_service_ceiling,
+        closed_reach_application,
         content_entry_claims,
         content_identity_reshuffles,
         content_partition_compositions,

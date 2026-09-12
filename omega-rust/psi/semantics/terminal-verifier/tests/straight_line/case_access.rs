@@ -6,6 +6,7 @@ fn membership_module(access: StructuralAccess) -> TerminalModule {
     let machine = &mut module.machines[0];
     machine.blocks.truncate(1);
     machine.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             id: ValueId::new(1).unwrap(),
@@ -205,6 +206,7 @@ fn owned_operation_result_keeps_structural_case_dispatch() {
         structural_type: source.structural_type,
     };
     machine.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation,
         result: OperationResult::Structural(StructuralOperationResult {
             place: source.place,

@@ -31,6 +31,7 @@ pub use provider_candidate_wire::{
 };
 mod publication;
 mod quotient_correspondence_wire;
+mod reach_application_wire;
 mod scalar_qualification_wire;
 mod scalar_term_wire;
 mod scalar_wire;
@@ -123,7 +124,7 @@ use terminal_verifier::{ModuleError, validate_module_representation};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 91;
+const FORMAT_MARKER: u16 = 92;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;

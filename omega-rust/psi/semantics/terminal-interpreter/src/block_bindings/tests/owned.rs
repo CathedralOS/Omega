@@ -75,6 +75,7 @@ fn owned_execution(
     };
     target.operations = vec![
         Operation {
+            static_reach_binding: None,
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(integer_read),
             kind: OperationKind::IntegerStructuralField {
@@ -83,6 +84,7 @@ fn owned_execution(
             },
         },
         Operation {
+            static_reach_binding: None,
             id: OperationId::new(2).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

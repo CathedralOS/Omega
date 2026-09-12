@@ -585,6 +585,7 @@ fn scalar_case_constructor_result_disposes_on_ordinary_returns_and_edges() {
             }
             3 => {
                 caller.blocks[0].operations.push(Operation {
+                    static_reach_binding: None,
                     id: operation_id(3),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -649,6 +650,7 @@ fn scalar_case_constructor_returns_from_a_checked_unranked_loop() {
         residual_affine_discards: vec![],
     };
     let constant = |operation, value, integer| Operation {
+        static_reach_binding: None,
         id: operation_id(operation),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -692,6 +694,7 @@ fn scalar_case_constructor_returns_from_a_checked_unranked_loop() {
             operations: vec![
                 constant(3, 24, 0),
                 Operation {
+                    static_reach_binding: None,
                     id: operation_id(4),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -717,6 +720,7 @@ fn scalar_case_constructor_returns_from_a_checked_unranked_loop() {
             operations: vec![
                 constant(5, 26, 1),
                 Operation {
+                    static_reach_binding: None,
                     id: operation_id(6),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),

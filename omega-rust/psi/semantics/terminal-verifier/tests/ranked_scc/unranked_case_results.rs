@@ -69,6 +69,7 @@ fn fixture() -> TerminalModule {
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: id(1, OperationId::new),
                 result: OperationResult::Structural(StructuralOperationResult {
                     place,

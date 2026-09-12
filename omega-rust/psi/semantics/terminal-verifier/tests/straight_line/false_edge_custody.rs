@@ -22,6 +22,7 @@ fn declaration(identity: u64) -> ValueDeclaration {
 
 fn constant(identity: u64, result: u64, integer: u128) -> Operation {
     Operation {
+        static_reach_binding: None,
         id: OperationId::new(identity).unwrap(),
         result: OperationResult::Scalar(declaration(result)),
         kind: OperationKind::IntegerConstant {
@@ -32,6 +33,7 @@ fn constant(identity: u64, result: u64, integer: u128) -> Operation {
 
 fn comparison(identity: u64, result: u64, operand: u64) -> Operation {
     Operation {
+        static_reach_binding: None,
         id: OperationId::new(identity).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -113,6 +115,7 @@ fn module(with_alias_hop: bool) -> TerminalModule {
         operations: vec![
             constant(4, 13, 7),
             Operation {
+                static_reach_binding: None,
                 id: OperationId::new(5).unwrap(),
                 result: OperationResult::Scalar(declaration(12)),
                 kind: OperationKind::ExactIntegerDivide {

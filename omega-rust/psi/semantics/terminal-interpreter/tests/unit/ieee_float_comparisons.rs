@@ -16,6 +16,7 @@ fn comparison_module(
         .into_iter()
         .enumerate()
         .map(|(ordinal, value)| Operation {
+            static_reach_binding: None,
             id: operation_id(ordinal as u64 + 1),
             result: OperationResult::Scalar(ValueDeclaration {
                 id: value_id(ordinal as u64 + 1),
@@ -25,6 +26,7 @@ fn comparison_module(
             kind: OperationKind::IeeeFloatConstant { value },
         })
         .chain(std::iter::once(Operation {
+            static_reach_binding: None,
             id: operation_id(3),
             result: OperationResult::Scalar(ValueDeclaration {
                 id: value_id(3),

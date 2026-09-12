@@ -246,6 +246,7 @@ fn emit(
         *target_machine,
     )?;
     entry_operations.push(Operation {
+        static_reach_binding: None,
         id: operation,
         result: OperationResult::Structural(StructuralOperationResult {
             place: result_place,
@@ -420,6 +421,7 @@ fn emit(
         )?,
     );
     let machine = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: crate::attached_unit::lower_declared_service_reach(
             checked,
             plan.machine,

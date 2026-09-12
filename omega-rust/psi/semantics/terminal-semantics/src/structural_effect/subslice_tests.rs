@@ -4,6 +4,7 @@ use terminal_psi::{StructuralMultiplicity, StructuralOperationResult};
 
 fn operation() -> Operation {
     Operation {
+        static_reach_binding: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Structural(StructuralOperationResult {
             place: PlaceId::new(2).unwrap(),

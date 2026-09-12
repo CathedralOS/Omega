@@ -95,6 +95,7 @@ fn multiple_entry_cycle_retains_every_predecessor_for_scalar_dominance() {
     }
     for (block, value) in [(&mut left, 20), (&mut right, 21)] {
         block.operations.push(Operation {
+            static_reach_binding: None,
             id: id(value, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

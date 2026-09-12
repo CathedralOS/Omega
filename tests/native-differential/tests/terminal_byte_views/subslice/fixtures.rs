@@ -70,6 +70,7 @@ pub(super) fn nested_suffix_module() -> TerminalModule {
         },
     });
     machine.blocks[1].operations.push(Operation {
+        static_reach_binding: None,
         id: OperationId::new(32).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -92,6 +93,7 @@ pub(super) fn nested_suffix_module() -> TerminalModule {
         structural_parameters: Vec::new(),
         operations: vec![
             Operation {
+                static_reach_binding: None,
                 id: OperationId::new(41).unwrap(),
                 result: OperationResult::Structural(StructuralOperationResult {
                     place: nested,
@@ -110,6 +112,7 @@ pub(super) fn nested_suffix_module() -> TerminalModule {
                 },
             },
             Operation {
+                static_reach_binding: None,
                 id: OperationId::new(42).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -147,6 +150,7 @@ pub(super) fn derived_read_module(nested: bool) -> TerminalModule {
     });
     let producer_block = &mut machine.blocks[if nested { 3 } else { 1 }];
     producer_block.operations.push(Operation {
+        static_reach_binding: None,
         id: OperationId::new(51).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -169,6 +173,7 @@ pub(super) fn derived_read_module(nested: bool) -> TerminalModule {
         structural_parameters: Vec::new(),
         operations: vec![
             Operation {
+                static_reach_binding: None,
                 id: OperationId::new(60).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -185,6 +190,7 @@ pub(super) fn derived_read_module(nested: bool) -> TerminalModule {
                 },
             },
             Operation {
+                static_reach_binding: None,
                 id: OperationId::new(61).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -240,6 +246,7 @@ pub(super) fn subrange_module(read: bool) -> TerminalModule {
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
         operations: vec![Operation {
+            static_reach_binding: None,
             id: OperationId::new(71).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

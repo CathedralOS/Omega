@@ -44,6 +44,7 @@ pub(super) fn suffix_call_module() -> TerminalModule {
     calls.operations.insert(
         0,
         Operation {
+            static_reach_binding: None,
             id: OperationId::new(130).unwrap(),
             result: OperationResult::Structural(StructuralOperationResult {
                 place: suffix,
@@ -76,6 +77,7 @@ pub(super) fn suffix_call_module() -> TerminalModule {
             structural_parameters: Vec::new(),
             operations: vec![
                 Operation {
+                    static_reach_binding: None,
                     id: OperationId::new(121).unwrap(),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -87,6 +89,7 @@ pub(super) fn suffix_call_module() -> TerminalModule {
                     },
                 },
                 Operation {
+                    static_reach_binding: None,
                     id: OperationId::new(122).unwrap(),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -111,6 +114,7 @@ pub(super) fn suffix_call_module() -> TerminalModule {
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: OperationId::new(141).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),

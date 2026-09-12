@@ -247,6 +247,7 @@ fn provider_catalog_union_rejects_a_candidate_that_reenters_its_boundary() {
     module.provider_candidates.remove(0);
     module.machines.remove(1);
     module.machines[1].blocks[0].operations[0] = Operation {
+        static_reach_binding: None,
         id: operation_id(3),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {

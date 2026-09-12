@@ -846,6 +846,7 @@ mod tests {
         let right = ValueId::new(2).unwrap();
         let result = ValueId::new(3).unwrap();
         let operation = Operation {
+            static_reach_binding: None,
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -905,6 +906,7 @@ mod tests {
         let right = ValueId::new(2).unwrap();
         let result = ValueId::new(3).unwrap();
         let operation = Operation {
+            static_reach_binding: None,
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

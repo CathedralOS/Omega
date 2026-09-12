@@ -68,6 +68,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
         scalar_type,
     };
     let literal = |id, result, value: u64| Operation {
+        static_reach_binding: None,
         id,
         result: OperationResult::Scalar(declaration(result)),
         kind: OperationKind::IntegerConstant {
@@ -75,6 +76,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
         },
     };
     let wrapping_add = |id, result, left, right| Operation {
+        static_reach_binding: None,
         id,
         result: OperationResult::Scalar(declaration(result)),
         kind: OperationKind::WrappingIntegerAdd { left, right },
@@ -130,6 +132,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine,
             attachment: None,

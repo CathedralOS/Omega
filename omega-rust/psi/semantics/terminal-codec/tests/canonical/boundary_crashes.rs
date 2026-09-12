@@ -56,6 +56,7 @@ fn boundary_fixture() -> TerminalModule {
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
         operations: vec![Operation {
+            static_reach_binding: None,
             id: operation_id(1),
             result: OperationResult::Unit,
             kind: OperationKind::BoundaryCall {

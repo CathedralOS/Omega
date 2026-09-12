@@ -205,6 +205,7 @@ fn forwarded_extent_rejects_mutation_through_an_intermediate_binding() {
     }];
     module.machines.push(helper);
     module.machines[0].blocks[5].operations.push(Operation {
+        static_reach_binding: None,
         id: id(60, OperationId::new),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {

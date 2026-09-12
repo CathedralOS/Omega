@@ -199,6 +199,7 @@ pub(super) fn lower_structural_return_machine(
 
     let terminal_machine = machine_id(1);
     let machine = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: terminal_machine,
         attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
@@ -235,6 +236,7 @@ pub(super) fn lower_structural_return_machine(
                 .enumerate()
                 .map(|(index, (_, _, destination))| {
                     Ok(Operation {
+                        static_reach_binding: None,
                         id: operation_id(dense_identity(index)?),
                         result: terminal_psi::OperationResult::Unit,
                         kind: OperationKind::EstablishTrivialAffineLocal {

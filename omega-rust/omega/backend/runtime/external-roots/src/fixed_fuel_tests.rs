@@ -231,6 +231,7 @@ fn terminal_fixture() -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine,
             attachment: None,
@@ -335,6 +336,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine,
             attachment: None,
@@ -404,6 +406,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
                     }],
                     operations: vec![
                         Operation {
+                            static_reach_binding: None,
                             id: core_id(0x7431, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -415,6 +418,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
                             },
                         },
                         Operation {
+                            static_reach_binding: None,
                             id: core_id(0x7432, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -451,6 +455,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: vec![
                         Operation {
+                            static_reach_binding: None,
                             id: core_id(0x7433, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -462,6 +467,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
                             },
                         },
                         Operation {
+                            static_reach_binding: None,
                             id: core_id(0x7434, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),

@@ -35,6 +35,8 @@ pub struct TerminalMachine {
     /// body retains its declaration, even when the same service also belongs
     /// to an installation-selected requirement's nonconcrete upper bound.
     pub declared_service_reach: Vec<ServiceId>,
+    /// Closed source-projected reach contract, independently checked on reload.
+    pub closed_reach_application: Option<crate::ClosedReachApplication>,
     /// Strictly ordered normalized executable boundary-service ceiling. Public
     /// checked machines retain their derived published row; private machines
     /// and executable entries retain their exact checked effective reach.

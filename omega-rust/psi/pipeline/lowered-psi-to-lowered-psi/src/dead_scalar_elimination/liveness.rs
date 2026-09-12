@@ -231,6 +231,7 @@ mod tests {
         ] {
             let mut operations = (1..=3)
                 .map(|ordinal| Operation {
+                    static_reach_binding: None,
                     id: OperationId::new(ordinal).unwrap(),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -243,6 +244,7 @@ mod tests {
                 })
                 .collect::<Vec<_>>();
             operations.push(Operation {
+                static_reach_binding: None,
                 id: OperationId::new(4).unwrap(),
                 result: OperationResult::Structural(StructuralOperationResult {
                     place: array_place,
@@ -257,6 +259,7 @@ mod tests {
                 },
             });
             let mut machine = TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: MachineId::new(1).unwrap(),
                 attachment: None,

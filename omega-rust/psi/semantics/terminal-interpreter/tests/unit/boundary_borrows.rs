@@ -24,6 +24,7 @@ pub(super) fn borrowed_boundary_module(access: StructuralAccess) -> TerminalModu
     };
     caller.blocks[0].operations = (1..=2)
         .map(|ordinal| Operation {
+            static_reach_binding: None,
             id: operation_id(ordinal),
             result: OperationResult::Unit,
             kind: OperationKind::BoundaryCall {

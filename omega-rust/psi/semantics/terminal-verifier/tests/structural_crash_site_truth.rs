@@ -34,6 +34,7 @@ fn module(store_first: bool, entry_predicate: bool) -> TerminalModule {
     if store_first {
         operations.extend([
             Operation {
+                static_reach_binding: None,
                 id: id::<OperationId>(1),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -43,6 +44,7 @@ fn module(store_first: bool, entry_predicate: bool) -> TerminalModule {
                 kind: OperationKind::BooleanConstant { value: true },
             },
             Operation {
+                static_reach_binding: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Unit,
                 kind: OperationKind::StructuralScalarFieldStore {
@@ -55,6 +57,7 @@ fn module(store_first: bool, entry_predicate: bool) -> TerminalModule {
         ]);
     }
     operations.push(Operation {
+        static_reach_binding: None,
         id: id::<OperationId>(3),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -111,6 +114,7 @@ fn module(store_first: bool, entry_predicate: bool) -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: id::<MachineId>(1),
             attachment: Some(id(1)),

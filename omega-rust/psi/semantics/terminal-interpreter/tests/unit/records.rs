@@ -110,6 +110,7 @@ fn record_module() -> TerminalModule {
         ..output
     });
     read.blocks[0].operations = vec![Operation {
+        static_reach_binding: None,
         id: operation_id(10),
         result: OperationResult::Scalar(output),
         kind: OperationKind::IntegerStructuralField {
@@ -153,6 +154,7 @@ fn record_module() -> TerminalModule {
     ];
     caller.blocks[0].operations = vec![
         Operation {
+            static_reach_binding: None,
             id: operation_id(1),
             result: result(1, 1),
             kind: OperationKind::EstablishRecord {
@@ -160,6 +162,7 @@ fn record_module() -> TerminalModule {
             },
         },
         Operation {
+            static_reach_binding: None,
             id: operation_id(2),
             result: result(2, 2),
             kind: OperationKind::EstablishRecord {
@@ -167,6 +170,7 @@ fn record_module() -> TerminalModule {
             },
         },
         Operation {
+            static_reach_binding: None,
             id: operation_id(3),
             result: OperationResult::Scalar(ValueDeclaration {
                 id: value_id(3),
@@ -437,6 +441,7 @@ fn repeated_child_call_results_keep_independent_completed_storage() {
         },
     ];
     construct.blocks[0].operations = vec![Operation {
+        static_reach_binding: None,
         id: operation_id(20),
         result: result(20, 1),
         kind: OperationKind::EstablishRecord {
@@ -476,6 +481,7 @@ fn repeated_child_call_results_keep_independent_completed_storage() {
     caller.blocks[0].operations.insert(
         1,
         Operation {
+            static_reach_binding: None,
             id: operation_id(2),
             result: result(3, 1),
             kind: call(5),
@@ -593,6 +599,7 @@ fn nested_record_mutable_receiver_updates_exact_child_storage() {
     callee.blocks[0].operations.insert(
         0,
         Operation {
+            static_reach_binding: None,
             id: operation_id(11),
             result: OperationResult::Unit,
             kind: OperationKind::StructuralScalarFieldStore {
@@ -708,6 +715,7 @@ fn owned_nested_record_call_copies_payload_before_mutating_its_child() {
     writer.result = TerminalMachineResult::Unit;
     writer.blocks[0].operations = vec![
         Operation {
+            static_reach_binding: None,
             id: operation_id(30),
             result: OperationResult::Scalar(ValueDeclaration {
                 id: value_id(30),
@@ -719,6 +727,7 @@ fn owned_nested_record_call_copies_payload_before_mutating_its_child() {
             },
         },
         Operation {
+            static_reach_binding: None,
             id: operation_id(31),
             result: OperationResult::Unit,
             kind: OperationKind::StructuralScalarFieldStore {
@@ -751,6 +760,7 @@ fn owned_nested_record_call_copies_payload_before_mutating_its_child() {
         },
     };
     let call = |operation, callee, place, path, access| Operation {
+        static_reach_binding: None,
         id: operation_id(operation),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {

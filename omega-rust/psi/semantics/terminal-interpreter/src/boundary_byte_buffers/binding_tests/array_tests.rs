@@ -141,6 +141,7 @@ fn array_view_forwarding_keeps_raw_backing_and_rejects_resize_and_aliases() {
         (length, scalar(64, 3)),
     ]);
     let operation = Operation {
+        static_reach_binding: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Unit,
         kind: OperationKind::ByteSequenceWrite {

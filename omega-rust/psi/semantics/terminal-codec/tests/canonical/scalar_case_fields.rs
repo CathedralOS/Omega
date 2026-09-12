@@ -70,6 +70,7 @@ fn fixture() -> TerminalModule {
         },
     ];
     machine.blocks[0].operations = vec![Operation {
+        static_reach_binding: None,
         id: operation_id(1),
         result: OperationResult::Structural(StructuralOperationResult {
             place: place_id(1),

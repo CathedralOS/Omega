@@ -42,6 +42,10 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
     writer.len("operations", block.operations.len())?;
     for operation in &block.operations {
         writer.id(operation.id);
+        writer.boolean(operation.static_reach_binding.is_some());
+        if let Some(binder) = operation.static_reach_binding {
+            writer.u32(binder);
+        }
         match &operation.result {
             OperationResult::Unit => writer.u8(0),
             OperationResult::Scalar(result) => {
@@ -940,6 +944,11 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
     let mut operations = Vec::new();
     for _ in 0..operation_count {
         let operation_id = reader.id("OperationId")?;
+        let static_reach_binding = if reader.boolean()? {
+            Some(reader.u32()?)
+        } else {
+            None
+        };
         let result = match reader.u8()? {
             0 => OperationResult::Unit,
             1 => OperationResult::Scalar(decode_declaration(reader)?),
@@ -1400,6 +1409,7 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
             tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
         };
         operations.push(Operation {
+            static_reach_binding,
             id: operation_id,
             result,
             kind,
@@ -1640,6 +1650,7 @@ mod tests {
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: id::<OperationId>(1),
                 result: OperationResult::Structural(StructuralOperationResult {
                     place: id::<PlaceId>(2),
@@ -1679,6 +1690,7 @@ mod tests {
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Unit,
                 kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -1725,6 +1737,7 @@ mod tests {
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Unit,
                 kind: OperationKind::StructuralScalarFieldStore {
@@ -1766,6 +1779,7 @@ mod tests {
             id: id::<BlockId>(7),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: id::<OperationId>(8),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -1806,6 +1820,7 @@ mod tests {
         let count_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
         let operations = [
             Operation {
+                static_reach_binding: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -1822,6 +1837,7 @@ mod tests {
                 },
             },
             Operation {
+                static_reach_binding: None,
                 id: id::<OperationId>(6),
                 result: OperationResult::Unit,
                 kind: OperationKind::StructuralByteSequenceFieldByteStore {
@@ -1868,6 +1884,7 @@ mod tests {
     fn primitive_local_wire_tags_and_identities_are_exact_and_truncation_rejects() {
         let operations = [
             Operation {
+                static_reach_binding: None,
                 id: id::<OperationId>(31),
                 result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
                     place: id(23),
@@ -1880,6 +1897,7 @@ mod tests {
                 kind: OperationKind::EstablishPrimitiveLocal { value: id(11) },
             },
             Operation {
+                static_reach_binding: None,
                 id: id::<OperationId>(32),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -1935,6 +1953,7 @@ mod tests {
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Unit,
                 kind: OperationKind::StructuralByteSequenceFieldStore {
@@ -1973,6 +1992,7 @@ mod tests {
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -2028,6 +2048,7 @@ mod tests {
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
                     place: id::<PlaceId>(9),
@@ -2085,6 +2106,7 @@ mod tests {
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Unit,
                 kind: OperationKind::ByteSequenceWrite {
@@ -2135,6 +2157,7 @@ mod tests {
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -2184,6 +2207,7 @@ mod tests {
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),

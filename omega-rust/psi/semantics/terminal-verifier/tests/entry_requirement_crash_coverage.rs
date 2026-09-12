@@ -34,6 +34,7 @@ fn predicate(proposition: Proposition) -> CrashRouteGuard {
 
 fn machine(identity: u64) -> TerminalMachine {
     TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: MachineId::new(identity).unwrap(),
         attachment: None,
@@ -94,6 +95,7 @@ fn module(scalar_call: bool) -> TerminalModule {
             scalar_type: ScalarType::Boolean,
         });
         Operation {
+            static_reach_binding: None,
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -109,6 +111,7 @@ fn module(scalar_call: bool) -> TerminalModule {
         }
     } else {
         Operation {
+            static_reach_binding: None,
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
@@ -266,6 +269,7 @@ fn current_body_values_are_not_entry_requirement_assumptions() {
     module.machines[0].blocks[0].operations.insert(
         0,
         Operation {
+            static_reach_binding: None,
             id: OperationId::new(2).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

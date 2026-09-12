@@ -67,6 +67,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine_id(1),
             attachment: None,
@@ -203,6 +204,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
     branching.machines[0].blocks[0]
         .operations
         .push(terminal_psi::Operation {
+            static_reach_binding: None,
             id: semantic_vocabulary::OperationId::new(1).unwrap(),
             result: terminal_psi::OperationResult::Scalar(terminal_psi::ValueDeclaration {
                 qualifications: Default::default(),
@@ -294,6 +296,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
     with_local.machines[0].blocks[0]
         .operations
         .push(terminal_psi::Operation {
+            static_reach_binding: None,
             id: semantic_vocabulary::OperationId::new(2).unwrap(),
             result: terminal_psi::OperationResult::Unit,
             kind: terminal_psi::OperationKind::EstablishTrivialAffineLocal {

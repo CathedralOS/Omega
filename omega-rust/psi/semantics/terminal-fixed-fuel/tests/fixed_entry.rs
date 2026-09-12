@@ -113,6 +113,7 @@ fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
         },
     ];
     machine.blocks[0].operations = vec![Operation {
+        static_reach_binding: None,
         id: operation_id(910),
         result: OperationResult::Structural(StructuralOperationResult {
             place: operation_place,
@@ -157,6 +158,7 @@ fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
     let caller_result_place = place_id(913);
     module.machines = vec![
         TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine_id(900),
             attachment: None,
@@ -194,6 +196,7 @@ fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
                 id: block_id(900),
                 parameters: Vec::new(),
                 operations: vec![Operation {
+                    static_reach_binding: None,
                     id: caller_operation,
                     result: OperationResult::Structural(StructuralOperationResult {
                         place: caller_operation_place,
@@ -293,6 +296,7 @@ fn nominal_affine_cleanup_composes_the_cleanup_machine_bound() {
         }],
     };
     module.machines.push(TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: cleanup_machine,
         attachment: Some(structural_type),
@@ -804,11 +808,13 @@ fn unit_affine_local_establishments_are_in_the_fixed_entry_bound() {
     ];
     machine.blocks[0].operations = vec![
         Operation {
+            static_reach_binding: None,
             id: operation_id(900),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishTrivialAffineLocal { destination: first },
         },
         Operation {
+            static_reach_binding: None,
             id: operation_id(901),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishTrivialAffineLocal {
@@ -1010,11 +1016,13 @@ fn each_trivial_affine_local_establishment_adds_one_fixed_fuel_unit() {
     }];
     machine.blocks[0].operations = vec![
         Operation {
+            static_reach_binding: None,
             id: operation_id(900),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishTrivialAffineLocal { destination: local },
         },
         Operation {
+            static_reach_binding: None,
             id: operation_id(901),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishTrivialAffineLocal {
@@ -1269,6 +1277,7 @@ fn projected_unit_calls_compose_each_callee_bound_in_call_order() {
     ];
     caller.blocks[0].operations = (0..2)
         .map(|index| Operation {
+            static_reach_binding: None,
             id: operation_id(950 + index),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
@@ -1452,6 +1461,7 @@ fn mixed_call_outcomes_do_not_cross_product_crash_and_caller_return_costs() {
             parameters: Vec::new(),
             operations: vec![
                 Operation {
+                    static_reach_binding: None,
                     id: operation_id(3),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -1461,6 +1471,7 @@ fn mixed_call_outcomes_do_not_cross_product_crash_and_caller_return_costs() {
                     kind: OperationKind::BooleanConstant { value: false },
                 },
                 Operation {
+                    static_reach_binding: None,
                     id: operation_id(4),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -1627,6 +1638,7 @@ fn unit_fixture() -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine_id(900),
             attachment: None,
@@ -1692,6 +1704,7 @@ fn ordered_empty_nominal_affine_fixture(same_target: bool) -> TerminalModule {
         },
     };
     let cleanup_machine = |id, attachment, block, edge, contract| TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id,
         attachment: Some(attachment),
@@ -1828,6 +1841,7 @@ fn ordered_one_executable_nominal_affine_fixture() -> TerminalModule {
     };
     helper.contract.id = contract_id(903);
     module.machines[2].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(903),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -1862,6 +1876,7 @@ fn ordered_two_distinct_executable_nominal_affine_fixture() -> TerminalModule {
     };
     helper.contract.id = contract_id(904);
     module.machines[1].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(904),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -1896,6 +1911,7 @@ fn ordered_shared_executable_nominal_affine_fixture() -> TerminalModule {
     };
     helper.contract.id = contract_id(902);
     module.machines[1].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(902),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -2054,6 +2070,7 @@ fn executable_nominal_affine_fixture() -> TerminalModule {
         }],
     };
     module.machines.push(TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(901),
         attachment: Some(token_type),
@@ -2073,6 +2090,7 @@ fn executable_nominal_affine_fixture() -> TerminalModule {
             id: block_id(901),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: operation_id(901),
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
@@ -2092,6 +2110,7 @@ fn executable_nominal_affine_fixture() -> TerminalModule {
         contract: empty_contract(901),
     });
     module.machines.push(TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(902),
         attachment: Some(helper_type),
@@ -2130,6 +2149,7 @@ fn two_helper_nominal_affine_fixture() -> TerminalModule {
     };
     module.structural_types.push(second_helper_type.clone());
     module.machines[1].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(902),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -2142,6 +2162,7 @@ fn two_helper_nominal_affine_fixture() -> TerminalModule {
         },
     });
     module.machines.push(TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(903),
         attachment: Some(second_helper_type.id),
@@ -2186,6 +2207,7 @@ fn three_helper_nominal_affine_fixture() -> TerminalModule {
     };
     module.structural_types.push(third_helper_type.clone());
     module.machines[1].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(903),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -2263,6 +2285,7 @@ fn unit_effect_fixture() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: machine_id(700),
                 attachment: None,
@@ -2283,6 +2306,7 @@ fn unit_effect_fixture() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: vec![
                         Operation {
+                            static_reach_binding: None,
                             id: operation_id(700),
                             result: OperationResult::Unit,
                             kind: OperationKind::CallUnit {
@@ -2295,6 +2319,7 @@ fn unit_effect_fixture() -> TerminalModule {
                             },
                         },
                         Operation {
+                            static_reach_binding: None,
                             id: operation_id(701),
                             result: OperationResult::Unit,
                             kind: OperationKind::PortWrite {
@@ -2318,6 +2343,7 @@ fn unit_effect_fixture() -> TerminalModule {
                 },
             },
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: machine_id(701),
                 attachment: None,
@@ -2337,6 +2363,7 @@ fn unit_effect_fixture() -> TerminalModule {
                     id: block_id(701),
                     parameters: Vec::new(),
                     operations: vec![Operation {
+                        static_reach_binding: None,
                         id: operation_id(702),
                         result: OperationResult::Unit,
                         kind: OperationKind::BoundaryCall {
@@ -2401,6 +2428,7 @@ fn write_only_primitive_store_fixture() -> TerminalModule {
     caller.structural_places = vec![structural_place(caller_place)];
     caller.published_service_ceiling.clear();
     caller.blocks[0].operations = vec![Operation {
+        static_reach_binding: None,
         id: operation_id(700),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -2422,6 +2450,7 @@ fn write_only_primitive_store_fixture() -> TerminalModule {
     callee.structural_places = vec![structural_place(callee_place)];
     callee.blocks[0].operations = vec![
         Operation {
+            static_reach_binding: None,
             id: operation_id(702),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -2433,6 +2462,7 @@ fn write_only_primitive_store_fixture() -> TerminalModule {
             },
         },
         Operation {
+            static_reach_binding: None,
             id: operation_id(703),
             result: OperationResult::Unit,
             kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -2479,6 +2509,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine_id(1),
             attachment: None,
@@ -2503,6 +2534,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
                     id: block_id(1),
                     parameters: Vec::new(),
                     operations: vec![Operation {
+                        static_reach_binding: None,
                         id: operation_id(1),
                         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -2606,6 +2638,7 @@ fn call_fixture() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: machine_id(1),
                 attachment: None,
@@ -2626,11 +2659,13 @@ fn call_fixture() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: vec![
                         Operation {
+                            static_reach_binding: None,
                             id: operation_id(1),
                             result: terminal_psi::OperationResult::Scalar(declaration(1)),
                             kind: OperationKind::BooleanConstant { value: true },
                         },
                         Operation {
+                            static_reach_binding: None,
                             id: operation_id(2),
                             result: terminal_psi::OperationResult::Scalar(declaration(2)),
                             kind: OperationKind::Call {
@@ -2650,6 +2685,7 @@ fn call_fixture() -> TerminalModule {
                 contract: empty_contract(1),
             },
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: machine_id(2),
                 attachment: None,

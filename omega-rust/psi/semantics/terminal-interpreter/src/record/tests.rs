@@ -37,6 +37,7 @@ fn unit_module() -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: MachineId::new(900).unwrap(),
             attachment: None,
@@ -112,6 +113,7 @@ fn record_module() -> TerminalModule {
         },
     });
     machine.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Structural(StructuralOperationResult {
             place: PlaceId::new(1).unwrap(),
@@ -160,6 +162,7 @@ fn getter() -> TerminalMachine {
     }];
     getter.result = TerminalMachineResult::Scalar(scalar(14));
     getter.blocks[0].operations = vec![Operation {
+        static_reach_binding: None,
         id: OperationId::new(12).unwrap(),
         result: OperationResult::Scalar(scalar(13)),
         kind: OperationKind::IntegerStructuralField {
@@ -177,6 +180,7 @@ fn getter() -> TerminalMachine {
 
 fn getter_call(identity: u64, source: u64) -> Operation {
     Operation {
+        static_reach_binding: None,
         id: OperationId::new(identity).unwrap(),
         result: OperationResult::Scalar(scalar(identity)),
         kind: OperationKind::CallStructuralScalar {
@@ -256,6 +260,7 @@ fn ordinary_scalar_calls_reenter_constructor_with_fresh_record_identities() {
     outer.blocks[0].operations = [(93, 91), (94, 92)]
         .into_iter()
         .map(|(identity, argument)| Operation {
+            static_reach_binding: None,
             id: OperationId::new(identity).unwrap(),
             result: OperationResult::Scalar(scalar(identity)),
             kind: OperationKind::Call {
@@ -346,6 +351,7 @@ fn owned_record_argument_mutation_does_not_change_the_callers_referent() {
     }];
     writer.blocks[0].operations = vec![
         Operation {
+            static_reach_binding: None,
             id: OperationId::new(21).unwrap(),
             result: OperationResult::Scalar(scalar(21)),
             kind: OperationKind::IntegerConstant {
@@ -353,6 +359,7 @@ fn owned_record_argument_mutation_does_not_change_the_callers_referent() {
             },
         },
         Operation {
+            static_reach_binding: None,
             id: OperationId::new(22).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::StructuralScalarFieldStore {
@@ -370,6 +377,7 @@ fn owned_record_argument_mutation_does_not_change_the_callers_referent() {
     mutator.blocks[0].operations.insert(
         0,
         Operation {
+            static_reach_binding: None,
             id: OperationId::new(11).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
@@ -398,6 +406,7 @@ fn owned_record_argument_mutation_does_not_change_the_callers_referent() {
     structural_arguments[0].access = StructuralAccess::Owned;
     machine.blocks[0].operations.push(call);
     machine.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: OperationId::new(4).unwrap(),
         result: OperationResult::Scalar(scalar(4)),
         kind: OperationKind::IntegerStructuralField {

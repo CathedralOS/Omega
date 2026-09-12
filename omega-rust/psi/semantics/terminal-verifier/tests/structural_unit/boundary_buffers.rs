@@ -280,6 +280,7 @@ fn byte_field_presentation_does_not_widen_scalar_result_calls() {
         scalar_type: ScalarType::Boolean,
     });
     callee.blocks[0].operations = vec![Operation {
+        static_reach_binding: None,
         id: operation_id(100),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

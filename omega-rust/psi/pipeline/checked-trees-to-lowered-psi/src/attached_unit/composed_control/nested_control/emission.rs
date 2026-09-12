@@ -177,6 +177,7 @@ pub(super) fn emit(
     }));
     structural_places.sort_by_key(|place| place.id);
     let machine = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: crate::attached_unit::lower_declared_service_reach(
             checked,
             plan.machine,

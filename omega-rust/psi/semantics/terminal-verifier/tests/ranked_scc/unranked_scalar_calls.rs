@@ -21,6 +21,7 @@ fn scalar_call_cycle() -> TerminalModule {
         cleanup_actions: Vec::new(),
     };
     module.machines[0].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: id(30, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

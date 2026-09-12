@@ -74,6 +74,7 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine_id(1),
             attachment: None,
@@ -93,6 +94,7 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
                 id: block_id(1),
                 parameters: Vec::new(),
                 operations: vec![Operation {
+                    static_reach_binding: None,
                     id: operation,
                     result: OperationResult::Unit,
                     kind: OperationKind::BoundaryCall {
