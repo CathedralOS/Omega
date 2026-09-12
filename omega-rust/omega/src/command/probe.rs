@@ -11,13 +11,18 @@
 //! Ordinary probes emit only the executable because their temporary build
 //! directory is deleted immediately. `--keep` retains the full compiler report
 //! and visualization set for inspection.
+//! Projects use ordinary package preparation and accepted policy. `--both`
+//! observes the same checked package program through `compilation`, including
+//! generated source; it cannot grant missing package or trust acceptance.
 //!
 //! Exit code: the PROBE's native exit code (so shell `$?` composes), 200 on
-//! compile failure, 201 on native/interp disagreement under `--both`.
+//! compile failure, 201 on comparison frontend failure or native/interp
+//! disagreement under `--both`. An unsupported interpreter execution is reported
+//! as declined, not as agreement.
 
-use compiler::{
-    ArtifactEmissionPolicy, CompileOptions, CompileRequest, compile, compile_to_checked,
-};
+mod compilation;
+
+use compiler::{ArtifactEmissionPolicy, CompileOptions};
 use std::process::Command;
 
 pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) -> ! {
@@ -36,16 +41,19 @@ pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) -> ! {
     let _ = std::fs::remove_dir_all(&build_dir);
 
     let artifact_policy = probe_artifact_policy(keep);
-    let report = match compile(
-        CompileRequest::new(CompileOptions {
+    let compilation::ProbeCompilation {
+        report,
+        interpretation,
+    } = match compilation::compile(
+        CompileOptions {
             root_path: main_path.clone(),
             build_dir: Some(build_dir.clone()),
             target_name: target_name.clone(),
-        })
-        .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact)
-        .with_artifact_policy(artifact_policy),
+        },
+        artifact_policy,
+        both && target_name.is_none(),
     ) {
-        Ok(report) => report,
+        Ok(compilation) => compilation,
         Err(diagnostics) => {
             eprintln!("native compile FAILED:");
             for diagnostic in diagnostics {
@@ -54,6 +62,10 @@ pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) -> ! {
             std::process::exit(200);
         }
     };
+    if !report.trust_admission_settlement().is_exactly_admitted() {
+        super::report_unsettled_admissions(report.trust_admission_settlement());
+        std::process::exit(200);
+    }
     let exe = match super::output::publish_native_artifact(report, &build_dir) {
         Ok((_published, path)) => path,
         Err(error) => {
@@ -81,22 +93,9 @@ pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) -> ! {
     eprint!("{}", String::from_utf8_lossy(&output.stderr));
     eprintln!("native exit: {native_code}");
 
-    if both {
-        let selected_target = target_name
-            .as_deref()
-            .unwrap_or_else(|| target::TargetProfile::host().target_name());
-        match compile_to_checked(&main_path, Some(selected_target)) {
-            Ok(checked) => {
-                let Some(entry) = checked.selected_program_entry_machine() else {
-                    eprintln!(
-                        "interp: DECLINED (build has no exact target-owned ProgramEntry binding)"
-                    );
-                    if !keep {
-                        let _ = std::fs::remove_dir_all(&build_dir);
-                    }
-                    std::process::exit(201);
-                };
-                let outcome = checked_interpreter::interpret_entry(&checked, entry, &[]);
+    if let Some(interpretation) = interpretation {
+        match interpretation {
+            Ok(outcome) => {
                 if let Some(reason) = &outcome.error {
                     eprintln!("interp: DECLINED ({reason})");
                 } else {
@@ -116,6 +115,10 @@ pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) -> ! {
                 for diagnostic in diagnostics {
                     eprintln!("  {diagnostic}");
                 }
+                if !keep {
+                    let _ = std::fs::remove_dir_all(&build_dir);
+                }
+                std::process::exit(201);
             }
         }
     }
@@ -141,8 +144,8 @@ fn parse_arguments(
     let mut arguments = arguments
         .map(|argument| argument.to_string_lossy().into_owned())
         .collect::<Vec<_>>();
-    // Probes bypass package preparation. Reject this flag before extracting
-    // values or positionals so it cannot disappear among ignored arguments.
+    // This command has no offline option. Reject it before extracting values
+    // or positionals so it cannot disappear among ignored arguments.
     if arguments.iter().any(|argument| argument == "--offline") {
         return Err("omega run does not support --offline".to_owned());
     }

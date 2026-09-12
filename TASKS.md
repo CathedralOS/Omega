@@ -55,8 +55,12 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   is retained under the application's ignored `build/verification/`; record the
   owning diagnostic before expanding compiler work. Initialization is explicit
   and requires private repository access during in-house development.
-  On `24ab0f1c87`/Windows, package-aware audit/check stops in std on unsupported
-  `Optional` equality; `run` instead attempts a local `omega_language_std` path.
+  On `e00ebe8f8e` plus the package-aware `run` repair/macOS ARM64,
+  `python3 samples/apps/squalr/tools/verify.py native --omega target/debug/omega`
+  (Python 3.13) resolves the pinned std package, then exits 200 with 24 checked
+  diagnostics, starting with unsupported reference/non-plain-owned match-result
+  custody joins. Resume in Psi's `validation/src/expression_types/match_dispatch.rs`;
+  the unchanged native command remains the next acceptance, not package setup.
   The API-only check also exposes exact-owner case and range-result diagnostics
   requiring triage. Keep these distinct; the setup is not a native pass.
 

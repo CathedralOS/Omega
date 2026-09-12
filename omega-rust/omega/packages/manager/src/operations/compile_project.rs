@@ -124,6 +124,19 @@ impl std::error::Error for CompilePreparedLocalProjectNativeError {}
 pub fn compile_prepared_local_project_for_native(
     request: PreparedLocalProjectNativeRequest,
 ) -> Result<CompileReport, CompilePreparedLocalProjectNativeError> {
+    compile_prepared_local_project_for_native_with_observation(request, |_| ())
+        .map(|(report, ())| report)
+}
+
+/// Observe the exact checked program that native production consumes, without
+/// repeating package acquisition or sponsored build execution. The observer must
+/// only compute a private result: native realization can still reject afterward.
+/// Neither the observation nor a successful report replaces the caller's exact
+/// trust-admission settlement before publication or execution.
+pub fn compile_prepared_local_project_for_native_with_observation<Observation>(
+    request: PreparedLocalProjectNativeRequest,
+    observe: impl FnOnce(&compiler::CheckedCompilation) -> Observation,
+) -> Result<(CompileReport, Observation), CompilePreparedLocalProjectNativeError> {
     let PreparedLocalProjectNativeRequest {
         prepared,
         build_dir,
@@ -157,6 +170,7 @@ pub fn compile_prepared_local_project_for_native(
         candidate.checked_root(),
     )
     .map_err(CompilePreparedLocalProjectNativeError::CheckedObservations)?;
+    let observation = observe(candidate.checked_root());
     realize_accepted_reviewed_package_candidate_report_with_source_evaluated_imports_and_policy(
         candidate,
         &evidence,
@@ -166,7 +180,12 @@ pub fn compile_prepared_local_project_for_native(
         receiving_terminal_authority_permission_policy,
         &[],
     )
-    .map(|report| report.with_trust_admission_settlement(trust_settlement))
+    .map(|report| {
+        (
+            report.with_trust_admission_settlement(trust_settlement),
+            observation,
+        )
+    })
     .map_err(CompilePreparedLocalProjectNativeError::Native)
 }
 
