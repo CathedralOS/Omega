@@ -1,7 +1,8 @@
 use compiler::CheckedCompileRequest;
 use compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct,
-    RetainedNativeRealizationRequest, compile, compile_to_checked, realize_retained_native_artifact,
+    RetainedNativeRealizationRequest, compile, compile_to_checked,
+    realize_retained_native_artifact,
 };
 use package_compilation::{
     BuildDeclarationKind, PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,

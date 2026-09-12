@@ -1268,9 +1268,8 @@ fn production_subject_projection_is_report_owned() {
     let root = workspace_root();
     let compiler = root.join("omega-rust/omega/compiler/compiler/src");
     let driver = compiler_product_coordinator_source(&root);
-    let native_optimization =
-        std::fs::read_to_string(compiler.join("compiler/optimization/mod.rs"))
-            .expect("read native optimization join");
+    let native_optimization = std::fs::read_to_string(compiler.join("compiler/native.rs"))
+        .expect("read native optimization join");
     let product_stops = format!("{driver}\n{native_optimization}");
     let projection =
         std::fs::read_to_string(compiler.join("pipeline/reporting/production_subject.rs"))
@@ -1305,7 +1304,11 @@ fn production_subject_projection_is_report_owned() {
 fn optimization_rollback_settlement_is_owner_complete() {
     let root = workspace_root();
     let compiler = root.join("omega-rust/omega/compiler/compiler/src/compiler");
-    let native_join = recursive_rust_source(&compiler.join("optimization"));
+    let native_join = format!(
+        "{}\n{}",
+        std::fs::read_to_string(compiler.join("native.rs")).expect("read native coordinator"),
+        recursive_rust_source(&compiler.join("native"))
+    );
     let owner = std::fs::read_to_string(compiler.join("optimization/rollback/mod.rs"))
         .expect("read optimization rollback owner");
 
@@ -2540,7 +2543,11 @@ fn retained_native_product_enters_only_terminal_realization() {
     let root = workspace_root();
     let compiler = root.join("omega-rust/omega/compiler/compiler/src/compiler");
     let driver = compiler_product_coordinator_source(&root);
-    let native = recursive_rust_source(&compiler.join("optimization"));
+    let native = format!(
+        "{}\n{}",
+        std::fs::read_to_string(compiler.join("native.rs")).expect("read native coordinator"),
+        recursive_rust_source(&compiler.join("native"))
+    );
     let legacy_driver_path =
         root.join("omega-rust/omega/compiler/compiler/src/pipeline/compatibility/harness.rs");
     let request_path = root.join("omega-rust/omega/compiler/compiler/src/compiler/request.rs");

@@ -81,7 +81,8 @@ impl PreparedLocalProjectNativeRequest {
 pub enum CompilePreparedLocalProjectNativeError {
     Review(CompileResolvedPackageReviewsError),
     Evidence(AcceptedOrdinaryEvidenceError),
-    CheckedObservations(Vec<Diagnostic>),
+    TrustAdmission(Vec<Diagnostic>),
+    ObservationOutput(Vec<Diagnostic>),
     Native(Vec<Diagnostic>),
 }
 
@@ -97,11 +98,14 @@ impl fmt::Display for CompilePreparedLocalProjectNativeError {
                     "cannot accept fresh package review evidence: {error}"
                 )
             }
-            Self::CheckedObservations(diagnostics) => {
+            Self::ObservationOutput(diagnostics) => {
                 write!(
                     formatter,
-                    "cannot validate package trust observations: {diagnostics:?}"
+                    "cannot write checked observations: {diagnostics:?}"
                 )
+            }
+            Self::TrustAdmission(diagnostics) => {
+                write!(formatter, "cannot admit package trust: {diagnostics:?}")
             }
             Self::Native(diagnostics) => {
                 write!(
@@ -165,10 +169,10 @@ pub fn compile_prepared_local_project_for_native_with_observation<Observation>(
     };
     let admission =
         compiler::admit_checked_compilation(candidate.checked_root(), &accepted_trust_admissions)
-            .map_err(CompilePreparedLocalProjectNativeError::CheckedObservations)?;
+            .map_err(CompilePreparedLocalProjectNativeError::TrustAdmission)?;
     admission
         .write_observations(&options, artifact_policy)
-        .map_err(CompilePreparedLocalProjectNativeError::CheckedObservations)?;
+        .map_err(CompilePreparedLocalProjectNativeError::ObservationOutput)?;
     let trust_settlement = admission.into_settlement();
     let observation = observe(candidate.checked_root());
     realize_accepted_reviewed_package_candidate_report_with_source_evaluated_imports_and_policy(

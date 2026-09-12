@@ -52,7 +52,8 @@ impl PreparedLocalProjectCheckRequest {
 #[derive(Debug)]
 pub enum CheckPreparedLocalProjectError {
     Review(CompileResolvedPackageReviewsError),
-    CheckedObservations(Vec<Diagnostic>),
+    TrustAdmission(Vec<Diagnostic>),
+    ObservationOutput(Vec<Diagnostic>),
     Report(&'static str),
 }
 
@@ -60,11 +61,14 @@ impl fmt::Display for CheckPreparedLocalProjectError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Review(error) => write!(formatter, "cannot check prepared project: {error}"),
-            Self::CheckedObservations(diagnostics) => {
+            Self::ObservationOutput(diagnostics) => {
                 write!(
                     formatter,
-                    "cannot validate package trust observations: {diagnostics:?}"
+                    "cannot write checked observations: {diagnostics:?}"
                 )
+            }
+            Self::TrustAdmission(diagnostics) => {
+                write!(formatter, "cannot admit package trust: {diagnostics:?}")
             }
             Self::Report(message) => formatter.write_str(message),
         }
@@ -99,10 +103,10 @@ pub fn check_prepared_local_project(
         target_name: Some(target_profile.target_name().to_owned()),
     };
     let admission = compiler::admit_checked_compilation(&checked, &accepted_trust_admissions)
-        .map_err(CheckPreparedLocalProjectError::CheckedObservations)?;
+        .map_err(CheckPreparedLocalProjectError::TrustAdmission)?;
     admission
         .write_observations(&options, artifact_policy)
-        .map_err(CheckPreparedLocalProjectError::CheckedObservations)?;
+        .map_err(CheckPreparedLocalProjectError::ObservationOutput)?;
     let settlement = admission.into_settlement();
     CompileReport::checked(
         options.root_path,

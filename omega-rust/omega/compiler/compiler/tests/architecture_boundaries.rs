@@ -339,7 +339,7 @@ fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
     let driver_path = repo_root.join("omega-rust/omega/compiler/compiler/src/compiler.rs");
     let request_path = repo_root.join("omega-rust/omega/compiler/compiler/src/compiler/request.rs");
     let optimization_path =
-        repo_root.join("omega-rust/omega/compiler/compiler/src/compiler/optimization/mod.rs");
+        repo_root.join("omega-rust/omega/compiler/compiler/src/compiler/native.rs");
     let native_report_path =
         repo_root.join("omega-rust/omega/compiler/compiler/src/compiler/native/prepared.rs");
     let driver = fs::read_to_string(&driver_path)

@@ -46,7 +46,7 @@ impl Drop for MultiTargetFixture {
 fn checked_admission_is_independent_of_observation_writing() {
     let fixture = MultiTargetFixture::new(
         "machine main() { }",
-        "machine build(builder: &mut Build) { }",
+        "machine build(builder: &mut Build) { builder.application(\"checked-observations\"); }",
     );
     let checked = crate::compile_to_checked(crate::CheckedCompileRequest::new(&fixture.main, None))
         .expect("check the fixture");

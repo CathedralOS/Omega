@@ -196,8 +196,11 @@ windows_x86_64 machine binding() -> Binding<{width}, 11, 0> {{
 "#,
         );
         let fixture = TemporaryProgram::new(&source);
-        let diagnostics = compile_to_checked(&fixture.main(), Some("windows_x86_64"))
-            .expect_err("closed imported arrays cannot pad or truncate their bytes");
+        let diagnostics = compile_to_checked(CheckedCompileRequest::new(
+            &fixture.main(),
+            Some("windows_x86_64"),
+        ))
+        .expect_err("closed imported arrays cannot pad or truncate their bytes");
         let expected = format!("requires exactly {width}");
         assert!(
             diagnostics
