@@ -604,6 +604,41 @@ fn wire_compatibility_demand_reports_directional_facts_and_migration_route() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[test]
+fn wire_compatibility_complete_migration_demand_needs_bound_lineage_route() {
+    // Historical compatibility is the explicitly selected FormatMigration route,
+    // not overlapping field numbers or declaration order and not a current-shape
+    // codec round-trip.
+    check_canary(&pass_canary(
+        fixture_roster::WIRE_COMPATIBILITY_MIGRATION_ACROSS_SHAPES,
+    ))
+    .expect(
+        "a CompleteMigration-only demand is satisfied by the explicitly bound \
+         FormatMigration route between differing eras",
+    );
+
+    let diagnostics = check_canary(&fail_canary(
+        "wire/wire_compatibility_migration_route_missing",
+    ))
+    .expect_err("an unbound CompleteMigration route should be rejected");
+    let joined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        joined.contains(
+            "wire compatibility demand `ArchiveStore` is unsatisfied for local schema \
+             `Counter` and peer schema `CounterV1`: migration coverage",
+        ),
+        "missing lineage route diagnostic should identify migration coverage:\n{joined}"
+    );
+    assert!(
+        !joined.contains("readability"),
+        "missing lineage route should not report readability as the cause:\n{joined}"
+    );
+}
+
 // The canonical permission ledger must stay visible per event in the backend
 // report's Artifact Semantic Spine after surviving the full spine (checked
 // trees -> state graph -> control flow -> abstract -> target -> assigned ->

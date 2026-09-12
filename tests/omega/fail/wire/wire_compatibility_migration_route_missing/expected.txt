@@ -1,0 +1,1 @@
+peer schema `CounterV1`: migration coverage

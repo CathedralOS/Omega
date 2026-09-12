@@ -1,0 +1,11 @@
+machine build(builder: &mut Build) {
+    builder.application("wire-compatibility-migration-across-shapes");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    builder.require_wire_compatibility<
+        ArchiveStore,
+        CounterLineage,
+        Counter,
+        CounterV1,
+        CompleteMigration
+    >();
+}

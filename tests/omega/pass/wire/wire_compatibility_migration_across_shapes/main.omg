@@ -1,0 +1,36 @@
+// A store policy that demands only CompleteMigration is satisfied by an
+// explicitly bound checked migration between two ordinary immutable eras whose
+// wire shapes differ. The policy does not ask for readability, so the strict
+// current-shape decoder rejecting the old era is irrelevant to this demand:
+// historical compatibility is the lineage route, not the codec round-trip law.
+
+use omega_language_std::format_lineage;
+
+data ArchiveStore {
+}
+
+data CounterLineage {
+}
+
+data CounterV1 {
+    #1 counter: i32;
+}
+
+data Counter {
+    #1 counter: i32;
+    #2 timestamp: i32;
+}
+
+machine Counter::from_v1(
+    old: CounterV1,
+    out: &mut Counter
+) satisfies FormatMigration<CounterLineage, CounterV1, Counter>::migrate {
+    out.counter = old.counter;
+    out.timestamp = 0;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
