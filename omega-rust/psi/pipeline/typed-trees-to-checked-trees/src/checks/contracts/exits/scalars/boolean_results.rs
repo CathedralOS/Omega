@@ -6,6 +6,9 @@
 //! These plans exist before contract checking; later execution plans cannot
 //! authorize this check. Expansion establishes denotation, not reevaluation:
 //! only immutable origins and earlier captured locals may supply operands.
+//! Call-produced locals use exact captured arguments and declared normal-result
+//! equations. Reading candidate clauses and expanding their substitutions share
+//! one budget; neither callee bodies nor current mutable storage supply values.
 
 use checked_trees::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole,
@@ -29,12 +32,14 @@ impl ExitScalars<'_, '_> {
         let CheckedScalarExpression::Boolean(selected) = selected else {
             return None;
         };
+        let mut remaining = 4096;
         let predicate = crate::values::lower_scalar_contract_predicate(
             self.program,
             &self.facts.operators,
             self.machine,
             expression,
             true,
+            &mut remaining,
         )?;
         let state = crate::find_state_in_machine(
             self.program,
@@ -92,7 +97,6 @@ impl ExitScalars<'_, '_> {
                 })
                 .map(|parameter| parameter.symbol)
         };
-        let mut remaining = 4096;
         let returned = self.bind_selected_boolean(
             selected,
             symbols,
@@ -153,19 +157,6 @@ impl ExitScalars<'_, '_> {
                     return entry_position(symbol)
                         .map(|position| CheckedBooleanExpression::Parameter { position });
                 }
-                let plans = &self.facts.values.scalar_expressions;
-                let mut definitions = plans.source_bindings.iter().filter(|(_, binding)| {
-                    binding.state == self.exit.state_symbol && binding.destination == symbol
-                });
-                let (_, binding) = definitions.next()?;
-                if definitions.next().is_some() || binding.statement_ordinal >= before_statement {
-                    return None;
-                }
-                let CheckedScalarExpressionRole::LocalInitializer { binding_ordinal } =
-                    binding.role
-                else {
-                    return None;
-                };
                 let state = crate::find_state_in_machine(
                     self.program,
                     self.exit.machine_symbol,
@@ -181,22 +172,65 @@ impl ExitScalars<'_, '_> {
                             .is_some()
                     })
                     .count();
-                if position.checked_sub(parameters)? != binding_ordinal as usize {
-                    return None;
-                }
-                let typed_trees::statement::StatementNode::LocalData(local) = self
+                let binding_ordinal = u32::try_from(position.checked_sub(parameters)?).ok()?;
+                let (statement, local) = self
                     .program
                     .statement_table
                     .statements(state.statement_nodes)
-                    .get(binding.statement_ordinal as usize)?
-                else {
-                    return None;
-                };
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(statement, node)| {
+                        let typed_trees::statement::StatementNode::LocalData(local) = node else {
+                            return None;
+                        };
+                        (!local.is_mutable
+                            && local.initial_value.is_valid()
+                            && self
+                                .program
+                                .primitive_type_reference(local.type_reference)
+                                .is_some())
+                        .then_some((statement, local))
+                    })
+                    .nth(binding_ordinal as usize)?;
+                let statement = u32::try_from(statement).ok()?;
                 if local.symbol != symbol
-                    || local.is_mutable
-                    || local.initial_value != binding.expression
+                    || statement >= before_statement
                     || self.program.primitive_type_reference(local.type_reference)
                         != Some(PrimitiveType::Bool)
+                {
+                    return None;
+                }
+                let plans = &self.facts.values.scalar_expressions;
+                let mut definitions = plans.source_bindings.iter().filter(|(_, binding)| {
+                    binding.state == self.exit.state_symbol && binding.destination == symbol
+                });
+                if matches!(
+                    self.program
+                        .expression_table
+                        .expression(local.initial_value),
+                    typed_trees::expression::ExpressionNode::Call(_)
+                ) {
+                    // Pure direct-call arguments already have occurrence-owned
+                    // plans; manufacturing another initializer root would duplicate
+                    // the call. The declaration supplies the destination, not its value.
+                    if definitions.next().is_some() {
+                        return None;
+                    }
+                    return self.bind_call_boolean(
+                        local.initial_value,
+                        statement,
+                        binding_ordinal,
+                        entry_position,
+                        remaining,
+                        depth,
+                    );
+                }
+                let (_, binding) = definitions.next()?;
+                if definitions.next().is_some()
+                    || binding.statement_ordinal != statement
+                    || binding.expression != local.initial_value
+                    || binding.role
+                        != (CheckedScalarExpressionRole::LocalInitializer { binding_ordinal })
                 {
                     return None;
                 }
@@ -209,7 +243,7 @@ impl ExitScalars<'_, '_> {
                     return None;
                 };
                 // Strictly earlier definition coordinates rule out forward/cyclic
-                // capture. StorageRead and call leaves still lack snapshot evidence.
+                // capture. StorageRead still lacks snapshot evidence.
                 self.bind_selected_boolean(
                     selected,
                     operands,
@@ -222,6 +256,127 @@ impl ExitScalars<'_, '_> {
             remaining,
             depth,
         )
+    }
+
+    fn bind_call_boolean(
+        &self,
+        expression: ExpressionHandle,
+        statement: u32,
+        binding_ordinal: u32,
+        entry_position: &dyn Fn(SymbolHandle) -> Option<usize>,
+        remaining: &mut usize,
+        depth: usize,
+    ) -> Option<CheckedBooleanExpression> {
+        use CheckedBooleanExpression as Boolean;
+        if depth >= 64 || *remaining == 0 {
+            return None;
+        }
+        *remaining -= 1;
+        let call = self.normal_return_call(expression)?;
+        if call.state != self.exit.state_symbol
+            || call.fact.statement_index != statement as usize
+            || self
+                .program
+                .primitive_type_reference(call.entry.return_type)
+                != Some(PrimitiveType::Bool)
+        {
+            return None;
+        }
+        let parameters = self.program.state_parameters(call.entry);
+        // The current join has captured pure scalar operands, not structural
+        // borrows or mutable post-state snapshots. Every slot must be retained,
+        // including arguments unused by the particular guarantee.
+        for (position, (parameter, argument)) in parameters.iter().zip(call.arguments).enumerate() {
+            if parameter.is_mutable {
+                return None;
+            }
+            let primitive = self
+                .program
+                .primitive_type_reference(parameter.type_reference)?;
+            let (selected, _) = self.selected_scalar_expression(
+                statement,
+                CheckedScalarExpressionRole::CallArgument {
+                    binding_ordinal,
+                    argument_ordinal: u32::try_from(position).ok()?,
+                },
+                *argument,
+            )?;
+            if crate::values::scalar_expression_type(selected) != Some(primitive) {
+                return None;
+            }
+        }
+        for guarantee in self.normal_call_guarantees(call) {
+            if *remaining == 0 {
+                return None;
+            }
+            let Some(predicate) = crate::values::lower_scalar_contract_predicate(
+                self.program,
+                &self.facts.operators,
+                call.callee,
+                guarantee,
+                true,
+                remaining,
+            ) else {
+                continue;
+            };
+            let Boolean::Equal { left, right } = &predicate else {
+                continue;
+            };
+            let definition = if **left
+                == (Boolean::Parameter {
+                    position: parameters.len(),
+                }) {
+                right
+            } else if **right
+                == (Boolean::Parameter {
+                    position: parameters.len(),
+                })
+            {
+                left
+            } else {
+                continue;
+            };
+            // Only declared normal guarantees establish the result. Call requires
+            // are checked independently before exit checking; this substitution
+            // is never available to prove the call's own requirements.
+            if let Some(value) = bind_boolean(
+                definition,
+                &|position, local, remaining, depth| {
+                    if local
+                        || self
+                            .program
+                            .primitive_type_reference(parameters.get(position)?.type_reference)
+                            != Some(PrimitiveType::Bool)
+                    {
+                        return None;
+                    }
+                    let (selected, symbols) = self.selected_scalar_expression(
+                        statement,
+                        CheckedScalarExpressionRole::CallArgument {
+                            binding_ordinal,
+                            argument_ordinal: u32::try_from(position).ok()?,
+                        },
+                        *call.arguments.get(position)?,
+                    )?;
+                    let CheckedScalarExpression::Boolean(selected) = selected else {
+                        return None;
+                    };
+                    self.bind_selected_boolean(
+                        selected,
+                        symbols,
+                        statement,
+                        entry_position,
+                        remaining,
+                        depth,
+                    )
+                },
+                remaining,
+                depth + 1,
+            ) {
+                return Some(value);
+            }
+        }
+        None
     }
 }
 

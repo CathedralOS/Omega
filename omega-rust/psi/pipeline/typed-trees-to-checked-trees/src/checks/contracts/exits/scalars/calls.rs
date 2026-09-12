@@ -1,10 +1,19 @@
-//! Closed call operands transported through an exact normal-return guarantee.
+//! Call operands transported through an exact normal-return guarantee.
 //! No source arithmetic, callee body, or current argument storage is replayed.
 
 use super::*;
 use checked_trees::{CheckedScalarComputationKind, ContractProofFactKind, ContractProofFactOwner};
 use facts::FactPlace;
 use typed_trees::expression::{BinaryOperator, ExpressionNode};
+
+#[derive(Clone, Copy)]
+pub(super) struct NormalReturnCall<'a> {
+    pub state: symbols::SymbolHandle,
+    pub fact: &'a checked_trees::FlowCallFact,
+    pub callee: &'a Machine,
+    pub entry: &'a typed_trees::state::State,
+    pub arguments: &'a [ExpressionHandle],
+}
 
 impl ExitScalars<'_, '_> {
     pub(super) fn value_at_place(
@@ -64,7 +73,10 @@ impl ExitScalars<'_, '_> {
         self.closed_call_value(source?)
     }
 
-    pub(super) fn closed_call_value(&self, expression: ExpressionHandle) -> Option<ScalarValue> {
+    pub(super) fn normal_return_call(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<NormalReturnCall<'_>> {
         let ExpressionNode::Call(authored) = self.program.expression_table.expression(expression)
         else {
             return None;
@@ -94,12 +106,9 @@ impl ExitScalars<'_, '_> {
                     .iter()
                     .map(move |call| (state, call))
             })
-            .filter(|(_, call)| {
-                call.authored_expression == expression
-                    && call.target_symbol == authored.target_symbol
-            });
+            .filter(|(_, call)| call.authored_expression == expression);
         let (state, call) = occurrences.next()?;
-        if occurrences.next().is_some() {
+        if occurrences.next().is_some() || call.target_symbol != authored.target_symbol {
             return None;
         }
         let Some(crate::CallSite::Expression {
@@ -139,6 +148,52 @@ impl ExitScalars<'_, '_> {
         if arguments.len() != parameters.len() {
             return None;
         }
+        Some(NormalReturnCall {
+            state: state.state_symbol,
+            fact: call,
+            callee,
+            entry,
+            arguments,
+        })
+    }
+
+    pub(super) fn normal_call_guarantees<'a>(
+        &'a self,
+        call: NormalReturnCall<'a>,
+    ) -> impl Iterator<Item = ExpressionHandle> + 'a {
+        self.facts
+            .proof
+            .contract_fact_refs
+            .span_or_empty(call.fact.ensures)
+            .iter()
+            .filter_map(move |reference| {
+            let guarantee = self.facts.proof.contract_facts.get(reference.fact);
+            if guarantee.kind != ContractProofFactKind::Ensures
+                || !matches!(guarantee.owner,
+                    ContractProofFactOwner::Machine { machine_symbol } if machine_symbol == call.callee.symbol)
+                    && !matches!(guarantee.owner,
+                        ContractProofFactOwner::MachineState { machine_symbol, state_symbol }
+                            if machine_symbol == call.callee.symbol && state_symbol == call.entry.symbol)
+            {
+                return None;
+            }
+            let typed_trees::domain::ProofFact::Expression(expression) = self.program.proof_facts.get(guarantee.fact) else {
+                return None;
+            };
+            Some(*expression)
+        })
+    }
+
+    pub(super) fn closed_call_value(&self, expression: ExpressionHandle) -> Option<ScalarValue> {
+        let selected = self.normal_return_call(expression)?;
+        let NormalReturnCall {
+            state,
+            fact: call,
+            callee,
+            entry,
+            arguments,
+        } = selected;
+        let parameters = self.program.state_parameters(entry);
         let result_type = self.program.primitive_type_reference(entry.return_type)?;
         if !matches!(
             result_type,
@@ -154,31 +209,11 @@ impl ExitScalars<'_, '_> {
             return None;
         }
         let mut retained = None;
-        for reference in self
-            .facts
-            .proof
-            .contract_fact_refs
-            .span_or_empty(call.ensures)
-        {
-            let guarantee = self.facts.proof.contract_facts.get(reference.fact);
-            if guarantee.kind != ContractProofFactKind::Ensures
-                || !matches!(guarantee.owner,
-                    ContractProofFactOwner::Machine { machine_symbol } if machine_symbol == callee.symbol)
-                    && !matches!(guarantee.owner,
-                        ContractProofFactOwner::MachineState { machine_symbol, state_symbol }
-                            if machine_symbol == callee.symbol && state_symbol == entry.symbol)
-            {
-                continue;
-            }
-            let typed_trees::domain::ProofFact::Expression(guarantee_expression) =
-                self.program.proof_facts.get(guarantee.fact)
-            else {
-                continue;
-            };
+        for guarantee_expression in self.normal_call_guarantees(selected) {
             let ExpressionNode::Binary(binary) = self
                 .program
                 .expression_table
-                .expression(*guarantee_expression)
+                .expression(guarantee_expression)
             else {
                 continue;
             };
@@ -214,7 +249,7 @@ impl ExitScalars<'_, '_> {
                 || !typed_trees::operator::has_builtin_spelled_expression_meaning(
                     self.program,
                     callee.symbol,
-                    *guarantee_expression,
+                    guarantee_expression,
                     language_core::OperatorSpelling::Equal,
                     &[Some(entry.return_type), Some(parameter.type_reference)],
                 )
@@ -223,7 +258,7 @@ impl ExitScalars<'_, '_> {
             }
             let argument = arguments[position];
             let value = self.closed_argument_value(
-                state.state_symbol,
+                state,
                 call,
                 expression,
                 argument,

@@ -81,7 +81,8 @@ fn structural_entry_roots_preserve_access_independent_authored_and_dense_positio
                 &CheckedOperatorFacts::default(),
                 &program.machines()[0],
                 requirement(&program),
-                false
+                false,
+                &mut 4096,
             )
             .is_none()
         );
@@ -405,6 +406,7 @@ fn integer_entry_comparisons_reuse_total_landing_and_boolean_composition() {
                     &program.machines()[0],
                     requirement(&program),
                     false,
+                    &mut 4096,
                 ),
                 read(&program),
                 "scalar and crash predicates share the same primitive meaning"
@@ -702,6 +704,7 @@ fn integer_entry_fields_reuse_fixed_carrier_landing_and_total_comparisons() {
                     &program.machines()[0],
                     requirement(&program),
                     false,
+                    &mut 4096,
                 )
                 .is_none(),
                 "scalar contract namespace remains closed to structural fields"

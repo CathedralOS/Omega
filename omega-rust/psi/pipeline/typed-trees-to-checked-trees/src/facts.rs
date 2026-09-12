@@ -1311,6 +1311,7 @@ fn build_closed_scalar_value_contract_plan(
                 machine,
                 *expression,
                 contract.kind == SignatureContractKind::Ensures,
+                &mut 4096,
             )
             .map(checked_trees::ClosedScalarContractValue::Predicate)
         })

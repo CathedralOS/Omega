@@ -420,6 +420,112 @@ fn ordered_computed_boolean_result_proves_its_normal_guarantee() {
 }
 
 #[test]
+fn ordered_call_produced_boolean_result_preserves_its_normal_guarantee() {
+    for input in [false, true] {
+        for body in [
+            "let saved: bool = identity(!value); Host::finish(false); saved",
+            "Host::finish(false); let saved: bool = identity(!value); saved",
+            "let earlier: bool = !value; let saved: bool = identity(earlier); Host::finish(false); saved",
+            "let first: bool = identity(value); Host::finish(false); let saved: bool = identity(!first); saved",
+        ] {
+            let source = boolean_guarantee_source(body, input).replace(
+                "ensures result == value\nreaches Host",
+                "ensures result == !value\nreaches Host",
+            );
+            let published = artifact(&checked_from_source(&source));
+            let (status, observed) = execute(&published);
+            assert_eq!(
+                status,
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+            );
+            assert_eq!(
+                observed.arguments,
+                [
+                    vec![TerminalScalarValue::Boolean(false)],
+                    vec![TerminalScalarValue::Boolean(!input)]
+                ]
+            );
+        }
+    }
+}
+
+#[test]
+fn ordered_call_produced_boolean_equations_compose_across_calls() {
+    for bits in 0..16 {
+        let inputs = [bits & 1 != 0, bits & 2 != 0, bits & 4 != 0, bits & 8 != 0];
+        let source = nested_boolean_guarantee_source(
+            "(value == spare) == (other == last)", "Host::finish(false);", inputs,
+        ).replace(
+            "Host::finish(false); (value == spare) == (other == last)",
+            "let first: bool = equal(9u16, value, spare); Host::finish(false); let second: bool = equal(5u16, other, last); first == second",
+        );
+        let source = format!(
+            "machine equal(marker: u16, left: bool, right: bool) -> bool ensures result == (left == right) {{ left == right }}\n{source}"
+        );
+        let published = artifact(&checked_from_source(&source));
+        let (status, observed) = execute(&published);
+        assert_eq!(
+            status,
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+        );
+        assert_eq!(
+            observed.arguments,
+            [
+                vec![TerminalScalarValue::Boolean(false)],
+                vec![TerminalScalarValue::Boolean(
+                    (inputs[0] == inputs[1]) == (inputs[2] == inputs[3])
+                )]
+            ]
+        );
+    }
+}
+
+#[test]
+fn ordered_call_produced_boolean_result_rejects_a_substituted_actual() {
+    let source = boolean_guarantee_source(
+        "let saved: bool = identity(!value); Host::finish(false); saved",
+        true,
+    )
+    .replace(
+        "ensures result == value\nreaches Host",
+        "ensures result == !value\nreaches Host",
+    );
+    let published = artifact(&checked_from_source(&source));
+    let mut module = decode_module(&published.0).unwrap();
+    let proof = decode_proof_bundle(&published.1).unwrap();
+    let wrapper = module
+        .machines
+        .iter_mut()
+        .find(|machine| {
+            !machine.contract.ensures.is_empty()
+                && machine.blocks.iter().any(|block| {
+                    block.operations.iter().any(|operation| {
+                        matches!(operation.kind, terminal_psi::OperationKind::Call { .. })
+                    })
+                })
+        })
+        .unwrap();
+    let input = wrapper.parameters[0].id;
+    let arguments = wrapper
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+        .find_map(|operation| match &mut operation.kind {
+            terminal_psi::OperationKind::Call { arguments, .. } => Some(arguments),
+            _ => None,
+        })
+        .unwrap();
+    assert_ne!(
+        arguments[0], input,
+        "the call consumes the captured negation"
+    );
+    arguments[0] = input;
+    assert!(
+        terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default()).is_err()
+    );
+}
+
+#[test]
 fn ordered_saved_boolean_result_preserves_its_normal_guarantee() {
     for input in [false, true] {
         for body in [

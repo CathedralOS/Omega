@@ -9,6 +9,7 @@ mod anonymous_record_landing;
 mod anonymous_window_types;
 mod assembly;
 mod assigned_values;
+mod boolean_call_results;
 mod bounded_arguments;
 mod bounded_returns;
 mod byte_sequences;

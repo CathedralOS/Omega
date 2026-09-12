@@ -243,7 +243,56 @@ mod tests {
             &program.machines()[0],
             expression,
             false,
+            &mut 4096,
         )
+    }
+
+    #[test]
+    fn scalar_contract_reads_share_and_exhaust_the_supplied_budget() {
+        let program = typed("machine value(flag: bool) -> bool requires !flag { flag }");
+        let expression = requirement(&program);
+        let operators = CheckedOperatorFacts::default();
+        let machine = &program.machines()[0];
+        let mut remaining = 4;
+        for expected_remaining in [2, 0] {
+            assert!(
+                lower_scalar_contract_predicate(
+                    &program,
+                    &operators,
+                    machine,
+                    expression,
+                    false,
+                    &mut remaining,
+                )
+                .is_some()
+            );
+            assert_eq!(remaining, expected_remaining);
+        }
+        assert!(
+            lower_scalar_contract_predicate(
+                &program,
+                &operators,
+                machine,
+                expression,
+                false,
+                &mut remaining,
+            )
+            .is_none()
+        );
+        assert_eq!(remaining, 0);
+        let mut insufficient = 1;
+        assert!(
+            lower_scalar_contract_predicate(
+                &program,
+                &operators,
+                machine,
+                expression,
+                false,
+                &mut insufficient,
+            )
+            .is_none()
+        );
+        assert_eq!(insufficient, 0, "failed reads do not replenish the budget");
     }
 
     #[test]
@@ -278,7 +327,8 @@ mod tests {
                     &CheckedOperatorFacts::default(),
                     machine,
                     *expression,
-                    clause.kind == typed_trees::signature::SignatureContractKind::Ensures
+                    clause.kind == typed_trees::signature::SignatureContractKind::Ensures,
+                    &mut 4096,
                 )
                 .is_some()
             );
@@ -306,14 +356,15 @@ mod tests {
         let operators = CheckedOperatorFacts::default();
         let machine = &program.machines()[0];
         assert_eq!(
-            lower_scalar_contract_predicate(&program, &operators, machine, root, true),
+            lower_scalar_contract_predicate(&program, &operators, machine, root, true, &mut 4096),
             Some(CheckedBooleanExpression::Equal {
                 left: Box::new(CheckedBooleanExpression::Parameter { position: 1 }),
                 right: Box::new(CheckedBooleanExpression::Parameter { position: 0 })
             })
         );
         assert!(
-            lower_scalar_contract_predicate(&program, &operators, machine, root, false).is_none()
+            lower_scalar_contract_predicate(&program, &operators, machine, root, false, &mut 4096)
+                .is_none()
         );
         assert!(
             lower_scalar_contract_predicate(
@@ -321,7 +372,8 @@ mod tests {
                 &operators,
                 &program.machines()[1],
                 root,
-                true
+                true,
+                &mut 4096,
             )
             .is_none()
         );
@@ -333,7 +385,8 @@ mod tests {
                 &operators,
                 &mutable.machines()[0],
                 requirement(&mutable),
-                true
+                true,
+                &mut 4096,
             )
             .is_none()
         );

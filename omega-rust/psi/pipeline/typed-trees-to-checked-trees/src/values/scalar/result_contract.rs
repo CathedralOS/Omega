@@ -7,12 +7,14 @@ use super::*;
 
 /// The caller supplies a predicate from this machine's exact contract clause.
 /// Entry scalar parameters precede the reserved ensures-only result position.
+/// The caller owns the shared work budget, including unsuccessful reads.
 pub(crate) fn lower_scalar_contract_predicate(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
     machine: &typed_trees::machine::Machine,
     expression: ExpressionHandle,
     allow_result: bool,
+    remaining: &mut usize,
 ) -> Option<CheckedBooleanExpression> {
     ContractPredicates {
         program,
@@ -20,21 +22,21 @@ pub(crate) fn lower_scalar_contract_predicate(
         machine,
         parameters: contract_entry::authored_entry_parameters(program, machine)?,
         allow_result,
-        remaining: 4096,
+        remaining,
     }
     .boolean(expression, 0)
 }
 
-struct ContractPredicates<'program> {
+struct ContractPredicates<'program, 'budget> {
     program: &'program TypedTrees,
     operators: &'program CheckedOperatorFacts,
     machine: &'program typed_trees::machine::Machine,
     parameters: &'program [StateParameter],
     allow_result: bool,
-    remaining: usize,
+    remaining: &'budget mut usize,
 }
 
-impl ContractPredicates<'_> {
+impl ContractPredicates<'_, '_> {
     fn subject(&self, expression: ExpressionHandle) -> Option<(usize, TypeReferenceHandle)> {
         let program = self.program;
         let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
@@ -110,7 +112,7 @@ impl ContractPredicates<'_> {
         depth: usize,
     ) -> Option<CheckedBooleanExpression> {
         if depth >= 64
-            || self.remaining == 0
+            || *self.remaining == 0
             || !self
                 .program
                 .expression_table
@@ -118,7 +120,7 @@ impl ContractPredicates<'_> {
         {
             return None;
         }
-        self.remaining -= 1;
+        *self.remaining -= 1;
         let program = self.program;
         match program.expression_table.expression(expression) {
             ExpressionNode::Boolean(value) => Some(CheckedBooleanExpression::Constant(*value)),
