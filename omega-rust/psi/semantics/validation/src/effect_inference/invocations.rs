@@ -263,7 +263,10 @@ fn collect_transition_target_expression_calls(
     }
     match program.statement_table.transition_target(target) {
         typed_trees::statement::TransitionTargetNode::Named {
-            path, arguments, ..
+            path,
+            arguments,
+            static_machine_parameter,
+            ..
         } => {
             let target = crate::transitions::named_transition_call_symbol(
                 program,
@@ -293,7 +296,15 @@ fn collect_transition_target_expression_calls(
                     .iter()
                     .map(|argument| origin_for_expression(program, machine, state, *argument))
                     .collect();
-                push_call(program, target, receiver, arguments, direct, calls);
+                push_call(
+                    program,
+                    target,
+                    *static_machine_parameter,
+                    receiver,
+                    arguments,
+                    direct,
+                    calls,
+                );
             }
             for argument in program.statement_table.expression_handles(*arguments) {
                 collect_expression_calls(program, machine, state, *argument, direct, calls);
@@ -395,6 +406,7 @@ fn collect_table_call(
     push_call(
         program,
         call.target_symbol,
+        call.static_machine_parameter,
         receiver,
         arguments,
         direct,
@@ -515,6 +527,7 @@ fn collect_expression_call(
     push_call(
         program,
         call.target_symbol,
+        call.static_machine_parameter,
         receiver,
         arguments,
         direct,
@@ -525,6 +538,7 @@ fn collect_expression_call(
 fn push_call(
     program: &TypedTrees,
     target: SymbolHandle,
+    static_machine_parameter: SymbolHandle,
     receiver: Option<InvocationTarget>,
     arguments: Vec<Option<InvocationTarget>>,
     direct: &mut Vec<InvocationTarget>,
@@ -544,7 +558,12 @@ fn push_call(
     // caller's refinement set. Local/helper calls still substitute their
     // declared binding parameters so forwarding is inferred precisely.
     let declared = (!crosses_boundary)
-        .then(|| signature_for_symbol(program, target))
+        .then(|| {
+            program
+                .retained_static_machine_contract(static_machine_parameter)
+                .map(typed_trees::data::MachineParameterContractView::signature)
+                .or_else(|| signature_for_symbol(program, target))
+        })
         .flatten()
         .map(|signature| declared_signature_invocations(program, signature))
         .unwrap_or_default()

@@ -53,8 +53,7 @@ pub fn infer_service_reaches(
         {
             for state in operational.states.span_or_empty(summary.states) {
                 for call in operational.calls.span_or_empty(state.calls) {
-                    let call_reach =
-                        direct_service_reach_for_call(program, call.target_state_symbol);
+                    let call_reach = direct_service_reach_for_operational_call(program, call);
                     extend_service_set(&mut direct, &call_reach.services);
                     extend_service_set(&mut concrete_direct, &call_reach.concrete_services);
                     calls.push((call.target_machine_symbol, call_reach));
@@ -200,7 +199,7 @@ pub fn infer_service_reaches(
                 let mut state_unresolved = Vec::new();
                 for call_summary in operational.calls.span_or_empty(state_summary.calls) {
                     let call_direct =
-                        direct_service_reach_for_call(program, call_summary.target_state_symbol);
+                        direct_service_reach_for_operational_call(program, call_summary);
                     let mut call_transitive = call_direct.services.clone();
                     let mut call_concrete_transitive = call_direct.concrete_services.clone();
                     let mut call_unresolved = call_direct.unresolved_installation_reaches;
@@ -319,12 +318,46 @@ pub(crate) fn required_boundary_services(
     {
         for state in operational.states.span_or_empty(summary.states) {
             for call in operational.calls.span_or_empty(state.calls) {
-                let reach = direct_service_reach_for_call(program, call.target_state_symbol);
+                let reach = direct_service_reach_for_operational_call(program, call);
                 extend_service_set(&mut required, &reach.boundary_services);
             }
         }
     }
     required
+}
+
+fn direct_service_reach_for_operational_call(
+    program: &TypedTrees,
+    call: &flow_effects::CallOperational,
+) -> DirectServiceReach {
+    let mut reach = direct_service_reach_for_call(program, call.target_state_symbol);
+    if let Some(contract) = program.retained_static_machine_contract(call.static_machine_parameter)
+    {
+        // Selection substitutes nominal reach only. Structural requirements
+        // remain fixed even when the selected implementation has a smaller row.
+        // A binder call is not a newly authored direct boundary invocation.
+        reach.boundary_services.clear();
+        if let typed_trees::data::MachineParameterContractView::Structural(signature) = contract {
+            extend_service_set(
+                &mut reach.services,
+                program
+                    .service_reach_rows
+                    .services(signature.service_reach_row),
+            );
+            if !signature.service_reach_is_installation_bound {
+                extend_service_set(
+                    &mut reach.concrete_services,
+                    program
+                        .service_reach_rows
+                        .services(signature.service_reach_row),
+                );
+            }
+            record_installation_reach(signature, &mut reach);
+            extend_invoked_binding_services(program, signature, &mut reach.services);
+            extend_invoked_binding_services(program, signature, &mut reach.concrete_services);
+        }
+    }
+    reach
 }
 
 fn direct_service_reach_for_call(program: &TypedTrees, target: SymbolHandle) -> DirectServiceReach {

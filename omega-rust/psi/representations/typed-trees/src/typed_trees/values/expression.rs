@@ -501,6 +501,7 @@ impl ExpressionTable {
                     target_symbol: call.target_symbol,
                     target: call.target.clone(),
                     static_requirement_dispatch: call.static_requirement_dispatch.clone(),
+                    static_machine_parameter: call.static_machine_parameter,
                     machine_arguments: call.machine_arguments.clone(),
                     quotient_operation: call.quotient_operation.clone(),
                     private_layout_operation: call.private_layout_operation.clone(),
@@ -1559,6 +1560,7 @@ impl ExpressionTable {
                     target_symbol: call.target_symbol,
                     target: call.target,
                     static_requirement_dispatch: call.static_requirement_dispatch,
+                    static_machine_parameter: call.static_machine_parameter,
                     machine_arguments: call.machine_arguments,
                     quotient_operation: call.quotient_operation,
                     private_layout_operation: call.private_layout_operation,
@@ -1807,6 +1809,7 @@ impl ExpressionTable {
                     target_symbol: call.target_symbol,
                     target: call.target.clone(),
                     static_requirement_dispatch: None,
+                    static_machine_parameter: SymbolHandle::invalid(),
                     machine_arguments: Box::default(),
                     quotient_operation: None,
                     private_layout_operation: None,
@@ -2317,6 +2320,8 @@ pub struct CallExpression {
 pub struct TableCallExpression {
     pub receiver: ExpressionHandle,
     pub target_symbol: SymbolHandle,
+    /// Original static binder contract, retained separately from execution.
+    pub static_machine_parameter: SymbolHandle,
     pub target: Identifier,
     /// Public requirement identity plus private closed realization retained
     /// when static conformance dispatch rewrites `target_symbol`.

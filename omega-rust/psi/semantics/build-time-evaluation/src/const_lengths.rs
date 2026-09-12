@@ -59,14 +59,19 @@ pub fn evaluate_const_array_lengths_with_authority(
         return Ok(());
     }
 
+    // Admission and execution must see the same closed static applications.
+    // Preparing one private graph preserves the caller's generic templates and
+    // source-owned type handles; only evaluated lengths are published below.
+    let prepared = crate::PreparedBuildMachineProgram::prepare(typed)?;
+    let execution = prepared.typed();
     let admission =
-        BuildTimeAdmissionPlan::infer_with_selection_authority(typed, selection_authority);
+        BuildTimeAdmissionPlan::infer_with_selection_authority(execution, selection_authority);
 
     let mut diagnostics = Vec::new();
     let mut substitutions: Vec<(TypeReferenceHandle, usize)> = Vec::new();
 
     for (handle, machine_name, source_span) in &pending {
-        match evaluate_one(typed, &admission, machine_name, *source_span) {
+        match evaluate_one(execution, &admission, machine_name, *source_span) {
             Ok(value) => substitutions.push((*handle, value)),
             Err(reason) => {
                 diagnostics.push(Diagnostic::error(format!(
@@ -122,21 +127,23 @@ pub(crate) fn evaluate_independent_lengths(
     if pending.is_empty() {
         return Ok(false);
     }
-    let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(typed);
-    let admission = BuildTimeAdmissionPlan::infer_with_selection_authority(typed, authority);
+    let prepared = crate::PreparedBuildMachineProgram::prepare(typed)?;
+    let execution = prepared.typed();
+    let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(execution);
+    let admission = BuildTimeAdmissionPlan::infer_with_selection_authority(execution, authority);
     let mut deferred = false;
     let mut evaluated = Vec::new();
     let mut diagnostics = Vec::new();
     for (handle, name, source) in pending {
-        if let Some(root) = typed
+        if let Some(root) = execution
             .machines()
             .iter()
             .find(|machine| machine.name.as_str() == name)
-            && admission.closure_needs_operator_selection(typed, root.symbol, &facts)
+            && admission.closure_needs_operator_selection(execution, root.symbol, &facts)
         {
             deferred = true;
         } else {
-            match evaluate_one(typed, &admission, &name, source) {
+            match evaluate_one(execution, &admission, &name, source) {
                 Ok(value) => evaluated.push((handle, value)),
                 Err(reason) => diagnostics.push(Diagnostic::error(format!(
                     "fixed-array length `{}`: const evaluation of `{name}` failed: {reason}",

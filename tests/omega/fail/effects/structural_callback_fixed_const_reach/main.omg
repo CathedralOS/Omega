@@ -1,0 +1,10 @@
+pub boundary trait Console {}
+machine quiet(value: u64) -> u64 terminates { value }
+pub machine traverse<machine Step>(value: u64) -> u64
+where machine Step(value: u64) -> u64 reaches Console terminates;
+terminates;
+{
+    Step(value)
+}
+machine length() -> u64 { traverse<quiet>(7) }
+data Buffer { bytes: [u8; length()]; }

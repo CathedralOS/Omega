@@ -467,6 +467,7 @@ pub(super) fn apply_selected_operator_adapter_rewrites(
                     receiver: ExpressionHandle::invalid(),
                     target_symbol: rewrite.entry_symbol,
                     target: typed_trees::name::Identifier::generated(rewrite.machine.clone()),
+                    static_machine_parameter: symbols::SymbolHandle::invalid(),
                     static_requirement_dispatch: None,
                     machine_arguments: Box::new([]),
                     quotient_operation: None,

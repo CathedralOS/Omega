@@ -213,6 +213,111 @@ fn exported_wrapper_reach_controls_evaluation_admission() {
 }
 
 #[test]
+fn nominal_callback_selection_controls_const_array_length_admission() {
+    let source = include_str!(
+        "../../../../../tests/omega/pass/effects/nominal_callback_const_reach/main.omg"
+    );
+    for reaches_console in [false, true] {
+        let source = if reaches_console {
+            source.replace(
+                "satisfies StepContract::step terminates",
+                "satisfies StepContract::step reaches Console terminates",
+            )
+        } else {
+            source.to_owned()
+        };
+        let mut program = typed(&source);
+        let result = evaluate_const_array_lengths(&mut program);
+        if reaches_console {
+            let diagnostics =
+                result.expect_err("a selected public Console contribution cannot evaluate");
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("service reach [Console]"))
+            );
+        } else {
+            result.expect("the selected quiet callback leaves the traversal build-time admissible");
+            assert!(program.type_reference_table.fixed_array_lengths().any(
+                |(_, length)| matches!(length, typed_trees::types::FixedArrayLength::Literal(7))
+            ));
+        }
+        assert!(
+            program.machine_specializations.is_empty(),
+            "private evaluation preparation must not consume authored templates"
+        );
+    }
+}
+
+#[test]
+fn nominal_and_structural_callbacks_keep_distinct_specialized_reach() {
+    for (contract, admitted) in [
+        ("machine Step satisfies StepContract::step;", true),
+        (
+            "machine Step(value: u64) -> u64 reaches Console terminates;",
+            false,
+        ),
+    ] {
+        let source = format!(
+            "boundary trait Console {{}}\n\
+             trait StepContract {{ machine step(value: u64) -> u64 reaches Console terminates; }}\n\
+             machine quiet(value: u64) -> u64 satisfies StepContract::step terminates {{ value }}\n\
+             machine traverse<machine Step>(value: u64) -> u64 where {contract}\n\
+             terminates; {{ Step(value) }}\n\
+             machine length() -> u64 {{ traverse<quiet>(7) }}"
+        );
+        let program = typed(&source);
+        let prepared = PreparedBuildMachineProgram::prepare(&program)
+            .expect("both fixed and nominal callback contracts accept the quiet implementation");
+        let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(prepared.typed());
+        let result = admission.evaluate_const_evaluable_machine(prepared.typed(), "length", vec![]);
+        if admitted {
+            assert_eq!(
+                result.expect("a nominal selection specializes its row"),
+                BuildTimeValue::Int(7)
+            );
+        } else {
+            assert!(
+                result
+                    .expect_err("a structural binder keeps its fixed requirement row")
+                    .contains("service reach [Console]")
+            );
+        }
+    }
+}
+
+#[test]
+fn selected_quiet_callbacks_do_not_narrow_operational_requirements() {
+    for (ceiling, acknowledgement, reason) in [
+        ("suspends", "suspend", "suspension"),
+        ("blocks", "block", "blocking"),
+    ] {
+        for nominal in [false, true] {
+            let contract = if nominal {
+                "machine Step satisfies StepContract::step;".to_owned()
+            } else {
+                format!("machine Step(value: u64) -> u64 {ceiling}; terminates;")
+            };
+            let source = format!(
+                "trait StepContract {{ machine step(value: u64) -> u64 {ceiling}; terminates; }}\n\
+                 machine quiet(value: u64) -> u64 satisfies StepContract::step terminates {{ value }}\n\
+                 machine traverse<machine Step>(value: u64) -> u64 where {contract}\n\
+                 terminates; {{ {acknowledgement} Step(value) }}\n\
+                 machine length() -> u64 {{ {acknowledgement} traverse<quiet>(7) }}"
+            );
+            let program = typed(&source);
+            let prepared = PreparedBuildMachineProgram::prepare(&program)
+                .expect("a quiet implementation satisfies either operational upper bound");
+            let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(prepared.typed());
+            let error = admission
+                .evaluate_const_evaluable_machine(prepared.typed(), "length", vec![])
+                .expect_err("selection does not change the fixed operational envelope");
+            assert!(error.contains(reason), "{error}");
+        }
+    }
+}
+
+#[test]
 fn invocation_const_boundary_admits_an_exact_boolean_snapshot() {
     let typed = typed(
         r#"

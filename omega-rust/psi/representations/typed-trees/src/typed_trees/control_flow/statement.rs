@@ -168,6 +168,7 @@ impl StatementTable {
                             )
                         });
                     StatementNode::Call(TableCall {
+                        static_machine_parameter: call.static_machine_parameter,
                         receiver_root_symbol: call.receiver_root_symbol,
                         receiver_symbol: call.receiver_symbol,
                         target_symbol: call.target_symbol,
@@ -262,6 +263,7 @@ impl StatementTable {
         let target = match source.transition_target(target) {
             TransitionTargetNode::Named {
                 path,
+                static_machine_parameter,
                 arguments,
                 evidence_arguments,
                 source_span,
@@ -279,6 +281,7 @@ impl StatementTable {
                         }),
                 );
                 TransitionTargetNode::Named {
+                    static_machine_parameter: *static_machine_parameter,
                     path: TableNamePath {
                         members,
                         head_symbol: path.head_symbol,
@@ -448,6 +451,13 @@ impl StatementTable {
         self.transition_targets.get(handle)
     }
 
+    pub fn transition_target_mut(
+        &mut self,
+        handle: TransitionTargetHandle,
+    ) -> &mut TransitionTargetNode {
+        self.transition_targets.get_mut(handle)
+    }
+
     /// Whether the exact generational handle names a live transition target.
     /// A source terminal must not be confused with the arena's dummy terminal.
     pub fn transition_target_is_valid(&self, handle: TransitionTargetHandle) -> bool {
@@ -517,6 +527,9 @@ pub struct TableCall {
     pub receiver_root_symbol: SymbolHandle,
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
+    /// Original static binder contract, independent of the selected target.
+    /// Zero denotes an ordinary call without a specialization contract.
+    pub static_machine_parameter: SymbolHandle,
     pub receiver: HandleSpan<Identifier>,
     pub target: Identifier,
     /// Public requirement identity plus private closed realization retained
@@ -541,6 +554,7 @@ impl Default for TableCall {
             receiver_root_symbol: SymbolHandle::invalid(),
             receiver_symbol: SymbolHandle::invalid(),
             target_symbol: SymbolHandle::invalid(),
+            static_machine_parameter: SymbolHandle::invalid(),
             receiver: HandleSpan::empty(),
             target: Identifier::default(),
             static_requirement_dispatch: None,
@@ -628,6 +642,7 @@ pub enum TransitionGuardNode {
 pub enum TransitionTargetNode {
     Named {
         path: TableNamePath,
+        static_machine_parameter: SymbolHandle,
         arguments: HandleSpan<crate::expression::ExpressionHandle>,
         evidence_arguments: Box<[Identifier]>,
         /// Exact authored target-name span. Generated targets retain the
@@ -674,6 +689,7 @@ mod tests {
         statements.push_name_path_member(&mut path, Identifier::generated("next"));
 
         let target = statements.insert_transition_target(TransitionTargetNode::Named {
+            static_machine_parameter: SymbolHandle::invalid(),
             path: super::TableNamePath {
                 members: path,
                 head_symbol: target_symbol,
@@ -751,6 +767,7 @@ mod tests {
         let mut arguments = arena::HandleSpan::empty();
         source_statements.push_expression_handle(&mut arguments, initial);
         let target = source_statements.insert_transition_target(TransitionTargetNode::Named {
+            static_machine_parameter: SymbolHandle::invalid(),
             path: super::TableNamePath {
                 members,
                 head_symbol: target_symbol,
