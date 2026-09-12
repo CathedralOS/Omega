@@ -168,7 +168,9 @@ invokes
 // and tallying DT_DIR (4) vs DT_REG (8). "." and ".." are DT_DIR, so the child
 // counts subtract 2 from both `entries` and `subdirs`. DT_UNKNOWN remains
 // included in entries but in neither type-specific tally.
-linux_x86_64 machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) -> DirStatsResult {
+linux_x86_64 machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) -> DirStatsResult
+reaches FilesystemHost
+{
     self.read_flags = 0;
     self.rd_position = 0;
     self.rd_off = 0;
@@ -399,7 +401,9 @@ invokes
 // rewinds and re-reads the same fd after each removal).
 // NOTE: the dirent walk here duplicates `read_dir_nth`'s (which opens+closes a
 // path); a future refactor should route `read_dir_nth` through this fd core.
-linux_x86_64 machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: u64) -> DirEntryResult {
+linux_x86_64 machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: u64) -> DirEntryResult
+reaches FilesystemHost
+{
     self.rd_position = 0;
     self.rd_off = 0;
     self.rd_recno = 0;
@@ -590,7 +594,9 @@ terminates by fuel;
 // dominating conjunct in its OWN incoming transition (facts do not travel).
 // The `step` param exists so the machine has entry arguments (uniform call
 // shape); it is unused.
-linux_x86_64 machine Filesystem::rda_step(&mut self, step: u64) {
+linux_x86_64 machine Filesystem::rda_step(&mut self, step: u64)
+reaches FilesystemHost
+{
     self.rda_rc = 0 - 5;
     transition self.rda_depth == 0 { true -> rds_alldone() _ -> rds_read() }
 
