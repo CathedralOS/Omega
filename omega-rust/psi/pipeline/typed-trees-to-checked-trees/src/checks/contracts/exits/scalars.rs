@@ -14,6 +14,7 @@ use super::super::{
 };
 use crate::flow::{canonical_place_from_expression_in_state, canonical_place_from_symbol};
 
+mod boolean_results;
 mod calls;
 
 pub(super) fn proves<'program>(
@@ -51,7 +52,9 @@ pub(super) fn proves<'program>(
     if !has_builtin_operators(program, &facts.operators, expression) {
         return false;
     }
-    if evaluator.proves_immutable_result_comparison(expression) {
+    if evaluator.proves_boolean_result(expression) == Some(true)
+        || evaluator.proves_immutable_result_comparison(expression)
+    {
         return true;
     }
     let cases = super::cases::CaseObservation::for_requirement(
@@ -343,21 +346,7 @@ impl ExitScalars<'_, '_> {
 
     fn return_value(&self) -> Option<ScalarValue> {
         let expression = exit_return_expression(self.program, self.exit);
-        if !self
-            .program
-            .expression_table
-            .expression_is_valid(expression)
-            || !has_builtin_operators(self.program, &self.facts.operators, expression)
-            || !self.call_frames.is_some_and(|frames| {
-                frames
-                    .expression_write_frame(self.machine, expression)
-                    .into_complete_paths()
-                    .is_some_and(|paths| paths.is_empty())
-            })
-        {
-            // Exit contexts describe storage after return-expression effects.
-            // Even a short-circuit expression cannot reread its left operand
-            // here if evaluating the right operand may have changed it.
+        if !self.return_expression_is_stable(expression) {
             return None;
         }
         self.selected_return_value(expression)
@@ -378,7 +367,42 @@ impl ExitScalars<'_, '_> {
             })
     }
 
+    fn return_expression_is_stable(&self, expression: ExpressionHandle) -> bool {
+        // Exit contexts describe storage after return-expression effects.
+        // Even short-circuit operands cannot be reread after a later write.
+        self.program
+            .expression_table
+            .expression_is_valid(expression)
+            && has_builtin_operators(self.program, &self.facts.operators, expression)
+            && self.call_frames.is_some_and(|frames| {
+                frames
+                    .expression_write_frame(self.machine, expression)
+                    .into_complete_paths()
+                    .is_some_and(|paths| paths.is_empty())
+            })
+    }
+
     fn selected_return_value(&self, expression: ExpressionHandle) -> Option<ScalarValue> {
+        let (expression, symbols) = self.selected_return_expression(expression)?;
+        evaluate_checked_scalar(
+            expression,
+            &mut crate::values::BoundScalarValues {
+                symbols,
+                value_at_symbol: |symbol| {
+                    let place = canonical_place_from_symbol(symbol)?;
+                    self.value_at_place(&place)
+                },
+            },
+        )
+    }
+
+    fn selected_return_expression(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<(
+        &checked_trees::CheckedScalarExpression,
+        &[symbols::SymbolHandle],
+    )> {
         let plans = &self.facts.values.scalar_expressions;
         let statement_ordinal = u32::try_from(self.exit.statement_index).ok()?;
         let state = crate::find_state_in_machine(
@@ -420,16 +444,7 @@ impl ExitScalars<'_, '_> {
             return None;
         }
         let symbols = plans.binding_symbols.span_or_empty(binding.symbols);
-        evaluate_checked_scalar(
-            &plan.expression,
-            &mut crate::values::BoundScalarValues {
-                symbols,
-                value_at_symbol: |symbol| {
-                    let place = canonical_place_from_symbol(symbol)?;
-                    self.value_at_place(&place)
-                },
-            },
-        )
+        Some((&plan.expression, symbols))
     }
 }
 

@@ -187,6 +187,16 @@ strict/inclusive conversions require their checked rules; proof traversal does
 not silently reorder a canonical goal. Comparison-only normalization for crash
 coverage does not change the codec's canonical ordering.
 
+A carried `PredicateDenotation` inference converts one already proved
+proposition to another only when the proof owner's bounded Boolean-denotation
+normalization gives identical results for both under their declared types.
+Its child is checked under the unchanged original premises; the outer
+conclusion must still equal the exact reconstructed obligation. Normalizing
+a premise for search therefore requires an explicit conversion of its original
+citation. This rule neither substitutes contextual SSA definitions nor grants
+an unproved proposition merely because it has a normal form. Resource exhaustion
+rejects the conversion.
+
 ## Acceptance and trust
 
 Every accepted fact must be re-decided by a specified total kernel judgment,

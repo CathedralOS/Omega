@@ -110,7 +110,10 @@ fn validate_proof_node(node: &ProofNode, depth: usize) -> Result<(), ProofCodecE
             }
             Ok(())
         }
-        ProofRule::EqualitySymmetry {
+        ProofRule::PredicateDenotation {
+            premise: conjunction,
+        }
+        | ProofRule::EqualitySymmetry {
             equality: conjunction,
         }
         | ProofRule::IntegerOrderWeakening {

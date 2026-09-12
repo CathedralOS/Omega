@@ -110,3 +110,56 @@ fn authored_boolean_result_parameter_does_not_become_the_returned_value() {
         "{diagnostics:#?}"
     );
 }
+
+#[test]
+fn computed_boolean_guarantees_compose_in_the_immutable_return_namespace() {
+    for computed in [
+        "!value",
+        "value == other",
+        "value && other",
+        "value || other",
+        "!(value == other)",
+    ] {
+        for guarantee in [
+            format!("result == ({computed})"),
+            format!("({computed}) == result"),
+        ] {
+            let program = parse_typed_trees(&format!(
+                "boundary trait Host {{ machine finish(value: bool) reaches Host; }}
+                 machine compute(marker: u16, other: bool, value: bool) -> bool
+                 ensures {guarantee}
+                 reaches Host
+                 {{ Host::finish(false); {computed} }}"
+            ));
+            lower_typed_trees(program)
+                .unwrap_or_else(|diagnostics| panic!("{guarantee}: {diagnostics:#?}"));
+        }
+    }
+}
+
+#[test]
+fn computed_boolean_guarantees_do_not_guess_values_or_replay_storage() {
+    for (parameters, guarantee, body) in [
+        ("value: bool, other: bool", "result == !value", "!other"),
+        ("value: bool", "result == !value", "value"),
+        ("mut value: bool", "result == !value", "!value"),
+        (
+            "value: bool",
+            "result == !value",
+            "let local: bool = value; !local",
+        ),
+        ("result: bool, value: bool", "result == !value", "!value"),
+    ] {
+        let program = parse_typed_trees(&format!(
+            "machine compute({parameters}) -> bool ensures {guarantee} {{ {body} }}"
+        ));
+        let diagnostics = lower_typed_trees(program)
+            .expect_err("unrelated identities and unevidenced storage cannot prove the guarantee");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("cannot prove ensures contract for exit from compute")),
+            "{parameters}, {body}: {diagnostics:#?}"
+        );
+    }
+}

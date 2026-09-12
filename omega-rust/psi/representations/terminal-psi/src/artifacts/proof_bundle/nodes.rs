@@ -17,6 +17,11 @@ pub struct ProofNode {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProofRule {
+    /// Convert an independently proved conclusion through the bounded predicate
+    /// denotation owner without changing the original premise roster.
+    PredicateDenotation {
+        premise: Box<ProofNode>,
+    },
     Primitive(PrimitiveJudgment),
     /// Cite one verifier-reconstructed semantic axiom.
     SemanticAxiom {

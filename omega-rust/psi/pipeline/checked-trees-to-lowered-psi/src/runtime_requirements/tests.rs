@@ -120,6 +120,60 @@ fn logical_substitution_preserves_requirement_children_and_equality_order() {
 }
 
 #[test]
+fn compound_boolean_entry_equality_keeps_substitutable_scalar_denotations() {
+    use CheckedBooleanExpression as Boolean;
+    let first = Boolean::Parameter { position: 0 };
+    let second = Boolean::Parameter { position: 1 };
+    let parameters = [
+        boolean_parameter(),
+        ValueDeclaration {
+            id: value_id(2),
+            ..boolean_parameter()
+        },
+    ];
+    for right in [
+        Boolean::Not(Box::new(second.clone())),
+        Boolean::Equal {
+            left: Box::new(first.clone()),
+            right: Box::new(second),
+        },
+    ] {
+        let expression = Boolean::Equal {
+            left: Box::new(first.clone()),
+            right: Box::new(right),
+        };
+        let mut proposition =
+            lower_structural_runtime_requirement(&expression, &parameters, &[], &[]).unwrap();
+        assert!(matches!(proposition, Proposition::Equal(_, _)));
+        substitute_runtime_requirement_scalar_values(
+            &mut proposition,
+            &BTreeMap::from([
+                (
+                    value_id(1),
+                    ValueDeclaration {
+                        id: value_id(9),
+                        ..boolean_parameter()
+                    },
+                ),
+                (
+                    value_id(2),
+                    ValueDeclaration {
+                        id: value_id(8),
+                        ..boolean_parameter()
+                    },
+                ),
+            ]),
+        )
+        .unwrap();
+        let mut values = BTreeSet::new();
+        proposition.visit_value_ids(|value| {
+            values.insert(value);
+        });
+        assert_eq!(values, BTreeSet::from([value_id(8), value_id(9)]));
+    }
+}
+
+#[test]
 fn strict_integer_requirements_keep_original_relation_and_reject_new_arithmetic() {
     let scalar_type = integer_scalar_type(PrimitiveType::U16).unwrap();
     let formal = ValueDeclaration {

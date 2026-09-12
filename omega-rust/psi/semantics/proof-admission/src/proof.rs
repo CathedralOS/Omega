@@ -31,6 +31,7 @@ pub enum AcceptedProofRule {
     ImplicationElimination,
     EqualityTransitivity,
     EqualitySymmetry,
+    PredicateDenotation,
     IntegerOrderWeakening,
     IntegerOrderDiscreteness,
     IntegerSubtractOrder,
@@ -348,6 +349,24 @@ fn check_node_locally(
             (proof.conclusion == Proposition::Equal(right.clone(), left.clone()))
                 .then_some(())
                 .ok_or(ProofError::EqualityConclusionMismatch)
+        }
+        ProofRule::PredicateDenotation { premise } => {
+            // The child is checked under the original, unchanged premise
+            // roster by ordinary traversal. Conversion licenses only this one
+            // conclusion, never a rewritten assumption or a new SSA equation.
+            let original =
+                crate::check_predicate_denotations(context, &premise.conclusion, &[], &[])
+                    .map_err(|error| ProofError::PredicateDenotation(Box::new(error)))?;
+            let converted =
+                crate::check_predicate_denotations(context, &proof.conclusion, &[], &[])
+                    .map_err(|error| ProofError::PredicateDenotation(Box::new(error)))?;
+            if original.goal() != converted.goal() {
+                return Err(ProofError::RuleConclusionMismatch("predicate denotation"));
+            }
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::PredicateDenotation);
+            Ok(())
         }
         ProofRule::EqualityTransitivity {
             left_equals_middle,
@@ -786,6 +805,7 @@ pub enum ProofError {
     EqualityMiddleMismatch,
     EqualityAlgebraMismatch,
     EqualityConclusionMismatch,
+    PredicateDenotation(Box<crate::PredicateDenotationError>),
     IntegerOrderMiddleMismatch,
     IntegerOrderConclusionMismatch,
     UnknownIntegerOrderEndpoint(usize),

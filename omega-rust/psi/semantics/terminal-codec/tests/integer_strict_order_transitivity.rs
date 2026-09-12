@@ -69,8 +69,8 @@ fn strict_and_mixed_chains_roundtrip_and_replay_both_citations() {
             let (context, premises, proof) = fixture(strict, mathematical);
             let original = bundle(proof.clone());
             let bytes = encode_proof_bundle(&original).unwrap();
-            assert_eq!(&bytes[8..10], &31_u16.to_le_bytes());
-            assert_eq!(&bytes[31..33], &3_u16.to_le_bytes());
+            assert_eq!(&bytes[8..10], &32_u16.to_le_bytes());
+            assert_eq!(&bytes[31..33], &4_u16.to_le_bytes());
             let decoded = decode_proof_bundle(&bytes).unwrap();
             assert_eq!(decoded, original);
             assert_eq!(encode_proof_bundle(&decoded).unwrap(), bytes);
@@ -157,10 +157,10 @@ fn appended_rule_tag_and_current_markers_reject_unknown_or_stale_bytes() {
     assert_eq!(bytes[rule_position], 21);
     assert_eq!(previous_bytes[rule_position], 10);
     let mut unknown = bytes.clone();
-    unknown[rule_position] = 22;
+    unknown[rule_position] = 23;
     assert_eq!(
         decode_proof_bundle(&unknown),
-        Err(ProofCodecError::InvalidTag("ProofRule", 22))
+        Err(ProofCodecError::InvalidTag("ProofRule", 23))
     );
     let mut stale_format = bytes.clone();
     stale_format[8..10].copy_from_slice(&30_u16.to_le_bytes());
