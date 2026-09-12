@@ -186,6 +186,7 @@ pub(super) fn validate(
                                 && structural_cases::home_available(
                                     graph,
                                     optimized,
+                                    plan,
                                     block.block,
                                     source,
                                     *expected_source,
@@ -260,6 +261,7 @@ pub(super) fn validate(
             ) => structural_cases::matches(
                 graph,
                 optimized,
+                plan,
                 block.block,
                 source,
                 cases,

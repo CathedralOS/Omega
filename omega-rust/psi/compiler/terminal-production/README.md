@@ -185,8 +185,8 @@ return route until general value establishment retains their range obligations.
 Existing-local selection retains exact source origins and arm occurrences in
 checked ownership receipts, not unconditional statement-wide moves. The chosen
 owner and its still-live complement travel through ordinary typed block
-parameters. Untouched locals retain their identity and relative cleanup order;
-no owner is disposed merely to equalize a join. Nested alternatives share one
+parameters. Untouched locals retain their own type, identity and relative cleanup
+order; no owner is disposed merely to equalize a join. Nested alternatives share one
 continuation. Cleanup follows reverse declaration order; a return transfers
 the selected result with its actual multiplicity. The
 [owned-selection tests](../../../../tests/native-differential/tests/scalar_case_results/owned_selection.rs)
@@ -259,9 +259,11 @@ ABI; no new record-specific function representation is introduced.
 
 The admitted record is affine or unrestricted, unqualified, and claim-free.
 Nested/erased fields and declaration-restricted integers still require additional
-construction/evidence support. Source local-receiver calls and constructor-to-block
-structural transport remain separate missing joins: a constructor or a
-source-free Terminal getter does not establish source getter support.
+construction/evidence support. Whole plain records can pass through typed block
+parameters and return from their arriving home, including across an unrelated
+owned selection. Source local-receiver calls and post-arrival field observation
+remain separate missing joins: a constructor or a source-free Terminal getter
+does not establish source getter support.
 
 Closed integer field restrictions retain their exact carrier and inclusive
 bounds through the checked catalog and Terminal declaration. The selected case

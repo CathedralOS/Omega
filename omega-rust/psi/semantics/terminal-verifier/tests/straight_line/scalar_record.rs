@@ -115,7 +115,7 @@ fn runtime_scalar_record_rejects_malformed_result_and_linear_custody() {
 }
 
 #[test]
-fn constructed_scalar_record_block_transport_remains_explicitly_unsupported() {
+fn constructed_scalar_record_block_transport_retains_exact_source_contract() {
     let mut module = module();
     let machine = &mut module.machines[0];
     let mut target = machine.blocks[0].clone();
@@ -151,10 +151,41 @@ fn constructed_scalar_record_block_transport_remains_explicitly_unsupported() {
         residual_affine_discards: Vec::new(),
     };
     machine.blocks.push(target);
-    assert!(matches!(
-        validate_module(&module),
-        Err(ModuleError::InvalidStructuralSuccessorArgument { .. })
-    ));
+    validate_module(&module).expect("plain record uses ordinary whole-value transport");
+    for mutation in 0..5 {
+        let mut altered = module.clone();
+        let mut other_type = altered.structural_types[0].clone();
+        other_type.id = StructuralTypeId::new(2).unwrap();
+        other_type.identity = "OtherRecord".into();
+        altered.structural_types.push(other_type);
+        let machine = &mut altered.machines[0];
+        match mutation {
+            0 => {
+                machine.blocks[1].structural_parameters[0].multiplicity =
+                    StructuralMultiplicity::Affine
+            }
+            1 => machine.blocks[1].structural_parameters[0].access = StructuralAccess::SharedBorrow,
+            2 => {
+                let Terminator::Jump {
+                    structural_arguments,
+                    ..
+                } = &mut machine.blocks[0].terminator
+                else {
+                    panic!("jump")
+                };
+                structural_arguments[0].place = PlaceId::new(99).unwrap();
+            }
+            3 => {
+                let producer = machine.blocks[0].operations.remove(0);
+                machine.blocks[1].operations.push(producer);
+            }
+            _ => {
+                machine.blocks[1].structural_parameters[0].structural_type =
+                    StructuralTypeId::new(2).unwrap()
+            }
+        }
+        assert!(validate_module(&altered).is_err(), "mutation {mutation}");
+    }
 }
 
 fn read() -> Operation {

@@ -9,6 +9,7 @@ use target_operations::{
 pub(super) fn home_available(
     graph: &TargetControlGraph,
     optimized: &PsiOptimizationFunction,
+    plan: &AbstractOperationPlan,
     block: BlockId,
     source: &TargetStructuralHomeRequirement,
     expected_source: PlaceId,
@@ -96,37 +97,10 @@ pub(super) fn home_available(
             {
                 return false;
             }
-            let Some(terminal_psi::StructuralTypeDeclaration {
-                shape: terminal_psi::StructuralTypeShape::Sum { cases },
-                ..
-            }) = graph
-                .structural_types
-                .iter()
-                .find(|row| row.id == declaration.structural_type)
-            else {
-                return false;
-            };
-            let Some(payloads) = cases
-                .iter()
-                .map(|case| {
-                    case.fields
-                        .iter()
-                        .map(|field| {
-                            if field.relevance.is_erased() {
-                                return None;
-                            }
-                            super::super::super::scalar_shape(field.field_type.scalar_type()?)
-                        })
-                        .collect::<Option<Vec<_>>>()
-                })
-                .collect::<Option<Vec<_>>>()
-            else {
-                return false;
-            };
-            if calling_conventions::evaluate_conventional_sum_layout(&[], &payloads)
+            if super::super::super::aggregate_results::block_home_layout(declaration, plan)
                 .ok()
                 .as_ref()
-                != source.layout.sum()
+                != Some(&source.layout)
             {
                 return false;
             }
@@ -138,13 +112,14 @@ pub(super) fn home_available(
 pub(super) fn matches(
     graph: &TargetControlGraph,
     optimized: &PsiOptimizationFunction,
+    plan: &AbstractOperationPlan,
     block: BlockId,
     source: &TargetStructuralHomeRequirement,
     cases: &[TargetControlCaseSuccessor],
     expected_source: PlaceId,
     expected_cases: &[abstract_operations::AbstractStructuralCaseSuccessor],
 ) -> bool {
-    if !home_available(graph, optimized, block, source, expected_source) {
+    if !home_available(graph, optimized, plan, block, source, expected_source) {
         return false;
     }
     let Some(declaration) = graph

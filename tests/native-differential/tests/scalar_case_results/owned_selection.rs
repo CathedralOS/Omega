@@ -244,7 +244,7 @@ fn assert_return_cleanup_replay(artifact: &super::CanonicalTerminalArtifact) {
             verified.input().plan(),
             verified.unit(),
         )
-        .unwrap();
+        .unwrap_or_else(|error| panic!("legalize retained owners on {native:?}: {error:?}"));
         for mutation in 0..4 {
             let mut changed = target.clone();
             let (source, cleanup) = changed
@@ -309,5 +309,35 @@ fn assert_return_cleanup_replay(artifact: &super::CanonicalTerminalArtifact) {
         assert!(matches!(optimization_unit_semantics::validate_psi_optimization_unit(&unit),
             Err(optimization_unit_semantics::OptimizationUnitValidationError::CurrentCleanupMismatch { .. })),
             "ordinary structural return must retain exact residual disposal, mutation {mutation}");
+    }
+}
+
+#[test]
+fn owned_selection_transports_an_untouched_record_with_its_own_type() {
+    let declarations = "data Choice { case Empty; case Some(value: u32); }
+        data Record { payload: u64; }";
+    let candidates = "let left: Choice = Choice::Some { value: 37 };
+        let right: Choice = Choice::Empty;";
+    let record = "let retained: Record = Record { payload: payload };";
+    for prefix in [
+        format!("{record} {candidates}"),
+        format!("{candidates} {record}"),
+    ] {
+        let artifact = produce_source(
+            "choose",
+            &format!(
+                "{declarations}
+            machine choose(selected: bool, payload: u64) -> Record {{
+                {prefix}
+                let result: Choice = match selected {{ true -> left, false -> right }};
+                retained
+            }}"
+            ),
+        );
+        assert_return_cleanup_replay(&artifact);
+        membership::execute(
+            &artifact,
+            "#include <stdbool.h>\n#include <stdint.h>\nextern uint64_t omega_entry(bool selected, uint64_t payload);\nint main(void) { return omega_entry(true, UINT64_MAX) == UINT64_MAX && omega_entry(false, UINT64_C(0x123456789abcdef0)) == UINT64_C(0x123456789abcdef0) ? 0 : 1; }",
+        );
     }
 }

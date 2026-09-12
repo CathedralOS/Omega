@@ -59,5 +59,7 @@ pub(super) fn establish(
             },
         )?;
     }
+    // Edge transport can use this home only after replaying every payload store.
+    replay.transport.pointers.push((established.place, pointer));
     Ok(())
 }
