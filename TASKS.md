@@ -275,7 +275,11 @@ publication, reload and interpretation, including inert declared reach and
 private helper propagation. Resume with portable original dependency/telescope
 custody tied to selected public contracts and emitted calls. Concrete row
 preservation and producer-side specialization replay do not establish those
-portable relationships or reconstruct the complete original generic dependency.
+portable relationships. Original finite reach dependencies now enter the existing
+template commitment and replay against the retained graph in
+`validation/src/static_machine_call_contracts.rs`; the remainder of the template
+contract still needs independent reconstruction. Its current canonical encoding
+contains frontend-local contract identities and is not a portable telescope codec.
 
 ## Semantic reflection
 

@@ -1,10 +1,109 @@
 //! Exact custody of a static binder after its executable target is substituted.
+//!
+//! The template retains its inferred finite reach dependency, not the row of
+//! whichever application happens to be emitted. Private helper contributions
+//! therefore change the existing template commitment. Encoding and replay use
+//! the original telescope and a prepared whole-graph inference plan; neither
+//! selected callback bodies nor a self-consistent retained hash supply that
+//! original dependency. This is producer correspondence, not portable decoding
+//! of the complete generic contract.
 
 use diagnostics::Diagnostic;
 use flow_effects::OperationalPlan;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
+
+/// Original finite reach dependency followed by the exact binder contracts.
+/// The caller owns inference so one immutable graph is shared across a batch.
+/// Service declarations use package-qualified identity; variables use positions
+/// in the full telescope, including non-machine and unused binders.
+pub fn static_machine_template_reach_contract_bytes(
+    program: &TypedTrees,
+    inferred: &flow_effects::ServiceReachInferencePlan,
+    machine: &typed_trees::machine::Machine,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut summaries = inferred
+        .machines()
+        .iter()
+        .filter(|summary| summary.machine == machine.symbol);
+    let summary = summaries.next().ok_or_else(|| {
+        Diagnostic::error("generic template has no inferred service-reach dependency")
+    })?;
+    if summaries.next().is_some() {
+        return Err(Diagnostic::error(
+            "generic template has ambiguous reach dependencies",
+        ));
+    }
+    let parameters = program.machine_type_parameters(machine);
+    if parameters.len() != machine.type_parameters.len() {
+        return Err(Diagnostic::error(
+            "generic reach dependency lost its template telescope",
+        ));
+    }
+    let mut bytes = b"omega.static-machine-reach-dependency.v1\0".to_vec();
+    let mut services = Vec::new();
+    for service in inferred.services(summary.dependency.concrete) {
+        let definition = program
+            .service_reaches
+            .definition(*service)
+            .ok_or_else(|| Diagnostic::error("generic reach dependency has an unknown service"))?;
+        let mut encoded = Vec::new();
+        encode_declaration(program, definition.symbol, &mut encoded);
+        services.push(encoded);
+    }
+    services.sort();
+    services.dedup();
+    bytes.extend((services.len() as u64).to_le_bytes());
+    for service in services {
+        bytes.extend(service);
+    }
+    let dependencies = inferred
+        .dependency_parameters
+        .span_or_empty(summary.dependency.parameters);
+    if dependencies.len() != summary.dependency.parameters.len() {
+        return Err(Diagnostic::error(
+            "generic reach dependency lost its binder span",
+        ));
+    }
+    let mut ordinals = Vec::with_capacity(dependencies.len());
+    for dependency in dependencies {
+        let mut matches = parameters
+            .iter()
+            .enumerate()
+            .filter(|(_, parameter)| parameter.symbol == *dependency);
+        let Some((ordinal, parameter)) = matches.next() else {
+            return Err(Diagnostic::error(
+                "generic reach variable is outside its telescope",
+            ));
+        };
+        if matches.next().is_some()
+            || !matches!(
+                parameter.kind,
+                TypeParameterKind::Machine {
+                    contract: typed_trees::data::MachineParameterContract::Nominal { .. }
+                }
+            )
+        {
+            return Err(Diagnostic::error(
+                "generic reach variable is not one exact nominal binder",
+            ));
+        }
+        ordinals.push(ordinal as u64);
+    }
+    ordinals.sort_unstable();
+    if ordinals.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(Diagnostic::error(
+            "generic reach dependency repeats a binder",
+        ));
+    }
+    bytes.extend((ordinals.len() as u64).to_le_bytes());
+    for ordinal in ordinals {
+        bytes.extend(ordinal.to_le_bytes());
+    }
+    bytes.extend(static_machine_parameter_contract_bytes(program, parameters));
+    Ok(bytes)
+}
 
 /// Stable operational projection embedded in the full template commitment.
 /// Parameter types specialize in private instances; callable kind, service identity,
@@ -200,6 +299,26 @@ pub fn validate_static_machine_call_contracts(
     operational: &OperationalPlan,
 ) -> Result<(), Diagnostic> {
     validate_static_machine_parameter_contracts(program)?;
+    if !program.machine_specializations.is_empty() {
+        let inferred = crate::infer_service_reaches(program, operational);
+        for specialization in &program.machine_specializations {
+            let template = program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == specialization.template)
+                .ok_or_else(|| Diagnostic::error("generic reach dependency lost its template"))?;
+            let expected =
+                static_machine_template_reach_contract_bytes(program, &inferred, template)?;
+            if !specialization
+                .canonical_template_contract_bytes
+                .ends_with(&expected)
+            {
+                return Err(Diagnostic::error(
+                    "retained generic reach dependency differs from the original template graph",
+                ));
+            }
+        }
+    }
     for machine in operational.machines() {
         for state in operational.states.span_or_empty(machine.states) {
             for call in operational.calls.span_or_empty(state.calls) {

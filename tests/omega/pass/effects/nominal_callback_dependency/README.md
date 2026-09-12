@@ -50,6 +50,11 @@ binder-call markers; this is not a universal receipt-omission check for bodies
 without those markers. Nested generic calls retain two callback positions interleaved
 with type and const binders. This is producer-side replay, not portable proof of
 the original generic dependency or a reconstruction of its complete contract.
+The original finite dependency is bound into the existing template commitment:
+private-helper reach edits change it, while callback selection, call reordering,
+repetition and private generic helper extraction preserve the original summary.
+Coherently hashed stale dependency bytes reject against the retained original
+graph before publication. Type-only generics also retain concrete dependencies.
 
 The same focused Terminal command also exercises bounded boundary calls through
 ordinary helpers. Reload and interpretation retain nominal service parents and

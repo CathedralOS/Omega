@@ -68,7 +68,8 @@ mod state_signatures;
 mod static_machine_call_contracts;
 pub use static_machine_call_contracts::{
     static_machine_call_binding_bytes, static_machine_parameter_contract_bytes,
-    validate_static_machine_call_contracts, validate_static_machine_parameter_contracts,
+    static_machine_template_reach_contract_bytes, validate_static_machine_call_contracts,
+    validate_static_machine_parameter_contracts,
 };
 mod struct_literals;
 mod symbols;
