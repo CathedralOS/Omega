@@ -1047,9 +1047,9 @@ Owners include
   canonical type identity, and checked branch facts own the route; static
   evaluation/layout and artifact readers must use the same normalizer. Inference in
   `typed-trees-to-checked-trees/src/monomorphization/range_arguments.rs` must extend
-  to named/typed computations and open symbolic endpoints through shared semantic
-  evaluation; do not use the i64 compatibility interval evaluator as canonical
-  type identity.
+  to named computations, owner-sensitive typed operations and open symbolic
+  endpoints through shared semantic evaluation; do not use the i64 compatibility
+  interval evaluator as canonical type identity.
   Keep `tests/omega/pass/generics/declared_range_endpoint_inference/main.omg`
   as the checked call regression; the source pipeline map retains its CLI command.
   Replace the range-argument exclusion in `generic_data/arguments.rs` only with exact identity
@@ -1060,7 +1060,7 @@ Owners include
   select identical static capacity without runtime arithmetic overflow. Primitive
   equality and its static branches check all admitted alternatives. Repeat and
   explicit binder conflicts, absent/ambiguous endpoints, occurs cycles, and
-  type/value-kind mismatch reject. Extend the existing literal range-only call
+  type/value-kind mismatch reject. Extend the existing declared range-only call
   inference while keeping explicit larger compatible bounds distinct from exact
   type equations. Local flow narrowing cannot alter inferred
   layout; arbitrary domain predicates do not collapse nominal identity. Preserve

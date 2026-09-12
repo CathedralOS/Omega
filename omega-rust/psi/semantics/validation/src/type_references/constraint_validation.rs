@@ -147,8 +147,10 @@ pub(super) fn validate_type_constraints_node(
                     continue;
                 }
                 match (
-                    crate::arithmetic_domains::literal_i64(program, *minimum),
-                    crate::arithmetic_domains::literal_i64(program, *maximum),
+                    crate::closed_integer_range_bound(program, *minimum)
+                        .and_then(|value| value.to_i64()),
+                    crate::closed_integer_range_bound(program, *maximum)
+                        .and_then(|value| value.to_i64()),
                 ) {
                     (Some(low), Some(high)) if low > high => {
                         // An inverted range `[10..=5]` is the empty set -- no value can
@@ -391,7 +393,10 @@ fn dependent_state_parameter_range_error(
              whose named field carries an enforced literal integer range"
         )
     };
-    if crate::arithmetic_domains::literal_i64(program, minimum).is_none() {
+    if crate::closed_integer_range_bound(program, minimum)
+        .and_then(|value| value.to_i64())
+        .is_none()
+    {
         return Some(generic());
     }
     // Sibling-length class (`[0..items.len]`): the named sibling must be a

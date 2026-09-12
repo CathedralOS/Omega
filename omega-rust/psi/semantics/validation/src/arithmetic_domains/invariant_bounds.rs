@@ -2,6 +2,7 @@
 
 use super::*;
 use language_core::OperatorSpelling;
+use symbols::SymbolHandle;
 
 mod fields;
 
@@ -69,8 +70,19 @@ pub fn immutable_integer_expression_bounds(
     {
         return None;
     }
-    let value = bounds(program, machine, state, expression)?;
+    let value = bounds(program, machine.symbol, Some(state), expression)?;
     Some((value.interval.low?, value.interval.high?))
+}
+
+/// Closed endpoints use the same carrier and operand-landing checks without
+/// admitting any parameter, field, or flow-derived value as a static constant.
+pub(crate) fn closed_integer_expression_value(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<i64> {
+    let value = bounds(program, SymbolHandle::invalid(), None, expression)?;
+    let (low, high) = (value.interval.low?, value.interval.high?);
+    (low == high).then_some(low)
 }
 
 /// Retain one-sided carrier bounds when projecting an exact builtin guard.
@@ -99,8 +111,8 @@ pub(super) fn builtin_comparison_intervals(
         BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
         _ => return None,
     };
-    let left = bounds(program, machine, state, binary.left)?;
-    let right = bounds(program, machine, state, binary.right)?;
+    let left = bounds(program, machine.symbol, Some(state), binary.left)?;
+    let right = bounds(program, machine.symbol, Some(state), binary.right)?;
     typed_trees::operator::has_builtin_spelled_expression_meaning(
         program,
         machine.symbol,
@@ -130,10 +142,13 @@ fn type_bounds(program: &TypedTrees, type_reference: TypeReferenceHandle) -> Opt
 
 fn bounds(
     program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
+    machine: SymbolHandle,
+    state: Option<&State>,
     expression: ExpressionHandle,
 ) -> Option<Bounds> {
+    if !program.expression_table.expression_is_valid(expression) {
+        return None;
+    }
     // Anonymous subtrees retain rational meaning until an operand lands. The
     // syntax-only integer folder would truncate division and erase landing.
     if let Some(evaluated) =
@@ -183,7 +198,7 @@ fn bounds(
         }
         ExpressionNode::Name(path) if path.symbol.is_valid() && path.head_symbol == path.symbol => {
             let parameter = program
-                .state_parameters(state)
+                .state_parameters(state?)
                 .iter()
                 .find(|parameter| parameter.symbol == path.symbol)?;
             if parameter.is_self || parameter.is_mutable || parameter.is_const {
@@ -191,9 +206,10 @@ fn bounds(
             }
             type_bounds(program, parameter.type_reference)
         }
-        ExpressionNode::Member(_) => {
-            type_bounds(program, fields::type_reference(program, state, expression)?)
-        }
+        ExpressionNode::Member(_) => type_bounds(
+            program,
+            fields::type_reference(program, state?, expression)?,
+        ),
         ExpressionNode::Binary(binary) => {
             let spelling = match binary.operator {
                 BinaryOperator::Add => OperatorSpelling::Add,
@@ -205,9 +221,29 @@ fn bounds(
             };
             let left = bounds(program, machine, state, binary.left)?;
             let right = bounds(program, machine, state, binary.right)?;
+            // A context-free endpoint has no owning specialization to select.
+            // Retained late-bound occurrences may still acquire a trait meaning.
+            // ponytail: veto any matching specialization until endpoints carry
+            // their owner directly; an unrelated match may conservatively refuse.
+            if state.is_none()
+                && program
+                    .machine_specializations
+                    .iter()
+                    .any(|specialization| {
+                        !typed_trees::operator::selected_trait_operator_meanings(
+                            program,
+                            specialization.instance,
+                            spelling,
+                            &[left.type_reference, right.type_reference],
+                        )
+                        .is_empty()
+                    })
+            {
+                return None;
+            }
             if !typed_trees::operator::has_builtin_spelled_expression_meaning(
                 program,
-                machine.symbol,
+                machine,
                 expression,
                 spelling,
                 &[left.type_reference, right.type_reference],
@@ -266,6 +302,12 @@ fn bounds(
                 BinaryOperator::Subtract => left.interval.subtract(right.interval),
                 BinaryOperator::Multiply => left.interval.multiply(right.interval),
                 BinaryOperator::Divide => left.interval.divide(right.interval),
+                BinaryOperator::Modulo
+                    if left.interval.low == left.interval.high
+                        && right.interval.low == right.interval.high =>
+                {
+                    Interval::constant(left.interval.low?.checked_rem(right.interval.low?)?)
+                }
                 BinaryOperator::Modulo => left.interval.modulo(right.interval),
                 _ => return None,
             };

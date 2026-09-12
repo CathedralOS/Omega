@@ -38,6 +38,48 @@ fn declared_range_endpoints_select_const_arguments_before_compatibility() {
 }
 
 #[test]
+fn declared_range_checks_use_the_same_exact_arithmetic_as_inference() {
+    let checked = accepts(
+        "machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+        machine fractional(value: u64[0..=1 / 2 * 512]) -> u64 { upper_bound(value) }
+        machine signed(value: i64[0 - 1 / 2 * 4..=2]) -> i64 { value }
+        machine main() -> u64 { _ = signed(-2); fractional(256) }",
+    );
+    assert_eq!(checked.machine_specializations[0].const_arguments, ["256"]);
+    for (bound, endpoint) in [
+        ("7 / 2 * 2", 7),
+        ("7u64 / 2 * 2", 6),
+        ("1u64 * (7 / 2 * 2)", 7),
+        ("7u64 % 2", 1),
+    ] {
+        let source = format!(
+            "machine accept(value: u64[0..={bound}]) -> u64 {{ value }}
+            machine main() -> u64 {{ accept({endpoint}) }}"
+        );
+        accepts(&source);
+        assert!(
+            check(&source.replace(
+                &format!("accept({endpoint})"),
+                &format!("accept({})", endpoint + 1)
+            ))
+            .is_err()
+        );
+    }
+    for source in [
+        "machine accept(value: u64[(5 / 2) * 2..=10]) -> u64 { value }
+        machine main() -> u64 { accept(4) }",
+        "machine accept(value: u64[0..=(5 / 2) * 2]) -> u64 { value }
+        machine main() -> u64 { accept(6) }",
+        "machine accept(value: u64[0..=5 / 2]) -> u64 { value }",
+        "machine accept(value: u64[0..=5 / 0]) -> u64 { value }",
+        "machine accept(value: u64[0..=255u8 + 1]) -> u64 { value }",
+        "machine accept(value: u64[0..=7u64 + 1 / 2]) -> u64 { value }",
+    ] {
+        assert!(check(source).is_err(), "unexpected acceptance: {source}");
+    }
+}
+
+#[test]
 fn declared_range_inference_uses_lower_and_upper_endpoint_positions() {
     let checked = accepts(
         "const Values::LOW: i32 = -5;

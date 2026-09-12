@@ -174,7 +174,8 @@ fn computed_bounds_retain_carrier_identity_without_input_refinements() {
     else {
         panic!("computed expression");
     };
-    let value = bounds(&program, machine, state, expression).expect("builtin remainder");
+    let value =
+        bounds(&program, machine.symbol, Some(state), expression).expect("builtin remainder");
     let reference = value.type_reference.expect("the result remains typed");
     let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(reference)

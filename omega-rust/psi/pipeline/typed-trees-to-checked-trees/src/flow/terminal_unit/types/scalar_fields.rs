@@ -29,10 +29,12 @@ pub(super) fn retain_scalar_field(
                     {
                         // Use the same closed-expression evaluation as source range
                         // validation. Failure is unsupported, never an unbounded field.
-                        let lower =
-                            i128::from(program.expression_table.constant_integer_value(*minimum)?);
-                        let upper =
-                            i128::from(program.expression_table.constant_integer_value(*maximum)?);
+                        let lower = i128::from(
+                            validation::closed_integer_range_bound(program, *minimum)?.to_i64()?,
+                        );
+                        let upper = i128::from(
+                            validation::closed_integer_range_bound(program, *maximum)?.to_i64()?,
+                        );
                         declared_bounds = Some(match declared_bounds {
                             Some((previous_lower, previous_upper)) => {
                                 (previous_lower.max(lower), previous_upper.min(upper))

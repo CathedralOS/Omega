@@ -188,8 +188,8 @@ pub fn exact_byte_read_result_type(
             let TypeConstraintNode::Range { minimum, maximum } = constraint else {
                 return None;
             };
-            let minimum = crate::arithmetic_domains::literal_i64(program, *minimum)?;
-            let maximum = crate::arithmetic_domains::literal_i64(program, *maximum)?;
+            let minimum = crate::closed_integer_range_bound(program, *minimum)?.to_i64()?;
+            let maximum = crate::closed_integer_range_bound(program, *maximum)?.to_i64()?;
             if minimum > 0 || maximum < 255 {
                 return None;
             }

@@ -13,11 +13,13 @@ fn declared_range_inference_returns_the_selected_endpoint() {
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("computed declared endpoints select closed calls");
     let admission = BuildTimeAdmissionPlan::infer(&checked.typed);
-    for (name, expected) in [
-        ("inferred", 256),
-        ("computed", 256),
-        ("computed_exclusive", 256),
-        ("explicit", 512),
+    for (name, arguments, expected) in [
+        ("inferred", vec![BuildTimeValue::Int(0)], 256),
+        ("computed", vec![BuildTimeValue::Int(0)], 256),
+        ("computed_exclusive", vec![BuildTimeValue::Int(0)], 256),
+        ("explicit", vec![BuildTimeValue::Int(0)], 512),
+        ("fractional", vec![BuildTimeValue::Int(0)], 256),
+        ("call_fractional", vec![], 256),
     ] {
         let machine = checked
             .typed
@@ -29,7 +31,7 @@ fn declared_range_inference_returns_the_selected_endpoint() {
             .evaluate_machine_symbol_for_invocation_measured(
                 &checked.typed,
                 machine.symbol,
-                vec![BuildTimeValue::Int(0)],
+                arguments,
                 BuildTimeInvocationCustody::Symbol(machine.symbol),
             )
             .expect("checked generic call executes");

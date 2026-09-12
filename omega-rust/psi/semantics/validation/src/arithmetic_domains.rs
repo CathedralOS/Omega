@@ -86,6 +86,7 @@ pub(crate) use guard_narrowing::{
     seed_out_param_ensures,
 };
 pub(crate) use interval::Interval;
+pub(crate) use invariant_bounds::closed_integer_expression_value;
 pub use invariant_bounds::{enforced_integer_type_bounds, immutable_integer_expression_bounds};
 pub use monotonic_update::builtin_monotonic_integer_update_bounds;
 pub use ordered_values::validate_ordered_requirement_call_totality;
@@ -1143,9 +1144,10 @@ pub(crate) fn range_constraint_interval(
             .iter()
             .find_map(|constraint| match constraint {
                 TypeConstraintNode::Range { minimum, maximum } => Some(Interval {
-                    low: Some(literal_i64(program, *minimum)?),
+                    low: Some(crate::closed_integer_range_bound(program, *minimum)?.to_i64()?),
                     high: Some(
-                        literal_i64(program, *maximum)
+                        crate::closed_integer_range_bound(program, *maximum)
+                            .and_then(|value| value.to_i64())
                             .or_else(|| dependent_maximum_substituted(program, *maximum))?,
                     ),
                 }),
@@ -1685,8 +1687,8 @@ pub(crate) fn enforced_declared_range_interval(
                 .iter()
                 .find_map(|constraint| match constraint {
                     TypeConstraintNode::Range { minimum, maximum } => Some(Interval {
-                        low: Some(literal_i64(program, *minimum)?),
-                        high: Some(literal_i64(program, *maximum)?),
+                        low: Some(crate::closed_integer_range_bound(program, *minimum)?.to_i64()?),
+                        high: Some(crate::closed_integer_range_bound(program, *maximum)?.to_i64()?),
                     }),
                     _ => None,
                 })

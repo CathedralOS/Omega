@@ -193,8 +193,7 @@ pub(super) fn validate_wire_decode_call(
             // only if a declared range somehow survived the ordinary range
             // validator without a constant normalized interval.
             if typed_trees::wire::type_reference_carries_range(program, value_field.type_reference)
-                && typed_trees::wire::scalar_decode_range(program, value_field.type_reference)
-                    .is_none()
+                && crate::scalar_representation_range(program, value_field.type_reference).is_none()
             {
                 diagnostics.push(Diagnostic::error(format!(
                     "`{}::decode` value field `{}.{}` declares a range fact (`{}`) \

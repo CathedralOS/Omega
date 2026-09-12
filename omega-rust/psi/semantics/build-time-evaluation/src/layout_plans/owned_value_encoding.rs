@@ -49,9 +49,8 @@ pub(super) fn encode_typed_owned_value(
                 PrimitiveType::U64 => *value >= 0,
                 _ => false,
             };
-            let in_declared_range =
-                typed_trees::wire::scalar_representation_range(typed, type_reference)
-                    .is_none_or(|range| *value >= range.minimum && *value <= range.maximum);
+            let in_declared_range = validation::scalar_representation_range(typed, type_reference)
+                .is_none_or(|range| *value >= range.minimum && *value <= range.maximum);
             if !in_carrier_range || !in_declared_range {
                 return Err(MaterializationDiagnostic(format!(
                     "typed integer value {value} is outside `{}`",

@@ -142,9 +142,8 @@ impl ProofConstraint {
         // used to behave unbounded), then the node reader covers the
         // `u32::MAX`-style named-constant spelling.
         let integer_bound = |bound: ExpressionHandle| {
-            program
-                .expression_table
-                .constant_integer_value(bound)
+            validation::closed_integer_range_bound(program, bound)
+                .and_then(|value| value.to_i64())
                 .or_else(|| {
                     integer_constant_value_from_node(
                         program,

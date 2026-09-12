@@ -196,7 +196,8 @@ fn dependent_range_of_type_reference(
                 .iter()
                 .find_map(|constraint| match constraint {
                     typed_trees::types::TypeConstraintNode::Range { minimum, maximum } => {
-                        let minimum = program.expression_table.constant_integer_value(*minimum)?;
+                        let minimum =
+                            validation::closed_integer_range_bound(program, *minimum)?.to_i64()?;
                         let symbolic = typed_trees::dependent_ranges::symbolic_max_bound(
                             &program.expression_table,
                             *maximum,
@@ -238,8 +239,8 @@ fn enforced_range_of_type_reference(
                 .iter()
                 .find_map(|constraint| match constraint {
                     typed_trees::types::TypeConstraintNode::Range { minimum, maximum } => Some((
-                        program.expression_table.constant_integer_value(*minimum)?,
-                        program.expression_table.constant_integer_value(*maximum)?,
+                        validation::closed_integer_range_bound(program, *minimum)?.to_i64()?,
+                        validation::closed_integer_range_bound(program, *maximum)?.to_i64()?,
                     )),
                     _ => None,
                 })

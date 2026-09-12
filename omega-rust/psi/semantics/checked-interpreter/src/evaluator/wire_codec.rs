@@ -430,7 +430,7 @@ impl<'program> Evaluator<'program> {
                     target_type,
                     repeated.carrier,
                 )
-                .and_then(|element| typed_trees::wire::scalar_decode_range(self.program, element));
+                .and_then(|element| validation::scalar_representation_range(self.program, element));
                 fields.push((
                     field.name.as_str().to_owned(),
                     field.number,
@@ -498,7 +498,7 @@ impl<'program> Evaluator<'program> {
                 field.number,
                 WireInterpScalarField::Scalar {
                     encoding,
-                    range: typed_trees::wire::scalar_decode_range(self.program, target_type),
+                    range: validation::scalar_representation_range(self.program, target_type),
                 },
             ));
         }
