@@ -7,7 +7,6 @@ use crate::operator::lower_operator_definition;
 use crate::proposition::lower_proposition_definition;
 use crate::trait_definition::lower_trait_definition;
 use crate::type_reference::lower_child_type_references;
-use crate::wire::lower_wire_schema;
 use diagnostics::Diagnostic;
 use syntax_trees::{self as syntax, SyntaxTrees};
 
@@ -29,6 +28,7 @@ fn lower_item_with_exposure(
     match item {
         syntax::item::Item::Data(data_definition) => {
             let lowered = lower_data_definition(lowerer, syntax_trees, data_definition)?;
+            crate::wire::derive_wire_schema(lowerer, &lowered);
             lowerer.symbol_resolved_trees.data_definitions.push(lowered);
         }
         syntax::item::Item::Domain(domain_definition) => {
@@ -207,20 +207,6 @@ fn lower_item_with_exposure(
             let proposition = lower_proposition_definition(lowerer, syntax_trees, proposition)?;
             lowerer.symbol_resolved_trees.propositions.push(proposition);
         }
-        syntax::item::Item::WireData(wire_data) => {
-            let wire_schema = lower_wire_schema(lowerer, syntax_trees, wire_data)?;
-            // Chapter 20: numbers are INERT schema facts -- a numbered data
-            // is ALSO a plain program type (see
-            // data_definition_from_wire_schema; the Message/Sample twin
-            // corpus pattern was forced by this line's absence).
-            let data_definition =
-                crate::wire::data_definition_from_wire_schema(lowerer, &wire_schema);
-            lowerer.symbol_resolved_trees.wire_schemas.push(wire_schema);
-            lowerer
-                .symbol_resolved_trees
-                .data_definitions
-                .push(data_definition);
-        }
         // Const values exist only until symbol resolution: every use
         // substitutes the initializer. A detached resolved root remains for
         // later resolution continuations, not as runtime constant storage.
@@ -333,9 +319,6 @@ fn item_expression_exposure(
         }
         syntax::item::Item::Operator(operator) if operator.is_public => Exposure::PublicInterface,
         syntax::item::Item::Trait(definition) if definition.is_public => Exposure::PublicInterface,
-        syntax::item::Item::WireData(definition) if definition.is_public => {
-            Exposure::PublicInterface
-        }
         _ => Exposure::PrivateImplementation,
     }
 }

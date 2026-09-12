@@ -533,53 +533,6 @@ fn opaque_boundary_data_reaches_checked_facts_without_a_layout_claim() {
     );
 }
 
-// Frozen decision 10 (wire eras): cross-era type changes are legal evolution
-// surfaced as "requires migration" verdicts in the wire protocol compatibility
-// report, and the report compares ADJACENT eras along the version chain
-// (v1 -> v2, newest era -> current), never every era against current.
-#[test]
-fn wire_cross_era_type_change_reports_requires_migration_verdict() {
-    let canary = pass_canary(fixture_roster::WIRE_CROSS_ERA_TYPE_CHANGE_MIGRATION);
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-wire-migration-verdict-canary-{}",
-        std::process::id()
-    ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    let compilation = compile_with_auxiliary_artifacts(CanaryCompileSpec {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        product: CanaryCompileProduct::Check,
-    })
-    .expect("cross-era type change canary should compile with a migration verdict, not an error");
-    assert!(!compilation.wrote_output());
-
-    let report = fs::read_to_string(build_dir.join("04_wire_protocols.txt"))
-        .expect("wire protocol compatibility report should be written");
-    assert!(
-        report.contains("### compatibility v1 -> v2")
-            && report.contains("### compatibility v2 -> current"),
-        "wire report should compare adjacent eras along the version chain\n{}",
-        report
-    );
-    assert!(
-        report.contains(
-            "field 0 changes type i32 -> i64; decode via the old era's table and migrate up the chain"
-        ),
-        "wire report should record the cross-era type change as a requires-migration verdict\n{}",
-        report
-    );
-    assert!(
-        !report.contains("### compatibility v1 -> current"),
-        "wire report should not compare a non-newest era against the current body\n{}",
-        report
-    );
-
-    let _ = fs::remove_dir_all(&build_dir);
-}
-
 #[test]
 fn wire_compatibility_demand_reports_directional_facts_and_migration_route() {
     let canary = pass_canary(fixture_roster::WIRE_COMPATIBILITY_DEMAND_REPORT);

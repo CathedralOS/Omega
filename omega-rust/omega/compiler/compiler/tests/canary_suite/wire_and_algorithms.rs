@@ -4,6 +4,55 @@ use super::*;
 pub(super) mod fixture_roster;
 
 #[test]
+fn ordinary_numbered_record_codecs_check_and_interpret_exact_bytes() {
+    for fixture in [
+        fixture_roster::RUNTIME_WIRE_ENCODE_PRIMITIVE_EXIT,
+        fixture_roster::RUNTIME_WIRE_ROUNDTRIP_PRIMITIVE_EXIT,
+    ] {
+        let canary = pass_canary(fixture);
+        let checked = compile_to_checked(&canary.join("main.omg"), None)
+            .unwrap_or_else(|diagnostics| panic!("{fixture}: {diagnostics:#?}"));
+        let outcome = interpret(&checked, &[]);
+        assert_eq!(outcome.error, None, "{fixture}");
+        assert_eq!(outcome.exit_code, 70, "{fixture}");
+    }
+}
+
+#[test]
+fn numbered_decoder_does_not_ignore_record_domain_obligations() {
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_ROUNDTRIP_PRIMITIVE_EXIT);
+    let source = fs::read_to_string(canary.join("main.omg"))
+        .expect("roundtrip source")
+        .replace(
+            "data CounterMessage {",
+            "data CounterMessage where counter <= 1000 {",
+        )
+        .replace(
+            "CounterMessage::encode(&msg, &mut self.buffer, &mut self.written);",
+            "",
+        );
+    let scratch =
+        std::env::temp_dir().join(format!("omega-numbered-domain-{}", std::process::id()));
+    fs::create_dir_all(&scratch).expect("scratch directory");
+    let main_path = scratch.join("main.omg");
+    fs::write(&main_path, &source).expect("constrained numbered source");
+    fs::copy(canary.join("build.omg"), scratch.join("build.omg"))
+        .expect("roundtrip build declaration");
+    let diagnostics = compile_to_checked(&main_path, None)
+        .expect_err("implicit codecs cannot discard whole-record obligations");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("remained unresolved")
+                && diagnostic
+                    .source_span
+                    .is_some_and(|span| &source[span.span.start..span.span.end] == "decode")
+        }),
+        "codec rejection, not an unrelated source error: {diagnostics:#?}"
+    );
+    fs::remove_dir_all(scratch).expect("scratch cleanup");
+}
+
+#[test]
 fn runtime_method_view_write_after_last_use_exit_canary_runs() {
     // Lifetimes stage 1, NLL complement of
     // fail/borrow/method_view_receiver_unrelated_field_write: the
@@ -149,38 +198,6 @@ fn runtime_wire_encode_primitive_exit_canary_runs() {
         output.status.code(),
         Some(70),
         "expected the compact_binary v0 encoder to produce the hand-computed bytes (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    let _ = fs::remove_dir_all(&scratch);
-}
-
-#[test]
-fn runtime_wire_encode_era_discriminator_exit_canary_runs() {
-    // Wire stage 2a + frozen decision 10: a schema with one declared version
-    // block snapshots it as era 0, so the CURRENT body encodes era 1 -- the
-    // first byte of every encoded message. The canary asserts the era byte,
-    // the recycled field's tag/value bytes, and the written count; exits 70
-    // when byte-exact.
-    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_ENCODE_ERA_DISCRIMINATOR_EXIT);
-    let scratch = std::env::temp_dir().join(format!("omega-wire-era-{}", std::process::id()));
-
-    let _ = fs::remove_dir_all(&scratch);
-    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
-        .expect("wire era discriminator canary should compile");
-
-    let executable = compilation
-        .checked_native_executable_path()
-        .expect("wire era discriminator canary should retain its executable receipt");
-    let output = Command::new(executable)
-        .output()
-        .expect("wire era discriminator canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the current body to encode era 1 after one version block (exit 70), got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );

@@ -3,9 +3,7 @@ use crate::expression::{
     ExpressionHandle, ExpressionNode, TableCallExpression, TableMemberExpression,
 };
 use crate::identifier::Identifier;
-use crate::item::{
-    DataDefinition, Item, Machine, State, StateSignature, TraitDefinition, WireDataDefinition,
-};
+use crate::item::{DataDefinition, Item, Machine, State, StateSignature, TraitDefinition};
 use crate::snapshot::ItemSnapshot;
 use crate::statement::{
     StatementNode, TableAssignment, TableCall, TableTransition, TransitionGuardNode,
@@ -511,7 +509,7 @@ fn syntax_copy_and_snapshot_preserve_generic_instance_origin() {
 }
 
 #[test]
-fn syntax_trees_extend_from_preserves_trait_and_wire_visibility() {
+fn syntax_trees_extend_from_preserves_trait_and_data_visibility() {
     let mut file = SyntaxTrees::new(Default::default());
     file.push_root_item(Item::Trait(TraitDefinition {
         is_boundary: false,
@@ -524,11 +522,17 @@ fn syntax_trees_extend_from_preserves_trait_and_wire_visibility() {
         requires: HandleSpan::empty(),
         machines: HandleSpan::empty(),
     }));
-    file.push_root_item(Item::WireData(WireDataDefinition {
-        name: Identifier::generated("PublicWire"),
+    file.push_root_item(Item::Data(DataDefinition {
+        name: Identifier::generated("PublicData"),
         is_public: true,
-        encoding: None,
         members: HandleSpan::empty(),
+        supply_mode: language_core::DataSupplyMode::CheckedShape,
+        lifetime_parameters: Vec::new(),
+        type_parameters: arena::HandleSpan::empty(),
+        generic_instance: None,
+        properties: Default::default(),
+        quotient: None,
+        where_facts: arena::HandleSpan::empty(),
     }));
 
     let mut assembled = SyntaxTrees::new(Default::default());
@@ -538,11 +542,11 @@ fn syntax_trees_extend_from_preserves_trait_and_wire_visibility() {
     let Item::Trait(trait_definition) = roots.next().expect("trait root") else {
         panic!("expected trait root item");
     };
-    let Item::WireData(wire_data) = roots.next().expect("wire root") else {
-        panic!("expected wire-data root item");
+    let Item::Data(data_definition) = roots.next().expect("data root") else {
+        panic!("expected data root item");
     };
     assert!(trait_definition.is_public);
-    assert!(wire_data.is_public);
+    assert!(data_definition.is_public);
 
     let snapshot = assembled.snapshot();
     assert!(matches!(
@@ -554,7 +558,7 @@ fn syntax_trees_extend_from_preserves_trait_and_wire_visibility() {
     ));
     assert!(matches!(
         &snapshot.root_items[1],
-        ItemSnapshot::WireData {
+        ItemSnapshot::Data {
             is_public: true,
             ..
         }

@@ -1,1 +1,1 @@
-data `CounterMessage` declares duplicate field number 0
+stable identity #0 is declared more than once

@@ -5,7 +5,7 @@ use crate::identifier::Identifier;
 use crate::item::{
     CapabilityContract, CapabilityContractKind, CapabilityMember, DataMember, ExternalBinding,
     GenericConformanceBound, Item, ProofFact, PropositionBody, SatisfiesClause, StateParameterNode,
-    StateSignature, WireDataMember,
+    StateSignature,
 };
 use crate::statement::{
     AssemblyFactKind, StatementNode, TransitionGuardNode, TransitionTargetNode,
@@ -194,12 +194,6 @@ pub enum ItemSnapshot {
         parents: Vec<TypeReferenceSnapshot>,
         requires: Vec<IdentifierSnapshot>,
         machines: Vec<StateSignatureSnapshot>,
-    },
-    WireData {
-        name: IdentifierSnapshot,
-        is_public: bool,
-        encoding: Option<IdentifierSnapshot>,
-        members: Vec<WireDataMemberSnapshot>,
     },
 }
 
@@ -421,24 +415,6 @@ pub enum ProofFactSnapshot {
     Membership {
         value: ExpressionSnapshot,
         domain: Vec<IdentifierSnapshot>,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum WireDataMemberSnapshot {
-    Field {
-        number: u64,
-        name: IdentifierSnapshot,
-        relevance: &'static str,
-        type_reference: TypeReferenceSnapshot,
-    },
-    Reserved {
-        number: u64,
-    },
-    Version {
-        name: IdentifierSnapshot,
-        members: Vec<WireDataMemberSnapshot>,
     },
 }
 
@@ -1159,39 +1135,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 })
                 .collect(),
         },
-        Item::WireData(value) => ItemSnapshot::WireData {
-            name: snapshot_identifier(&value.name),
-            is_public: value.is_public,
-            encoding: value.encoding.as_ref().map(snapshot_identifier),
-            members: snapshot_wire_data_members(syntax_trees, value.members),
-        },
     }
-}
-
-fn snapshot_wire_data_members(
-    syntax_trees: &SyntaxTrees,
-    members: arena::HandleSpan<WireDataMember>,
-) -> Vec<WireDataMemberSnapshot> {
-    syntax_trees
-        .items
-        .wire_data_members(members)
-        .iter()
-        .map(|member| match member {
-            WireDataMember::Field(field) => WireDataMemberSnapshot::Field {
-                number: field.number,
-                name: snapshot_identifier(&field.name),
-                relevance: snapshot_binding_relevance(field.relevance),
-                type_reference: snapshot_type_reference_handle(syntax_trees, field.type_reference),
-            },
-            WireDataMember::Reserved(reserved) => WireDataMemberSnapshot::Reserved {
-                number: reserved.number,
-            },
-            WireDataMember::Version(version) => WireDataMemberSnapshot::Version {
-                name: snapshot_identifier(&version.name),
-                members: snapshot_wire_data_members(syntax_trees, version.members),
-            },
-        })
-        .collect()
 }
 
 fn snapshot_operator(

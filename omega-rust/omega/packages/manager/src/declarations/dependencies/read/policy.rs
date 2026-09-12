@@ -57,7 +57,6 @@ fn package_authored_type_name(item: &Item) -> Option<&str> {
         Item::Data(data) => Some(data.name.as_str()),
         Item::Domain(domain) => Some(domain.name.as_str()),
         Item::Trait(definition) => Some(definition.name.as_str()),
-        Item::WireData(wire) => Some(wire.name.as_str()),
         _ => None,
     }
 }

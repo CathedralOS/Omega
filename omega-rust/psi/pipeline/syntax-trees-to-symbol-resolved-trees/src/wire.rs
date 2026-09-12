@@ -1,132 +1,115 @@
 use crate::lowerer::Lowerer;
-use crate::type_reference::lower_type_reference_handle;
-use arena::HandleSpan;
-use diagnostics::Diagnostic;
-use symbol_resolved_trees::wire::{WireField, WireMember, WireReserved, WireSchema, WireVersion};
-use symbols::SymbolHandle;
-use syntax_trees::{self as syntax, SyntaxTrees};
+use symbol_resolved_trees::data::{DataDefinition, DataMember, DataProperties};
+use symbol_resolved_trees::wire::{WireField, WireMember, WireReserved, WireSchema};
 
-pub(crate) fn lower_wire_schema(
-    lowerer: &mut Lowerer,
-    syntax_trees: &SyntaxTrees,
-    wire_data: &syntax::item::WireDataDefinition,
-) -> Result<WireSchema, Diagnostic> {
-    let members = lower_wire_members(lowerer, syntax_trees, wire_data.members)?;
-
-    Ok(WireSchema {
-        symbol: SymbolHandle::invalid(),
-        name: crate::name::lower_name(&wire_data.name),
-        is_public: wire_data.is_public,
-        encoding: wire_data.encoding.as_ref().map(crate::name::lower_name),
-        members,
-    })
-}
-
-/// Chapter 20: field numbers are INERT schema facts, so a numbered `data`
-/// is ALSO a plain program type -- instantiable, member-addressable, ZII
-/// like any data. Build its regular DataDefinition from the schema's
-/// CURRENT-era fields (Reserved entries and Version blocks are wire
-/// HISTORY, not fields), sharing the already-lowered type references. The
-/// corpus's Message/Sample twin pattern was forced by this registration's
-/// absence, not chosen.
-pub(crate) fn data_definition_from_wire_schema(
-    lowerer: &mut Lowerer,
-    schema: &WireSchema,
-) -> symbol_resolved_trees::data::DataDefinition {
-    use symbol_resolved_trees::data::{
-        DataDefinition, DataDefinitionStorage, DataField, DataMember, DataProperties,
-    };
-    let fields: Vec<DataField> = lowerer
+/// Derive the current record codec's view from the ordinary declaration.
+/// The current generated record codec cannot establish whole-record domain,
+/// declared-property, or lifetime obligations. Those declarations still lower
+/// normally; only this consumer-specific view is withheld. Generic codec
+/// selection remains a separate consumer requirement.
+pub(crate) fn derive_wire_schema(lowerer: &mut Lowerer, definition: &DataDefinition) {
+    if !definition.type_parameters.is_empty()
+        || !definition.lifetime_parameters.is_empty()
+        || definition.properties != DataProperties::default()
+        || !definition.where_facts.is_empty()
+    {
+        return;
+    }
+    let fields = lowerer
         .symbol_resolved_trees
-        .wire_members(schema.members)
-        .iter()
-        .filter_map(|member| match member {
-            WireMember::Field(field) => Some(DataField {
-                identity: Some(field.number),
-                symbol: SymbolHandle::invalid(),
+        .data_members(definition.members);
+    if fields.iter().any(|member| match member {
+        DataMember::Field(field) => field.identity.is_none(),
+        DataMember::Variant(_) => true,
+    }) || (fields.is_empty() && definition.retired_identities.is_empty())
+    {
+        return;
+    }
+    let mut members = Vec::with_capacity(fields.len() + definition.retired_identities.len());
+    for member in fields {
+        if let DataMember::Field(field) = member {
+            let Some(number) = field.identity else {
+                return;
+            };
+            members.push(WireMember::Field(WireField {
+                number,
                 name: field.name.clone(),
                 relevance: field.relevance,
                 type_reference: field.type_reference.clone(),
-            }),
-            _ => None,
-        })
-        .collect();
-    let mut members = arena::HandleSpan::empty();
-    for field in fields {
-        lowerer
-            .symbol_resolved_trees
-            .tables
-            .declarations
-            .data_members
-            .append_to_span(&mut members, DataMember::Field(field));
+            }));
+        }
     }
-    DataDefinition {
-        symbol: SymbolHandle::invalid(),
-        name: schema.name.clone(),
-        is_public: schema.is_public,
-        storage: DataDefinitionStorage {
-            supply_mode: language_semantics::DataSupplyMode::CheckedShape,
-            lifetime_parameters: Vec::new(),
-            type_parameters: arena::HandleSpan::empty(),
-            generic_instance: None,
-            quotient: None,
-            where_facts: arena::HandleSpan::empty(),
-            zero_gated: false,
-            retired_identities: lowerer
-                .symbol_resolved_trees
-                .wire_members(schema.members)
-                .iter()
-                .filter_map(|member| match member {
-                    WireMember::Reserved(retired) => Some(retired.number),
-                    _ => None,
-                })
-                .collect(),
-            properties: DataProperties::default(),
-            members,
-        },
-    }
-}
-
-fn lower_wire_members(
-    lowerer: &mut Lowerer,
-    syntax_trees: &SyntaxTrees,
-    members: HandleSpan<syntax::item::WireDataMember>,
-) -> Result<HandleSpan<WireMember>, Diagnostic> {
-    // Version member lists are lowered depth-first so each list lands as a
-    // contiguous span in the shared wire member arena.
-    let mut lowered = Vec::new();
-
-    for member in syntax_trees.items.wire_data_members(members) {
-        lowered.push(match member {
-            syntax::item::WireDataMember::Field(field) => WireMember::Field(WireField {
-                number: field.number,
-                name: crate::name::lower_name(&field.name),
-                relevance: field.relevance,
-                type_reference: lower_type_reference_handle(
-                    lowerer,
-                    syntax_trees,
-                    field.type_reference,
-                )?,
-            }),
-            syntax::item::WireDataMember::Reserved(reserved) => {
-                WireMember::Reserved(WireReserved {
-                    number: reserved.number,
-                })
-            }
-            syntax::item::WireDataMember::Version(version) => {
-                let members = lower_wire_members(lowerer, syntax_trees, version.members)?;
-                WireMember::Version(WireVersion {
-                    name: crate::name::lower_name(&version.name),
-                    members,
-                })
-            }
-        });
-    }
-
-    Ok(lowerer
+    members.extend(
+        definition
+            .retired_identities
+            .iter()
+            .map(|number| WireMember::Reserved(WireReserved { number: *number })),
+    );
+    let members = lowerer
         .symbol_resolved_trees
         .tables
         .declarations
         .wire_members
-        .insert_many(lowered))
+        .insert_many(members);
+    lowerer.symbol_resolved_trees.wire_schemas.push(WireSchema {
+        symbol: Default::default(),
+        name: definition.name.clone(),
+        is_public: definition.is_public,
+        encoding: None,
+        members,
+    });
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::lower_syntax_trees;
+    use source_files_to_tokens::Lexer;
+    use symbol_resolved_trees::data::DataMember;
+    use symbol_resolved_trees::wire::WireMember;
+    use tokens_to_syntax_trees::parse_syntax_trees;
+
+    #[test]
+    fn codec_view_shares_ordinary_fields_and_retirements() {
+        let tokens = Lexer::new("pub data Message { #7 value: u32; retired #8; }")
+            .tokenize()
+            .expect("tokens");
+        let syntax = parse_syntax_trees(&tokens).expect("syntax");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let definition = &resolved.data_definitions[0];
+        let schema = &resolved.wire_schemas[0];
+        assert_eq!(definition.name, schema.name);
+        assert_eq!(definition.is_public, schema.is_public);
+        let [DataMember::Field(field)] = resolved.data_members(definition.members) else {
+            panic!("ordinary field");
+        };
+        let [WireMember::Field(wire), WireMember::Reserved(retired)] =
+            resolved.wire_members(schema.members)
+        else {
+            panic!("derived view");
+        };
+        assert_eq!(field.identity, Some(wire.number));
+        assert_eq!(field.name, wire.name);
+        assert_eq!(field.relevance, wire.relevance);
+        assert_eq!(field.type_reference, wire.type_reference);
+        assert_eq!(definition.retired_identities, [retired.number]);
+    }
+
+    #[test]
+    fn codec_view_does_not_drop_whole_record_or_ownership_obligations() {
+        for declaration in [
+            "data Message where value <= 10 { #7 value: u32; }",
+            "data Message [copy] { #7 value: u32; }",
+            "data Message<'scope> { #7 value: &'scope u32; }",
+            "data Message { #7 value: u32; case #9 Ready; }",
+        ] {
+            let tokens = Lexer::new(declaration).tokenize().expect("tokens");
+            let syntax = parse_syntax_trees(&tokens).expect("syntax");
+            let resolved = lower_syntax_trees(&syntax).expect("ordinary data resolution");
+            assert_eq!(resolved.data_definitions.len(), 1);
+            assert!(
+                resolved.wire_schemas.is_empty(),
+                "unsupported implicit codec: {declaration}"
+            );
+        }
+    }
 }

@@ -1,1 +1,1 @@
-data `CounterMessage` field `retry_count` reuses retired identity number 3
+stable identity #3 is declared more than once

@@ -10,21 +10,12 @@ use syntax_trees::item::{
     DataDefinition, DataField, DataMember, DataProperties, DataVariant, MachineParameterContract,
     QuotientDefinition, QuotientEquivalenceSelection, TypeParameter, TypeParameterKind,
 };
-use tokens::{PunctuationKind, TokenKind};
-
-/// A parsed `data` declaration: plain, or IDENTITY-NUMBERED (ch20 -- fields
-/// carry optional identity numbers, `retired #N;` tombstones one; such a
-/// declaration is the schema the identity-keyed grammars consume, and it
-/// lowers through the wire-schema representation).
-pub(super) enum ParsedDataDefinition {
-    Plain(DataDefinition),
-    Numbered(syntax_trees::item::WireDataDefinition),
-}
+use tokens::PunctuationKind;
 
 pub(super) fn parse_data_definition<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, ParsedDataDefinition> {
+) -> ParseResult<'tokens, 'source, DataDefinition> {
     let (name, mut input) = input.take_identifier()?;
     // `Slice` is reserved as a data-type name so the parser's `Slice<T>` -> slice
     // fold (type_reference.rs) never collides with a user generic; `Slice<T>` is
@@ -93,7 +84,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
         };
         input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
         return Ok((
-            ParsedDataDefinition::Plain(DataDefinition {
+            DataDefinition {
                 name,
                 is_public: false,
                 supply_mode: language_core::DataSupplyMode::CheckedShape,
@@ -108,7 +99,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
                 }),
                 where_facts: HandleSpan::empty(),
                 members: HandleSpan::empty(),
-            }),
+            },
             input,
         ));
     }
@@ -128,48 +119,17 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     }
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
 
-    // An IDENTITY-NUMBERED data (ch20): the first member starting with an
-    // `#` (`#1 seed: u64;`) or `retired` decides the form; numbers are
-    // all-or-nothing within one declaration (guided error otherwise, inside
-    // the member parser). A numbered schema may start with a historical
-    // `version vN { N: field: Type; }` block, so peek inside that first block;
-    // an identity-numbered or retired inner member selects the schema parser.
-    // The input cursor is Copy, so this lookahead consumes nothing.
-    let leading_version_is_numbered = input.at_contextual("version")
-        && input
-            .take_contextual("version")
-            .ok()
-            .and_then(|after| after.take_identifier().ok())
-            .and_then(|(_, after)| after.take_punctuation(PunctuationKind::LeftBrace, "{").ok())
-            .is_some_and(|inner| {
-                inner.at_punctuation(PunctuationKind::Hash) || inner.at_contextual("retired")
-            });
     if input.at_integer() {
         return Err(input.error_here(
-            "the legacy numbered-field spelling `N: name: Type;` is retired; \
-             write `#N name: Type;`",
+            "the legacy numbered-field spelling `N: name: Type;` is retired; write `#N name: Type;`",
         ));
-    }
-    let uses_legacy_wire_lowering = type_parameters.is_empty()
-        && lifetime_parameters.is_empty()
-        && properties == DataProperties::default()
-        && where_facts.is_empty()
-        && !body_contains_top_level_case(input);
-    if uses_legacy_wire_lowering
-        && (input.at_punctuation(PunctuationKind::Hash)
-            || input.at_contextual("retired")
-            || leading_version_is_numbered)
-    {
-        let (definition, input) =
-            crate::parser::item::parse_identity_data_body(syntax_trees, name, input)?;
-        return Ok((ParsedDataDefinition::Numbered(definition), input));
     }
 
     let (members, input) = parse_data_members(syntax_trees, input)?;
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
 
     Ok((
-        ParsedDataDefinition::Plain(DataDefinition {
+        DataDefinition {
             name,
             is_public: false,
             supply_mode: language_core::DataSupplyMode::CheckedShape,
@@ -180,40 +140,9 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             quotient: None,
             where_facts,
             members,
-        }),
+        },
         input,
     ))
-}
-
-fn body_contains_top_level_case(input: Input<'_, '_>) -> bool {
-    let mut braces = 0usize;
-    let mut brackets = 0usize;
-    let mut parentheses = 0usize;
-
-    for token in input.tokens {
-        if token.is_non_semantic() {
-            continue;
-        }
-        match token.punctuation() {
-            Some(PunctuationKind::LeftBrace) => braces += 1,
-            Some(PunctuationKind::RightBrace) if braces == 0 => break,
-            Some(PunctuationKind::RightBrace) => braces -= 1,
-            Some(PunctuationKind::LeftBracket) => brackets += 1,
-            Some(PunctuationKind::RightBracket) => brackets = brackets.saturating_sub(1),
-            Some(PunctuationKind::LeftParen) => parentheses += 1,
-            Some(PunctuationKind::RightParen) => parentheses = parentheses.saturating_sub(1),
-            _ if braces == 0
-                && brackets == 0
-                && parentheses == 0
-                && matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
-                && token.lexeme.as_str() == "case" =>
-            {
-                return true;
-            }
-            _ => {}
-        }
-    }
-    false
 }
 
 /// An opaque carrier supplied by a boundary provider. It has no source-visible
@@ -583,6 +512,15 @@ fn parse_data_member<'tokens, 'source>(
         let (identity, input) = input.take_identity()?;
         let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
         return Ok((DataMember::Retired(identity), input));
+    }
+
+    if input.at_contextual("reserved") {
+        let after_reserved = input.take_contextual("reserved")?;
+        if after_reserved.at_integer() {
+            return Err(input.error_here(
+                "`reserved` is retired: tombstone an identity number with `retired #N;`",
+            ));
+        }
     }
 
     if input.at_contextual("version") {
