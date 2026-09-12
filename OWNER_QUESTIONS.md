@@ -54,8 +54,9 @@ settled. The [W-based inductive profile](wiki/spec/proofs/inductive_profile.md)
 and [set-quotient interface](wiki/spec/proofs/quotients.md#set-quotient-foundation)
 are also selected. Their metatheory, encoding correctness, checker implementation,
 measurements and PCC delivery are execution work unless they expose a new semantic
-choice. General mathematical source elaboration and the newly identified indexed
-encoding conversion dependency remain below.
+choice. Typed function eta is selected in the inductive profile; its combined
+justification is execution work. General mathematical source elaboration remains
+the question below.
 No question restores anonymous machines, dedicated formula declarations, or
 authored `-> Prop` syntax. Those ergonomic proposals remain separate.
 
@@ -131,44 +132,3 @@ checking and assumption-closure work can proceed independently.
 The existing [evaluation admission](wiki/spec/language/evaluation.md#invocation-admission)
 and total-term rules stay fixed: this question does not reopen whether arbitrary
 runtime effects may execute in proofs.
-
-<a id="indexed-encoding-function-eta"></a>
-
-## Q2. Function eta for checked indexed induction
-
-### Context and problem
-
-The [selected W profile](wiki/spec/proofs/inductive_profile.md#derived-indexed-families)
-requires dependent indexed induction with definitional constructor computation,
-for vectors, derivation trees and general recursive data. Its cited
-[IW construction](https://hott.github.io/Coq-HoTT/coqdoc-html/HoTT.Types.IWType.html)
-reconstructs a supplied child function `g` as
-`b ↦ (fst(g(b)),snd(g(b)))`. Pair eta yields `b ↦ g(b)`; identifying this
-with the original `g` requires function eta. Figure 1 of the
-[pinned reference core](https://jesper.sikanda.be/files/definitional-proof-irrelevance-without-K.pdf)
-lists function beta and pair eta, but not function eta. Consequently the cited
-definitional computation proof does not transfer under the rules currently pinned.
-
-### Proposed solution
-
-Explicitly extend conversion with typed dependent-function eta:
-`(x ↦ f(x)) ≡ f : Π(x : A). B(x)`, where `x` is fresh for `f`.
-Specify its interaction with all admitted sort combinations, substitution and
-conversion checking; justify the combined theory before claiming a verified
-profile. This is not function extensionality, equality reflection or K, and
-does not introduce a source feature. It is a kernel-rule amendment requiring
-an explicit decision, not an implementation shortcut authorized by the W choice.
-
-### Alternate and acceptance
-
-An eta-free indexed construction is viable if its dependent eliminator and
-constructor computation check under the exact existing conversion rules.
-Merely obtaining a propositional computation law does not satisfy the selected
-definitional requirement. Neither a structural round trip nor the original
-Coq check proves compatibility with Omega's narrower conversion.
-
-Acceptance: check constructor computation with a neutral child function `g`,
-not only an already-expanded lambda, then the Vector and derivation-family
-cases; retain the rule/metatheory obligations for the chosen route. This blocks
-only the indexed-computation portion of `PROOF-KERNEL-CORE`. Ordinary W/identity
-checking, assumption closure and quotient-interface work remain actionable.

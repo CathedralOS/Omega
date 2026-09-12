@@ -3,8 +3,8 @@
 Omega's proof system uses ordinary machines, contracts, data, traits, and named
 conformances. The [mathematical foundation](foundation.md) selects a dependent
 core with proof-relevant identity and strict logical proofs. This specifies the
-required model, not complete implementation support. Remaining source and
-indexed-conversion decisions are listed under [open joins](#open-joins).
+required model, not complete implementation support. Remaining source decisions
+are listed under [open joins](#open-joins).
 
 ## Machines and bundles
 
@@ -330,17 +330,16 @@ roles, constructor relations, executable observers, and published correspondence
 
 The [foundation](foundation.md) is the owner of the selected mathematical model,
 not the current Rust vocabulary or a collection of proof-assistant defaults.
-The following narrow decisions remain open; their proposals are not ratified.
+The remaining source decision is open; its proposals are not ratified.
 
 | Design gap | Decision owner |
 | --- | --- |
 | General logical binders, predicate abstraction/passing, universe annotations and mathematical-result source elaboration | [Mathematical binders](../../../OWNER_QUESTIONS.md#mathematical-binders) |
-| Function eta or an eta-free construction for the selected indexed eliminator's definitional computation | [Indexed conversion](../../../OWNER_QUESTIONS.md#indexed-encoding-function-eta) |
 
 Changing axioms within one calculus does not establish compatibility between
-different calculi. These questions do not reopen the specified evaluation,
-erasure, assumption-tracking or verifier-obligation rules, and do not block
-implementation of the current bounded checking rules. They authorize neither
+different calculi. This question does not reopen the specified evaluation,
+erasure, assumption-tracking or verifier-obligation rules, and does not block
+implementation of the current bounded checking rules. It authorizes neither
 an arbitrary checker-plugin mechanism nor retired formula-naming syntax.
 
 Certificate byte layouts, a tactic-machine API, and the remaining
