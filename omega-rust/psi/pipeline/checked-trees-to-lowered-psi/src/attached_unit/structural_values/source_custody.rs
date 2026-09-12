@@ -19,7 +19,11 @@ pub(crate) fn validate(
     state: SymbolHandle,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Result<(), LoweringError> {
-    let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. } = operation
+    let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+        result,
+        value,
+        discard_result_on_return,
+    } = operation
     else {
         return unsupported("structural construction operation absent");
     };
@@ -55,6 +59,21 @@ pub(crate) fn validate(
     {
         return unsupported("structural construction substituted its owner or result type");
     }
+    if let Some(StatementNode::LocalData(local)) = checked
+        .statement_table
+        .statements(source.statement_nodes)
+        .get(result.statement_index as usize)
+    {
+        validate_local_ownership(
+            checked,
+            machine,
+            state,
+            result.statement_index,
+            local.symbol,
+            result.multiplicity,
+            *discard_result_on_return,
+        )?;
+    }
     let mut pending = vec![(*value, expression)];
     let mut visited = Vec::new();
     let mut operand_roles = Vec::new();
@@ -67,15 +86,37 @@ pub(crate) fn validate(
         if node.expression != expression {
             return unsupported("structural construction exchanged authored value occurrences");
         }
-        match node.kind {
-            CheckedStructuralValueKind::Case {
-                data_symbol,
-                case_symbol,
-            } => {
-                if validation::fresh_payloadless_case(&checked.typed, expression, reference)
-                    != Some((data_symbol, case_symbol))
+        match node.kind.clone() {
+            CheckedStructuralValueKind::Case(construction) => {
+                if construction.expression != expression
+                    || checked.normalized_type_identity(construction.type_reference)
+                        != checked.normalized_type_identity(reference)
                 {
-                    return unsupported("structural construction substituted its exact fresh case");
+                    return unsupported(
+                        "structural construction substituted its exact fresh case owner",
+                    );
+                }
+                let fields = crate::scalar_computations::cases::source::construction(
+                    checked,
+                    &construction,
+                )?;
+                for (ordinal, (expression, handle)) in fields.iter().enumerate() {
+                    let role = CheckedScalarExpressionRole::StructuralValueField {
+                        expression: construction.expression,
+                        field_ordinal: u32::try_from(ordinal).map_err(|_| {
+                            LoweringError::Unsupported("case field ordinal overflow")
+                        })?,
+                    };
+                    operand_roles.push(role);
+                    validate_operand(
+                        checked,
+                        machine,
+                        state,
+                        result.statement_index,
+                        role,
+                        *handle,
+                        *expression,
+                    )?;
                 }
             }
             CheckedStructuralValueKind::Dispatch { subject, arms } => {
@@ -224,6 +265,7 @@ pub(crate) fn validate(
                     root.role,
                     CheckedScalarExpressionRole::StructuralValueSubject { .. }
                         | CheckedScalarExpressionRole::StructuralValuePattern { .. }
+                        | CheckedScalarExpressionRole::StructuralValueField { .. }
                 )
                 && !operand_roles.contains(&root.role)
         })
@@ -296,6 +338,23 @@ pub(crate) fn operand_source(
             return unsupported("structural operand has cyclic authored scope");
         }
         visited.push(expression);
+        if let CheckedScalarExpressionRole::StructuralValueField {
+            expression: constructor,
+            field_ordinal,
+        } = role
+            && constructor == expression
+        {
+            let source = validation::scalar_case_constructor(&checked.typed, expression).ok_or(
+                LoweringError::Unsupported("structural field lost its authored constructor"),
+            )?;
+            return source
+                .fields
+                .get(field_ordinal as usize)
+                .map(|(_, expression, primitive)| (*expression, *primitive))
+                .ok_or(LoweringError::Unsupported(
+                    "structural field ordinal escaped its constructor",
+                ));
+        }
         let ExpressionNode::Match(dispatch) = checked.expression_table.expression(expression)
         else {
             continue;
@@ -346,4 +405,76 @@ pub(crate) fn operand_source(
         }
     }
     unsupported("structural operand role escaped its authored value scope")
+}
+
+/// Whole selected locals retain their statement establishment provenance through
+/// later observation, transfer, or disposal. The operation/edge receivers check
+/// the selected transfer schedule independently.
+fn validate_local_ownership(
+    checked: &CheckedTrees,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement: u32,
+    symbol: SymbolHandle,
+    multiplicity: language_semantics::Multiplicity,
+    discard_result_on_return: bool,
+) -> Result<(), LoweringError> {
+    use language_semantics::{Multiplicity, PermissionEventKind, PermissionEventSource};
+    let (_, source) = crate::scalar_source_custody::authored_state(checked, state)?;
+    if !symbol.is_valid()
+        || checked.state_parameters(source).iter().any(|parameter| parameter.symbol == symbol)
+        || checked.statement_table.statements(source.statement_nodes).iter().filter(|statement| matches!(statement, StatementNode::LocalData(local) if local.symbol == symbol)).count() != 1 {
+        return unsupported("structural local has ambiguous source identity");
+    }
+    let establishment_source = PermissionEventSource::Statement {
+        statement_index: statement as usize,
+    };
+    let provenance = language_semantics::PermissionProvenance::Established {
+        machine_symbol: machine,
+        state_symbol: state,
+        source: establishment_source,
+    };
+    let ownership = &checked.facts.flow.ownership;
+    let mut establishments = 0;
+    let mut drops = 0;
+    let mut transfers = 0;
+    for (_, event) in ownership.permissions.iter().filter(|(_, event)| {
+        event.machine_symbol == machine
+            && event.state_symbol == state
+            && event.root == facts::PlaceRoot::Symbol(symbol)
+    }) {
+        if event.access != language_semantics::PermissionAccess::Owned
+            || event.multiplicity != multiplicity
+            || multiplicity != Multiplicity::Affine
+            || event.claim_identity != language_semantics::PermissionClaimIdentity::Unknown
+            || event.provenance != provenance
+            || event.obligation_live
+            || ownership
+                .segments
+                .span(event.segments)
+                .is_none_or(|segments| !segments.is_empty())
+        {
+            return unsupported("structural local changed its whole no-code ownership provenance");
+        }
+        match event.kind {
+            PermissionEventKind::Establish if event.source == establishment_source => {
+                establishments += 1
+            }
+            PermissionEventKind::AffineDrop if event.source == PermissionEventSource::StateExit => {
+                drops += 1
+            }
+            PermissionEventKind::Transfer => transfers += 1,
+            _ => return unsupported("structural local changed its ownership event"),
+        }
+    }
+    if establishments != usize::from(multiplicity == Multiplicity::Affine)
+        || drops > 1
+        || (multiplicity == Multiplicity::Affine && drops == 0 && transfers == 0)
+        || (multiplicity != Multiplicity::Unrestricted
+            && discard_result_on_return
+            && (drops != 1 || transfers != 0))
+    {
+        return unsupported("structural local lost its exact establishment or final disposition");
+    }
+    Ok(())
 }

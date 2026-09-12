@@ -95,7 +95,8 @@ pub(super) fn locate(
         (
             _,
             CheckedScalarExpressionRole::StructuralValueSubject { .. }
-            | CheckedScalarExpressionRole::StructuralValuePattern { .. },
+            | CheckedScalarExpressionRole::StructuralValuePattern { .. }
+            | CheckedScalarExpressionRole::StructuralValueField { .. },
         ) => {
             let (expression, primitive) =
                 crate::attached_unit::structural_values::source_custody::operand_source(
@@ -362,41 +363,14 @@ pub(super) fn locate(
                 _ => None,
             }
         }
-        (
-            StatementNode::Expression(expression),
-            CheckedScalarExpressionRole::ReturnCaseField { field_ordinal },
-        ) => (|| {
-            let ExpressionNode::StructLiteral(literal) =
-                program.expression_table.expression(*expression)
-            else {
-                return None;
+        (statement, CheckedScalarExpressionRole::ReturnCaseField { field_ordinal }) => (|| {
+            let (expression, destination) = match statement {
+                StatementNode::Expression(expression) => (*expression, absent),
+                _ => return None,
             };
-            let field = program
-                .expression_table
-                .struct_fields(literal.fields)
-                .get(field_ordinal as usize)?;
-            let data = program
-                .data_definitions()
-                .iter()
-                .find(|data| data.symbol == literal.type_symbol)?;
-            let variant = program
-                .data_members(data)
-                .iter()
-                .find_map(|member| match member {
-                    checked_trees::data::DataMember::Variant(variant)
-                        if Some(variant.symbol) == literal.case_symbol =>
-                    {
-                        Some(variant)
-                    }
-                    _ => None,
-                })?;
-            let declaration = program
-                .data_payload_fields(variant)
-                .iter()
-                .find(|declaration| declaration.symbol == field.field_symbol)?;
-            program
-                .primitive_type_reference(declaration.type_reference)
-                .map(|primitive| (field.value, absent, primitive))
+            let constructor = validation::scalar_case_constructor(program, expression)?;
+            let (_, expression, primitive) = constructor.fields.get(field_ordinal as usize)?;
+            Some((*expression, destination, *primitive))
         })(),
         (StatementNode::Expression(expression), CheckedScalarExpressionRole::Return) => program
             .primitive_type_reference(state.return_type)

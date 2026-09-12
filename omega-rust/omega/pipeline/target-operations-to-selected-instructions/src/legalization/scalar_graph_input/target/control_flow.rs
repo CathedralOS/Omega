@@ -299,8 +299,11 @@ pub(super) fn validate(
                     && successor.target == *target
                     && successor.bindings == *bindings
                     && successor.structural_bindings == *structural_bindings
-                    && successor.cleanup_actions.is_empty()
-                    && trivial_affine_discards.is_empty()
+                    && edge_cleanup_matches(
+                        optimized,
+                        &successor.cleanup_actions,
+                        trivial_affine_discards,
+                    )
                     && residual_affine_discards.is_empty()
             }
             (
@@ -323,8 +326,8 @@ pub(super) fn validate(
                         optimized,
                     })
                     .boolean_source(condition, *expected, &[])
-                    && successor_matches(when_true, expected_true)
-                    && successor_matches(when_false, expected_false)
+                    && successor_matches(optimized, when_true, expected_true)
+                    && successor_matches(optimized, when_false, expected_false)
             }
             _ => false,
         };
@@ -336,6 +339,7 @@ pub(super) fn validate(
 }
 
 fn successor_matches(
+    function: &PsiOptimizationFunction,
     target: &TargetControlSuccessor,
     source: &abstract_operations::AbstractSuccessor,
 ) -> bool {
@@ -343,6 +347,21 @@ fn successor_matches(
         && target.target == source.target
         && target.bindings == source.bindings
         && target.structural_bindings == source.structural_bindings
-        && source.trivial_affine_discards.is_empty()
-        && target.cleanup_actions.is_empty()
+        && edge_cleanup_matches(
+            function,
+            &target.cleanup_actions,
+            &source.trivial_affine_discards,
+        )
+}
+
+fn edge_cleanup_matches(
+    function: &PsiOptimizationFunction,
+    actions: &[terminal_psi::TerminalAffineCleanupAction],
+    places: &[semantic_vocabulary::PlaceId],
+) -> bool {
+    actions.len() == places.len()
+        && actions.iter().zip(places).all(|(action, place)| matches!(
+            action, terminal_psi::TerminalAffineCleanupAction::DiscardRoot(source) if source == place
+        ))
+        && super::super::aggregate_results::cleanup(function, actions)
 }

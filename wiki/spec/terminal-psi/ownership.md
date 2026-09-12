@@ -84,12 +84,12 @@ Reconverging paths must establish the same ordered structural frontier; their
 scalar values need not be identical.
 
 This is an ownership-obligation frontier, not a catalog of every evaluated value.
-Plain unrestricted primitive-array payloads have no disposal obligation. As with
-primitive local storage, their uses require an independently established producer
-that dominates the use, including operation order within a block. A branch-local
-payload cannot be used after a join reached without its construction, but an
-unused payload does not prevent that join. This does not erase claims, loans,
-partial moves, or affine/linear obligations.
+Plain unrestricted primitive-array and scalar-case payloads have no disposal
+obligation. As with primitive local storage, their uses require an independently
+established producer that dominates the use, including operation order within a
+block. A branch-local payload cannot be used after a join reached without its
+construction, but an unused payload does not prevent that join. This does not
+erase claims, loans, partial moves, or affine/linear obligations.
 
 Audit origin may remain path-sensitive. Operational metadata joins only when
 all alternatives use the same realization or an existing runtime discriminator

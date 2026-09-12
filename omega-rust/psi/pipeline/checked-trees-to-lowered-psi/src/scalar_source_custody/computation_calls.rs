@@ -63,6 +63,47 @@ pub(crate) fn validate_computation_calls(
         let node = plans.nodes.get(handle);
         let authored_scope = operand_scopes::folded_match_scope(checked, authored_scope)?;
         match &node.kind {
+            CheckedScalarComputationKind::CaseMembership {
+                source_expression,
+                subject,
+                case,
+            } => {
+                if node.primitive_type != PrimitiveType::Bool {
+                    return unsupported("computed case observation is not Boolean");
+                }
+                dispatch::source_scope(
+                    checked,
+                    machine,
+                    state,
+                    authored_scope,
+                    *source_expression,
+                    node.primitive_type,
+                )?;
+                let fields = crate::scalar_computations::cases::source::membership(
+                    checked,
+                    machine,
+                    state,
+                    *source_expression,
+                    subject,
+                    *case,
+                )?;
+                for (source, computation) in &fields {
+                    super::value_correspondence::validate(
+                        checked,
+                        state,
+                        statement,
+                        *source,
+                        plans.nodes.get(*computation).primitive_type,
+                        &checked_trees::CheckedCallScalarArgument::Computation(*computation),
+                    )?;
+                }
+                pending.extend(
+                    fields
+                        .into_iter()
+                        .rev()
+                        .map(|(source, computation)| (computation, false, source)),
+                );
+            }
             CheckedScalarComputationKind::SelectedComparison {
                 operator_use,
                 left,

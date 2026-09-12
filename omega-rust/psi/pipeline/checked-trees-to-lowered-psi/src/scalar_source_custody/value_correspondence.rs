@@ -8,6 +8,7 @@
 //! formation bounds and an effect-free source. General slice-backed extents
 //! need a retained view/bounds execution plan, which array operands do not yet
 //! carry; matching literal endpoints alone never supplies that evidence.
+//! Array elements and case fields share this receiving check.
 
 use crate::LoweringError;
 use checked_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
@@ -49,7 +50,7 @@ pub(crate) fn validate(
         Ok(())
     } else {
         Err(LoweringError::Unsupported(
-            "array operand value differs from its authored expression",
+            "scalar operand value differs from its authored expression",
         ))
     }
 }
@@ -163,6 +164,32 @@ impl Context<'_> {
         active.push(root);
         let node = plans.nodes.get(root);
         let valid = match &node.kind {
+            Computation::CaseMembership {
+                source_expression,
+                subject,
+                case,
+            } => {
+                // Membership produces a Boolean only after exact source/case
+                // replay and ordinary value correspondence for every field.
+                // Its truth is not assumed, and field bounds remain owed.
+                node.primitive_type == PrimitiveType::Bool
+                    && crate::scalar_source_custody::authored_state(self.checked, self.state)
+                        .is_ok_and(|(machine, _)| {
+                            crate::scalar_computations::cases::source::membership(
+                                self.checked,
+                                machine.symbol,
+                                self.state,
+                                *source_expression,
+                                subject,
+                                *case,
+                            )
+                            .is_ok_and(|fields| {
+                                fields
+                                    .iter()
+                                    .all(|(_, field)| self.computation(*field, active))
+                            })
+                        })
+            }
             Computation::SelectedComparison {
                 operator_use,
                 left,

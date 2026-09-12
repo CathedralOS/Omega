@@ -14,13 +14,33 @@ impl Builder<'_, '_> {
         expected: TypeReferenceHandle,
         values: &mut CheckedStructuralValuePlans,
     ) -> Option<CheckedStructuralValueHandle> {
-        let kind = if let Some((data_symbol, case_symbol)) =
-            validation::fresh_payloadless_case(self.program, expression, expected)
-        {
-            CheckedStructuralValueKind::Case {
-                data_symbol,
-                case_symbol,
+        let kind = if let Some(constructor) = self.case_construction(expression) {
+            if self
+                .program
+                .normalized_type_identity(constructor.type_reference)
+                != self.program.normalized_type_identity(expected)
+            {
+                return None;
             }
+            for (field_ordinal, field) in self
+                .plans
+                .case_fields
+                .span(constructor.fields)?
+                .iter()
+                .enumerate()
+            {
+                self.plans.roots.append(CheckedScalarComputationRoot {
+                    machine: self.machine,
+                    state: self.state,
+                    statement_ordinal: u32::try_from(self.statement_index).ok()?,
+                    role: CheckedScalarExpressionRole::StructuralValueField {
+                        expression,
+                        field_ordinal: u32::try_from(field_ordinal).ok()?,
+                    },
+                    root: field.value,
+                });
+            }
+            CheckedStructuralValueKind::Case(constructor)
         } else {
             let ExpressionNode::Match(dispatch) =
                 self.program.expression_table.expression(expression).clone()

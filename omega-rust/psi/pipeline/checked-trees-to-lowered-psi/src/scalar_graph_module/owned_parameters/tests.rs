@@ -1,5 +1,55 @@
 use super::*;
 
+#[test]
+fn parameter_completion_preserves_disjoint_temporary_and_local_cleanup() {
+    let parameters = [parameter(91, 0), parameter(13, 1)];
+    let temporary = place_id(101);
+    let local = place_id(102);
+    let mut blocks = vec![jump(1, 2), returning(2)];
+    let Terminator::Jump {
+        trivial_affine_discards,
+        ..
+    } = &mut blocks[0].terminator
+    else {
+        panic!("jump");
+    };
+    trivial_affine_discards.push(temporary);
+    let Terminator::Return {
+        cleanup_actions, ..
+    } = &mut blocks[1].terminator
+    else {
+        panic!("return");
+    };
+    cleanup_actions.push(TerminalAffineCleanupAction::DiscardRoot(local));
+    complete(&parameters, block_id(1), &mut blocks).expect("disjoint cleanup composition");
+    let Terminator::Jump {
+        trivial_affine_discards,
+        ..
+    } = &blocks[0].terminator
+    else {
+        panic!("jump");
+    };
+    assert_eq!(trivial_affine_discards, &[temporary]);
+    assert_eq!(
+        cleanup(&blocks[1]),
+        &[
+            TerminalAffineCleanupAction::DiscardRoot(local),
+            TerminalAffineCleanupAction::DiscardRoot(parameters[1].place),
+            TerminalAffineCleanupAction::DiscardRoot(parameters[0].place),
+        ]
+    );
+    let mut overlapping = vec![jump(1, 2), returning(2)];
+    let Terminator::Jump {
+        trivial_affine_discards,
+        ..
+    } = &mut overlapping[0].terminator
+    else {
+        panic!("jump");
+    };
+    trivial_affine_discards.push(parameters[0].place);
+    assert!(complete(&parameters, block_id(1), &mut overlapping).is_err());
+}
+
 fn parameter(place: u64, position: u32) -> StructuralParameterDeclaration {
     StructuralParameterDeclaration {
         place: PlaceId::new(place).unwrap(),

@@ -58,7 +58,9 @@ pub(super) fn complete(
             } => {
                 if (!structural_arguments.is_empty() && !(reentered && *target == entry))
                     || !residual_affine_discards.is_empty()
-                    || !trivial_affine_discards.is_empty()
+                    || trivial_affine_discards
+                        .iter()
+                        .any(|place| affine.contains(place))
                 {
                     return unsupported(
                         "scalar graph whole parameter cleanup cannot replace existing edge custody",
@@ -78,7 +80,10 @@ pub(super) fn complete(
             } => {
                 if [when_true, when_false].iter().any(|edge| {
                     !edge.structural_arguments.is_empty()
-                        || !edge.trivial_affine_discards.is_empty()
+                        || edge
+                            .trivial_affine_discards
+                            .iter()
+                            .any(|place| affine.contains(place))
                         || (reentered && edge.target == entry)
                 }) {
                     return unsupported(
@@ -89,7 +94,14 @@ pub(super) fn complete(
             }
             Terminator::Return {
                 cleanup_actions, ..
-            } if cleanup_actions.is_empty() => Vec::new(),
+            } if cleanup_actions.iter().all(|action| {
+                matches!(action,
+                    TerminalAffineCleanupAction::DiscardRoot(place) if !affine.contains(place)
+                )
+            }) =>
+            {
+                Vec::new()
+            }
             Terminator::Crash { .. } => Vec::new(),
             _ => {
                 return unsupported(
@@ -221,9 +233,9 @@ pub(super) fn complete(
                             remaining.remove(position);
                         }
                     }
-                    *trivial_affine_discards = remaining;
+                    trivial_affine_discards.extend(remaining);
                 } else {
-                    *trivial_affine_discards = discards(successors[position][0]);
+                    trivial_affine_discards.extend(discards(successors[position][0]));
                 }
             }
             Terminator::Conditional {
@@ -231,17 +243,22 @@ pub(super) fn complete(
                 when_false,
                 ..
             } => {
-                when_true.trivial_affine_discards = discards(successors[position][0]);
-                when_false.trivial_affine_discards = discards(successors[position][1]);
+                when_true
+                    .trivial_affine_discards
+                    .extend(discards(successors[position][0]));
+                when_false
+                    .trivial_affine_discards
+                    .extend(discards(successors[position][1]));
             }
             Terminator::Return {
                 cleanup_actions, ..
             } => {
-                *cleanup_actions = exits[position]
-                    .iter()
-                    .copied()
-                    .map(TerminalAffineCleanupAction::DiscardRoot)
-                    .collect();
+                cleanup_actions.extend(
+                    exits[position]
+                        .iter()
+                        .copied()
+                        .map(TerminalAffineCleanupAction::DiscardRoot),
+                );
             }
             _ => {}
         }

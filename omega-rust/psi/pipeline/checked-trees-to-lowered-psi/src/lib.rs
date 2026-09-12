@@ -464,6 +464,7 @@ enum LoweredScalarBranchTerminator {
         target: usize,
         arguments: Vec<LoweredDirectExpression>,
         structural_arguments: Vec<StructuralArgument>,
+        trivial_affine_discards: Vec<PlaceId>,
     },
     Conditional {
         condition: LoweredBooleanReturnExpression,
@@ -497,6 +498,7 @@ struct LoweredScalarBranchState {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum LoweredScalarEffect {
     EstablishScalarArray(LoweredScalarArrayConstruction),
+    EstablishScalarCase(scalar_computations::cases::Construction),
     CallUnit(LoweredUnitCall),
 }
 

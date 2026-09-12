@@ -348,8 +348,10 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                 target,
                 arguments,
                 structural_arguments,
+                trivial_affine_discards,
             } = &continuation_plan
                 && structural_arguments.is_empty()
+                && trivial_affine_discards.is_empty()
                 && let [LoweredDirectExpression::Boolean { expression }] = arguments.as_slice()
                 && contains_short_circuit(expression)
             {
@@ -539,8 +541,9 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                     target,
                     arguments,
                     structural_arguments,
+                    trivial_affine_discards,
                 } => {
-                    if !structural_arguments.is_empty()
+                    if (!structural_arguments.is_empty() || !trivial_affine_discards.is_empty())
                         && arguments
                             .iter()
                             .any(direct_expression_contains_short_circuit)
@@ -593,7 +596,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                             target: scalar_source_block(identity_base, target),
                             arguments,
                             residual_affine_discards: Vec::new(),
-                            trivial_affine_discards: Vec::new(),
+                            trivial_affine_discards,
                         }
                     }
                 }
@@ -663,8 +666,9 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                 target,
                 arguments,
                 structural_arguments,
+                trivial_affine_discards,
             } => {
-                if !structural_arguments.is_empty()
+                if (!structural_arguments.is_empty() || !trivial_affine_discards.is_empty())
                     && arguments
                         .iter()
                         .any(direct_expression_contains_short_circuit)
@@ -755,7 +759,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                         target: scalar_source_block(identity_base, *target),
                         arguments,
                         residual_affine_discards: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
+                        trivial_affine_discards: trivial_affine_discards.clone(),
                     }
                 }
             }
@@ -1226,7 +1230,9 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         merge_content_place_declaration(&mut structural_places, place)
             .expect("checked lowering rejects conflicting structural places");
     }
-    for place in crate::scalar_computations::arrays::declarations(&all_operations) {
+    for place in crate::scalar_computations::arrays::declarations(&all_operations).chain(
+        crate::scalar_computations::cases::declarations(&all_operations),
+    ) {
         merge_content_place_declaration(&mut structural_places, place)?;
     }
     for parameter in structural_parameters {

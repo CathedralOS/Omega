@@ -6,12 +6,31 @@ use typed_trees::types::PrimitiveType;
 
 pub type CheckedScalarComputationHandle = Handle<CheckedScalarComputation>;
 
-/// A structural actual belongs to its computation call and authored formal
-/// position. Array leaves evaluate there, including inside selective control;
-/// they are not hoisted into source locals or assigned scalar binding slots.
+/// A real structural value whose scalar payload is evaluated in authored order.
+/// Field and case symbols retain nominal identity; no tag occupies a scalar
+/// parameter slot, and evaluation is not permission to copy an affine value.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedScalarCaseConstruction {
+    pub expression: typed_trees::expression::ExpressionHandle,
+    pub type_reference: typed_trees::types::TypeReferenceHandle,
+    pub case: SymbolHandle,
+    pub fields: HandleSpan<CheckedScalarCaseComputationField>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedScalarCaseComputationField {
+    pub symbol: SymbolHandle,
+    pub value: CheckedScalarComputationHandle,
+}
+
+/// A structural operand names existing storage or constructs a value at its
+/// authored evaluation point, including inside selective control. Call formal
+/// positions and membership observations reuse these operands without inventing
+/// source locals or assigning a structural value a scalar binding slot.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedScalarComputationStructuralArgument {
     Place(CheckedUnitStructuralArgumentPlan),
+    Case(CheckedScalarCaseConstruction),
     Array {
         expression: typed_trees::expression::ExpressionHandle,
         /// Retains every dimension and the primitive carrier even with no leaves.
@@ -30,14 +49,14 @@ impl CheckedScalarComputationStructuralArgument {
     pub fn as_place(&self) -> Option<&CheckedUnitStructuralArgumentPlan> {
         match self {
             Self::Place(place) => Some(place),
-            Self::Array { .. } => None,
+            Self::Array { .. } | Self::Case(_) => None,
         }
     }
 
     pub fn as_place_mut(&mut self) -> Option<&mut CheckedUnitStructuralArgumentPlan> {
         match self {
             Self::Place(place) => Some(place),
-            Self::Array { .. } => None,
+            Self::Array { .. } | Self::Case(_) => None,
         }
     }
 }
@@ -49,6 +68,7 @@ pub struct CheckedScalarComputationPlans {
     pub operands: Arena<CheckedScalarComputationHandle>,
     pub structural_arguments: Arena<CheckedScalarComputationStructuralArgument>,
     pub dispatch_arms: Arena<CheckedScalarDispatchArm>,
+    pub case_fields: Arena<CheckedScalarCaseComputationField>,
 }
 
 impl CheckedScalarComputationPlans {
@@ -114,6 +134,12 @@ impl Default for CheckedScalarComputation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedScalarComputationKind {
+    /// Observe an established structural operand without consuming its owner.
+    CaseMembership {
+        source_expression: typed_trees::expression::ExpressionHandle,
+        subject: CheckedScalarComputationStructuralArgument,
+        case: SymbolHandle,
+    },
     SelectedComparison {
         operator_use: Handle<crate::CheckedOperatorUseFact>,
         left: CheckedScalarComputationHandle,

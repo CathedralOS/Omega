@@ -137,6 +137,9 @@ pub(super) fn lower_unit_structural_types_including(
     let plans = &checked.facts.flow.terminal_unit_effects;
     let mut roots = additional_roots.to_vec();
     for symbol in closure {
+        roots.extend(crate::scalar_computations::cases::type_roots(
+            checked, *symbol,
+        )?);
         let body = UnitBody::find(plans, *symbol)?;
         if !matches!(body, UnitBody::Ordinary(plan) if plan.scalar_result.is_some() || plan.scalar_control.is_some())
             && let checked_trees::CheckedControlResultPlan::Structural(result) = body.result()?

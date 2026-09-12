@@ -242,6 +242,7 @@ fn primitive_scalar_source_jump_emits_empty_affine_cleanup() {
                 bindings: Vec::new(),
                 structural_effects: Vec::new(),
                 terminator: LoweredScalarBranchTerminator::Jump {
+                    trivial_affine_discards: Vec::new(),
                     structural_arguments: Vec::new(),
                     target: 1,
                     arguments: vec![parameter_expression()],

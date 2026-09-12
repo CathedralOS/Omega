@@ -4,6 +4,69 @@
 
 use super::*;
 
+/// A local's observed cases belong to its declared type, not to whichever
+/// constructor happened to supply a selected arm.
+#[derive(Clone)]
+pub(crate) struct LocalCaseBinding {
+    pub(super) symbol: symbols::SymbolHandle,
+    pub(super) source: PlaceId,
+    pub(super) type_identity: String,
+    pub(super) cases: Vec<(symbols::SymbolHandle, semantic_vocabulary::StructuralCaseId)>,
+}
+
+impl LocalCaseBinding {
+    pub(crate) fn new(
+        checked: &CheckedTrees,
+        symbol: symbols::SymbolHandle,
+        reference: checked_trees::types::TypeReferenceHandle,
+        source: PlaceId,
+        types: &[StructuralTypeDeclaration],
+    ) -> Result<Self, LoweringError> {
+        let type_identity = checked.normalized_type_identity(reference).into_string();
+        let checked_trees::types::TypeReferenceNode::Named { symbol: owner, .. } =
+            checked.type_reference_table.type_reference(reference)
+        else {
+            return unsupported("observed local requires an exact nominal sum");
+        };
+        let data = checked
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == *owner)
+            .ok_or(LoweringError::Unsupported(
+                "observed local lost its nominal owner",
+            ))?;
+        let declaration = types
+            .iter()
+            .find(|declaration| declaration.identity == type_identity)
+            .ok_or(LoweringError::Unsupported(
+                "observed local lost its structural type",
+            ))?;
+        let StructuralTypeShape::Sum { cases } = &declaration.shape else {
+            return unsupported("observed local requires a plain sum");
+        };
+        let mut bindings = Vec::new();
+        for member in checked.data_members(data) {
+            let checked_trees::data::DataMember::Variant(variant) = member else {
+                continue;
+            };
+            let identity = variant
+                .identity
+                .map(|identity| format!("#{identity}"))
+                .unwrap_or_else(|| variant.name.as_str().to_owned());
+            let case = cases.iter().find(|case| case.identity == identity).ok_or(
+                LoweringError::Unsupported("observed local has a missing declared case"),
+            )?;
+            bindings.push((variant.symbol, case.id));
+        }
+        Ok(Self {
+            symbol,
+            source,
+            type_identity,
+            cases: bindings,
+        })
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct StructuralCaseBinding {
     source_position: u32,

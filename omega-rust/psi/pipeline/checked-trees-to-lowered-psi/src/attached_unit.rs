@@ -1482,8 +1482,15 @@ fn assemble_unit_closure(
         let mut affine_scalar_record_places = Vec::<StructuralPlaceDeclaration>::new();
         let mut primitive_local_places = Vec::<primitive_locals::PrimitiveLocal>::new();
         let mut structural_result_places = Vec::<(StructuralPlaceDeclaration, bool)>::new();
+        let mut structural_value_temporaries = Vec::<StructuralPlaceDeclaration>::new();
         let mut evaluation = argument_evaluation::Evaluation::new(&mut next_block)?;
         evaluation.arrays = crate::scalar_computations::arrays::prepare(
+            checked,
+            plan.machine,
+            &structural_types,
+            &mut next_place,
+        )?;
+        evaluation.cases = crate::scalar_computations::cases::prepare(
             checked,
             plan.machine,
             &structural_types,
@@ -1688,10 +1695,34 @@ fn assemble_unit_closure(
             next_call_obligation = scalar_calls.next_obligation_identity;
             let mut source_call = None;
             let kind = match operation {
-                CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
-                    return unsupported(
-                        "structural value production requires the composed control graph",
-                    );
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    result,
+                    discard_result_on_return,
+                    ..
+                } => {
+                    if result.binding_ordinal as usize != structural_result_places.len() {
+                        return unsupported("structural value result binding is not dense");
+                    }
+                    let declaration = structural_values::emit(
+                        checked,
+                        plan.machine,
+                        plan.state,
+                        operation,
+                        &structural_types,
+                        &type_ids,
+                        &mut next_place,
+                        &mut structural_value_temporaries,
+                        &mut scalar_calls,
+                        &mut evaluation,
+                        &mut scalar_result_values,
+                        &mut next_value_identity,
+                        &mut next_block,
+                        &mut next_edge,
+                        &mut operations,
+                    )?;
+                    next_call_obligation = scalar_calls.next_obligation_identity;
+                    structural_result_places.push((declaration, *discard_result_on_return));
+                    continue;
                 }
                 CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
                     statement_index,
@@ -1798,7 +1829,7 @@ fn assemble_unit_closure(
                             plan,
                             operation,
                             declaration.id,
-                            &mut evaluation.array_locals,
+                            &mut evaluation.structural_locals,
                         )?;
                     }
                     continue;
@@ -1926,7 +1957,7 @@ fn assemble_unit_closure(
                         plan,
                         operation,
                         result.0.id,
-                        &mut evaluation.array_locals,
+                        &mut evaluation.structural_locals,
                     )?;
                     structural_result_places.push(result);
                     continue;
@@ -2177,7 +2208,7 @@ fn assemble_unit_closure(
                             plan,
                             operation,
                             place,
-                            &mut evaluation.array_locals,
+                            &mut evaluation.structural_locals,
                         )?;
                         continue;
                     }
@@ -3601,6 +3632,10 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                     "Unit local cleanup ordinal is not dense",
                 ))
         });
+        // Legacy locals are a leading constructor prefix; operation results
+        // therefore die before those locals, and all locals before parameters.
+        // Admitting interleaved legacy constructors requires one declaration-
+        // ordered cleanup roster instead of concatenating these two groups.
         let trivial_affine_discards = structural_result_places
             .iter()
             .rev()
@@ -3760,11 +3795,18 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
         let computed_array_places = evaluation
             .blocks
             .iter()
-            .flat_map(|block| crate::scalar_computations::arrays::declarations(&block.operations))
+            .flat_map(|block| {
+                crate::scalar_computations::arrays::declarations(&block.operations).chain(
+                    crate::scalar_computations::cases::declarations(&block.operations),
+                )
+            })
             .filter(|place| {
                 !structural_result_places
                     .iter()
                     .any(|(existing, _)| existing.id == place.id)
+                    && !structural_value_temporaries
+                        .iter()
+                        .any(|existing| existing.id == place.id)
             })
             .collect::<Vec<_>>();
         let OperationBuffer {
@@ -3792,6 +3834,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
             .chain(literal_places.iter().copied())
             .chain(subslice_places.iter().copied())
             .chain(structural_result_places.iter().map(|(place, _)| *place))
+            .chain(structural_value_temporaries)
             .chain(computed_array_places)
             .collect::<Vec<_>>();
         // Argument-time view producers interleave with reserved call results.

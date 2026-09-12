@@ -82,6 +82,7 @@ impl Expansion<'_> {
                     parameter_types: saved_types.clone(),
                     bindings: Vec::new(),
                     terminator: LoweredScalarBranchTerminator::Jump {
+                        trivial_affine_discards: Vec::new(),
                         target: selected,
                         arguments: parameters(input_types),
                         structural_arguments: Vec::new(),
@@ -127,6 +128,7 @@ impl Expansion<'_> {
                         // Source replay and the coverage pass above establish
                         // this final literal Boolean alternative, not a default.
                         LoweredScalarBranchTerminator::Jump {
+                            trivial_affine_discards: Vec::new(),
                             target: selected,
                             arguments: parameters(input_types),
                             structural_arguments: Vec::new(),

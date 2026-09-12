@@ -1301,8 +1301,8 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
     Parameter { parameter_index: u32 },
     /// Exact initialized mutable primitive storage in the caller state.
     PrimitiveLocal { symbol: SymbolHandle },
-    /// Exact immutable owned array declaration; the operation sequence owns its slot.
-    ArrayLocal { symbol: SymbolHandle },
+    /// Exact immutable structural declaration; the operation sequence owns its slot.
+    StructuralLocal { symbol: SymbolHandle },
     /// Dense declaration ordinal in the caller's checked trivial-affine-local
     /// table. This source is always the exact whole local.
     TrivialAffineLocal { declaration_ordinal: u32 },
@@ -1360,7 +1360,7 @@ impl CheckedUnitStructuralArgumentPlan {
                 Some(parameter_index)
             }
             CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ArrayLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
@@ -1375,7 +1375,7 @@ impl CheckedUnitStructuralArgumentPlan {
                 declaration_ordinal,
             } => Some(declaration_ordinal),
             CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ArrayLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
@@ -1390,7 +1390,7 @@ impl CheckedUnitStructuralArgumentPlan {
                 declaration_ordinal,
             } => Some(declaration_ordinal),
             CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ArrayLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
@@ -1405,7 +1405,7 @@ impl CheckedUnitStructuralArgumentPlan {
                 Some(binding_ordinal)
             }
             CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ArrayLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal { .. }
@@ -1418,7 +1418,7 @@ impl CheckedUnitStructuralArgumentPlan {
         match &self.source {
             CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } => Some(bytes),
             CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ArrayLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
             | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }

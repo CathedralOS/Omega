@@ -14,6 +14,7 @@ use checked_trees::{
 use symbols::SymbolHandle;
 
 mod call_arguments;
+mod cases;
 mod dispatch;
 mod integers;
 mod normal_return;
@@ -106,17 +107,15 @@ pub(crate) fn build_checked_value_computation_plans(
                     locals: &locals,
                     plans: &mut plans,
                 };
-                let array_destination = match statement {
+                let construction_destination = match statement {
                     StatementNode::LocalData(local) if !local.is_mutable => {
                         Some((local.initial_value, local.type_reference))
                     }
                     StatementNode::Expression(expression) => Some((*expression, state.return_type)),
                     _ => None,
                 };
-                if let Some((expression, expected)) = array_destination
-                    && validation::is_fresh_payloadless_structural_value(
-                        program, expression, expected,
-                    )
+                if let Some((expression, expected)) = construction_destination
+                    && validation::is_fresh_scalar_case_value(program, expression, expected)
                     && let Some(root) =
                         builder.structural_value(expression, expected, &mut structural_values)
                 {
@@ -131,7 +130,7 @@ pub(crate) fn build_checked_value_computation_plans(
                             root,
                         });
                 }
-                if let Some((expression, expected)) = array_destination
+                if let Some((expression, expected)) = construction_destination
                     && let Some(elements) = validation::scalar_array_elements(
                         program,
                         machine.symbol,
@@ -711,6 +710,11 @@ impl Builder<'_, '_> {
                 self.insert(expected_type, CheckedScalarComputationKind::Value(value));
             self.plans.nodes.get_mut(computation).value_source = expression;
             return Some(computation);
+        }
+        if expected_type == PrimitiveType::Bool
+            && let Some(membership) = self.case_membership(expression)
+        {
+            return Some(membership);
         }
         if is_integer(expected_type)
             && !matches!(

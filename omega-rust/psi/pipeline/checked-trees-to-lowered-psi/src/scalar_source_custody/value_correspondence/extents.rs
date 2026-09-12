@@ -25,6 +25,16 @@ impl Context<'_> {
                     visited.push(handle);
                     let node = plans.nodes.get(handle);
                     match &node.kind {
+                        Computation::CaseMembership { subject, .. } => {
+                            pending.extend(
+                                crate::scalar_computations::cases::operand_fields(
+                                    self.checked,
+                                    subject,
+                                )?
+                                .iter()
+                                .map(|field| field.value),
+                            );
+                        }
                         Computation::Dispatch { subject, arms, .. } => {
                             pending.push(*subject);
                             for arm in plans.dispatch_arms.span(*arms).ok_or(

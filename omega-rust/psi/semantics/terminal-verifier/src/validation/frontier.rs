@@ -431,10 +431,15 @@ pub(super) fn validate_structural_frontier(
                     frontier.partial_custody_paths.remove(&argument.place);
                 }
             }
+            // Plain copy payloads are checked for producer dominance elsewhere,
+            // not retained as disposal obligations. Claim-bearing results must
+            // still enter this transaction even when their carrier is copyable.
             if let OperationResult::Structural(result) = &operation.result
                 && super::byte_sequence_subslice::borrowed_result(machine, result.place).is_none()
                 && super::primitive_storage::local_result(machine, result.place).is_none()
                 && !super::scalar_array::plain_return_source(module, machine, result.place)
+                && !(result.multiplicity == StructuralMultiplicity::Unrestricted
+                    && super::scalar_case::plain_return_source(module, machine, result.place))
             {
                 if frontier
                     .owned_places
@@ -802,11 +807,14 @@ pub(super) fn validate_structural_frontier(
                             && parameter.position == 0
                             && !parameter.is_self
                             && parameter.access == StructuralAccess::Owned);
-                // Plain array results have already passed exact producer
-                // dominance/order checks in the control-flow validation pass.
+                // Plain copy payloads owe no disposal. Their exact producer
+                // dominance/order is checked by control-flow validation, not
+                // by retaining a fictitious affine obligation across joins.
                 if frontier.owned_places.remove(source).is_none()
                     && !exact_unrestricted_parameter_return
                     && !super::scalar_array::plain_return_source(module, machine, *source)
+                    && !(source_signature.multiplicity == StructuralMultiplicity::Unrestricted
+                        && super::scalar_case::plain_return_source(module, machine, *source))
                     && !(plain_owned_block_return
                         && source_signature.multiplicity == StructuralMultiplicity::Unrestricted)
                 {

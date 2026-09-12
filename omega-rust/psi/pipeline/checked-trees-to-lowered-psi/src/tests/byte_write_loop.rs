@@ -134,26 +134,69 @@ fn scalar_case_return_preserves_authored_multifield_identity_and_rejects_plan_dr
             .unwrap();
         assert!(result.value.fields.contains(&(field.id, expected)));
     }
+    let plan = &checked.facts.flow.terminal_unit_effects.composed_machines[0];
+    let value = plan.states[0]
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                value,
+                ..
+            } => Some(*value),
+            _ => None,
+        })
+        .expect("returned case has a generic structural producer");
+    let checked_trees::CheckedStructuralValueKind::Case(construction) =
+        &checked.facts.values.structural_values.nodes.get(value).kind
+    else {
+        panic!("case construction missing");
+    };
+    let original_fields = construction.fields;
+    assert_eq!(original_fields.len(), 2);
+    let owner = &checked.data_definitions()[0];
+    let empty = checked
+        .data_members(owner)
+        .iter()
+        .find_map(|member| match member {
+            checked_trees::data::DataMember::Variant(case)
+                if checked.data_payload_fields(case).is_empty() =>
+            {
+                Some(case.symbol)
+            }
+            _ => None,
+        })
+        .expect("same-owner Empty case");
     for corruption in 0..6 {
         let mut changed = checked.clone();
-        let plan = &mut changed.facts.flow.terminal_unit_effects.composed_machines[0];
-        let checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnCase {
-            fields,
-            case_identity,
-            ..
-        } = &mut plan.states[0].terminator
+        let checked_trees::CheckedStructuralValueKind::Case(construction) = &mut changed
+            .facts
+            .values
+            .structural_values
+            .nodes
+            .get_mut(value)
+            .kind
         else {
-            panic!("case plan missing");
+            panic!("case construction missing");
         };
+        let fields = changed
+            .facts
+            .values
+            .scalar_computations
+            .case_fields
+            .span_mut(original_fields)
+            .unwrap();
         match corruption {
             0 => fields.swap(0, 1),
-            1 => fields[0].field_identity = fields[1].field_identity.clone(),
-            2 => fields[0].expression = fields[1].expression.clone(),
-            3 => *case_identity = "Empty".to_owned(),
+            1 => fields[0].symbol = fields[1].symbol,
+            2 => fields[0].value = fields[1].value,
+            3 => construction.case = empty,
             4 => {
-                fields.pop();
+                construction.fields = arena::HandleSpan::from_parts(original_fields.start(), 1);
             }
-            _ => plan.result = checked_trees::CheckedControlResultPlan::Unit,
+            _ => {
+                changed.facts.flow.terminal_unit_effects.composed_machines[0].result =
+                    checked_trees::CheckedControlResultPlan::Unit;
+            }
         }
         assert!(
             produce_terminal_artifact(&changed, "pair").is_err(),

@@ -92,6 +92,37 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         self
     }
 
+    /// A nominal constructor owns its type even if no signature mentions it.
+    /// Retain that reference here, where expressions acquire type meaning;
+    /// read-only checking and lowering must not invent an expected destination.
+    fn retain_data_type_reference(&mut self, symbol: symbols::SymbolHandle) {
+        let Some(program) = self.program else {
+            return;
+        };
+        let Some(owner) = program
+            .data_definitions
+            .iter()
+            .find(|owner| owner.symbol == symbol)
+        else {
+            return;
+        };
+        if !owner.type_parameters.is_empty()
+            || self
+                .target_trees
+                .type_reference_table
+                .find_named_type_reference(symbol)
+                .is_some()
+        {
+            return;
+        }
+        self.target_trees
+            .type_reference_table
+            .insert(typed::types::TypeReferenceNode::Named {
+                symbol,
+                name: lower_name(&owner.name),
+            });
+    }
+
     pub(super) fn lower(
         &mut self,
         expression: resolved::expression::ExpressionHandle,
@@ -443,6 +474,11 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     )))
             }
             resolved::expression::ExpressionNode::Name(path) => {
+                if let Some(program) = self.program
+                    && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Variant
+                {
+                    self.retain_data_type_reference(program.symbols.get(path.symbol).parent);
+                }
                 if path.is_self_value
                     && path.members.count() == 1
                     && let Some(substitution) = self.self_substitution
@@ -468,6 +504,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     )))
             }
             resolved::expression::ExpressionNode::StructLiteral(struct_literal) => {
+                self.retain_data_type_reference(struct_literal.type_symbol);
                 let omitted = self.nullary_erased_initializers(struct_literal);
                 let mut fields = self.lower_struct_literal_field_span(struct_literal.fields)?;
                 for initializer in omitted {

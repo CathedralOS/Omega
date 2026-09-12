@@ -187,7 +187,7 @@ fn parameter_observations(access: StructuralAccess) -> CanonicalTerminalArtifact
     canonical(&module)
 }
 
-fn execute(artifact: &CanonicalTerminalArtifact, driver: &str) {
+pub(super) fn execute(artifact: &CanonicalTerminalArtifact, driver: &str) {
     #[cfg(any(
         all(
             target_os = "linux",
@@ -223,6 +223,116 @@ fn source_borrowed_case_membership_reaches_native_execution() {
         &artifact,
         "#include <stdint.h>\n#include <stdbool.h>\nstruct choice { uint32_t tag; uint32_t value; };\nextern bool omega_entry(const struct choice *);\nint main(void) { for (uint32_t tag=0; tag<2; ++tag) { struct choice value = {tag, UINT32_MAX}; for (unsigned repeat=0; repeat<3; ++repeat) { if (omega_entry(&value) != (tag == 0)) return 1; if (value.tag != tag || value.value != UINT32_MAX) return 2; } } return 0; }",
     );
+}
+
+#[test]
+fn source_constructed_case_membership_reaches_native_execution() {
+    for properties in ["", " [copy]"] {
+        for (constructor, expected) in [
+            ("Choice::Empty", false),
+            ("Choice::Empty {}", false),
+            ("Choice::Some { value: identity(value) }", true),
+        ] {
+            for body in [
+                format!("{constructor} in Choice::Some"),
+                format!("let choice: Choice = {constructor}; choice in Choice::Some"),
+            ] {
+                let artifact = produce_source(
+                    "observe",
+                    &format!(
+                        "data Choice{properties} {{ case Empty; case Some(value: u32); }}
+                 machine identity(value: u32) -> u32 {{ value }}
+                 machine observe(value: u32) -> bool {{ {body} }}"
+                    ),
+                );
+                let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+                let entry = module
+                    .machines
+                    .iter()
+                    .find(|machine| machine.id == module.entry)
+                    .unwrap();
+                assert!(entry.structural_parameters.is_empty());
+                assert!(entry.blocks.iter().flat_map(|block| &block.operations).any(
+                    |operation| matches!(operation.kind, OperationKind::EstablishScalarCase { .. })
+                ));
+                execute(
+                    &artifact,
+                    &format!(
+                        "#include <stdint.h>\n#include <stdbool.h>\nextern bool omega_entry(uint32_t);\nint main(void) {{ const uint32_t values[] = {{0, 37, UINT32_MAX}}; for (unsigned ordinal=0; ordinal<3; ++ordinal) {{ if (omega_entry(values[ordinal]) != {expected}) return 1; }} return 0; }}"
+                    ),
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn source_constructed_case_fields_keep_authored_order_and_selective_execution() {
+    let artifact = produce_source(
+        "observe",
+        "data Choice { case Empty; case Pair(first: u32, second: u32); }
+         machine stamp(value: &mut u32, number: u32) -> u32 { value = number; number }
+         machine observe(selected: bool, value: &mut u32) -> bool {
+             selected && (Choice::Pair {
+                 second: stamp(&mut value, 2),
+                 first: stamp(&mut value, 1)
+             } in Choice::Pair)
+         }",
+    );
+    execute(
+        &artifact,
+        "#include <stdint.h>\n#include <stdbool.h>\nextern bool omega_entry(bool, uint32_t *);\nint main(void) { uint32_t value=91; if (omega_entry(false, &value) || value!=91) return 1; if (!omega_entry(true, &value) || value!=1) return 2; return 0; }",
+    );
+}
+
+#[test]
+fn local_case_fields_evaluate_once_before_repeated_observation() {
+    let artifact = produce_source(
+        "observe",
+        "data Choice { case Empty; case Pair(first: u32, second: u32); }
+         machine stamp(value: &mut u32, number: u32) -> u32 { value = number; number }
+         machine observe(value: &mut u32) -> bool {
+             let choice: Choice = Choice::Pair {
+                 second: stamp(&mut value, 2),
+                 first: stamp(&mut value, 1)
+             };
+             let first: bool = choice in Choice::Pair;
+             let staged: u32 = value;
+             value = 37;
+             staged == 1 && first && (choice in Choice::Pair)
+         }",
+    );
+    execute(
+        &artifact,
+        "#include <stdint.h>\n#include <stdbool.h>\nextern bool omega_entry(uint32_t *);\nint main(void) { uint32_t value=91; if (!omega_entry(&value) || value!=37) return 1; return 0; }",
+    );
+}
+
+#[test]
+fn selected_local_case_fields_evaluate_only_the_chosen_arm_once() {
+    let source = "data Choice { case Empty; case Pair(first: u32, second: u32); }
+         machine stamp(value: &mut u32, number: u32) -> u32 { value = number; number }
+         machine observe(selected: bool, value: &mut u32) -> bool {
+             let choice: Choice = match selected {
+                 true -> Choice::Pair {
+                     second: stamp(&mut value, 2),
+                     first: stamp(&mut value, 1)
+                 },
+                 false -> Choice::Empty
+             };
+             let first: bool = choice in Choice::Pair;
+             let staged: u32 = value;
+             value = 37;
+             (first == selected) && ((choice in Choice::Pair) == selected)
+                 && (staged == match selected { true -> 1, false -> 91 })
+         }";
+    for declaration in ["data Choice {", "data Choice [copy] {"] {
+        let artifact = produce_source("observe", &source.replace("data Choice {", declaration));
+        execute(
+            &artifact,
+            "#include <stdint.h>\n#include <stdbool.h>\nextern bool omega_entry(bool, uint32_t *);\nint main(void) { for (unsigned selected=0; selected<2; ++selected) { uint32_t value=91; if (!omega_entry(selected!=0, &value) || value!=37) return 1; } return 0; }",
+        );
+    }
 }
 
 #[test]
@@ -326,6 +436,99 @@ fn native_case_membership_replay_rejects_source_case_result_and_access_substitut
             .is_err(),
             "membership substitution {mutation}"
         );
+    }
+}
+
+#[test]
+fn constructed_temporary_edge_cleanup_is_preserved_by_native_replay() {
+    for (joined, body) in [
+        (false, "Choice::Some { value: value } in Choice::Some"),
+        (
+            true,
+            "let choice: Choice = match value { 0 -> Choice::Empty, _ -> Choice::Some { value: value } }; choice in Choice::Some",
+        ),
+    ] {
+        let artifact = produce_source(
+            "observe",
+            &format!(
+                "data Choice {{ case Empty; case Some(value: u32); }}
+         machine observe(value: u32) -> bool {{ {body} }}"
+            ),
+        );
+        for native in [
+            NativeTarget::linux_x64(),
+            NativeTarget::linux_arm64(),
+            NativeTarget::macos_arm64(),
+        ] {
+            let selections = OptimizationSelections::new([]).unwrap();
+            let optimized = optimize_artifact_sections(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &AdmissionProfile::default(),
+                compiler_baseline_request_v1(&selections),
+            )
+            .unwrap();
+            let compiled =
+                abstract_operations_to_target_operations::lower_optimized_to_target_operations(
+                    optimized, native,
+                )
+                .unwrap();
+            target_operations_to_selected_instructions::legalize_target_operations(
+                compiled.target_operations(),
+                compiled.optimized().plan(),
+                compiled.optimized(),
+            )
+            .unwrap();
+            for mutation in 0..4 {
+                let mut changed = compiled.target_operations().clone();
+                let function = changed
+                    .functions
+                    .iter_mut()
+                    .find(|function| function.machine == compiled.optimized().plan().entry)
+                    .unwrap();
+                let (edge, cleanup) = function
+                    .graph
+                    .blocks
+                    .iter_mut()
+                    .find_map(|block| match &mut block.terminator {
+                        target_operations::TargetControlTerminator::Jump { successor }
+                            if !joined && !successor.cleanup_actions.is_empty() =>
+                        {
+                            Some((&mut successor.psi_edge, &mut successor.cleanup_actions))
+                        }
+                        target_operations::TargetControlTerminator::ReturnScalar {
+                            psi_edge,
+                            cleanup_actions,
+                            ..
+                        } if joined && !cleanup_actions.is_empty() => {
+                            Some((psi_edge, cleanup_actions))
+                        }
+                        _ => None,
+                    })
+                    .expect("completed owner dies after its observation");
+                match mutation {
+                    0 => cleanup.clear(),
+                    1 => cleanup.push(cleanup[0].clone()),
+                    2 => {
+                        cleanup[0] = terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+                            PlaceId::new(999_999).unwrap(),
+                        )
+                    }
+                    _ => *edge = semantic_vocabulary::EdgeId::new(999_999).unwrap(),
+                }
+                // Signature/roster receipts do not validate executable bodies.
+                // The mandatory graph reader owns this exact edge/cleanup check.
+                assert!(
+                    target_operations_to_selected_instructions::legalize_target_operations(
+                        &changed,
+                        compiled.optimized().plan(),
+                        compiled.optimized(),
+                    )
+                    .is_err(),
+                    "native replay accepted changed cleanup {mutation}, joined={joined}"
+                );
+            }
+        }
     }
 }
 

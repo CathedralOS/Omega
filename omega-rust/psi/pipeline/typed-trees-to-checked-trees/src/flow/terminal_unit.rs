@@ -234,6 +234,17 @@ pub(super) fn structural_scalar_graph_signature(
     Some((structural, scalar, shapes.types.into_values().collect()))
 }
 
+/// Construction and structural results share the same closed sum admission.
+/// The namespace includes real value types even when no parameter names them.
+pub(super) fn scalar_case_value_shapes(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<Vec<CheckedUnitStructuralTypePlan>> {
+    let mut shapes = ShapeCollector::new(program);
+    state_graph::returns::signature(program, &mut shapes, reference)?;
+    Some(shapes.types.into_values().collect())
+}
+
 /// Reconstruct the exact direct-record shape admitted by the first checked
 /// projected-transition cleanup rung. Keeping this next to `ShapeCollector`
 /// makes the result use the same normalized field/type identities as the
@@ -371,15 +382,20 @@ pub(crate) fn build_checked_unit_effect_plans(
         selected_operator_applications,
         selected_ieee_float_fma_applications,
     );
-    // Structural expression control is emitted by the general state graph.
-    // Do not let an earlier single-state candidate hide that implementation.
+    // Prefer a complete general state graph when both builders describe the
+    // same structural-value body. Scalar completion still belongs to the
+    // ordinary sequence; merely containing a structural value does not make
+    // a general graph available or invalidate that checked sequence.
     candidates.retain(|plan| {
-        !plan.operations.iter().any(|operation| {
-            matches!(
-                operation,
-                CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-            )
-        })
+        !(composed_machines
+            .iter()
+            .any(|graph| graph.machine == plan.machine)
+            && plan.operations.iter().any(|operation| {
+                matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+                )
+            }))
     });
     let dynamic_dispatch =
         build_checked_dynamic_dispatch_plans(program, facts, &mut shapes, &boundary_machines);

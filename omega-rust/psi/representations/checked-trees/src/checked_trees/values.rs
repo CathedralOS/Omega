@@ -214,6 +214,11 @@ pub struct CheckedLocatedScalarExpression {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedScalarExpressionRole {
+    /// One scalar field of an exact case leaf, including inside a selected arm.
+    StructuralValueField {
+        expression: ExpressionHandle,
+        field_ordinal: u32,
+    },
     /// Saved scalar subject of this structural value's exact Match occurrence.
     StructuralValueSubject {
         expression: ExpressionHandle,
@@ -227,7 +232,7 @@ pub enum CheckedScalarExpressionRole {
         source: CheckedArrayConstructionSource,
         element_ordinal: u32,
     },
-    /// Scalar operand of an ordinary case-construction return, in authored order.
+    /// Scalar operand of a returned case construction, in authored order.
     ReturnCaseField {
         field_ordinal: u32,
     },

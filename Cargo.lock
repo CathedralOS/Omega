@@ -1235,6 +1235,7 @@ dependencies = [
  "optimization-core",
  "optimization-unit",
  "optimization-unit-semantics",
+ "package-compilation",
  "physical-instructions",
  "post-allocation-machine-to-selected-form-encoding",
  "program-entry-plan",

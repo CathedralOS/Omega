@@ -74,7 +74,7 @@ fn ordered_array_locals_retain_conditional_scalar_completion() {
             .filter(|argument| {
                 matches!(
                     argument.source,
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::ArrayLocal { .. }
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
                 )
             })
             .collect::<Vec<_>>();

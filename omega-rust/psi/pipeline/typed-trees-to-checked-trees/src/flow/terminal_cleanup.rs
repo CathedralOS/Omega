@@ -480,7 +480,7 @@ fn wholly_transferred_result_locals(
             || !(matches!(
                 program.expression_table.expression(local.initial_value),
                 typed_trees::expression::ExpressionNode::Call(_)
-            ) || validation::is_fresh_payloadless_structural_value(
+            ) || validation::is_fresh_scalar_case_value(
                 program,
                 local.initial_value,
                 local.type_reference,

@@ -59,6 +59,7 @@ use typed_trees::{
     statement::{StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode},
 };
 
+mod constructions;
 mod guards;
 mod owned_parameters;
 pub(super) mod primitive_locals;
@@ -244,6 +245,7 @@ fn build_machine_graph(
                 .iter()
                 .map(|parameter| parameter.primitive_type)
                 .collect();
+            constructions::retain_shapes(program, computations, state.symbol, &mut shapes)?;
             let storage = parameters
                 .iter()
                 .enumerate()

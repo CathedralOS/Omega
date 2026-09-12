@@ -61,6 +61,7 @@ fn selected_roots(
                                     root.role,
                                     CheckedScalarExpressionRole::StructuralValueSubject { .. }
                                         | CheckedScalarExpressionRole::StructuralValuePattern { .. }
+                                        | CheckedScalarExpressionRole::StructuralValueField { .. }
                                 )
                         })
                         .map(|root| root.root),

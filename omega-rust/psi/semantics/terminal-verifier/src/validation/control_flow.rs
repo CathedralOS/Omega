@@ -498,7 +498,12 @@ pub(super) fn validate_control_flow(
             }
             Terminator::ReturnStructural { source, .. } => {
                 let block_parameter = super::block_views::parameter(machine, *source);
-                if block_parameter.is_some() && !available_structural.contains(source) {
+                // A result can be copyable without being available on this path.
+                // Every local producer, not only arrays or block parameters,
+                // must dominate the return independently of disposal custody.
+                if structural_definitions.contains_key(source)
+                    && !available_structural.contains(source)
+                {
                     return Err(ModuleError::StructuralReturnSourceNotLive {
                         machine: machine.id,
                         block: block.id,

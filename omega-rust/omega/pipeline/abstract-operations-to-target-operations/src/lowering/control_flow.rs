@@ -238,19 +238,16 @@ pub(super) fn lower(
             }
             AbstractOperation::Jump {
                 target,
-                trivial_affine_discards,
                 residual_affine_discards,
                 ..
-            } if trivial_affine_discards.is_empty() && residual_affine_discards.is_empty() => {
+            } if residual_affine_discards.is_empty() => {
                 vec![*target]
             }
             AbstractOperation::Conditional {
                 when_true,
                 when_false,
                 ..
-            } if when_true.trivial_affine_discards.is_empty()
-                && when_false.trivial_affine_discards.is_empty() =>
-            {
+            } => {
                 vec![when_true.target, when_false.target]
             }
             AbstractOperation::StructuralCase { cases, .. } => {

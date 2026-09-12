@@ -163,14 +163,25 @@ exercise scalar-sum result transport through destination-owned homes, joins,
 and dispatch using the ordinary publication pipeline. The complete filesystem
 entry still requires the remaining source dependencies above.
 
-Fresh payloadless sum expressions use that same owned-result namespace. An
+Fresh closed scalar-payload sum expressions use that same owned-result namespace. An
 ordered scalar `match` evaluates its subject once and constructs only the
 selected case, transferring that owner into a continuation block parameter.
 Nested selections, immutable locals, subsequent scalar statements, state
 transfers, and returns retain the completed owner rather than reconstructing
-the case or treating its tag as the source value. Independent source replay
-checks the exact constructor symbols, operand occurrences, ordered alternatives,
-and coverage before ordinary Terminal ownership checking. This does not admit
+the case or treating its tag as the source value. Constructor operands use the
+ordinary scalar evaluation graph, once in authored field order and only on the
+selected path. Membership borrows the completed local's actual place; it does
+not reconstruct a selected case or encode a structural value as a scalar
+parameter. Direct temporary membership shares the same constructor and operand
+replay, with affine disposal after observation.
+
+Independent source replay checks the exact constructor symbols, field meanings,
+operand occurrences, ordered alternatives, and coverage before ordinary Terminal
+ownership checking. The general state graph and ordinary scalar-completion
+sequence share this value operation; an unavailable graph must not suppress a
+complete ordinary sequence. Constrained fields stay on the existing proof-bearing
+return route until general value establishment retains their range obligations.
+This does not admit
 joins of existing moved inputs, references, linear values, or nominal cleanup;
 whole receiver-field replacement and selected floating comparisons remain
 separate implementation dependencies.
@@ -212,9 +223,10 @@ calls share the ordinary closure's predeclared signatures. This source call
 route currently requires an empty callee precondition list. Selected
 case edges dispose the returned affine root using the existing checked cleanup
 evidence. Bounded fields receive independent declaration-range obligations;
-missing proofs reject artifact production. Call-bearing or short-circuit
-constructor operands, structural payloads, and loop-carried owned sum results
-are not admitted by this producer. Ordinary native scalar-sum construction,
+missing proofs reject artifact production. This proof-bearing return plan still
+requires pure constructor operands; the general value operation above handles
+call-bearing plain scalar fields. Structural payloads and loop-carried owned sum
+results remain separate dependencies. Ordinary native scalar-sum construction,
 return/call transport, and selected-case observation retain full-width payloads
 through installation replay for Linux x64/ARM64 and macOS ARM64. Windows
 indirect aggregate returns remain a realization dependency; see
@@ -469,9 +481,9 @@ non-consuming `StructuralCaseMembership` operation. It does not grant a durable
 fact about later mutable contents. Canonical interpretation also observes
 established scalar-case values without consuming their payload or owner. Native
 realization currently follows the existing scalar-field sum layout; mixed
-common-field sums remain outside that native layout route. Direct and local
-constructor operands still need ordinary intermediate-value sequencing in the
-source producer; return-only `ReturnCase` planning does not supply it.
+common-field sums remain outside that native layout route. Direct constructions
+and immutable locals use the ordinary structural-value sequence described above,
+with scalar operands evaluated once and membership observing the completed owner.
 
 Ordinary Unit helpers retain borrowed `self` when checked scalar operands read
 its fields, including through computed arguments. Attachment metadata cannot

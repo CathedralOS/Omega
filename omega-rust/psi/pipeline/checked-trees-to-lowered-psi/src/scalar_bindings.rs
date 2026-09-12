@@ -16,12 +16,66 @@ pub(super) struct ScalarBindings {
     primitive_storage: Vec<(symbols::SymbolHandle, PlaceId, ScalarType)>,
     /// Authored parameter positions stay separate from dense Terminal positions.
     structural_parameters: Vec<(u32, StructuralParameterDeclaration)>,
-    array_locals: Vec<(symbols::SymbolHandle, StructuralArgument)>,
+    structural_locals: Vec<(symbols::SymbolHandle, StructuralArgument)>,
+    local_cases: Vec<structural_cases::LocalCaseBinding>,
     structural_fields: Vec<StructuralScalarFieldBinding>,
     structural_cases: Vec<structural_cases::StructuralCaseBinding>,
 }
 
 impl ScalarBindings {
+    /// Observe an established whole local without transferring its ownership.
+    pub(crate) fn structural_local_observation(
+        &self,
+        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        case: symbols::SymbolHandle,
+    ) -> Result<(PlaceId, semantic_vocabulary::StructuralCaseId), LoweringError> {
+        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
+            argument.source
+        else {
+            return unsupported("case observation requires an established structural local");
+        };
+        let mut matches = self
+            .structural_locals
+            .iter()
+            .filter(|(candidate, _)| *candidate == symbol);
+        let (_, source) = matches.next().ok_or(LoweringError::Unsupported(
+            "case observation lost its local place",
+        ))?;
+        if !symbol.is_valid()
+            || matches.next().is_some()
+            || !argument.path.is_empty()
+            || argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+            || !source.path.is_empty()
+            || source.access != StructuralAccess::Owned
+        {
+            return unsupported("case observation changed its local custody");
+        }
+        let mut bindings = self.local_cases.iter().filter(|binding| {
+            binding.symbol == symbol
+                && binding.source == source.place
+                && binding.type_identity == argument.type_identity
+        });
+        let binding = bindings.next().ok_or(LoweringError::Unsupported(
+            "local observation lost its exact declared case namespace",
+        ))?;
+        if bindings.next().is_some() {
+            return unsupported("local observation has ambiguous declared case namespaces");
+        }
+        let case = binding
+            .cases
+            .iter()
+            .find_map(|(symbol, identity)| (*symbol == case).then_some(*identity))
+            .ok_or(LoweringError::Unsupported(
+                "local observation selected a foreign case",
+            ))?;
+        Ok((source.place, case))
+    }
+
+    pub(crate) fn with_local_cases(mut self, cases: &[structural_cases::LocalCaseBinding]) -> Self {
+        self.local_cases = cases.to_vec();
+        self
+    }
+
     pub(crate) fn with_structural_observations(
         mut self,
         types: &[StructuralTypeDeclaration],
@@ -49,7 +103,8 @@ impl ScalarBindings {
             storage: Vec::new(),
             primitive_storage: Vec::new(),
             structural_parameters: Vec::new(),
-            array_locals: Vec::new(),
+            structural_locals: Vec::new(),
+            local_cases: Vec::new(),
             structural_fields: Vec::new(),
             structural_cases: Vec::new(),
         }
@@ -61,7 +116,8 @@ impl ScalarBindings {
             storage: Vec::new(),
             primitive_storage: Vec::new(),
             structural_parameters: Vec::new(),
-            array_locals: Vec::new(),
+            structural_locals: Vec::new(),
+            local_cases: Vec::new(),
             structural_fields: Vec::new(),
             structural_cases: Vec::new(),
         }
@@ -87,12 +143,12 @@ impl ScalarBindings {
         self
     }
 
-    /// Retain the existing payload places published by the ordered array producer.
-    pub(super) fn with_array_locals(
+    /// Retain places established by the ordinary structural operation sequence.
+    pub(super) fn with_structural_locals(
         mut self,
         locals: &[(symbols::SymbolHandle, StructuralArgument)],
     ) -> Self {
-        self.array_locals = locals.to_vec();
+        self.structural_locals = locals.to_vec();
         self
     }
 
@@ -168,10 +224,10 @@ impl ScalarBindings {
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     ) -> Result<StructuralArgument, LoweringError> {
-        if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ArrayLocal { symbol } =
+        if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
             argument.source
         {
-            let mut locals = self.array_locals.iter().filter(|row| row.0 == symbol);
+            let mut locals = self.structural_locals.iter().filter(|row| row.0 == symbol);
             let (_, source) = locals.next().ok_or(LoweringError::Unsupported(
                 "computed owned array operand lost its established local",
             ))?;

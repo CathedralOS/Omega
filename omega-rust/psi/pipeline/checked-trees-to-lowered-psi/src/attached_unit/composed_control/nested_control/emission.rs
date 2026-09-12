@@ -47,8 +47,15 @@ pub(super) fn emit(
         validate_direct_parameter_types(&guard, &parameter_types)?;
         let mut operations = OperationBuffer::new(next_operation - 1);
         let mut evaluation = crate::attached_unit::argument_evaluation::Evaluation {
-            array_locals: Vec::new(),
+            structural_locals: Vec::new(),
+            local_cases: Vec::new(),
             arrays: crate::scalar_computations::arrays::prepare(
+                checked,
+                plan.machine,
+                &catalogs.structural_types,
+                &mut catalogs.next_place,
+            )?,
+            cases: crate::scalar_computations::cases::prepare(
                 checked,
                 plan.machine,
                 &catalogs.structural_types,
@@ -151,11 +158,11 @@ pub(super) fn emit(
             &provider_boundaries,
             &mut next_place,
         )?;
-    structural_places.extend(
-        blocks
-            .iter()
-            .flat_map(|block| crate::scalar_computations::arrays::declarations(&block.operations)),
-    );
+    structural_places.extend(blocks.iter().flat_map(|block| {
+        crate::scalar_computations::arrays::declarations(&block.operations).chain(
+            crate::scalar_computations::cases::declarations(&block.operations),
+        )
+    }));
     structural_places.sort_by_key(|place| place.id);
     let machine = TerminalMachine {
         id: machine_id(1),

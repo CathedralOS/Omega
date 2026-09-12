@@ -14,6 +14,7 @@ use checked_trees::{CheckedScalarComputation, CheckedScalarComputationKind};
 
 pub(crate) mod arrays;
 mod calls;
+pub(crate) mod cases;
 pub(crate) mod comparisons;
 mod dispatch;
 mod source_custody;
@@ -42,6 +43,7 @@ pub(super) struct Expansion<'a> {
     states: Vec<LoweredScalarBranchState>,
     calls: Vec<SourceCallCoordinate>,
     arrays: Vec<arrays::Slot>,
+    cases: Vec<cases::Slot>,
 }
 
 impl<'a> Expansion<'a> {
@@ -59,6 +61,7 @@ impl<'a> Expansion<'a> {
             states: Vec::new(),
             calls: Vec::new(),
             arrays: Vec::new(),
+            cases: Vec::new(),
         }
     }
 
@@ -68,6 +71,11 @@ impl<'a> Expansion<'a> {
 
     pub(super) fn with_arrays(mut self, arrays: &[arrays::Slot]) -> Self {
         self.arrays = arrays.to_vec();
+        self
+    }
+
+    pub(super) fn with_cases(mut self, cases: &[cases::Slot]) -> Self {
+        self.cases = cases.to_vec();
         self
     }
 
@@ -376,6 +384,7 @@ impl<'a> Expansion<'a> {
             parameter_types: completed_types.clone(),
             bindings: Vec::new(),
             terminator: LoweredScalarBranchTerminator::Jump {
+                trivial_affine_discards: Vec::new(),
                 target,
                 structural_arguments: structural_arguments.to_vec(),
                 arguments: parameters(&completed_types)
@@ -452,6 +461,7 @@ impl<'a> Expansion<'a> {
             parameter_types: input_types.to_vec(),
             bindings: vec![binding],
             terminator: LoweredScalarBranchTerminator::Jump {
+                trivial_affine_discards: Vec::new(),
                 target,
                 arguments,
                 structural_arguments: Vec::new(),
@@ -487,6 +497,9 @@ impl<'a> Expansion<'a> {
         let plans = &self.checked.facts.values.scalar_computations;
         let node = plans.nodes.get(*handle).clone();
         let entry = match node.kind {
+            CheckedScalarComputationKind::CaseMembership { subject, case, .. } => {
+                self.case_membership(&subject, case, input_types, target, site, active)?
+            }
             CheckedScalarComputationKind::SelectedComparison {
                 operator_use,
                 left,
@@ -754,6 +767,13 @@ pub(crate) fn reachable_nodes(
         }
         visited.push(handle);
         match &plans.nodes.get(handle).kind {
+            CheckedScalarComputationKind::CaseMembership { subject, .. } => {
+                pending.extend(
+                    cases::operand_fields(checked, subject)?
+                        .iter()
+                        .map(|field| field.value),
+                );
+            }
             CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
                 pending.extend([*left, *right])
             }
