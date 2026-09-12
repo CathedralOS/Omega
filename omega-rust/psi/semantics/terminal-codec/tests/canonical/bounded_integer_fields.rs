@@ -33,7 +33,7 @@ fn fixture(maximum: i128) -> TerminalModule {
 fn bounded_integer_field_bounds_round_trip_and_bind_semantic_identity() {
     let original = fixture(255);
     let bytes = encode_module(&original).unwrap();
-    assert_eq!(&bytes[8..12], &[91, 0, 102, 0]);
+    assert_eq!(&bytes[8..12], &[92, 0, 103, 0]);
     assert_eq!(decode_module(&bytes).unwrap(), original);
     assert_eq!(
         encode_module(&decode_module(&bytes).unwrap()).unwrap(),

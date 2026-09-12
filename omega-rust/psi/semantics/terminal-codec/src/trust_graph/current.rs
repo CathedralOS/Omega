@@ -1,14 +1,14 @@
 //! Exact source-bound construction of the current migration trust graph.
 use super::{
-    BYTE_BLOCK_BINDINGS_SOURCE, BYTE_CYCLIC_ELIGIBILITY_SOURCE, BYTE_EXTENT_RECONSTRUCTION_SOURCE,
-    BYTE_FIELD_ACCESS_VALIDATION_SOURCE, BYTE_FIELD_FRESHNESS_SOURCE,
-    BYTE_FIELD_STORE_VALIDATION_SOURCE, BYTE_SUBSLICE_VALIDATION_SOURCE,
-    BYTE_VIEW_ARGUMENTS_SOURCE, BYTE_VIEW_DOMINANCE_SOURCE, BYTE_VIEW_FRONTIER_SOURCE,
-    BYTE_VIEW_FRONTIER_TRAVERSAL_SOURCE, CONTROL_GRAPH_SOURCE, DISCRETE_PATH_FACTS_SOURCE,
-    LITERAL_FOUNDATION_SOURCE, MACHINE_WIRE_SOURCE, PATH_FACTS_SOURCE,
+    BLOCK_WIRE_SOURCE, BYTE_BLOCK_BINDINGS_SOURCE, BYTE_CYCLIC_ELIGIBILITY_SOURCE,
+    BYTE_EXTENT_RECONSTRUCTION_SOURCE, BYTE_FIELD_ACCESS_VALIDATION_SOURCE,
+    BYTE_FIELD_FRESHNESS_SOURCE, BYTE_FIELD_STORE_VALIDATION_SOURCE,
+    BYTE_SUBSLICE_VALIDATION_SOURCE, BYTE_VIEW_ARGUMENTS_SOURCE, BYTE_VIEW_DOMINANCE_SOURCE,
+    BYTE_VIEW_FRONTIER_SOURCE, BYTE_VIEW_FRONTIER_TRAVERSAL_SOURCE, CONTROL_GRAPH_SOURCE,
+    DISCRETE_PATH_FACTS_SOURCE, LITERAL_FOUNDATION_SOURCE, MACHINE_WIRE_SOURCE, PATH_FACTS_SOURCE,
     PREDICATE_VALUE_EQUALITIES_SOURCE, PROOF_ADMISSION_RECURSION_SOURCE,
     PROOF_ADMISSION_STRICT_ORDER_SOURCE, PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE,
-    PROOF_CODEC_VALIDATION_SOURCE, TERMINAL_BYTE_EXTENT_SOURCE,
+    PROOF_CODEC_VALIDATION_SOURCE, REACH_APPLICATION_WIRE_SOURCE, TERMINAL_BYTE_EXTENT_SOURCE,
 };
 
 use super::{
@@ -48,7 +48,7 @@ fn terminal_vocabulary_version() -> String {
 }
 
 fn canonical_terminal_bytes_identity() -> &'static str {
-    "root:canonical-terminal-bytes-format-91-vocabulary-102"
+    "root:canonical-terminal-bytes-format-92-vocabulary-103"
 }
 
 fn canonical_terminal_bytes_version() -> String {
@@ -192,6 +192,11 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
             &[
                 ("terminal-codec/lib.rs", CODEC_SOURCE),
                 ("terminal-codec/machine_wire.rs", MACHINE_WIRE_SOURCE),
+                ("terminal-codec/block_wire.rs", BLOCK_WIRE_SOURCE),
+                (
+                    "terminal-codec/reach_application_wire.rs",
+                    REACH_APPLICATION_WIRE_SOURCE,
+                ),
             ],
         ),
         TrustDependencyNode::new(
@@ -295,7 +300,15 @@ fn decoder_node() -> TrustDependencyNode {
             canonical_terminal_bytes_identity(),
             "root:explicit-rust-migration-policy",
         ]),
-        &[("terminal-codec/lib.rs", CODEC_SOURCE)],
+        &[
+            ("terminal-codec/lib.rs", CODEC_SOURCE),
+            ("terminal-codec/machine_wire.rs", MACHINE_WIRE_SOURCE),
+            ("terminal-codec/block_wire.rs", BLOCK_WIRE_SOURCE),
+            (
+                "terminal-codec/reach_application_wire.rs",
+                REACH_APPLICATION_WIRE_SOURCE,
+            ),
+        ],
     )
 }
 
