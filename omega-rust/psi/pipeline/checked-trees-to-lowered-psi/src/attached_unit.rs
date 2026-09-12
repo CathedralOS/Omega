@@ -30,6 +30,7 @@ mod scalar_structural_calls;
 mod selected_operator;
 pub(super) mod shared_closure;
 mod structural_calls;
+mod structural_completion;
 pub(crate) mod structural_values;
 
 use bodies::UnitBody;
@@ -457,7 +458,7 @@ fn assemble_unit_closure(
             if machine.scalar_result.is_some() || machine.scalar_control.is_some() {
                 scalar_completion::validate(checked, machine)?;
             } else {
-                scalar_arrays::validate_result(checked, machine)?;
+                structural_completion::validate(checked, machine)?;
             }
         }
         crate::structural_scalar_store_source::validate(checked, machine)?;
@@ -3542,10 +3543,16 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
         // therefore die before those locals, and all locals before parameters.
         // Admitting interleaved legacy constructors requires one declaration-
         // ordered cleanup roster instead of concatenating these two groups.
-        let trivial_affine_discards = structural_result_places
-            .iter()
-            .rev()
-            .filter_map(|(place, discard)| discard.then_some(Ok(place.id)))
+        let trivial_affine_discards = evaluation
+            .selection_return_discards(
+                structural_result_places
+                    .iter()
+                    .rev()
+                    .map(|(place, discard)| (place.id, *discard))
+                    .collect(),
+            )?
+            .into_iter()
+            .map(Ok)
             .chain(local_discards)
             .chain(trivial_affine_discards.iter().map(|parameter_index| {
                 parameters
@@ -3631,6 +3638,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                         return unsupported("structural return source is not an owned whole value");
                     }
                 };
+                let source = evaluation.current_structural_place(source);
                 let place = place_id(allocate_dense(&mut next_place)?);
                 let structural_type = lookup_type_id(&type_ids, &result.type_identity)?;
                 Ok::<_, LoweringError>((
@@ -3638,7 +3646,15 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                     terminal_psi::StructuralResultDeclaration {
                         place,
                         structural_type,
-                        multiplicity: StructuralMultiplicity::Unrestricted,
+                        multiplicity: match result.multiplicity {
+                            Multiplicity::Affine => StructuralMultiplicity::Affine,
+                            Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
+                            Multiplicity::Linear => {
+                                return unsupported(
+                                    "structural completion requires retained linear result claims",
+                                );
+                            }
+                        },
                         qualifications: Vec::new(),
                         projected_qualifications: Vec::new(),
                     },
@@ -3669,6 +3685,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
             } else {
                 Vec::new()
             };
+        evaluation.remap_transported_call_operands(&mut operations);
         evaluation.blocks.push(Block {
             id: block,
             parameters: evaluation.parameters,

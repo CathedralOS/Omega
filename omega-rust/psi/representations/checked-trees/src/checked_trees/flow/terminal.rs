@@ -1877,7 +1877,8 @@ pub struct CheckedUnitEffectMachinePlan {
     pub scalar_result: Option<CheckedUnitScalarResultBindingPlan>,
     /// Scalar control completion, mutually exclusive with either result binding.
     pub scalar_control: Option<CheckedUnitScalarControlPlan>,
-    /// Optional unrestricted structural value returned after ordinary sequencing.
+    /// Whole structural value returned after ordinary sequencing, with its
+    /// actual source and multiplicity retained by the completion plan.
     pub structural_result: Option<CheckedUnitStructuralReturnPlan>,
     pub machine: SymbolHandle,
     pub state: SymbolHandle,

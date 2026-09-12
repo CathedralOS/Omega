@@ -9,6 +9,9 @@ use terminal_interpreter::{
 };
 use terminal_psi::{OperationKind, TerminalModule};
 
+#[path = "value_dispatch/owned_results.rs"]
+mod owned_results;
+
 fn unsigned(value: u128) -> TerminalScalarValue {
     TerminalScalarValue::Integer {
         scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
@@ -326,10 +329,7 @@ fn qualified_boolean_and_float_selection_keeps_exact_payloads() {
     }
 }
 
-fn execute(
-    source: &str,
-    arguments: &[TerminalScalarValue],
-) -> (TerminalModule, MeasuredTerminalExecution) {
+fn check_source(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .expect("dispatch tokens");
@@ -338,8 +338,15 @@ fn execute(
         .expect("dispatch resolution");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("dispatch typing");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .unwrap_or_else(|errors| panic!("checking {source}: {errors:#?}"));
+    typed_trees_to_checked_trees::lower_typed_trees(typed)
+}
+
+fn execute(
+    source: &str,
+    arguments: &[TerminalScalarValue],
+) -> (TerminalModule, MeasuredTerminalExecution) {
+    let checked =
+        check_source(source).unwrap_or_else(|errors| panic!("checking {source}: {errors:#?}"));
     for machine in checked.machines() {
         assert_eq!(
             checked.machine_states(machine).len(),

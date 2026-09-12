@@ -16,7 +16,7 @@ fn boolean(identity: u64) -> ValueDeclaration {
     }
 }
 
-fn canonical(module: &terminal_psi::TerminalModule) -> CanonicalTerminalArtifact {
+pub(super) fn canonical(module: &terminal_psi::TerminalModule) -> CanonicalTerminalArtifact {
     let proof = terminal_verifier::ProofBundle::default();
     terminal_verifier::verify_module(module, &proof, &AdmissionProfile::default()).unwrap();
     let record =

@@ -42,7 +42,8 @@ mod operators;
 mod scalar_case_constructor;
 mod storage_contents;
 pub use scalar_case_constructor::{
-    ScalarCaseConstructor, is_fresh_scalar_case_value, scalar_case_constructor,
+    ScalarCaseConstructor, is_fresh_scalar_case_value, is_scalar_case_value,
+    scalar_case_constructor, scalar_case_value_source,
 };
 pub use storage_contents::{
     has_plain_owned_contents, has_plain_owned_contents_with_numeric_constraints,

@@ -1,14 +1,11 @@
 //! Array construction shares the ordinary structural result namespace. Replay
 //! rejoins each operand to its authored expression before emitting portable values.
-//! Returning a call result instead uses the shared call-source and callee-body
-//! checks. A return names either its exact operation producer or an incoming
-//! parameter slot; equal array types cannot substitute for source correspondence.
+//! Completion uses the sibling structural-completion checker; this module owns
+//! array shape, storage and operand correspondence.
 
 use super::*;
 use checked_trees::CheckedArrayConstructionSource;
-use checked_trees::CheckedStructuralAccess;
 use checked_trees::CheckedUnitCallCoordinate;
-use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use checked_trees::{CheckedCallScalarArgument, CheckedUnitStructuralResultBindingPlan};
 
@@ -304,176 +301,7 @@ pub(super) fn validate(
     Ok(())
 }
 
-pub(super) fn validate_result(
-    checked: &CheckedTrees,
-    machine: &CheckedUnitEffectMachinePlan,
-) -> Result<(), LoweringError> {
-    let source = checked
-        .typed
-        .machines()
-        .iter()
-        .find(|source| source.symbol == machine.machine)
-        .ok_or(LoweringError::Unsupported(
-            "structural result machine is absent",
-        ))?;
-    let [state] = checked.typed.machine_states(source) else {
-        return unsupported("structural result state roster changed");
-    };
-    let Some(result) = &machine.structural_result else {
-        let mut reference = state.return_type;
-        while let checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
-            checked.typed.type_reference_table.type_reference(reference)
-        {
-            reference = *base_type;
-        }
-        if !matches!(
-            checked.typed.type_reference_table.type_reference(reference),
-            checked_trees::types::TypeReferenceNode::Unit
-        ) {
-            return unsupported("Unit completion erases the authored result type");
-        }
-        return Ok(());
-    };
-    if state.symbol != machine.state
-        || !source.body_is_present
-        || result.multiplicity != Multiplicity::Unrestricted
-        || !validation::is_closed_primitive_array_type(&checked.typed, state.return_type)
-        || checked
-            .typed
-            .normalized_type_identity(state.return_type)
-            .as_str()
-            != result.type_identity
-    {
-        return unsupported("structural result signature changed");
-    }
-    let statements = checked
-        .typed
-        .statement_table
-        .statements(state.statement_nodes);
-    if !matches!(machine.operations.last(), Some(CheckedUnitEffectOperationPlan::Complete { statement_index, .. }) if *statement_index as usize == statements.len())
-    {
-        return unsupported("structural completion coordinate differs from source");
-    }
-    let Some(StatementNode::Expression(expression)) = statements.last() else {
-        return unsupported("structural result source has no completion value");
-    };
-    match result.source {
-        CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
-            let mut producers = machine
-                .operations
-                .iter()
-                .filter_map(|operation| match operation {
-                    CheckedUnitEffectOperationPlan::EstablishScalarArray {
-                        source,
-                        result: candidate,
-                        ..
-                    } if candidate.binding_ordinal == binding_ordinal => Some((
-                        candidate,
-                        *source == CheckedArrayConstructionSource::Statement,
-                    )),
-                    CheckedUnitEffectOperationPlan::StructuralCall {
-                        coordinate,
-                        result: candidate,
-                        ..
-                    } if candidate.binding_ordinal == binding_ordinal => {
-                        Some((candidate, coordinate.call_ordinal == 0))
-                    }
-                    _ => None,
-                });
-            let (binding, owns_statement_result) = producers.next().ok_or(
-                LoweringError::Unsupported("returned structural value has no exact producer"),
-            )?;
-            if producers.next().is_some()
-                || !owns_statement_result
-                || binding.type_identity != result.type_identity
-                || binding.multiplicity != result.multiplicity
-            {
-                return unsupported("returned structural producer is ambiguous or changed");
-            }
-            if let ExpressionNode::Name(path) =
-                checked.typed.expression_table.expression(*expression)
-            {
-                let Some(StatementNode::LocalData(local)) =
-                    statements.get(binding.statement_index as usize)
-                else {
-                    return unsupported("returned structural binding has no declaration");
-                };
-                if path.symbol != local.symbol
-                    || path.head_symbol != local.symbol
-                    || checked
-                        .typed
-                        .expression_table
-                        .name_path_members(path.members)
-                        .len()
-                        != 1
-                {
-                    return unsupported("returned structural binding differs from source");
-                }
-            } else if binding.statement_index as usize + 1 != statements.len() {
-                return unsupported("returned constructor differs from source");
-            }
-        }
-        CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
-            let parameter = machine
-                .structural_parameters
-                .get(parameter_index as usize)
-                .ok_or(LoweringError::Unsupported(
-                    "returned structural parameter is absent",
-                ))?;
-            let source_parameter = checked
-                .typed
-                .state_parameters(state)
-                .get(parameter.position as usize)
-                .ok_or(LoweringError::Unsupported(
-                    "returned structural source parameter is absent",
-                ))?;
-            if parameter.access != CheckedStructuralAccess::Owned
-                || source_parameter.is_const
-                || source_parameter.is_mutable
-                || source_parameter.is_self
-                || parameter.multiplicity != Multiplicity::Unrestricted
-                || !parameter.qualifications.is_empty()
-                || parameter.is_self
-                || parameter.fused_service_erasure.is_some()
-                || parameter.type_identity != result.type_identity
-                || checked
-                    .typed
-                    .normalized_type_identity(source_parameter.type_reference)
-                    .as_str()
-                    != result.type_identity
-                || !matches!(checked.typed.expression_table.expression(*expression),
-                    ExpressionNode::Name(path) if path.symbol == source_parameter.symbol
-                        && path.head_symbol == source_parameter.symbol
-                        && checked.typed.expression_table.name_path_members(path.members).len() == 1)
-            {
-                return unsupported("returned structural parameter differs from its owned source");
-            }
-            validate_shape(checked, source_parameter.type_reference)?;
-        }
-        _ => return unsupported("structural return source is not an owned whole value"),
-    }
-    // Every authored statement owes an operation, except a final binding use.
-    for index in 0..statements.len() {
-        if index + 1 == statements.len()
-            && matches!(
-                checked.typed.expression_table.expression(*expression),
-                ExpressionNode::Name(_)
-            )
-        {
-            continue;
-        }
-        if !machine
-            .operations
-            .iter()
-            .any(|operation| source_statement(operation) == Some(index as u32))
-        {
-            return unsupported("structural result body omits an authored statement");
-        }
-    }
-    Ok(())
-}
-
-fn validate_shape(
+pub(super) fn validate_shape(
     checked: &CheckedTrees,
     mut reference: checked_trees::types::TypeReferenceHandle,
 ) -> Result<(), LoweringError> {

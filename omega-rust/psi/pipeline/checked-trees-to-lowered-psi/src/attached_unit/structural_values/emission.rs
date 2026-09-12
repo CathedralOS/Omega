@@ -32,6 +32,75 @@ pub(crate) fn emit(
             return unsupported("fresh structural value cannot create linear custody");
         }
     };
+    let sources = checked
+        .facts
+        .flow
+        .ownership
+        .owned_selection_at(state, result.statement_index)
+        .map(|(_, receipt)| {
+            checked
+                .facts
+                .flow
+                .ownership
+                .selection_sources
+                .span(receipt.sources)
+                .ok_or(LoweringError::Unsupported(
+                    "owned selection source span is stale",
+                ))?
+                .iter()
+                .rev()
+                .map(|source| {
+                    evaluation
+                        .structural_locals
+                        .iter()
+                        .find(|(symbol, _)| *symbol == source.symbol)
+                        .map(|(_, argument)| argument.clone())
+                        .ok_or(LoweringError::Unsupported(
+                            "owned selection source has no established physical local",
+                        ))
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()?
+        .unwrap_or_default();
+    if !sources.is_empty() && multiplicity != StructuralMultiplicity::Affine {
+        return unsupported("owned selection requires uniform affine root cleanup");
+    }
+    let owners = if sources.is_empty() {
+        Vec::new()
+    } else {
+        let owners = prepare_owners(
+            checked,
+            machine,
+            state,
+            result.statement_index,
+            structural_types,
+            evaluation,
+            operations,
+        )?;
+        let candidate_positions = owners
+            .iter()
+            .enumerate()
+            .filter_map(|(position, owner)| {
+                sources
+                    .iter()
+                    .any(|source| source.place == owner.value.place)
+                    .then_some(position)
+            })
+            .collect::<Vec<_>>();
+        if candidate_positions.len() != sources.len() {
+            return unsupported("owned selection source is absent from the live emitted frontier");
+        }
+        if candidate_positions
+            .windows(2)
+            .any(|positions| positions[1] != positions[0] + 1)
+        {
+            return unsupported(
+                "interleaved selection sources require path-dependent residual establishment-order correspondence",
+            );
+        }
+        owners
+    };
     let mut emission = Emission {
         checked,
         machine,
@@ -49,8 +118,10 @@ pub(crate) fn emit(
         next_block,
         next_edge,
         operations,
+        sources,
+        owners,
     };
-    let place = emission.value(*value)?;
+    let place = emission.value(*value, None)?;
     // Private arm producers are not authored result ordinals. Publish exactly
     // one completed place for this binding, whether a direct producer or join.
     let declaration = emission
@@ -80,6 +151,7 @@ pub(crate) fn emit(
             claims: Vec::new(),
         },
     ));
+    let mut local_symbol = symbols::SymbolHandle::invalid();
     if let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
         .statement_table
         .statements(
@@ -89,6 +161,7 @@ pub(crate) fn emit(
         )
         .get(result.statement_index as usize)
     {
+        local_symbol = local.symbol;
         if emission
             .evaluation
             .structural_locals
@@ -119,7 +192,163 @@ pub(crate) fn emit(
             },
         ));
     }
+    if multiplicity == StructuralMultiplicity::Affine {
+        emission.evaluation.structural_value_owners.push(
+            argument_evaluation::StructuralValueOwner {
+                symbol: local_symbol,
+                statement: result.statement_index,
+                value: terminal_psi::StructuralOperationResult {
+                    place,
+                    structural_type,
+                    multiplicity,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    claims: Vec::new(),
+                },
+            },
+        );
+    }
     Ok(declaration)
+}
+
+fn prepare_owners(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    statement: u32,
+    structural_types: &[StructuralTypeDeclaration],
+    evaluation: &argument_evaluation::Evaluation,
+    operations: &OperationBuffer,
+) -> Result<Vec<argument_evaluation::StructuralValueOwner>, LoweringError> {
+    let available = |symbol: symbols::SymbolHandle| -> Result<bool, LoweringError> {
+        if !symbol.is_valid() {
+            return Ok(true);
+        }
+        for (_, receipt) in checked.facts.flow.ownership.owned_selections.iter() {
+            if receipt.machine == machine
+                && receipt.state == state
+                && receipt.statement_ordinal < statement
+                && checked
+                    .facts
+                    .flow
+                    .ownership
+                    .selection_sources
+                    .span_or_empty(receipt.sources)
+                    .iter()
+                    .any(|source| source.symbol == symbol)
+            {
+                return Ok(false);
+            }
+        }
+        for (_, event) in checked.facts.flow.ownership.permissions.iter() {
+            if event.machine_symbol != machine
+                || event.state_symbol != state
+                || event.root != facts::PlaceRoot::Symbol(symbol)
+                || event.access != language_semantics::PermissionAccess::Owned
+            {
+                continue;
+            }
+            let ordinal = match event.source {
+                language_semantics::PermissionEventSource::Statement { statement_index }
+                | language_semantics::PermissionEventSource::Call {
+                    statement_index, ..
+                } => statement_index,
+                _ => continue,
+            };
+            if ordinal >= statement as usize
+                || event.kind == language_semantics::PermissionEventKind::Establish
+            {
+                continue;
+            }
+            if !event.segments.is_empty() {
+                return unsupported(
+                    "selection pass-through of partially moved roots requires retained residual frontier correspondence",
+                );
+            }
+            return Ok(false);
+        }
+        Ok(true)
+    };
+    let mut owners = Vec::new();
+    for owner in &evaluation.structural_value_owners {
+        if available(owner.symbol)? {
+            owners.push(owner.clone());
+        }
+    }
+    let statements = checked.statement_table.statements(
+        crate::scalar_source_custody::authored_state(checked, state)?
+            .1
+            .statement_nodes,
+    );
+    for (symbol, argument) in &evaluation.structural_locals {
+        if owners.iter().any(|owner| owner.symbol == *symbol) || !available(*symbol)? {
+            continue;
+        }
+        let (ordinal, local) = statements
+            .iter()
+            .enumerate()
+            .find_map(|(ordinal, source)| match source {
+                checked_trees::statement::StatementNode::LocalData(local)
+                    if local.symbol == *symbol =>
+                {
+                    Some((ordinal, local))
+                }
+                _ => None,
+            })
+            .ok_or(LoweringError::Unsupported(
+                "selection survivor has no authored local",
+            ))?;
+        if checked.type_multiplicity(local.type_reference) != Multiplicity::Affine {
+            continue;
+        }
+        if ordinal >= statement as usize
+            || !argument.path.is_empty()
+            || argument.access != StructuralAccess::Owned
+            || !validation::has_plain_owned_contents_with_numeric_constraints(
+                &checked.typed,
+                local.type_reference,
+            )
+        {
+            return unsupported("selection survivor requires whole plain-affine custody");
+        }
+        let value = operations
+            .iter()
+            .filter_map(|operation| operation.result.structural())
+            .find(|result| result.place == argument.place)
+            .ok_or(LoweringError::Unsupported(
+                "selection survivor requires an exact emitted operation-result frontier",
+            ))?;
+        if value.multiplicity != StructuralMultiplicity::Affine
+            || !value.claims.is_empty()
+            || !value.qualifications.is_empty()
+            || !value.projected_qualifications.is_empty()
+            || !structural_types
+                .iter()
+                .any(|declaration| declaration.id == value.structural_type)
+        {
+            return unsupported("selection survivor requires claim-free plain-affine transport");
+        }
+        owners.push(argument_evaluation::StructuralValueOwner {
+            symbol: *symbol,
+            statement: u32::try_from(ordinal).map_err(|_| {
+                LoweringError::Unsupported("selection survivor statement exceeds u32")
+            })?,
+            value: value.clone(),
+        });
+    }
+    owners.sort_by_key(|owner| owner.statement);
+    for source in statements.iter().take(statement as usize) {
+        if let checked_trees::statement::StatementNode::LocalData(local) = source
+            && checked.type_multiplicity(local.type_reference) == Multiplicity::Affine
+            && available(local.symbol)?
+            && !owners.iter().any(|owner| owner.symbol == local.symbol)
+        {
+            return unsupported(
+                "selection transport requires a typed frontier entry for every live owned local",
+            );
+        }
+    }
+    Ok(owners)
 }
 
 struct Emission<'a, 'b, 'calls> {
@@ -139,10 +368,26 @@ struct Emission<'a, 'b, 'calls> {
     next_block: &'b mut u64,
     next_edge: &'b mut u64,
     operations: &'b mut OperationBuffer,
+    sources: Vec<StructuralArgument>,
+    owners: Vec<argument_evaluation::StructuralValueOwner>,
+}
+
+struct ValueContinuation {
+    block: BlockId,
+    parameters: Vec<ValueDeclaration>,
+    structural_parameters: Vec<StructuralParameterDeclaration>,
+    place: PlaceId,
+    remaining_owners: Vec<argument_evaluation::StructuralValueOwner>,
+    pass_through: Vec<(PlaceId, PlaceId)>,
+    residuals: Vec<PlaceId>,
 }
 
 impl Emission<'_, '_, '_> {
-    fn value(&mut self, value: CheckedStructuralValueHandle) -> Result<PlaceId, LoweringError> {
+    fn value(
+        &mut self,
+        value: CheckedStructuralValueHandle,
+        continuation: Option<&ValueContinuation>,
+    ) -> Result<PlaceId, LoweringError> {
         let node = self
             .checked
             .facts
@@ -153,6 +398,9 @@ impl Emission<'_, '_, '_> {
             .clone();
         match node.kind {
             CheckedStructuralValueKind::Record { .. } => {
+                if !self.sources.is_empty() {
+                    return unsupported("selected ownership mixes fresh and existing obligations");
+                }
                 let source_count = self.values.len();
                 let declaration = super::emit_record(
                     self.checked,
@@ -175,9 +423,47 @@ impl Emission<'_, '_, '_> {
                 )?;
                 let place = declaration.id;
                 self.temporary_places.push(declaration);
+                if let Some(continuation) = continuation {
+                    self.complete_value(place, continuation)?;
+                }
                 Ok(place)
             }
+            CheckedStructuralValueKind::Place(argument) => {
+                let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    symbol,
+                } = argument.source
+                else {
+                    return unsupported("owned selection requires an established structural local");
+                };
+                if !argument.path.is_empty()
+                    || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                {
+                    return unsupported("owned selection requires whole owned sources");
+                }
+                let selected = self
+                    .evaluation
+                    .structural_locals
+                    .iter()
+                    .find(|(source, _)| *source == symbol)
+                    .map(|(_, argument)| argument.place)
+                    .ok_or(LoweringError::Unsupported(
+                        "owned selection local place missing",
+                    ))?;
+                if !self.sources.iter().any(|source| source.place == selected) {
+                    return unsupported("owned selection place is absent from its receipt sources");
+                }
+                let continuation = continuation.ok_or(LoweringError::Unsupported(
+                    "direct owned place requires a structural continuation",
+                ))?;
+                self.complete_value(selected, continuation)?;
+                Ok(continuation.place)
+            }
             CheckedStructuralValueKind::Case(construction) => {
+                if !self.sources.is_empty() {
+                    return unsupported(
+                        "mixed fresh and existing ownership requires a join carrying unequal residual counts",
+                    );
+                }
                 let source = validation::scalar_case_constructor(
                     &self.checked.typed,
                     construction.expression,
@@ -226,6 +512,9 @@ impl Emission<'_, '_, '_> {
                         ))?;
                 self.temporary_places.push(declaration);
                 self.values.truncate(field_start);
+                if let Some(continuation) = continuation {
+                    self.complete_value(place, continuation)?;
+                }
                 Ok(place)
             }
             CheckedStructuralValueKind::Dispatch { subject, arms } => {
@@ -249,24 +538,97 @@ impl Emission<'_, '_, '_> {
                     source_count,
                 )?;
                 self.values.push(subject);
-                let join = block_id(allocate_dense(self.next_block)?);
-                let joined_values = self.values[..source_count]
-                    .iter()
-                    .map(|value| {
-                        Ok(ValueDeclaration {
-                            id: value_id(allocate_dense(self.next_value)?),
-                            ..*value
+                let owned_continuation;
+                let is_root = continuation.is_none();
+                let continuation = if let Some(continuation) = continuation {
+                    continuation
+                } else {
+                    let join = block_id(allocate_dense(self.next_block)?);
+                    let joined_values = self.values[..source_count]
+                        .iter()
+                        .map(|value| {
+                            Ok(ValueDeclaration {
+                                id: value_id(allocate_dense(self.next_value)?),
+                                ..*value
+                            })
                         })
-                    })
-                    .collect::<Result<Vec<_>, LoweringError>>()?;
-                let place = place_id(allocate_dense(self.next_place)?);
-                self.temporary_places.push(StructuralPlaceDeclaration {
-                    id: place,
-                    kind: StructuralPlaceKind::BlockParameter {
+                        .collect::<Result<Vec<_>, LoweringError>>()?;
+                    let mut structural_parameters = Vec::new();
+                    let first_candidate = self.owners.iter().position(|owner| {
+                        self.sources
+                            .iter()
+                            .any(|source| source.place == owner.value.place)
+                    });
+                    let mut remaining_owners = self
+                        .owners
+                        .iter()
+                        .enumerate()
+                        .filter(|(position, _)| Some(*position) != first_candidate)
+                        .map(|(_, owner)| owner.clone())
+                        .collect::<Vec<_>>();
+                    let mut pass_through = Vec::new();
+                    let mut residuals = Vec::new();
+                    for position in 0..remaining_owners.len() + 1 {
+                        let (structural_type, multiplicity) = remaining_owners
+                            .get(position)
+                            .map_or((self.structural_type, self.multiplicity), |owner| {
+                                (owner.value.structural_type, owner.value.multiplicity)
+                            });
+                        let owner = remaining_owners.get_mut(position);
+                        let position = u32::try_from(position).map_err(|_| {
+                            LoweringError::Unsupported(
+                                "owned selection parameter count exceeds u32",
+                            )
+                        })?;
+                        let place = place_id(allocate_dense(self.next_place)?);
+                        if let Some(owner) = owner {
+                            if self
+                                .sources
+                                .iter()
+                                .any(|source| source.place == owner.value.place)
+                            {
+                                owner.symbol = symbols::SymbolHandle::invalid();
+                                residuals.push(place);
+                            } else {
+                                pass_through.push((owner.value.place, place));
+                            }
+                            owner.value.place = place;
+                        }
+                        self.temporary_places.push(StructuralPlaceDeclaration {
+                            id: place,
+                            kind: StructuralPlaceKind::BlockParameter {
+                                block: join,
+                                position,
+                            },
+                        });
+                        structural_parameters.push(StructuralParameterDeclaration {
+                            place,
+                            position,
+                            is_self: false,
+                            structural_type,
+                            multiplicity,
+                            access: StructuralAccess::Owned,
+                            qualifications: Vec::new(),
+                            projected_qualifications: Vec::new(),
+                        });
+                    }
+                    let place = structural_parameters
+                        .last()
+                        .ok_or(LoweringError::Unsupported(
+                            "structural continuation has no result",
+                        ))?
+                        .place;
+                    owned_continuation = ValueContinuation {
                         block: join,
-                        position: 0,
-                    },
-                });
+                        parameters: joined_values,
+                        structural_parameters,
+                        place,
+                        remaining_owners,
+                        pass_through,
+                        residuals,
+                    };
+                    &owned_continuation
+                };
                 for (position, arm) in arms.iter().enumerate() {
                     let mut fallback = None;
                     if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) = arm.pattern
@@ -328,46 +690,133 @@ impl Emission<'_, '_, '_> {
                         }
                     }
                     self.values.truncate(source_count);
-                    let selected = self.value(arm.value)?;
-                    let edge = self.edge(
-                        join,
-                        self.values.iter().map(|value| value.id).collect(),
-                        vec![StructuralArgument {
-                            place: selected,
-                            path: Vec::new(),
-                            access: StructuralAccess::Owned,
-                        }],
-                    )?;
-                    self.finish(Terminator::Jump {
-                        edge: edge.edge,
-                        target: edge.target,
-                        arguments: edge.arguments,
-                        structural_arguments: edge.structural_arguments,
-                        trivial_affine_discards: Vec::new(),
-                        residual_affine_discards: Vec::new(),
-                    });
+                    self.value(arm.value, Some(continuation))?;
                     if let Some((next, values)) = fallback {
                         self.start(next);
                         *self.values = values;
                     }
                 }
-                self.start(join);
-                *self.values = joined_values.clone();
-                self.evaluation.parameters = joined_values;
-                self.evaluation.block_structural_parameters =
-                    vec![StructuralParameterDeclaration {
-                        place,
-                        position: 0,
-                        is_self: false,
-                        structural_type: self.structural_type,
-                        multiplicity: self.multiplicity,
-                        access: StructuralAccess::Owned,
-                        qualifications: Vec::new(),
-                        projected_qualifications: Vec::new(),
-                    }];
-                Ok(place)
+                if is_root {
+                    self.start(continuation.block);
+                    *self.values = continuation.parameters.clone();
+                    self.evaluation.parameters = continuation.parameters.clone();
+                    self.evaluation.block_structural_parameters =
+                        continuation.structural_parameters.clone();
+                    if !self.sources.is_empty() {
+                        self.evaluation.selection_cleanups.push(
+                            argument_evaluation::SelectionCleanup {
+                                selected: continuation.place,
+                                sources: self
+                                    .sources
+                                    .iter()
+                                    .rev()
+                                    .map(|source| source.place)
+                                    .collect(),
+                                remaining: continuation.residuals.iter().rev().copied().collect(),
+                                pass_through: continuation.pass_through.clone(),
+                                next_operation: self.operations.next_identity,
+                            },
+                        );
+                        self.evaluation.structural_value_owners =
+                            continuation.remaining_owners.clone();
+                        self.evaluation.structural_locals.retain(|(_, argument)| {
+                            !self
+                                .sources
+                                .iter()
+                                .any(|source| source.place == argument.place)
+                        });
+                        for (_, argument) in &mut self.evaluation.structural_locals {
+                            if let Some((_, target)) = continuation
+                                .pass_through
+                                .iter()
+                                .find(|(source, _)| *source == argument.place)
+                            {
+                                argument.place = *target;
+                            }
+                        }
+                        self.rebind_local_cases()?;
+                    }
+                }
+                Ok(continuation.place)
             }
         }
+    }
+
+    fn complete_value(
+        &mut self,
+        selected: PlaceId,
+        continuation: &ValueContinuation,
+    ) -> Result<(), LoweringError> {
+        let mut structural_arguments = self
+            .owners
+            .iter()
+            .filter(|owner| owner.value.place != selected)
+            .map(|owner| StructuralArgument {
+                place: owner.value.place,
+                path: Vec::new(),
+                access: StructuralAccess::Owned,
+            })
+            .collect::<Vec<_>>();
+        structural_arguments.push(StructuralArgument {
+            place: selected,
+            path: Vec::new(),
+            access: StructuralAccess::Owned,
+        });
+        if structural_arguments.len() != continuation.structural_parameters.len() {
+            return unsupported("structural value has unequal residual ownership at its join");
+        }
+        let edge = self.edge(
+            continuation.block,
+            self.values.iter().map(|value| value.id).collect(),
+            structural_arguments,
+        )?;
+        self.finish(Terminator::Jump {
+            edge: edge.edge,
+            target: edge.target,
+            arguments: edge.arguments,
+            structural_arguments: edge.structural_arguments,
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
+        });
+        Ok(())
+    }
+
+    fn rebind_local_cases(&mut self) -> Result<(), LoweringError> {
+        let statements = self.checked.statement_table.statements(
+            crate::scalar_source_custody::authored_state(self.checked, self.state)?
+                .1
+                .statement_nodes,
+        );
+        let mut cases = Vec::new();
+        for (symbol, argument) in &self.evaluation.structural_locals {
+            let Some(local) = statements.iter().find_map(|statement| match statement {
+                checked_trees::statement::StatementNode::LocalData(local)
+                    if local.symbol == *symbol =>
+                {
+                    Some(local)
+                }
+                _ => None,
+            }) else {
+                continue;
+            };
+            let identity = self.checked.normalized_type_identity(local.type_reference);
+            if self.structural_types.iter().any(|declaration| {
+                declaration.identity == identity.as_str()
+                    && matches!(declaration.shape, StructuralTypeShape::Sum { .. })
+            }) {
+                cases.push(
+                    crate::scalar_bindings::structural_cases::LocalCaseBinding::new(
+                        self.checked,
+                        *symbol,
+                        local.type_reference,
+                        argument.place,
+                        self.structural_types,
+                    )?,
+                );
+            }
+        }
+        self.evaluation.local_cases = cases;
+        Ok(())
     }
 
     fn scalar(

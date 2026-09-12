@@ -41,7 +41,7 @@ pub(super) fn has_structural_result(
     {
         return !local.is_mutable;
     }
-    if validation::is_fresh_scalar_case_value(program, local.initial_value, local.type_reference) {
+    if validation::is_scalar_case_value(program, local.initial_value, local.type_reference) {
         return !local.is_mutable;
     }
     if validation::is_closed_primitive_array_type(program, local.type_reference) {
@@ -112,7 +112,7 @@ pub(super) fn has_statement_shape(
                                 .structural_values
                                 .root_at(state.symbol, ordinal)
                                 .is_some()
-                        }) || validation::is_fresh_scalar_case_value(
+                        }) || validation::is_scalar_case_value(
                             program,
                             *expression,
                             state.return_type,
@@ -253,6 +253,7 @@ pub(in crate::flow::terminal_unit) fn build(
                         || root.expression != local.initial_value || root.type_reference != local.type_reference {
                         return None;
                     }
+                    retain_selected_sources(facts, state.symbol, statement_index, &structural_results, &mut operations)?;
                     let result = CheckedUnitStructuralResultBindingPlan {
                         statement_index,
                         binding_ordinal: u32::try_from(structural_count).ok()?,
@@ -724,6 +725,13 @@ pub(in crate::flow::terminal_unit) fn build(
         if root.machine != machine.symbol || root.type_reference != state.return_type {
             return None;
         }
+        retain_selected_sources(
+            facts,
+            state.symbol,
+            root.statement_ordinal,
+            &structural_results,
+            &mut operations,
+        )?;
         let result = CheckedUnitStructuralResultBindingPlan {
             statement_index: root.statement_ordinal,
             binding_ordinal: u32::try_from(structural_count).ok()?,
@@ -1066,6 +1074,63 @@ fn append_call_cleanup(
         coordinate,
         affine_discards: discards,
     });
+    Some(())
+}
+
+/// A selected continuation owns both the chosen result and the conditional
+/// complement until the actual death edge. Original producers must not also
+/// publish unconditional return drops for those same owners.
+fn retain_selected_sources(
+    facts: &CheckFacts,
+    state: SymbolHandle,
+    statement: u32,
+    sources: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+    operations: &mut [CheckedUnitEffectOperationPlan],
+) -> Option<()> {
+    let Some((_, receipt)) = facts.flow.ownership.owned_selection_at(state, statement) else {
+        return Some(());
+    };
+    for source in facts
+        .flow
+        .ownership
+        .selection_sources
+        .span(receipt.sources)?
+    {
+        let (binding, _) = sources
+            .iter()
+            .find(|(_, root)| *root == facts::PlaceRoot::Symbol(source.symbol))?;
+        let mut producers = operations
+            .iter_mut()
+            .filter_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    result,
+                    discard_result_on_return,
+                    ..
+                }
+                | CheckedUnitEffectOperationPlan::StructuralCall {
+                    result,
+                    discard_result_on_return,
+                    ..
+                }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    result,
+                    discard_result_on_return,
+                    ..
+                } if result.binding_ordinal == binding.binding_ordinal => {
+                    Some((result, discard_result_on_return))
+                }
+                _ => None,
+            });
+        let (result, discard) = producers.next()?;
+        if producers.next().is_some()
+            || result.multiplicity != Multiplicity::Affine
+            || result.statement_index != source.statement_ordinal
+            || !*discard
+        {
+            return None;
+        }
+        *discard = false;
+    }
     Some(())
 }
 

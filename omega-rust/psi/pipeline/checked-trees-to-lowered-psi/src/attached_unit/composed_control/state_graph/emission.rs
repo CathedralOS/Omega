@@ -144,6 +144,8 @@ pub(in crate::attached_unit::composed_control) fn emit(
             .collect::<Vec<_>>();
         let mut operations = OperationBuffer::new(catalogs.next_operation - 1);
         let mut evaluation = crate::attached_unit::argument_evaluation::Evaluation {
+            structural_value_owners: Vec::new(),
+            selection_cleanups: Vec::new(),
             structural_locals: Vec::new(),
             local_cases: Vec::new(),
             arrays: crate::scalar_computations::arrays::prepare(
@@ -505,7 +507,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
                 })
             }
         };
-        let terminator = match &state.terminator {
+        let mut terminator = match &state.terminator {
             CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } => {
                 let source = match result.source {
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
@@ -525,7 +527,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
                 };
                 Terminator::ReturnStructural {
                     edge: edge_id(allocate_dense(&mut next_edge)?),
-                    source,
+                    source: evaluation.current_structural_place(source),
                     returned_claims: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 }
@@ -609,6 +611,49 @@ pub(in crate::attached_unit::composed_control) fn emit(
                 }
             }
         };
+        if !evaluation.selection_cleanups.is_empty() {
+            let discards = match &mut terminator {
+                Terminator::ReturnStructural {
+                    trivial_affine_discards,
+                    ..
+                }
+                | Terminator::ReturnUnit {
+                    trivial_affine_discards,
+                    ..
+                } => trivial_affine_discards,
+                _ => {
+                    return unsupported(
+                        "owned selection residuals crossing authored states require retained cleanup transfer correspondence",
+                    );
+                }
+            };
+            let mut local_discards = Vec::new();
+            for operation in state.operations.iter().rev() {
+                if let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    result,
+                    discard_result_on_return,
+                    ..
+                }
+                | CheckedUnitEffectOperationPlan::StructuralCall {
+                    result,
+                    discard_result_on_return,
+                    ..
+                }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    result,
+                    discard_result_on_return,
+                    ..
+                } = operation
+                {
+                    local_discards.push((
+                        case_emission::result(state, result.binding_ordinal, &operations)?.place,
+                        *discard_result_on_return,
+                    ));
+                }
+            }
+            local_discards.extend(discards.iter().map(|place| (*place, true)));
+            *discards = evaluation.selection_return_discards(local_discards)?;
+        }
         if let Some(rank) = current_rank {
             // Completed evaluation blocks stay inside this authored state.
             // Their private edges preserve its incoming rank; only the state
@@ -625,6 +670,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
                 })
             }));
         }
+        evaluation.remap_transported_call_operands(&mut operations);
         evaluation.blocks.push(Block {
             id: evaluation.current,
             parameters: evaluation.parameters,

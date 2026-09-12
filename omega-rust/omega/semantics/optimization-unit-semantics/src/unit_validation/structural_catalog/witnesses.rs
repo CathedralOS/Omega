@@ -128,10 +128,11 @@ pub(crate) fn validate_trivial_affine_local_witnesses(
             else {
                 continue;
             };
-            if trivial_affine_locals.is_empty()
-                && trivial_affine_discards.is_empty()
-                && expected_locals.is_empty()
-            {
+            if trivial_affine_locals.is_empty() && expected_locals.is_empty() {
+                // Ordinary returned values can dispose surviving operation or
+                // block-parameter roots. Current ownership replay checks that
+                // exact frontier and order; no hidden local establishment is
+                // being compressed into this return's provenance.
                 continue;
             }
             let node_index = u32::try_from(node_index).expect("unit node index fits u32");

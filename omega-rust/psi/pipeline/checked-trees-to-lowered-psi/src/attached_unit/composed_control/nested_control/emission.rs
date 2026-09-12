@@ -47,6 +47,8 @@ pub(super) fn emit(
         validate_direct_parameter_types(&guard, &parameter_types)?;
         let mut operations = OperationBuffer::new(next_operation - 1);
         let mut evaluation = crate::attached_unit::argument_evaluation::Evaluation {
+            structural_value_owners: Vec::new(),
+            selection_cleanups: Vec::new(),
             structural_locals: Vec::new(),
             local_cases: Vec::new(),
             arrays: crate::scalar_computations::arrays::prepare(
@@ -93,6 +95,11 @@ pub(super) fn emit(
             &mut operations,
         )?;
         let condition = emit_direct_expression(&guard, &values, &mut next_value, &mut operations);
+        if !evaluation.selection_cleanups.is_empty() {
+            return unsupported(
+                "owned selection residuals crossing authored states require retained cleanup transfer correspondence",
+            );
+        }
         next_operation = operations.next_identity;
         source_call_occurrences.append(&mut operations.source_calls);
         blocks.append(&mut evaluation.blocks);

@@ -1,0 +1,14 @@
+data Choice {
+    case Empty;
+    case Some(value: u32);
+}
+
+machine choose(selected: bool) -> bool {
+    let left: Choice = Choice::Some { value: 37 };
+    let right: Choice = Choice::Empty;
+    let result: Choice = match selected {
+        true -> left,
+        false -> right
+    };
+    result in Choice::Some
+}

@@ -24,6 +24,8 @@ fn prepare_shared_qualifications(
 }
 
 pub(crate) struct Evaluation {
+    pub(crate) structural_value_owners: Vec<StructuralValueOwner>,
+    pub(crate) selection_cleanups: Vec<SelectionCleanup>,
     pub(crate) structural_locals: Vec<(symbols::SymbolHandle, StructuralArgument)>,
     pub(crate) local_cases: Vec<crate::scalar_bindings::structural_cases::LocalCaseBinding>,
     pub(crate) arrays: Vec<crate::scalar_computations::arrays::Slot>,
@@ -45,19 +47,180 @@ pub(crate) struct Evaluation {
     pub blocks: Vec<Block>,
 }
 
+/// Replace candidate roots only at their normal death edge. Both rosters are
+/// in reverse establishment order; physical source declarations stay intact.
+pub(crate) struct SelectionCleanup {
+    pub(crate) selected: PlaceId,
+    pub(crate) sources: Vec<PlaceId>,
+    pub(crate) remaining: Vec<PlaceId>,
+    pub(crate) pass_through: Vec<(PlaceId, PlaceId)>,
+    pub(crate) next_operation: u64,
+}
+
+/// Current physical owners in establishment order. An anonymous residual keeps
+/// its receipt correspondence in SelectionCleanup, never a fabricated symbol.
+#[derive(Clone)]
+pub(crate) struct StructuralValueOwner {
+    pub(crate) symbol: symbols::SymbolHandle,
+    pub(crate) statement: u32,
+    pub(crate) value: terminal_psi::StructuralOperationResult,
+}
+
 impl Evaluation {
+    /// Call operand resolvers retain authored result identities. Apply only
+    /// transports that precede the operation; earlier calls keep their places.
+    pub(crate) fn remap_transported_call_operands(&mut self, operations: &mut OperationBuffer) {
+        let cleanups = &self.selection_cleanups;
+        let remap = |operation: &mut Operation| {
+            let arguments = match &mut operation.kind {
+                OperationKind::CallUnit {
+                    structural_arguments,
+                    ..
+                }
+                | OperationKind::CallStructuralScalar {
+                    structural_arguments,
+                    ..
+                }
+                | OperationKind::CallStructural {
+                    structural_arguments,
+                    ..
+                }
+                | OperationKind::CallStructuralWithScalarArguments {
+                    structural_arguments,
+                    ..
+                }
+                | OperationKind::BoundaryCall {
+                    structural_arguments,
+                    ..
+                } => structural_arguments,
+                _ => return,
+            };
+            for cleanup in cleanups {
+                if operation.id.get() < cleanup.next_operation {
+                    continue;
+                }
+                for argument in arguments.iter_mut() {
+                    if let Some((_, target)) = cleanup
+                        .pass_through
+                        .iter()
+                        .find(|(source, _)| *source == argument.place)
+                    {
+                        argument.place = *target;
+                    }
+                }
+            }
+        };
+        for operation in &mut operations.operations {
+            remap(operation);
+        }
+        for block in &mut self.blocks {
+            for operation in &mut block.operations {
+                remap(operation);
+            }
+        }
+    }
+
+    pub(crate) fn current_structural_place(&self, mut place: PlaceId) -> PlaceId {
+        for cleanup in &self.selection_cleanups {
+            if let Some((_, target)) = cleanup
+                .pass_through
+                .iter()
+                .find(|(source, _)| *source == place)
+            {
+                place = *target;
+            }
+        }
+        place
+    }
+
+    pub(crate) fn selection_return_discards(
+        &self,
+        mut roots: Vec<(PlaceId, bool)>,
+    ) -> Result<Vec<PlaceId>, LoweringError> {
+        for cleanup in &self.selection_cleanups {
+            let selected = roots
+                .iter()
+                .position(|(place, _)| *place == cleanup.selected)
+                .ok_or(LoweringError::Unsupported(
+                    "selected cleanup result is absent from its operation roster",
+                ))?;
+            let start = roots
+                .iter()
+                .position(|(place, _)| cleanup.sources.contains(place))
+                .ok_or(LoweringError::Unsupported(
+                    "owned selection normal cleanup has no source roster",
+                ))?;
+            let end = roots
+                .iter()
+                .rposition(|(place, _)| cleanup.sources.contains(place))
+                .ok_or(LoweringError::Unsupported(
+                    "owned selection cleanup source is absent",
+                ))?
+                + 1;
+            if start <= selected
+                || !roots[start..end]
+                    .iter()
+                    .filter(|(place, _)| cleanup.sources.contains(place))
+                    .map(|(place, _)| place)
+                    .eq(cleanup.sources.iter())
+                || roots[start..end].iter().any(|(place, discard)| {
+                    !cleanup.sources.contains(place)
+                        && (*discard
+                            || cleanup
+                                .pass_through
+                                .iter()
+                                .any(|(source, _)| source == place))
+                })
+            {
+                return unsupported(
+                    "interleaved selection sources require a shared mixed-root establishment-order cleanup carrier",
+                );
+            }
+            if roots[start..end]
+                .iter()
+                .any(|(place, discard)| cleanup.sources.contains(place) && *discard)
+            {
+                return unsupported("owned selection source retains conflicting return disposal");
+            }
+            roots.splice(
+                start..end,
+                cleanup.remaining.iter().map(|place| (*place, true)),
+            );
+            for (place, _) in &mut roots {
+                if let Some((_, target)) = cleanup
+                    .pass_through
+                    .iter()
+                    .find(|(source, _)| source == place)
+                {
+                    *place = *target;
+                }
+            }
+        }
+        Ok(roots
+            .into_iter()
+            .filter_map(|(place, discard)| discard.then_some(place))
+            .collect())
+    }
+
     /// Preserve evaluated scalar bindings while committing only the dying
     /// affine owners on the completed call's normal continuation.
     pub(crate) fn cleanup_continuation(
         &mut self,
         discards: Vec<PlaceId>,
-        residuals: Vec<terminal_psi::StructuralAffineDiscard>,
+        mut residuals: Vec<terminal_psi::StructuralAffineDiscard>,
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
         next_block: &mut u64,
         next_edge: &mut u64,
         operations: &OperationBuffer,
     ) -> Result<(), LoweringError> {
+        let discards = discards
+            .into_iter()
+            .map(|place| self.current_structural_place(place))
+            .collect();
+        for residual in &mut residuals {
+            residual.place = self.current_structural_place(residual.place);
+        }
         let types = values
             .iter()
             .map(|value| value.value_type())
@@ -88,6 +251,8 @@ impl Evaluation {
     pub(crate) fn new(next_block: &mut u64) -> Result<Self, LoweringError> {
         let entry = block_id(allocate_dense(next_block)?);
         Ok(Self {
+            structural_value_owners: Vec::new(),
+            selection_cleanups: Vec::new(),
             structural_locals: Vec::new(),
             local_cases: Vec::new(),
             arrays: Vec::new(),

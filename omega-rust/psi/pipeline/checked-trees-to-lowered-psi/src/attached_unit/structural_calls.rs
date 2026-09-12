@@ -233,7 +233,7 @@ pub(super) fn validate(
         std::slice::from_ref(&target.structural_parameter),
         &[],
     )?;
-    validate_usage(caller, result)?;
+    validate_usage(checked, caller, result)?;
     Ok(())
 }
 

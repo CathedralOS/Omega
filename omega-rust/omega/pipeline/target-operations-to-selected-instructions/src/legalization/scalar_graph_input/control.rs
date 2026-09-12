@@ -21,6 +21,11 @@ pub(super) fn validate(
             },
             AbstractFunctionResult::Structural(declared),
         ) => {
+            let cleanup_actions = trivial_affine_discards
+                .iter()
+                .copied()
+                .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                .collect::<Vec<_>>();
             let (structural_type, multiplicity) = if let Some(parameter) = function
                 .structural_parameters
                 .iter()
@@ -60,7 +65,7 @@ pub(super) fn validate(
                 || !declared.projected_qualifications.is_empty()
                 || !returned_claims.is_empty()
                 || !trivial_affine_locals.is_empty()
-                || !trivial_affine_discards.is_empty()
+                || !super::aggregate_results::cleanup(function, &cleanup_actions)
             {
                 return Err(invalid);
             }

@@ -137,10 +137,11 @@ pub(super) fn validate(
                 },
             ) => {
                 psi_edge == expected_edge
-                    && cleanup_actions.is_empty()
+                    // No destructor instructions are needed for these plain homes;
+                    // retain and replay their exact ordered death-edge disposition.
+                    && edge_cleanup_matches(optimized, cleanup_actions, trivial_affine_discards)
                     && returned_claims.is_empty()
                     && trivial_affine_locals.is_empty()
-                    && trivial_affine_discards.is_empty()
                     && match source {
                         target_operations::TargetStructuralReturnSource::Parameter(parameter) => {
                             optimized.structural_parameters.iter().any(|semantic| {
