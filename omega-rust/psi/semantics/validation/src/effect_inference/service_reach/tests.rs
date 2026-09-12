@@ -47,6 +47,95 @@ fn dependency<'a>(
 const CONTRACT: &str = "boundary trait Console {}\ntrait Task { machine run() reaches Console; }\n";
 
 #[test]
+fn top_level_invocations_keep_fixed_services_and_exact_machine_bound() {
+    let program = typed(
+        r#"
+        boundary trait Audit {}
+        boundary trait Console: Audit {}
+        boundary trait Storage {}
+        pub data Endpoint {}
+        pub boundary requirement Endpoint::step(first: Console, second: Console)
+        invokes second; invokes first; reaches <= Storage;
+        pub boundary requirement Endpoint::ordinary() invokes Console; reaches Console;
+    "#,
+    );
+    let requirement = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Endpoint::step")
+        .expect("requirement");
+    let state = &program.machine_states(requirement)[0];
+    let names = |services: &[ServiceReachId]| {
+        services
+            .iter()
+            .map(|service| {
+                program
+                    .service_reaches
+                    .definition(*service)
+                    .expect("service")
+                    .name
+                    .as_str()
+            })
+            .collect::<Vec<_>>()
+    };
+    let fixed = fixed_installation_boundary_service_reach(&program, state.symbol)
+        .expect("exact bounded requirement");
+    assert_eq!(names(&fixed), ["Audit", "Console"]);
+    let call = direct_service_reach_for_call(&program, state.symbol);
+    assert_eq!(names(&call.concrete_services), ["Audit", "Console"]);
+    assert_eq!(
+        names(&call.boundary_services),
+        ["Audit", "Console", "Storage"]
+    );
+    let plan = infer_service_reaches(&program, &crate::infer_operational_may(&program));
+    let summary = plan.for_machine(requirement.symbol).expect("summary");
+    assert_eq!(
+        names(plan.rows.services(summary.concrete_effective)),
+        ["Audit", "Console"]
+    );
+    assert_eq!(
+        names(plan.rows.services(summary.effective)),
+        ["Audit", "Console", "Storage"]
+    );
+    assert_eq!(
+        summary.unresolved_installation_reaches,
+        [InstallationReachRequirement {
+            requirement: requirement.symbol,
+            upper_bound: requirement.service_reach_row,
+        }]
+    );
+    assert_eq!(
+        super::super::declared_machine_invocations(&program, requirement),
+        [
+            flow_effects::InvocationTarget::Parameter(0),
+            flow_effects::InvocationTarget::Parameter(1),
+        ]
+    );
+    let ordinary = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Endpoint::ordinary")
+        .expect("ordinary");
+    assert_eq!(
+        fixed_installation_boundary_service_reach(
+            &program,
+            program.machine_states(ordinary)[0].symbol
+        ),
+        Some(Vec::new())
+    );
+    assert_eq!(
+        names(
+            plan.rows.services(
+                plan.for_machine(ordinary.symbol)
+                    .expect("ordinary summary")
+                    .concrete_effective
+            )
+        ),
+        ["Audit", "Console"]
+    );
+}
+
+#[test]
 fn fixed_boundary_basis_uses_exact_requirement_and_keeps_overlapping_services() {
     let program = typed(
         r#"

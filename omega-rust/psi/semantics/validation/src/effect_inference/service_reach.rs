@@ -22,7 +22,7 @@ struct MachineReachWork {
     published: Vec<ServiceReachId>,
     checked_body: bool,
     uses_published: bool,
-    installation_bound: bool,
+    concrete_declared: Vec<ServiceReachId>,
     direct: Vec<ServiceReachId>,
     transitive: Vec<ServiceReachId>,
     concrete_direct: Vec<ServiceReachId>,
@@ -60,10 +60,23 @@ pub fn infer_service_reaches(
     for machine in program.machines() {
         let checked_body =
             machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody;
-        let published = program
+        let mut published = program
             .service_reach_rows
             .services(machine.service_reach_row)
             .to_vec();
+        let mut concrete_declared = if machine.service_reach_is_installation_bound {
+            Vec::new()
+        } else {
+            published.clone()
+        };
+        // A top-level boundary's authored invocations survive replacement of
+        // its abstract bound. Keep them in both the conservative declaration
+        // and its concrete basis, not in inferred body calls: the declaration
+        // has no body and the original row still bounds provider selection.
+        if machine.supply_mode.is_boundary_declaration() {
+            extend_machine_invoked_binding_services(program, machine, &mut published);
+            extend_machine_invoked_binding_services(program, machine, &mut concrete_declared);
+        }
         let mut calls = Vec::new();
         let mut direct = Vec::new();
         let mut concrete_direct = Vec::new();
@@ -116,16 +129,12 @@ pub fn infer_service_reaches(
                     .service_reach_rows
                     .services(machine.service_reach_row)
                     .is_empty(),
-            installation_bound: machine.service_reach_is_installation_bound,
+            concrete_declared: concrete_declared.clone(),
             direct: direct.clone(),
             transitive: direct,
             concrete_direct: concrete_direct.clone(),
             concrete_transitive: concrete_direct,
-            concrete_effective: if machine.service_reach_is_installation_bound {
-                Vec::new()
-            } else {
-                published
-            },
+            concrete_effective: concrete_declared,
             unresolved_installation_reaches: machine
                 .service_reach_is_installation_bound
                 .then_some(InstallationReachRequirement {
@@ -205,11 +214,7 @@ pub fn infer_service_reaches(
                 machine.published = machine.declared.clone();
                 extend_service_set(&mut machine.published, &machine.transitive);
             }
-            machine.concrete_effective = if machine.installation_bound {
-                machine.concrete_transitive.clone()
-            } else {
-                machine.declared.clone()
-            };
+            machine.concrete_effective = machine.concrete_declared.clone();
             if machine.checked_body {
                 extend_service_set(
                     &mut machine.concrete_effective,
@@ -639,8 +644,11 @@ fn direct_service_reach_for_call(program: &TypedTrees, target: SymbolHandle) -> 
                 .service_reach_rows
                 .services(machine.service_reach_row),
         );
+        extend_machine_invoked_binding_services(program, machine, &mut reach.services);
         if !machine.service_reach_is_installation_bound {
             reach.concrete_services = reach.services.clone();
+        } else {
+            extend_machine_invoked_binding_services(program, machine, &mut reach.concrete_services);
         }
         reach.boundary_services = reach.services.clone();
     }
@@ -690,10 +698,45 @@ fn extend_invoked_binding_services(
         .iter()
         .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
-    for target in super::declared_signature_invocations(program, signature) {
+    extend_invocation_target_services(
+        program,
+        &parameters,
+        &super::declared_signature_invocations(program, signature),
+        services,
+    );
+}
+
+fn extend_machine_invoked_binding_services(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    services: &mut Vec<ServiceReachId>,
+) {
+    let parameters = program
+        .machine_states(machine)
+        .first()
+        .map(|state| program.state_parameters(state))
+        .unwrap_or_default()
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    extend_invocation_target_services(
+        program,
+        &parameters,
+        &super::declared_machine_invocations(program, machine),
+        services,
+    );
+}
+
+fn extend_invocation_target_services(
+    program: &TypedTrees,
+    parameters: &[&typed_trees::signature::StateParameter],
+    invocations: &[flow_effects::InvocationTarget],
+    services: &mut Vec<ServiceReachId>,
+) {
+    for target in invocations {
         let symbol = match target {
             flow_effects::InvocationTarget::Parameter(index) => parameters
-                .get(index as usize)
+                .get(*index as usize)
                 .map(|parameter| {
                     typed_trees::service::exact_bound_service_requirement(
                         program,
@@ -707,7 +750,7 @@ fn extend_invoked_binding_services(
                     })
                 })
                 .unwrap_or_else(SymbolHandle::invalid),
-            flow_effects::InvocationTarget::Service(symbol) => symbol,
+            flow_effects::InvocationTarget::Service(symbol) => *symbol,
         };
         let Some(service) = program.service_reaches.id_for_symbol(symbol) else {
             continue;

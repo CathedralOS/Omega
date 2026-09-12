@@ -286,9 +286,6 @@ and `terminal_unit/control.rs` still treats a binder requirement as an executabl
 boundary target without a closed selection. Replace it with exact continuation
 selection while preserving the ProgramEntry two-root claim-transfer and installed
 provider tests; those receipt tests alone do not prove post-instantiation closure.
-Top-level installation-bound `invokes` still needs the fixed contribution retained
-by `validation/src/effect_inference/service_reach.rs`'s machine branch; the trait
-boundary regression does not cover that source path (publication probe unrun).
 
 ## Semantic reflection
 
