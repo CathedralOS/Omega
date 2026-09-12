@@ -395,7 +395,7 @@ pub(super) fn lower_scalar_call_closure(
     let lowered = LoweredPsi {
         semantic_module: TerminalModule {
             scalar_qualifications,
-            scalar_range_invariants: Vec::new(),
+            scalar_block_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine_id(1),
             structural_types: Vec::new(),

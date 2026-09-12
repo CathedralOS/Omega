@@ -682,7 +682,7 @@ fn boolean_constant_axiom_proves_the_return_contract() {
     let goal = Proposition::Equal(term(result), ScalarTerm::boolean(true));
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(10).expect("machine"),
         structural_types: Vec::new(),
@@ -802,7 +802,7 @@ fn boolean_not_axiom_proves_the_return_contract() {
     let goal = Proposition::Equal(term(result), not_parameter.clone());
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(20).expect("machine"),
         structural_types: Vec::new(),
@@ -1049,7 +1049,7 @@ fn boolean_equality_axiom_proves_the_return_contract() {
     let goal = Proposition::Equal(term(result), equality.clone());
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(30).expect("machine"),
         structural_types: Vec::new(),
@@ -1214,7 +1214,7 @@ fn integer_equality_axiom_proves_the_return_contract() {
     let goal = Proposition::Equal(value(result, ScalarType::Boolean), equality.clone());
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(40).expect("machine"),
         structural_types: Vec::new(),
@@ -1427,7 +1427,7 @@ fn integer_ordering_axioms_prove_return_contracts() {
         };
         let module = TerminalModule {
             scalar_qualifications: Default::default(),
-            scalar_range_invariants: Vec::new(),
+            scalar_block_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: MachineId::new(50).expect("machine"),
             structural_types: Vec::new(),
@@ -1632,7 +1632,7 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
         let obligation = ObligationId::new(60 + u64::from(kind)).expect("obligation");
         let module = TerminalModule {
             scalar_qualifications: Default::default(),
-            scalar_range_invariants: Vec::new(),
+            scalar_block_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: MachineId::new(60).expect("machine"),
             structural_types: Vec::new(),
@@ -1787,7 +1787,7 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
     let obligation = ObligationId::new(65).expect("obligation");
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(65).expect("machine"),
         structural_types: Vec::new(),
@@ -1921,7 +1921,7 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
     let obligation = ObligationId::new(68).expect("obligation");
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(68).expect("machine"),
         structural_types: Vec::new(),
@@ -2083,7 +2083,7 @@ fn preserves_address_carrier_identity() {
     let result = ValueId::new(169).expect("result");
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(168).expect("machine"),
         structural_types: Vec::new(),
@@ -2169,7 +2169,7 @@ fn exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligatio
     let cast_obligation = ObligationId::new(170).expect("cast obligation");
     let mut module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(170).expect("machine"),
         structural_types: Vec::new(),
@@ -2303,7 +2303,7 @@ fn exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
     let result = ValueId::new(183).expect("result");
     let mut module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(180).expect("machine"),
         structural_types: Vec::new(),
@@ -2414,7 +2414,7 @@ fn exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
     let result = ValueId::new(193).expect("result");
     let mut module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(190).expect("machine"),
         structural_types: Vec::new(),
@@ -2528,7 +2528,7 @@ fn exact_add_requires_same_fixed_integer_operands_and_an_obligation() {
     };
     let mut module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(194).expect("machine"),
         structural_types: Vec::new(),
@@ -2623,7 +2623,7 @@ fn exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
     };
     let mut module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(198).expect("machine"),
         structural_types: Vec::new(),
@@ -2718,7 +2718,7 @@ fn exact_multiply_requires_same_fixed_integer_operands_and_an_obligation() {
     };
     let mut module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(202).expect("machine"),
         structural_types: Vec::new(),
@@ -2821,7 +2821,7 @@ fn exact_divide_requires_same_fixed_integer_operands_and_an_obligation() {
     };
     let mut module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(212).expect("machine"),
         structural_types: Vec::new(),
@@ -2942,7 +2942,7 @@ fn exact_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
     };
     let mut module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(222).expect("machine"),
         structural_types: Vec::new(),
@@ -3036,7 +3036,7 @@ fn wrapping_divide_requires_same_fixed_integer_operands_and_an_obligation() {
     };
     let mut module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(232).expect("machine"),
         structural_types: Vec::new(),
@@ -3130,7 +3130,7 @@ fn wrapping_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
     };
     let mut module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(242).expect("machine"),
         structural_types: Vec::new(),
@@ -3224,7 +3224,7 @@ fn saturating_divide_requires_same_fixed_integer_operands_and_an_obligation() {
     };
     let mut module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(252).expect("machine"),
         structural_types: Vec::new(),
@@ -3318,7 +3318,7 @@ fn saturating_remainder_requires_same_fixed_integer_operands_and_an_obligation()
     };
     let mut module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(256).expect("machine"),
         structural_types: Vec::new(),
@@ -3437,7 +3437,7 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
         let obligation = ObligationId::new(70 + u64::from(kind)).expect("obligation");
         let module = TerminalModule {
             scalar_qualifications: Default::default(),
-            scalar_range_invariants: Vec::new(),
+            scalar_block_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: MachineId::new(70).expect("machine"),
             structural_types: Vec::new(),
@@ -5232,7 +5232,7 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
     (
         TerminalModule {
             scalar_qualifications: Default::default(),
-            scalar_range_invariants: Vec::new(),
+            scalar_block_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             structural_types: vec![StructuralTypeDeclaration {
@@ -5461,7 +5461,7 @@ fn structural_call_module() -> TerminalModule {
     };
     TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: caller,
         structural_types: vec![StructuralTypeDeclaration {
@@ -5794,7 +5794,7 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
     (
         TerminalModule {
             scalar_qualifications: Default::default(),
-            scalar_range_invariants: Vec::new(),
+            scalar_block_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             structural_types: vec![StructuralTypeDeclaration {
@@ -5966,7 +5966,7 @@ fn reflexive_content_module() -> (TerminalModule, Proposition, ObligationId) {
     (
         TerminalModule {
             scalar_qualifications: Default::default(),
-            scalar_range_invariants: Vec::new(),
+            scalar_block_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             structural_types: Vec::new(),
@@ -6507,7 +6507,7 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
     (
         TerminalModule {
             scalar_qualifications: Default::default(),
-            scalar_range_invariants: Vec::new(),
+            scalar_block_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             structural_types: Vec::new(),
@@ -6618,7 +6618,7 @@ fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
     (
         TerminalModule {
             scalar_qualifications: Default::default(),
-            scalar_range_invariants: Vec::new(),
+            scalar_block_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             structural_types: Vec::new(),
@@ -6729,7 +6729,7 @@ fn wrapping_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
     (
         TerminalModule {
             scalar_qualifications: Default::default(),
-            scalar_range_invariants: Vec::new(),
+            scalar_block_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             structural_types: Vec::new(),
@@ -6840,7 +6840,7 @@ fn saturating_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
     (
         TerminalModule {
             scalar_qualifications: Default::default(),
-            scalar_range_invariants: Vec::new(),
+            scalar_block_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             structural_types: Vec::new(),
@@ -6951,7 +6951,7 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
     (
         TerminalModule {
             scalar_qualifications: Default::default(),
-            scalar_range_invariants: Vec::new(),
+            scalar_block_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             structural_types: Vec::new(),
@@ -7062,7 +7062,7 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
     (
         TerminalModule {
             scalar_qualifications: Default::default(),
-            scalar_range_invariants: Vec::new(),
+            scalar_block_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             structural_types: Vec::new(),
@@ -7218,7 +7218,7 @@ fn proof_recursive_bundle(module: &TerminalModule) -> ProofBundle {
 fn unit_module() -> TerminalModule {
     TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(900).unwrap(),
         structural_types: Vec::new(),
@@ -7622,7 +7622,7 @@ impl Fixture {
         Self {
             module: TerminalModule {
                 scalar_qualifications: Default::default(),
-                scalar_range_invariants: Vec::new(),
+                scalar_block_invariants: Vec::new(),
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 entry: machine.id,
                 structural_types: Vec::new(),

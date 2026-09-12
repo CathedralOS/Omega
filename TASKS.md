@@ -673,7 +673,7 @@ Owners include
   `ordered_scalar`, `ordered_boolean`, `ordered_computed_boolean`,
   `ordered_nested_boolean`, `ordered_saved_boolean`, and
   `ordered_call_produced_boolean` and `ordered_boolean_call_computations` tests).
-  Boolean call results across control convergence, folded-source correspondence,
+  Dependent/nested Boolean joins, folded-source correspondence,
   saved mutable snapshots, state/control contracts, and field/arithmetic
   predicates still need their evidence joins. Preserve
   authored callee contracts regardless of whether a helper is a direct closure
@@ -681,20 +681,6 @@ Owners include
   Mutable scalar inputs still need the shared signature/storage path beyond the
   invocation-entry read checker. Do not infer normal guarantees from crash ceilings
   or use current storage as an entry snapshot.
-
-  Resume the unchanged short-circuit customers in
-  `ordered_boolean_call_computations_retain_unfinished_branch_guarantees`:
-  `identity(false) || !identity(value)` and
-  `identity(!value) && identity(true)` with `ensures result == !value`.
-  On macOS, `cargo nextest run -p checked-trees-to-lowered-psi --test unit_scalar_result_source ordered_boolean_call_computations --no-fail-fast`
-  reaches source checking, but those branch customers still reject publication
-  with `OperationProofUnavailable` (probe based on `78a44369e7`).
-  `terminal-verifier/src/verification/reconstruction.rs` intersects incoming
-  facts and loses the convergence result equation. Next acceptance is canonical
-  publication, independent verification, and execution of these same sources,
-  using evidence covering every incoming edge; equality transport cannot supply
-  a missing control-flow premise. Do not replace the branch fence with a weaker
-  guarantee or source-check-only acceptance.
 
   Package contract review still needs exact carrier/value custody for declaration
   and result projections through indexes, case payloads and generic field

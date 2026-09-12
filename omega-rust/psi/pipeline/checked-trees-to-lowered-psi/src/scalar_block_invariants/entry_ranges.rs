@@ -1,9 +1,9 @@
 //! Closed entry bounds forwarded directly into a cyclic header are candidates.
 
 use semantic_vocabulary::{BoundedIntegerType, Proposition, ScalarTerm, ScalarType};
-use terminal_psi::{ScalarRangeInvariant, TerminalModule, Terminator, ValueDeclaration};
+use terminal_psi::{ScalarBlockInvariant, TerminalModule, Terminator, ValueDeclaration};
 
-pub(super) fn candidates(module: &TerminalModule) -> Vec<ScalarRangeInvariant> {
+pub(super) fn candidates(module: &TerminalModule) -> Vec<ScalarBlockInvariant> {
     let mut candidates = Vec::new();
     for machine in &module.machines {
         let Some(entry) = machine
@@ -43,17 +43,31 @@ pub(super) fn candidates(module: &TerminalModule) -> Vec<ScalarRangeInvariant> {
                 continue;
             }
             if let Some(bounds) = bounds(formal, &machine.contract.requires) {
-                candidates.push(ScalarRangeInvariant {
+                candidates.push(ScalarBlockInvariant {
                     machine: machine.id,
                     header: header.id,
-                    parameter: parameter.id,
-                    bounds,
+                    predicate: Proposition::Conjunction(vec![
+                        Proposition::LessOrEqual(
+                            ScalarTerm::Integer {
+                                scalar_type: bounds.integer_type(),
+                                value: bounds.minimum(),
+                            },
+                            ScalarTerm::value(parameter.id, parameter.scalar_type),
+                        ),
+                        Proposition::LessOrEqual(
+                            ScalarTerm::value(parameter.id, parameter.scalar_type),
+                            ScalarTerm::Integer {
+                                scalar_type: bounds.integer_type(),
+                                value: bounds.maximum(),
+                            },
+                        ),
+                    ]),
                     arrivals: Vec::new(),
                 });
             }
         }
     }
-    candidates.sort_by_key(|candidate| (candidate.machine, candidate.header, candidate.parameter));
+    candidates.sort_by_key(|candidate| (candidate.machine, candidate.header));
     candidates
 }
 

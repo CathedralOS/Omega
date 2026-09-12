@@ -1,8 +1,13 @@
-//! Scalar induction claims name exact headers and every actual arrival.
+//! Scalar merge and induction claims name exact blocks and every actual arrival.
+//!
+//! Predicates are scoped to the destination telescope and immutable invocation
+//! formals, not every value known to the machine. In particular a branch-local
+//! definition cannot become meaningful on another branch. Entry assertions are
+//! forbidden because invocation is an implicit arrival without an edge proof.
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use semantic_vocabulary::{MachineId, ScalarType};
+use semantic_vocabulary::{MachineId, Proposition, PropositionContext};
 use terminal_psi::{TerminalMachine, TerminalModule, Terminator};
 
 use super::{IdRegistry, ModuleError, insert_unique};
@@ -13,21 +18,19 @@ pub(super) fn validate(
     registry: &mut IdRegistry,
 ) -> Result<(), ModuleError> {
     let mut previous = None;
-    for invariant in &module.scalar_range_invariants {
-        let identity = (invariant.machine, invariant.header, invariant.parameter);
+    for invariant in &module.scalar_block_invariants {
+        let identity = (invariant.machine, invariant.header);
         if previous.is_some_and(|previous| previous >= identity) {
-            return Err(ModuleError::NonCanonicalScalarRangeInvariants);
+            return Err(ModuleError::NonCanonicalScalarBlockInvariants);
         }
         previous = Some(identity);
-        let invalid = || ModuleError::InvalidScalarRangeInvariant {
+        let invalid = || ModuleError::InvalidScalarBlockInvariant {
             machine: invariant.machine,
             header: invariant.header,
-            parameter: invariant.parameter,
         };
-        let invalid_arrivals = || ModuleError::InvalidScalarRangeInvariantArrivals {
+        let invalid_arrivals = || ModuleError::InvalidScalarBlockInvariantArrivals {
             machine: invariant.machine,
             header: invariant.header,
-            parameter: invariant.parameter,
         };
         let machine = machines.get(&invariant.machine).ok_or_else(invalid)?;
         let header = machine
@@ -35,15 +38,20 @@ pub(super) fn validate(
             .iter()
             .find(|block| block.id == invariant.header)
             .ok_or_else(invalid)?;
-        if !header.parameters.iter().any(|parameter| {
-            parameter.id == invariant.parameter
-                && parameter.scalar_type == ScalarType::Integer(invariant.bounds.integer_type())
-        }) || !crate::control_graph::feedback_edges(machine)
-            .values()
-            .any(|target| *target == invariant.header)
-        {
+        if header.id == machine.entry || !scalar_predicate(&invariant.predicate) {
             return Err(invalid());
         }
+        let context = PropositionContext::from_value_types(
+            machine
+                .parameters
+                .iter()
+                .chain(&header.parameters)
+                .map(|parameter| (parameter.id, parameter.scalar_type)),
+        )
+        .map_err(|_| invalid())?;
+        context
+            .validate(&invariant.predicate)
+            .map_err(|_| invalid())?;
         let mut arrivals = BTreeSet::new();
         for block in &machine.blocks {
             match &block.terminator {
@@ -88,4 +96,24 @@ pub(super) fn validate(
         }
     }
     Ok(())
+}
+
+// The context contains no places: even nested field terms fail formation.
+// Explicitly reject non-scalar atoms which do not necessarily contain values.
+fn scalar_predicate(predicate: &Proposition) -> bool {
+    match predicate {
+        Proposition::Truth
+        | Proposition::Falsehood
+        | Proposition::Equal(..)
+        | Proposition::LessThan(..)
+        | Proposition::LessOrEqual(..) => true,
+        Proposition::Conjunction(members) | Proposition::Disjunction(members) => {
+            members.iter().all(scalar_predicate)
+        }
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => scalar_predicate(premise) && scalar_predicate(conclusion),
+        _ => false,
+    }
 }

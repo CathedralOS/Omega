@@ -1,31 +1,40 @@
 use super::*;
-use semantic_vocabulary::BoundedIntegerType;
 use terminal_codec::{
     build_terminal_obligation_ledger, current_terminal_trust_graph,
     decode_terminal_obligation_ledger, encode_terminal_obligation_ledger,
     validate_terminal_obligation_ledger,
 };
-use terminal_psi::{ScalarRangeInvariant, ScalarRangeInvariantArrival};
+use terminal_psi::{ScalarBlockInvariant, ScalarBlockInvariantArrival};
 use terminal_verifier::ReconstructedTerminalObligationOwner;
 
 fn invariant_fixture() -> TerminalModule {
     let mut module = ranked_countdown_fixture();
-    module.scalar_range_invariants = vec![ScalarRangeInvariant {
+    module.scalar_block_invariants = vec![ScalarBlockInvariant {
         machine: module.machines[0].id,
         header: block_id(901),
-        parameter: value_id(902),
-        bounds: BoundedIntegerType::new(
-            IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
-            IntegerValue::Unsigned(0),
-            IntegerValue::Unsigned(u128::from(u32::MAX)),
-        )
-        .unwrap(),
+        predicate: {
+            let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+            let value = ScalarTerm::value(value_id(902), ScalarType::Integer(integer));
+            let mut bounds = vec![
+                Proposition::LessOrEqual(
+                    ScalarTerm::integer(integer, IntegerValue::Unsigned(0)).unwrap(),
+                    value.clone(),
+                ),
+                Proposition::LessOrEqual(
+                    value,
+                    ScalarTerm::integer(integer, IntegerValue::Unsigned(u128::from(u32::MAX)))
+                        .unwrap(),
+                ),
+            ];
+            bounds.sort();
+            Proposition::Conjunction(bounds)
+        },
         arrivals: vec![
-            ScalarRangeInvariantArrival {
+            ScalarBlockInvariantArrival {
                 edge: edge_id(900),
                 obligation: obligation_id(910),
             },
-            ScalarRangeInvariantArrival {
+            ScalarBlockInvariantArrival {
                 edge: edge_id(903),
                 obligation: obligation_id(911),
             },
@@ -35,7 +44,7 @@ fn invariant_fixture() -> TerminalModule {
 }
 
 #[test]
-fn scalar_range_invariant_semantics_and_independent_ledger_reload() {
+fn scalar_block_invariant_semantics_and_independent_ledger_reload() {
     let module = invariant_fixture();
     let semantic_bytes =
         encode_module(&module).expect("invariant module encodes without certificates");
@@ -50,12 +59,11 @@ fn scalar_range_invariant_semantics_and_independent_ledger_reload() {
         .obligations()
         .iter()
         .filter_map(|row| match row.owner {
-            ReconstructedTerminalObligationOwner::ScalarRangeInvariant {
+            ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
                 machine,
                 header,
-                parameter,
                 edge,
-            } => Some((machine, header, parameter, edge, row.obligation.id)),
+            } => Some((machine, header, edge, row.obligation.id)),
             _ => None,
         })
         .collect();
@@ -65,14 +73,12 @@ fn scalar_range_invariant_semantics_and_independent_ledger_reload() {
             (
                 module.machines[0].id,
                 block_id(901),
-                value_id(902),
                 edge_id(900),
                 obligation_id(910)
             ),
             (
                 module.machines[0].id,
                 block_id(901),
-                value_id(902),
                 edge_id(903),
                 obligation_id(911)
             ),
@@ -83,8 +89,19 @@ fn scalar_range_invariant_semantics_and_independent_ledger_reload() {
     assert_eq!(reloaded_ledger, ledger);
     validate_terminal_obligation_ledger(&reloaded_ledger, &reloaded, &trust_graph).unwrap();
 
+    let mut altered_predicate = reloaded.clone();
+    altered_predicate.scalar_block_invariants[0].predicate = Proposition::Truth;
+    assert_ne!(
+        semantic_fingerprint(&altered_predicate).unwrap(),
+        semantic_fingerprint(&module).unwrap()
+    );
+    assert_eq!(
+        validate_terminal_obligation_ledger(&reloaded_ledger, &altered_predicate, &trust_graph),
+        Err(CodecError::ObligationLedgerMismatch)
+    );
+
     let mut changed = reloaded;
-    changed.scalar_range_invariants[0].arrivals[1].obligation = obligation_id(912);
+    changed.scalar_block_invariants[0].arrivals[1].obligation = obligation_id(912);
     assert_ne!(
         semantic_fingerprint(&changed).unwrap(),
         semantic_fingerprint(&module).unwrap()
@@ -95,10 +112,10 @@ fn scalar_range_invariant_semantics_and_independent_ledger_reload() {
     );
 
     let mut stale = semantic_bytes;
-    stale[8..10].copy_from_slice(&86_u16.to_le_bytes());
+    stale[8..10].copy_from_slice(&92_u16.to_le_bytes());
     assert_eq!(
         decode_module(&stale),
-        Err(CodecError::UnsupportedFormatMarker(86))
+        Err(CodecError::UnsupportedFormatMarker(92))
     );
     let mut stale = ledger_bytes;
     stale[8..10].copy_from_slice(&1_u16.to_le_bytes());
@@ -109,20 +126,22 @@ fn scalar_range_invariant_semantics_and_independent_ledger_reload() {
 }
 
 #[test]
-fn scalar_range_invariant_roster_rejects_noncanonical_or_incomplete_arrivals() {
+fn scalar_block_invariant_roster_rejects_noncanonical_or_incomplete_arrivals() {
     let original = invariant_fixture();
     let mut reordered = original.clone();
-    reordered.scalar_range_invariants[0].arrivals.reverse();
+    reordered.scalar_block_invariants[0].arrivals.reverse();
     assert!(encode_module(&reordered).is_err());
     let mut duplicate = original.clone();
     duplicate
-        .scalar_range_invariants
-        .push(duplicate.scalar_range_invariants[0].clone());
+        .scalar_block_invariants
+        .push(duplicate.scalar_block_invariants[0].clone());
     assert!(encode_module(&duplicate).is_err());
     let mut missing = original.clone();
-    missing.scalar_range_invariants[0].arrivals.pop();
+    missing.scalar_block_invariants[0].arrivals.pop();
     assert!(encode_module(&missing).is_err());
-    let mut wrong_parameter = original;
-    wrong_parameter.scalar_range_invariants[0].parameter = value_id(906);
-    assert!(encode_module(&wrong_parameter).is_err());
+    let mut wrong_scope = original;
+    let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+    let value = ScalarTerm::value(value_id(9999), ScalarType::Integer(integer));
+    wrong_scope.scalar_block_invariants[0].predicate = Proposition::Equal(value.clone(), value);
+    assert!(encode_module(&wrong_scope).is_err());
 }

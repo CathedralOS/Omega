@@ -32,6 +32,14 @@ terminator facts, and deterministic control-flow scheduling. All-incoming and
 all-return intersections cannot be replaced by a union. An operation's
 pre-result premise snapshot excludes its own later result equation.
 
+Scalar block predicates provide the checked merge/induction route when an
+ordinary intersection loses a useful relationship. Every actual arrival proves
+the same destination-scoped predicate under exact simultaneous substitution.
+Acyclic destinations retain common incoming facts; cyclic cuts discard them.
+Predicates can name only scalar formals and destination parameters, not storage
+observations or branch-local values. The verifier never searches for a predicate
+or removes an edge because producer automation finds it contradictory.
+
 Selected Boolean and integer case payloads retain their exact source, case,
 field and successor parameter identities. Their scalar binding equation is an
 edge observation, not an entry snapshot. Only the selected
@@ -175,7 +183,7 @@ field equality cannot describe a later observation.
 graph. Cut targets discard incoming semantic axioms. A declared scalar range
 may enter as an induction hypothesis only with checked establishment and
 preservation obligations for every actual arrival; ranking alone grants no range.
-The [range reconstruction](src/verification/reconstruction/scalar_range_invariants.rs)
+The [block predicate reconstruction](src/verification/reconstruction/scalar_block_invariants.rs)
 emits these obligations alongside operation safety, before successor binding.
 Every normal return still contributes to the exit intersection. General invariant reconstruction,
 wider rank views/projections, callee-progress composition, and cyclic guarded-

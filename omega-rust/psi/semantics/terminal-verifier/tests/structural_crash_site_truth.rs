@@ -76,7 +76,7 @@ fn module(store_first: bool, entry_predicate: bool) -> TerminalModule {
     };
     TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: id::<MachineId>(1),
         structural_types: vec![StructuralTypeDeclaration {

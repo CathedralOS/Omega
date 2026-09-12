@@ -325,7 +325,7 @@ fn verified_unit() -> terminal_psi_to_abstract_operations::VerifiedPsiOptimizati
 
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: id(101, MachineId::new),
         structural_types: Vec::new(),

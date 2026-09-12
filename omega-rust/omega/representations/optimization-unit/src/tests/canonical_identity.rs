@@ -289,18 +289,18 @@ fn canonical_operation_identity_bytes_are_stable() {
     assert_eq!(
         scalar.identity.bytes(),
         [
-            189, 23, 94, 223, 151, 223, 167, 48, 66, 196, 11, 149, 9, 71, 99, 26, 126, 78, 236,
-            184, 139, 8, 45, 92, 114, 4, 34, 82, 145, 112, 204, 181,
+            125, 201, 118, 139, 181, 173, 208, 156, 237, 81, 216, 79, 176, 124, 40, 170, 219, 212,
+            144, 129, 225, 127, 196, 168, 129, 24, 190, 17, 184, 179, 195, 175,
         ],
-        "identity binds vocabulary 102 and unit schema 25",
+        "identity binds vocabulary 104 and unit schema 26",
     );
     assert_eq!(
         structural.identity.bytes(),
         [
-            178, 51, 29, 118, 37, 5, 253, 13, 119, 130, 230, 81, 237, 50, 117, 187, 95, 30, 238,
-            246, 110, 211, 176, 206, 250, 229, 153, 174, 239, 55, 4, 168,
+            17, 188, 115, 142, 43, 222, 86, 85, 12, 182, 136, 226, 59, 190, 240, 130, 226, 8, 172,
+            91, 106, 132, 74, 13, 102, 212, 87, 52, 171, 94, 191, 12,
         ],
-        "identity binds vocabulary 102 and unit schema 25 alongside unchanged storage and return tags",
+        "identity binds vocabulary 104 and unit schema 26 alongside unchanged storage and return tags",
     );
 }
 
@@ -344,15 +344,13 @@ fn invariant_question_coordinates_each_bind_the_unit_identity() {
             .unwrap();
     let machine = unit.functions[0].machine;
     let header = id(201, BlockId::new);
-    let parameter = id(202, ValueId::new);
     let edge = id(203, EdgeId::new);
     unit.proof_questions.push(ProofQuestion::new(
         unit.psi,
         [5; 32],
-        ProofQuestionOwner::ScalarRangeInvariant {
+        ProofQuestionOwner::ScalarBlockInvariant {
             machine,
             header,
-            parameter,
             edge,
         },
         id(204, ObligationId::new),
@@ -364,28 +362,19 @@ fn invariant_question_coordinates_each_bind_the_unit_identity() {
     ));
     let baseline = recompute_psi_optimization_unit_identity(&unit);
     for owner in [
-        ProofQuestionOwner::ScalarRangeInvariant {
+        ProofQuestionOwner::ScalarBlockInvariant {
             machine: id(211, MachineId::new),
             header,
-            parameter,
             edge,
         },
-        ProofQuestionOwner::ScalarRangeInvariant {
+        ProofQuestionOwner::ScalarBlockInvariant {
             machine,
             header: id(212, BlockId::new),
-            parameter,
             edge,
         },
-        ProofQuestionOwner::ScalarRangeInvariant {
+        ProofQuestionOwner::ScalarBlockInvariant {
             machine,
             header,
-            parameter: id(213, ValueId::new),
-            edge,
-        },
-        ProofQuestionOwner::ScalarRangeInvariant {
-            machine,
-            header,
-            parameter,
             edge: id(214, EdgeId::new),
         },
     ] {

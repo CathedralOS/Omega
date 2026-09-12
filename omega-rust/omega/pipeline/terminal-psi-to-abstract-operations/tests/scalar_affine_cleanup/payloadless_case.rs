@@ -23,7 +23,7 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
     let result_case = semantic_vocabulary::StructuralCaseId::new(91).unwrap();
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(91),
         structural_types: vec![StructuralTypeDeclaration {

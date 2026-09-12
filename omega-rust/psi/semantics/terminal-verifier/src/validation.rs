@@ -58,9 +58,9 @@ mod reach_applications;
 pub(crate) mod record;
 mod root_service_reach;
 pub(crate) mod scalar_array;
+mod scalar_block_invariants;
 pub(crate) mod scalar_case;
 mod scalar_qualifications;
-mod scalar_range_invariants;
 mod structural_byte_sequence_fields;
 mod structural_byte_sequence_store;
 mod structural_case_membership;
@@ -925,7 +925,7 @@ fn validate_module_with_policy(
         machine::validate_machine(module, machine, &machines, &mut registry, policy)?;
     }
     scalar_qualifications::validate(module)?;
-    scalar_range_invariants::validate(module, &machines, &mut registry)?;
+    scalar_block_invariants::validate(module, &machines, &mut registry)?;
     suspension_call_plan::validate_suspension_call_plans(module)?;
     validate_call_graph(module)?;
     if !registry.machines.contains(&module.entry) {

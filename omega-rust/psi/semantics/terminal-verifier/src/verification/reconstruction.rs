@@ -3,9 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use proof_admission::Obligation;
-use semantic_vocabulary::{
-    BlockId, ContractId, EdgeId, MachineId, OperationId, Proposition, ValueId,
-};
+use semantic_vocabulary::{BlockId, ContractId, EdgeId, MachineId, OperationId, Proposition};
 use terminal_psi::{OutcomeSpecificGuard, TerminalMachine, TerminalModule, Terminator};
 
 use crate::validation::exact_payloadless_case_return_exits;
@@ -17,7 +15,7 @@ mod machine_context;
 mod machine_flow;
 mod operation_facts;
 mod path_facts;
-mod scalar_range_invariants;
+mod scalar_block_invariants;
 mod terminator_facts;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -32,10 +30,9 @@ pub struct ReconstructedOperationObligation {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ReconstructedTerminalObligationOwner {
-    ScalarRangeInvariant {
+    ScalarBlockInvariant {
         machine: MachineId,
         header: BlockId,
-        parameter: ValueId,
         edge: EdgeId,
     },
     Operation {
@@ -63,7 +60,7 @@ pub enum ReconstructedTerminalObligationOwner {
 impl ReconstructedTerminalObligationOwner {
     pub const fn machine(self) -> MachineId {
         match self {
-            Self::ScalarRangeInvariant { machine, .. }
+            Self::ScalarBlockInvariant { machine, .. }
             | Self::Operation { machine, .. }
             | Self::CallRequires { machine, .. }
             | Self::NominalCleanupRequires { machine, .. }
@@ -409,14 +406,41 @@ fn reconstruct_machine_semantics_with_crash_facts(
     } else {
         BTreeSet::new()
     };
-    if !crash_facts {
-        iteration_entries.extend(
-            module
-                .scalar_range_invariants
-                .iter()
-                .filter(|invariant| invariant.machine == machine.id)
-                .map(|invariant| invariant.header),
-        );
+    if !crash_facts
+        && module
+            .scalar_block_invariants
+            .iter()
+            .any(|invariant| invariant.machine == machine.id)
+    {
+        // Legacy countdown schedules cut their declared backedge too. An
+        // externally supplied assertion cannot make that target inherit first-
+        // arrival facts merely because the producer never proposes such rows.
+        for block in &machine.blocks {
+            match &block.terminator {
+                Terminator::Jump { edge, target, .. } if ignored_backedges.contains(edge) => {
+                    iteration_entries.insert(*target);
+                }
+                Terminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => {
+                    for successor in [when_true, when_false] {
+                        if ignored_backedges.contains(&successor.edge) {
+                            iteration_entries.insert(successor.target);
+                        }
+                    }
+                }
+                Terminator::StructuralCase { cases, .. } => {
+                    for successor in cases {
+                        if ignored_backedges.contains(&successor.edge) {
+                            iteration_entries.insert(successor.target);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
     }
     let block_order = machine_flow::deterministic_block_order(machine, &ignored_backedges);
     if block_order.len() != context.blocks.len() {
@@ -430,19 +454,23 @@ fn reconstruct_machine_semantics_with_crash_facts(
         let mut axioms = if iteration_entries.contains(&current) {
             // Treat every arrival at a cut target as an arbitrary iteration.
             // Facts from its first arrival are not invariants. Declared scalar
-            // ranges are induction hypotheses: every actual arrival becomes
+            // predicates are induction hypotheses: every actual arrival becomes
             // a proof goal, and the complete verification transaction checks
             // those goals and operation safety before returning authority.
             // Private crash reconstruction retains its conservative empty cut.
             incoming.remove(&current);
-            if crash_facts {
-                Vec::new()
-            } else {
-                scalar_range_invariants::header_axioms(module, machine.id, current)
-            }
+            Vec::new()
         } else {
             machine_flow::take_guaranteed_incoming(&mut incoming, current)
         };
+        if !crash_facts {
+            // An acyclic assertion augments common incoming facts; it must not
+            // turn a join into a loop cut. All actual arrivals prove the same
+            // scoped predicate before this transaction grants any authority.
+            axioms.extend(scalar_block_invariants::header_axioms(
+                module, machine.id, current,
+            ));
+        }
         if crash_facts {
             axioms.retain(|proposition| {
                 crash_field_origins::retains_entry_meaning(proposition, machine)
@@ -472,7 +500,7 @@ fn reconstruct_machine_semantics_with_crash_facts(
             }
         }
         if !crash_facts {
-            scalar_range_invariants::append_arrival_obligations(
+            scalar_block_invariants::append_arrival_obligations(
                 module,
                 machine,
                 &block.terminator,

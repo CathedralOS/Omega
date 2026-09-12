@@ -3,7 +3,7 @@ use super::{VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnitBuildError}
 #[cfg(test)]
 use crate::shared::*;
 #[cfg(test)]
-use semantic_vocabulary::{EdgeId, Proposition, ValueId};
+use semantic_vocabulary::{EdgeId, Proposition};
 
 pub(super) fn project_proof_questions(
     input: &VerifiedPsiOptimizationInput,
@@ -24,15 +24,13 @@ fn project_proof_question_row(
     row: &terminal_verifier::ReconstructedTerminalObligation,
 ) -> Result<optimization_unit::ProofQuestion, VerifiedPsiOptimizationUnitBuildError> {
     let owner = match row.owner {
-        terminal_verifier::ReconstructedTerminalObligationOwner::ScalarRangeInvariant {
+        terminal_verifier::ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
             machine,
             header,
-            parameter,
             edge,
-        } => optimization_unit::ProofQuestionOwner::ScalarRangeInvariant {
+        } => optimization_unit::ProofQuestionOwner::ScalarBlockInvariant {
             machine,
             header,
-            parameter,
             edge,
         },
         terminal_verifier::ReconstructedTerminalObligationOwner::Operation {
@@ -117,16 +115,14 @@ fn project_proof_question_row(
 }
 
 #[test]
-fn proof_question_projection_retains_every_scalar_range_invariant_coordinate() {
+fn proof_question_projection_retains_every_scalar_block_invariant_coordinate() {
     let machine = MachineId::new(1).unwrap();
     let header = BlockId::new(2).unwrap();
-    let parameter = ValueId::new(3).unwrap();
     let edge = EdgeId::new(4).unwrap();
     let row = terminal_verifier::ReconstructedTerminalObligation {
-        owner: terminal_verifier::ReconstructedTerminalObligationOwner::ScalarRangeInvariant {
+        owner: terminal_verifier::ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
             machine,
             header,
-            parameter,
             edge,
         },
         obligation: proof_admission::Obligation {
@@ -145,37 +141,27 @@ fn proof_question_projection_retains_every_scalar_range_invariant_coordinate() {
     let projected = project_proof_question_row(terminal_psi, [8; 32], &row).unwrap();
     assert_eq!(
         projected.owner,
-        optimization_unit::ProofQuestionOwner::ScalarRangeInvariant {
+        optimization_unit::ProofQuestionOwner::ScalarBlockInvariant {
             machine,
             header,
-            parameter,
             edge,
         }
     );
     assert!(projected.has_canonical_identity());
     for owner in [
-        optimization_unit::ProofQuestionOwner::ScalarRangeInvariant {
+        optimization_unit::ProofQuestionOwner::ScalarBlockInvariant {
             machine: MachineId::new(11).unwrap(),
             header,
-            parameter,
             edge,
         },
-        optimization_unit::ProofQuestionOwner::ScalarRangeInvariant {
+        optimization_unit::ProofQuestionOwner::ScalarBlockInvariant {
             machine,
             header: BlockId::new(12).unwrap(),
-            parameter,
             edge,
         },
-        optimization_unit::ProofQuestionOwner::ScalarRangeInvariant {
+        optimization_unit::ProofQuestionOwner::ScalarBlockInvariant {
             machine,
             header,
-            parameter: ValueId::new(13).unwrap(),
-            edge,
-        },
-        optimization_unit::ProofQuestionOwner::ScalarRangeInvariant {
-            machine,
-            header,
-            parameter,
             edge: EdgeId::new(14).unwrap(),
         },
     ] {

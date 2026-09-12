@@ -58,7 +58,7 @@ an unqualified Boolean. Decoding and verification reconstruct readable access,
 nominal case ownership, dominance and current ownership; no payload projection
 or reusable mutable-storage equation is encoded by this observation.
 
-Record construction in semantic vocabulary 102 uses operation tag 68 followed
+Record construction uses operation tag 68 followed
 by a counted declaration-order field roster. Each field identity is followed by
 operand tag 1 (scalar value identity and optional range obligation) or tag 2
 (whole structural argument, including its exact access and path). The exact
@@ -66,14 +66,15 @@ result type, multiplicity, and producer remain in the ordinary operation result.
 Retired literal tag 51 and scalar-only tag 67 reject; their payloads are not
 reinterpreted as the current operand roster.
 
-The semantic scalar-range-invariant roster precedes the machine table. Rows
-are strictly ordered by `(machine, header, parameter)` and encode those three
-identities, the integer carrier, inclusive minimum and maximum, and a counted
-arrival list. Arrivals are strictly ordered by edge identity and retain the
-edge and obligation identities. Every actual header arrival must occur exactly
-once. Bounds and the roster participate in semantic identity; their certificates
-remain replaceable flat proof evidence. The corresponding reconstructed ledger
-owner retains machine, header, parameter, and edge independently of evidence.
+The semantic scalar-block-invariant roster precedes the machine table. Rows
+are strictly ordered by `(machine, header)` and encode those identities, one
+canonical scalar proposition, and a counted arrival list. Arrivals are strictly
+ordered by edge identity and retain the edge and obligation identities. Every
+actual header arrival must occur exactly once. Predicate and roster participate
+in semantic identity; their certificates remain replaceable flat proof evidence.
+The reconstructed ledger owner retains machine, header, and edge independently
+of evidence. The block-predicate representation replaces the former dedicated
+range row; old bytes are rejected rather than reinterpreted.
 
 ## Residual jump encoding
 

@@ -136,7 +136,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
     let mut lowered = LoweredPsi {
         semantic_module: TerminalModule {
             scalar_qualifications: Default::default(),
-            scalar_range_invariants: Vec::new(),
+            scalar_block_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             structural_types,

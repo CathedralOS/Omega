@@ -4078,7 +4078,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
     let lowered = LoweredPsi {
         semantic_module: TerminalModule {
             scalar_qualifications: Default::default(),
-            scalar_range_invariants: Vec::new(),
+            scalar_block_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             // Operation bodies are emitted first; a scalar entry may follow
             // its helpers. Preserve the selected source owner, not roster order.

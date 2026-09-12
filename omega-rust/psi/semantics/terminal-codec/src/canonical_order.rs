@@ -20,18 +20,19 @@ use super::{CodecError, MAX_CONTENT_TERM_DEPTH, MAX_PROPOSITION_DEPTH, MAX_SCALA
 pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
     if !strictly_increasing(
         module
-            .scalar_range_invariants
+            .scalar_block_invariants
             .iter()
-            .map(|invariant| (invariant.machine, invariant.header, invariant.parameter)),
+            .map(|invariant| (invariant.machine, invariant.header)),
     ) {
         return Err(CodecError::NonCanonicalOrder(
-            "scalar range invariants by machine, header, and parameter",
+            "scalar block invariants by machine and header",
         ));
     }
-    for invariant in &module.scalar_range_invariants {
+    for invariant in &module.scalar_block_invariants {
+        validate_canonical_proposition(&invariant.predicate, 0)?;
         if !strictly_increasing(invariant.arrivals.iter().map(|arrival| arrival.edge)) {
             return Err(CodecError::NonCanonicalOrder(
-                "scalar range invariant arrivals by EdgeId",
+                "scalar block invariant arrivals by EdgeId",
             ));
         }
     }

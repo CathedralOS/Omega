@@ -204,7 +204,7 @@ fn terminal_fixture() -> TerminalModule {
     let final_block = BlockId::new(0x7202).expect("final block identity");
     TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),
@@ -309,7 +309,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
 
     TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),

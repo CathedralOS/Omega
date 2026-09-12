@@ -21,6 +21,7 @@ fn finalize_operation_proofs_inner(
     lowered: &mut LoweredPsi,
     #[cfg(test)] prepared_machine: &(impl Fn(MachineId) + Sync),
 ) -> Result<(), LoweringError> {
+    crate::scalar_block_invariants::retain_provable(lowered)?;
     let has_ranked_countdown = lowered.semantic_module.machines.iter().any(|machine| {
         machine
             .ranked_scc

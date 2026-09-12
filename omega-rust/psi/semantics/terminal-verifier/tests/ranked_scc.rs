@@ -54,7 +54,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
 
     TerminalModule {
         scalar_qualifications: Default::default(),
-        scalar_range_invariants: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),
@@ -837,8 +837,8 @@ mod unranked_unit_calls;
 #[path = "ranked_scc/unranked_scalar_calls.rs"]
 mod unranked_scalar_calls;
 
-#[path = "ranked_scc/scalar_range_invariants.rs"]
-mod scalar_range_invariants;
+#[path = "ranked_scc/scalar_block_invariants.rs"]
+mod scalar_block_invariants;
 
 #[path = "ranked_scc/natural_stale_observations.rs"]
 mod natural_stale_observations;

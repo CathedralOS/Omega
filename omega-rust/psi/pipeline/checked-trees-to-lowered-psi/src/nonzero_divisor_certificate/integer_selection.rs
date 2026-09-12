@@ -119,6 +119,7 @@ fn build_without_cases(
         semantic_axioms,
         &mut definitions,
     )
+    .or_else(|| logical::prove_boolean_contradiction(goal, assumptions, semantic_axioms))
 }
 
 fn build_with_definitions(

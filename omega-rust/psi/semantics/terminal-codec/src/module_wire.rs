@@ -4,8 +4,9 @@
 //! vocabulary envelope. Individual declaration, machine, scalar, proof, and
 //! structural payloads remain in their dedicated sibling wire modules.
 
+use super::proposition_wire::{decode_proposition, encode_proposition};
 use language_semantics::{CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
-use semantic_vocabulary::{BoundedIntegerType, ContentProjectionIdentity, IeeeFloatFormat};
+use semantic_vocabulary::{ContentProjectionIdentity, IeeeFloatFormat};
 use terminal_psi::{
     ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
     ClosedConformanceCallableResult, ClosedConformanceParameterBinding,
@@ -50,10 +51,7 @@ use super::provider_candidate_wire::{decode_provider_candidate, encode_provider_
 use super::quotient_correspondence_wire::{
     decode_quotient_correspondence, encode_quotient_correspondence,
 };
-use super::scalar_wire::{
-    decode_integer_type, decode_integer_value, decode_scalar_type, encode_integer_type,
-    encode_integer_value, encode_scalar_type,
-};
+use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use super::structural_field_wire::{decode_ieee_float_field, encode_ieee_float_field};
 use super::structural_signature_wire::{
     decode_boundary_machine, decode_content_projection_expression, encode_boundary_machine,
@@ -1212,17 +1210,14 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
         encode_quotient_correspondence(&mut writer, correspondence)?;
     }
     writer.len(
-        "scalar range invariants",
-        module.scalar_range_invariants.len(),
+        "scalar block invariants",
+        module.scalar_block_invariants.len(),
     )?;
-    for invariant in &module.scalar_range_invariants {
+    for invariant in &module.scalar_block_invariants {
         writer.id(invariant.machine);
         writer.id(invariant.header);
-        writer.id(invariant.parameter);
-        encode_integer_type(&mut writer, invariant.bounds.integer_type());
-        encode_integer_value(&mut writer, invariant.bounds.minimum());
-        encode_integer_value(&mut writer, invariant.bounds.maximum());
-        writer.len("scalar range invariant arrivals", invariant.arrivals.len())?;
+        encode_proposition(&mut writer, &invariant.predicate, 0)?;
+        writer.len("scalar block invariant arrivals", invariant.arrivals.len())?;
         for arrival in &invariant.arrivals {
             writer.id(arrival.edge);
             writer.id(arrival.obligation);
@@ -1621,19 +1616,13 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         decode_counted(reader, decode_suspension_call_plan)?,
     );
     let quotient_correspondences = decode_counted(reader, decode_quotient_correspondence)?;
-    let scalar_range_invariants = decode_counted(reader, |reader| {
-        Ok(terminal_psi::ScalarRangeInvariant {
+    let scalar_block_invariants = decode_counted(reader, |reader| {
+        Ok(terminal_psi::ScalarBlockInvariant {
             machine: reader.id("MachineId")?,
             header: reader.id("BlockId")?,
-            parameter: reader.id("ValueId")?,
-            bounds: BoundedIntegerType::new(
-                decode_integer_type(reader)?,
-                decode_integer_value(reader)?,
-                decode_integer_value(reader)?,
-            )
-            .map_err(CodecError::MalformedProposition)?,
+            predicate: decode_proposition(reader, 0)?,
             arrivals: decode_counted(reader, |reader| {
-                Ok(terminal_psi::ScalarRangeInvariantArrival {
+                Ok(terminal_psi::ScalarBlockInvariantArrival {
                     edge: reader.id("EdgeId")?,
                     obligation: reader.id("ObligationId")?,
                 })
@@ -1647,7 +1636,7 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     }
     Ok(TerminalModule {
         scalar_qualifications,
-        scalar_range_invariants,
+        scalar_block_invariants,
         vocabulary_marker,
         entry,
         structural_types,
