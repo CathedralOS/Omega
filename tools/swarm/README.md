@@ -70,14 +70,15 @@ Before the first wave, a human with org access must:
    `CathedralOS/Squalr-Omega` (the latter is needed for the blueprint's
    best-effort `git submodule update --init`) and can push `main` and
    `refs/coordination/*`.
-3. Set the org default model (e.g. SWE-2 Max) in the web app.
+3. Choose the agent mode in the manifest's `devin_mode` (wave 1 uses `fusion`).
 4. Sync `.devin/blueprint.yaml` and wait for the snapshot build.
 
 ## Stated limits
 
-- The model is the org default. There is no per-session model field;
-  `devin_mode` is the only per-session knob. Set the org default (e.g.
-  SWE-2 Max) in the web app.
+- Cloud sessions expose no model choice. The only per-session knob is the
+  agent mode (`normal`, `fast`, `lite`, `ultra`, `fusion`), passed as
+  `devin_mode`; `null` means the org default mode. Which model backs each
+  mode is not documented and cannot be pinned from the launcher.
 - Snapshot warmth is relative to the snapshot's build commit. It buys
   crates.io downloads, the registry index, build scripts, and unchanged leaf
   crates; at this repository's commit velocity the first `cargo check` still

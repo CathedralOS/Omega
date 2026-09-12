@@ -184,6 +184,15 @@ class SwarmTests(unittest.TestCase):
         self.assertNotIn("devin_mode", body)
         self.assertNotIn("cog_testkey", json.dumps(body))
 
+    def test_wave1_body_carries_fusion_mode(self):
+        wave = self.module.load_manifest(
+            LAUNCH.parent / "waves" / "wave-1.json", self.repository_root())
+        body = self.module.request_body(wave, wave["sessions"][0], "the prompt")
+        self.assertEqual(body["devin_mode"], "fusion")
+
+    def repository_root(self):
+        return LAUNCH.resolve().parents[2]
+
     def test_launch_idempotency_requires_relaunch(self):
         record = manifest()
         manifest_path = self.root / "wave.json"

@@ -1,7 +1,7 @@
 {
   "wave": "w1",
   "max_acu_limit": 10,
-  "devin_mode": null,
+  "devin_mode": "fusion",
   "bypass_approval": true,
   "resumable": true,
   "tags": ["omega-swarm", "w1"],

@@ -8,7 +8,7 @@
   "properties": {
     "wave": {"type": "string", "description": "Wave identifier used in titles, tags, and build/swarm/<wave>/ output.", "pattern": "^[A-Za-z0-9._-]+$"},
     "max_acu_limit": {"type": "integer", "minimum": 1, "description": "Per-session ACU cap passed as max_acu_limit."},
-    "devin_mode": {"type": ["string", "null"], "enum": ["normal", "fast", "lite", "ultra", "fusion", null], "description": "Only per-session knob; the model itself is the org default. Omitted from the request when null."},
+    "devin_mode": {"type": ["string", "null"], "enum": ["normal", "fast", "lite", "ultra", "fusion", null], "description": "Only per-session knob; the model cannot be chosen; null means the org default mode. Omitted from the request when null."},
     "bypass_approval": {"type": "boolean"},
     "resumable": {"type": "boolean"},
     "tags": {"type": "array", "items": {"type": "string"}},
