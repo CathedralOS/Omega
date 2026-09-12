@@ -182,17 +182,25 @@ and result identity must survive through Terminal and artifact replay.
 
 The [type-equation and range-matching rules](../../../wiki/spec/language/generics.md#structural-type-equations-and-inference)
 add source type equality, endpoint extraction, and canonical interval matching.
-Machine-call inference extracts literal declared endpoints through
-`typed-trees-to-checked-trees/src/monomorphization/range_arguments.rs`. It uses
-resolved integer carriers and canonical const leaves, not flow intervals or
-rendered type identity. Explicit arguments stay fixed; result context fills only
-slots not supplied by inputs. Open forwarded occurrences defer selection until
-the caller specializes. Ordinary compatibility and const validation still run.
+Machine-call inference extracts literal and closed anonymous declared endpoints
+through `typed-trees-to-checked-trees/src/monomorphization/range_arguments.rs`. It uses
+resolved integer carriers, the shared exact numeric evaluator and canonical const
+leaves, not flow intervals or rendered type identity. Explicit arguments stay
+fixed; result context fills only slots not supplied by inputs. Open forwarded
+occurrences defer selection until the caller specializes. Ordinary compatibility
+and const validation still run.
 The checked customer is `cargo run -p omega -- --check
 tests/omega/pass/generics/declared_range_endpoint_inference/main.omg` (use `mbx`
-instead of Cargo when available). This does not establish native execution.
+instead of Cargo when available). The `canary_suite` test
+`generics_and_dependent_facts::declared_range_inference_returns_the_selected_endpoint`
+executes its inferred calls through the compile-time evaluator. Terminal/native
+execution remains separate: `lower_machine` on the literal `inferred` caller fails
+scalar graph lowering's requirement for exactly one `requires` and one `ensures`
+clause.
 
-Computed/symbolic endpoint normalization and exact type equations remain open.
+Named/typed and open symbolic endpoint evaluation, general range-compatibility
+normalization and exact type equations remain open. Anonymous normalization can
+select a bound without removing later compatibility/evaluation restrictions.
 `generic_data/arguments.rs` still excludes range-qualified arguments from its
 slug path, and constrained-shell substitution is not general decomposition.
 `STRUCTURAL-GENERIC-MATCHING` tracks migration through source,

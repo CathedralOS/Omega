@@ -23,6 +23,8 @@ fn declared_range_endpoints_select_const_arguments_before_compatibility() {
         machine inferred(value: u64[5..=256]) -> u64 { upper_bound(value) }
         machine exclusive(value: u64[0..257]) -> u64 { upper_bound(value) }
         machine hexadecimal(value: u64[0..=0x100]) -> u64 { upper_bound(value) }
+        machine computed(value: u64[0..=128 + 128]) -> u64 { upper_bound(value) }
+        machine computed_exclusive(value: u64[0..128 * 2 + 1]) -> u64 { upper_bound(value) }
         machine explicit(value: u64[0..=256]) -> u64 { upper_bound<512>(value) }",
     );
     assert_eq!(checked.machine_specializations.len(), 2);
@@ -40,7 +42,7 @@ fn declared_range_inference_uses_lower_and_upper_endpoint_positions() {
     let checked = accepts(
         "const Values::LOW: i32 = -5;
         machine bound<const Low: i32, const High: i32>(value: i32[Low..=High]) -> i32 { Low }
-        machine inferred(value: i32[-5..=25]) -> i32 { bound(value) }
+        machine inferred(value: i32[0 - 5..=5 * 5]) -> i32 { bound(value) }
         machine explicit(value: i32[-5..=25]) -> i32 { bound<Values::LOW, 25>(value) }",
     );
     assert_eq!(checked.machine_specializations.len(), 1);
@@ -97,7 +99,7 @@ fn declared_range_inference_waits_for_explicit_forwarded_const_arguments() {
 fn declared_range_inference_preserves_repeated_endpoint_agreement() {
     let checked = accepts(
         "machine bound<const N: u64>(first: u64[0..=N], second: u64[0..=N]) -> u64 { N }
-        machine inferred(first: u64[0..=256], second: u64[5..=256]) -> u64 { bound(first, second) }",
+        machine inferred(first: u64[0..=128 + 128], second: u64[5..=256]) -> u64 { bound(first, second) }",
     );
     assert_eq!(checked.machine_specializations.len(), 1);
     assert!(check(
@@ -155,14 +157,16 @@ fn declared_range_inference_does_not_replace_compatibility_or_const_validation()
 }
 
 #[test]
-fn declared_range_inference_does_not_invent_missing_or_computed_endpoints() {
+fn declared_range_inference_does_not_invent_missing_or_unusable_endpoints() {
     for source in [
         "machine bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
         machine invalid(value: u64) -> u64 { bound(value) }",
         "machine bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
         machine invalid() -> u64 { let value: u64 = 5; bound(value) }",
         "machine bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
-        machine invalid(value: u64[0..=128 + 128]) -> u64 { bound(value) }",
+        machine invalid(value: u64[0..=1 / 2]) -> u64 { bound(value) }",
+        "machine bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+        machine invalid(value: u64[0..=256 / 0]) -> u64 { bound(value) }",
         "machine bound<const N: u64>(value: u64[0..=N * 2]) -> u64 { N }
         machine invalid(value: u64[0..=256]) -> u64 { bound(value) }",
         "machine bound<const N: u64>(value: u64[0..=N]) -> u64 { N }

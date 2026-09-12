@@ -1018,14 +1018,13 @@ Owners include
   for bounded containers deriving static backing from a declared length type.
   Psi parser/type-role resolution, generic-data substitution, machine inference,
   canonical type identity, and checked branch facts own the route; static
-  evaluation/layout and artifact readers must use the same normalizer. Existing
-  literal-endpoint machine inference in
+  evaluation/layout and artifact readers must use the same normalizer. Inference in
   `typed-trees-to-checked-trees/src/monomorphization/range_arguments.rs` must extend
-  to computed/symbolic endpoints through the shared semantic normalizer; do not
-  use the i64 compatibility interval evaluator as canonical type identity.
+  to named/typed computations and open symbolic endpoints through shared semantic
+  evaluation; do not use the i64 compatibility interval evaluator as canonical
+  type identity.
   Keep `tests/omega/pass/generics/declared_range_endpoint_inference/main.omg`
-  as the checked call regression (`cargo run -p omega -- --check <path>`;
-  macOS, baseline `f5854ca447` rejects the omitted bound).
+  as the checked call regression; the source pipeline map retains its CLI command.
   Replace the range-argument exclusion in `generic_data/arguments.rs` only with exact identity
   and constrained-shell substitution, not a source-display cache key.
 

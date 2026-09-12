@@ -4,6 +4,40 @@ use super::*;
 pub(super) mod fixture_roster;
 
 #[test]
+fn declared_range_inference_returns_the_selected_endpoint() {
+    use build_time_evaluation::{
+        BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeValue,
+    };
+
+    let canary = pass_canary("generics/declared_range_endpoint_inference");
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
+        .expect("computed declared endpoints select closed calls");
+    let admission = BuildTimeAdmissionPlan::infer(&checked.typed);
+    for (name, expected) in [
+        ("inferred", 256),
+        ("computed", 256),
+        ("computed_exclusive", 256),
+        ("explicit", 512),
+    ] {
+        let machine = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| checked.symbols.display_path(machine.symbol, "::") == name)
+            .expect("range consumer");
+        let execution = admission
+            .evaluate_machine_symbol_for_invocation_measured(
+                &checked.typed,
+                machine.symbol,
+                vec![BuildTimeValue::Int(0)],
+                BuildTimeInvocationCustody::Symbol(machine.symbol),
+            )
+            .expect("checked generic call executes");
+        assert_eq!(execution.value(), &BuildTimeValue::Int(expected), "{name}");
+    }
+}
+
+#[test]
 fn runtime_decreases_u64_measure_exit_canary_runs() {
     // u64-typed termination measures verify like usize ones (the usize
     // retirement's stage-1 enabler; natural_measure_names_match).
