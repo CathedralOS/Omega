@@ -11,6 +11,30 @@ pub(super) fn retain_catalog_roots<'checked>(
 ) -> Result<(), LoweringError> {
     for callee in callees {
         if let CheckedScalarCallee::Graph(graph) = callee {
+            let reach = checked
+                .facts
+                .service_reaches
+                .for_machine(graph.machine)
+                .ok_or(LoweringError::Unsupported(
+                    "scalar graph lost its checked service contract",
+                ))?;
+            let contract = checked
+                .facts
+                .service_reaches
+                .plan_for_machine(graph.machine)
+                .ok_or(LoweringError::Unsupported(
+                    "scalar graph lost its checked service plan",
+                ))?;
+            collect_installation_machine_contract_services(
+                checked,
+                graph.machine,
+                contract,
+                ServiceReachSummary {
+                    direct: reach.inferred_direct,
+                    transitive: reach.inferred_transitive,
+                },
+                service_roots,
+            )?;
             type_roots.extend(crate::scalar_computations::cases::type_roots(
                 checked,
                 graph.machine,

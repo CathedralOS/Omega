@@ -32,6 +32,16 @@ The reference interpreter executes the portable semantics directly. Native
 code realizes the same semantics. Differential agreement is evidence about
 implementations, not a definition of the language.
 
+Concrete service closure retains fixed declaration contributions, including
+services contributed by declared synchronous invocations, separately from
+installation-selected requirement bounds. The verifier unions those contributions
+and retained calls from the selected entry. An inert checked callback does not
+erase its declared Console promise. A Console declaration remains concrete even
+when an installation requirement also has Console in its upper bound; subtracting
+the bound from a flattened published ceiling cannot recover that distinction.
+These declarations are semantic contract inputs, not proof certificates or an
+independently verified generic-substitution receipt.
+
 ## Publication and separate consumption
 
 Compilation may stop at Terminal Psi. A later interpreter or native lowerer

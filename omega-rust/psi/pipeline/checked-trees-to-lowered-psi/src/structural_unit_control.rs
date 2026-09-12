@@ -573,6 +573,7 @@ pub(super) fn lower_structural_unit_control_machine(
         });
     }
     let machine = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
         parameters: state_scalar_parameters[0].clone(),
@@ -791,6 +792,7 @@ fn lower_ranked_structural_unit_countdown(
         scalar_type: rank_scalar_type,
     };
     let machine = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
         parameters: vec![ValueDeclaration {

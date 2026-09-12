@@ -52,6 +52,7 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
         },
     };
     let mut machine = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: MachineId::new(1).unwrap(),
         attachment: None,
         parameters: vec![value(1, parameter), value(2, parameter)],

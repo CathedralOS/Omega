@@ -34,6 +34,7 @@ fn predicate(proposition: Proposition) -> CrashRouteGuard {
 
 fn machine(identity: u64) -> TerminalMachine {
     TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: MachineId::new(identity).unwrap(),
         attachment: None,
         parameters: Vec::new(),

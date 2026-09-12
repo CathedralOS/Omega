@@ -254,6 +254,7 @@ mod tests {
                 },
             });
             let mut machine = TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: MachineId::new(1).unwrap(),
                 attachment: None,
                 parameters: Vec::new(),

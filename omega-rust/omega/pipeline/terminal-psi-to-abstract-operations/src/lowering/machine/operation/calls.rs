@@ -354,6 +354,7 @@ mod tests {
 
     fn machine() -> TerminalMachine {
         TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: MachineId::new(1).unwrap(),
             attachment: None,
             parameters: Vec::new(),

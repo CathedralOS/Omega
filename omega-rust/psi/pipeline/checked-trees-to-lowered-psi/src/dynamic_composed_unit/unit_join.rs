@@ -220,6 +220,7 @@ pub(super) fn lower(
     });
     applications.dedup();
     let mut machines = vec![TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: caller_machine,
         attachment: Some(caller_attachment),
         parameters: vec![ValueDeclaration {

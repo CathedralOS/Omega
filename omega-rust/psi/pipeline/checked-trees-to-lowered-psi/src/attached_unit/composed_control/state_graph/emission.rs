@@ -758,6 +758,11 @@ pub(in crate::attached_unit::composed_control) fn emit(
         );
     }
     let mut machine = TerminalMachine {
+        declared_service_reach: crate::attached_unit::lower_declared_service_reach(
+            checked,
+            plan.machine,
+            &catalogs.service_ids,
+        )?,
         id: terminal_machine,
         attachment,
         parameters: scalar_parameters,

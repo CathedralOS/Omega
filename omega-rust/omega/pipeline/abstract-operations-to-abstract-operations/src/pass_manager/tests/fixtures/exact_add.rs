@@ -69,6 +69,7 @@ pub(super) fn verified_exact_add_unit_with_right(
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: machine,
             attachment: None,
             parameters: Vec::new(),

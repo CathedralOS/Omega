@@ -196,6 +196,7 @@ pub(super) fn lower_structural_call_return_machine(
         &[],
     )?;
     let caller = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: Some(attachment),
         parameters: Vec::new(),

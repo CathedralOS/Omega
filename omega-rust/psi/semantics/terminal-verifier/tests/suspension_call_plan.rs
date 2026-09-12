@@ -123,6 +123,7 @@ fn fixture() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: id(1),
                 attachment: None,
                 parameters: vec![caller_parameter, second_parameter],
@@ -184,6 +185,7 @@ fn fixture() -> TerminalModule {
                 },
             },
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: id(2),
                 attachment: None,
                 parameters: vec![callee_parameter],

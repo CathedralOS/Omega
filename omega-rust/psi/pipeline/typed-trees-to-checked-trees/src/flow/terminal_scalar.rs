@@ -16,11 +16,13 @@ pub(crate) fn build_checked_terminal_machine_selections(
             .map(|machine| CheckedTerminalMachineSelection {
                 machine: machine.symbol,
                 name: program.symbols.display_path(machine.symbol, "::"),
+                // `satisfies` is checked requirement refinement, not a runtime
+                // receiver or an alternate body. A closed checked machine keeps
+                // its ordinary signature and its own published contract.
                 signature: if machine.attached_data.is_some() {
                     CheckedTerminalSignatureEligibility::Attached
                 } else if !machine.type_parameters.is_empty()
                     || !machine.owned_data.is_empty()
-                    || !machine.satisfies.is_empty()
                     || (machine.termination_plan.implementation_witness.is_some()
                         && crate::checks::termination::proven_slice_length_ranks(program, machine)
                             .is_none()

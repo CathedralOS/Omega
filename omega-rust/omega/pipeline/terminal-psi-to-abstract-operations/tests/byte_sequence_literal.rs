@@ -241,6 +241,7 @@ fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: machine_id(1),
             attachment: None,
             parameters: Vec::new(),

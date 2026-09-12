@@ -1054,6 +1054,21 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             &services,
             ServiceCeilingOwner::Machine(machine.id),
         )?;
+        validate_service_ceiling(
+            &machine.declared_service_reach,
+            &services,
+            ServiceCeilingOwner::MachineDeclared(machine.id),
+        )?;
+        if let Some(service) = machine
+            .declared_service_reach
+            .iter()
+            .find(|service| !machine.published_service_ceiling.contains(service))
+        {
+            return Err(ModuleError::DeclaredServiceOutsidePublishedCeiling {
+                machine: machine.id,
+                service: *service,
+            });
+        }
         validate_machine_entry_claims(module, machine)?;
     }
     Ok(())
@@ -1486,6 +1501,7 @@ pub enum StructuralSignatureOwner {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ServiceCeilingOwner {
     Machine(MachineId),
+    MachineDeclared(MachineId),
     Boundary(BoundaryMachineId),
     RootConcrete,
     InstallationReach(usize),

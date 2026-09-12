@@ -110,6 +110,7 @@ fn structural_scalar_field_module() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: caller,
                 attachment: Some(owner_type),
                 parameters: Vec::new(),
@@ -187,6 +188,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                 contract: contract(1),
             },
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: realization,
                 attachment: Some(item_type),
                 parameters: vec![ValueDeclaration {

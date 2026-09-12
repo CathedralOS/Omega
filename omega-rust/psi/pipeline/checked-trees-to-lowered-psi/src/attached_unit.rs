@@ -34,6 +34,7 @@ mod structural_completion;
 pub(crate) mod structural_values;
 
 use bodies::UnitBody;
+pub(super) use parameters::lower_declared_service_reach;
 use parameters::lower_unit_scalar_parameter_types;
 pub(super) use parameters::validate_direct_unit_parameter_custody;
 
@@ -3794,6 +3795,11 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
             Vec::new()
         };
         machines.push(TerminalMachine {
+            declared_service_reach: lower_declared_service_reach(
+                checked,
+                plan.machine,
+                &service_ids,
+            )?,
             id: terminal_machine,
             attachment,
             parameters: scalar_parameters.clone(),
@@ -3957,9 +3963,35 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
             &graph_parameters.1,
             machine.loop_plan.as_ref(),
         )?;
-        let [terminal_machine] = lowered.semantic_module.machines.as_slice() else {
+        let [terminal_machine] = lowered.semantic_module.machines.as_mut_slice() else {
             unreachable!("one prepared selected scalar graph emits one terminal machine")
         };
+        let reach = checked
+            .facts
+            .service_reaches
+            .for_machine(machine.source_machine)
+            .ok_or(LoweringError::Unsupported(
+                "scalar graph lost its checked service contract",
+            ))?;
+        let contract = checked
+            .facts
+            .service_reaches
+            .plan_for_machine(machine.source_machine)
+            .ok_or(LoweringError::Unsupported(
+                "scalar graph lost its checked service plan",
+            ))?;
+        terminal_machine.published_service_ceiling = lower_installation_machine_service_ceiling(
+            checked,
+            machine.source_machine,
+            contract,
+            ServiceReachSummary {
+                direct: reach.inferred_direct,
+                transitive: reach.inferred_transitive,
+            },
+            &service_ids,
+        )?;
+        terminal_machine.declared_service_reach =
+            lower_declared_service_reach(checked, machine.source_machine, &service_ids)?;
         machines.push(terminal_machine.clone());
         scalar_evidence.append(&mut lowered.proof_bundle.evidence);
         source_call_occurrences.append(&mut lowered.source_call_occurrences);

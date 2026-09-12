@@ -30,6 +30,11 @@ pub struct TerminalMachine {
     /// content projections. Content claims below refine these identities when
     /// present.
     pub entry_claims: Vec<EntryClaim>,
+    /// Fixed authored service contribution, strictly ordered and parent-closed.
+    /// This is a semantic contract input, not an inferred summary: an inert
+    /// body retains its declaration, even when the same service also belongs
+    /// to an installation-selected requirement's nonconcrete upper bound.
+    pub declared_service_reach: Vec<ServiceId>,
     /// Strictly ordered normalized executable boundary-service ceiling. Public
     /// checked machines retain their derived published row; private machines
     /// and executable entries retain their exact checked effective reach.

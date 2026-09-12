@@ -270,6 +270,14 @@ Keep the source-to-canonical-policy regression in
 public generic also has closed applications; original interface identity must
 not depend on which applications are present. Its private closed-application and
 unused-generic controls establish template preservation, not Terminal custody.
+Its `service_reach_contracts` command covers concrete callback rows through
+publication, reload and interpretation, including inert declared reach and
+private helper propagation. Resume with original dependency/telescope custody
+and exact substitution replay; concrete row preservation does not establish them.
+The valid bounded-boundary source in `direct_installation_boundary_keeps_its_required_declaration`
+checks but publication at `4306898b5f` plus this row repair still rejects with
+`InstallationReachBoundaryMismatch`: rejoin the normalized requirement upper bound
+and boundary declaration before claiming source-to-Terminal installation coverage.
 
 ## Semantic reflection
 

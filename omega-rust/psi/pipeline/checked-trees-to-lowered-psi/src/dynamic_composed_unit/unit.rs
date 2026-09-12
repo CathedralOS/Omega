@@ -224,6 +224,7 @@ fn lower_dynamic_unit_machine(
             quotient_correspondences: Vec::new(),
             machines: {
                 let mut machines = vec![TerminalMachine {
+                    declared_service_reach: Vec::new(),
                     id: caller_machine,
                     attachment: Some(caller_attachment),
                     parameters: Vec::new(),
@@ -597,6 +598,7 @@ pub(super) fn materialize_unit_realizations(
                 projected_qualifications: Vec::new(),
             };
             Ok(TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: realization.machine,
                 attachment: Some(source_type),
                 parameters: Vec::new(),
@@ -1030,6 +1032,7 @@ fn materialize_forwarded_unit_helper(
     )?;
     let (_, requirement_slot) = dynamic_parameter_interface(application, selected_row)?;
     Ok(TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: ids.machine,
         attachment: None,
         parameters: Vec::new(),

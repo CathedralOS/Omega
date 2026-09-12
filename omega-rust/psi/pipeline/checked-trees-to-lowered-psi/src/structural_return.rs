@@ -199,6 +199,7 @@ pub(super) fn lower_structural_return_machine(
 
     let terminal_machine = machine_id(1);
     let machine = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: terminal_machine,
         attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
         parameters: Vec::new(),

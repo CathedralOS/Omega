@@ -111,6 +111,7 @@ fn module(store_first: bool, entry_predicate: bool) -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: id::<MachineId>(1),
             attachment: Some(id(1)),
             parameters: Vec::new(),

@@ -436,6 +436,7 @@ mod tests {
             suspension_call_plans: Vec::new(),
             quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: MachineId::new(1).unwrap(),
                 attachment: None,
                 parameters: Vec::new(),

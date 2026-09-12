@@ -461,6 +461,10 @@ pub enum ModuleError {
         owner: ServiceCeilingOwner,
         service: ServiceId,
     },
+    DeclaredServiceOutsidePublishedCeiling {
+        machine: MachineId,
+        service: ServiceId,
+    },
     NonCanonicalPublishedServiceCeiling(ServiceCeilingOwner),
     UnknownPublishedService {
         owner: ServiceCeilingOwner,

@@ -46,6 +46,7 @@ pub(super) fn lower_payloadless_case_return_machine(
     let operation_result_place = place_id(1);
     let machine_result_place = place_id(RESULT_STRUCTURAL_PLACE_ID);
     let machine = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: terminal_machine,
         attachment: Some(attachment),
         parameters: Vec::new(),

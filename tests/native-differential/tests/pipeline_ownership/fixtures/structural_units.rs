@@ -34,6 +34,7 @@ pub(crate) fn unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: machine,
             attachment: None,
             parameters: Vec::new(),
@@ -221,6 +222,7 @@ pub(crate) fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: caller,
                 attachment: None,
                 parameters: Vec::new(),
@@ -265,6 +267,7 @@ pub(crate) fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
                 contract: contract(ContractId::new(3_613).unwrap()),
             },
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: callee,
                 attachment: None,
                 parameters: Vec::new(),

@@ -53,6 +53,7 @@ pub(crate) fn scalar_call_unit_artifact_with(
         },
     };
     let caller_machine = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: caller,
         attachment: Some(attachment),
         parameters: Vec::new(),

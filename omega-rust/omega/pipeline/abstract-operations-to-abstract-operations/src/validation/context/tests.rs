@@ -351,6 +351,7 @@ fn verified_unit() -> terminal_psi_to_abstract_operations::VerifiedPsiOptimizati
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: id(101, MachineId::new),
             attachment: None,
             parameters: Vec::new(),

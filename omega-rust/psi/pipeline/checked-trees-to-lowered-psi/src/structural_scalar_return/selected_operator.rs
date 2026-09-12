@@ -198,6 +198,7 @@ pub(crate) fn lower_selected_operator_structural_scalar_return_machine(
     };
     let call_operation = operation_id(1);
     let caller = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: None,
         parameters: Vec::new(),

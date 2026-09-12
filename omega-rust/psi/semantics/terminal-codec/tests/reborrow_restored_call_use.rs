@@ -117,6 +117,7 @@ fn restored_call_use_module() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: caller,
                 attachment: None,
                 parameters: Vec::new(),
@@ -164,6 +165,7 @@ fn restored_call_use_module() -> TerminalModule {
                 contract: contract(1),
             },
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: callee,
                 attachment: None,
                 parameters: Vec::new(),
@@ -305,6 +307,7 @@ fn restored_call_use_round_trips_and_commits_every_variable_axis() {
         projected_qualifications: Vec::new(),
     };
     two_member_shared.machines.push(TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: observer,
         attachment: None,
         parameters: Vec::new(),

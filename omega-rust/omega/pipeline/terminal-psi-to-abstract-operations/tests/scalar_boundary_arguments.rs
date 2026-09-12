@@ -73,6 +73,7 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: machine_id(1),
             attachment: None,
             parameters: vec![boolean, byte],

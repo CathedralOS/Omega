@@ -201,6 +201,11 @@ pub(in crate::attached_unit) fn emit_callable_body(
         Vec::new()
     };
     let mut machine = TerminalMachine {
+        declared_service_reach: crate::attached_unit::lower_declared_service_reach(
+            checked,
+            plan.machine,
+            &catalogs.service_ids,
+        )?,
         id: terminal_machine,
         attachment,
         parameters: entry_parameters,

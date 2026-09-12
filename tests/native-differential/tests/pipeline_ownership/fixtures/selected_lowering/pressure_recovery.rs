@@ -134,6 +134,7 @@ fn conditional_active_resident_exact_add_chain_artifact_with_graph(
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: machine,
             attachment: None,
             parameters: vec![declaration(condition, ScalarType::Boolean)],
