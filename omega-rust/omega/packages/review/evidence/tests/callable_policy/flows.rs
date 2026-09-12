@@ -1,6 +1,9 @@
 use super::*;
 use flow_effects::CapabilityFlowKind;
 
+// Direct boundary leaves declare their services; ordinary forwarding helpers
+// intentionally do not. Review must retain transitive authority independently
+// of private helper names and exclude helpers outside the caller's reach.
 const SOURCE: &str = r#"
 pub boundary trait Folder { machine touch() reaches Folder; }
 pub boundary trait SubFolder { machine touch() reaches SubFolder; }
@@ -11,14 +14,14 @@ pub machine Vault::direct(&self) -> Folder
 reaches RootDir
 invokes RootDir;
 { self.root.open() }
-machine Vault::open_folder(&self) -> Folder { self.root.open() }
+machine Vault::open_folder(&self) -> Folder reaches RootDir { self.root.open() }
 machine Vault::relay(&self) -> Folder { self.open_folder() }
 pub machine Vault::expose(&self) -> Folder
 reaches RootDir
 invokes RootDir;
 { self.relay() }
 pub data Broker { workspace: Workspace; }
-machine Broker::narrow(&self, folder: Folder) -> SubFolder { self.workspace.narrow(folder) }
+machine Broker::narrow(&self, folder: Folder) -> SubFolder reaches Workspace { self.workspace.narrow(folder) }
 pub machine Broker::delegate(&self, folder: Folder) -> SubFolder
 reaches Workspace
 invokes Workspace;
@@ -138,7 +141,7 @@ invokes RootDir;
     let expanded_source = format!(
         r#"{source}
 boundary trait Unused {{ machine touch() reaches Unused; }}
-machine unreachable_helper() {{ Unused::touch(); }}
+machine unreachable_helper() reaches Unused {{ Unused::touch(); }}
 "#
     );
     let expanded = Fixture::local(&expanded_source);
