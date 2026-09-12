@@ -133,3 +133,81 @@ fn result_case_membership_rejects_a_foreign_nominal_classifier() {
     );
     assert!(lower_typed_trees(parse_typed_trees(&source)).is_err());
 }
+
+#[test]
+fn result_field_membership_observes_nested_and_distinct_fields() {
+    for (condition, accepted) in [
+        ("result.inner.message in Message::Data", true),
+        ("result.inner.message in Message::Empty", false),
+        ("!(result.inner.message in Message::Empty)", true),
+    ] {
+        check(&format!(
+            "data Inner {{ message: Message; }} data Wrapper {{ inner: Inner; }}
+            machine make(value: u8) -> Wrapper ensures {condition};
+            {{ let before: u8 = value; Wrapper {{ inner: Inner {{ message: Message::Data {{ value: before }} }} }} }}"
+        ), accepted);
+    }
+    for (condition, accepted) in [
+        (
+            "(result.left in Message::Data) && (result.right in Message::Empty)",
+            true,
+        ),
+        ("result.right in Message::Data", false),
+    ] {
+        check(
+            &format!(
+                "data Pair {{ left: Message; right: Message; }}
+            machine make() -> Pair ensures {condition};
+            {{ Pair {{ left: Message::Data {{ value: 1 }}, right: Message::Empty }} }}"
+            ),
+            accepted,
+        );
+    }
+}
+
+#[test]
+fn result_field_membership_retains_live_subject_and_exit_custody() {
+    check(
+        "data Wrapper { message: Message; }
+        machine forward(value: Wrapper) -> Wrapper
+        requires value.message in Message::Data;
+        ensures result.message in Message::Data; { value }",
+        true,
+    );
+    check(
+        "data Wrapper { message: Message; }
+        machine forward(value: Message) -> Wrapper
+        requires value in Message::Data;
+        ensures result.message in Message::Data; { Wrapper { message: value } }",
+        true,
+    );
+    check(
+        "data Wrapper { message: Message; }
+        machine forward(value: Wrapper) -> Wrapper
+        ensures !(result.message in Message::Data); { value }",
+        false,
+    );
+    check(
+        "data Wrapper { message: Message; }
+        machine forward(mut value: Wrapper) -> Wrapper
+        requires value.message in Message::Data;
+        ensures result.message in Message::Data; { value.message = Message::Empty; value }",
+        false,
+    );
+    for (other, accepted) in [
+        ("Message::Data { value: 2 }", true),
+        ("Message::Empty", false),
+    ] {
+        check(
+            &format!(
+                "data Wrapper {{ message: Message; }}
+            machine make(flag: bool) -> Wrapper ensures result.message in Message::Data;
+            {{ transition flag {{
+                true -> (Wrapper {{ message: Message::Data {{ value: 1 }} }})
+                false -> (Wrapper {{ message: {other} }})
+            }} }}"
+            ),
+            accepted,
+        );
+    }
+}
