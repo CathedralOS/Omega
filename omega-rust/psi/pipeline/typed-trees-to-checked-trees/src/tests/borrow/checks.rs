@@ -1,3 +1,8 @@
+//! Hand-built borrow fixtures supply their semantic, proof, borrow, domain and
+//! flow roots explicitly. Other fact groups stay empty through `Default`; these
+//! fixtures do not select runtime adapters. Required direct-borrow resources
+//! are reconstructed by the test-only recheck helper, not a production shortcut.
+
 use crate::checks::check_unretained_borrow_fixture_facts as check_checked_facts;
 use crate::flow::canonical_place_overlaps_segments;
 use crate::semantic_calls::{call_site_argument_expressions, find_call_site};
@@ -48,27 +53,10 @@ fn rejects_view_return_of_body_local() {
     let facts = checked_trees::CheckFacts {
         semantic,
         proof,
-        values: Default::default(),
         borrow,
         domains,
-        dynamic_conformances: Default::default(),
-        nominal_machine_uses: Default::default(),
-        operators: Default::default(),
-        capabilities: Default::default(),
         flow,
-        index_compatibility: Default::default(),
-        mutation: Default::default(),
-        service_reaches: Default::default(),
-        synchronous_invocations: Default::default(),
-        suspensions: Default::default(),
-        blocking: Default::default(),
-        termination: Default::default(),
-        qualifications: Default::default(),
-        contract_plans: Default::default(),
-        carry: Default::default(),
-        fact_call_projections: Vec::new(),
-        intrinsic_calls: Vec::new(),
-        placed_view_inputs: Vec::new(),
+        ..Default::default()
     };
 
     let diagnostics = check_checked_facts(&typed, &facts)
@@ -555,27 +543,10 @@ pub(super) fn check_program(source: &str) -> Result<(), Vec<diagnostics::Diagnos
     let facts = checked_trees::CheckFacts {
         semantic,
         proof,
-        values: Default::default(),
         borrow,
         domains,
-        dynamic_conformances: Default::default(),
-        nominal_machine_uses: Default::default(),
-        operators: Default::default(),
-        capabilities: Default::default(),
         flow,
-        index_compatibility: Default::default(),
-        mutation: Default::default(),
-        service_reaches: Default::default(),
-        synchronous_invocations: Default::default(),
-        suspensions: Default::default(),
-        blocking: Default::default(),
-        termination: Default::default(),
-        qualifications: Default::default(),
-        contract_plans: Default::default(),
-        carry: Default::default(),
-        fact_call_projections: Vec::new(),
-        intrinsic_calls: Vec::new(),
-        placed_view_inputs: Vec::new(),
+        ..Default::default()
     };
     check_checked_facts(&typed, &facts)
 }
@@ -659,27 +630,10 @@ fn accepts_mutable_local_named_place_arguments() {
     let facts = checked_trees::CheckFacts {
         semantic,
         proof,
-        values: Default::default(),
         borrow,
         domains,
-        dynamic_conformances: Default::default(),
-        nominal_machine_uses: Default::default(),
-        operators: Default::default(),
-        capabilities: Default::default(),
         flow,
-        index_compatibility: Default::default(),
-        mutation: Default::default(),
-        service_reaches: Default::default(),
-        synchronous_invocations: Default::default(),
-        suspensions: Default::default(),
-        blocking: Default::default(),
-        termination: Default::default(),
-        qualifications: Default::default(),
-        contract_plans: Default::default(),
-        carry: Default::default(),
-        fact_call_projections: Vec::new(),
-        intrinsic_calls: Vec::new(),
-        placed_view_inputs: Vec::new(),
+        ..Default::default()
     };
 
     let pick_machine = typed
@@ -791,27 +745,10 @@ fn accepts_disjoint_member_borrow_arguments() {
     let facts = checked_trees::CheckFacts {
         semantic,
         proof,
-        values: Default::default(),
         borrow,
         domains,
-        dynamic_conformances: Default::default(),
-        nominal_machine_uses: Default::default(),
-        operators: Default::default(),
-        capabilities: Default::default(),
         flow,
-        index_compatibility: Default::default(),
-        mutation: Default::default(),
-        service_reaches: Default::default(),
-        synchronous_invocations: Default::default(),
-        suspensions: Default::default(),
-        blocking: Default::default(),
-        termination: Default::default(),
-        qualifications: Default::default(),
-        contract_plans: Default::default(),
-        carry: Default::default(),
-        fact_call_projections: Vec::new(),
-        intrinsic_calls: Vec::new(),
-        placed_view_inputs: Vec::new(),
+        ..Default::default()
     };
 
     let main_machine = typed
@@ -992,27 +929,10 @@ fn rejects_direct_mutable_borrow_while_local_alias_is_active() {
     let facts = checked_trees::CheckFacts {
         semantic,
         proof,
-        values: Default::default(),
         borrow,
         domains,
-        dynamic_conformances: Default::default(),
-        nominal_machine_uses: Default::default(),
-        operators: Default::default(),
-        capabilities: Default::default(),
         flow,
-        index_compatibility: Default::default(),
-        mutation: Default::default(),
-        service_reaches: Default::default(),
-        synchronous_invocations: Default::default(),
-        suspensions: Default::default(),
-        blocking: Default::default(),
-        termination: Default::default(),
-        qualifications: Default::default(),
-        contract_plans: Default::default(),
-        carry: Default::default(),
-        fact_call_projections: Vec::new(),
-        intrinsic_calls: Vec::new(),
-        placed_view_inputs: Vec::new(),
+        ..Default::default()
     };
 
     let diagnostics = check_checked_facts(&typed, &facts)
@@ -1079,27 +999,10 @@ fn rejects_direct_mutable_borrow_while_helper_alias_is_active() {
     let facts = checked_trees::CheckFacts {
         semantic,
         proof,
-        values: Default::default(),
         borrow,
         domains,
-        dynamic_conformances: Default::default(),
-        nominal_machine_uses: Default::default(),
-        operators: Default::default(),
-        capabilities: Default::default(),
         flow,
-        index_compatibility: Default::default(),
-        mutation: Default::default(),
-        service_reaches: Default::default(),
-        synchronous_invocations: Default::default(),
-        suspensions: Default::default(),
-        blocking: Default::default(),
-        termination: Default::default(),
-        qualifications: Default::default(),
-        contract_plans: Default::default(),
-        carry: Default::default(),
-        fact_call_projections: Vec::new(),
-        intrinsic_calls: Vec::new(),
-        placed_view_inputs: Vec::new(),
+        ..Default::default()
     };
 
     let diagnostics = check_checked_facts(&typed, &facts)
@@ -1200,27 +1103,10 @@ fn rejects_local_borrow_creation_while_prior_alias_is_active() {
     let facts = checked_trees::CheckFacts {
         semantic,
         proof,
-        values: Default::default(),
         borrow,
         domains,
-        dynamic_conformances: Default::default(),
-        nominal_machine_uses: Default::default(),
-        operators: Default::default(),
-        capabilities: Default::default(),
         flow,
-        index_compatibility: Default::default(),
-        mutation: Default::default(),
-        service_reaches: Default::default(),
-        synchronous_invocations: Default::default(),
-        suspensions: Default::default(),
-        blocking: Default::default(),
-        termination: Default::default(),
-        qualifications: Default::default(),
-        contract_plans: Default::default(),
-        carry: Default::default(),
-        fact_call_projections: Vec::new(),
-        intrinsic_calls: Vec::new(),
-        placed_view_inputs: Vec::new(),
+        ..Default::default()
     };
 
     let diagnostics = check_checked_facts(&typed, &facts)
@@ -1342,27 +1228,10 @@ fn accepts_direct_mutable_borrow_after_local_alias_last_use() {
     let facts = checked_trees::CheckFacts {
         semantic,
         proof,
-        values: Default::default(),
         borrow,
         domains,
-        dynamic_conformances: Default::default(),
-        nominal_machine_uses: Default::default(),
-        operators: Default::default(),
-        capabilities: Default::default(),
         flow,
-        index_compatibility: Default::default(),
-        mutation: Default::default(),
-        service_reaches: Default::default(),
-        synchronous_invocations: Default::default(),
-        suspensions: Default::default(),
-        blocking: Default::default(),
-        termination: Default::default(),
-        qualifications: Default::default(),
-        contract_plans: Default::default(),
-        carry: Default::default(),
-        fact_call_projections: Vec::new(),
-        intrinsic_calls: Vec::new(),
-        placed_view_inputs: Vec::new(),
+        ..Default::default()
     };
 
     check_checked_facts(&typed, &facts).expect("loan should end after alias last use");
@@ -1407,27 +1276,10 @@ fn rejects_direct_assignment_while_local_alias_is_active() {
     let facts = checked_trees::CheckFacts {
         semantic,
         proof,
-        values: Default::default(),
         borrow,
         domains,
-        dynamic_conformances: Default::default(),
-        nominal_machine_uses: Default::default(),
-        operators: Default::default(),
-        capabilities: Default::default(),
         flow,
-        index_compatibility: Default::default(),
-        mutation: Default::default(),
-        service_reaches: Default::default(),
-        synchronous_invocations: Default::default(),
-        suspensions: Default::default(),
-        blocking: Default::default(),
-        termination: Default::default(),
-        qualifications: Default::default(),
-        contract_plans: Default::default(),
-        carry: Default::default(),
-        fact_call_projections: Vec::new(),
-        intrinsic_calls: Vec::new(),
-        placed_view_inputs: Vec::new(),
+        ..Default::default()
     };
 
     let diagnostics = check_checked_facts(&typed, &facts)
@@ -1497,27 +1349,10 @@ fn rejects_mutating_call_through_owner_while_view_is_active() {
     let facts = checked_trees::CheckFacts {
         semantic,
         proof,
-        values: Default::default(),
         borrow,
         domains,
-        dynamic_conformances: Default::default(),
-        nominal_machine_uses: Default::default(),
-        operators: Default::default(),
-        capabilities: Default::default(),
         flow,
-        index_compatibility: Default::default(),
-        mutation: Default::default(),
-        service_reaches: Default::default(),
-        synchronous_invocations: Default::default(),
-        suspensions: Default::default(),
-        blocking: Default::default(),
-        termination: Default::default(),
-        qualifications: Default::default(),
-        contract_plans: Default::default(),
-        carry: Default::default(),
-        fact_call_projections: Vec::new(),
-        intrinsic_calls: Vec::new(),
-        placed_view_inputs: Vec::new(),
+        ..Default::default()
     };
 
     let diagnostics = check_checked_facts(&typed, &facts)
@@ -1580,27 +1415,10 @@ fn rejects_vec_push_while_slice_view_is_active() {
     let facts = checked_trees::CheckFacts {
         semantic,
         proof,
-        values: Default::default(),
         borrow,
         domains,
-        dynamic_conformances: Default::default(),
-        nominal_machine_uses: Default::default(),
-        operators: Default::default(),
-        capabilities: Default::default(),
         flow,
-        index_compatibility: Default::default(),
-        mutation: Default::default(),
-        service_reaches: Default::default(),
-        synchronous_invocations: Default::default(),
-        suspensions: Default::default(),
-        blocking: Default::default(),
-        termination: Default::default(),
-        qualifications: Default::default(),
-        contract_plans: Default::default(),
-        carry: Default::default(),
-        fact_call_projections: Vec::new(),
-        intrinsic_calls: Vec::new(),
-        placed_view_inputs: Vec::new(),
+        ..Default::default()
     };
 
     let diagnostics = check_checked_facts(&typed, &facts)
@@ -1668,27 +1486,10 @@ fn accepts_mutating_call_through_owner_on_disjoint_field() {
     let facts = checked_trees::CheckFacts {
         semantic,
         proof,
-        values: Default::default(),
         borrow,
         domains,
-        dynamic_conformances: Default::default(),
-        nominal_machine_uses: Default::default(),
-        operators: Default::default(),
-        capabilities: Default::default(),
         flow,
-        index_compatibility: Default::default(),
-        mutation: Default::default(),
-        service_reaches: Default::default(),
-        synchronous_invocations: Default::default(),
-        suspensions: Default::default(),
-        blocking: Default::default(),
-        termination: Default::default(),
-        qualifications: Default::default(),
-        contract_plans: Default::default(),
-        carry: Default::default(),
-        fact_call_projections: Vec::new(),
-        intrinsic_calls: Vec::new(),
-        placed_view_inputs: Vec::new(),
+        ..Default::default()
     };
 
     check_checked_facts(&typed, &facts)
@@ -1748,27 +1549,10 @@ fn accepts_known_pure_mutable_receiver_call_while_view_is_active() {
     let facts = checked_trees::CheckFacts {
         semantic,
         proof,
-        values: Default::default(),
         borrow,
         domains,
-        dynamic_conformances: Default::default(),
-        nominal_machine_uses: Default::default(),
-        operators: Default::default(),
-        capabilities: Default::default(),
         flow,
-        index_compatibility: Default::default(),
-        mutation: Default::default(),
-        service_reaches: Default::default(),
-        synchronous_invocations: Default::default(),
-        suspensions: Default::default(),
-        blocking: Default::default(),
-        termination: Default::default(),
-        qualifications: Default::default(),
-        contract_plans: Default::default(),
-        carry: Default::default(),
-        fact_call_projections: Vec::new(),
-        intrinsic_calls: Vec::new(),
-        placed_view_inputs: Vec::new(),
+        ..Default::default()
     };
 
     check_checked_facts(&typed, &facts)
@@ -1817,27 +1601,10 @@ fn accepts_mutable_slice_alias_index_from_fixed_array_field() {
     let facts = checked_trees::CheckFacts {
         semantic,
         proof,
-        values: Default::default(),
         borrow,
         domains,
-        dynamic_conformances: Default::default(),
-        nominal_machine_uses: Default::default(),
-        operators: Default::default(),
-        capabilities: Default::default(),
         flow,
-        index_compatibility: Default::default(),
-        mutation: Default::default(),
-        service_reaches: Default::default(),
-        synchronous_invocations: Default::default(),
-        suspensions: Default::default(),
-        blocking: Default::default(),
-        termination: Default::default(),
-        qualifications: Default::default(),
-        contract_plans: Default::default(),
-        carry: Default::default(),
-        fact_call_projections: Vec::new(),
-        intrinsic_calls: Vec::new(),
-        placed_view_inputs: Vec::new(),
+        ..Default::default()
     };
 
     check_checked_facts(&typed, &facts)
@@ -1895,27 +1662,10 @@ fn accepts_recursive_slice_parameter_index_proof_from_guard() {
     let facts = checked_trees::CheckFacts {
         semantic,
         proof,
-        values: Default::default(),
         borrow,
         domains,
-        dynamic_conformances: Default::default(),
-        nominal_machine_uses: Default::default(),
-        operators: Default::default(),
-        capabilities: Default::default(),
         flow,
-        index_compatibility: Default::default(),
-        mutation: Default::default(),
-        service_reaches: Default::default(),
-        synchronous_invocations: Default::default(),
-        suspensions: Default::default(),
-        blocking: Default::default(),
-        termination: Default::default(),
-        qualifications: Default::default(),
-        contract_plans: Default::default(),
-        carry: Default::default(),
-        fact_call_projections: Vec::new(),
-        intrinsic_calls: Vec::new(),
-        placed_view_inputs: Vec::new(),
+        ..Default::default()
     };
 
     check_checked_facts(&typed, &facts)
@@ -1962,27 +1712,10 @@ fn accepts_direct_mutable_borrow_after_local_alias_reassignment() {
     let facts = checked_trees::CheckFacts {
         semantic,
         proof,
-        values: Default::default(),
         borrow,
         domains,
-        dynamic_conformances: Default::default(),
-        nominal_machine_uses: Default::default(),
-        operators: Default::default(),
-        capabilities: Default::default(),
         flow,
-        index_compatibility: Default::default(),
-        mutation: Default::default(),
-        service_reaches: Default::default(),
-        synchronous_invocations: Default::default(),
-        suspensions: Default::default(),
-        blocking: Default::default(),
-        termination: Default::default(),
-        qualifications: Default::default(),
-        contract_plans: Default::default(),
-        carry: Default::default(),
-        fact_call_projections: Vec::new(),
-        intrinsic_calls: Vec::new(),
-        placed_view_inputs: Vec::new(),
+        ..Default::default()
     };
 
     check_checked_facts(&typed, &facts)
@@ -2043,27 +1776,10 @@ fn rejects_linked_input_mutation_while_free_machine_view_is_active() {
     let facts = checked_trees::CheckFacts {
         semantic,
         proof,
-        values: Default::default(),
         borrow,
         domains,
-        dynamic_conformances: Default::default(),
-        nominal_machine_uses: Default::default(),
-        operators: Default::default(),
-        capabilities: Default::default(),
         flow,
-        index_compatibility: Default::default(),
-        mutation: Default::default(),
-        service_reaches: Default::default(),
-        synchronous_invocations: Default::default(),
-        suspensions: Default::default(),
-        blocking: Default::default(),
-        termination: Default::default(),
-        qualifications: Default::default(),
-        contract_plans: Default::default(),
-        carry: Default::default(),
-        fact_call_projections: Vec::new(),
-        intrinsic_calls: Vec::new(),
-        placed_view_inputs: Vec::new(),
+        ..Default::default()
     };
 
     let diagnostics = check_checked_facts(&typed, &facts)
@@ -2139,27 +1855,10 @@ fn accepts_unlinked_ref_input_mutation_while_free_machine_view_is_active() {
     let facts = checked_trees::CheckFacts {
         semantic,
         proof,
-        values: Default::default(),
         borrow,
         domains,
-        dynamic_conformances: Default::default(),
-        nominal_machine_uses: Default::default(),
-        operators: Default::default(),
-        capabilities: Default::default(),
         flow,
-        index_compatibility: Default::default(),
-        mutation: Default::default(),
-        service_reaches: Default::default(),
-        synchronous_invocations: Default::default(),
-        suspensions: Default::default(),
-        blocking: Default::default(),
-        termination: Default::default(),
-        qualifications: Default::default(),
-        contract_plans: Default::default(),
-        carry: Default::default(),
-        fact_call_projections: Vec::new(),
-        intrinsic_calls: Vec::new(),
-        placed_view_inputs: Vec::new(),
+        ..Default::default()
     };
 
     check_checked_facts(&typed, &facts)
@@ -2221,27 +1920,10 @@ fn rejects_ambiguous_view_return_with_multiple_ref_inputs() {
     let facts = checked_trees::CheckFacts {
         semantic,
         proof,
-        values: Default::default(),
         borrow,
         domains,
-        dynamic_conformances: Default::default(),
-        nominal_machine_uses: Default::default(),
-        operators: Default::default(),
-        capabilities: Default::default(),
         flow,
-        index_compatibility: Default::default(),
-        mutation: Default::default(),
-        service_reaches: Default::default(),
-        synchronous_invocations: Default::default(),
-        suspensions: Default::default(),
-        blocking: Default::default(),
-        termination: Default::default(),
-        qualifications: Default::default(),
-        contract_plans: Default::default(),
-        carry: Default::default(),
-        fact_call_projections: Vec::new(),
-        intrinsic_calls: Vec::new(),
-        placed_view_inputs: Vec::new(),
+        ..Default::default()
     };
 
     let diagnostics = check_checked_facts(&typed, &facts)
@@ -2340,27 +2022,10 @@ fn accepts_view_return_disambiguated_by_explicit_lifetime() {
     let facts = checked_trees::CheckFacts {
         semantic,
         proof,
-        values: Default::default(),
         borrow,
         domains,
-        dynamic_conformances: Default::default(),
-        nominal_machine_uses: Default::default(),
-        operators: Default::default(),
-        capabilities: Default::default(),
         flow,
-        index_compatibility: Default::default(),
-        mutation: Default::default(),
-        service_reaches: Default::default(),
-        synchronous_invocations: Default::default(),
-        suspensions: Default::default(),
-        blocking: Default::default(),
-        termination: Default::default(),
-        qualifications: Default::default(),
-        contract_plans: Default::default(),
-        carry: Default::default(),
-        fact_call_projections: Vec::new(),
-        intrinsic_calls: Vec::new(),
-        placed_view_inputs: Vec::new(),
+        ..Default::default()
     };
 
     check_checked_facts(&typed, &facts)
