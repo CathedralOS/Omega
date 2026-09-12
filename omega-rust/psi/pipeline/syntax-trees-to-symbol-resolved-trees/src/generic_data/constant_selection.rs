@@ -341,7 +341,11 @@ impl<'base> ConstantSelection<'base> {
                 }
             }
         }
-        None
+        // A loader-bound source need not declare a logical module. Its broad
+        // import can expose this exact carrier without making any qualified
+        // spelling valid. Preserve that authored lookup only after trying the
+        // qualified paths; declaration/argument custody still owns identity.
+        Some(name.as_str().to_owned())
     }
 
     /// Return exact declaration custody, not a handle from the header table.
