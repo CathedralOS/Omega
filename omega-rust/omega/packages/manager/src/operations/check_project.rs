@@ -98,13 +98,12 @@ pub fn check_prepared_local_project(
         build_dir: Some(build_dir),
         target_name: Some(target_profile.target_name().to_owned()),
     };
-    let settlement = compiler::report_checked_compilation_observations(
-        &options,
-        artifact_policy,
-        &accepted_trust_admissions,
-        &checked,
-    )
-    .map_err(CheckPreparedLocalProjectError::CheckedObservations)?;
+    let admission = compiler::admit_checked_compilation(&checked, &accepted_trust_admissions)
+        .map_err(CheckPreparedLocalProjectError::CheckedObservations)?;
+    admission
+        .write_observations(&options, artifact_policy)
+        .map_err(CheckPreparedLocalProjectError::CheckedObservations)?;
+    let settlement = admission.into_settlement();
     CompileReport::checked(
         options.root_path,
         checked.source_file_count(),

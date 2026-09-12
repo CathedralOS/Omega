@@ -787,88 +787,95 @@ fn trust_ledgers_are_not_owned_or_reexported_by_the_compiler() {
 }
 
 #[test]
-fn checked_observations_have_one_policy_gate_outside_the_product_driver() {
+fn compiler_variations_are_request_data_not_compatibility_entrypoints() {
+    let root = workspace_root().join("omega-rust/omega/compiler/compiler/src");
+    let checked = std::fs::read_to_string(root.join("pipeline/checked_entry.rs"))
+        .expect("read checked compilation entrance");
+    assert!(checked.contains("pub struct CheckedCompileRequest"));
+    assert!(checked.contains("pub fn compile_to_checked("));
+    assert!(
+        !checked.contains("pub fn compile_to_checked_"),
+        "package, sponsor, replay and staging choices belong in CheckedCompileRequest"
+    );
+    let native = std::fs::read_to_string(root.join("compiler/terminal_native_realization.rs"))
+        .expect("read retained native entrance");
+    assert!(native.contains("pub struct RetainedNativeRealizationRequest"));
+    assert!(native.contains("pub fn realize_retained_native_artifact("));
+    assert!(
+        !native.contains("pub fn realize_retained_terminal_artifact_with_"),
+        "policy and image choices belong in the explicit native request"
+    );
+}
+
+#[test]
+fn checked_observations_consume_admission_without_owning_it() {
     let root = workspace_root();
     let compiler = root.join("omega-rust/omega/compiler/compiler/src");
-    let driver = compiler_product_coordinator_source(&root);
+    let coordinator = compiler_product_coordinator_source(&root);
+    let admission = std::fs::read_to_string(compiler.join("compiler/admission.rs"))
+        .expect("read checked trust admission");
     let reporter =
         std::fs::read_to_string(compiler.join("pipeline/reporting/checked_observations.rs"))
-            .expect("read checked observation reporter");
-    let pipeline =
-        std::fs::read_to_string(compiler.join("pipeline/mod.rs")).expect("read pipeline root");
-
+            .expect("read observation writer");
+    assert_eq!(coordinator.matches("admit_checked_compilation(").count(), 1);
     assert_eq!(
-        driver.matches("report_checked_observations(").count(),
-        1,
-        "the product driver must invoke one typed checked reporter"
+        coordinator.matches("admission.write_observations(").count(),
+        1
     );
+    let admit = coordinator
+        .find("let admission = admit_checked_compilation(")
+        .unwrap();
+    let observe = coordinator.find("admission.write_observations(").unwrap();
+    assert!(
+        admit < observe,
+        "mandatory admission must precede optional output"
+    );
+    for required in [
+        "reconstruct_trust_obligations(",
+        "settle_trust_admissions(",
+        "reconstruct_trust_report(",
+        ".validate()",
+    ] {
+        assert!(admission.contains(required), "admission lost {required}");
+        assert!(
+            !reporter.contains(required),
+            "writer regained mandatory check {required}"
+        );
+        assert!(
+            !coordinator.contains(required),
+            "coordinator inlined {required}"
+        );
+    }
     for forbidden in [
         "ArtifactWriter",
         "emits_auxiliary_artifacts",
-        "write_trust_report",
-        "write_checked_snapshot",
         "write_timings",
-        "reconstruct_trust_obligations",
-        "settle_trust_admissions",
     ] {
         assert!(
-            !driver.contains(forbidden),
-            "the product driver must not own checked observation detail `{forbidden}`"
+            !admission.contains(forbidden),
+            "trust admission depends on {forbidden}"
         );
-    }
-    assert_eq!(
-        reporter.matches("emits_auxiliary_artifacts()").count(),
-        1,
-        "checked auxiliary output must have one centralized policy branch"
-    );
-    for required in [
-        "pub(crate) struct CheckedObservationInput",
-        "reconstruct_trust_obligations(",
-        "settle_trust_admissions(",
-        "reconstruct_trust_report(",
-        ".validate()",
-        "ArtifactWriter::new(",
-        "write_trust_report(&trust_report)",
-        "write_checked_snapshots(",
-        "write_timings(input.checked.timings().phases())",
-    ] {
         assert!(
-            reporter.contains(required),
-            "checked reporter lost required operation `{required}`"
+            !coordinator.contains(forbidden),
+            "coordinator owns writer detail {forbidden}"
         );
     }
-    let policy_gate = reporter
-        .find("if input.artifact_policy.emits_auxiliary_artifacts()")
-        .expect("checked reporter retains its sole policy gate");
-    for unconditional in [
-        "reconstruct_trust_obligations(",
-        "settle_trust_admissions(",
-        "reconstruct_trust_report(",
-        ".validate()",
-    ] {
-        assert!(
-            reporter
-                .find(unconditional)
-                .is_some_and(|offset| offset < policy_gate),
-            "semantic trust operation `{unconditional}` must precede observation policy"
-        );
-    }
-    let trust_write = reporter
-        .find("write_trust_report(&trust_report)")
-        .expect("checked reporter writes trust first");
-    let checked_write = reporter
-        .find("write_checked_snapshots(")
-        .expect("checked reporter writes snapshots second");
-    let timing_write = reporter
-        .find("write_timings(input.checked.timings().phases())")
-        .expect("checked reporter writes timings last");
+    assert!(admission.contains("checked: &'checked CheckedCompilation"));
+    assert!(reporter.contains("impl CheckedAdmission<'_>"));
+    assert_eq!(reporter.matches("emits_auxiliary_artifacts()").count(), 1);
+    let gate = reporter
+        .find("if policy.emits_auxiliary_artifacts()")
+        .unwrap();
+    let trust = reporter
+        .find("write_trust_report(self.trust_report())")
+        .unwrap();
+    let snapshots = reporter.find("write_checked_snapshots(").unwrap();
+    let timings = reporter
+        .find("write_timings(checked.timings().phases())")
+        .unwrap();
     assert!(
-        policy_gate < trust_write && trust_write < checked_write && checked_write < timing_write,
-        "Full checked observations must preserve trust, snapshot, then timing write order"
-    );
-    assert!(
-        !pipeline.contains("write_checked_snapshot"),
-        "the checked snapshot writer must not regain a pipeline-root re-export"
+        gate < trust && trust < snapshots && snapshots < timings,
+        "preserve trust, snapshot, timing output order"
     );
 }
 
@@ -1233,9 +1240,8 @@ fn compiler_product_stops_delegate_component_progress_admission() {
     let root = workspace_root();
     let compiler = root.join("omega-rust/omega/compiler/compiler/src");
     let driver = compiler_product_coordinator_source(&root);
-    let native_admission =
-        std::fs::read_to_string(compiler.join("compiler/optimization/admission.rs"))
-            .expect("read native optimization admission owner");
+    let native_admission = std::fs::read_to_string(compiler.join("compiler/native/admission.rs"))
+        .expect("read native optimization admission owner");
     let reporting = recursive_rust_source(&compiler.join("pipeline/reporting"));
 
     assert_eq!(
@@ -1917,8 +1923,8 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
                 retained_realization_path.display()
             )
         });
-    let compiler_native_path = root
-        .join("omega-rust/omega/compiler/compiler/src/compiler/optimization/native_report/mod.rs");
+    let compiler_native_path =
+        root.join("omega-rust/omega/compiler/compiler/src/compiler/native/prepared.rs");
     let compiler_native = std::fs::read_to_string(&compiler_native_path).unwrap_or_else(|error| {
         panic!("failed to read {}: {error}", compiler_native_path.display())
     });
@@ -2541,11 +2547,10 @@ fn retained_native_product_enters_only_terminal_realization() {
     let request = std::fs::read_to_string(&request_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", request_path.display()));
     assert!(
-        driver.contains("compile_checked_with_observations(&request, prepared)?;")
+        driver.contains("check_request(&request, prepared)?;")
             && driver.contains("RequestedCompileProduct::NativeArtifact =>")
-            && driver
-                .contains("optimization::native_report(request, checked).map(finalize_report)")
-            && driver.contains("super::optimization::prepare_native_report(request, checked)?")
+            && driver.contains("native::compile(request, checked).map(finalize_report)")
+            && driver.contains("super::native::prepare(request, checked)?")
             && native.contains("NativeCompilationWithCheckedReceipt::new(checked, report)"),
         "NativeArtifact must stop the canonical driver at native realization while retaining its exact checked/native invocation join"
     );

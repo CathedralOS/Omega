@@ -3,18 +3,15 @@ mod compiler;
 mod pipeline;
 
 pub use compiler::{
-    ArtifactEmissionPolicy, CompileOptions, CompileOutputKind, CompileReport, CompileRequest,
-    Compiler, ExactTargetCompileOutcome, ExecutablePublicationReceipt, ExplicitTargetSet,
-    FinalRealizationEvidenceError, MultiTargetCompileOutcomes, MultiTargetCompileRequest,
-    OptimizationRollback, OptimizationRollbackInputError, OptimizationRollbackReceipt,
-    ProductionArtifactIdentity, ProductionCompilationManifest,
+    ArtifactEmissionPolicy, CheckedAdmission, CompileOptions, CompileOutputKind, CompileReport,
+    CompileRequest, Compiler, ExactTargetCompileOutcome, ExecutablePublicationReceipt,
+    ExplicitTargetSet, FinalRealizationEvidenceError, MultiTargetCompileOutcomes,
+    MultiTargetCompileRequest, OptimizationRollback, OptimizationRollbackInputError,
+    OptimizationRollbackReceipt, ProductionArtifactIdentity, ProductionCompilationManifest,
     ProductionCompilationManifestIdentity, ProductionCompilationSubject, RequestedCompileProduct,
-    RetainedNativeArtifact, SourceEvaluatedImportSettlement, TrustAdmission,
-    TrustAdmissionSettlement, compile, compile_targets,
-    realize_retained_terminal_artifact_with_source_evaluated_imports,
-    realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy,
-    realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy_for_image,
-    report_checked_compilation_observations, retained_terminal_report_from_checked_package,
+    RetainedNativeArtifact, RetainedNativeRealizationRequest, SourceEvaluatedImportSettlement,
+    TrustAdmission, TrustAdmissionSettlement, admit_checked_compilation, compile, compile_targets,
+    realize_retained_native_artifact, retained_terminal_report_from_checked_package,
     validate_lowered_ieee_float_comparison_custody,
 };
 pub use pipeline::checked_entry::{

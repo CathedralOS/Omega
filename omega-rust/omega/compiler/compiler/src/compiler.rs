@@ -8,8 +8,10 @@ use diagnostics::Diagnostic;
 use request::ValidatedCompileRequest;
 use std::path::PathBuf;
 
+mod admission;
 pub(crate) mod execution;
 mod intrinsic_settlements;
+mod native;
 mod native_checked;
 mod optimization;
 mod options;
@@ -22,11 +24,10 @@ mod terminal_native_realization;
 mod terminal_product;
 pub use terminal_product::validate_lowered_ieee_float_comparison_custody;
 
+pub use admission::{CheckedAdmission, admit_checked_compilation};
 pub use optimization::{OptimizationRollback, OptimizationRollbackInputError};
 pub use options::{ArtifactEmissionPolicy, CompileOptions};
-pub use package::{
-    report_checked_compilation_observations, retained_terminal_report_from_checked_package,
-};
+pub use package::retained_terminal_report_from_checked_package;
 pub use report::{
     CompileOutputKind, CompileReport, ExecutablePublicationReceipt, FinalRealizationEvidenceError,
     OptimizationRollbackReceipt, ProductionArtifactIdentity, ProductionCompilationManifest,
@@ -37,10 +38,8 @@ pub use request::{
     MultiTargetCompileRequest, RequestedCompileProduct,
 };
 pub use terminal_native_realization::{
-    SourceEvaluatedImportSettlement,
-    realize_retained_terminal_artifact_with_source_evaluated_imports,
-    realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy,
-    realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy_for_image,
+    RetainedNativeRealizationRequest, SourceEvaluatedImportSettlement,
+    realize_retained_native_artifact,
 };
 pub use trust_model::{TrustAdmission, TrustAdmissionSettlement};
 
@@ -92,7 +91,7 @@ fn compile_validated(
     request: ValidatedCompileRequest,
     prepared: Option<&crate::pipeline::checked_entry::PreparedCheckedSource>,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
-    let (checked, trust_settlement) = compile_checked_with_observations(&request, prepared)?;
+    let (checked, trust_settlement) = check_request(&request, prepared)?;
     let finalize_report =
         |report: CompileReport| report.with_trust_admission_settlement(trust_settlement);
     match request.requested_product() {
@@ -101,12 +100,12 @@ fn compile_validated(
             terminal_report(request, checked).map(finalize_report)
         }
         RequestedCompileProduct::NativeArtifact => {
-            optimization::native_report(request, checked).map(finalize_report)
+            native::compile(request, checked).map(finalize_report)
         }
     }
 }
 
-fn compile_checked_with_observations(
+fn check_request(
     request: &ValidatedCompileRequest,
     prepared: Option<&crate::pipeline::checked_entry::PreparedCheckedSource>,
 ) -> Result<
@@ -125,14 +124,9 @@ fn compile_checked_with_observations(
             request.package_inputs(),
         )?,
     };
-    let trust_settlement = crate::pipeline::reporting::report_checked_observations(
-        crate::pipeline::reporting::CheckedObservationInput {
-            options: request.options(),
-            artifact_policy: request.artifact_policy(),
-            accepted_trust_admissions: request.accepted_trust_admissions(),
-            checked: &checked,
-        },
-    )?;
+    let admission = admit_checked_compilation(&checked, request.accepted_trust_admissions())?;
+    admission.write_observations(request.options(), request.artifact_policy())?;
+    let trust_settlement = admission.into_settlement();
     Ok((checked, trust_settlement))
 }
 

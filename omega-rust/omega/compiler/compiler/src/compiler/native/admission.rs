@@ -1,6 +1,6 @@
 use diagnostics::Diagnostic;
 
-pub(super) struct NativeOptimizationAdmission {
+pub(super) struct NativeCompilationAdmission {
     pub(super) program_entry: build_evaluation::SelectedCompilerProgramEntry,
     pub(super) target: target::NativeTarget,
 }
@@ -25,7 +25,7 @@ pub(super) fn reject_unconsumed_callbacks(
 
 pub(super) fn admit(
     checked: &crate::pipeline::CheckedCompilation,
-) -> Result<NativeOptimizationAdmission, Vec<Diagnostic>> {
+) -> Result<NativeCompilationAdmission, Vec<Diagnostic>> {
     let program_entry = checked.selected_program_entry().ok_or_else(|| {
         vec![Diagnostic::error(
             "native-artifact production requires one exact selected program entry",
@@ -47,7 +47,7 @@ pub(super) fn admit(
         checked,
         checked.selected_provider_provenance(),
     )?;
-    Ok(NativeOptimizationAdmission {
+    Ok(NativeCompilationAdmission {
         program_entry: program_entry.clone(),
         target,
     })

@@ -20,6 +20,8 @@ const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/backend/plans/program-entry-plan/src/optimized_semantic_wrapper",
     "omega-rust/omega/build/build-evaluation/src/optimization",
     "omega-rust/omega/compiler/compiler/src/compiler/optimization",
+    "omega-rust/omega/compiler/compiler/src/compiler/native.rs",
+    "omega-rust/omega/compiler/compiler/src/compiler/native",
     "omega-rust/omega/compiler/compiler/src/pipeline/optimization",
     "omega-rust/omega/backend/machine-emission/src/function_realization",
     "omega-rust/omega/backend/machine-emission/src/fragment_emission",
@@ -168,13 +170,19 @@ pub(crate) fn collect() -> Audit {
 
     for governed_root in GOVERNED_ROOTS {
         let absolute_root = repository.join(governed_root);
-        if !absolute_root.is_dir() {
+        if !absolute_root.is_dir() && !absolute_root.is_file() {
             violations.insert(format!("missing governed root: {governed_root}"));
             continue;
         }
 
         let mut files = Vec::new();
-        if let Err(error) = collect_rust_files(&absolute_root, &mut files) {
+        let collected = if absolute_root.is_file() {
+            files.push(absolute_root);
+            Ok(())
+        } else {
+            collect_rust_files(&absolute_root, &mut files)
+        };
+        if let Err(error) = collected {
             violations.insert(format!("failed to inventory {governed_root}: {error}"));
             continue;
         }
