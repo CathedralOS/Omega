@@ -102,6 +102,32 @@ machine Main::main(&mut self) {}
 }
 
 #[test]
+fn imported_binding_arrays_preserve_exact_declared_widths() {
+    for width in [11, 13] {
+        let source = format!(
+            r#"
+use omega::language::core::external_binding;
+windows_x86_64 machine binding() -> Binding<{width}, 11, 0> {{
+    Binding::DllImport {{
+        import: DllImport::PeByName {{ library: "kernel32.dll", export: "ExitProcess" }}
+    }}
+}}
+"#,
+        );
+        let fixture = TemporaryProgram::new(&source);
+        let diagnostics = compile_to_checked(&fixture.main(), Some("windows_x86_64"))
+            .expect_err("closed imported arrays cannot pad or truncate their bytes");
+        let expected = format!("requires exactly {width}");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(&expected)),
+            "expected {expected}: {diagnostics:#?}",
+        );
+    }
+}
+
+#[test]
 fn evaluates_exact_syscall_binding_into_existing_provider_identity() {
     let fixture = TemporaryProgram::new(
         r#"
