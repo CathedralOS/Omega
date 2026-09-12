@@ -14,8 +14,22 @@ pub(super) fn lower(
     expression: ExpressionHandle,
     expected: PrimitiveType,
 ) -> Option<CheckedScalarExpression> {
-    if !program.expression_table.expression_is_valid(expression) || expected == PrimitiveType::Addr
-    {
+    let (value, _) = declared(program, parameters, expression)?;
+    (super::scalar_expression_type(&value) == Some(expected)).then_some(value)
+}
+
+/// Primitive reference reads are ordinary leaves, including below operators.
+/// Their declared referee supplies both carrier and arithmetic semantics; an
+/// enclosing expression's expected result must not invent either property.
+pub(super) fn declared(
+    program: &TypedTrees,
+    parameters: &[StateParameter],
+    expression: ExpressionHandle,
+) -> Option<(
+    CheckedScalarExpression,
+    numerics::arithmetic::ArithmeticDomain,
+)> {
+    if !program.expression_table.expression_is_valid(expression) {
         return None;
     }
     let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
@@ -57,18 +71,25 @@ pub(super) fn lower(
     ) || !matches!(
         program.type_reference_table.type_reference(*referee),
         TypeReferenceNode::Named { .. }
-    ) || program.primitive_type_reference(*referee) != Some(expected)
-    {
+    ) {
         return None;
     }
-    Some(if expected == PrimitiveType::Bool {
+    let primitive_type = program.primitive_type_reference(*referee)?;
+    if primitive_type == PrimitiveType::Addr {
+        return None;
+    }
+    let value = if primitive_type == PrimitiveType::Bool {
         CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::StorageRead {
             symbol: parameter.symbol,
         }))
     } else {
         CheckedScalarExpression::StorageRead {
             symbol: parameter.symbol,
-            primitive_type: expected,
+            primitive_type,
         }
-    })
+    };
+    Some((
+        value,
+        program.arithmetic_domain_for_type_reference(*referee),
+    ))
 }

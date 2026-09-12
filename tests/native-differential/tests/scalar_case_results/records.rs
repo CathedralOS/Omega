@@ -188,6 +188,36 @@ fn assert_local_record_getter(entry: &str, source: &str) {
     }
 }
 
+pub(super) const ORDERED_NESTED_RECORD_FIELDS: &str = r#"
+        data Region { base: u64; length: u64; }
+        data Pair { prefix: u64; first: Region; second: Region; }
+        machine Region::new(base: u64, length: u64) -> Region {
+            Region { base: base, length: length }
+        }
+        machine Region::get_length(&self) -> u64 { self.length }
+        machine change(value: &mut u64, mask: u64) -> u64 {
+            value = value ^ mask;
+            value
+        }
+        machine ordered_children(left: u64, right: u64) -> u64 {
+            let mut counter: u64 = right;
+            let local: Pair = Pair {
+                second: Region::new(left, change(&mut counter, 1)),
+                prefix: change(&mut counter, 2),
+                first: Region::new(left, change(&mut counter, 4))
+            };
+            local.first.get_length() ^ 7 ^ (left & 255)
+        }
+    "#;
+
+#[test]
+fn nested_record_fields_preserve_mixed_scalar_and_structural_evaluation_order() {
+    // Authored order applies masks 1, 2, 4 before `first` captures the counter.
+    // Declaration-order evaluation or hoisting child calls skips a different
+    // mask at that snapshot and cannot satisfy the shared getter oracle.
+    assert_local_record_getter("ordered_children", ORDERED_NESTED_RECORD_FIELDS);
+}
+
 #[test]
 fn direct_runtime_record_local_shared_getter_preserves_full_width_value() {
     for entry in ["direct_local", "direct_tail"] {

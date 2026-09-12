@@ -53,21 +53,8 @@ pub(super) fn validate(
     };
     let (caller, _) = super::authored_state(checked, state.symbol)?;
     let (root, endpoint) = match argument.source {
-        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. } => {
-            let ExpressionNode::Name(name) = table.expression(named) else {
-                return unsupported("record local has no whole named referent");
-            };
-            if !name.symbol.is_valid()
-                || name.head_symbol != name.symbol
-                || name.members.count() != 1
-                || table.name_path_members(name.members).len() != 1
-                || !argument.path.is_empty()
-            {
-                return unsupported("record local substituted its source identity");
-            }
-            (name.symbol, name.symbol)
-        }
-        CheckedUnitStructuralArgumentSourcePlan::Parameter { .. } => {
+        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+        | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. } => {
             let source = crate::call_source_custody::projected_receivers::source(
                 checked,
                 caller.symbol,

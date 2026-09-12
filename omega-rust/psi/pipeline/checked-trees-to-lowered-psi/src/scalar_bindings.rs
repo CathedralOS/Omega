@@ -43,7 +43,6 @@ impl ScalarBindings {
                     || locals.next().is_some()
                     || source.access != StructuralAccess::Owned
                     || !source.path.is_empty()
-                    || !argument.path.is_empty()
                 {
                     return unsupported("computed shared argument changes its local custody");
                 }

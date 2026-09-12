@@ -98,7 +98,8 @@ The structural scalar-return body plan also retains an ordered effect prefix.
 One direct primitive-reference assignment followed by a scalar return uses the
 same checked store and Terminal emission as a Unit body. Free bodies have no
 fabricated attachment. The current prefix accepts an exclusive primitive borrow
-and a literal or direct scalar-parameter RHS; it neither discards the borrow nor
+and a scalar-expression RHS, including readable primitive-reference leaves beneath
+operators; it neither discards the borrow nor
 turns the store into a scalar-producing operation. Its complete authored statement
 roster, destination, RHS, and return coordinates are rejoined before emission.
 Authored contracts, published crash routes, and constrained input/result types

@@ -300,11 +300,8 @@ fn shared_record_argument(
             },
         )
     } else {
-        // Local construction support remains whole-record only. Projection
-        // here forwards existing parameter storage, not a new local producer.
-        if !place.segments.is_empty() {
-            return None;
-        }
+        // A projection borrows the same established local home. Resolve its
+        // endpoint below while retaining the declaring local as the owner.
         let mut locals = program
             .statement_table
             .statements(state.statement_nodes)

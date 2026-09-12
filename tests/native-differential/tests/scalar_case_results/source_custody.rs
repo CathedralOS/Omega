@@ -4,6 +4,179 @@ use legalized_operations::{LegalizedScalarTerminator, LegalizedStructuralCaseSou
 use semantic_vocabulary::{BlockId, OperationId, PlaceId, StructuralTypeId};
 
 #[test]
+fn nested_record_replay_rejects_effectful_operand_and_projected_local_substitution() {
+    let tokens = source_files_to_tokens::Lexer::new(super::records::ORDERED_NESTED_RECORD_FIELDS)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "ordered_children")
+        .unwrap()
+        .symbol;
+    let roots = checked
+        .facts
+        .values
+        .scalar_computations
+        .roots
+        .iter()
+        .map(|(_, root)| root)
+        .filter(|root| {
+            root.machine == machine
+                && matches!(
+                    root.role,
+                    checked_trees::CheckedScalarExpressionRole::UnitCallArgument { .. }
+                )
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    assert!(
+        !roots.is_empty(),
+        "effectful child arguments retain computation roots"
+    );
+    for root in &roots {
+        assert_eq!(
+            roots
+                .iter()
+                .filter(|other| other.state == root.state
+                    && other.statement_ordinal == root.statement_ordinal
+                    && other.role == root.role)
+                .count(),
+            1,
+            "each authored argument has one root"
+        );
+    }
+    let _artifact =
+        terminal_production::TerminalProductionRequest::new(&checked, "ordered_children")
+            .produce_artifact()
+            .expect("unique authored roots publish");
+    // Nested structural calls consume retained computation handles directly.
+    // Substituting an authored occurrence changes that authority; duplicating
+    // an unused catalog row would not change the selected argument.
+    let effectful = roots
+        .iter()
+        .filter(|root| {
+            matches!(
+                checked
+                    .facts
+                    .values
+                    .scalar_computations
+                    .nodes
+                    .get(root.root)
+                    .kind,
+                checked_trees::CheckedScalarComputationKind::Call { .. }
+            )
+        })
+        .collect::<Vec<_>>();
+    assert!(effectful.len() >= 2, "distinct effectful child arguments");
+    let substituted_source = checked
+        .facts
+        .values
+        .scalar_computations
+        .nodes
+        .get(effectful[1].root)
+        .authored_root;
+    assert_ne!(
+        checked
+            .facts
+            .values
+            .scalar_computations
+            .nodes
+            .get(effectful[0].root)
+            .authored_root,
+        substituted_source
+    );
+    let mut changed = checked.clone();
+    changed
+        .facts
+        .values
+        .scalar_computations
+        .nodes
+        .get_mut(effectful[0].root)
+        .authored_root = substituted_source;
+    assert!(
+        terminal_production::TerminalProductionRequest::new(&changed, "ordered_children")
+            .produce_artifact()
+            .is_err(),
+        "receiving checks reject another effectful argument's authored occurrence"
+    );
+
+    let parent = checked
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Pair")
+        .unwrap();
+    let sibling = checked
+        .data_members(parent)
+        .iter()
+        .find_map(|member| match member {
+            checked_trees::data::DataMember::Field(field) if field.name.as_str() == "second" => {
+                Some(checked_trees::CheckedUnitStructuralPathSegment::Field(
+                    field
+                        .identity
+                        .map(|identity| format!("#{identity}"))
+                        .unwrap_or_else(|| field.name.as_str().to_owned()),
+                ))
+            }
+            _ => None,
+        })
+        .unwrap();
+    let mut receivers = checked
+        .facts
+        .values
+        .scalar_computations
+        .structural_arguments
+        .iter()
+        .filter_map(|(handle, argument)| match argument {
+            checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)
+                if matches!(
+                    argument.source,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+                ) && !argument.path.is_empty() =>
+            {
+                Some(handle)
+            }
+            _ => None,
+        });
+    let receiver = receivers.next().expect("projected local getter");
+    assert!(receivers.next().is_none());
+    for mutation in 0..4 {
+        let mut changed = checked.clone();
+        let checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) = changed
+            .facts
+            .values
+            .scalar_computations
+            .structural_arguments
+            .get_mut(receiver)
+        else {
+            panic!("projected local receiver");
+        };
+        match mutation {
+            0 => argument.path = vec![sibling.clone()],
+            1 => argument.path.clear(),
+            2 => argument.access = checked_trees::CheckedStructuralAccess::MutableBorrow,
+            _ => {
+                argument.source =
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                        symbol: symbols::SymbolHandle::invalid(),
+                    }
+            }
+        }
+        assert!(
+            terminal_production::TerminalProductionRequest::new(&changed, "ordered_children")
+                .produce_artifact()
+                .is_err(),
+            "projected local mutation {mutation}"
+        );
+    }
+}
+
+#[test]
 fn projected_shared_receiver_rejects_overlapping_mutable_field_actual() {
     let source = "data Inner { left: u64; right: u64; }
         data Outer { leading: u64; inner: Inner; other: Inner; }

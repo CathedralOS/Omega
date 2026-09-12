@@ -20,6 +20,40 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
 }
 
 #[test]
+fn primitive_reference_reads_under_operators_preserve_pre_store_values() {
+    let checked = checked(
+        "machine change(value: &mut u64, mask: u64) -> u64 { value = value ^ mask; value }",
+    );
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "change")
+        .produce_artifact()
+        .unwrap();
+    execute(
+        &artifact,
+        &[unsigned(0x81)],
+        unsigned(u64::MAX.into()),
+        unsigned((u64::MAX ^ 0x81).into()),
+        unsigned((u64::MAX ^ 0x81).into()),
+    );
+}
+
+#[test]
+fn boolean_reference_negation_preserves_pre_store_value() {
+    let checked = checked("machine toggle(value: &mut bool) -> bool { value = !value; value }");
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "toggle")
+        .produce_artifact()
+        .unwrap();
+    for initial in [false, true] {
+        execute(
+            &artifact,
+            &[],
+            TerminalScalarValue::Boolean(initial),
+            TerminalScalarValue::Boolean(!initial),
+            TerminalScalarValue::Boolean(!initial),
+        );
+    }
+}
+
+#[test]
 fn primitive_reference_write_then_scalar_return_reaches_terminal() {
     let checked = checked("machine reset(value: &mut u64) -> u64 { value = 0; 0 }");
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "reset")

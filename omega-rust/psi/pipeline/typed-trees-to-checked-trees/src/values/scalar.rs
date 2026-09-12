@@ -2604,11 +2604,6 @@ fn lower_return_expression(
     {
         return Some(value);
     }
-    if let Some(read) =
-        primitive_reference_read::lower(program, authored_parameters, expression, result_type)
-    {
-        return Some(read);
-    }
     if result_type == PrimitiveType::Bool {
         return lower_boolean_expression(
             program,
@@ -2724,6 +2719,10 @@ fn lower_scalar_expression(
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
+    if let Some(read) = primitive_reference_read::declared(program, authored_parameters, expression)
+    {
+        return Some(read);
+    }
     if let Some(leaf) = constant_array_projection::selected_leaf(
         program,
         operators,
@@ -3346,6 +3345,14 @@ fn lower_boolean_expression(
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<CheckedBooleanExpression> {
+    if let Some(CheckedScalarExpression::Boolean(read)) = primitive_reference_read::lower(
+        program,
+        authored_parameters,
+        expression,
+        PrimitiveType::Bool,
+    ) {
+        return Some(*read);
+    }
     if let Some(membership) = case_membership::lower(program, authored_parameters, expression) {
         return Some(membership);
     }
