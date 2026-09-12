@@ -6,8 +6,8 @@ use super::super::expression_paths::{
     stamp_receiver_path_symbols_in_table,
 };
 use super::super::lookup::{
-    call_target_for_attached_data, child_symbol_by_kinds, diagnostic_path_source_span,
-    top_level_symbol_for_source,
+    call_target_for_attached_data, case_symbols_for_source, child_symbol_by_kinds,
+    diagnostic_path_source_span, top_level_symbol_for_source,
 };
 use super::super::scope::MachineScope;
 use super::super::scoped_paths::{
@@ -238,23 +238,10 @@ pub(in crate::symbols) fn assign_membership_symbol(
     let (case_type_symbol, case_symbol) = if domain_symbol.is_valid() {
         (SymbolHandle::invalid(), SymbolHandle::invalid())
     } else {
-        let [type_name, case_name] = members else {
-            return;
-        };
-        let type_symbol = top_level_symbol_for_source(symbols, SymbolKind::Data, type_name);
-        let case_symbol = if type_symbol.is_valid() {
-            {
-                child_symbol_by_kinds(
-                    symbols,
-                    type_symbol,
-                    &[SymbolKind::Variant],
-                    case_name.as_str(),
-                )
-            }
-        } else {
-            SymbolHandle::invalid()
-        };
-        (type_symbol, case_symbol)
+        case_symbols_for_source(symbols, members)
+            .ok()
+            .flatten()
+            .unwrap_or((SymbolHandle::invalid(), SymbolHandle::invalid()))
     };
     if let symbol_resolved_trees::expression::ExpressionNode::Membership(membership) =
         expression_table.expression_mut(expression)

@@ -292,6 +292,19 @@ fn membership_subject_matches_owner(
     subject: ExpressionHandle,
     owner: &DataDefinition,
 ) -> bool {
+    // Membership observes the borrowed value's tag. Peel explicit borrowing
+    // only for this nominal-owner check: ordinary operator lookup must retain
+    // reference carriers so reference-typed operator candidates remain visible.
+    // Access mode and loan legality are still checked at the authored borrow.
+    let mut subject = subject;
+    let mut borrow_depth = 0;
+    while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(subject) {
+        if borrow_depth >= 128 {
+            return false;
+        }
+        borrow_depth += 1;
+        subject = borrow.target;
+    }
     // Fresh values retain their own nominal identity without a declared place
     // type. Do not require an artificial local binding or borrow the tested
     // case's type as evidence for an otherwise unknown subject. Field

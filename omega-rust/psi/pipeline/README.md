@@ -271,9 +271,26 @@ the selected declaration at the original use. This is not completion of the
 [module/name contract](../../../wiki/spec/language/modules.md):
 foreign/generic constant attachments, sum and specialized template normalization,
 template attachments, trait defaults,
-operator homes, qualified case membership,
+operator homes, qualified case membership in declared-domain proof facts,
 and the remaining declaration forms still need exact
 namespace-aware resolution.
+Executable case membership and bare case values select the full module/package
+carrier path before retaining the exact data and case symbols. Local bindings
+still shadow value-position paths; a dependency alias is not a runtime value or
+an extra symbol parent. Authored selection retains the complete carrier span.
+The checked interpreter consumes those selected symbols for bare and brace case
+construction, not a fresh lookup by display name. Membership independently
+rejoins the subject's nominal owner; an invalid case test cannot fall back to
+ordinary equality between same-named values. The package-backed
+`module_machine_indices::qualified_cases` tests cover checked evaluation,
+payload-bearing cases, local and projected borrows, private/direct-dependency
+authority and competing same-leaf owners. Ambiguous case selection reports both
+declarations and the importing source's exposure.
+This does not establish native Boolean membership of a newly constructed case.
+The checked operation sequence still needs intermediate case construction and an
+observing structural membership result; see `STATE-LOCAL-VALUE-FRONTIER` on the
+[execution board](../../../TASKS.md). Returning a constructed case or replacing
+membership with a consuming dispatch is not that acceptance.
 Later source extensions reuse the selected declaration's detached resolved
 initializer. This keeps constructor selection in the declaring source and
 deep-copies aggregate children at each use without re-reading the base source;

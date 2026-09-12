@@ -112,6 +112,14 @@ fn membership_rejoins_the_nominal_subject_owner_and_case_symbols() {
         *altered.expression_table.expression_mut(comparison.right) =
             ExpressionNode::Name(replacement);
         assert!(!is_exact_membership(&altered, member));
+        let mut diagnostics = Vec::new();
+        crate::struct_literals::validate_struct_literal_fields(&altered, &mut diagnostics);
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("case membership must test a value of the exact declaring data type")),
+            "a mismatched membership cannot fall back to ordinary equality: {diagnostics:?}"
+        );
     }
 
     // A consistent path still cannot put a foreign case under this owner.

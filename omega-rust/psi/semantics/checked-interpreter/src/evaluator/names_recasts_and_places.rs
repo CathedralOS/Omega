@@ -54,7 +54,7 @@ impl<'program> Evaluator<'program> {
             }
         }
         // An enum value reference (`CellId::R02` / `Command::Look`) resolves to an Enum.
-        if let Some(enum_value) = self.enum_value_from_path(members)? {
+        if let Some(enum_value) = self.enum_value_from_path(path)? {
             return Ok(enum_value);
         }
         let cell = self.resolve_name_place(path, frame)?;
@@ -460,24 +460,37 @@ impl<'program> Evaluator<'program> {
     }
 
     /// `Type::Variant` paths whose head is an enum/data symbol with a matching variant.
-    fn enum_value_from_path(
-        &self,
-        members: &[typed_trees::name::Identifier],
-    ) -> EvalResult<Option<Value>> {
-        if members.len() != 2 {
+    fn enum_value_from_path(&self, path: &TableNamePath) -> EvalResult<Option<Value>> {
+        // Resolution has already selected the declaration. Display names may
+        // include an importing package's alias, and same-leaf data declarations
+        // are not interchangeable during evaluation.
+        if !path.symbol.is_valid()
+            || self.program.symbols.get(path.symbol).kind != symbols::SymbolKind::Variant
+        {
             return Ok(None);
         }
-        let type_name = members[0].as_str();
-        let variant_name = members[1].as_str();
-        let Some(data) = self.find_data_by_name(type_name) else {
+        let owner = self.program.symbols.get(path.symbol).parent;
+        let Some(data) = self
+            .program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == owner)
+        else {
             return Ok(None);
         };
-        let is_variant = self.program.data_members(data).iter().any(|member| {
-            matches!(member, DataMember::Variant(variant) if variant.name.as_str() == variant_name)
-        });
-        if !is_variant {
+        let Some(variant_name) =
+            self.program
+                .data_members(data)
+                .iter()
+                .find_map(|member| match member {
+                    DataMember::Variant(variant) if variant.symbol == path.symbol => {
+                        Some(variant.name.as_str())
+                    }
+                    _ => None,
+                })
+        else {
             return Ok(None);
-        }
+        };
         let common: Vec<(String, Cell)> = self
             .program
             .data_members(data)
