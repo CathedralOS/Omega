@@ -366,7 +366,13 @@ remains a separate judgment and does not grant named-constant permission.
 `cargo run -p omega -- --check tests/omega/pass/modules/nominal_constant_bodies/main.omg`
 is the checked-source customer. The `package_compilation_inputs` nominal constant
 body probes cover nested records, cases, independent uses, receiving identity,
-privacy and direct-package exposure. The same customer with `inspect-terminal
+privacy and direct-package exposure. The two-file command
+`cargo run -p omega -- --check tests/omega/pass/constants/lexical_aggregate_values/main.omg`
+also checks runtime parameter/local shadows and a module consumer whose value
+parameter shares the declaring constructor's name. Its package integration
+tests distinguish the selected constant occurrence from runtime references
+through checked compilation; constructor ownership remains declaration-local.
+The same nominal body customer with `inspect-terminal
 --machine keep` still reports that the machine has no source-independent checked
 scalar control plan; nominal aggregate execution needs that producer dependency.
 Integer/Boolean array body

@@ -1,0 +1,2 @@
+module consumer;
+machine selected_key(Key: u64) -> Key { KEY }

@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "module_constants/lexical_aggregate_values.rs"]
+mod lexical_aggregate_values;
+
 fn root_inputs(root: &Path) -> PackageCompilationInputs {
     PackageCompilationInputs::new_package(
         identity(1),
