@@ -236,3 +236,110 @@ fn affine_parameter_replacement_settles_only_the_displaced_value() {
         }));
     }
 }
+
+#[test]
+fn initialized_affine_destinations_cannot_be_consumed_twice() {
+    for (declaration, carrier, initializer) in [
+        (
+            "data Category { case Other; case Missing; }",
+            "Category",
+            "Category::Missing",
+        ),
+        (
+            "data Value { number: u64; }",
+            "Value",
+            "Value { number: code }",
+        ),
+        (
+            "data Category { case Other; case Missing; }",
+            "[Category; 1]",
+            "[Category::Missing]",
+        ),
+        (
+            "data Category { case Other; case Missing; }",
+            "Category",
+            "match code { 2 -> Category::Missing, _ -> Category::Other }",
+        ),
+    ] {
+        for mutable in ["", "mut "] {
+            let source = format!(
+                "{declaration} data Main {{}}
+                 machine Main::consume(value: {carrier}) {{}}
+                 machine Main::caller(code: u64) {{
+                     let {mutable}value: {carrier} = {initializer};
+                     Main::consume(value);
+                     Main::consume(value);
+                 }}"
+            );
+            let diagnostics = match check(&source) {
+                Ok(_) => panic!("one initialized value cannot transfer twice: {source}"),
+                Err(diagnostics) => diagnostics,
+            };
+            assert!(
+                diagnostics.iter().any(|diagnostic| diagnostic
+                    .message
+                    .contains("already transferred or consumed")),
+                "{source}: {diagnostics:#?}"
+            );
+            let single = source.replacen("Main::consume(value);", "", 1);
+            check(&single).unwrap_or_else(|diagnostics| panic!("{single}: {diagnostics:#?}"));
+        }
+    }
+}
+
+#[test]
+fn initialized_mutable_affine_local_replacement_has_one_ordered_lifetime() {
+    for (before_replace, expected) in [
+        (
+            "",
+            vec![
+                PermissionEventKind::Establish,
+                PermissionEventKind::AffineDrop,
+                PermissionEventKind::Establish,
+                PermissionEventKind::Transfer,
+            ],
+        ),
+        (
+            "Main::consume(value);",
+            vec![
+                PermissionEventKind::Establish,
+                PermissionEventKind::Transfer,
+                PermissionEventKind::Establish,
+                PermissionEventKind::Transfer,
+            ],
+        ),
+    ] {
+        let source = format!(
+            "data Category {{ case Other; case Missing; }} data Main {{}}
+             machine Main::consume(value: Category) {{}}
+             machine Main::caller() {{
+                 let mut value: Category = Category::Missing;
+                 {before_replace}
+                 value = Category::Other;
+                 Main::consume(value);
+             }}"
+        );
+        let checked =
+            check(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+        let events = caller_events(&checked);
+        assert_eq!(
+            events.iter().map(|event| event.kind).collect::<Vec<_>>(),
+            expected,
+            "{events:#?}"
+        );
+        assert!(events.iter().all(|event| event.root == events[0].root
+            && event.segments.is_empty()
+            && event.multiplicity == Multiplicity::Affine
+            && event.access == PermissionAccess::Owned
+            && event.claim_identity == PermissionClaimIdentity::Unknown
+            && !event.obligation_live));
+        let replacement_statement = if before_replace.is_empty() { 1 } else { 2 };
+        assert_eq!(
+            events[2].source,
+            PermissionEventSource::Statement {
+                statement_index: replacement_statement,
+            }
+        );
+        assert_claim_free_transfer(events[3]);
+    }
+}

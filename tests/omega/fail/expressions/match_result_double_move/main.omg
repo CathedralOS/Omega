@@ -1,0 +1,8 @@
+data Category { case Other; case Missing; }
+machine accept(category: Category) {}
+
+machine classify(code: u64) {
+    let category: Category = match code { 2 -> Category::Missing, _ -> Category::Other };
+    accept(category);
+    accept(category);
+}

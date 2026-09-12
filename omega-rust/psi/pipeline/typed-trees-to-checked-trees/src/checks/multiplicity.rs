@@ -2286,13 +2286,14 @@ fn initial_linear_places(
                 conditional: claim.conditional,
             });
         }
-        // A claim-free affine aggregate still has whole-root ownership even
-        // when it has runtime fields. Track construction and call-initialized
-        // locals so later whole moves and affine cleanup share one permission
-        // timeline; an operation result is not implicitly live at every exit.
+        // An explicitly initialized affine destination owns one whole value,
+        // independently of which validated expression produced it. The ordinary
+        // LocalData write establishes this root; later replacement settles the
+        // old value before establishing the new one, including mutable locals.
+        // Absent initializers remain outside this roster: partial zero-fill
+        // construction needs its own initialization judgment.
         if claims.is_empty()
             && type_multiplicity(program, local.type_reference) == Multiplicity::Affine
-            && !local.is_mutable
             && local.initial_value.is_valid()
             && matches!(
                 program
@@ -2302,19 +2303,6 @@ fn initial_linear_places(
                     | typed_trees::types::TypeReferenceNode::Generic { .. }
                     | typed_trees::types::TypeReferenceNode::FixedArray { .. }
             )
-            && match program.expression_table.expression(local.initial_value) {
-                typed_trees::expression::ExpressionNode::StructLiteral(literal) => {
-                    literal.case_name.is_none()
-                        && matches!(
-                            program
-                                .type_reference_table
-                                .type_reference(local.type_reference),
-                            typed_trees::types::TypeReferenceNode::Named { .. }
-                        )
-                }
-                typed_trees::expression::ExpressionNode::Call(_) => true,
-                _ => false,
-            }
         {
             places.push(LinearPlace {
                 symbol: local.symbol,

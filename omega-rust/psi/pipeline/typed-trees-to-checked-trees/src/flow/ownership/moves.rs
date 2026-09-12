@@ -84,8 +84,9 @@ pub(super) fn append_move_events_for_expression(
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
             // The current ownership summary conservatively retains possible
-            // moves. Selected owned results require a dedicated result join;
-            // source validation rejects them until that custody is represented.
+            // moves. Source validation permits fresh plain-owned construction
+            // but rejects selected transfers from existing owned inputs until
+            // their branch-local custody is represented.
             append_move_events_for_expression(
                 program,
                 sink,
