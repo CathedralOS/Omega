@@ -22,20 +22,17 @@
 
 mod compilation;
 
+use crate::arguments::RunArguments;
 use compiler::{ArtifactEmissionPolicy, CompileOptions};
 use std::process::Command;
 
-pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) -> ! {
-    let ProbeArguments {
+pub(crate) fn run(arguments: RunArguments) -> ! {
+    let RunArguments {
         both,
         keep,
         target_name,
         main_path,
-    } = parse_arguments(arguments).unwrap_or_else(|error| {
-        eprintln!("{error}");
-        eprintln!("usage: omega run [--both] [--keep] [--target <name>] <main.omg>");
-        std::process::exit(2);
-    });
+    } = arguments;
 
     let build_dir = std::env::temp_dir().join(format!("omega-probe-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
@@ -63,10 +60,12 @@ pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) -> ! {
         }
     };
     if !report.trust_admission_settlement().is_exactly_admitted() {
-        crate::admissions::report_unsettled_admissions(report.trust_admission_settlement());
+        crate::compilation::admissions::report_unsettled_admissions(
+            report.trust_admission_settlement(),
+        );
         std::process::exit(200);
     }
-    let exe = match super::output::publish_native_artifact(report, &build_dir) {
+    let exe = match crate::compilation::publication::publish_native_artifact(report, &build_dir) {
         Ok((_published, path)) => path,
         Err(error) => {
             eprintln!("native publication FAILED: {error}");
@@ -131,50 +130,6 @@ pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) -> ! {
     std::process::exit(native_code);
 }
 
-struct ProbeArguments {
-    both: bool,
-    keep: bool,
-    target_name: Option<String>,
-    main_path: std::path::PathBuf,
-}
-
-fn parse_arguments(
-    arguments: impl Iterator<Item = std::ffi::OsString>,
-) -> Result<ProbeArguments, String> {
-    let mut arguments = arguments
-        .map(|argument| argument.to_string_lossy().into_owned())
-        .collect::<Vec<_>>();
-    // This command has no offline option. Reject it before extracting values
-    // or positionals so it cannot disappear among ignored arguments.
-    if arguments.iter().any(|argument| argument == "--offline") {
-        return Err("omega run does not support --offline".to_owned());
-    }
-    let both = arguments.iter().any(|argument| argument == "--both");
-    let keep = arguments.iter().any(|argument| argument == "--keep");
-    arguments.retain(|argument| argument != "--both" && argument != "--keep");
-    let target_name =
-        if let Some(index) = arguments.iter().position(|argument| argument == "--target") {
-            let name = arguments
-                .get(index + 1)
-                .cloned()
-                .ok_or_else(|| "--target requires a name".to_owned())?;
-            arguments.drain(index..=index + 1);
-            Some(name)
-        } else {
-            None
-        };
-    let main_path = arguments
-        .first()
-        .map(std::path::PathBuf::from)
-        .ok_or_else(|| "missing root Omega source path".to_owned())?;
-    Ok(ProbeArguments {
-        both,
-        keep,
-        target_name,
-        main_path,
-    })
-}
-
 fn probe_artifact_policy(keep: bool) -> ArtifactEmissionPolicy {
     if keep {
         ArtifactEmissionPolicy::Full
@@ -186,34 +141,6 @@ fn probe_artifact_policy(keep: bool) -> ArtifactEmissionPolicy {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn probe_rejects_offline_including_after_the_source_or_as_a_value() {
-        for arguments in [
-            vec!["--offline", "main.omg"],
-            vec!["main.omg", "--offline"],
-            vec!["--both", "main.omg", "--offline"],
-            vec!["--target", "--offline", "main.omg"],
-        ] {
-            let result = parse_arguments(arguments.iter().map(std::ffi::OsString::from));
-            assert!(matches!(result, Err(error) if error.contains("does not support --offline")));
-        }
-    }
-
-    #[test]
-    fn probe_preserves_ordinary_options() {
-        let arguments = parse_arguments(
-            ["--both", "main.omg", "--keep", "--target", "linux_x64"]
-                .into_iter()
-                .map(std::ffi::OsString::from),
-        )
-        .unwrap();
-        assert!(arguments.both);
-        assert!(arguments.keep);
-        assert_eq!(arguments.main_path, std::path::PathBuf::from("main.omg"));
-        assert_eq!(arguments.target_name.as_deref(), Some("linux_x64"));
-    }
-
     #[test]
     fn disposable_probe_skips_auxiliary_artifacts() {
         assert_eq!(

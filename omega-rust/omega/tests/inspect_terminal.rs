@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[path = "../src/inspect_terminal/evidence.rs"]
+#[path = "../src/inspection/evidence.rs"]
 mod evidence;
 #[path = "inspect_terminal/owned_scalar_cycles.rs"]
 mod owned_scalar_cycles;

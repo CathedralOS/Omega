@@ -49,3 +49,9 @@ Use coherent domain names and responsibility-focused modules. Preserve precise i
 For a proposed change, identify the avoided work and the contract that must survive. Inspect the whole path, including post-processing and inherited equality, hashing, formatting, or serialization. A smaller source diff or fewer allocations at one stage does not prove lower peak RAM or faster execution.
 
 For implementation, carry the smallest justified change through formatting and [scoped validation](../../../AGENTS.md#validation-scope). Test the changed ownership/order/boundary behavior; measure performance when making a performance claim. Report what changed, what was verified, and any remaining copy or bottleneck that limits the result. A justified no-change decision is valid; generic advice is not a substitute for an authorized implementation.
+
+When changing code organization, follow the touched route from its public
+entrypoint to the operation and result handling before handoff. Check that names
+and calls reveal the owner and next step without a forwarding maze. Fix confusing
+navigation within the change; flag wider problems without turning a local task
+into a repository-wide reorganization.

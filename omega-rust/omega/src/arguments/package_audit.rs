@@ -1,40 +1,11 @@
-use package_manager::operations::{PackageInspectionOptions, inspect_packages};
+use package_manager::operations::PackageInspectionOptions;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use target::TargetProfile;
 
 pub(super) const USAGE: &str = "usage: omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline]\nChecks current project source with accepted dependency pins; no lock means fresh unaccepted inspection.\n--offline disables package source network acquisition for this invocation.\n--details includes full normalized policy after the readable summary.\nExit 0: checked; 1: unavailable; 2: invalid arguments; 3: policy requires review.\nInspection never accepts changes or resumes a pending publication.";
 
-pub(super) fn run(arguments: impl Iterator<Item = OsString>) {
-    let options = match parse(arguments) {
-        Ok(Some(options)) => options,
-        Ok(None) => {
-            println!("{USAGE}");
-            return;
-        }
-        Err(error) => {
-            eprintln!("{error}\n{USAGE}");
-            std::process::exit(2);
-        }
-    };
-    match inspect_packages(options) {
-        Ok(outcome) => {
-            print!("{}", outcome.report);
-            if !outcome.complete {
-                std::process::exit(1);
-            }
-            if outcome.requires_decision {
-                std::process::exit(3);
-            }
-        }
-        Err(error) => {
-            eprintln!("cannot inspect packages: {error}");
-            std::process::exit(1);
-        }
-    }
-}
-
-fn parse(
+pub(super) fn parse(
     mut arguments: impl Iterator<Item = OsString>,
 ) -> Result<Option<PackageInspectionOptions>, String> {
     let mut project_root = None;

@@ -677,7 +677,7 @@ fn compiler_crate_owns_no_product_binaries() {
     );
 
     assert!(
-        root.join("omega-rust/omega/src/probe.rs").is_file(),
+        root.join("omega-rust/omega/src/execution/mod.rs").is_file(),
         "the native/interpreter probe must remain reachable through `omega run`"
     );
 }
@@ -1205,7 +1205,7 @@ fn compilation_report_is_not_owned_by_the_compiler() {
 #[test]
 fn omega_product_publishes_compiler_artifacts() {
     let root = workspace_root();
-    let command_path = root.join("omega-rust/omega/src/compilation.rs");
+    let command_path = root.join("omega-rust/omega/src/compilation/mod.rs");
     let command = std::fs::read_to_string(&command_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", command_path.display()));
     assert!(
@@ -1217,7 +1217,8 @@ fn omega_product_publishes_compiler_artifacts() {
         "the product must not route ordinary publication back through compiler policy"
     );
     assert!(
-        root.join("omega-rust/omega/src/output.rs").is_file(),
+        root.join("omega-rust/omega/src/compilation/publication.rs")
+            .is_file(),
         "the omega product must own its output publication policy"
     );
 }

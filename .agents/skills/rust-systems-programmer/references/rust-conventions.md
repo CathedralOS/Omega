@@ -17,10 +17,13 @@ errors, and their operations together when they form one coherent unit; a type
 does not automatically need its own file. Separate independent responsibilities,
 not declarations merely because they have different names.
 
-Organize folders by domain, then operation. Use meaningful suffixes such as
+Organize folders so a reader can follow a domain to its owned operations: each
+descent should narrow the responsibility, not reveal another generic forwarding
+layer. Cohesive operations may be meaningful siblings; do not add a directory
+and `mod.rs` stub merely to manufacture another level. Use suffixes such as
 `_request`, `_response`, `_error`, and `_provider` where those roles actually
-exist. Module roots may own cohesive behavior. Do not move it behind another
-file solely to keep `mod.rs` or `lib.rs` short or declaration-only.
+exist. Module roots may own cohesive behavior. Neither file length nor directory
+depth is a quota; split where responsibilities diverge, not to meet a size target.
 
 Prefer explicit imports for project types; grouping related standard-library or external imports is fine. Follow local formatting, remove unused imports, and do not churn existing imports solely for style. Do not add empty `impl` blocks or pass-through helpers with no responsibility.
 
@@ -32,10 +35,14 @@ Shared models describe the domain; computation operates on those models; platfor
 - Keep application startup, argument routing, and subsystem dispatch visible in
   `main.rs`. Delegate domain work to its real owner; do not hide the orchestration
   in a generic `command.rs`, `entry.rs`, or `driver.rs` forwarding layer just to
-  shorten the entrypoint. Validation shared by multiple entry points belongs in
-  their common execution path. Squalr's `squalr-cli/src/main.rs` is a useful
-  example: it selects the mode, initializes the engine, and starts the chosen
-  interface; `cli.rs` owns the actual interactive loop and command handling.
+  shorten the entrypoint. For a single-shot CLI such as Omega, parse arguments
+  into a typed invocation once, then dispatch to compilation, execution, package,
+  or inspection operations; execution should not rediscover the command from raw
+  arguments. This does not move an interactive command loop into `main.rs`:
+  Squalr's `squalr-cli/src/main.rs` selects the mode, initializes the engine, and
+  starts the chosen interface; `cli.rs` owns the loop and its command handling.
+  Validation shared by multiple entry points belongs in their common execution
+  path.
 - Where commands already exist, use typed request and response models, explicit enum dispatch, and existing conversions. Keep serialization models separate from platform handles and executor state. Add derives only when required by their consumers.
 - Introduce traits at actual substitution boundaries, such as native backends or external I/O. Do not create an interface for every struct.
 - Select OS implementations at the module boundary with `cfg`; callers use the shared contract. Update every supported implementation when changing that contract, including explicit unsupported-operation handling. Keep platform dependencies target-scoped.

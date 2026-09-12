@@ -134,8 +134,8 @@ package.
 mbx run -p omega -- --check samples/cli/basics/cli_mvp/main.omg
 ```
 
-CLI startup and dispatch live in `omega-rust/omega/src/main.rs`; compilation
-options are parsed in `compile_arguments.rs`. Full surface:
+CLI startup and dispatch live in `omega-rust/omega/src/main.rs`; typed invocations
+are parsed in `omega-rust/omega/src/arguments/`. Full surface:
 
 ```text
 omega [--check] [--offline] [--accept-admissions] [--output-only]
@@ -376,11 +376,16 @@ Use that exact local copy; these repository contracts take precedence.
 - Keep compiler stages honest. Parse syntax, lower representation, validate semantics, plan native execution, then emit bytes.
 - Organize source by responsibility, not line-count or directory-depth quotas.
   `main.rs` owns application startup and visible dispatch to the real subsystems;
-  it must not be a forwarding stub created to satisfy a size rule. Keep related
-  types and behavior together when that makes the flow easier to follow. Split
-  at a genuine ownership or reusable-operation boundary, not to manufacture a
-  small `main.rs`, `lib.rs`, or `mod.rs`. Architecture checks enforce dependency
-  and semantic boundaries, not file sizes or prescribed cosmetic splits.
+  it must not be a forwarding stub created to satisfy a size rule. Make the
+  entrypoint prominent and supporting responsibilities easy to find beneath it:
+  names and calls should lead the reader toward the operation they seek.
+  Cohesive siblings are fine; neither a flat pile of unrelated handlers nor a
+  staircase of forwarding modules makes ownership discoverable. Split at a
+  genuine responsibility boundary, not to manufacture a small `main.rs`,
+  `lib.rs`, or `mod.rs`. When adding or reorganizing code, walk the touched path
+  from entrypoint through dispatch to work and result handling before handoff.
+  Architecture checks enforce dependency and semantic boundaries, not file sizes
+  or prescribed cosmetic splits.
 - Keep sample coverage out of the shipped CLI. Tests and dev harnesses may discover `samples/`, but user-facing compiler behavior stays generic.
 - Prefer small checkpoint commits after working improvements.
 - Samples should reveal language pressure, not hide it in giant `main` files.
