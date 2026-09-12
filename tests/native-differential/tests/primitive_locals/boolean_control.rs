@@ -33,6 +33,35 @@ fn caller_branches_on_fresh_boolean_read_after_unit_call() {
 }
 
 #[test]
+fn negated_local_read_preserves_polarity_after_resultless_and_scalar_helpers() {
+    // Swapping the arms as well as negating the condition keeps the replacement
+    // oracle; all input pairs distinguish a fresh read from the initializer.
+    for (result_type, returned_value) in [("", ""), (" -> u64", "0")] {
+        for access in ["mut", "write"] {
+            let invocation = if result_type.is_empty() {
+                format!("replace(&{access} scratch, replacement);")
+            } else {
+                format!("let ignored: u64 = replace(&{access} scratch, replacement);")
+            };
+            assert_boolean_observation(
+                &format!(
+                    "machine replace(destination: &{access} bool, replacement: bool){result_type} {{
+                        destination = replacement;
+                        {returned_value}
+                    }}
+                    machine observe(initial: bool, replacement: bool) -> u64 {{
+                        let mut scratch: bool = initial;
+                        {invocation}
+                        transition !scratch {{ true -> 0 false -> 1 }}
+                    }}"
+                ),
+                false,
+            );
+        }
+    }
+}
+
+#[test]
 fn caller_branches_on_retained_boolean_snapshot_after_scalar_call() {
     assert_boolean_observation(
         "machine replace(destination: &mut bool, replacement: bool) -> u64 {
