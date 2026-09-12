@@ -6,6 +6,7 @@ mod borrowed_arguments;
 mod dispatch;
 mod guards;
 mod qualifications;
+mod structural_values;
 
 #[test]
 fn explicit_wrapping_narrowing_retains_its_selected_policy() {

@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "owned_results/returns.rs"]
+mod returns;
+
 #[test]
 fn owned_call_result_transfers_to_case_parameter() {
     let unit = owned_result_unit();

@@ -20,6 +20,9 @@ mod exact_add;
 #[path = "scalar_control_cycles/value_reuse.rs"]
 mod value_reuse;
 
+#[path = "scalar_control_cycles/bitwise.rs"]
+mod bitwise;
+
 #[cfg(any(
     all(
         target_os = "linux",

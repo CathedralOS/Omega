@@ -170,6 +170,7 @@ fn decode_kind(
             callee: MachineId::new(cursor.u64()?)
                 .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
         },
+        51 => SelectedInstructionKind::BitwiseAndI64,
         3 => SelectedInstructionKind::ExactAddI64 {
             obligation: decode_obligation(cursor)?,
             accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
@@ -356,6 +357,7 @@ fn decode_alternative_for_version(
         18 => MachineAlternativeFamily::FrameAddress,
         19 => MachineAlternativeFamily::CallUnit,
         3 => MachineAlternativeFamily::ExactAddI64,
+        51 => MachineAlternativeFamily::BitwiseAndI64,
         4 => MachineAlternativeFamily::ExactAddI64Immediate,
         5 => MachineAlternativeFamily::ExactSubtractI64,
         6 => MachineAlternativeFamily::ConditionalBranchNonZero,

@@ -99,6 +99,7 @@ impl LegalizedScalarInstruction {
                         .iter()
                         .any(|argument| matches!(argument, LegalizedScalarArgument::Scalar {source, ..} if *source == value)),
                     LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
+                    | LegalizedScalarInstructionKind::BitwiseAnd { left, right }
                     | LegalizedScalarInstructionKind::Compare { left, right, .. }
                     | LegalizedScalarInstructionKind::IeeeFloatCompare { left, right, .. } => {
                         *left == value || *right == value
@@ -231,6 +232,10 @@ pub enum LegalizedScalarInstructionKind {
         obligation: ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
+    BitwiseAnd {
+        left: ValueId,
+        right: ValueId,
+    },
     Compare {
         predicate: LegalizedScalarComparison,
         /// Boolean operands remain Boolean; only equality shares integer-register comparison.
@@ -256,7 +261,7 @@ pub struct LegalizedScalarSuccessor {
     pub fuel: Vec<FuelSettlement>,
 }
 
-/// Exact semantic owner of the stored sum observed by a case terminator.
+/// Exact semantic owner of stored structural data observed by a terminator.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedStructuralCaseSource {
     OperationResult {
@@ -381,8 +386,7 @@ pub enum LegalizedScalarReturnValue {
         place: semantic_vocabulary::PlaceId,
     },
     Structural {
-        defining_operation: OperationId,
-        result: terminal_psi::StructuralOperationResult,
+        source: LegalizedStructuralCaseSource,
     },
     Value {
         value: ValueId,

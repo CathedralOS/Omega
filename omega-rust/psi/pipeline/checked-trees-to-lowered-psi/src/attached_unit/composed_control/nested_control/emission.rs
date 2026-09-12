@@ -60,6 +60,7 @@ pub(super) fn emit(
             structural_cases: Vec::new(),
             structural_parameters: Vec::new(),
             entry: state_ids[index],
+            block_structural_parameters: Vec::new(),
             current: state_ids[index],
             parameters: if index == 0 {
                 Vec::new()
@@ -89,7 +90,7 @@ pub(super) fn emit(
         source_call_occurrences.append(&mut operations.source_calls);
         blocks.append(&mut evaluation.blocks);
         blocks.push(Block {
-            structural_parameters: Vec::new(),
+            structural_parameters: evaluation.block_structural_parameters,
             id: evaluation.current,
             parameters: evaluation.parameters,
             operations: operations[evaluation.operation_start..].to_vec(),

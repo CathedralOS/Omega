@@ -159,7 +159,8 @@ pub(super) fn lower_unit_structural_types_including(
         }
         for operation in body.operations() {
             match operation {
-                CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
+                CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
+                | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
                     roots.push(result.type_identity.clone());
                 }
                 CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
@@ -752,6 +753,7 @@ pub(super) fn lower_unit_services_including(
                 }
                 CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
+                | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }

@@ -23,7 +23,7 @@ use symbols::SymbolHandle;
 
 mod extents;
 
-pub(super) fn validate(
+pub(crate) fn validate(
     checked: &CheckedTrees,
     state: SymbolHandle,
     _statement: u32,

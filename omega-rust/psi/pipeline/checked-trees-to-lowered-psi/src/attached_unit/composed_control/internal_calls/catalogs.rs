@@ -133,7 +133,7 @@ pub(in crate::attached_unit::composed_control) fn lower(
         shared.next_call_obligation,
     );
     Ok(super::super::catalogs::ComposedCatalogs {
-        literal_store_places: Vec::new(),
+        temporary_places: Vec::new(),
         result_places: Vec::new(),
         structural_types: shared.lowered.semantic_module.structural_types.clone(),
         type_ids: shared.type_ids,

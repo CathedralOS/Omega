@@ -18,6 +18,7 @@ mod operator_validation;
 pub(crate) use match_dispatch::match_children;
 pub use match_dispatch::match_subject_primitive_type;
 pub use match_dispatch::validate_match_dispatch;
+pub use match_dispatch::{fresh_payloadless_case, is_fresh_payloadless_structural_value};
 pub use result_type::expression_result_type_reference;
 mod reference_values;
 mod result_type;

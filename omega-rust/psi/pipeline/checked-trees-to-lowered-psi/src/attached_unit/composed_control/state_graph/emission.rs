@@ -162,6 +162,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
                 .map(|(source, parameter)| (source.position, parameter.clone()))
                 .collect(),
             entry: state_ids[position],
+            block_structural_parameters: Vec::new(),
             current: state_ids[position],
             parameters: if position == 0 && !entry_reentered {
                 Vec::new()
@@ -221,6 +222,12 @@ pub(in crate::attached_unit::composed_control) fn emit(
             &mut next_edge,
             &mut operations,
         )?;
+        let bindings = evaluation
+            .scalar_bindings
+            .clone()
+            .ok_or(LoweringError::Unsupported(
+                "graph body lost its scalar namespace",
+            ))?;
         let condition =
             if let CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, .. } =
                 &state.terminator
@@ -492,6 +499,30 @@ pub(in crate::attached_unit::composed_control) fn emit(
             }
         };
         let terminator = match &state.terminator {
+            CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } => {
+                let source = match result.source {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal,
+                    } => case_emission::result(state, binding_ordinal, &operations)?.place,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index,
+                    } => {
+                        state_parameters
+                            .get(parameter_index as usize)
+                            .ok_or(LoweringError::Unsupported(
+                                "structural graph return parameter missing",
+                            ))?
+                            .place
+                    }
+                    _ => return unsupported("structural graph return needs a whole owned value"),
+                };
+                Terminator::ReturnStructural {
+                    edge: edge_id(allocate_dense(&mut next_edge)?),
+                    source,
+                    returned_claims: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                }
+            }
             CheckedComposedUnitControlTerminatorPlan::ReturnCase { .. } => {
                 Terminator::ReturnStructural {
                     edge: edge_id(allocate_dense(&mut next_edge)?),
@@ -590,7 +621,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
         evaluation.blocks.push(Block {
             id: evaluation.current,
             parameters: evaluation.parameters,
-            structural_parameters: Vec::new(),
+            structural_parameters: evaluation.block_structural_parameters,
             operations: operations[evaluation.operation_start
                 ..if condition.is_some() || prepared_cases.is_some() {
                     body_end
@@ -631,7 +662,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
             .iter()
             .flat_map(|block| crate::scalar_computations::arrays::declarations(&block.operations)),
     );
-    structural_places.append(&mut catalogs.literal_store_places);
+    structural_places.append(&mut catalogs.temporary_places);
     structural_places.extend(catalogs.result_places.drain(result_places_start..));
     structural_places.sort_by_key(|place| place.id);
     let attachment = plan

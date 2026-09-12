@@ -185,17 +185,15 @@ fn establish(
         return unsupported("literal call argument is not a whole immutable byte view");
     }
     let destination = place_id(allocate_dense(&mut catalogs.next_place)?);
-    let declaration_ordinal = u32::try_from(catalogs.literal_store_places.len())
+    let declaration_ordinal = u32::try_from(catalogs.temporary_places.len())
         .map_err(|_| LoweringError::Unsupported("literal call declaration ordinal exceeds u32"))?;
-    catalogs
-        .literal_store_places
-        .push(StructuralPlaceDeclaration {
-            id: destination,
-            kind: StructuralPlaceKind::ByteSequenceLiteral {
-                declaration_ordinal,
-                structural_type,
-            },
-        });
+    catalogs.temporary_places.push(StructuralPlaceDeclaration {
+        id: destination,
+        kind: StructuralPlaceKind::ByteSequenceLiteral {
+            declaration_ordinal,
+            structural_type,
+        },
+    });
     let id = operations.allocate();
     operations.push(Operation {
         id,

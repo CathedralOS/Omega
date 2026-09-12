@@ -584,6 +584,7 @@ fn family_and_operand_count(
         SelectedInstructionKind::ZeroExtendU32 => (MachineAlternativeFamily::ZeroExtendU32, 2),
         SelectedInstructionKind::ByteViewAddress => (MachineAlternativeFamily::ByteViewAddress, 3),
         SelectedInstructionKind::ExactAddI64 { .. } => (MachineAlternativeFamily::ExactAddI64, 3),
+        SelectedInstructionKind::BitwiseAndI64 => (MachineAlternativeFamily::BitwiseAndI64, 3),
         SelectedInstructionKind::ExactSubtractI64 { .. } => {
             (MachineAlternativeFamily::ExactSubtractI64, 3)
         }
@@ -782,6 +783,14 @@ fn encode_unchecked(
                     | u32::from(registers[2]),
             );
         }
+        SelectedInstructionKind::BitwiseAndI64 => {
+            words.push(
+                0x8a00_0000
+                    | (u32::from(registers[1]) << 16)
+                    | (u32::from(registers[0]) << 5)
+                    | u32::from(registers[2]),
+            );
+        }
         SelectedInstructionKind::ExactAddI64Immediate { immediate, .. } => {
             words.push(
                 0x9100_0000
@@ -917,6 +926,11 @@ fn encode_movn_materialization_recipe(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DecodedWord {
+    BitwiseAnd {
+        left: u8,
+        right: u8,
+        destination: u8,
+    },
     SetBoolean {
         condition: u8,
         destination: u8,
@@ -1094,6 +1108,13 @@ fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingErro
             right: ((word >> 16) & 0x1f) as u8,
         });
     }
+    if word & 0xffe0_fc00 == 0x8a00_0000 {
+        return Ok(DecodedWord::BitwiseAnd {
+            left: ((word >> 5) & 0x1f) as u8,
+            right: ((word >> 16) & 0x1f) as u8,
+            destination: register,
+        });
+    }
     if word & 0xffe0_fc00 == 0x8b00_0000 {
         return Ok(DecodedWord::Add {
             left: ((word >> 5) & 0x1f) as u8,
@@ -1221,6 +1242,14 @@ fn validate_decoded(
         SelectedInstructionKind::ByteViewAddress | SelectedInstructionKind::ExactAddI64 { .. } => {
             decoded
                 == [DecodedWord::Add {
+                    left: registers[0],
+                    right: registers[1],
+                    destination: registers[2],
+                }]
+        }
+        SelectedInstructionKind::BitwiseAndI64 => {
+            decoded
+                == [DecodedWord::BitwiseAnd {
                     left: registers[0],
                     right: registers[1],
                     destination: registers[2],
@@ -1398,6 +1427,7 @@ fn footprint(
         SelectedInstructionKind::CompareI64Zero => (vec![operands[0]], vec![], true),
         SelectedInstructionKind::CompareI64 => (vec![operands[0], operands[1]], vec![], true),
         SelectedInstructionKind::ByteViewAddress
+        | SelectedInstructionKind::BitwiseAndI64
         | SelectedInstructionKind::ExactAddI64 { .. }
         | SelectedInstructionKind::ExactSubtractI64 { .. } => {
             (vec![operands[0], operands[1]], vec![operands[2]], false)
@@ -1498,6 +1528,7 @@ fn footprint(
                 | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![0],
                 SelectedInstructionKind::CompareI64 => vec![0, 1],
                 SelectedInstructionKind::ByteViewAddress
+                | SelectedInstructionKind::BitwiseAndI64
                 | SelectedInstructionKind::ExactAddI64 { .. }
                 | SelectedInstructionKind::ExactSubtractI64 { .. } => vec![0, 1],
                 _ => unreachable!("control forms handled separately"),
@@ -1519,6 +1550,7 @@ fn footprint(
                 | SelectedInstructionKind::ExactAddI64Immediate { .. }
                 | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![1],
                 SelectedInstructionKind::ByteViewAddress
+                | SelectedInstructionKind::BitwiseAndI64
                 | SelectedInstructionKind::ExactAddI64 { .. }
                 | SelectedInstructionKind::ExactSubtractI64 { .. } => vec![2],
                 SelectedInstructionKind::CompareI64Zero => vec![],
@@ -1965,6 +1997,42 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn bitwise_and_preserves_aliases_and_rejects_opcode_corruption() {
+        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let views = ["x3", "x9", "x20"].map(|name| physical.model().view_named(name).unwrap().id);
+        let kind = SelectedInstructionKind::BitwiseAndI64;
+        let alternative = alternative(MachineAlternativeFamily::BitwiseAndI64);
+        for left in views {
+            for right in views {
+                for output in views {
+                    let operands = [left, right, output];
+                    let encoded =
+                        encode_aarch64_selected_form(&physical, kind, alternative, &operands)
+                            .unwrap();
+                    assert_eq!(encoded.bytes().len(), 4);
+                    assert!(!encoded.footprint().writes_nzcv);
+                    assert_eq!(encoded.footprint().encoded.external_operand_reads, [0, 1]);
+                    assert_eq!(encoded.footprint().encoded.external_operand_writes, [2]);
+                    for mask in [1_u32, 1 << 5, 1 << 16, 1 << 29] {
+                        let word = u32::from_le_bytes(encoded.bytes().try_into().unwrap());
+                        let corrupted = (word ^ mask).to_le_bytes();
+                        assert!(
+                            validate_aarch64_selected_form_encoding(
+                                &physical,
+                                kind,
+                                alternative,
+                                &operands,
+                                &corrupted
+                            )
+                            .is_err()
+                        );
+                    }
+                }
+            }
+        }
     }
 
     #[test]

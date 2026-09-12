@@ -160,7 +160,8 @@ pub(super) fn validate_unit_operation_sequence(
         .enumerate()
     {
         let coordinate = match operation {
-            CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
+            CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
                 checked_trees::CheckedUnitCallCoordinate {
                     statement_index: result.statement_index,
                     call_ordinal: 0,
@@ -336,6 +337,7 @@ pub(super) fn validate_unit_operation_sequence(
         if let CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
         | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { result, .. }
         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
+        | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
         | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } = operation
         {
             if result.binding_ordinal != next_structural_binding {

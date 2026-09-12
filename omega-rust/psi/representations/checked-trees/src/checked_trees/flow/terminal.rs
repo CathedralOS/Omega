@@ -834,6 +834,10 @@ pub struct CheckedComposedUnitControlStatePlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedComposedUnitControlTerminatorPlan {
     ReturnUnit,
+    /// Return a completed result from the ordinary structural value namespace.
+    ReturnStructural {
+        result: crate::CheckedUnitStructuralReturnPlan,
+    },
     ReturnCase {
         statement_ordinal: u32,
         case_identity: String,
@@ -1638,6 +1642,13 @@ pub enum CheckedPrimitiveStoreDestination {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitEffectOperationPlan {
+    /// Establish a fresh structural expression in the shared result namespace.
+    /// Selected arms transfer one new owner into the expression continuation.
+    EstablishStructuralValue {
+        result: CheckedUnitStructuralResultBindingPlan,
+        value: crate::CheckedStructuralValueHandle,
+        discard_result_on_return: bool,
+    },
     /// Construct an unrestricted primitive fixed array in authored row-major
     /// leaf order. Empty dimensions remain in the exact structural result type.
     EstablishScalarArray {

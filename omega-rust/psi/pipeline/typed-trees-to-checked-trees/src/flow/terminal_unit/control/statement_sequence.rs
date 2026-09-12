@@ -28,6 +28,13 @@ pub(super) fn has_structural_result(
     if !local.initial_value.is_valid() {
         return false;
     }
+    if validation::is_fresh_payloadless_structural_value(
+        program,
+        local.initial_value,
+        local.type_reference,
+    ) {
+        return !local.is_mutable;
+    }
     if validation::is_closed_primitive_array_type(program, local.type_reference) {
         return validation::scalar_array_elements(
             program,
@@ -83,17 +90,26 @@ pub(super) fn has_statement_shape(
         .skip(construction_statement_count)
         .all(|(index, statement)| match statement {
             StatementNode::Call(_) | StatementNode::Assignment(_) => true,
-            StatementNode::Expression(_) => {
+            StatementNode::Expression(expression) => {
                 call_occurrences::tail_call(program, state, index).is_some()
                     || (index + 1
                         == program
                             .statement_table
                             .statements(state.statement_nodes)
                             .len()
-                        && (validation::is_closed_primitive_array_type(program, state.return_type)
-                            || program
-                                .primitive_type_reference(state.return_type)
-                                .is_some()))
+                        && (validation::is_fresh_payloadless_structural_value(
+                            program,
+                            *expression,
+                            state.return_type,
+                        ) || matches!(
+                            program.expression_table.expression(*expression),
+                            ExpressionNode::Name(_)
+                        ) || validation::is_closed_primitive_array_type(
+                            program,
+                            state.return_type,
+                        ) || program
+                            .primitive_type_reference(state.return_type)
+                            .is_some()))
             }
             StatementNode::LocalData(local) => {
                 program
@@ -133,7 +149,17 @@ pub(in crate::flow::terminal_unit) fn build(
     }
     let mut operations = Vec::new();
     let mut local_count = construction_statement_count;
-    let mut scalar_count = 0_usize;
+    let mut scalar_count = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(construction_statement_count)
+        .filter(|statement| {
+            matches!(statement,
+            StatementNode::LocalData(local) if !local.is_mutable
+                && program.primitive_type_reference(local.type_reference).is_some())
+        })
+        .count();
     let mut structural_count = 0_usize;
     let mut structural_local_symbols = Vec::new();
     let mut array_bindings = Vec::<(SymbolHandle, CheckedUnitStructuralResultBindingPlan)>::new();
@@ -209,6 +235,25 @@ pub(in crate::flow::terminal_unit) fn build(
                     return None;
                 }
                 local_count = local_count.checked_add(1)?;
+                if let Some(root) = facts.values.structural_values.root_at(state.symbol, statement_index) {
+                    if local.is_mutable || root.machine != machine.symbol
+                        || root.expression != local.initial_value || root.type_reference != local.type_reference {
+                        return None;
+                    }
+                    let result = CheckedUnitStructuralResultBindingPlan {
+                        statement_index,
+                        binding_ordinal: u32::try_from(structural_count).ok()?,
+                        type_identity: shapes.add_type(local.type_reference, &binders, &[])?,
+                        multiplicity: program.type_multiplicity(local.type_reference),
+                    };
+                    structural_count = structural_count.checked_add(1)?;
+                    structural_results.push((result.clone(), facts::PlaceRoot::Symbol(local.symbol)));
+                    structural_local_symbols.push(local.symbol);
+                    operations.push(CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                        result, value: root.root, discard_result_on_return: true,
+                    });
+                    continue;
+                }
                 if validation::is_closed_primitive_array_type(program, local.type_reference)
                     && !matches!(program.expression_table.expression(local.initial_value), ExpressionNode::Call(_)) {
                     if local.is_mutable {
@@ -596,27 +641,105 @@ pub(in crate::flow::terminal_unit) fn build(
             shapes.types.insert(plan.identity.clone(), plan.clone());
         }
     }
-    let structural_result =
-        if validation::is_closed_primitive_array_type(program, state.return_type) {
-            let statements = program.statement_table.statements(state.statement_nodes);
-            let StatementNode::Expression(expression) = statements.last()? else {
-                return None;
-            };
-            let statement_index = u32::try_from(statements.len().checked_sub(1)?).ok()?;
-            if let ExpressionNode::Name(path) = program.expression_table.expression(*expression) {
-                if let Some((_, binding)) = array_bindings
-                    .iter()
-                    .find(|(symbol, _)| *symbol == path.symbol)
-                {
-                    if binding.type_identity
-                        != program.normalized_type_identity(state.return_type).as_str()
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let returned_value = statements.len().checked_sub(1)
+        .and_then(|ordinal| u32::try_from(ordinal).ok())
+        .and_then(|ordinal| facts.values.structural_values.root_at(state.symbol, ordinal))
+        .filter(|root| matches!(statements.last(), Some(StatementNode::Expression(expression)) if *expression == root.expression));
+    let returned_local = statements.last().and_then(|statement| {
+        let StatementNode::Expression(expression) = statement else {
+            return None;
+        };
+        let ExpressionNode::Name(path) = program.expression_table.expression(*expression) else {
+            return None;
+        };
+        if path.head_symbol != path.symbol
+            || program
+                .expression_table
+                .name_path_members(path.members)
+                .len()
+                != 1
+        {
+            return None;
+        }
+        structural_results
+            .iter()
+            .find(|(_, source)| *source == facts::PlaceRoot::Symbol(path.symbol))
+            .map(|(binding, _)| binding.clone())
+    });
+    let structural_result = if let Some(binding) = returned_local {
+        if binding.type_identity != program.normalized_type_identity(state.return_type).as_str()
+            || binding.multiplicity != program.type_multiplicity(state.return_type)
+        {
+            return None;
+        }
+        for operation in &mut operations {
+            match operation {
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    result,
+                    discard_result_on_return,
+                    ..
+                }
+                | CheckedUnitEffectOperationPlan::StructuralCall {
+                    result,
+                    discard_result_on_return,
+                    ..
+                }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    result,
+                    discard_result_on_return,
+                    ..
+                } if result.binding_ordinal == binding.binding_ordinal => {
+                    // Unrestricted results have no disposal debt. A hoisted
+                    // call can already retain them without a return discard.
+                    if binding.multiplicity != Multiplicity::Unrestricted
+                        && !*discard_result_on_return
                     {
                         return None;
                     }
-                    Some(binding.clone().into())
-                } else {
-                    let source_parameters = program.state_parameters(state);
-                    let (parameter_index, parameter) = structural_parameters
+                    *discard_result_on_return = false;
+                }
+                _ => {}
+            }
+        }
+        Some(binding.into())
+    } else if let Some(root) = returned_value {
+        if root.machine != machine.symbol || root.type_reference != state.return_type {
+            return None;
+        }
+        let result = CheckedUnitStructuralResultBindingPlan {
+            statement_index: root.statement_ordinal,
+            binding_ordinal: u32::try_from(structural_count).ok()?,
+            type_identity: shapes.add_type(state.return_type, &binders, &[])?,
+            multiplicity: program.type_multiplicity(state.return_type),
+        };
+        operations.push(CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            result: result.clone(),
+            value: root.root,
+            discard_result_on_return: false,
+        });
+        Some(result.into())
+    } else if validation::is_closed_primitive_array_type(program, state.return_type) {
+        let statements = program.statement_table.statements(state.statement_nodes);
+        let StatementNode::Expression(expression) = statements.last()? else {
+            return None;
+        };
+        let statement_index = u32::try_from(statements.len().checked_sub(1)?).ok()?;
+        if let ExpressionNode::Name(path) = program.expression_table.expression(*expression) {
+            if let Some((_, binding)) = array_bindings
+                .iter()
+                .find(|(symbol, _)| *symbol == path.symbol)
+            {
+                if binding.type_identity
+                    != program.normalized_type_identity(state.return_type).as_str()
+                {
+                    return None;
+                }
+                Some(binding.clone().into())
+            } else {
+                let source_parameters = program.state_parameters(state);
+                let (parameter_index, parameter) =
+                    structural_parameters
                         .iter()
                         .enumerate()
                         .find(|(_, parameter)| {
@@ -624,54 +747,54 @@ pub(in crate::flow::terminal_unit) fn build(
                                 .get(parameter.position as usize)
                                 .is_some_and(|source| source.symbol == path.symbol)
                         })?;
-                    if parameter.access != CheckedStructuralAccess::Owned
-                        || parameter.multiplicity != Multiplicity::Unrestricted
-                        || !parameter.qualifications.is_empty()
-                        || parameter.type_identity
-                            != program.normalized_type_identity(state.return_type).as_str()
-                    {
-                        return None;
-                    }
-                    Some(CheckedUnitStructuralReturnPlan {
-                        source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                            parameter_index: u32::try_from(parameter_index).ok()?,
-                        },
-                        type_identity: parameter.type_identity.clone(),
-                        multiplicity: parameter.multiplicity,
-                    })
+                if parameter.access != CheckedStructuralAccess::Owned
+                    || parameter.multiplicity != Multiplicity::Unrestricted
+                    || !parameter.qualifications.is_empty()
+                    || parameter.type_identity
+                        != program.normalized_type_identity(state.return_type).as_str()
+                {
+                    return None;
                 }
-            } else if matches!(
-                program.expression_table.expression(*expression),
-                ExpressionNode::Call(_)
-            ) {
-                returned_call.map(Into::into)
-            } else {
-                let elements = super::scalar_arrays::elements(
-                    program,
-                    facts,
-                    machine.symbol,
-                    state.symbol,
-                    statement_index,
-                    checked_trees::CheckedArrayConstructionSource::Statement,
-                    *expression,
-                    state.return_type,
-                )?;
-                let result = CheckedUnitStructuralResultBindingPlan {
-                    statement_index,
-                    binding_ordinal: u32::try_from(structural_count).ok()?,
-                    type_identity: shapes.add_type(state.return_type, &binders, &[])?,
-                    multiplicity: Multiplicity::Unrestricted,
-                };
-                operations.push(CheckedUnitEffectOperationPlan::EstablishScalarArray {
-                    source: checked_trees::CheckedArrayConstructionSource::Statement,
-                    result: result.clone(),
-                    elements,
-                });
-                Some(result.into())
+                Some(CheckedUnitStructuralReturnPlan {
+                    source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index: u32::try_from(parameter_index).ok()?,
+                    },
+                    type_identity: parameter.type_identity.clone(),
+                    multiplicity: parameter.multiplicity,
+                })
             }
+        } else if matches!(
+            program.expression_table.expression(*expression),
+            ExpressionNode::Call(_)
+        ) {
+            returned_call.map(Into::into)
         } else {
-            None
-        };
+            let elements = super::scalar_arrays::elements(
+                program,
+                facts,
+                machine.symbol,
+                state.symbol,
+                statement_index,
+                checked_trees::CheckedArrayConstructionSource::Statement,
+                *expression,
+                state.return_type,
+            )?;
+            let result = CheckedUnitStructuralResultBindingPlan {
+                statement_index,
+                binding_ordinal: u32::try_from(structural_count).ok()?,
+                type_identity: shapes.add_type(state.return_type, &binders, &[])?,
+                multiplicity: Multiplicity::Unrestricted,
+            };
+            operations.push(CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                source: checked_trees::CheckedArrayConstructionSource::Statement,
+                result: result.clone(),
+                elements,
+            });
+            Some(result.into())
+        }
+    } else {
+        None
+    };
     if scalar_control.is_none()
         && returned_scalar_call.is_none()
         && let Some(primitive_type) = program.primitive_type_reference(state.return_type)
@@ -735,6 +858,7 @@ pub(in crate::flow::terminal_unit) fn build(
             matches!(operation,
             CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
                 if result.multiplicity != Multiplicity::Unrestricted)
         })
     {
@@ -968,6 +1092,7 @@ fn consume_results(
                 matches!(operation,
                 CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
                 | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
+                | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
                     if result.binding_ordinal == binding_ordinal)
             });
@@ -979,6 +1104,7 @@ fn consume_results(
             // a live producer without acquiring an affine disposal obligation.
             if matches!(producer,
                 CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
+                | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
                 | CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
                     if result.multiplicity == Multiplicity::Unrestricted)
             {
@@ -993,6 +1119,11 @@ fn consume_results(
                 ..
             }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                discard_result_on_return,
+                result,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                 discard_result_on_return,
                 result,
                 ..

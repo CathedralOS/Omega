@@ -4,6 +4,147 @@ use crate::tests::fixtures::scalar_call_unit::scalar_call_unit_fixture;
 use crate::{legalize_target_operations, validate_legalized_operations};
 
 #[test]
+fn bitwise_and_graph_preserves_operand_types_and_independent_replay() {
+    use abstract_operations::{AbstractOperation, AbstractParameter};
+    use legalized_operations::LegalizedScalarInstructionKind;
+    use semantic_vocabulary::{
+        FuelScheduleIdentity, IntegerSign, IntegerType, OperationId, ScalarType, ValueId,
+    };
+    for native in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+    ] {
+        for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+            for bits in [8, 16, 32, 64] {
+                let (mut source, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
+                let integer = IntegerType::new(sign, bits).unwrap();
+                let left = ValueId::new(1).unwrap();
+                let right = ValueId::new(2).unwrap();
+                let result = ValueId::new(3).unwrap();
+                source.functions[0].parameters = vec![
+                    AbstractParameter {
+                        value: left,
+                        scalar_type: ScalarType::Integer(integer),
+                    },
+                    AbstractParameter {
+                        value: right,
+                        scalar_type: ScalarType::Integer(integer),
+                    },
+                ];
+                source.functions[0].operations.insert(
+                    0,
+                    AbstractOperation::IntegerBitwiseAnd {
+                        psi_operation: OperationId::new(1).unwrap(),
+                        result,
+                        scalar_type: integer,
+                        left,
+                        right,
+                    },
+                );
+                let targeted =
+                    abstract_operations_to_target_operations::lower_to_target_operations(
+                        &source, native,
+                    )
+                    .unwrap();
+                let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+                    &source,
+                    FuelScheduleIdentity::new(1).unwrap(),
+                )
+                .unwrap();
+                let legal = legalize_target_operations(&targeted, &source, &unit).unwrap();
+                validate_legalized_operations(&targeted, &source, &unit, legal.plan().clone())
+                    .unwrap();
+                for mutation in ["left", "right", "result type"] {
+                    let mut changed = legal.plan().clone();
+                    let instruction = &mut changed.scalar_functions[0].blocks[0].instructions[0];
+                    let LegalizedScalarInstructionKind::BitwiseAnd {
+                        left: actual_left,
+                        right: actual_right,
+                    } = &mut instruction.kind
+                    else {
+                        panic!("bitwise and");
+                    };
+                    match mutation {
+                        "left" => *actual_left = right,
+                        "right" => *actual_right = left,
+                        "result type" => {
+                            instruction.result.as_mut().unwrap().scalar_type = ScalarType::Boolean
+                        }
+                        _ => unreachable!(),
+                    }
+                    assert_ne!(
+                        legalized_operations::legalized_operation_plan_identity(&changed),
+                        legalized_operations::legalized_operation_plan_identity(legal.plan())
+                    );
+                    assert!(
+                        validate_legalized_operations(&targeted, &source, &unit, changed).is_err(),
+                        "accepted {mutation}"
+                    );
+                }
+                let mut changed_target = targeted.clone();
+                let target_operations::TargetUnitOperation::ScalarDefinition {
+                    expression:
+                        target_operations::TargetScalarExpression::Integer {
+                            expression:
+                                target_operations::TargetIntegerExpression::BitwiseAnd {
+                                    left,
+                                    right,
+                                    ..
+                                },
+                            ..
+                        },
+                    ..
+                } = &mut changed_target.functions[0].graph.blocks[0].operations[0]
+                else {
+                    panic!("target bitwise and");
+                };
+                std::mem::swap(left, right);
+                assert!(legalize_target_operations(&changed_target, &source, &unit).is_err());
+                let environment =
+                    register_environment::baseline_target_register_environment(native).unwrap();
+                let constraints = crate::selection_constraints(&legal, &environment);
+                let selected = crate::select_instructions(
+                    &legal,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                )
+                .unwrap();
+                crate::validate_selected_instructions(
+                    &legal,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                    selected.plan().clone(),
+                )
+                .unwrap();
+                let mut corrupted = selected.plan().clone();
+                let selected_and = corrupted.functions[0].blocks[0]
+                    .instructions
+                    .iter_mut()
+                    .find(|instruction| {
+                        instruction.kind
+                            == selected_instructions::SelectedInstructionKind::BitwiseAndI64
+                    })
+                    .expect("selected bitwise and");
+                selected_and.operands[1].virtual_register =
+                    selected_and.operands[0].virtual_register;
+                assert!(
+                    crate::validate_selected_instructions(
+                        &legal,
+                        &constraints,
+                        environment.physical(),
+                        environment.constraints(),
+                        corrupted
+                    )
+                    .is_err()
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn scalar_call_result_sign_cannot_change_under_an_equal_abi_shape() {
     let (abstract_plan, target, unit) = scalar_call_unit_fixture();
     let legalized = legalize_target_operations(&target, &abstract_plan, &unit).unwrap();

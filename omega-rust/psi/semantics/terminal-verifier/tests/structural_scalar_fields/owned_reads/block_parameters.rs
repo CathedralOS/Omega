@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "block_parameters/returns.rs"]
+mod returns;
+
 fn block_reader(scalar_type: ScalarType, multiplicity: StructuralMultiplicity) -> TerminalModule {
     let mut module = owned_reader(multiplicity, scalar_type);
     let machine = &mut module.machines[0];

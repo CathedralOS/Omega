@@ -200,6 +200,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         Family::LoadPacked6 => 48,
         Family::LoadPacked7 => 49,
         Family::StorePacked => 50,
+        Family::BitwiseAndI64 => 51,
         Family::Load8 => 33,
         Family::Load16 => 34,
         Family::Load32 => 30,

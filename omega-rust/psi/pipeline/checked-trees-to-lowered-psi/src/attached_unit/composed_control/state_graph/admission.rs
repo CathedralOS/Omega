@@ -51,7 +51,6 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
 ) -> Result<AdmittedGraph<'a>, LoweringError> {
     super::super::admission::validate_contract(checked, plan)?;
     if plan.states.is_empty()
-        || (plan.states.len() < 2 && plan.result == checked_trees::CheckedControlResultPlan::Unit)
         || !plan.body_qualifications.is_empty()
         || checked
             .facts
@@ -240,6 +239,18 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
                 [StatementNode::Expression(_)],
             ) => {
                 super::returns::validate(checked, plan, source, state, terminator_ordinal)?;
+            }
+            (
+                CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. },
+                [StatementNode::Expression(_)],
+            ) => {
+                super::returns::validate_structural(
+                    checked,
+                    plan,
+                    source,
+                    state,
+                    terminator_ordinal,
+                )?;
             }
             (
                 CheckedComposedUnitControlTerminatorPlan::Jump { successor },

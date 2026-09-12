@@ -15,11 +15,8 @@ pub(super) fn project(
             {
                 LegalizedScalarReturnValue::StructuralParameter { place: *source }
             } else {
-                let (defining_operation, result) =
-                    scalar_graph_input::structural_case::source_result(function, *source)?;
                 LegalizedScalarReturnValue::Structural {
-                    defining_operation,
-                    result: result.clone(),
+                    source: scalar_graph_input::structural_case::source_owner(function, *source)?,
                 }
             };
             Ok(LegalizedScalarTerminator::Return(LegalizedScalarReturn {

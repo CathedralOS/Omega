@@ -147,7 +147,14 @@ pub(super) fn observation(
             }
             (*psi_operation, *result, ScalarType::Integer(*target_type))
         }
-        AbstractOperation::ExactIntegerAdd {
+        AbstractOperation::IntegerBitwiseAnd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        }
+        | AbstractOperation::ExactIntegerAdd {
             psi_operation,
             result,
             scalar_type,

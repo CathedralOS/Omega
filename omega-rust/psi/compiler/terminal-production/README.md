@@ -163,6 +163,18 @@ exercise scalar-sum result transport through destination-owned homes, joins,
 and dispatch using the ordinary publication pipeline. The complete filesystem
 entry still requires the remaining source dependencies above.
 
+Fresh payloadless sum expressions use that same owned-result namespace. An
+ordered scalar `match` evaluates its subject once and constructs only the
+selected case, transferring that owner into a continuation block parameter.
+Nested selections, immutable locals, subsequent scalar statements, state
+transfers, and returns retain the completed owner rather than reconstructing
+the case or treating its tag as the source value. Independent source replay
+checks the exact constructor symbols, operand occurrences, ordered alternatives,
+and coverage before ordinary Terminal ownership checking. This does not admit
+joins of existing moved inputs, references, linear values, or nominal cleanup;
+whole receiver-field replacement and selected floating comparisons remain
+separate implementation dependencies.
+
 Keep the complete filesystem fixture as the outer acceptance check. On macOS:
 
 ```sh

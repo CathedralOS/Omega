@@ -1,0 +1,29 @@
+data Tag {
+    case Empty;
+    case First;
+    case Second;
+    case Third;
+}
+
+machine collect_owned(out: &mut [u8], selector: u64, expected: u64) {
+    let observed: Tag = match selector {
+        0 -> Tag::Empty,
+        1 -> Tag::First,
+        2 -> Tag::Second,
+        _ -> Tag::Third
+    };
+    transition { _ -> inspect(out, observed) }
+    state inspect(out: &mut [u8], observed: Tag) {
+        transition observed {
+            Tag::Third -> writable(out, 33)
+            Tag::Empty -> writable(out, 0)
+            Tag::Second -> writable(out, 22)
+            Tag::First -> writable(out, 11)
+        }
+    }
+    state writable(out: &mut [u8], marker: u8) {
+        transition out.len > 0 { true -> store(out, marker) false -> done() }
+    }
+    state store(out: &mut [u8], marker: u8) { out[0] = marker; }
+    state done() {}
+}

@@ -19,7 +19,8 @@ pub(crate) struct ComposedCatalogs {
     pub(crate) internal_targets: Vec<LoweredComposedInternalTarget>,
     pub(crate) service_ids: Vec<(ServiceReachId, ServiceId)>,
     pub(crate) next_place: u64,
-    pub(crate) literal_store_places: Vec<StructuralPlaceDeclaration>,
+    /// Private constructor, join, and literal places; not authored result ordinals.
+    pub(crate) temporary_places: Vec<StructuralPlaceDeclaration>,
     pub(crate) result_places: Vec<StructuralPlaceDeclaration>,
     pub(crate) scalar_calls: scalar_calls::ComposedScalarCalls,
     pub(crate) root_crash_routes: Vec<checked_trees::CrashRouteBucket>,
@@ -56,6 +57,8 @@ fn lower_composed_services(
             CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
             | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
+            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+            | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
             | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => continue,
             _ => return unsupported("composed Unit control contains a non-call operation"),
         };
@@ -175,6 +178,17 @@ fn lower_catalogs(
             .iter()
             .flat_map(|state| &state.structural_parameters)
             .map(|parameter| parameter.type_identity.clone()),
+    );
+    type_roots.extend(
+        states
+            .iter()
+            .flat_map(|state| &state.operations)
+            .filter_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
+                    Some(result.type_identity.clone())
+                }
+                _ => None,
+            }),
     );
     for (boundary, _) in boundaries {
         type_roots.extend(boundary.attachment_type_identity.iter().cloned());
@@ -299,7 +313,7 @@ fn lower_catalogs(
         internal_targets,
         service_ids,
         next_place,
-        literal_store_places: Vec::new(),
+        temporary_places: Vec::new(),
         result_places: Vec::new(),
         scalar_calls,
         root_crash_routes,

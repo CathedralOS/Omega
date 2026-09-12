@@ -100,6 +100,29 @@ pub(super) fn validate_declarations(
     Ok(())
 }
 
+/// Return permission follows the owned binding, not the syntax of its producer.
+/// Control-flow validation must establish dominance and the frontier pass must
+/// consume any affine obligation before using this claim-free classification.
+pub(super) fn plain_owned_return_source(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    source: PlaceId,
+) -> bool {
+    parameter(machine, source).is_some_and(|parameter| {
+        parameter.access == StructuralAccess::Owned
+            && matches!(
+                parameter.multiplicity,
+                StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+            )
+            && parameter.qualifications.is_empty()
+            && parameter.projected_qualifications.is_empty()
+            && super::structural_result_contracts::has_plain_owned_shape(
+                module,
+                parameter.structural_type,
+            )
+    })
+}
+
 pub(super) fn validate_successor(
     module: &TerminalModule,
     machine: &TerminalMachine,

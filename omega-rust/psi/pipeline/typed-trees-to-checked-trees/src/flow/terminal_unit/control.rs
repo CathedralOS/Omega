@@ -1867,6 +1867,7 @@ pub(super) fn build_checked_machine_with(
                 .collect::<Vec<_>>(),
             CheckedUnitEffectOperationPlan::PortWrite { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
+            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
             | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
             | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }

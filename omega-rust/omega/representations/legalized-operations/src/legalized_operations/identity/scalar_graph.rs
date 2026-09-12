@@ -320,6 +320,11 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.extend_from_slice(&obligation.get().to_le_bytes());
                     bytes.extend_from_slice(&accepted_fact.bytes());
                 }
+                LegalizedScalarInstructionKind::BitwiseAnd { left, right } => {
+                    bytes.push(24);
+                    bytes.extend_from_slice(&left.get().to_le_bytes());
+                    bytes.extend_from_slice(&right.get().to_le_bytes());
+                }
                 LegalizedScalarInstructionKind::Compare {
                     predicate,
                     operand_type,
@@ -345,6 +350,21 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
     }
 }
 
+fn encode_structural_source(bytes: &mut Vec<u8>, source: &crate::LegalizedStructuralCaseSource) {
+    match source {
+        crate::LegalizedStructuralCaseSource::OperationResult { operation, result } => {
+            bytes.push(0);
+            bytes.extend_from_slice(&operation.get().to_le_bytes());
+            super::structural_result::encode_operation_result(bytes, result);
+        }
+        crate::LegalizedStructuralCaseSource::BlockParameter { block, declaration } => {
+            bytes.push(1);
+            bytes.extend_from_slice(&block.get().to_le_bytes());
+            super::structural_types::encode_structural_parameter(bytes, declaration);
+        }
+    }
+}
+
 fn encode_successor(bytes: &mut Vec<u8>, successor: &LegalizedScalarSuccessor) {
     bytes.extend_from_slice(&successor.edge.get().to_le_bytes());
     bytes.extend_from_slice(&successor.target.get().to_le_bytes());
@@ -367,18 +387,7 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
             ownership,
         } => {
             bytes.push(3);
-            match source {
-                crate::LegalizedStructuralCaseSource::OperationResult { operation, result } => {
-                    bytes.push(0);
-                    bytes.extend_from_slice(&operation.get().to_le_bytes());
-                    super::structural_result::encode_operation_result(bytes, result);
-                }
-                crate::LegalizedStructuralCaseSource::BlockParameter { block, declaration } => {
-                    bytes.push(1);
-                    bytes.extend_from_slice(&block.get().to_le_bytes());
-                    super::structural_types::encode_structural_parameter(bytes, declaration);
-                }
-            }
+            encode_structural_source(bytes, source);
             super::read_byte::encode_layout(bytes, layout);
             encode_len(bytes, cases.len());
             for case in cases {
@@ -412,13 +421,9 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
                     bytes.push(3);
                     bytes.extend_from_slice(&place.get().to_le_bytes());
                 }
-                LegalizedScalarReturnValue::Structural {
-                    defining_operation,
-                    result,
-                } => {
+                LegalizedScalarReturnValue::Structural { source } => {
                     bytes.push(2);
-                    bytes.extend_from_slice(&defining_operation.get().to_le_bytes());
-                    super::structural_result::encode_operation_result(bytes, result);
+                    encode_structural_source(bytes, source);
                 }
                 LegalizedScalarReturnValue::Value { value, scalar_type } => {
                     bytes.push(1);

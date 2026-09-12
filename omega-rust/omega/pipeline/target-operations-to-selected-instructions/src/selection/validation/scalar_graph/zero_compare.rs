@@ -90,6 +90,7 @@ pub(super) fn folded_zero<'a>(
                     .iter()
                     .any(|argument| argument.scalar_source() == Some(definition.value)),
                 LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
+                | LegalizedScalarInstructionKind::BitwiseAnd { left, right }
                 | LegalizedScalarInstructionKind::IeeeFloatCompare { left, right, .. }
                 | LegalizedScalarInstructionKind::Compare { left, right, .. } => {
                     *left == definition.value || *right == definition.value

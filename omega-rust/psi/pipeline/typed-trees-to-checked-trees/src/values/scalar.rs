@@ -41,7 +41,9 @@ mod result_contract;
 pub(crate) use call_arguments::{
     nested_structural_call_return_type, retain_nested_structural_call_arguments,
 };
+#[cfg(test)]
 pub(crate) use computations::build_checked_scalar_computation_plans;
+pub(crate) use computations::build_checked_value_computation_plans;
 pub(crate) use contract_entry::{
     lower_machine_entry_boolean_expression, lower_machine_entry_crash_contract_expression,
     lower_machine_entry_scalar_contract_expression, lower_signature_crash_contract_expression,

@@ -10,6 +10,12 @@ pub(super) fn project(
     let (operation, result) =
         scalar_graph_input::instruction(node).ok_or(Error::SourceCustodyMismatch)?;
     let kind = match &node.operation {
+        AbstractOperation::IntegerBitwiseAnd { left, right, .. } => {
+            LegalizedScalarInstructionKind::BitwiseAnd {
+                left: *left,
+                right: *right,
+            }
+        }
         AbstractOperation::IeeeFloatCompare {
             comparison,
             format,

@@ -163,6 +163,121 @@ pub(super) fn validate(
     Ok(())
 }
 
+pub(super) fn validate_structural(
+    checked: &CheckedTrees,
+    plan: &CheckedComposedUnitControlMachinePlan,
+    source: &checked_trees::state::State,
+    state: &CheckedComposedUnitControlStatePlan,
+    ordinal: usize,
+) -> Result<(), LoweringError> {
+    use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
+    let (
+        CheckedControlResultPlan::Structural(signature),
+        CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result },
+    ) = (&plan.result, &state.terminator)
+    else {
+        return unsupported("structural return has no result signature");
+    };
+    if signature.type_identity != result.type_identity
+        || signature.multiplicity != result.multiplicity
+    {
+        return unsupported("structural return changed its declared result custody");
+    }
+    let Some(checked_trees::statement::StatementNode::Expression(expression)) = checked
+        .statement_table
+        .statements(source.statement_nodes)
+        .get(ordinal)
+    else {
+        return unsupported("structural return has no authored completion");
+    };
+    match result.source {
+        CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
+            let mut producers = state
+                .operations
+                .iter()
+                .filter_map(|operation| match operation {
+                    CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                        result,
+                        discard_result_on_return: false,
+                        ..
+                    }
+                    | CheckedUnitEffectOperationPlan::StructuralCall {
+                        result,
+                        discard_result_on_return: false,
+                        ..
+                    }
+                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                        result,
+                        discard_result_on_return: false,
+                        ..
+                    } if result.binding_ordinal == binding_ordinal => Some((operation, result)),
+                    _ => None,
+                });
+            let (operation, binding) = producers.next().ok_or(LoweringError::Unsupported(
+                "structural return producer absent",
+            ))?;
+            if producers.next().is_some()
+                || binding.type_identity != result.type_identity
+                || binding.multiplicity != result.multiplicity
+                || binding.statement_index as usize > ordinal
+            {
+                return unsupported("structural return producer custody drifted");
+            }
+            if binding.statement_index as usize == ordinal {
+                if !matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+                ) {
+                    return unsupported(
+                        "structural return tail producer requires exact value custody",
+                    );
+                }
+                crate::attached_unit::structural_values::source_custody::validate(
+                    checked,
+                    plan.machine,
+                    state.state,
+                    operation,
+                )?;
+            } else {
+                let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
+                    .statement_table
+                    .statements(source.statement_nodes)
+                    .get(binding.statement_index as usize)
+                else {
+                    return unsupported("structural return does not name its produced local");
+                };
+                if !matches!(checked.expression_table.expression(*expression), ExpressionNode::Name(path) if path.symbol == local.symbol && checked.expression_table.name_path_members(path.members).len() == 1)
+                {
+                    return unsupported("structural return exchanged its produced local");
+                }
+            }
+        }
+        CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+            let parameter = state
+                .structural_parameters
+                .get(parameter_index as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "structural return parameter absent",
+                ))?;
+            let declaration = checked
+                .state_parameters(source)
+                .get(parameter.position as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "structural return source parameter absent",
+                ))?;
+            if parameter.type_identity != result.type_identity
+                || parameter.multiplicity != result.multiplicity
+                || parameter.access != checked_trees::CheckedStructuralAccess::Owned
+                || !matches!(checked.expression_table.expression(*expression), ExpressionNode::Name(path) if path.symbol == declaration.symbol && checked.expression_table.name_path_members(path.members).len() == 1)
+            {
+                return unsupported("structural return exchanged its owned parameter");
+            }
+        }
+        _ => return unsupported("structural return requires whole established custody"),
+    }
+    Ok(())
+}
+
 pub(super) fn result(
     plan: &CheckedControlResultPlan,
     catalogs: &mut catalogs::ComposedCatalogs,

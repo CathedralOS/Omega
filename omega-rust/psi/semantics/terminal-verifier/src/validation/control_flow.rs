@@ -497,6 +497,14 @@ pub(super) fn validate_control_flow(
                 }
             }
             Terminator::ReturnStructural { source, .. } => {
+                let block_parameter = super::block_views::parameter(machine, *source);
+                if block_parameter.is_some() && !available_structural.contains(source) {
+                    return Err(ModuleError::StructuralReturnSourceNotLive {
+                        machine: machine.id,
+                        block: block.id,
+                        place: *source,
+                    });
+                }
                 if scalar_array_definitions.contains_key(source)
                     && !available_arrays.contains(source)
                 {
@@ -507,7 +515,8 @@ pub(super) fn validate_control_flow(
                     });
                 }
                 if super::byte_sequence_subslice::borrowed_result(machine, *source).is_some()
-                    || super::block_views::parameter(machine, *source).is_some()
+                    || block_parameter
+                        .is_some_and(|parameter| parameter.access != StructuralAccess::Owned)
                 {
                     return Err(ModuleError::ByteSequenceSubsliceReturnUnsupported {
                         machine: machine.id,
@@ -524,6 +533,7 @@ pub(super) fn validate_control_flow(
                     .structural_parameters
                     .iter()
                     .any(|parameter| parameter.place == *source)
+                    && block_parameter.is_none()
                     && !machine
                         .blocks
                         .iter()

@@ -789,6 +789,8 @@ pub(super) fn validate_structural_frontier(
                 let source_signature =
                     super::structural_result_contracts::source_signature(machine, *source)
                         .expect("control validation requires a structural source declaration");
+                let plain_owned_block_return =
+                    super::block_views::plain_owned_return_source(module, machine, *source);
                 let exact_unrestricted_parameter_return = source_signature.multiplicity
                     == StructuralMultiplicity::Unrestricted
                     && super::structural_result_contracts::has_empty_qualification_rosters(
@@ -805,6 +807,8 @@ pub(super) fn validate_structural_frontier(
                 if frontier.owned_places.remove(source).is_none()
                     && !exact_unrestricted_parameter_return
                     && !super::scalar_array::plain_return_source(module, machine, *source)
+                    && !(plain_owned_block_return
+                        && source_signature.multiplicity == StructuralMultiplicity::Unrestricted)
                 {
                     return Err(ModuleError::StructuralReturnSourceNotLive {
                         machine: machine.id,
@@ -885,6 +889,7 @@ pub(super) fn validate_structural_frontier(
                 if (returned_claims.is_empty()
                     && !exact_payloadless_claim_free_return
                     && !exact_affine_parameter_return
+                    && !plain_owned_block_return
                     && !super::scalar_array::plain_return_source(module, machine, *source)
                     && !super::scalar_case::plain_return_source(module, machine, *source))
                     || returned_claims.windows(2).any(|pair| pair[0] >= pair[1])

@@ -250,7 +250,7 @@ pub(in crate::attached_unit) fn emit_callable_body(
     );
     machine
         .structural_places
-        .append(&mut catalogs.literal_store_places);
+        .append(&mut catalogs.temporary_places);
     machine
         .structural_places
         .append(&mut catalogs.result_places);
@@ -294,6 +294,7 @@ pub(crate) fn emit_call_leaf(
         entry: block,
         current: block,
         parameters: scalar_parameters.to_vec(),
+        block_structural_parameters: Vec::new(),
         operation_start: 0,
         blocks: Vec::new(),
     };
@@ -315,7 +316,7 @@ pub(crate) fn emit_call_leaf(
     )?;
     *next_operation = operations.next_identity;
     evaluation.blocks.push(Block {
-        structural_parameters: Vec::new(),
+        structural_parameters: evaluation.block_structural_parameters,
         id: evaluation.current,
         parameters: evaluation.parameters,
         operations: operations[evaluation.operation_start..].to_vec(),
@@ -347,6 +348,62 @@ pub(super) fn emit_call_operations(
     operations: &mut OperationBuffer,
 ) -> Result<(), LoweringError> {
     for operation in &state.operations {
+        if matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+        ) {
+            crate::attached_unit::structural_values::emit(
+                checked,
+                machine,
+                state.state,
+                operation,
+                catalogs,
+                evaluation,
+                values,
+                next_value,
+                next_block,
+                next_edge,
+                operations,
+            )?;
+            continue;
+        }
+        if let CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value } = operation {
+            let mut calls = catalogs.scalar_calls.emission_context();
+            let evaluated = evaluation.source_value(
+                checked,
+                machine,
+                state.state,
+                result.statement_index,
+                CheckedScalarExpressionRole::LocalInitializer {
+                    binding_ordinal: result.binding_ordinal,
+                },
+                value,
+                values.len(),
+                values,
+                next_value,
+                next_block,
+                next_edge,
+                operations,
+                &mut calls,
+            )?;
+            catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+            if evaluated.scalar_type != terminal_scalar_type(result.primitive_type)? {
+                return unsupported("graph scalar local carrier differs from its checked result");
+            }
+            evaluation
+                .scalar_bindings
+                .as_mut()
+                .ok_or(LoweringError::Unsupported(
+                    "graph scalar local namespace missing",
+                ))?
+                .append(
+                    checked_trees::CheckedScalarBindingDestination::Immutable,
+                    evaluated.scalar_type,
+                    values.len(),
+                )?;
+            values.push(evaluated);
+            continue;
+        }
         if let CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) = operation {
             let bindings =
                 evaluation
@@ -432,7 +489,7 @@ pub(super) fn emit_call_operations(
                 store,
                 parameters,
                 &mut catalogs.structural_types,
-                &mut catalogs.literal_store_places,
+                &mut catalogs.temporary_places,
                 &mut catalogs.next_place,
                 next_value,
                 &mut catalogs.scalar_calls.next_call_obligation,

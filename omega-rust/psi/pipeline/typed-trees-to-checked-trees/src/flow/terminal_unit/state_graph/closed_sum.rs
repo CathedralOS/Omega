@@ -75,6 +75,11 @@ pub(super) fn build(
                     result,
                     discard_result_on_return: false,
                     ..
+                }
+                | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    result,
+                    discard_result_on_return: false,
+                    ..
                 } => Some(result),
                 _ => None,
             })

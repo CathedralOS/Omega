@@ -182,31 +182,13 @@ pub(super) fn validate(
                                 plan,
                             )
                             .is_ok_and(|expected| expected == *source)
-                                && graph.blocks.iter().any(|producer| {
-                                    (producer.block == block.block
-                                        || sources::dominates(
-                                            optimized,
-                                            producer.block,
-                                            block.block,
-                                        ))
-                                        && producer.operations.iter().any(|operation| {
-                                            match operation {
-                                                TargetUnitOperation::EstablishScalarArray {
-                                                    result_home,
-                                                    ..
-                                                }
-                                                | TargetUnitOperation::EstablishScalarCase {
-                                                    result_home,
-                                                    ..
-                                                }
-                                                | TargetUnitOperation::StructuralResultCall {
-                                                    result_home: Some(result_home),
-                                                    ..
-                                                } => result_home == source,
-                                                _ => false,
-                                            }
-                                        })
-                                })
+                                && structural_cases::home_available(
+                                    graph,
+                                    optimized,
+                                    block.block,
+                                    source,
+                                    *expected_source,
+                                )
                         }
                     }
             }

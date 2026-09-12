@@ -34,19 +34,15 @@ pub(super) fn validate(
                         .any(|parameter| parameter.place == *source) => {}
                 (
                     LegalizedScalarReturnValue::Structural {
-                        defining_operation,
-                        result,
+                        source: actual_source,
                     },
                     AbstractOperation::ReturnStructural {
                         psi_edge, source, ..
                     },
                 ) => {
-                    let (producer, expected) =
-                        scalar_graph_input::structural_case::source_result(function, *source)?;
-                    if returned.edge != *psi_edge
-                        || *defining_operation != producer
-                        || result != expected
-                    {
+                    let expected =
+                        scalar_graph_input::structural_case::source_owner(function, *source)?;
+                    if returned.edge != *psi_edge || *actual_source != expected {
                         return Err(invalid);
                     }
                 }

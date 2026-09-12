@@ -79,8 +79,10 @@ fn owned_array_arguments_replay_exact_home_type_and_fragments() {
                 panic!("return");
             };
             returned.value = LegalizedScalarReturnValue::Structural {
-                defining_operation: row.operation,
-                result: output,
+                source: legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+                    operation: row.operation,
+                    result: output,
+                },
             };
             source.blocks[0].instructions.push(row);
             let environment =
