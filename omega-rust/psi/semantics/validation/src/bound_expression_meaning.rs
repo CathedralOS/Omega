@@ -361,10 +361,16 @@ fn membership_subject_matches_owner(
                         })
                     },
                     |state| {
+                        // A receiver on another callable state cannot establish
+                        // this machine's `self`, even for the same nominal type.
                         program
-                            .state_parameters(state)
+                            .machine_states(machine)
                             .iter()
-                            .any(|parameter| parameter.is_self)
+                            .any(|candidate| candidate.symbol == state.symbol)
+                            && program
+                                .state_parameters(state)
+                                .iter()
+                                .any(|parameter| parameter.is_self)
                     },
                 );
         }
