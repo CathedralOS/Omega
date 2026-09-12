@@ -124,7 +124,6 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     BuildOptimizationReportRequest,
     BuildBoundaryAcceptance,
     BuildWireCompatibilityRequest,
-    BuildRootBinding,
     BuildIncludedSourceHandoff,
     /// Exact toolchain `BuildLog::write_line` selection. Build logging is a
     /// compiler-owned build observation, not a package or boundary service.

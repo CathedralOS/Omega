@@ -3,6 +3,15 @@ use arena::{Arena, Handle, HandleSpan};
 use source::SourceSpan;
 
 pub type StatementHandle = Handle<StatementNode>;
+
+/// A Build declaration with product-context operands, never a runtime call.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RootBinding {
+    pub receiver: crate::expression::ExpressionHandle,
+    pub slot: Box<[Identifier]>,
+    pub implementation: Box<[Identifier]>,
+    pub source_span: SourceSpan,
+}
 pub type TransitionTargetHandle = Handle<TransitionTargetNode>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -111,6 +120,7 @@ impl Default for StatementTable {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StatementNode {
+    RootBinding(RootBinding),
     AssemblyFact(TableAssemblyFact),
     Assignment(TableAssignment),
     Call(TableCall),

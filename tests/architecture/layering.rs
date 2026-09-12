@@ -4987,7 +4987,7 @@ fn build_evaluation_physical_package_source_uses_strong_commitment() {
         "physical-contract package provenance must retain a strong source commitment beside its compact report coordinate",
     );
 
-    let evaluation_path = root.join("omega-rust/omega/build/build-evaluation/src/lib.rs");
+    let evaluation_path = root.join("omega-rust/omega/build/build-evaluation/src/selection.rs");
     let evaluation = std::fs::read_to_string(&evaluation_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", evaluation_path.display()));
     assert!(

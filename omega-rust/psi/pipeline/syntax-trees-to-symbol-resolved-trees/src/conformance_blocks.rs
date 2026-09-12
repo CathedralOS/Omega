@@ -262,6 +262,9 @@ fn route_statement_span(
         let statement = program.tables.bodies.statements.statement(handle).clone();
         let mut expressions = Vec::new();
         match statement {
+            symbol_resolved_trees::statement::StatementNode::RootBinding(binding) => {
+                expressions.push(binding.receiver);
+            }
             symbol_resolved_trees::statement::StatementNode::AssemblyFact(fact) => {
                 expressions.push(fact.expression);
             }

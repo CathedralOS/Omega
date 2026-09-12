@@ -939,6 +939,12 @@ impl SyntaxTrees {
         statement: &StatementNode,
     ) -> StatementNode {
         match statement {
+            StatementNode::RootBinding(binding) => {
+                StatementNode::RootBinding(crate::statement::RootBinding {
+                    receiver: self.copy_expression_handle(other, binding.receiver),
+                    ..binding.clone()
+                })
+            }
             StatementNode::AssemblyFact(fact) => StatementNode::AssemblyFact(TableAssemblyFact {
                 kind: fact.kind,
                 expression: self.copy_expression_handle(other, fact.expression),

@@ -636,7 +636,7 @@ fn walk_state_write_prefix_inner(
             }
         }
         match statement {
-            StatementNode::AssemblyFact(_) => {}
+            StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => {}
             StatementNode::Assignment(assignment) => {
                 let replaces_local_binding = representable_alias_rebinding
                     || (include_shared
@@ -2311,7 +2311,9 @@ fn build_permuted_cycle_frame_equation<'program>(
             }
         }
         match statement {
-            StatementNode::AssemblyFact(_) | StatementNode::Expression(_) => {}
+            StatementNode::RootBinding(_)
+            | StatementNode::AssemblyFact(_)
+            | StatementNode::Expression(_) => {}
             StatementNode::Assignment(assignment) => {
                 if (!representable_alias_rebinding
                     && stored_origins::assignment_replaces_case_binding(

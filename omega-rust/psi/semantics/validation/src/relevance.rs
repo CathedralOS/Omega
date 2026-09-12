@@ -35,6 +35,7 @@ pub(crate) fn validate_relevance(program: &TypedTrees, diagnostics: &mut Vec<Dia
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
                 match statement {
+                    StatementNode::RootBinding(_) => {}
                     StatementNode::AssemblyFact(fact) => validate_expression(
                         program,
                         &proof_only,

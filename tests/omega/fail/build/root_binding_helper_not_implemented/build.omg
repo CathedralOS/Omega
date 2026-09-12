@@ -1,0 +1,8 @@
+machine build(builder: &mut Build) {
+    builder.application("root-binding-helper");
+    bind_entry(builder);
+}
+
+machine bind_entry(options: &mut Build) {
+    options.roots.bind(windows_x86_64::ProgramEntry, launch);
+}

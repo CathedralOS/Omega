@@ -26,7 +26,7 @@ pub(super) fn check_statement<'program>(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match statement {
-        StatementNode::AssemblyFact(_) => {}
+        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             check_expression(
                 program,

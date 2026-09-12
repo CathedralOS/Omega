@@ -616,7 +616,6 @@ impl<'program> Evaluator<'program> {
             || target == "select_provider"
             || target == "select_representation"
             || target.starts_with("wire_compatibility#")
-            || target.starts_with("bind_root#")
         {
             return Ok(Value::Unit);
         }

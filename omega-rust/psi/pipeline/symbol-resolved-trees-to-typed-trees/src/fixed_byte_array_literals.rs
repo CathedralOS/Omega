@@ -80,6 +80,7 @@ pub(crate) fn land_exact_fixed_byte_array_literals_from(
             let statements = program.statement_table.statements(state.statement_nodes);
             for (statement_index, statement) in statements.iter().enumerate() {
                 match statement {
+                    StatementNode::RootBinding(_) => {}
                     StatementNode::LocalData(local)
                         if local.initial_value.is_valid() && local.type_reference.is_valid() =>
                     {

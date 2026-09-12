@@ -11,6 +11,123 @@ mod attached_fields;
 mod indexed_operators;
 mod projected_receivers;
 
+fn typed_root_binding_fixture(source: &str, toolchain: bool) -> typed_trees::TypedTrees {
+    let mut sources = source::SourceMap::default();
+    let source_id = sources
+        .add_with_metadata(
+            std::path::PathBuf::from("<build-prelude>"),
+            source.to_owned(),
+            std::path::PathBuf::from("."),
+            None,
+            if toolchain {
+                source::SourceOrigin::Toolchain
+            } else {
+                source::SourceOrigin::User
+            },
+        )
+        .source_id;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize root binding");
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
+        .expect("parse root binding");
+    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(
+        &syntax,
+        std::sync::Arc::new(sources),
+    )
+    .expect("resolve root binding");
+    lower_symbol_resolved_trees(&resolved).expect("type root binding")
+}
+
+#[test]
+fn root_binding_statement_checks_the_exact_build_parameter_without_resolving_product_locators() {
+    for name in ["builder", "options"] {
+        let source = format!(
+            "data Build {{}} machine build({name}: &mut Build) {{ {name}.roots.bind(Target::ProgramEntry, Product::start); }}"
+        );
+        let checked = lower_typed_trees(typed_root_binding_fixture(&source, true))
+            .expect("direct compiler Build parameter checks");
+        let binding = checked
+            .machines()
+            .iter()
+            .flat_map(|machine| checked.machine_states(machine))
+            .flat_map(|state| checked.statement_table.statements(state.statement_nodes))
+            .find_map(|statement| {
+                if let typed_trees::statement::StatementNode::RootBinding(binding) = statement {
+                    Some(binding)
+                } else {
+                    None
+                }
+            })
+            .expect("retained declaration");
+        assert_eq!(
+            binding
+                .implementation
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>(),
+            ["Product", "start"]
+        );
+    }
+}
+
+#[test]
+fn root_binding_statement_rejects_forged_build_and_unimplemented_alias_receivers() {
+    for (toolchain, body) in [
+        (
+            false,
+            "builder.roots.bind(Target::ProgramEntry, Product::start);",
+        ),
+        (
+            true,
+            "let builder: Build = Build {}; builder.roots.bind(Target::ProgramEntry, Product::start);",
+        ),
+        (
+            true,
+            "let alias: &mut Build = builder; alias.roots.bind(Target::ProgramEntry, Product::start);",
+        ),
+    ] {
+        let source = format!("data Build {{}} machine build(builder: &mut Build) {{ {body} }}");
+        let mut typed = typed_root_binding_fixture(&source, toolchain);
+        let diagnostic = crate::authored_selections::finalize_checked_authored_selections(
+            &mut typed,
+            &checked_trees::CheckFacts::default(),
+        )
+        .expect_err("only the exact parameter is implemented");
+        assert!(
+            diagnostic
+                .message
+                .contains("direct compiler-issued &mut Build parameter"),
+            "{}",
+            diagnostic.message
+        );
+    }
+}
+
+#[test]
+fn root_binding_has_no_value_context_or_ordinary_bind_call_exception() {
+    let ordinary = "data Build {} machine bind() {} machine build(builder: &mut Build) { bind(); }";
+    lower_typed_trees(typed_root_binding_fixture(ordinary, true))
+        .expect("ordinary bind is an ordinary call");
+    let source = "data Build {} machine build(builder: &mut Build) { let value: u64 = builder.roots.bind(Target::ProgramEntry, Product::start); }";
+    assert!(
+        lower_typed_trees(typed_root_binding_fixture(source, true)).is_err(),
+        "root binding cannot yield a value"
+    );
+    let source = "data Roots {} data Carrier { roots: Roots; } machine Roots::bind(&mut self) {} machine inspect(carrier: &mut Carrier) { carrier.roots.bind(Target::ProgramEntry, Product::start); }";
+    let mut typed = typed_root_binding_fixture(source, true);
+    let diagnostic = crate::authored_selections::finalize_checked_authored_selections(
+        &mut typed,
+        &checked_trees::CheckFacts::default(),
+    )
+    .expect_err("same-shaped ordinary receiver has no Build authority");
+    assert!(
+        diagnostic
+            .message
+            .contains("direct compiler-issued &mut Build parameter")
+    );
+}
+
 #[test]
 fn successful_checking_rejects_any_unresolved_authored_selection() {
     let mut typed = typed_trees::TypedTrees::default();

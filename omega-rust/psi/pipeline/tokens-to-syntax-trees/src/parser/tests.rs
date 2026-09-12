@@ -498,7 +498,7 @@ fn provider_selection_retains_one_explicit_composition_mode_argument() {
 }
 
 #[test]
-fn root_binding_marker_retains_the_authored_bind_span() {
+fn root_binding_statement_retains_operand_paths_and_the_authored_bind_span() {
     let source = r#"
         machine build(builder: &mut Build) {
             builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
@@ -508,20 +508,63 @@ fn root_binding_marker_retains_the_authored_bind_span() {
         .tokenize()
         .expect("tokenize root binding");
     let parsed = parse_syntax_trees(&tokens).expect("parse root binding");
-    let call = parsed
-        .expressions
-        .iter_expressions()
-        .find_map(|(_, expression)| match expression {
-            ExpressionNode::Call(call) if call.target.as_str().starts_with("bind_root#") => {
-                Some(call)
-            }
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
-        .expect("generated root-binding marker call");
-
-    let span = call.target.source_span().span;
+        .expect("build machine");
+    let state = parsed
+        .items
+        .state(parsed.items.state_handles(machine.states)[0]);
+    let StatementNode::RootBinding(binding) = parsed
+        .statements
+        .statement(parsed.items.statements(state.statements)[0])
+    else {
+        panic!("expected a dedicated root-binding statement");
+    };
+    assert_eq!(
+        binding
+            .slot
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        ["linux_x86_64", "ProgramEntry"]
+    );
+    assert_eq!(
+        binding
+            .implementation
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        ["Main", "main"]
+    );
+    let span = binding.source_span.span;
     assert!(span.start < span.end);
     assert_eq!(&source[span.start..span.end], "bind");
+}
+
+#[test]
+fn root_binding_statement_rejects_malformed_operands() {
+    for operands in [
+        "",
+        "Slot",
+        "Slot,",
+        "Slot, Entry, Extra",
+        "Slot, 12",
+        "Slot::, Entry",
+    ] {
+        let source =
+            format!("machine build(builder: &mut Build) {{ builder.roots.bind({operands}); }}");
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize malformed root binding");
+        assert!(
+            parse_syntax_trees(&tokens).is_err(),
+            "accepted operands: {operands}"
+        );
+    }
 }
 
 #[test]

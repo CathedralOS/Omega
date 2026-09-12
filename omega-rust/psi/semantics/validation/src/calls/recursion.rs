@@ -41,7 +41,7 @@ pub(crate) fn validate_self_recursive_call_positions(
         .next()
         .unwrap_or(machine.name.as_str());
     match statement {
-        StatementNode::AssemblyFact(_) => {}
+        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => {}
         // The statement-position fence in `validate_call_node` owns
         // StatementNode::Call; transition ARM TARGETS are the legal tail
         // spelling (planned by the state graph). Everything else that can

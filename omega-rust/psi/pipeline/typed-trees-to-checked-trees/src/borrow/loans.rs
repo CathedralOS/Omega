@@ -99,7 +99,8 @@ pub(super) fn statement_borrow_loans(
                 true,
             )
         }
-        StatementNode::AssemblyFact(_)
+        StatementNode::RootBinding(_)
+        | StatementNode::AssemblyFact(_)
         | StatementNode::Call(_)
         | StatementNode::Expression(_)
         | StatementNode::Transition(_) => Vec::new(),

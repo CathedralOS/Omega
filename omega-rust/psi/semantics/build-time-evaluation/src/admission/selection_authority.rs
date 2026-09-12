@@ -144,6 +144,7 @@ fn collect_statement_expressions(
     expressions: &mut Vec<ExpressionHandle>,
 ) {
     match statement {
+        StatementNode::RootBinding(binding) => expressions.push(binding.receiver),
         StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             expressions.push(assignment.target);

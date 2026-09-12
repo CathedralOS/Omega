@@ -206,7 +206,7 @@ fn collect_statement_calls(
     calls: &mut Vec<CallWork>,
 ) {
     match statement {
-        StatementNode::AssemblyFact(_) => {}
+        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             collect_expression_calls(program, machine, state, assignment.target, direct, calls);
             collect_expression_calls(program, machine, state, assignment.value, direct, calls);

@@ -158,7 +158,7 @@ fn statement_root_expressions(
     statement: &StatementNode,
 ) -> Vec<ExpressionHandle> {
     match statement {
-        StatementNode::AssemblyFact(_) => Vec::new(),
+        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => Vec::new(),
         StatementNode::Assignment(assignment) => vec![assignment.target, assignment.value],
         StatementNode::Call(call) => program
             .statement_table
@@ -356,7 +356,8 @@ fn known_byte_lengths_before(
                     known.push(KnownByteLength { place, max_length });
                 }
             }
-            StatementNode::AssemblyFact(_)
+            StatementNode::RootBinding(_)
+            | StatementNode::AssemblyFact(_)
             | StatementNode::Call(_)
             | StatementNode::Expression(_)
             | StatementNode::Transition(_) => known.clear(),

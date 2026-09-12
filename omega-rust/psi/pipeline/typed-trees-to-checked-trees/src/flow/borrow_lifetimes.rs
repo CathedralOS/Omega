@@ -58,7 +58,8 @@ pub(super) fn filter_reassigned_borrow_loans(
                 _ => return source,
             }
         }
-        StatementNode::AssemblyFact(_)
+        StatementNode::RootBinding(_)
+        | StatementNode::AssemblyFact(_)
         | StatementNode::Call(_)
         | StatementNode::Expression(_)
         | StatementNode::LocalData(_)

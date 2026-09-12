@@ -1,3 +1,4 @@
+use crate::vocabulary::is_exact_toolchain_build_prelude_data;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 
@@ -20,7 +21,7 @@ pub(super) fn classify(typed: &TypedTrees) -> Result<OptimizationBuildVocabulary
         .iter()
         .copied()
         .filter(|definition| {
-            super::super::is_exact_toolchain_build_prelude_data(typed, definition.symbol, "Build")
+            is_exact_toolchain_build_prelude_data(typed, definition.symbol, "Build")
         })
         .collect::<Vec<_>>();
     let builds = if toolchain_builds.is_empty() {
@@ -61,13 +62,13 @@ pub(super) fn classify(typed: &TypedTrees) -> Result<OptimizationBuildVocabulary
                 typed.display_type_reference_with_constraints(field.type_reference)
             ))]);
         };
-        if !super::super::is_exact_toolchain_build_prelude_data(typed, *symbol, "Optimizations") {
+        if !is_exact_toolchain_build_prelude_data(typed, *symbol, "Optimizations") {
             return Err(vec![Diagnostic::error(format!(
                 "Build.optimizations must have the exact toolchain `Optimizations` type, got `{}`",
                 typed.display_type_reference_with_constraints(field.type_reference)
             ))]);
         }
-        if !super::super::is_exact_toolchain_build_prelude_data(typed, build.symbol, "Build") {
+        if !is_exact_toolchain_build_prelude_data(typed, build.symbol, "Build") {
             return Err(vec![Diagnostic::error(
                 "Build.optimizations is reserved to the toolchain-provided Build vocabulary",
             )]);

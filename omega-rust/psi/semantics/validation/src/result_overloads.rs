@@ -815,7 +815,8 @@ fn collect_expected_expression_calls(
                             }
                         }
                     }
-                    StatementNode::AssemblyFact(_)
+                    StatementNode::RootBinding(_)
+                    | StatementNode::AssemblyFact(_)
                     | StatementNode::Expression(_)
                     | StatementNode::LocalData(_) => {}
                 }

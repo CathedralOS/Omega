@@ -180,6 +180,40 @@ fn finalize_checked_authored_selections_with_policy(
     let mut inferred_conformances = Vec::new();
     let expressions = &program.tables.expression_table;
 
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                let typed_trees::statement::StatementNode::RootBinding(binding) = statement else {
+                    continue;
+                };
+                let parameter = match expressions.expression(binding.receiver) {
+                    ExpressionNode::Name(path)
+                        if expressions.name_path_members(path.members).len() == 1 =>
+                    {
+                        program
+                            .state_parameters(state)
+                            .iter()
+                            .find(|parameter| parameter.symbol == path.symbol)
+                    }
+                    _ => None,
+                };
+                if !parameter.is_some_and(|parameter| {
+                    matches!(program.type_reference_table.type_reference(parameter.type_reference),
+                        typed_trees::types::TypeReferenceNode::Reference { access, referee, .. }
+                            if access.is_exclusive() && exact_build_prelude_data(program, program.type_reference_table.type_symbol(*referee), "Build"))
+                })
+                {
+                    return Err(Diagnostic::error("this root-binding implementation supports only a direct compiler-issued &mut Build parameter; evaluated aliases and computed receivers are not implemented")
+                        .with_source_span(binding.source_span));
+                }
+                if binding.slot.is_empty() || binding.implementation.is_empty() {
+                    return Err(Diagnostic::error("root-slot binding requires exactly one slot path and one implementation path")
+                        .with_source_span(binding.source_span));
+                }
+            }
+        }
+    }
+
     for (expression, node) in expressions.iter_expressions() {
         let occurrences = expressions
             .authored_selection_occurrences(expression)
@@ -828,8 +862,6 @@ fn checked_call_intrinsic(
         Some(Intrinsic::BuildBoundaryAcceptance)
     } else if target.starts_with("wire_compatibility#") {
         Some(Intrinsic::BuildWireCompatibilityRequest)
-    } else if target.starts_with("bind_root#") {
-        Some(Intrinsic::BuildRootBinding)
     } else if target.starts_with("asm#") {
         Some(Intrinsic::InlineAssemblyOperation)
     } else {

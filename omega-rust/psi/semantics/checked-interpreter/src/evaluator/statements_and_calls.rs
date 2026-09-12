@@ -10,7 +10,7 @@ impl<'program> Evaluator<'program> {
         match statement {
             // Assembly facts are compile-time assertions and have no runtime
             // evaluation in either interpreter or native execution.
-            StatementNode::AssemblyFact(_) => Ok(()),
+            StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => Ok(()),
             StatementNode::Assignment(assignment) => {
                 if self.assign_array_window(assignment.target, assignment.value, frame)? {
                     return Ok(());
@@ -439,7 +439,6 @@ impl<'program> Evaluator<'program> {
             || call.target.as_str() == "select_provider"
             || call.target.as_str() == "select_representation"
             || call.target.as_str().starts_with("wire_compatibility#")
-            || call.target.as_str().starts_with("bind_root#")
         {
             return Ok(Value::Unit);
         }

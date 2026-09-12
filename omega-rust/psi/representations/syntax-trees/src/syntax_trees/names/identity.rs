@@ -311,6 +311,12 @@ fn count_statement_node(
     counts: &mut AstIdentityStorageCounts,
 ) {
     match syntax_trees.statements.statement(statement) {
+        crate::statement::StatementNode::RootBinding(binding) => {
+            count_expression_handle(syntax_trees, binding.receiver, counts);
+            for member in binding.slot.iter().chain(binding.implementation.iter()) {
+                count_identifier(member, counts);
+            }
+        }
         crate::statement::StatementNode::AssemblyFact(fact) => {
             count_expression_handle(syntax_trees, fact.expression, counts);
         }
