@@ -4219,7 +4219,7 @@ fn exact_division_goal_transports_affine_bound_through_target_alias() {
 }
 
 #[test]
-fn exact_division_goal_transports_affine_bound_through_two_target_aliases() {
+fn exact_division_goal_transports_affine_bound_through_cited_target_aliases() {
     let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
     let context = PropositionContext::from_value_types((1..=6).map(|id| {
         (
@@ -4335,25 +4335,38 @@ fn exact_division_goal_transports_affine_bound_through_two_target_aliases() {
         .is_none(),
         "a redirected inner target equality cannot reach the affine bound",
     );
+    // The general equality join composes beyond the specialized two-alias
+    // producer. Every original equality remains an independently checked
+    // dependency; the old search depth was not a language restriction.
+    let assumptions = [
+        positive_root_bound,
+        outer_alias,
+        inner_alias,
+        Proposition::Equal(value(5, signed), value(6, signed)),
+    ];
+    let axioms = [Proposition::Equal(
+        value(6, signed),
+        ScalarTerm::exact_integer_add(signed, value(3, signed), integer(signed, 1))
+            .expect("exact add"),
+    )];
+    let proof = prove_canonical_integer_proposition(&context, &goal, &assumptions, &axioms)
+        .expect("explicit equation transport composes all three target aliases");
+    let acceptance = accept_certificate(&context, &goal, &assumptions, &axioms, &proof)
+        .expect("the original division question and premises independently check");
     assert!(
-        prove_canonical_integer_proposition(
-            &context,
-            &goal,
-            &[
-                positive_root_bound,
-                outer_alias,
-                inner_alias,
-                Proposition::Equal(value(5, signed), value(6, signed)),
-            ],
-            &[Proposition::Equal(
-                value(6, signed),
-                ScalarTerm::exact_integer_add(signed, value(3, signed), integer(signed, 1),)
-                    .expect("exact add"),
-            )],
-        )
-        .is_none(),
-        "a third target alias is outside the fixed two-equality family",
+        acceptance
+            .rules
+            .contains(&proof_admission::AcceptedProofRule::ValueEqualityTransport)
     );
+    assert_eq!(acceptance.assumptions.len(), assumptions.len());
+    assert_eq!(acceptance.semantic_axioms.len(), axioms.len());
+    for removed in 0..assumptions.len() {
+        let mut missing = assumptions.clone();
+        missing[removed] = Proposition::Truth;
+        assert!(accept_certificate(&context, &goal, &missing, &axioms, &proof).is_err());
+        assert!(prove_canonical_integer_proposition(&context, &goal, &missing, &axioms).is_none());
+    }
+    assert!(accept_certificate(&context, &goal, &assumptions, &[], &proof).is_err());
 }
 
 #[test]
