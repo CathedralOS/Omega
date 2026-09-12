@@ -47,6 +47,21 @@ Shared models describe the domain; computation operates on those models; platfor
 - Introduce traits at actual substitution boundaries, such as native backends or external I/O. Do not create an interface for every struct.
 - Select OS implementations at the module boundary with `cfg`; callers use the shared contract. Update every supported implementation when changing that contract, including explicit unsupported-operation handling. Keep platform dependencies target-scoped.
 
+Apply the entrypoint principle to application coordinators too: a reader should
+see preparation, iteration or dispatch, domain operations, and result handling
+in execution order. Helpers should own an operation or invariant, not merely
+hide the next section behind a finalizer callback or forwarding chain. Name each
+operation for what it actually produces; checking that returns checked trees is
+not Terminal publication. Product owners assemble their results and evidence;
+they should not call back into the coordinator to finish their own work.
+
+When API variants differ only in configuration or available inputs, prefer one
+request with explicit data over multiplying `with_*` execution paths. Preserve
+real differences in authority, required inputs, and recovery through precise
+types. This is not a one-function or one-loop rule: separate passes, callbacks,
+and executor wrappers remain useful when they serve an actual dependency or
+substitution boundary. Judge the readable lifecycle, not the line count.
+
 ## Make ownership and failure visible
 
 Borrow inputs when the operation does not retain them. Prefer `&[T]`, `&str`, and `&mut [T]` when only their contents matter. Return owned results when ownership transfers. Keep invariant-bearing state private; plain request/response records may expose fields.
