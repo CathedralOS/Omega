@@ -114,6 +114,45 @@ fn generic_dependency_identity_ignores_call_order_and_helper_extraction() {
 }
 
 #[test]
+fn generic_dependency_preserves_the_referenced_telescope_position() {
+    let source = |selected: &str| {
+        format!(
+            r#"
+        boundary trait Console {{ machine ping(); }}
+        boundary trait Callback {{ machine call() reaches Console; }}
+        machine forward<T [copy], machine First, const Count: u64, machine Second>()
+        where machine First satisfies Callback::call;
+        where machine Second satisfies Callback::call;
+        {{ {selected}(); }}
+        machine quiet() satisfies Callback::call {{}}
+        pub machine enter() {{ forward<u64, quiet, 2, quiet>(); }}
+        "#
+        )
+    };
+    let first = checked_source(&source("First"));
+    let second = checked_source(&source("Second"));
+    for checked in [&first, &second] {
+        let _artifact = terminal_production::TerminalProductionRequest::new(checked, "enter")
+            .produce_artifact()
+            .expect("one of two same-contract binders");
+    }
+    let original = &first.machine_specializations[0];
+    let mut stale = second.clone();
+    let receipt = &mut stale.typed.machine_specializations[0];
+    assert_ne!(
+        original.template_contract_commitment,
+        receipt.template_contract_commitment
+    );
+    receipt.canonical_template_contract_bytes = original.canonical_template_contract_bytes.clone();
+    receipt.template_contract_commitment = original.template_contract_commitment;
+    receipt.template_contract_report_fingerprint = original.template_contract_report_fingerprint;
+    let instance = receipt.instance;
+    assert!(
+        validation::recompute_checked_machine_specialization_commitment(&stale, instance).is_err()
+    );
+}
+
+#[test]
 fn type_only_generic_template_retains_concrete_helper_dependency() {
     let mut commitments = Vec::new();
     for reach in ["", "reaches Console"] {
