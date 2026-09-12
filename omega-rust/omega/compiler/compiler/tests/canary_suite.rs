@@ -342,6 +342,7 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
 /// Pure checked-semantics canaries. These deliberately do not enter native
 /// lowering and therefore do not require a deployable `ProgramEntry` binding.
 const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
+    "constants/lexical_aggregate_values",
     "operators/crash_routes",
     "operators/operand_requires_after_effects",
     "dependent/valuation_order_cycle",

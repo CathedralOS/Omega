@@ -1,0 +1,16 @@
+use consumer;
+data Key [copy] { value: u64; }
+const KEY: Key = Key { value: 1 };
+machine root_key() -> Key { KEY }
+machine keep(KEY: Key) -> Key { KEY }
+machine local_key(input: Key) -> Key {
+    let KEY: Key = input;
+    KEY
+}
+machine later_key(input: Key) -> Key {
+    let selected: Key = KEY;
+    let KEY: Key = input;
+    selected
+}
+data Main {}
+machine Main::main(&mut self) {}
