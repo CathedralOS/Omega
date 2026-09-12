@@ -122,6 +122,7 @@ pub(super) fn pair() -> (PackagePolicyBaseline, PackagePolicyBaseline) {
         operator_realizations: vec![],
         contracts: vec![],
         declared_service_reach: Some(vec![]),
+        service_reach_dependency: Default::default(),
         checked_service_reach: PackageReviewCheckedServiceReach::CheckedBody {
             realized: vec![],
             concrete: vec![],

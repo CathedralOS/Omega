@@ -113,6 +113,12 @@ pub fn project_checked_callable_policy(
             &inferred_crash_causes,
         )?;
         let surface = projected.surface;
+        let service_reach_dependency = super::reach_dependency::project(
+            compilation,
+            machine,
+            &service_reaches,
+            &surface.policy_type_parameters,
+        )?;
         let return_type = projected
             .entry
             .return_type
@@ -130,6 +136,7 @@ pub fn project_checked_callable_policy(
             operator_realizations: surface.operator_realizations,
             contracts: surface.contracts,
             declared_service_reach: surface.declared_service_reach,
+            service_reach_dependency,
             checked_service_reach: surface.checked_service_reach,
             unresolved_installation_reaches: surface.unresolved_installation_reaches,
             declared_synchronous_invocations: surface.declared_synchronous_invocations,

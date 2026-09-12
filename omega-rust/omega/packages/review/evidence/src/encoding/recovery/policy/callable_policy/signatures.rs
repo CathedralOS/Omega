@@ -138,6 +138,32 @@ fn static_fixture() -> PackagePolicyCallables {
     policy
 }
 
+#[test]
+fn reach_dependency_recovery_requires_an_exact_nominal_static_binder() {
+    let mut valid = static_fixture();
+    valid.callables[0].type_parameters[2].kind =
+        PackagePolicyTypeParameterKind::Machine(PackagePolicyMachineParameterContract::Nominal {
+            trait_identity: nominal_fixture("StepContract"),
+            requirement_identity: nominal_fixture("StepContract::step"),
+        });
+    valid.callables[0].service_reach_dependency.parameters = vec![2];
+    let bytes = valid.canonical_bytes().expect("scoped nominal dependency");
+    assert_eq!(recover(&bytes).unwrap(), valid);
+    for parameters in [vec![4], vec![0], vec![2, 2]] {
+        let mut forged = valid.clone();
+        forged.callables[0].service_reach_dependency.parameters = parameters;
+        assert!(forged.canonical_bytes().is_err());
+        assert!(recover(&unchecked_bytes(&forged)).is_err());
+    }
+    let mut structural = static_fixture();
+    structural.callables[0].service_reach_dependency.parameters = vec![2];
+    assert!(
+        structural.canonical_bytes().is_err(),
+        "structural contracts have fixed rows"
+    );
+    assert!(recover(&unchecked_bytes(&structural)).is_err());
+}
+
 fn nested(policy: &mut PackagePolicyCallables) -> &mut PackagePolicyMachineParameterSignature {
     let PackagePolicyTypeParameterKind::Machine(PackagePolicyMachineParameterContract::Structural(
         signature,

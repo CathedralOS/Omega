@@ -6,6 +6,32 @@ pub(super) fn validate(callable: &PackagePolicyCallable) -> Result<(), &'static 
     if let Some(ceiling) = &callable.declared_service_reach {
         nominal_set(ceiling)?;
     }
+    let dependency = &callable.service_reach_dependency;
+    nominal_set(&dependency.concrete)?;
+    ordered(&dependency.parameters)?;
+    for ordinal in &dependency.parameters {
+        if !matches!(
+            callable
+                .type_parameters
+                .get(*ordinal as usize)
+                .map(|parameter| &parameter.kind),
+            Some(PackagePolicyTypeParameterKind::Machine(
+                PackagePolicyMachineParameterContract::Nominal { .. }
+            ))
+        ) {
+            return Err(
+                "callable service-reach dependency does not select a nominal machine binder",
+            );
+        }
+    }
+    if let Some(ceiling) = &callable.declared_service_reach
+        && dependency
+            .concrete
+            .iter()
+            .any(|service| ceiling.binary_search(service).is_err())
+    {
+        return Err("callable service-reach dependency exceeds its conservative bound");
+    }
     if let PackageReviewCheckedServiceReach::CheckedBody { realized, concrete } =
         &callable.checked_service_reach
     {

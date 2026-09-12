@@ -12,6 +12,7 @@ use symbols::SymbolHandle;
 pub struct ServiceReachFacts {
     pub services: ServiceReachTable,
     pub rows: ServiceReachRowTable,
+    pub dependency_parameters: Arena<SymbolHandle>,
     pub root_machines: HandleSpan<MachineServiceReachRows>,
     pub machines: Arena<MachineServiceReachRows>,
     pub states: Arena<StateServiceReachRows>,
@@ -60,6 +61,7 @@ impl ServiceReachFacts {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MachineServiceReachRows {
     pub machine: SymbolHandle,
+    pub dependency: flow_effects::ServiceReachDependency,
     /// Exact public/private interface from symbol-resolved inference. This is
     /// not reconstructed from `published_ceiling`, because a public empty
     /// ceiling and private empty inference share the same row contents.

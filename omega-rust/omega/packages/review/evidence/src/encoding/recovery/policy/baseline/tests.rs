@@ -427,7 +427,7 @@ fn unknown_envelope_versions_and_dependency_vocabulary_reject() {
     assert_eq!(recover(&changed), Err(Error::UnsupportedVersion));
     let mut previous = bytes.clone();
     previous[PACKAGE_POLICY_BASELINE_MAGIC.len()..PACKAGE_POLICY_BASELINE_MAGIC.len() + 2]
-        .copy_from_slice(&1_u16.to_le_bytes());
+        .copy_from_slice(&2_u16.to_le_bytes());
     assert_eq!(recover(&previous), Err(Error::UnsupportedVersion));
     changed = bytes;
     changed[PACKAGE_POLICY_BASELINE_MAGIC.len()] = 255;

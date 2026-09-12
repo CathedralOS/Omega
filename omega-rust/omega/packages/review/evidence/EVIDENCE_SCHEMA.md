@@ -41,15 +41,25 @@ policy baseline below includes this component; the manager joins that baseline
 to source pins and accepted decisions. This component does not change the
 full-review schema or any compiler validator.
 
-`OMEGA-PACKAGE-POLICY` version 2 composes the full inert package baseline under
+`OMEGA-PACKAGE-POLICY` version 3 composes the full inert package baseline under
 those same aggregate ceilings. Its field order is package, target, public API
 (traits, conformances, domains, consts, operators, data), callables,
 selected providers, terminal permissions, representation, external supplies,
 dangerous capabilities, slack, semantic dependencies, and D29 applications
 (symbolic demands, closed realizations). Child components share the enclosing
 writer/reader directly; they do not embed component envelopes or reset budgets.
-The callable, calling, selected-provider, terminal-permission, representation,
-and external-supply component schemas are version 3 for complete nested policy
+The callable component is version 4: after `declared_service_reach`, each
+callable carries `service_reach_dependency`, containing ordered concrete
+nominal services and ordered `u32` parameter ordinals in its complete static
+telescope. Each ordinal must select an existing nominal machine contract,
+which retains its exact trait and requirement identities; structural binders
+remain fixed contributions. Both sequences are duplicate-free. Capture rejoins
+checked dependency contents to independent inference. Recovery validates scope
+and exact canonical re-encoding, not compiler derivations. Version 3 callable
+and version 2 baseline bytes reject rather than inventing a missing dependency.
+The baseline version changes because child components share its envelope.
+The calling, selected-provider, terminal-permission, representation, and
+external-supply component schemas remain version 3 for complete nested policy
 signatures, including exact nominal case membership. Conformance and
 physical-calling component schemas remain version 1. Nominal membership uses
 contract-expression tag 22 with a recursive subject and exact nominal case;

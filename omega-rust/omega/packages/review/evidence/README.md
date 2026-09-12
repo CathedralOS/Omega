@@ -172,12 +172,22 @@ private admission-claim, and private external-callable surfaces for one exact
 checked root and target. Private external leaves retain their own outer
 contracts and operational promises even when unused; an equal supplied
 requirement and binding do not imply equal authored leaf policy.
-The `OMEGA-CALLABLE-POLICY` version-3 component retains full static and lifetime
+The `OMEGA-CALLABLE-POLICY` version-4 component retains full static and lifetime
 signatures, ordered contracts, exact overloaded callable identities, and actual
 conformance lifetime arguments as well as their equality partition. Published
 reach, direct-invocation, suspension, blocking, and termination promises remain
 distinct from retained checked summaries. Public suspension and blocking
 summaries conservatively use their published ceilings, not body-only effects.
+Service-reach dependencies separately retain a finite union of concrete services
+and nominal machine-binder ordinals in the complete static telescope. The
+existing binder contract owns the exact trait and requirement identities;
+structural binders cannot appear as variables. Capture compares checked
+dependency contents with one independently inferred request plan before
+projection. Recovery rejects out-of-scope, structural, repeated, or unordered
+variables. Private helper extraction and binder renaming do not change this
+dependency, but adding a fixed service does even when its conservative bound
+was already present. This is open-generic callable policy; it does not replace
+specialization application evidence or establish Terminal propagation.
 Crash guards, including nested static
 machine guards, retain typed expressions and exact foreign declaration owners.
 The checker's inferred body-summary owner separately supplies conservative crash
@@ -197,7 +207,7 @@ derivation tables, grants authority, or certifies an assumption. The existing
 review encoding is unchanged.
 
 `project_checked_package_policy` composes `PackagePolicyBaseline` for one exact
-checked root package and target. Its version-2 `OMEGA-PACKAGE-POLICY` envelope
+checked root package and target. Its version-3 `OMEGA-PACKAGE-POLICY` envelope
 contains all seven public declaration families, the normalized components above,
 every package-owned external supply (including unused private leaves), dangerous
 authority and ceiling slack, semantic dependencies, and D29 application links.
@@ -210,9 +220,10 @@ execution commitments.
 
 Public and nested policy signatures distinguish no result from a declared empty
 data result, retain typed crash guards and complete progress establishment routes,
-and preserve lexical static/lifetime scopes. The affected component schemas,
-including `OMEGA-CALLING-POLICY`, are version 3; old policy versions require fresh
-comparison rather than an inferred upgrade from lossy records.
+and preserve lexical static/lifetime scopes. Those signature-bearing component
+schemas, including `OMEGA-CALLING-POLICY`, are version 3; callable policy is
+version 4 for the additional reach dependency. Old policy versions require
+fresh comparison rather than an inferred upgrade from lossy records.
 
 The whole baseline uses one byte, element, allocation, and nesting budget,
 without nested envelopes or budget resets. Recovery checks component

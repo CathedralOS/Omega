@@ -90,6 +90,10 @@ pub(super) fn callable(reader: &mut Reader<'_>) -> Result<PackagePolicyCallable,
         })?,
         contracts: reader.sequence(4, callable_contract)?,
         declared_service_reach: reader.option(|reader| reader.sequence(41, nominal))?,
+        service_reach_dependency: PackagePolicyServiceReachDependency {
+            concrete: reader.sequence(41, nominal)?,
+            parameters: reader.sequence(4, |reader| reader.u32())?,
+        },
         checked_service_reach: match reader.byte()? {
             0 => PackageReviewCheckedServiceReach::NoCheckedBody,
             1 => PackageReviewCheckedServiceReach::CheckedBody {

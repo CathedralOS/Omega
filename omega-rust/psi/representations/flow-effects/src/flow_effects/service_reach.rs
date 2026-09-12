@@ -4,12 +4,22 @@ use language_semantics::{
 };
 use symbols::SymbolHandle;
 
+/// A finite union of fixed services and nominal static parameter rows. The
+/// parameters are exact binder identities; their requirement ceilings remain
+/// in the ordinary conservative rows rather than becoming fixed contributions.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ServiceReachDependency {
+    pub concrete: ServiceReachRowId,
+    pub parameters: HandleSpan<SymbolHandle>,
+}
+
 /// The symbol-resolved recursive service summary for one machine. All sets
 /// are interned in the plan's shared row table; child state/call summaries are
 /// grouped in arenas instead of allocating one small `Vec` per parent.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MachineServiceReachInference {
     pub machine: SymbolHandle,
+    pub dependency: ServiceReachDependency,
     /// Exact public/private contract axis. A published empty ceiling remains
     /// distinct from an internal empty inference.
     pub interface: ServiceReachInterface,
@@ -70,6 +80,7 @@ pub struct InstallationReachRequirement {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ServiceReachInferencePlan {
     pub rows: ServiceReachRowTable,
+    pub dependency_parameters: Arena<SymbolHandle>,
     pub root_machines: HandleSpan<MachineServiceReachInference>,
     pub machines: Arena<MachineServiceReachInference>,
     pub states: Arena<StateServiceReachInference>,

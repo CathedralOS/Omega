@@ -53,6 +53,10 @@ impl PackagePolicyCallable {
         &self.checked_service_reach
     }
 
+    pub const fn service_reach_dependency(&self) -> &PackagePolicyServiceReachDependency {
+        &self.service_reach_dependency
+    }
+
     pub fn unresolved_installation_reaches(&self) -> &[PackageReviewInstallationReach] {
         &self.unresolved_installation_reaches
     }

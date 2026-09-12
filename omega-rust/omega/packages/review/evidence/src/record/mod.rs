@@ -107,14 +107,15 @@ pub use package::{
     PackagePolicyProviderFamilyCoordinate, PackagePolicyProviderPlan, PackagePolicyProviderRow,
     PackagePolicySelectedProviders, PackagePolicyServiceAuthority, PackagePolicyServiceMethod,
     PackagePolicyServiceProgressPremise, PackagePolicyServiceProgressRoute,
-    PackagePolicyServiceSignature, PackagePolicyTerminalPermission,
-    PackagePolicyTerminalPermissions, PackagePolicyTerminalService,
-    PackageReviewBoundaryApplication, PackageReviewBoundaryApplicationArgument,
-    PackageReviewBoundaryApplicationRealization, PackageReviewBoundaryApplicationRealizationRole,
-    PackageReviewCheckedServiceReach, PackageReviewCompilerIntrinsicExecution,
-    PackageReviewProviderFamilyCoverage, PackageReviewProviderGrantSelectorKind,
-    PackageReviewProviderSelectionAuthority, PackageReviewSelectedInstallationReach,
-    PackageReviewSelectedProviderGrant, PackageReviewSymbolicBoundaryApplicationArgument,
+    PackagePolicyServiceReachDependency, PackagePolicyServiceSignature,
+    PackagePolicyTerminalPermission, PackagePolicyTerminalPermissions,
+    PackagePolicyTerminalService, PackageReviewBoundaryApplication,
+    PackageReviewBoundaryApplicationArgument, PackageReviewBoundaryApplicationRealization,
+    PackageReviewBoundaryApplicationRealizationRole, PackageReviewCheckedServiceReach,
+    PackageReviewCompilerIntrinsicExecution, PackageReviewProviderFamilyCoverage,
+    PackageReviewProviderGrantSelectorKind, PackageReviewProviderSelectionAuthority,
+    PackageReviewSelectedInstallationReach, PackageReviewSelectedProviderGrant,
+    PackageReviewSymbolicBoundaryApplicationArgument,
 };
 pub use quotients::NonExecutableQuotientPackageReview;
 pub use representation::{

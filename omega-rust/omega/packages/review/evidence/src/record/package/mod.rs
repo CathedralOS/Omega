@@ -7,7 +7,7 @@ pub use boundary_policy::{
 mod callables;
 pub use callable_policy::{
     PackagePolicyCallable, PackagePolicyCallableConformance, PackagePolicyCallableRole,
-    PackagePolicyCallables,
+    PackagePolicyCallables, PackagePolicyServiceReachDependency,
 };
 #[allow(clippy::module_inception)]
 // This file groups record modules; `package` holds the package record itself.

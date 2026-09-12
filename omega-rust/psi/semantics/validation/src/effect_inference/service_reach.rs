@@ -1,3 +1,10 @@
+//! Conservative service rows and finite nominal callback dependencies share
+//! the checked call-component fixed point. Flattening a binder's bound loses
+//! the difference between `reach(Step)` and `reach(Step) + Console`; subtracting
+//! that bound afterwards also loses a real Console contribution. Retain fixed
+//! services and exact nominal binder symbols separately from the beginning.
+//! The ordinary rows still use requirement ceilings for universal body checks.
+
 use arena::HandleSpan;
 use language_semantics::{ServiceReachId, ServiceReachInterface};
 use symbols::SymbolHandle;
@@ -22,7 +29,19 @@ struct MachineReachWork {
     concrete_transitive: Vec<ServiceReachId>,
     concrete_effective: Vec<ServiceReachId>,
     unresolved_installation_reaches: Vec<InstallationReachRequirement>,
-    calls: Vec<(SymbolHandle, DirectServiceReach)>,
+    dependency_direct: DependencyWork,
+    dependency: DependencyWork,
+    calls: Vec<(
+        SymbolHandle,
+        DirectServiceReach,
+        HandleSpan<flow_effects::StaticMachineCallBinding>,
+    )>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct DependencyWork {
+    concrete: Vec<ServiceReachId>,
+    parameters: Vec<SymbolHandle>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -39,6 +58,8 @@ pub fn infer_service_reaches(
 ) -> ServiceReachInferencePlan {
     let mut work = Vec::new();
     for machine in program.machines() {
+        let checked_body =
+            machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody;
         let published = program
             .service_reach_rows
             .services(machine.service_reach_row)
@@ -46,6 +67,10 @@ pub fn infer_service_reaches(
         let mut calls = Vec::new();
         let mut direct = Vec::new();
         let mut concrete_direct = Vec::new();
+        let mut dependency_direct = DependencyWork {
+            concrete: published.clone(),
+            ..Default::default()
+        };
         if let Some(summary) = operational
             .machines()
             .iter()
@@ -56,7 +81,22 @@ pub fn infer_service_reaches(
                     let call_reach = direct_service_reach_for_operational_call(program, call);
                     extend_service_set(&mut direct, &call_reach.services);
                     extend_service_set(&mut concrete_direct, &call_reach.concrete_services);
-                    calls.push((call.target_machine_symbol, call_reach));
+                    if checked_body
+                        && !call.static_machine_parameter.is_valid()
+                        && is_nominal_parameter(program, call.target_state_symbol)
+                    {
+                        extend_parameter_set(
+                            &mut dependency_direct.parameters,
+                            &[call.target_state_symbol],
+                        );
+                    } else if checked_body {
+                        extend_service_set(&mut dependency_direct.concrete, &call_reach.services);
+                    }
+                    calls.push((
+                        call.target_machine_symbol,
+                        call_reach,
+                        call.static_machine_bindings,
+                    ));
                 }
             }
         }
@@ -64,7 +104,7 @@ pub fn infer_service_reaches(
             symbol: machine.symbol,
             declared: published.clone(),
             published: published.clone(),
-            checked_body: machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody,
+            checked_body,
             uses_published: machine.supply_mode
                 != language_semantics::MachineSupplyMode::CheckedBody
                 || machine.is_public
@@ -93,12 +133,12 @@ pub fn infer_service_reaches(
                     upper_bound: machine.service_reach_row,
                 })
                 .into_iter()
-                .chain(
-                    calls.iter().flat_map(|(_, reach)| {
-                        reach.unresolved_installation_reaches.iter().copied()
-                    }),
-                )
+                .chain(calls.iter().flat_map(|(_, reach, _)| {
+                    reach.unresolved_installation_reaches.iter().copied()
+                }))
                 .collect(),
+            dependency: dependency_direct.clone(),
+            dependency_direct,
             calls,
         });
         normalize_installation_reaches(
@@ -119,6 +159,7 @@ pub fn infer_service_reaches(
                     machine.unresolved_installation_reaches.clone(),
                     machine.published.clone(),
                     machine.concrete_effective.clone(),
+                    machine.dependency.clone(),
                 )
             })
             .collect::<Vec<_>>();
@@ -126,10 +167,21 @@ pub fn infer_service_reaches(
             let mut transitive = work[machine_index].direct.clone();
             let mut concrete_transitive = work[machine_index].concrete_direct.clone();
             let mut unresolved = work[machine_index].unresolved_installation_reaches.clone();
-            for (target, direct) in work[machine_index].calls.clone() {
+            let mut dependency = work[machine_index].dependency_direct.clone();
+            for (target, direct, bindings) in work[machine_index].calls.clone() {
                 extend_service_set(&mut transitive, &direct.services);
                 extend_service_set(&mut concrete_transitive, &direct.concrete_services);
                 if let Some(target) = work.iter().find(|machine| machine.symbol == target) {
+                    if work[machine_index].checked_body {
+                        substitute_dependency(
+                            program,
+                            operational,
+                            &work,
+                            &target.dependency,
+                            bindings,
+                            &mut dependency,
+                        );
+                    }
                     extend_service_set(&mut transitive, effective_services(target));
                     extend_service_set(
                         &mut concrete_transitive,
@@ -144,6 +196,7 @@ pub fn infer_service_reaches(
             work[machine_index].transitive = transitive;
             work[machine_index].concrete_transitive = concrete_transitive;
             work[machine_index].unresolved_installation_reaches = unresolved;
+            work[machine_index].dependency = dependency;
             let machine = &mut work[machine_index];
             // A checked body's declaration contributes to its row; it does not
             // cap calls through private helpers or exported wrappers. Pinned
@@ -170,6 +223,7 @@ pub fn infer_service_reaches(
                 && machine.unresolved_installation_reaches == previous.2
                 && machine.published == previous.3
                 && machine.concrete_effective == previous.4
+                && machine.dependency == previous.5
         }) {
             break;
         }
@@ -268,10 +322,20 @@ pub fn infer_service_reaches(
         let concrete_effective = plan
             .rows
             .intern(concrete_effective_services(machine_work).to_vec());
+        let mut parameters = HandleSpan::empty();
+        for parameter in &machine_work.dependency.parameters {
+            plan.dependency_parameters
+                .append_to_span(&mut parameters, *parameter);
+        }
+        let dependency = flow_effects::ServiceReachDependency {
+            concrete: plan.rows.intern(machine_work.dependency.concrete.clone()),
+            parameters,
+        };
         plan.machines.append_to_span(
             &mut plan.root_machines,
             MachineServiceReachInference {
                 machine: machine.symbol,
+                dependency,
                 interface: if machine_work.uses_published {
                     ServiceReachInterface::PublishedCeiling(published)
                 } else {
@@ -358,6 +422,69 @@ fn direct_service_reach_for_operational_call(
         }
     }
     reach
+}
+
+fn is_nominal_parameter(program: &TypedTrees, parameter: SymbolHandle) -> bool {
+    matches!(
+        program.retained_static_machine_contract(parameter),
+        Some(typed_trees::data::MachineParameterContractView::Nominal { .. })
+    )
+}
+
+fn extend_parameter_set(destination: &mut Vec<SymbolHandle>, source: &[SymbolHandle]) {
+    destination.extend_from_slice(source);
+    destination.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+    destination.dedup();
+}
+
+/// Substitute only nominal row variables. Structural arguments contribute their
+/// fixed requirement, and opaque selected machines contribute their published
+/// bound. Nested static applications consume their own exact binding spans.
+fn substitute_dependency(
+    program: &TypedTrees,
+    operational: &OperationalPlan,
+    machines: &[MachineReachWork],
+    dependency: &DependencyWork,
+    bindings: HandleSpan<flow_effects::StaticMachineCallBinding>,
+    result: &mut DependencyWork,
+) {
+    extend_service_set(&mut result.concrete, &dependency.concrete);
+    for parameter in &dependency.parameters {
+        let Some(binding) = operational
+            .static_machine_bindings
+            .span_or_empty(bindings)
+            .iter()
+            .find(|binding| binding.parameter == *parameter)
+        else {
+            // Preserve an unresolved identity rather than silently flattening
+            // or erasing it. Public capture must rejoin every variable to the
+            // declaring callable's nominal parameter scope before publication.
+            extend_parameter_set(&mut result.parameters, &[*parameter]);
+            continue;
+        };
+        if is_nominal_parameter(program, binding.selected) {
+            extend_parameter_set(&mut result.parameters, &[binding.selected]);
+        } else if let Some((selected, _)) =
+            crate::transitions::resolved_transition_target_state(program, binding.selected)
+            && let Some(selected) = machines
+                .iter()
+                .find(|machine| machine.symbol == selected.symbol)
+        {
+            substitute_dependency(
+                program,
+                operational,
+                machines,
+                &selected.dependency,
+                binding.arguments,
+                result,
+            );
+        } else {
+            extend_service_set(
+                &mut result.concrete,
+                &direct_service_reach_for_call(program, binding.selected).services,
+            );
+        }
+    }
 }
 
 fn direct_service_reach_for_call(program: &TypedTrees, target: SymbolHandle) -> DirectServiceReach {
@@ -555,3 +682,6 @@ fn extend_service_set(destination: &mut Vec<ServiceReachId>, source: &[ServiceRe
     destination.sort_by_key(|service| service.0);
     destination.dedup();
 }
+
+#[cfg(test)]
+mod tests;

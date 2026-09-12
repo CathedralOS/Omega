@@ -7,6 +7,17 @@ pub struct OperationalPlan {
     pub machines: Arena<MachineOperational>,
     pub states: Arena<StateOperational>,
     pub calls: Arena<CallOperational>,
+    pub static_machine_bindings: Arena<StaticMachineCallBinding>,
+}
+
+/// Exact static arguments on an ordinary generic call. Nested applications
+/// retain their own substitution spans; names and type/const arguments do not
+/// become nominal service-row variables.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct StaticMachineCallBinding {
+    pub parameter: SymbolHandle,
+    pub selected: SymbolHandle,
+    pub arguments: HandleSpan<StaticMachineCallBinding>,
 }
 
 impl OperationalPlan {
@@ -50,6 +61,7 @@ pub struct CallOperational {
     /// Original static binder; its requirement remains independent of the
     /// executable target after specialization.
     pub static_machine_parameter: SymbolHandle,
+    pub static_machine_bindings: HandleSpan<StaticMachineCallBinding>,
     pub target_machine_symbol: SymbolHandle,
     /// Exact named-operator declaration selected from typed path and arity
     /// when this call is not a machine/state invocation.
