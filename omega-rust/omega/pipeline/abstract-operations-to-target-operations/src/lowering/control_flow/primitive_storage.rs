@@ -86,12 +86,7 @@ pub(super) fn lower(
                     result,
                     source,
                     field,
-                } => {
-                    if !function.structural_parameters.contains(source) {
-                        return Err(invalid());
-                    }
-                    (*psi_operation, *result, source.place, *field)
-                }
+                } => (*psi_operation, *result, *source, *field),
                 AbstractOperation::BooleanStructuralField {
                     psi_operation,
                     result,
@@ -108,20 +103,40 @@ pub(super) fn lower(
                 ),
                 _ => return Err(invalid()),
             };
-            let source = function
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.place == place)
-                .ok_or_else(invalid)?;
-            if source.access != StructuralAccess::SharedBorrow
-                || source.multiplicity != StructuralMultiplicity::Unrestricted
-                || !source.qualifications.is_empty() || !source.projected_qualifications.is_empty()
-                || !types.get(&source.structural_type).is_some_and(|declaration|
-                    matches!(&declaration.shape, StructuralTypeShape::Record { fields }
-                        if fields.iter().any(|candidate| candidate.id == field && !candidate.relevance.is_erased()
-                            && !matches!(candidate.field_type, StructuralFieldType::BoundedInteger(_))
-                            && candidate.field_type.scalar_type() == Some(result.scalar_type))))
-            { return Err(invalid()); }
+            let (structural_type, access) = if let Some(home) = live.structural_homes.get(&place) {
+                if home.has_claims()
+                    || home.multiplicity() == StructuralMultiplicity::Linear
+                    || !home.qualifications().is_empty()
+                    || !home.projected_qualifications().is_empty()
+                {
+                    return Err(invalid());
+                }
+                (home.structural_type(), StructuralAccess::Owned)
+            } else {
+                let source = function
+                    .structural_parameters
+                    .iter()
+                    .find(|parameter| parameter.place == place)
+                    .ok_or_else(invalid)?;
+                if !matches!(
+                    source.access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                ) || source.multiplicity == StructuralMultiplicity::Linear
+                    || !source.qualifications.is_empty()
+                    || !source.projected_qualifications.is_empty()
+                {
+                    return Err(invalid());
+                }
+                (source.structural_type, source.access)
+            };
+            if !types.get(&structural_type).is_some_and(|declaration|
+                matches!(&declaration.shape, StructuralTypeShape::Record { fields }
+                    if fields.iter().any(|candidate| candidate.id == field && !candidate.relevance.is_erased()
+                        && !matches!(candidate.field_type, StructuralFieldType::BoundedInteger(_))
+                        && candidate.field_type.scalar_type() == Some(result.scalar_type))))
+            {
+                return Err(invalid());
+            }
             retain_result(psi_operation, result, live)?;
             (
                 psi_operation,
@@ -130,7 +145,7 @@ pub(super) fn lower(
                     result,
                     source: terminal_psi::StructuralArgument {
                         place,
-                        access: source.access,
+                        access,
                         path: Vec::new(),
                     },
                     field,

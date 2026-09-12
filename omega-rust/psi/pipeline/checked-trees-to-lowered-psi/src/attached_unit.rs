@@ -1483,6 +1483,8 @@ fn assemble_unit_closure(
         let mut structural_result_places = Vec::<(StructuralPlaceDeclaration, bool)>::new();
         let mut structural_value_temporaries = Vec::<StructuralPlaceDeclaration>::new();
         let mut evaluation = argument_evaluation::Evaluation::new(&mut next_block)?;
+        evaluation.record_fields =
+            crate::scalar_computations::fields::prepare(checked, plan.machine, &structural_types)?;
         evaluation.arrays = crate::scalar_computations::arrays::prepare(
             checked,
             plan.machine,

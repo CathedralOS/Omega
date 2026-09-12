@@ -91,7 +91,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.u8(51);
             bytes.id(*psi_operation);
             encode_abstract_result(bytes, *result);
-            encode_structural_parameter(bytes, source);
+            bytes.id(*source);
             bytes.id(*field);
         }
         O::BooleanNot {

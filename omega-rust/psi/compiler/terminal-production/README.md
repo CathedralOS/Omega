@@ -276,9 +276,14 @@ structural operands but has its own captured occurrence, not a fabricated explic
 argument observation. Scalar computations own initializer, tail, and nested calls;
 source replay checks their complete call roster without scheduling a second call.
 Scalar-result callees retain declared shared `self` independently of body reads.
+Direct integer and Boolean field reads resolve the exact declared field against
+the local's current place, including after an unrelated owned selection. Each
+read materializes its own scalar observation before subsequent operands or calls;
+an earlier observation is not a delayed load from the final storage contents.
 The native `scalar_case_results::records` controls consume full-width integer
-getter results through further computation. Nested record fields, mutable local
-receiver storage, and post-block-arrival field observation remain separate
+getter results through further computation; `scalar_case_results::record_reads`
+also covers direct reads, padded layouts, distinct roots, and block arrivals.
+Nested record fields and mutable local receiver storage remain separate
 dependencies; this does not remove their realization fences.
 
 Closed integer field restrictions retain their exact carrier and inclusive

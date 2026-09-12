@@ -85,7 +85,8 @@ pub(super) fn validate(
                         pending.push(arm.value);
                     }
                 }
-                CheckedScalarComputationKind::Value(_) => {}
+                CheckedScalarComputationKind::Value(_)
+                | CheckedScalarComputationKind::StructuralField { .. } => {}
                 CheckedScalarComputationKind::Select {
                     condition,
                     when_true,

@@ -66,7 +66,7 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             places.insert(*source);
         }
         O::IntegerStructuralField { source, .. } => {
-            places.insert(source.place);
+            places.insert(*source);
         }
         O::StoreDynamicDescriptor { stored, .. } => {
             places.insert(stored.selection.source.place);

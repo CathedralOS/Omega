@@ -299,6 +299,11 @@ pub(crate) fn emit_call_leaf(
         selection_cleanups: Vec::new(),
         structural_locals: Vec::new(),
         local_cases: Vec::new(),
+        record_fields: crate::scalar_computations::fields::prepare(
+            checked,
+            machine,
+            &catalogs.structural_types,
+        )?,
         arrays: crate::scalar_computations::arrays::prepare(
             checked,
             machine,

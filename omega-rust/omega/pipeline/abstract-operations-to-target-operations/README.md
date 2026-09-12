@@ -84,7 +84,11 @@ unrestricted multiplicity; cleanup and transfer obligations stay with the owner.
 Integer and Boolean field observations use the common graph's explicit field-read
 operation. Receiving checks derive the field offset and scalar type from the
 declaration, then selection reuses the primitive load kernel and independent
-replay. Source-produced integer getter controls cover direct and call-produced
+replay. Direct reads use the same path for established record locals and owned
+block arrivals: the actual source place is retained rather than relabeled as an
+incoming parameter. Availability and field identity are checked separately from
+physical layout, and each load produces a fresh scalar before later operations.
+Source-produced integer getter controls cover direct and call-produced
 locals, tail completion, and nested scalar arguments. Nested record construction
 and broader projected/mutable receiver forms remain separate dependencies.
 

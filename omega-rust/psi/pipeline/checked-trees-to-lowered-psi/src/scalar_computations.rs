@@ -17,6 +17,7 @@ mod calls;
 pub(crate) mod cases;
 pub(crate) mod comparisons;
 mod dispatch;
+pub(crate) mod fields;
 mod source_custody;
 mod structural_arguments;
 mod value_types;
@@ -44,6 +45,7 @@ pub(super) struct Expansion<'a> {
     calls: Vec<SourceCallCoordinate>,
     arrays: Vec<arrays::Slot>,
     cases: Vec<cases::Slot>,
+    fields: &'a [fields::Binding],
 }
 
 impl<'a> Expansion<'a> {
@@ -62,11 +64,17 @@ impl<'a> Expansion<'a> {
             calls: Vec::new(),
             arrays: Vec::new(),
             cases: Vec::new(),
+            fields: &[],
         }
     }
 
     pub(super) fn finish(self) -> Vec<LoweredScalarBranchState> {
         self.states
+    }
+
+    pub(super) fn with_fields(mut self, fields: &'a [fields::Binding]) -> Self {
+        self.fields = fields;
+        self
     }
 
     pub(super) fn with_arrays(mut self, arrays: &[arrays::Slot]) -> Self {
@@ -497,6 +505,21 @@ impl<'a> Expansion<'a> {
         let plans = &self.checked.facts.values.scalar_computations;
         let node = plans.nodes.get(*handle).clone();
         let entry = match node.kind {
+            CheckedScalarComputationKind::StructuralField { subject, field, .. } => {
+                let expression = fields::observation(
+                    self.fields,
+                    site.bindings,
+                    &subject,
+                    field,
+                    node.primitive_type,
+                )?;
+                self.binding(
+                    input_types,
+                    input_types.len(),
+                    target,
+                    LoweredScalarBinding::Expression(expression),
+                )
+            }
             CheckedScalarComputationKind::CaseMembership { subject, case, .. } => {
                 self.case_membership(&subject, case, input_types, target, site, active)?
             }
@@ -796,7 +819,8 @@ pub(crate) fn reachable_nodes(
                     pending.push(arm.value);
                 }
             }
-            CheckedScalarComputationKind::Value(_) => {}
+            CheckedScalarComputationKind::Value(_)
+            | CheckedScalarComputationKind::StructuralField { .. } => {}
             CheckedScalarComputationKind::Select {
                 condition,
                 when_true,

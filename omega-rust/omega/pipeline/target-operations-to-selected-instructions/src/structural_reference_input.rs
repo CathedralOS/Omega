@@ -464,31 +464,17 @@ pub(crate) fn store(
     None
 }
 
-/// Reconstruct a fresh shared-record field observation from its exact declaration.
+/// Exact direct-field geometry. Callers independently reconstruct readable root
+/// custody and availability; this helper does not grant access to storage.
 pub(crate) fn field_read(
-    parameter: &terminal_psi::StructuralParameterDeclaration,
-    source: &terminal_psi::StructuralArgument,
+    structural_type: StructuralTypeId,
     field: StructuralFieldId,
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(u32, u8)> {
-    if parameter.place != source.place
-        || parameter.access != terminal_psi::StructuralAccess::SharedBorrow
-        || source.access != parameter.access
-        || !source.path.is_empty()
-        || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-        || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
-        || !matches!(scalar, ScalarType::Boolean | ScalarType::Integer(_))
-    {
+    if !matches!(scalar, ScalarType::Boolean | ScalarType::Integer(_)) {
         return None;
     }
-    plain_record_shape(parameter.structural_type, declarations)?;
-    store(
-        parameter.structural_type,
-        &source.path,
-        field,
-        scalar,
-        declarations,
-    )
+    plain_record_shape(structural_type, declarations)?;
+    store(structural_type, &[], field, scalar, declarations)
 }

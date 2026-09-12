@@ -25,6 +25,9 @@ impl Context<'_> {
                     visited.push(handle);
                     let node = plans.nodes.get(handle);
                     match &node.kind {
+                        Computation::StructuralField {
+                            source_expression, ..
+                        } => sources.push(*source_expression),
                         Computation::CaseMembership { subject, .. } => {
                             pending.extend(
                                 crate::scalar_computations::cases::operand_fields(

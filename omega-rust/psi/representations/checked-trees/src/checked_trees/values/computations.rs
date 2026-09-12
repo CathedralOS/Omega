@@ -134,6 +134,13 @@ impl Default for CheckedScalarComputation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedScalarComputationKind {
+    /// Read one scalar field at its authored evaluation point without moving
+    /// the containing owner or assigning it a scalar parameter position.
+    StructuralField {
+        source_expression: typed_trees::expression::ExpressionHandle,
+        subject: CheckedUnitStructuralArgumentPlan,
+        field: SymbolHandle,
+    },
     /// Observe an established structural operand without consuming its owner.
     CaseMembership {
         source_expression: typed_trees::expression::ExpressionHandle,

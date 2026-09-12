@@ -79,7 +79,8 @@ pub(in crate::flow) fn collect(
                         pending.push(arm.value);
                     }
                 }
-                CheckedScalarComputationKind::Value(_) => {}
+                CheckedScalarComputationKind::Value(_)
+                | CheckedScalarComputationKind::StructuralField { .. } => {}
                 CheckedScalarComputationKind::Call {
                     arguments,
                     structural_arguments,

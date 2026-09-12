@@ -27,12 +27,16 @@ mod extents;
 pub(crate) fn validate(
     checked: &CheckedTrees,
     state: SymbolHandle,
-    _statement: u32,
+    statement: u32,
     source_expression: ExpressionHandle,
     primitive: PrimitiveType,
     element: &CheckedCallScalarArgument,
 ) -> Result<(), LoweringError> {
-    let context = Context { checked, state };
+    let context = Context {
+        checked,
+        state,
+        statement,
+    };
     context.validate_extent_sources(source_expression, element)?;
     let valid = match element {
         CheckedCallScalarArgument::Pure(value) => {
@@ -58,6 +62,7 @@ pub(crate) fn validate(
 struct Context<'a> {
     checked: &'a CheckedTrees,
     state: SymbolHandle,
+    statement: u32,
 }
 
 impl Context<'_> {
@@ -164,6 +169,25 @@ impl Context<'_> {
         active.push(root);
         let node = plans.nodes.get(root);
         let valid = match &node.kind {
+            Computation::StructuralField {
+                source_expression,
+                subject,
+                field,
+            } => crate::scalar_source_custody::authored_state(self.checked, self.state).is_ok_and(
+                |(machine, _)| {
+                    crate::scalar_computations::fields::validate_source(
+                        self.checked,
+                        machine.symbol,
+                        self.state,
+                        self.statement,
+                        *source_expression,
+                        subject,
+                        *field,
+                        node.primitive_type,
+                    )
+                    .is_ok()
+                },
+            ),
             Computation::CaseMembership {
                 source_expression,
                 subject,

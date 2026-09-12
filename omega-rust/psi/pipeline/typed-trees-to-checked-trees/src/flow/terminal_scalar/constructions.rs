@@ -64,7 +64,8 @@ pub(super) fn retain_shapes(
                 pending.extend([*left, *right])
             }
             CheckedScalarComputationKind::Qualification { operand, .. } => pending.push(*operand),
-            CheckedScalarComputationKind::Value(_) => {}
+            CheckedScalarComputationKind::Value(_)
+            | CheckedScalarComputationKind::StructuralField { .. } => {}
             CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
                 pending.push(*subject);
                 for arm in plans.dispatch_arms.span(*arms)? {

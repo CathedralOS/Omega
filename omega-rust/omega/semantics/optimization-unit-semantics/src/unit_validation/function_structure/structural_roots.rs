@@ -48,15 +48,6 @@ pub(crate) fn validate_structural_root_operations(
             _ => None,
         })
         .collect::<Vec<_>>();
-    let integer_observations = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .filter_map(|node| match &node.operation {
-            O::IntegerStructuralField { source, field, .. } => Some((source.place, *field)),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
 
     for block in &function.blocks {
         for (node_index, node) in block.nodes.iter().enumerate() {
@@ -223,6 +214,17 @@ pub(crate) fn validate_structural_root_operations(
                     }
                 }
                 O::BooleanStructuralField { source, field, .. } => {
+                    if function
+                        .structural_parameters
+                        .iter()
+                        .all(|parameter| parameter.place != *source)
+                        && readable_field_type(function, *source).is_some_and(|identity| {
+                            direct_relevant_scalar_field(structural_types, identity, *field)
+                                == Some(ScalarType::Boolean)
+                        })
+                    {
+                        continue;
+                    }
                     let parameter = function
                         .structural_parameters
                         .iter()
@@ -291,41 +293,11 @@ pub(crate) fn validate_structural_root_operations(
                     field,
                     ..
                 } => {
-                    let valid = function
-                        .structural_parameters
-                        .iter()
-                        .find(|parameter| parameter.place == source.place)
-                        == Some(source)
-                        && matches!(
-                            source.multiplicity,
-                            terminal_psi::StructuralMultiplicity::Unrestricted
-                                | terminal_psi::StructuralMultiplicity::Affine
-                        )
-                        && source.access == terminal_psi::StructuralAccess::SharedBorrow
-                        && source.qualifications.is_empty()
-                        && source.projected_qualifications.is_empty()
-                        && matches!(result.scalar_type, ScalarType::Integer(_))
-                        && integer_observations
-                            .iter()
-                            .all(|candidate| candidate == &(source.place, *field))
-                        && function
-                            .entry_claim_declarations
-                            .iter()
-                            .all(|claim| claim.input != source.place)
-                        && function
-                            .content_entry_claims
-                            .iter()
-                            .all(|claim| claim.input.root != source.place)
-                        && matches!(
-                            place_kinds.get(&source.place),
-                            Some(StructuralPlaceKind::Parameter { position, is_self })
-                                if *position == source.position && *is_self == source.is_self
-                        )
-                        && direct_relevant_scalar_field(
-                            structural_types,
-                            source.structural_type,
-                            *field,
-                        ) == Some(result.scalar_type);
+                    let valid = matches!(result.scalar_type, ScalarType::Integer(_))
+                        && readable_field_type(function, *source).is_some_and(|identity| {
+                            direct_relevant_scalar_field(structural_types, identity, *field)
+                                == Some(result.scalar_type)
+                        });
                     if !valid {
                         return Err(
                             OptimizationUnitValidationError::InvalidIntegerStructuralField {
@@ -482,6 +454,46 @@ fn direct_relevant_scalar_field(
                 _ => None,
             })
     })
+}
+
+fn readable_field_type(
+    function: &PsiOptimizationFunction,
+    place: PlaceId,
+) -> Option<StructuralTypeId> {
+    let signature = crate::unit_validation::structural_source_contract(function, place, false)?;
+    if signature.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
+        || signature.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+        || !signature.is_unqualified()
+        || function
+            .entry_claim_declarations
+            .iter()
+            .any(|claim| claim.input == place)
+        || function
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == place)
+        || function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .any(|node| {
+                let result = match &node.operation {
+                    O::EstablishScalarRecord { result, .. }
+                    | O::EstablishScalarArray { result, .. }
+                    | O::EstablishScalarCase { result, .. }
+                    | O::CallStructural { result, .. }
+                    | O::BoundaryCall {
+                        result: abstract_operations::AbstractBoundaryResult::Structural(result),
+                        ..
+                    } => result,
+                    _ => return false,
+                };
+                result.place == place && !result.claims.is_empty()
+            })
+    {
+        return None;
+    }
+    Some(signature.structural_type)
 }
 
 pub(crate) fn every_scalar_return_nominally_cleans(

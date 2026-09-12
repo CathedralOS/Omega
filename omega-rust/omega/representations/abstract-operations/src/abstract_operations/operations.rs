@@ -322,14 +322,13 @@ pub enum AbstractOperation {
         source: PlaceId,
         field: semantic_vocabulary::StructuralFieldId,
     },
-    /// Read one exact relevant integer field through the complete verified
-    /// structural parameter declaration. The result retains both its value
-    /// identity and integer type; no source or field identity is recovered
-    /// from a declaration name downstream.
+    /// Read one exact relevant integer field of the retained structural root.
+    /// Source custody is reconstructed from the parameter/result/block catalog;
+    /// the observation retains its own value identity and integer type.
     IntegerStructuralField {
         psi_operation: OperationId,
         result: AbstractResult,
-        source: StructuralParameterDeclaration,
+        source: PlaceId,
         field: semantic_vocabulary::StructuralFieldId,
     },
     BooleanNot {

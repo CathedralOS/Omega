@@ -87,7 +87,8 @@ impl PreparedScalarQualifications {
                     references.push(*result_type);
                     pending.push(*operand);
                 }
-                CheckedScalarComputationKind::Value(_) => {}
+                CheckedScalarComputationKind::Value(_)
+                | CheckedScalarComputationKind::StructuralField { .. } => {}
                 CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
                     pending.push(*subject);
                     for arm in plans

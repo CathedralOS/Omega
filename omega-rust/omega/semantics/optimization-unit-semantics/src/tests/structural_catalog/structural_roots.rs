@@ -197,7 +197,7 @@ fn unrestricted_shared_integer_structural_field_direct_realization_validates() {
 fn direct_integer_structural_field_rejects_access_type_and_field_corruption() {
     let mut access = direct_realization_integer_structural_field_unit();
     access.functions[0].structural_parameters[0].access =
-        terminal_psi::StructuralAccess::MutableBorrow;
+        terminal_psi::StructuralAccess::WriteOnlyBorrow;
     refresh_identity(&mut access);
     assert!(matches!(
         validate_psi_optimization_unit(&access),

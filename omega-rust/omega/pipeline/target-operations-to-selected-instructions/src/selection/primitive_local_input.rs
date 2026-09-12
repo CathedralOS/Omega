@@ -120,13 +120,73 @@ pub(super) fn read_geometry(
             if !signature.entry_claims.is_empty() {
                 return None;
             }
-            let parameter = signature
+            if !argument.path.is_empty() {
+                return None;
+            }
+            if signature.parameters.iter().any(|parameter| {
+                parameter.semantic.place == argument.place
+                    && parameter.semantic.access == StructuralAccess::Owned
+            }) {
+                return None;
+            }
+            let structural_type = if let Some(parameter) = signature
                 .parameters
                 .iter()
-                .find(|parameter| parameter.semantic.place == argument.place)?;
+                .map(|parameter| &parameter.semantic)
+                .chain(
+                    source
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.structural_parameters),
+                )
+                .find(|parameter| parameter.place == argument.place)
+            {
+                if parameter.access != argument.access
+                    || parameter.access == StructuralAccess::WriteOnlyBorrow
+                    || parameter.multiplicity == StructuralMultiplicity::Linear
+                    || !parameter.qualifications.is_empty()
+                    || !parameter.projected_qualifications.is_empty()
+                {
+                    return None;
+                }
+                parameter.structural_type
+            } else {
+                if argument.access != StructuralAccess::Owned {
+                    return None;
+                }
+                let mut producers = source
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.instructions)
+                    .filter_map(|row| {
+                        let result = match &row.kind {
+                            Instruction::EstablishScalarRecord { result, .. } => result,
+                            Instruction::Call(call) => call.structural_result.as_ref()?,
+                            _ => return None,
+                        };
+                        (result.place == argument.place).then_some((row.operation, result))
+                    });
+                let (producer, result) = producers.next()?;
+                if producers.next().is_some()
+                    || result.multiplicity == StructuralMultiplicity::Linear
+                    || !result.qualifications.is_empty()
+                    || !result.projected_qualifications.is_empty()
+                    || !result.claims.is_empty()
+                    || !signature.structural_places.iter().any(|declaration| {
+                        declaration.id == argument.place
+                            && declaration.kind
+                                == StructuralPlaceKind::OperationResult {
+                                    producer,
+                                    structural_type: result.structural_type,
+                                }
+                    })
+                {
+                    return None;
+                }
+                result.structural_type
+            };
             let (offset, _) = crate::structural_reference_input::field_read(
-                &parameter.semantic,
-                argument,
+                structural_type,
                 *field,
                 scalar,
                 &signature.structural_types,

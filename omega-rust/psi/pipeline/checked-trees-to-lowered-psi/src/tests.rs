@@ -44,6 +44,7 @@ mod fixed_array_boundary_providers;
 mod fixed_byte_array_views;
 mod guarded_scalar_returns;
 mod literal_byte_extent;
+mod local_record_reads;
 mod preterminal_optimization;
 mod proof_recursion;
 mod quotient_correspondence;

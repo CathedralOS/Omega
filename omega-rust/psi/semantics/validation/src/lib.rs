@@ -81,8 +81,9 @@ mod write_only_borrows;
 
 pub use locals::receiver_allows_mutation;
 pub use places::{
-    collection_length_receiver, exact_attached_field, exact_data_member_field, exact_self_field,
-    has_builtin_subslice_meaning, place_has_builtin_coordinates,
+    LocalScalarRecordField, collection_length_receiver, exact_attached_field,
+    exact_data_member_field, exact_self_field, has_builtin_subslice_meaning,
+    local_scalar_record_field, place_has_builtin_coordinates,
 };
 
 pub use bound_expression_meaning::{

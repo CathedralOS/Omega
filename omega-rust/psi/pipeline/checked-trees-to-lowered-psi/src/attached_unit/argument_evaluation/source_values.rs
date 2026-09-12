@@ -108,7 +108,8 @@ impl Evaluation {
         let mut expansion =
             crate::scalar_computations::Expansion::new(checked, &qualifications, machine, 1)
                 .with_arrays(&self.arrays)
-                .with_cases(&self.cases);
+                .with_cases(&self.cases)
+                .with_fields(&self.record_fields);
         let entry = match value {
             CheckedCallScalarArgument::Pure(_) => expansion.retained_pure_value(
                 state,

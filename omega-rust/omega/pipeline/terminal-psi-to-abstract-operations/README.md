@@ -89,9 +89,14 @@ replay consumes all old affine roots before establishing destinations, including
 swaps and self-loops; cleanup follows reverse establishment order derived from
 dominance, not serialized block IDs. Retained frontier snapshots independently
 rejoin cleanup and rebinding. Claims, qualifications, projected transfers, and
-linear arrivals remain outside this bounded admission. Unobserved plain owned
-payloads use the ordinary native graph without copies; this is not admission of
-runtime field observations or structural call transport of those owned values.
+linear arrivals remain outside this bounded admission. Plain owned payloads use
+the ordinary native graph. Integer and Boolean record-field observations retain
+their actual parameter, construction-result, or block-arrival place; current
+ownership and dominance checks reject unavailable sources. Field identity and
+scalar type are reconstructed from that source's exact declaration. Native
+local and block-arrival reads use the existing structural home and primitive
+load path; broader projected reads and structural call transport remain separate
+consumer dependencies.
 
 Initialized primitive locals retain their exact operation-result place and typed
 initializer. Local stores remain distinct from incoming-parameter stores; fresh

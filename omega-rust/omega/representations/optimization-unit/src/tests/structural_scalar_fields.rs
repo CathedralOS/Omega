@@ -165,7 +165,7 @@ fn integer_structural_field_identity_binds_every_payload() {
         },
         |operation| match operation {
             AbstractOperation::IntegerStructuralField { source, .. } => {
-                source.place = id(95, PlaceId::new)
+                *source = id(95, PlaceId::new)
             }
             _ => unreachable!(),
         },
