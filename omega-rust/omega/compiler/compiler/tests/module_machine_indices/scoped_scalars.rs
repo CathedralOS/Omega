@@ -185,7 +185,7 @@ fn module_scoped_scalars_require_valid_attachment_and_visibility() {
         ),
         (
             "data Limits<T> {} const Limits::MAX: u64 = 1;",
-            "module-owned generic data",
+            "exact nongeneric data carrier",
         ),
         (
             "data Limits {} pub const Limits::MAX: u64 = 1;",
