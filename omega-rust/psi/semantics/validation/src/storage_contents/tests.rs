@@ -19,6 +19,45 @@ fn input(program: &TypedTrees) -> TypeReferenceHandle {
 }
 
 #[test]
+fn empty_fixed_arrays_preserve_their_element_contents_classification() {
+    for carrier in ["[u8; 0]", "Empty", "Holder<[u8; 0]>"] {
+        let program = typed(&format!(
+            "data Empty {{ bytes: [u8; 0]; }} data Holder<T> {{ value: T; }} machine inspect(value: {carrier}) {{}}"
+        ));
+        assert!(
+            has_plain_owned_contents(&program, input(&program)),
+            "{carrier}"
+        );
+        assert!(
+            has_plain_owned_contents_with_numeric_constraints(&program, input(&program)),
+            "{carrier}"
+        );
+        assert!(
+            has_stable_observable_contents(&program, input(&program)),
+            "{carrier}"
+        );
+    }
+    for carrier in [
+        "[Borrowed; 0]",
+        "[Resource; 0]",
+        "[Dropped; 0]",
+        "[u8; Width]",
+    ] {
+        let program = typed(&format!(
+            "data Borrowed {{ value: &u8; }} data Resource [linear] {{ value: u8; }} data Dropped {{ value: u8; }} machine Dropped::drop(&mut self) {{}} machine inspect<const Width: u64>(value: {carrier}) {{}}"
+        ));
+        assert!(
+            !has_plain_owned_contents(&program, input(&program)),
+            "{carrier}"
+        );
+        assert!(
+            !has_plain_owned_contents_with_numeric_constraints(&program, input(&program)),
+            "{carrier}"
+        );
+    }
+}
+
+#[test]
 fn primitive_ranges_inside_owned_records_do_not_introduce_cleanup() {
     let source =
         "data Limits { limit: u64; divisor: u64 [3..=5]; } machine inspect(limits: Limits) {}";
