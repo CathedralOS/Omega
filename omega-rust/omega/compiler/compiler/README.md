@@ -5,6 +5,11 @@ multi-target requests. The coordinator sequences typed owner results; it does
 not implement package loading, build evaluation, transformation algorithms or
 visualization semantics. See the [pipeline map](../../../pipeline.md).
 
+[compiler.rs](src/compiler.rs) owns request admission, the shared checked
+continuation, and the Check / Terminal / Native product dispatch.
+[targets.rs](src/compiler/targets.rs) owns exact-target batching and immutable
+preparation reuse; every child returns through that same product continuation.
+
 ## Product boundaries and observations
 
 [Request validation](src/compiler/request.rs) checks the requested product and

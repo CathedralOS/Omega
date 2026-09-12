@@ -68,7 +68,7 @@ fn exact_target_invocation_needs_no_authored_target_declaration() {
         })
         .with_requested_product(RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
-        let report = driver::compile(request)
+        let report = compile_request(request)
             .unwrap_or_else(|diagnostics| panic!("{target}: {diagnostics:#?}"));
         let profile = target::TargetProfile::from_omega_target_name(Some(target))
             .expect("hosted target fixture must name a canonical target");

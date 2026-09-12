@@ -8,7 +8,7 @@ pub fn retained_terminal_report_from_checked_package(
     profile: proof_admission::AdmissionProfile,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     execution::run_on_compile_thread(move || {
-        driver::retained_terminal_report_from_checked_package(root_path, checked, &profile)
+        super::compile_package_terminal_report(root_path, checked, &profile)
     })
 }
 
