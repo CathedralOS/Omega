@@ -336,19 +336,28 @@ pub(in crate::symbols) fn assign_name_symbol(
         lookup_state = SymbolHandle::invalid();
     }
 
-    if !path.is_self_value && normalize_bare_case_value(symbols, expression_table, path, expression)
-    {
-        return;
-    }
-
-    let member_symbols = resolve_state_scoped_table_path_member_symbols(
+    let (head_symbol, symbol) = resolve_state_scoped_table_path(
         symbols,
         machine.symbol,
         lookup_state,
         expression_table,
         path,
     );
-    let (head_symbol, symbol) = resolve_state_scoped_table_path(
+    // Fields, named states, and conformance binders are scoped machine children,
+    // not entries in the local/type-parameter frontier above. Select their heads
+    // before constructor normalization so a module cannot capture their names.
+    if !path.is_self_value
+        && (!head_symbol.is_valid()
+            || matches!(
+                symbols.get(head_symbol).kind,
+                SymbolKind::Data | SymbolKind::Module
+            ))
+        && normalize_bare_case_value(symbols, expression_table, path, expression)
+    {
+        return;
+    }
+
+    let member_symbols = resolve_state_scoped_table_path_member_symbols(
         symbols,
         machine.symbol,
         lookup_state,

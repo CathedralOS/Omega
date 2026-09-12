@@ -15,6 +15,7 @@ mod const_value_resolution;
 mod measure_resolution;
 mod module_constants;
 mod operator_contracts;
+mod qualified_case_values;
 mod selected_operand_hoisting;
 mod state_local_resolution;
 mod unit_tail_calls;

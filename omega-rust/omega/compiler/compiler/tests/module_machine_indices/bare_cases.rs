@@ -302,6 +302,70 @@ fn bare_case_namespace_cannot_capture_a_generic_binder() {
 }
 
 #[test]
+fn bare_case_namespace_cannot_capture_a_conformance_binder() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("settings.omg"),
+        "module settings; pub data Choice [copy] { case Ready; case Waiting; }",
+    );
+    for binder in ["Selected", "settings"] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "use settings; trait Ranked {{}}
+                 machine make<Element, {binder}: Element satisfies Ranked>(value: &Element) -> bool {{
+                     settings::Choice::Ready == settings::Choice::Ready
+                 }}"
+            ),
+        );
+        let result =
+            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root));
+        if binder == "Selected" {
+            result.expect("an unrelated conformance binder permits module case construction");
+        } else {
+            assert!(
+                result.is_err(),
+                "a proof-static conformance binder cannot become a module qualifier"
+            );
+        }
+    }
+}
+
+#[test]
+fn bare_case_namespace_cannot_capture_a_named_state() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("settings.omg"),
+        "module settings; pub data Choice [copy] { case Ready; case Waiting; }",
+    );
+    for state in ["finish", "settings"] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "use settings; data Main {{}}
+                 machine Main::run(&mut self) {{
+                     let selected: bool = settings::Choice::Ready == settings::Choice::Ready;
+                     transition {{ _ -> {state}() }}
+                     state {state}(&mut self) {{}}
+                 }}"
+            ),
+        );
+        let result =
+            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root));
+        if state == "finish" {
+            result.expect("an unrelated named state permits module case construction");
+        } else {
+            assert!(
+                result.is_err(),
+                "an exact machine state cannot become a module qualifier"
+            );
+        }
+    }
+}
+
+#[test]
 fn normalized_bare_case_retains_checked_tag_predicate() {
     assert_normalized_case_predicate("");
 }
