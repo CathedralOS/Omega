@@ -203,7 +203,7 @@ fn nested_boolean_body_locals_cannot_alias_entry_slots() {
 }
 
 #[test]
-fn nested_boolean_equality_has_a_bounded_expansion() {
+fn nested_boolean_denotations_avoid_expansion_but_keep_resource_limits() {
     let namespace = (0..14)
         .map(|position| ValueDeclaration {
             qualifications: Default::default(),
@@ -218,8 +218,34 @@ fn nested_boolean_equality_has_a_bounded_expansion() {
             right: Box::new(CheckedBooleanExpression::Parameter { position }),
         };
     }
+    assert!(proposition(&predicate, &namespace).is_ok());
+    for _ in 0..65 {
+        predicate = CheckedBooleanExpression::Not(Box::new(predicate));
+    }
+    let deep = CheckedBooleanExpression::Equal {
+        left: Box::new(predicate),
+        right: Box::new(CheckedBooleanExpression::Parameter { position: 1 }),
+    };
     assert!(matches!(
-        proposition(&predicate, &namespace),
+        proposition(&deep, &namespace),
+        Err(LoweringError::Unsupported(
+            "scalar contract Boolean denotation exceeds its depth limit"
+        ))
+    ));
+    // Logical conjunctions still need polarity expansion. A small authored
+    // tree must not manufacture an unbounded expanded proof proposition.
+    let mut logical = CheckedBooleanExpression::And {
+        left: Box::new(CheckedBooleanExpression::Parameter { position: 0 }),
+        right: Box::new(CheckedBooleanExpression::Parameter { position: 1 }),
+    };
+    for position in 2..14 {
+        logical = CheckedBooleanExpression::Equal {
+            left: Box::new(logical),
+            right: Box::new(CheckedBooleanExpression::Parameter { position }),
+        };
+    }
+    assert!(matches!(
+        proposition(&logical, &namespace),
         Err(LoweringError::Unsupported(
             "scalar contract Boolean expansion exceeds its lowering budget"
         ))

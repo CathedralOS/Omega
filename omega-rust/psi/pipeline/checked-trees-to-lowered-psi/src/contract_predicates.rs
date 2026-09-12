@@ -14,16 +14,37 @@ pub(super) fn proposition(
     predicate: &CheckedBooleanExpression,
     terms: &impl PredicateTerms,
 ) -> Result<Proposition, LoweringError> {
-    // Compound Boolean equality expands both polarities under one shared budget.
+    // Scalar equations retain operation denotations; logical short-circuit
+    // equivalences expand their polarities under one shared work budget.
     proposition_with_polarity(predicate, terms, true, &mut 4096)
 }
 
-fn is_boolean_atom(predicate: &CheckedBooleanExpression) -> bool {
-    matches!(
-        predicate,
-        CheckedBooleanExpression::Parameter { .. }
-            | CheckedBooleanExpression::StructuralParameterField { .. }
-    )
+fn has_scalar_boolean_denotation(
+    predicate: &CheckedBooleanExpression,
+    remaining: &mut usize,
+) -> Result<bool, LoweringError> {
+    let mut pending = vec![(predicate, 0)];
+    while let Some((predicate, depth)) = pending.pop() {
+        *remaining = remaining.checked_sub(1).ok_or(LoweringError::Unsupported(
+            "scalar contract Boolean expansion exceeds its lowering budget",
+        ))?;
+        if depth >= 64 {
+            return unsupported("scalar contract Boolean denotation exceeds its depth limit");
+        }
+        match predicate {
+            CheckedBooleanExpression::Constant(_)
+            | CheckedBooleanExpression::Parameter { .. }
+            | CheckedBooleanExpression::StructuralParameterField { .. } => {}
+            CheckedBooleanExpression::Not(operand) => pending.push((operand, depth + 1)),
+            CheckedBooleanExpression::Equal { left, right } => {
+                pending.extend([(left.as_ref(), depth + 1), (right.as_ref(), depth + 1)]);
+            }
+            // Short-circuit and numeric predicates retain their proposition-level
+            // meaning below; they are not eagerly evaluated Boolean scalar terms.
+            _ => return Ok(false),
+        }
+    }
+    Ok(true)
 }
 
 fn proposition_with_polarity(
@@ -84,7 +105,13 @@ fn proposition_with_polarity(
             if let CheckedBooleanExpression::Constant(value) = right.as_ref() {
                 return proposition_with_polarity(left, terms, *value == positive, remaining);
             }
-            if positive && is_boolean_atom(left) && is_boolean_atom(right) {
+            // Keep the same denotation as completed Boolean operations. Turning
+            // `result == !input` into two truth-value cases discards the exact
+            // equation that ordinary return alias transport can already cite.
+            if positive
+                && has_scalar_boolean_denotation(left, remaining)?
+                && has_scalar_boolean_denotation(right, remaining)?
+            {
                 return canonical_equality(terms.boolean(left)?, terms.boolean(right)?);
             }
             // Equality selects equal polarities; inequality selects opposite

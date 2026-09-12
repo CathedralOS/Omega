@@ -16,7 +16,7 @@ impl ProofSystemMarker {
     }
 
     pub const fn get(self) -> u16 {
-        3
+        4
     }
 }
 

@@ -107,6 +107,12 @@ fn boolean_requirements_bind_entry_values_before_mutable_body_updates() {
 #[test]
 fn compound_boolean_requirements_preserve_formal_positions_and_relationships() {
     for (parameters, requirement, body, arguments) in [
+        (
+            "left: bool, right: bool",
+            "left == !right",
+            "left",
+            "true, false",
+        ),
         ("ignored: bool, flag: bool", "flag", "flag", "false, true"),
         (
             "left: bool, right: bool",

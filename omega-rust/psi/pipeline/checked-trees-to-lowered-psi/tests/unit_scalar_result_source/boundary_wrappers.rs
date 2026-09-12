@@ -388,6 +388,166 @@ fn ordered_boolean_completion_preserves_normal_result_guarantees() {
 }
 
 #[test]
+fn ordered_computed_boolean_result_proves_its_normal_guarantee() {
+    for (body, guarantee) in [
+        ("Host::finish(false); !value", "result == !value"),
+        (
+            "let observed: bool = Host::measure(false); !value",
+            "!value == result",
+        ),
+    ] {
+        for input in [false, true] {
+            let source = boolean_guarantee_source(body, input).replace(
+                "ensures result == value\nreaches Host",
+                &format!("ensures {guarantee}\nreaches Host"),
+            );
+            let artifact = artifact(&checked_from_source(&source));
+            let (status, observed) = execute(&artifact);
+            assert_eq!(
+                status,
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+            );
+            assert_eq!(
+                observed.arguments,
+                [
+                    vec![TerminalScalarValue::Boolean(false)],
+                    vec![TerminalScalarValue::Boolean(!input)]
+                ]
+            );
+        }
+    }
+}
+
+#[test]
+fn boolean_result_equation_preserves_closed_entry_fact_proofs() {
+    let source = boolean_guarantee_source("Host::finish(false); true", false)
+        .replace("requires value == value", "requires !value")
+        .replace(
+            "ensures result == value\nreaches Host",
+            "ensures result == !value\nreaches Host",
+        );
+    let published = artifact(&checked_from_source(&source));
+    let (status, observed) = execute(&published);
+    assert_eq!(
+        status,
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(
+        observed.arguments,
+        [
+            vec![TerminalScalarValue::Boolean(false)],
+            vec![TerminalScalarValue::Boolean(true)]
+        ]
+    );
+}
+
+#[test]
+fn ordered_computed_boolean_equality_keeps_mixed_parameter_identities() {
+    for input in [false, true] {
+        for spare in [false, true] {
+            let source = boolean_guarantee_source("Host::finish(false); value == spare", input)
+                .replace(
+                    "Scalar::measure(value: bool)",
+                    "Scalar::measure(marker: u16, spare: bool, value: bool)",
+                )
+                .replace(
+                    &format!("Scalar::measure({input})"),
+                    &format!("Scalar::measure(9u16, {spare}, {input})"),
+                )
+                .replace(
+                    "ensures result == value\nreaches Host",
+                    "ensures result == (value == spare)\nreaches Host",
+                );
+            let published = artifact(&checked_from_source(&source));
+            let (status, observed) = execute(&published);
+            assert_eq!(
+                status,
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+            );
+            assert_eq!(
+                observed.arguments,
+                [
+                    vec![TerminalScalarValue::Boolean(false)],
+                    vec![TerminalScalarValue::Boolean(input == spare)]
+                ]
+            );
+        }
+    }
+}
+
+#[test]
+fn computed_boolean_guarantees_reject_changed_return_and_selected_evidence() {
+    use checked_trees::{CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar};
+    let source = boolean_guarantee_source("Host::finish(false); !value", false).replace(
+        "ensures result == value\nreaches Host",
+        "ensures result == !value\nreaches Host",
+    );
+    let original = checked_from_source(&source);
+    let published = artifact(&original);
+    let proof = decode_proof_bundle(&published.1).unwrap();
+    let mut module = decode_module(&published.0).unwrap();
+    let machine = module
+        .machines
+        .iter_mut()
+        .find(|machine| !machine.contract.ensures.is_empty())
+        .unwrap();
+    let input = machine.parameters[0].id;
+    let block = machine
+        .blocks
+        .iter_mut()
+        .find(|block| matches!(block.terminator, terminal_psi::Terminator::Return { .. }))
+        .unwrap();
+    let terminal_psi::Terminator::Return { value, .. } = &mut block.terminator else {
+        unreachable!()
+    };
+    *value = input;
+    assert!(
+        terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default()).is_err()
+    );
+
+    let machine = original
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Scalar::measure")
+        .unwrap();
+    let state = original.machine_states(machine)[0].symbol;
+    for mutation in 0..4 {
+        let mut changed = original.clone();
+        let plans = &mut changed.facts.values.scalar_expressions;
+        let position = plans.expressions.iter().position(|plan| plan.state == state && matches!(&plan.expression, Scalar::Boolean(expression) if matches!(expression.as_ref(), Boolean::Not(_)))).unwrap();
+        match mutation {
+            0 => {
+                plans.expressions[position].expression =
+                    Scalar::Boolean(Box::new(Boolean::Parameter { position: 0 }))
+            }
+            1 => plans.expressions.push(plans.expressions[position].clone()),
+            2 => {
+                plans.expressions[position].role =
+                    checked_trees::CheckedScalarExpressionRole::ContinuationReturn
+            }
+            3 => {
+                let binding = plans
+                    .source_bindings
+                    .iter()
+                    .find(|(_, binding)| {
+                        binding.state == state
+                            && binding.role == checked_trees::CheckedScalarExpressionRole::Return
+                    })
+                    .unwrap()
+                    .1
+                    .clone();
+                plans.source_bindings.append(binding);
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
 fn ordered_scalar_guarantees_require_return_evidence_and_exact_return_value() {
     assert_exact_normal_return_evidence(&normal_guarantee_source(
         "let observed: i32 = Host::measure(11); value",

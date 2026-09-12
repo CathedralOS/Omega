@@ -30,7 +30,7 @@ use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-pub(crate) const FORMAT_MARKER: u16 = 31;
+pub(crate) const FORMAT_MARKER: u16 = 32;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -399,6 +399,10 @@ fn encode_proof_node(
                             child_depth,
                         ));
                     }
+                    ProofRule::PredicateDenotation { premise } => {
+                        writer.u8(22);
+                        pending.push(ProofEncodingAction::Node(premise, child_depth));
+                    }
                     ProofRule::IntegerStrictOrderTransitivity {
                         left_to_middle,
                         middle_to_right,
@@ -475,7 +479,8 @@ fn encode_proof_rule_suffix(
         ProofRule::DisjunctionIntroduction { index, .. } => {
             writer.index("disjunct index", *index)?;
         }
-        ProofRule::ConjunctionIntroduction(_)
+        ProofRule::PredicateDenotation { .. }
+        | ProofRule::ConjunctionIntroduction(_)
         | ProofRule::DisjunctionElimination { .. }
         | ProofRule::ImplicationIntroduction { .. }
         | ProofRule::ImplicationElimination { .. }
@@ -1372,7 +1377,7 @@ fn decode_proof_node(
         let remaining = match tag {
             1..=3 | 14 => 0,
             4 => reader.count()?,
-            5 | 6 | 9 | 12 | 13 | 16 | 17 | 18 | 19 => 1,
+            5 | 6 | 9 | 12 | 13 | 16 | 17 | 18 | 19 | 22 => 1,
             7 | 8 | 10 | 11 | 15 | 20 | 21 => 2,
             tag => return Err(ProofCodecError::InvalidTag("ProofRule", tag)),
         };
@@ -1486,6 +1491,9 @@ fn decode_proof_rule(
         10 => ProofRule::IntegerLessOrEqualTransitivity {
             left_less_or_equal_middle: Box::new(children.next().expect("decoded first order")),
             middle_less_or_equal_right: Box::new(children.next().expect("decoded second order")),
+        },
+        22 => ProofRule::PredicateDenotation {
+            premise: Box::new(children.next().ok_or(ProofCodecError::UnexpectedEnd)?),
         },
         21 => ProofRule::IntegerStrictOrderTransitivity {
             left_to_middle: Box::new(children.next().ok_or(ProofCodecError::UnexpectedEnd)?),

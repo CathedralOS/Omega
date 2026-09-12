@@ -18,6 +18,7 @@ mod cast_selection;
 mod certificate_entry;
 mod integer_evidence;
 mod integer_selection;
+mod predicate_conversion;
 
 /// Build the recursive certificate shape shared by canonical integer goals.
 ///

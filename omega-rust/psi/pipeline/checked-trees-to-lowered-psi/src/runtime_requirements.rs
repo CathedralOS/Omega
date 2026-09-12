@@ -104,6 +104,14 @@ impl PredicateTerms for RuntimeRequirementTerms<'_> {
 
     fn boolean(&self, expression: &CheckedBooleanExpression) -> Result<ScalarTerm, LoweringError> {
         match expression {
+            CheckedBooleanExpression::Not(operand) => {
+                ScalarTerm::boolean_not(self.boolean(operand)?)
+                    .map_err(LoweringError::InvalidCrashPredicate)
+            }
+            CheckedBooleanExpression::Equal { left, right } => {
+                ScalarTerm::boolean_equal(self.boolean(left)?, self.boolean(right)?)
+                    .map_err(LoweringError::InvalidCrashPredicate)
+            }
             CheckedBooleanExpression::Constant(_) | CheckedBooleanExpression::Parameter { .. } => {
                 checked_boolean_scalar_term(expression, self.scalar_parameters)
             }
@@ -133,6 +141,15 @@ pub(super) fn substitute_runtime_requirement_scalar_values(
         substitutions: &BTreeMap<ValueId, ValueDeclaration>,
     ) -> Result<ScalarTerm, LoweringError> {
         match term {
+            ScalarTerm::BooleanNot { operand } => {
+                ScalarTerm::boolean_not(substitute_term(operand, substitutions)?)
+                    .map_err(LoweringError::InvalidCrashPredicate)
+            }
+            ScalarTerm::BooleanEqual { left, right } => ScalarTerm::boolean_equal(
+                substitute_term(left, substitutions)?,
+                substitute_term(right, substitutions)?,
+            )
+            .map_err(LoweringError::InvalidCrashPredicate),
             ScalarTerm::Value { id, scalar_type } => {
                 match scalar_type {
                     ScalarType::Boolean => {}
