@@ -95,8 +95,11 @@ rational lattice (offset plus integer multiples of a stride). Arithmetic and
 joins transport that lattice, so fractional intermediates may cancel before
 landing; integral interval endpoints alone do not prove integral interior values.
 Final declaration destinations and typed peers use the same check. Division by
-nonconstant result sets still needs stronger divisibility evidence, and nonzero
-proofs still lose gaps not captured by the lattice and correlated result facts.
+singleton sign intervals transports and joins the numerator lattice for each
+exact divisor, including opposite-sign alternatives produced by arithmetic.
+Wider nonconstant divisor intervals still need stronger divisibility evidence;
+integral quotient endpoints alone cannot supply it. Nonzero proofs still lose
+gaps not captured by the lattice and correlated result facts.
 
 Fractional warnings retain an exact origin and complete final value even inside
 skipped operations. With one dispatch-bearing operand per anonymous arithmetic
