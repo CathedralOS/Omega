@@ -256,7 +256,7 @@ impl<'program> Evaluator<'program> {
         &mut self,
         transition: &TableTransition,
         frame: &Frame,
-    ) -> EvalResult<Option<TransitionDecision>> {
+    ) -> EvalResult<Option<TransitionDecision<'program>>> {
         let holds = match transition.guard {
             TransitionGuardNode::Always => true,
             TransitionGuardNode::When(expression) => {
@@ -286,7 +286,7 @@ impl<'program> Evaluator<'program> {
         &mut self,
         target: &TransitionTargetNode,
         frame: &Frame,
-    ) -> EvalResult<TransitionDecision> {
+    ) -> EvalResult<TransitionDecision<'program>> {
         match target {
             TransitionTargetNode::Terminal => Ok(TransitionDecision::Terminal),
             TransitionTargetNode::SelfTarget => Ok(TransitionDecision::SelfTarget),
@@ -300,17 +300,22 @@ impl<'program> Evaluator<'program> {
                 let members = self.program.statement_table.name_path_members(path.members);
                 let state_name = members
                     .last()
-                    .map(|name| name.as_str().to_owned())
+                    .map(|name| name.as_str())
                     .ok_or_else(|| Halt::Unsupported("empty named transition".to_owned()))?;
 
                 // Same-machine sibling state on the current `self`, or a FREE
                 // machine's self-recursion (`-> count(...)` inside top-level
                 // `machine count` names the MACHINE, whose body state is the
                 // generated `entry`).
-                let (machine, state_name) = match self.machine_of_state_named(&state_name, frame) {
-                    Some(machine) => (machine, state_name),
+                let (machine, state) = match self
+                    .machine_of_state_named(state_name, frame)
+                    .and_then(|machine| {
+                        self.find_state(machine, state_name)
+                            .map(|state| (machine, state))
+                    }) {
+                    Some(resolved) => resolved,
                     None => self
-                        .free_machine_self_recursion_target(&state_name, frame)
+                        .free_machine_self_recursion_target(state_name, frame)
                         .ok_or_else(|| {
                             Halt::Unsupported(format!(
                                 "transition target `{state_name}` not found in current machine"
@@ -319,14 +324,13 @@ impl<'program> Evaluator<'program> {
                 };
 
                 let args = self.eval_state_arguments(
-                    &machine,
-                    &state_name,
+                    state,
                     self.program.statement_table.expression_handles(*arguments),
                     frame,
                 )?;
 
                 Ok(TransitionDecision::Named {
-                    state_name,
+                    state,
                     machine,
                     instance: frame.self_cell.clone(),
                     args,
@@ -343,20 +347,20 @@ impl<'program> Evaluator<'program> {
         &self,
         state_name: &str,
         frame: &Frame,
-    ) -> Option<(Machine, String)> {
+    ) -> Option<(&'program Machine, &'program State)> {
         let machine = self.current_machine(frame)?;
         let leaf = machine.name.as_str().rsplit("::").next().unwrap_or("");
         if machine.attached_data.is_some() || leaf != state_name {
             return None;
         }
-        let entry = self.machine_entry_state_name(machine)?;
-        Some((machine.clone(), entry))
+        let entry = self.machine_entry_state(machine)?;
+        Some((machine, entry))
     }
 
     /// Find the machine that owns a sibling state of `self` by state name. The entry and
     /// its sub-states all live in the same machine group; a named transition stays within
     /// the current machine.
-    fn machine_of_state_named(&self, state_name: &str, frame: &Frame) -> Option<Machine> {
+    fn machine_of_state_named(&self, state_name: &str, frame: &Frame) -> Option<&'program Machine> {
         // A named transition target is a SIBLING state of the machine currently executing, so
         // resolve within the CURRENT machine FIRST. Otherwise a state name shared across machines
         // -- e.g. `Picker::pick` and `Main::read_at` BOTH having a `try1` sub-state -- collides on
@@ -365,7 +369,7 @@ impl<'program> Evaluator<'program> {
         if let Some(machine) = self.current_machine(frame)
             && self.find_state(machine, state_name).is_some()
         {
-            return Some(machine.clone());
+            return Some(machine);
         }
         let type_symbol = match &*frame.self_cell.borrow() {
             Value::Struct { type_symbol, .. } => *type_symbol,
@@ -374,7 +378,7 @@ impl<'program> Evaluator<'program> {
         // First, the machine whose symbol matches the instance and has the state.
         for machine in self.program.machines() {
             if machine.symbol == type_symbol && self.find_state(machine, state_name).is_some() {
-                return Some(machine.clone());
+                return Some(machine);
             }
         }
         // Fall back: any machine that defines a state of that name (single-machine
@@ -383,7 +387,6 @@ impl<'program> Evaluator<'program> {
             .machines()
             .iter()
             .find(|machine| self.find_state(machine, state_name).is_some())
-            .cloned()
     }
 
     // ---- calls --------------------------------------------------------------
@@ -469,7 +472,7 @@ impl<'program> Evaluator<'program> {
         }
 
         let target = call.target.as_str();
-        let (machine, state_name, instance) = if call.receiver.is_empty() {
+        let (machine, state, instance) = if call.receiver.is_empty() {
             self.resolve_entry_state_symbol(call.target_symbol, frame)
                 .map_or_else(|| self.resolve_state_call(call.receiver, target, frame), Ok)?
         } else {
@@ -477,15 +480,14 @@ impl<'program> Evaluator<'program> {
         };
 
         let args = self.eval_state_arguments(
-            &machine,
-            &state_name,
+            state,
             self.program
                 .statement_table
                 .expression_handles(call.arguments),
             frame,
         )?;
 
-        self.run_state_collect(&machine, &state_name, instance, args)
+        self.run_state_collect(machine, state, instance, args)
             .map(|value| value.unwrap_or(Value::Unit))
     }
 
@@ -497,7 +499,7 @@ impl<'program> Evaluator<'program> {
         &self,
         target_symbol: SymbolHandle,
         frame: &Frame,
-    ) -> Option<(Machine, String, Cell)> {
+    ) -> Option<(&'program Machine, &'program State, Cell)> {
         if !target_symbol.is_valid() {
             return None;
         }
@@ -506,13 +508,7 @@ impl<'program> Evaluator<'program> {
                 .machine_states(machine)
                 .iter()
                 .find(|state| state.symbol == target_symbol)
-                .map(|state| {
-                    (
-                        machine.clone(),
-                        state.name.as_str().to_owned(),
-                        frame.self_cell.clone(),
-                    )
-                })
+                .map(|state| (machine, state, frame.self_cell.clone()))
         })
     }
 
@@ -529,7 +525,7 @@ impl<'program> Evaluator<'program> {
         receiver: arena::HandleSpan<typed_trees::name::Identifier>,
         target: &str,
         frame: &Frame,
-    ) -> EvalResult<(Machine, String, Cell)> {
+    ) -> EvalResult<(&'program Machine, &'program State, Cell)> {
         // (1) Explicit receiver path to a contained sub-machine instance.
         if let Some(resolved) = self.resolve_receiver_state_call(receiver, target, frame)? {
             return Ok(resolved);
@@ -537,9 +533,9 @@ impl<'program> Evaluator<'program> {
 
         // (2) Sibling state of the current machine.
         if let Some(machine) = self.current_machine(frame)
-            && self.find_state(machine, target).is_some()
+            && let Some(state) = self.find_state(machine, target)
         {
-            return Ok((machine.clone(), target.to_owned(), frame.self_cell.clone()));
+            return Ok((machine, state, frame.self_cell.clone()));
         }
 
         // (3) A free helper machine.
@@ -547,7 +543,7 @@ impl<'program> Evaluator<'program> {
             .find_machine_for_call(target, frame)
             .ok_or_else(|| Halt::Unsupported(format!("unknown call target `{target}`")))?;
         let entry_state = self
-            .machine_entry_state_name(&machine)
+            .machine_entry_state(machine)
             .ok_or_else(|| Halt::Unsupported(format!("call target `{target}` has no state")))?;
         Ok((machine, entry_state, frame.self_cell.clone()))
     }
@@ -560,7 +556,7 @@ impl<'program> Evaluator<'program> {
         receiver: arena::HandleSpan<typed_trees::name::Identifier>,
         target: &str,
         frame: &Frame,
-    ) -> EvalResult<Option<(Machine, String, Cell)>> {
+    ) -> EvalResult<Option<(&'program Machine, &'program State, Cell)>> {
         let members: Vec<String> = self
             .program
             .statement_table
@@ -599,7 +595,10 @@ impl<'program> Evaluator<'program> {
         }
         Ok(self
             .machine_for_instance_state(&cell, target)
-            .map(|machine| (machine, target.to_owned(), cell)))
+            .and_then(|machine| {
+                self.find_state(machine, target)
+                    .map(|state| (machine, state, cell))
+            }))
     }
 
     /// Find the machine that operates on `instance` and defines `target` as a state. The
@@ -610,7 +609,7 @@ impl<'program> Evaluator<'program> {
         &self,
         instance: &Cell,
         target: &str,
-    ) -> Option<Machine> {
+    ) -> Option<&'program Machine> {
         let (type_symbol, type_name) = match &*instance.borrow() {
             Value::Struct {
                 type_symbol,
@@ -656,7 +655,7 @@ impl<'program> Evaluator<'program> {
                 .is_some_and(|data| data.as_str() == group);
             let by_group = machine_group == group;
             if by_symbol || by_attached || by_group {
-                return Some(machine.clone());
+                return Some(machine);
             }
         }
         None
@@ -675,7 +674,11 @@ impl<'program> Evaluator<'program> {
     /// Find the machine invoked by a call whose `target` is a state name. A free helper
     /// machine is named `<group>::<target>` (e.g. `Main::bump`); resolve by that name, or
     /// by any machine that contains a state of that name and shares the receiver group.
-    pub(super) fn find_machine_for_call(&self, target: &str, frame: &Frame) -> Option<Machine> {
+    pub(super) fn find_machine_for_call(
+        &self,
+        target: &str,
+        frame: &Frame,
+    ) -> Option<&'program Machine> {
         // The receiver's machine-group prefix (e.g. "Main" from "Main::main").
         let group = {
             let self_name = match &*frame.self_cell.borrow() {
@@ -691,7 +694,7 @@ impl<'program> Evaluator<'program> {
 
         let qualified = format!("{group}::{target}");
         if let Some(machine) = self.find_machine_by_name(&qualified) {
-            return Some(machine.clone());
+            return Some(machine);
         }
         // A FREE top-level machine named exactly `target` (`machine pick(x: i32)
         // -> i32`): its body state is the generated `entry`, so the state-name
@@ -699,7 +702,7 @@ impl<'program> Evaluator<'program> {
         if let Some(machine) = self.find_machine_by_name(target)
             && machine.attached_data.is_none()
         {
-            return Some(machine.clone());
+            return Some(machine);
         }
         // Otherwise a machine that simply has a state named `target` -- but only when that
         // is UNAMBIGUOUS. With several candidates (e.g. two impls of the same trait
@@ -711,24 +714,21 @@ impl<'program> Evaluator<'program> {
             .machines()
             .iter()
             .filter(|machine| self.find_state(machine, target).is_some());
-        let first = candidates.next().cloned();
+        let first = candidates.next();
         if candidates.next().is_some() {
             return None;
         }
         first
     }
 
-    pub(super) fn machine_entry_state_name(&self, machine: &Machine) -> Option<String> {
+    pub(super) fn machine_entry_state(&self, machine: &Machine) -> Option<&'program State> {
         // A free helper machine `Main::bump` exposes its body as a state. Prefer a state
         // whose name matches the machine's leaf (`bump`); else the first state.
         let leaf = machine.name.as_str().rsplit("::").next().unwrap_or("");
-        if self.find_state(machine, leaf).is_some() {
-            return Some(leaf.to_owned());
+        if let Some(state) = self.find_state(machine, leaf) {
+            return Some(state);
         }
-        self.program
-            .machine_states(machine)
-            .first()
-            .map(|state| state.name.as_str().to_owned())
+        self.program.machine_states(machine).first()
     }
 
     /// Evaluate an argument. A `Mutable(place)` or a direct place under a `&mut` param

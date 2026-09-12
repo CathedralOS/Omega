@@ -20,7 +20,7 @@ impl<'program> Evaluator<'program> {
             .find(|machine| machine.symbol == symbol)
     }
 
-    pub(super) fn find_state(&self, machine: &Machine, name: &str) -> Option<&State> {
+    pub(super) fn find_state(&self, machine: &Machine, name: &str) -> Option<&'program State> {
         self.program
             .machine_states(machine)
             .iter()

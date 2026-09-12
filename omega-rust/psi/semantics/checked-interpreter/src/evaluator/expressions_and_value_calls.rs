@@ -474,23 +474,21 @@ impl<'program> Evaluator<'program> {
             .machines()
             .iter()
             .find(|machine| machine.symbol == candidate.realization_machine_symbol)
-            .cloned()
             .ok_or_else(|| {
                 Halt::Trap("selected trait operator lost its realization machine".to_owned())
             })?;
         let state = self
             .program
-            .machine_states(&machine)
+            .machine_states(machine)
             .iter()
             .find(|state| state.symbol == candidate.realization_state_symbol)
-            .cloned()
             .ok_or_else(|| {
                 Halt::Trap("selected trait operator lost its realization state".to_owned())
             })?;
         let operands = [binary.left, binary.right];
         let has_self = self
             .program
-            .state_parameters(&state)
+            .state_parameters(state)
             .iter()
             .any(|parameter| parameter.is_self);
         let instance = if has_self {
@@ -499,16 +497,12 @@ impl<'program> Evaluator<'program> {
         } else {
             frame.self_cell.clone()
         };
-        let arguments = self.eval_state_arguments(
-            &machine,
-            state.name.as_str(),
-            &operands[usize::from(has_self)..],
-            frame,
-        )?;
+        let arguments =
+            self.eval_state_arguments(state, &operands[usize::from(has_self)..], frame)?;
 
         let entered_guard_depth = self.guard_depth;
         self.guard_depth = 0;
-        let value = self.run_state_collect(&machine, state.name.as_str(), instance, arguments);
+        let value = self.run_state_collect(machine, state, instance, arguments);
         self.guard_depth = entered_guard_depth;
         value?
             .ok_or_else(|| {
@@ -1110,8 +1104,7 @@ impl<'program> Evaluator<'program> {
             }
         };
         let args = self.eval_state_arguments(
-            &machine,
-            &entry_state,
+            entry_state,
             self.program
                 .expression_table
                 .expression_handles(call.arguments),
@@ -1123,7 +1116,7 @@ impl<'program> Evaluator<'program> {
         let entered_guard_depth = self.guard_depth;
         self.guard_depth = 0;
         let value = self
-            .run_state_collect(&machine, &entry_state, instance, args)
+            .run_state_collect(machine, entry_state, instance, args)
             .map(|value| value.unwrap_or(Value::Unit));
         self.guard_depth = entered_guard_depth;
         let value = value?;
@@ -1432,7 +1425,7 @@ impl<'program> Evaluator<'program> {
         call: &typed_trees::expression::TableCallExpression,
         target: &str,
         frame: &Frame,
-    ) -> EvalResult<(Machine, String, Cell)> {
+    ) -> EvalResult<(&'program Machine, &'program State, Cell)> {
         // Static-machine specialization rewrites a parameter call to the exact
         // selected ENTRY symbol.  Its human-facing target remains the authored
         // leaf (`TotalOrder`, not `F64::TotalOrder`), so name lookup alone is
@@ -1479,8 +1472,11 @@ impl<'program> Evaluator<'program> {
                 return Ok((machine, state, cell));
             }
             let is_self = Cell::ptr_eq(&cell, &frame.self_cell);
-            if !is_self && let Some(machine) = self.machine_for_instance_state(&cell, target) {
-                return Ok((machine, target.to_owned(), cell));
+            if !is_self
+                && let Some(machine) = self.machine_for_instance_state(&cell, target)
+                && let Some(state) = self.find_state(machine, target)
+            {
+                return Ok((machine, state, cell));
             }
         }
 
@@ -1505,19 +1501,14 @@ impl<'program> Evaluator<'program> {
                     return Ok(resolved);
                 }
                 let group = members[0].as_str();
-                if let Some(machine) = self
-                    .program
-                    .machines()
-                    .iter()
-                    .find(|machine| {
-                        let mut segments = machine.name.as_str().split("::");
-                        segments.next() == Some(group)
-                            && machine.name.as_str().ends_with(target)
-                            && self.find_state(machine, target).is_some()
-                    })
-                    .cloned()
+                if let Some(machine) = self.program.machines().iter().find(|machine| {
+                    let mut segments = machine.name.as_str().split("::");
+                    segments.next() == Some(group)
+                        && machine.name.as_str().ends_with(target)
+                        && self.find_state(machine, target).is_some()
+                }) && let Some(state) = self.find_state(machine, target)
                 {
-                    return Ok((machine, target.to_owned(), frame.self_cell.clone()));
+                    return Ok((machine, state, frame.self_cell.clone()));
                 }
             }
         }
@@ -1527,9 +1518,9 @@ impl<'program> Evaluator<'program> {
         // fallback below).
         if receiver_is_self
             && let Some(machine) = self.current_machine(frame)
-            && self.find_state(machine, target).is_some()
+            && let Some(state) = self.find_state(machine, target)
         {
-            return Ok((machine.clone(), target.to_owned(), frame.self_cell.clone()));
+            return Ok((machine, state, frame.self_cell.clone()));
         }
 
         // (3) A free helper machine (self/receiverless calls only).
@@ -1538,7 +1529,7 @@ impl<'program> Evaluator<'program> {
             .filter(|_| receiver_is_self)
             .ok_or_else(|| Halt::Unsupported(format!("unknown value-call target `{target}`")))?;
         let entry_state = self
-            .machine_entry_state_name(&machine)
+            .machine_entry_state(machine)
             .ok_or_else(|| Halt::Unsupported(format!("value-call `{target}` has no state")))?;
         Ok((machine, entry_state, frame.self_cell.clone()))
     }
