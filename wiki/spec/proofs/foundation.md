@@ -206,9 +206,10 @@ ledger. Each example needs a valid derivation and an invalid control:
   reject. Quotient-based analysis additionally requires the open quotient join.
 
 These are discriminating controls, not a proof of consistency or mathematical
-completeness. Source punctuation remains in the
-[mathematical-binder question](../../../OWNER_QUESTIONS.md#mathematical-binders);
-the [PCC bridge](../../../OWNER_QUESTIONS.md#general-proof-pcc-authority) and
-[profile completion](../../../OWNER_QUESTIONS.md#foundation-profile-completion)
-are the remaining architectural decisions. No anonymous machine or optional
+completeness. [Source punctuation](../../../OWNER_QUESTIONS.md#mathematical-binders)
+and [profile completion](../../../OWNER_QUESTIONS.md#foundation-profile-completion)
+remain open. The [application PCC contract](publication.md) fixes the common
+checking authority and separate receiver-owned obligation interpretation;
+implementation must supply their exact rules and soundness evidence.
+No anonymous machine or optional
 formula-naming proposal is a prerequisite.

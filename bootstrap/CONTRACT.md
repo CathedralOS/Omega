@@ -4,6 +4,14 @@
 [minimization](MINIMIZATION.md) governs retention and architectural changes.
 This contract states required assurance, not a claim that the edges are complete.
 
+Bootstrap construction evidence is distinct from
+[optional application PCC](../wiki/spec/proofs/publication.md). Psi/native proof
+publication flags neither enable nor waive this chain's required evidence.
+Sharing checker machinery must reduce whole-chain audit and implementation cost,
+including isolation of any shared subset; uniformity alone is not a reason to
+expand the bootstrap checker. Logical soundness and construction correctness
+remain separate obligations.
+
 ## Selected execution chain
 
 The audited native Alpha VM and admitted, self-reconstructing Beta compiler tape

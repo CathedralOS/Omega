@@ -104,6 +104,22 @@ implementation work; the current output is a flat executable and std requests
 foreground activation. Producing Terminal Psi alone does not need those native
 inputs.
 
+### Optional proof output
+
+The specified Build interface selects portable proof products independently:
+
+```omega
+// Inside the root's build machine; both default to false.
+builder.pcc.psi = true;
+builder.pcc.native = true;
+```
+
+These fields remain implementation work. Psi PCC retains the Psi artifact and
+its `.proof` sidecar; native PCC supplies a standalone sidecar next to the final
+executable. Neither enables ordinary checking—it already runs—and neither
+selects the receiver's trust policy. See
+[shipping proofs](chapter_10_compile_time_proofs.md#shipping-independently-checkable-proofs).
+
 ### Build orchestration is not semantic evaluation
 
 Both can run before the final program, but they have different authority:

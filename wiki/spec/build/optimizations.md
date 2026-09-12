@@ -63,8 +63,12 @@ Shared frontend work precedes target fan-out under the
 [target-selection contract](configuration.md).
 
 Terminal Psi is the immutable output of Psi optimization. Publication retains
-the exact Psi selection and input/output semantic and proof identities; decoding
-checks the recorded output against the published sections. Empty execution may
+the exact Psi selection and input/output semantic identities; decoding checks
+the recorded output against the published semantics. Proof identities remain
+internal validation provenance unless relevant evidence is requested through
+[PCC publication](../proofs/publication.md). An absent sidecar waives no ordinary
+transformation check. Requested portable evidence must establish the necessary
+preservation without producer state. Empty execution may
 claim only equal input and output identities. A receiving interpreter or native
 lowerer does not rerun Psi passes. A target-constrained build companion may carry
 pending post-Terminal selections, excluding earlier phases and bound to the

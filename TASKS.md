@@ -516,6 +516,22 @@ Owners include
 
 ## P3 - Terminal Psi, PCC, and observation
 
+- **PCC-PRODUCT-PUBLICATION.** Implement the
+  [optional proof product contract](wiki/spec/proofs/publication.md) through
+  normalized root Build, cross-invocation inputs, artifact codecs, independent
+  verification and final publication. Two independent off-by-default requests
+  produce adjacent `.proof` sidecars, never an embedded-only route or a second
+  compilation pipeline. Remove superseded embedded publication as this lands.
+  Receiver requirements come from an independently pinned policy package and
+  concrete configuration, not producer hints. Keep ordinary checking mandatory.
+  First deliver bounded supported evidence end-to-end; general claims depend on
+  `PROOF-KERNEL-CORE`, `PROOF-CERTIFICATION-BRIDGE` and completed profile rules,
+  not a new policy DSL. Acceptance: all four request combinations; separate file
+  sizes; native-only checking after source/Psi deletion; macOS inner sidecar;
+  exact omitted dependency possession; wrong bytes, premises, policy, assumptions
+  and stale sidecar reject; exhaustion reports `Incomplete`; no partial or
+  uncertified success. Extend standalone output framing explicitly for pairs.
+
 - **PSIIR.** Extend Terminal Psi only in complete vertical slices through
   canonical encoding, independent reconstruction, verification,
   interpretation, resource analysis, native lowering, artifact custody, and
@@ -608,8 +624,8 @@ Owners include
   evidence/codec/replay, and core mathematical traits. Use `PROOF-KERNEL-CORE`,
   not a second general logical representation. General source elaboration is
   **OWNER-BLOCKED** on [mathematical binders](OWNER_QUESTIONS.md#mathematical-binders);
-  their general certificate integration depends on the
-  [PCC authority bridge](OWNER_QUESTIONS.md#general-proof-pcc-authority).
+  their general certificate integration follows the settled
+  [PCC checking/publication contract](wiki/spec/proofs/publication.md).
   Existing specified contract/bundle migration can proceed independently;
   do not substitute executable declaration enumeration or
   an optional-returning decider for general mathematical quantification.
@@ -661,10 +677,11 @@ Owners include
   owner. Missing or stale evidence cannot silently discharge an obligation or
   inherit a producer's admission decision.
 
-  Bounded current-rule production remains actionable. The general-calculus
-  extension is **OWNER-BLOCKED** on the [PCC authority bridge](OWNER_QUESTIONS.md#general-proof-pcc-authority),
-  including the exact completed profile. The kernel core itself is separately
-  actionable. Retain closure over complete checked declaration dependencies,
+  Bounded current-rule production and the selected kernel core remain actionable.
+  Only rules requiring [profile completion](OWNER_QUESTIONS.md#foundation-profile-completion)
+  remain **OWNER-BLOCKED**; the common checking authority is settled in the
+  [publication contract](wiki/spec/proofs/publication.md).
+  Retain closure over complete checked declaration dependencies,
   including statement/type references surviving neither erasure nor final normal
   forms. Acceptance also checks a well-founded denotation against a generated
   loop: measure decrease must not certify an incorrect accumulator update.
@@ -680,13 +697,17 @@ Owners include
   an untrusted certificate producer. The verifier reconstructs goals and only
   checks the supplied route, under the
   [verification contract](wiki/spec/terminal-psi/verification.md).
-  Bootstrap discharge remains open under
-  `BETA-DERIVATION-CHECKER` in `TASKS_BOOTSTRAP.md`; no current artifact may
-  claim rooted-checker acceptance.
-  General calculus/operational interpretation is **OWNER-BLOCKED** on the
-  [PCC authority bridge](OWNER_QUESTIONS.md#general-proof-pcc-authority).
-  Current fixed-rule reconstruction and the existing Beta proof customer remain
-  actionable; completing either does not close the general interpretation gap.
+  Inventory the existing trusted surface in this ledger, not another manifest:
+  primitive judgments, checker rules, reconstructed fact kinds, normalization,
+  scope, write invalidation and call/cycle composition. Each entry binds exact
+  premises/conclusion, dependencies, implementation identity and soundness status
+  (`Proved`, `ExplicitlyTrusted`, `Unfinished`). Mechanically fail uncovered
+  accepted dispatch/fact kinds; revalidate changes to existing arms too. Coverage
+  is not soundness, and unfinished rows cannot establish independent claims.
+  Application interpretation uses the common kernel; only rules depending on
+  [profile completion](OWNER_QUESTIONS.md#foundation-profile-completion) are blocked.
+  Bootstrap discharge belongs to `BETA-DERIVATION-CHECKER` in `TASKS_BOOTSTRAP.md`,
+  not a prerequisite that forces general mathematics into the Gamma checker.
   End-to-end acceptance uses a theorem-dependent program obligation after
   deleting producer/source state, under accepting and rejecting assumption
   policies. Wrong goals, profile identities and omitted transitive assumptions

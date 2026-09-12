@@ -21,6 +21,12 @@ under a restricted state ceiling; it is not a new generic type application.
 
 ## Certificate and replay
 
+Final-artifact validation is mandatory; shipping its evidence as independently
+checkable [native PCC](../proofs/publication.md) is a separate request. Requested
+portable evidence lives in the executable's `.proof` sidecar. Internal validation
+records need not be shipped with ordinary output. A receiver may require this
+evidence regardless of the producer's defaults; absence then prevents admission.
+
 One self-describing certificate binds exact final bytes, placements, and the
 complete executable-region inventory. Admission replays normalized instruction
 and region rows against closed target instruction specifications, proves exact

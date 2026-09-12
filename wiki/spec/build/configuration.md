@@ -56,6 +56,16 @@ Build flags. Project role, roots, dependencies, outputs, image intent, and
 provider selection remain build facts. Target-qualified bindings select facts;
 they do not redefine target policy.
 
+## Proof-carrying output
+
+Normalized Build retains two independent, false-by-default PCC requests: Psi
+and native. The intended fields are `builder.pcc.psi` and `builder.pcc.native`.
+[Proof publication](../proofs/publication.md) owns product compatibility,
+`<artifact>.proof` sidecars, complete-pair publication and outcome classification.
+These selections affect portable evidence production, not ordinary language
+checking, optimizer correctness or receiving authority. A receiver independently
+selects its versioned policy package and concrete configuration.
+
 ## Behavior exclusions
 
 The root may require the selected product to exclude exact crash causes, abstract

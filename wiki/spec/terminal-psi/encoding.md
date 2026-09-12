@@ -73,16 +73,20 @@ complement rather than trusting this list.
 
 | Section | Identity and role |
 | --- | --- |
-| Semantic module | Domain-separated commitment to exact canonical bytes; excludes replaceable proof, installation, and debug sections. |
-| Proof bundle | Separate `PSIPRF\0\0` bytes and identity, binding current proof-system/format markers and exact evidence. |
-| Optimization execution | Separate evidence binding executed selection and input/output semantic/proof identities, rejoined at decoding. |
+| Semantic module | Domain-separated commitment to exact canonical bytes; excludes replaceable proof, installation, and debug evidence. |
+| Proof bundle | Independently identified evidence, published only when requested in `<artifact>.proof`, binding the semantic artifact and exact proof profile/dependencies. The current bounded `PSIPRF\0\0` encoding is not the complete general sidecar schema. |
+| Optimization execution | Selection/output semantic provenance is rejoined at decoding. Internal proof identities and portable preservation evidence remain distinct; absent PCC does not waive transformation checking. |
 | Installation | Separate `PSIINST\0` bytes and identity, retaining realization evidence without granting admission. |
 | Debug map | Replaceable presentation metadata bound to the exact semantic subject, never program meaning. |
 
-The reconstructed manifest binds each section under its own hash domain.
+The reconstructed manifest binds each present component under its own hash domain.
 Absent differs from present-but-empty. Replacing valid nonsemantic evidence
-preserves semantic identity while changing its own section and container
-identities.
+preserves semantic identity while changing its own identity. Proof sidecars do
+not create an embedded proof-section requirement or alter unchanged artifact
+bytes. [PCC publication](../proofs/publication.md) owns opt-in and exact companion
+binding. Migrate the current embedded proof-envelope route; it is not a second
+permanent distribution format. Physical sidecar tables remain execution work,
+not permission to reinterpret existing bytes under an old format marker.
 
 Proof evidence is strictly ordered by obligation identity and retains exact
 rules, proof trees, and admissions. Preserve cited rule direction even though

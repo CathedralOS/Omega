@@ -7,6 +7,12 @@ records evidence for the realization. Receiving policy separately checks the
 dangerous authority exercised by selected physical mechanisms. None of these
 axes substitutes for another.
 
+The receiver selects the policy's versioned package, exact dependency closure
+and concrete configuration independently of the offered program, as specified
+for [PCC admission](../proofs/publication.md#receiver-owned-requirements).
+Its accepted commitments enter realization evidence. This authority-class policy
+does not replace memory-safety guarantees or confine which objects may be touched.
+
 [Build-level exclusions](behavior_exclusions.md) may independently forbid exact
 abstract services or physical terminal classes. Physical exclusions consume the
 classified selected-mechanism closure below; missing classification is failure,
