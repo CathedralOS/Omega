@@ -21,8 +21,18 @@ The [dispatch contract](../../../wiki/spec/language/patterns.md) is broader than
 the current implementation. Wildcards and complete Boolean value alternatives
 close coverage. Runtime scalar lowering currently supports Boolean/integer
 subjects and Boolean/integer/float results; an anonymous-only numeric subject has no invented default width.
-Structural/domain/payload patterns and ownership-bearing result/conditional
-transfer joins remain explicit limitations. Checking still validates every arm's
+Structural/domain/payload patterns and joins that conditionally transfer
+existing owned values remain explicit limitations. Source checking permits fresh
+plain-owned constructors, including nested records, sums and arrays, on selected
+result paths. Each child must be fresh or unrestricted; loans, linear contents,
+nominal cleanup and owned call results still require their missing custody join.
+An explicitly initialized affine local retains one whole ownership timeline
+regardless of its initializer shape or mutability. Selection does not make the
+result copyable. The source probe is
+`cargo run -p omega -- --check tests/omega/pass/expressions/match_fresh_owned/main.omg`;
+`tests/omega/fail/expressions/match_result_double_move/main.omg` rejects a second
+transfer. These checked constructors do not by themselves establish native
+aggregate result transport. Checking still validates every arm's
 type, including unreachable arms. Stable comparison facts belong to the exact
 selected branch and are retired by writes to their inputs; they do not escape
 the result join. The interpreter forwards an existing destination into only the
@@ -63,7 +73,8 @@ predicates and routes; the cast still owes membership independently. Match joins
 compatible normalized domain results without treating different meanings as one
 bare carrier. An outer erasing cast cannot repair incompatible arms: erasure
 must be explicit in each arm. Static, unrouted scalar domains add no ownership
-join; routed provenance and borrowed/owned results retain their separate fences.
+join; routed provenance, borrowed results and transfers from existing owners
+retain their separate fences.
 Raw dependent range predicates are not merged by rendered spelling.
 
 `cargo run -p omega -- --check --target macos_arm64 tests/omega/pass/expressions/match_domain_results/main.omg`

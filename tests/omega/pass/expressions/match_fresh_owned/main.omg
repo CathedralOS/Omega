@@ -1,0 +1,29 @@
+data Category { case Other; case Missing; }
+data Record { category: Category; number: u64; }
+
+machine classify(code: u64) -> Category {
+    match code { 2 -> Category::Missing, _ -> Category::Other }
+}
+
+machine record(code: u64) -> Record {
+    match code {
+        2 -> Record { category: Category::Missing, number: 7 },
+        _ -> Record {
+            category: match code { 3 -> Category::Missing, _ -> Category::Other },
+            number: code
+        }
+    }
+}
+
+machine accept(category: Category) {}
+
+machine consume_result(code: u64) {
+    let category: Category = match code { 2 -> Category::Missing, _ -> Category::Other };
+    accept(category);
+}
+
+data Holder { category: Category; }
+
+machine Holder::replace(&mut self, code: u64) {
+    self.category = match code { 2 -> Category::Missing, _ -> Category::Other };
+}

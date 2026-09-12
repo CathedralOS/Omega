@@ -109,6 +109,38 @@ fn skipped_match_calls_keep_type_and_scope_checks_but_not_preconditions() {
 }
 
 #[test]
+fn fresh_match_construction_keeps_affine_results_without_input_transfers() {
+    for source in [
+        "data Category { case Other; case Missing; } machine choose(code: u64) -> Category { match code { 2 -> Category::Missing, _ -> Category::Other } }",
+        "data Payload { value: u64; } machine choose(flag: bool, number: u64) -> Payload { match flag { true -> Payload { value: number }, false -> Payload { value: 2 } } }",
+        "data Payload { value: u64; } data Box { payload: Payload; } machine choose(flag: bool) -> Box { match flag { true -> Box { payload: match flag { true -> Payload { value: 1 }, false -> Payload { value: 2 } } }, false -> Box { payload: Payload { value: 3 } } } }",
+        "data Payload { value: u64; } machine choose(flag: bool) -> [Payload; 1] { match flag { true -> [Payload { value: 1 }], false -> [Payload { value: 2 }] } }",
+    ] {
+        let errors = diagnostics(source);
+        assert!(errors.is_empty(), "{source}: {errors:?}");
+    }
+}
+
+#[test]
+fn fresh_match_containers_cannot_hide_existing_owned_inputs_or_cleanup() {
+    for source in [
+        "data Payload { value: u64; } data Box { payload: Payload; } machine choose(flag: bool, payload: Payload) -> Box { match flag { true -> Box { payload: payload }, false -> Box { payload: Payload { value: 0 } } } }",
+        "data Payload { value: u64; } machine choose(flag: bool, payload: Payload) -> [Payload; 1] { match flag { true -> [payload], false -> [Payload { value: 0 }] } }",
+        "data Payload [linear] { value: u64; } machine choose(flag: bool) -> Payload { match flag { true -> Payload { value: 1 }, false -> Payload { value: 2 } } }",
+        "data Payload { value: u64; } machine Payload::drop(&mut self) {} data Box { payload: Payload; } machine choose(flag: bool) -> Box { match flag { true -> Box { payload: Payload { value: 1 } }, false -> Box { payload: Payload { value: 2 } } } }",
+        "data Payload { value: u64; } machine fresh() -> Payload { Payload { value: 1 } } machine choose(flag: bool) -> Payload { match flag { true -> fresh(), false -> Payload { value: 2 } } }",
+    ] {
+        let errors = diagnostics(source);
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("branch custody join")),
+            "{source}: {errors:?}"
+        );
+    }
+}
+
+#[test]
 fn match_custody_limits_are_explicit() {
     for (source, expected) in [
         (

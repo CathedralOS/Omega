@@ -208,13 +208,18 @@ fn result_needs_custody_join(
     state: &State,
     value: ExpressionHandle,
 ) -> bool {
-    if declared_value_type(program, machine, state, value).is_some_and(|reference| {
-        program.type_multiplicity(reference) != language_semantics::Multiplicity::Unrestricted
-            || !crate::has_plain_owned_contents_with_numeric_constraints(program, reference)
-                && !has_unrouted_scalar_contents(program, reference)
+    let reference = declared_value_type(program, machine, state, value);
+    if reference.is_some_and(|reference| {
+        !crate::has_plain_owned_contents_with_numeric_constraints(program, reference)
+            && !has_unrouted_scalar_contents(program, reference)
     }) {
         return true;
     }
+    // A selected constructor establishes its result once at the destination.
+    // Plain owned contents exclude loans, linear debt and nominal cleanup; each
+    // child still has to supply fresh construction or an unrestricted value.
+    // Thus an affine constructor needs no predecessor-owned input join, while
+    // selecting an existing affine place or an owned call result still does.
     match program.expression_table.expression(value) {
         ExpressionNode::Borrow(_) => true,
         ExpressionNode::Match(dispatch) => program
@@ -232,9 +237,8 @@ fn result_needs_custody_join(
             .expression_handles(*elements)
             .iter()
             .any(|element| result_needs_custody_join(program, machine, state, *element)),
-        _ => declared_value_type(program, machine, state, value).is_some_and(|reference| {
-            !crate::has_plain_owned_contents_with_numeric_constraints(program, reference)
-                && !has_unrouted_scalar_contents(program, reference)
+        _ => reference.is_some_and(|reference| {
+            program.type_multiplicity(reference) != language_semantics::Multiplicity::Unrestricted
         }),
     }
 }
