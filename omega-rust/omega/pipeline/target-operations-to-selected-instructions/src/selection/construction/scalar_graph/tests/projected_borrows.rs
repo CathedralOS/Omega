@@ -1,5 +1,6 @@
 //! Raw selection/replay controls, not source admission or native execution claims.
 use super::*;
+mod shared_records;
 use terminal_psi::{
     StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
     StructuralTypeDeclaration, StructuralTypeShape,

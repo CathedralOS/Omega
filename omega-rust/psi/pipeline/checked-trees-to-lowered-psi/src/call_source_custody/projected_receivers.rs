@@ -20,6 +20,18 @@ pub(crate) struct ReceiverSource {
     erased_alias: bool,
 }
 
+impl ReceiverSource {
+    /// Storage is selected by `root`; the call captures the authored endpoint.
+    /// Whole self may spell the machine namespace while its root is a formal.
+    pub(crate) fn endpoint(&self) -> SymbolHandle {
+        if self.stamp.is_valid() {
+            self.stamp
+        } else {
+            self.owner
+        }
+    }
+}
+
 pub(crate) fn source(
     checked: &CheckedTrees,
     caller: SymbolHandle,

@@ -169,7 +169,7 @@ pub(crate) fn accepts_shared_record(
             parameter.semantic.access == StructuralAccess::SharedBorrow
                 && parameter.semantic.multiplicity
                     == terminal_psi::StructuralMultiplicity::Unrestricted
-                && crate::structural_reference_input::scalar_record_shape(
+                && crate::structural_reference_input::plain_record_shape(
                     parameter.semantic.structural_type,
                     structural_types,
                 )

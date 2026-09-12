@@ -1,4 +1,6 @@
-//! Whole structural parameters and primitive referents in scalar computations.
+//! Structural parameters, projected shared receivers, and primitive referents
+//! in scalar computations. Parameter projections reuse established storage;
+//! local construction remains independently restricted to supported whole values.
 
 use super::*;
 
@@ -31,31 +33,16 @@ pub(crate) fn structural_computation_argument(
             }
             argument.target
         }
-        ExpressionNode::Name(_) => expression,
+        ExpressionNode::Name(_) | ExpressionNode::Member(_) => expression,
         _ => return None,
     };
-    let ExpressionNode::Name(name) = program.expression_table.expression(named) else {
-        return None;
-    };
-    if !name.symbol.is_valid()
-        || name.head_symbol != name.symbol
-        || program
-            .expression_table
-            .name_path_members(name.members)
-            .len()
-            != 1
-    {
-        return None;
-    }
-    let place = crate::flow::canonical_place_from_expression_in_state(
+    let mut place = crate::flow::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         call.statement_index,
         expression,
     )?;
-    if place.root != facts::PlaceRoot::Symbol(name.symbol) || !place.segments.is_empty() {
-        return None;
-    }
+    crate::flow::normalize_attached_place_root(program, machine, state.symbol, &mut place);
     rejoin_computation_accesses(program, borrow, machine, state.symbol, call)?;
     let target_state = crate::find_state(program, call.target_symbol)?;
     let target_position = program
@@ -92,6 +79,21 @@ pub(crate) fn structural_computation_argument(
         return Some(argument);
     }
     if target.is_self {
+        return None;
+    }
+    let ExpressionNode::Name(name) = program.expression_table.expression(named) else {
+        return None;
+    };
+    if !name.symbol.is_valid()
+        || name.head_symbol != name.symbol
+        || program
+            .expression_table
+            .name_path_members(name.members)
+            .len()
+            != 1
+        || place.root != facts::PlaceRoot::Symbol(name.symbol)
+        || !place.segments.is_empty()
+    {
         return None;
     }
     if target_access == CheckedStructuralAccess::Owned {
@@ -197,7 +199,14 @@ fn shared_record_argument(
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
-    if !place.segments.is_empty() {
+    if !place
+        .segments
+        .iter()
+        .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. }))
+    {
+        return None;
+    }
+    if !target.is_self && !place.segments.is_empty() {
         return None;
     }
     let TypeReferenceNode::Reference {
@@ -238,15 +247,14 @@ fn shared_record_argument(
         base_type_identity(program, *referee, &[])?
     };
     let parameters = program.state_parameters(state);
-    let (reference, source) = if let Some(position) = parameters
-        .iter()
-        .position(|parameter| parameter.symbol == symbol)
-    {
+    let (reference, source) = if let Some(position) = parameters.iter().position(|parameter| {
+        parameter.symbol == symbol || (parameter.is_self && symbol == machine)
+    }) {
         let parameter = &parameters[position];
-        if parameter.is_self || parameter.is_const {
+        if parameter.is_const {
             return None;
         }
-        let reference = match program
+        let mut reference = match program
             .type_reference_table
             .type_reference(parameter.type_reference)
         {
@@ -260,6 +268,23 @@ fn shared_record_argument(
             TypeReferenceNode::Named { .. } => parameter.type_reference,
             _ => return None,
         };
+        if parameter.is_self {
+            let owner = program
+                .machines()
+                .iter()
+                .find(|owner| owner.symbol == machine)?;
+            let TypeReferenceNode::Named { symbol, .. } =
+                program.type_reference_table.type_reference(reference)
+            else {
+                return None;
+            };
+            if *symbol != owner.symbol && *symbol != owner.attached_data_symbol {
+                return None;
+            }
+            reference = program
+                .type_reference_table
+                .find_named_type_reference(owner.attached_data_symbol)?;
+        }
         let ordinal = parameters[..position]
             .iter()
             .filter(|parameter| {
@@ -275,6 +300,11 @@ fn shared_record_argument(
             },
         )
     } else {
+        // Local construction support remains whole-record only. Projection
+        // here forwards existing parameter storage, not a new local producer.
+        if !place.segments.is_empty() {
+            return None;
+        }
         let mut locals = program
             .statement_table
             .statements(state.statement_nodes)
@@ -304,12 +334,24 @@ fn shared_record_argument(
     {
         return None;
     }
+    let (reference, path) = if place.segments.is_empty() {
+        (reference, Vec::new())
+    } else {
+        projected_argument_path(program, state.symbol, call.statement_index, place)?
+    };
     let mut shapes = ShapeCollector::new(program);
     let identity = shapes.add_type(reference, &[], &[])?;
+    let parameter_source = matches!(
+        source,
+        CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+    );
     if identity != target_identity
         || !parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty()
-        || !matches!(&shapes.types.get(&identity)?.shape, CheckedUnitStructuralTypeShape::Record { fields }
-            if fields.iter().all(|field| !field.relevance.is_erased() && matches!(field.field_type, CheckedUnitStructuralFieldType::Scalar(_))))
+        || !shapes.types.values().all(|shape|
+            matches!(&shape.shape, CheckedUnitStructuralTypeShape::Record { fields }
+                if fields.iter().all(|field| !field.relevance.is_erased()
+                    && (matches!(field.field_type, CheckedUnitStructuralFieldType::Scalar(_))
+                        || (parameter_source && matches!(field.field_type, CheckedUnitStructuralFieldType::Structural { .. }))))))
     {
         return None;
     }
@@ -321,13 +363,37 @@ fn shared_record_argument(
             call.statement_index,
             call.call_ordinal,
         )?;
+        let mut receiver = crate::flow::canonical_receiver_place_for_call_site(
+            program,
+            machine,
+            state.symbol,
+            &site,
+        )?;
+        crate::flow::normalize_attached_place_root(program, machine, state.symbol, &mut receiver);
+        // Captured self retains the machine namespace; contextual expression
+        // resolution uses its actual formal. Normalize only that exact pair,
+        // leaving every projected field and unrelated root unchanged.
+        if receiver.root == facts::PlaceRoot::Symbol(machine) {
+            receiver.root = facts::PlaceRoot::Symbol(
+                parameters
+                    .iter()
+                    .find(|parameter| parameter.is_self)?
+                    .symbol,
+            );
+        }
+        let expected_root = if place.root == facts::PlaceRoot::Symbol(machine) {
+            facts::PlaceRoot::Symbol(
+                parameters
+                    .iter()
+                    .find(|parameter| parameter.is_self)?
+                    .symbol,
+            )
+        } else {
+            place.root
+        };
         if !call.has_receiver
-            || crate::flow::canonical_receiver_place_for_call_site(
-                program,
-                machine,
-                state.symbol,
-                &site,
-            )? != *place
+            || receiver.root != expected_root
+            || receiver.segments != place.segments
         {
             return None;
         }
@@ -355,7 +421,7 @@ fn shared_record_argument(
     }
     Some(CheckedUnitStructuralArgumentPlan {
         source,
-        path: Vec::new(),
+        path,
         type_identity: identity,
         access: CheckedStructuralAccess::SharedBorrow,
     })

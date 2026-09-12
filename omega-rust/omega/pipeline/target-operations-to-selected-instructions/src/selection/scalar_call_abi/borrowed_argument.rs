@@ -50,7 +50,7 @@ pub(super) fn validate_borrowed_argument(
     // below; a scalar-bearing leaf alone does not select whole-record sharing.
     let shared_record = (semantic.access == StructuralAccess::SharedBorrow)
         .then(|| {
-            crate::structural_reference_input::scalar_record_shape(
+            crate::structural_reference_input::plain_record_shape(
                 target.structural_type,
                 &signature.structural_types,
             )
@@ -69,10 +69,18 @@ pub(super) fn validate_borrowed_argument(
             )
         });
     let shape = if let Some(referent) = shared_record {
+        crate::structural_reference_input::plain_record_shape(
+            target.root_structural_type,
+            &signature.structural_types,
+        )?;
+        let (projected_type, offset) = crate::structural_reference_input::project(
+            target.root_structural_type,
+            &semantic.path,
+            &signature.structural_types,
+        )?;
         if semantic.access != StructuralAccess::SharedBorrow
-            || !semantic.path.is_empty()
-            || target.root_structural_type != target.structural_type
-            || target.source_byte_offset != 0
+            || projected_type != target.structural_type
+            || target.source_byte_offset != offset
         {
             return None;
         }
@@ -152,7 +160,7 @@ pub(super) fn validate_borrowed_argument(
             parameter.semantic.is_self
                 && parameter.semantic.structural_type == attachment
                 && parameter.semantic.access == StructuralAccess::SharedBorrow
-                && crate::structural_reference_input::scalar_record_shape(
+                && crate::structural_reference_input::plain_record_shape(
                     attachment,
                     &signature.structural_types,
                 )
@@ -175,13 +183,16 @@ pub(super) fn validate_borrowed_argument(
         || !call.crash_continuations.is_empty()
         || call.call_plan != expected
         || (!exclusive
-            && (semantic.access != StructuralAccess::SharedBorrow || !semantic.path.is_empty()))
+            && (semantic.access != StructuralAccess::SharedBorrow
+                || (shared_record.is_none() && !semantic.path.is_empty())))
         || target.place != semantic.place
         || target.access != semantic.access
         || target.path != semantic.path
-        || (!exclusive && target.root_structural_type != target.structural_type)
+        || (!exclusive
+            && shared_record.is_none()
+            && target.root_structural_type != target.structural_type)
         || target.shape != shape
-        || (!exclusive && target.source_byte_offset != 0)
+        || (!exclusive && shared_record.is_none() && target.source_byte_offset != 0)
         || target.fixed_array_length != byte_view.map(|(_, length)| length)
         || target.element_stride != byte_view.map(|_| 1)
         || Some(&target.destination) != expected.parameters.get(argument_index)
@@ -213,7 +224,7 @@ pub(super) fn validate_borrowed_argument(
                 _ => return None,
             };
             if result.place != semantic.place
-                || result.structural_type != target.structural_type
+                || result.structural_type != target.root_structural_type
                 || result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
                 || !result.claims.is_empty()
                 || !result.qualifications.is_empty()

@@ -30,10 +30,8 @@ impl ScalarBindings {
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     ) -> Result<StructuralArgument, LoweringError> {
-        if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
-            || !argument.path.is_empty()
-        {
-            return unsupported("computed shared argument changes its access or projection");
+        if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
+            return unsupported("computed shared argument changes its access");
         }
         let place = match argument.source {
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
@@ -45,6 +43,7 @@ impl ScalarBindings {
                     || locals.next().is_some()
                     || source.access != StructuralAccess::Owned
                     || !source.path.is_empty()
+                    || !argument.path.is_empty()
                 {
                     return unsupported("computed shared argument changes its local custody");
                 }
@@ -75,7 +74,7 @@ impl ScalarBindings {
         };
         Ok(StructuralArgument {
             place,
-            path: Vec::new(),
+            path: crate::attached_unit::lower_structural_path(&argument.path),
             access: StructuralAccess::SharedBorrow,
         })
     }
