@@ -197,6 +197,7 @@ foundational axiom is implied by this publication contract.
 This is the required product contract, not a claim of implemented general PCC.
 `PCC-PRODUCT-PUBLICATION`, `PROOF-CERTIFICATION-BRIDGE` and
 `PCC-CANONICAL-SEMANTIC-LEDGER` on [TASKS.md](../../../TASKS.md) own delivery.
-The remaining [foundation profile](../../../OWNER_QUESTIONS.md#foundation-profile-completion)
-blocks only evidence requiring those unresolved rules. Bounded publication and
-coverage checks can proceed without inventing a new calculus or policy language.
+The selected [inductive profile](inductive_profile.md) and quotient rules still
+need checked justification and implementation. Evidence depending on unfinished
+rules cannot claim completion. Bounded publication and coverage checks can proceed
+without inventing a new calculus or policy language.

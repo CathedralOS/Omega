@@ -3,8 +3,8 @@
 Omega's proof system uses ordinary machines, contracts, data, traits, and named
 conformances. The [mathematical foundation](foundation.md) selects a dependent
 core with proof-relevant identity and strict logical proofs. This specifies the
-required model, not complete implementation support. Remaining profile and source
-decisions are listed under [open joins](#open-joins).
+required model, not complete implementation support. Remaining source and
+indexed-conversion decisions are listed under [open joins](#open-joins).
 
 ## Machines and bundles
 
@@ -330,12 +330,12 @@ roles, constructor relations, executable observers, and published correspondence
 
 The [foundation](foundation.md) is the owner of the selected mathematical model,
 not the current Rust vocabulary or a collection of proof-assistant defaults.
-The following narrower decisions remain open; their proposals are not ratified.
+The following narrow decisions remain open; their proposals are not ratified.
 
 | Design gap | Decision owner |
 | --- | --- |
-| Exact general declaration extension and quotient realization for the selected reference core | [Foundation profile completion](../../../OWNER_QUESTIONS.md#foundation-profile-completion) |
 | General logical binders, predicate abstraction/passing, universe annotations and mathematical-result source elaboration | [Mathematical binders](../../../OWNER_QUESTIONS.md#mathematical-binders) |
+| Function eta or an eta-free construction for the selected indexed eliminator's definitional computation | [Indexed conversion](../../../OWNER_QUESTIONS.md#indexed-encoding-function-eta) |
 
 Changing axioms within one calculus does not establish compatibility between
 different calculi. These questions do not reopen the specified evaluation,
@@ -347,6 +347,11 @@ Certificate byte layouts, a tactic-machine API, and the remaining
 Real/approximation library are separate engineering or deferred surface work;
 they are not substitutes for implementing the selected foundation. Promote any
 new semantic or trust choice they expose to the owner queue before relying on it.
+
+The [W-based inductive profile](inductive_profile.md) and
+[set-quotient interface](quotients.md#set-quotient-foundation) are selected.
+Combined metatheory, encoding correctness, kernel checking and library proofs
+remain execution obligations, not completed results or pending architecture votes.
 
 [Application PCC](publication.md) uses the common mathematical checking
 foundation, independently reconstructed requirements and exact receiver policy.

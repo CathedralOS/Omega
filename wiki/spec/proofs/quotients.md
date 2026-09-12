@@ -11,11 +11,107 @@ conformances. General predicate and quantifier source forms remain undetermined.
 Schematic relation notation below is mathematics, not an extra declaration form.
 These rules imply no arbitrary runtime value-to-type computation or layout.
 
-This is the required quotient interface, not a completed kernel encoding. The
-[selected foundation](foundation.md) does not silently supply Lean-style
-primitive quotients or higher inductive types. Exact identity, elimination and
-computation rules remain in the [profile completion question](../../../OWNER_QUESTIONS.md#foundation-profile-completion).
-Do not certify the general interface until that realization is checked.
+The set-quotient foundation below is the selected assumption-bearing interface,
+not a completed implementation. It adds no primitive quotient reductions or
+general higher inductive types to the [selected foundation](foundation.md).
+The laws, their interpretation and executable adapters must be checked under
+the stated assumption policy before claiming the corresponding guarantee.
+
+## Set-quotient foundation
+
+The notation in this section is kernel mathematics, not new Omega syntax. Start
+with `A : Type u` and `R : A → A → Type v`, with selected proofs that every
+`R(a,b)` is a mere proposition and that `R` is an equivalence relation. A mere
+proposition has propositionally equal inhabitants; it need not be definitionally
+irrelevant. The carrier `A` need not be a set.
+
+An author may explicitly select the squashed version of a proof-relevant
+relation, using `Box(Squash(R(a,b)))` to express it in relevant `Type`. This is
+not implicit witness erasure. Original witnesses and their dependencies remain
+distinct wherever retained. The quotient's laws concern the selected relation.
+
+Use `Q(A,R) : Type max(u,v)`, without resizing it to a lower universe. Its
+identity includes the carrier, relation and level application, not the chosen
+equivalence/proposition-proof implementation. The mathematical carrier is opaque:
+no ordinary record destructuring, recursor inferred from a private representative,
+or executable provider is supplied by its declaration.
+
+| Required item | Exact obligation |
+| --- | --- |
+| `project : A → Q(A,R)` | Introduce the quotient image of a representative. |
+| `setQ` | `isSet(Q)`: for all `x,y : Q` and `p,q : Id Q x y`, `Id (Id Q x y) p q`. This is propositional, not definitional proof irrelevance. |
+| `sound` | For all `a,b : A`, `R(a,b) → Id Q (project(a)) (project(b))`. |
+| `effective` | For all `a,b : A`, `Id Q (project(a)) (project(b)) → R(a,b)`. It supplies evidence of exactly the selected relation. |
+| Dependent elimination | A section into a set-valued family, given representative cases and the transport compatibility below. |
+| Point computation | A relevant identity relating the section at `project(a)` to its supplied case. No new conversion rule. |
+
+Precisely, for any explicitly checked level `w`, take:
+
+```text
+P : Q → Type w
+sets : (z : Q) → isSet(P(z))
+d : (a : A) → P(project(a))
+c : (a b : A) → (r : R(a,b))
+    → Id (P(project(b))) (transport(P,sound(r),d(a))) (d(b))
+
+elim(P,sets,d,c) : (z : Q) → P(z)
+beta(P,sets,d,c,a) : Id (P(project(a))) (elim(P,sets,d,c,project(a))) (d(a))
+```
+
+Here the last argument to `elim` applies its resulting section. The eliminator
+does not target arbitrary higher types. Its coherence is expressed by `c`;
+with set-valued fibers, comparisons between parallel transport proofs are
+propositionally unique. No additional proof-irrelevance conversion is inferred.
+Strict-valued properties use the reference core's boxing/unboxing rules.
+
+The initial interface explicitly admits these carrier/operation/law declarations
+as named mathematical assumptions, including effectivity. A selected checked
+derivation may instead establish a required law, retaining its actual closure.
+Do not silently use univalence, function/proposition extensionality or resizing
+to call a law assumption-free. The
+[HoTT quotient development](https://hott.github.io/Coq-HoTT/coqdoc-html/HoTT.HIT.quotient.html)
+illustrates the transport-based interface, but its effectivity development uses
+an explicit univalence context. Neither its private-inductive representation nor
+its computational behavior is imported as an Omega kernel rule.
+
+Derive the following from the selected interface, with checked terms, rather
+than adding separate default axioms:
+
+- Ordinary `lift`, using a constant set-valued family and representative congruence.
+- Coverage: `Squash(Σ (a : A). Id Q (project(a)) z)` for each `z : Q`.
+  This supplies no representative-extraction function.
+- Proposition-valued induction, through set-valued elimination and boxing when needed.
+- Pointwise uniqueness of sections agreeing on projections. Equality of entire
+  functions from pointwise equality needs its own extensionality justification.
+
+If the selected relation is a boxed squash, effectivity yields that boxed
+existence evidence, and unboxing yields `Squash(R(a,b))`, not an original `R`
+witness. Executable extraction does not follow. Quotient setness also does not
+erase the identities or assumption dependencies of relation witnesses elsewhere.
+
+## Representative layer and executable realization
+
+Representative operations, equivalence proofs and congruence proofs remain
+usable independently of the quotient assumptions. Existing canonical Rat code
+is a starting implementation, not evidence that all invariant/congruence proofs
+or dependency closures are complete. A receiver refusing quotient assumptions
+must still be able to accept representative-level results whose actual closure
+needs none; other mathematical assumptions remain subject to ordinary policy.
+
+Proof-only values may participate in mathematical computation. Quotients are
+not universally proof-only: the representation and materialization rules below
+remain in scope. Axiomatic operations supply no algorithm, even when their
+result carrier has a runtime layout. Evaluation and native use require checked
+computation or a realization with the required correspondence. Proof computation,
+runtime representation and axiom admission are separate judgments.
+
+Acceptance pairs a quotient operation with its representative-level theorem
+under a policy refusing quotient assumptions. The integration control depends
+on conversion-independent transitive assumption closure, including helper types
+and statements. Specify the control now; closure implementation is a named
+dependency, not a reason to claim the test already passes. Also reject
+representative-sensitive observation, illicit squash extraction, unavailable
+set-valued elimination evidence and universe lowering without justification.
 
 ## Families, relations, and evidence
 
@@ -29,6 +125,23 @@ Without an authored heterogeneous relation, structural lifting requires equal
 static arguments. A selected relation may deliberately relate different policies
 or encodings. Normalized relation expressions, binders, and dependencies determine
 semantic identity; a selected proof implementation does not redefine the relation.
+
+Interpret a heterogeneous family in the set-quotient interface through its total
+carrier over the admissible index telescope:
+
+```text
+A = Σ (I : IndexPack). C<I>
+R_total((I,x),(J,y)) = R<I,J>(x,y)
+```
+
+The pack's dependent fields and universe levels are checked, not erased from
+mathematical identity or resized to fit the carrier. A homogeneous fixed-pack
+application uses `C<I>` directly. Formation requires explicitly selected law
+evidence that every instance of the exact selected relation is a mere proposition,
+as well as equivalence. For a proof-relevant relation, explicitly select its
+boxed-squash relation and establish those laws; formation performs no implicit
+relation replacement. This interpretation grants neither runtime storage for
+arbitrary index packs nor representative extraction.
 
 Relation laws use explicit named closed conformances, never suffix lookup,
 visibility, declaration order, or bare exact-requirement satisfiers:
@@ -74,9 +187,10 @@ scope, erasure, and trust rules follow [proof contracts](contracts.md).
 ## Formation and representation
 
 Formation consumes a carrier family `C`, relation family `R`, and explicitly
-selected `Equivalence<C,R>`. The quotient's identity includes the relation, not
-the chosen equivalence implementation. Casting an exact carrier instance with
-`as Quotient` is the sole construction route; struct/case literals cannot
+selected `Equivalence<C,R>`, together with the selected mere-proposition evidence
+for the exact relation described above. The quotient's identity includes the
+relation, not the chosen equivalence implementation. Casting an exact carrier
+instance with `as Quotient` is the sole construction route; struct/case literals cannot
 construct it directly. Proving `R(a,b)` proves equality of quotient images,
 not identity of the representatives.
 

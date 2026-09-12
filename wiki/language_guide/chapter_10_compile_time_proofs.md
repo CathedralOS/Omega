@@ -13,7 +13,7 @@ Failure to prove a statement is not proof of its negation.
 
 This chapter teaches the intended model. The [foundation](../spec/proofs/foundation.md)
 selects dependent mathematics, proof-relevant identity and strict logical proofs;
-its [remaining source/profile joins](../spec/proofs/contracts.md#open-joins) are explicit.
+its [remaining source and conversion questions](../spec/proofs/contracts.md#open-joins) are explicit.
 The current [source automation](../../omega-rust/psi/semantics/validation/README.md#source-proof-automation)
 implements a bounded fragment. Schematic examples below do not claim complete
 compiler support or supply omitted proofs.
@@ -358,6 +358,14 @@ obligation, not a counterexample. Current automation belongs beside
 
 ## Induction Is Ranked Recursion
 
+The mathematical checker uses a fixed well-founded-tree foundation (W-types),
+with indexed families derived by checked constructions. This supports targets
+such as vectors indexed by length and derivations indexed by their assumptions
+and conclusion. Authors still use ordinary data and proof machines, not W-type
+syntax. The [inductive profile](../spec/proofs/inductive_profile.md) specifies
+the required rules and the remaining conversion decision; checked encodings and
+full implementation coverage remain required.
+
 A proof machine recurses under the ordinary `terminates by` rule. Transition
 cases provide case analysis; the smaller recursive call provides the induction
 hypothesis. State arrival contracts must hold at every incoming edge.
@@ -372,6 +380,29 @@ Earlier citations may establish a later citation's assumptions, never the
 reverse. A guarded finite unsigned predecessor may connect arithmetic descent
 with a theorem about structural mathematical data, but it is not an implicit
 conversion between an integer carrier and `Nat`.
+
+## Quotients and representative-independent mathematics
+
+A quotient treats equivalent representations as one mathematical value. Rational
+pairs `(1,2)` and `(2,4)` can represent the same number. Addition must respect
+that equivalence; returning the original numerator does not.
+
+The [quotient interface](../spec/proofs/quotients.md#set-quotient-foundation)
+provides set quotients through explicit mathematical assumptions, not new kernel
+computation rules. Its effectivity law says that equal quotient images satisfy
+the selected relation. If that relation is squashed existence, the law gives
+existence evidence, not an extractable original witness.
+
+Representative operations and congruence proofs remain independently usable.
+A receiver may accept that mathematics while refusing quotient assumptions.
+Replacing an assumed law with a proof retains the proof's actual dependencies;
+fewer axiom names do not automatically mean less trust. Kernel checking still
+does not decide whether those assumptions are consistent.
+
+Quotients can have runtime representations. Their mathematical laws do not
+supply an algorithm: evaluation or runtime operations need checked computation
+or a corresponding realization. Proof-only computation also remains computation.
+The selected interface is not a claim that all these routes are implemented.
 
 ## Termination Proofs
 

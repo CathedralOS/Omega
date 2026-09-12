@@ -105,6 +105,13 @@ Zero storage and generic bodies follow the existing
 This supplies constrained-case GADT behavior without a new data species, implicit
 boxing, or general existential packaging.
 
+The mathematical interpretation uses the selected
+[W-based inductive profile](../proofs/inductive_profile.md). Case constraints are
+not limited to nonrecursive examples. An equality-payload encoding may handle
+some cases; it is not by itself a justification for arbitrary indexed recursion.
+Checked encodings preserve the case conditions and induction/computation rules
+without selecting physical layout or merging nominal source identities.
+
 ## Lexical profile
 
 Source is valid UTF-8, with ASCII syntax. Identifiers match
