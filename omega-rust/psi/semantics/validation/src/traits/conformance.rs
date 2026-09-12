@@ -2245,6 +2245,45 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
 
     let trait_type_parameters = program.trait_type_parameters(trait_definition);
     let requirement_type_parameters = program.state_signature_type_parameters(requirement);
+    // A private application still carries its authored satisfaction edge, but
+    // it does not declare a new universally quantified provider. The original
+    // family remains live and receives ordinary universal refinement checking.
+    // Rejoin only that exact family telescope here; keep checking this concrete
+    // state's signature, laws, and effect ceilings below.
+    let callable_machine = if !requirement_type_parameters.is_empty()
+        && program.machine_type_parameters(machine).is_empty()
+        && program
+            .machine_trait_conformances(machine)
+            .iter()
+            .any(|edge| edge.requirement_symbol == requirement.symbol)
+    {
+        let mut applications = program
+            .machine_specializations
+            .iter()
+            .filter(|application| application.instance == machine.symbol);
+        if let Some(application) = applications.next() {
+            let template = program.machines().iter().find(|template| {
+                template.symbol == application.template
+                    && template.symbol != machine.symbol
+                    && template.type_parameters == application.template_parameters
+                    && !program.machine_type_parameters(template).is_empty()
+                    && program.machine_trait_conformances(template)
+                        == program.machine_trait_conformances(machine)
+            });
+            let Some(template) = template.filter(|_| applications.next().is_none()) else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` generic satisfaction lost its exact original family and application",
+                    machine.name,
+                )));
+                return;
+            };
+            template
+        } else {
+            machine
+        }
+    } else {
+        machine
+    };
     // A machine authored inline in a generic conformance closes over that
     // conformance name's telescope. Those captured parameters specialize the
     // row realization, but they are not callable parameters of the trait
@@ -2270,7 +2309,7 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
         .map(|parameter| parameter.symbol)
         .collect::<Vec<_>>();
     let actual_type_parameters = program
-        .machine_type_parameters(machine)
+        .machine_type_parameters(callable_machine)
         .iter()
         .filter(|parameter| !captured_parameter_symbols.contains(&parameter.symbol))
         .cloned()

@@ -290,11 +290,14 @@ Producer ownership is `checked-trees-to-lowered-psi/src/closed_reach_application
 reload checks are `terminal-verifier/src/validation/reach_applications.rs`.
 The same projection covers fixed-only type/const applications and isolated
 identity callbacks, including unused selected contracts without emitted bodies.
-Resume with portable coverage for inlined/missing callees, generic selected
-schemas, and unresolved installation selections, then independently checkable
-original-contract projection openings. The retained template/specialization
-commitments identify provenance; they do not authenticate the structured
-projection. Original finite dependencies replay against the retained source graph
+Selected generic schemas use per-call closed tuples and exact callee application
+joins; exercise source-free execution and hostile controls with
+`tests/omega/pass/effects/generic_callback_schema_reach/README.md`.
+Resume with portable coverage for inlined/missing callees, unused schemas without
+retained template applications, and unresolved installation selections, then
+independently checkable original-contract projection openings. The retained
+template/specialization commitments identify provenance; they do not authenticate
+the structured projection. Original finite dependencies replay against the retained source graph
 in `validation/src/static_machine_call_contracts.rs`, but the remaining template
 encoding contains frontend-local identities. Full source-contract reconstruction
 and generic PCC remain open; ordinary relational replay does not establish them.

@@ -289,18 +289,18 @@ fn canonical_operation_identity_bytes_are_stable() {
     assert_eq!(
         scalar.identity.bytes(),
         [
-            125, 201, 118, 139, 181, 173, 208, 156, 237, 81, 216, 79, 176, 124, 40, 170, 219, 212,
-            144, 129, 225, 127, 196, 168, 129, 24, 190, 17, 184, 179, 195, 175,
+            25, 122, 224, 34, 56, 143, 253, 18, 29, 85, 167, 245, 73, 13, 182, 107, 78, 92, 202,
+            48, 21, 44, 92, 39, 15, 195, 124, 168, 184, 42, 87, 113,
         ],
-        "identity binds vocabulary 104 and unit schema 26",
+        "identity binds vocabulary 105 and unit schema 26",
     );
     assert_eq!(
         structural.identity.bytes(),
         [
-            17, 188, 115, 142, 43, 222, 86, 85, 12, 182, 136, 226, 59, 190, 240, 130, 226, 8, 172,
-            91, 106, 132, 74, 13, 102, 212, 87, 52, 171, 94, 191, 12,
+            74, 218, 89, 187, 243, 101, 0, 40, 162, 76, 1, 123, 129, 92, 84, 198, 165, 137, 209,
+            106, 214, 13, 181, 251, 180, 94, 0, 136, 216, 131, 87, 44,
         ],
-        "identity binds vocabulary 104 and unit schema 26 alongside unchanged storage and return tags",
+        "identity binds vocabulary 105 and unit schema 26 alongside unchanged storage and return tags",
     );
 }
 

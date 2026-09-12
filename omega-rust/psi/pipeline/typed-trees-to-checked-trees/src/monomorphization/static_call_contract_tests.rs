@@ -1,5 +1,111 @@
 use typed_trees::TypedTrees;
 
+const NOMINAL_SCHEMA_FORWARDING: &str = r#"
+    boundary trait Console { machine ping(); }
+    boundary trait Family { machine call<const Number: u64>(value: u64) -> u64 reaches Console; }
+    machine selected<const Count: u64>(value: u64) -> u64 satisfies Family::call reaches Console { Count }
+    machine inner<machine Schema>(value: u64) -> u64
+    where machine Schema satisfies Family::call;
+    { Schema<3>(value) }
+    machine outer<machine Schema>(value: u64) -> u64
+    where machine Schema satisfies Family::call;
+    { inner<Schema>(value) }
+    pub machine enter(value: u64) -> u64 { outer<selected>(value) }
+"#;
+
+#[test]
+fn nominal_generic_family_satisfaction_survives_private_specialization() {
+    crate::lower_typed_trees(typed(NOMINAL_SCHEMA_FORWARDING))
+        .expect("exact generic satisfaction survives nested private forwarding");
+}
+
+#[test]
+fn nominal_generic_family_rejects_a_different_const_carrier() {
+    let source = NOMINAL_SCHEMA_FORWARDING
+        .replace("selected<const Count: u64>", "selected<const Count: u32>")
+        .replace("reaches Console { Count }", "reaches Console { value }");
+    assert!(crate::lower_typed_trees(typed(&source)).is_err());
+}
+
+#[test]
+fn nominal_generic_family_specialization_keeps_concrete_refinement_checks() {
+    let mut original = typed(NOMINAL_SCHEMA_FORWARDING);
+    crate::specialize_static_machine_calls(&mut original).expect("closed schema calls");
+    validation::validate_program(&original).expect("valid concrete family application");
+    let template = original
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "selected")
+        .unwrap()
+        .symbol;
+    let application = original
+        .machine_specializations
+        .iter()
+        .find(|application| application.template == template)
+        .unwrap()
+        .clone();
+    let instance_position = original
+        .machines()
+        .iter()
+        .position(|machine| machine.symbol == application.instance)
+        .unwrap();
+
+    for mutation in 0..7 {
+        let mut changed = original.clone();
+        let instance = changed.machines()[instance_position].clone();
+        let unit = changed
+            .type_reference_table
+            .insert(typed_trees::types::TypeReferenceNode::Unit);
+        let expected = match mutation {
+            0 => {
+                changed.machine_states_mut(&instance)[0].return_type = unit;
+                "expected return"
+            }
+            1 => {
+                let parameters = changed.machine_states(&instance)[0].parameters;
+                changed.state_parameters.span_mut_or_empty(parameters)[0].type_reference = unit;
+                "parameter `value`"
+            }
+            2 => {
+                changed.machines_mut()[instance_position].blocks = true;
+                "operational ceiling"
+            }
+            3 => {
+                changed
+                    .machine_specializations
+                    .retain(|retained| retained.instance != instance.symbol);
+                "callable generic parameter"
+            }
+            4 => {
+                changed.machine_specializations.push(application.clone());
+                "exact original family and application"
+            }
+            5 => {
+                let retained = changed
+                    .machine_specializations
+                    .iter_mut()
+                    .find(|retained| retained.instance == instance.symbol)
+                    .unwrap();
+                retained.template_parameters = arena::HandleSpan::empty();
+                "exact original family and application"
+            }
+            _ => {
+                changed
+                    .machine_trait_conformances
+                    .span_mut_or_empty(instance.satisfies)[0]
+                    .alias = Some("different".into());
+                "exact original family and application"
+            }
+        };
+        let diagnostics =
+            validation::validate_program(&changed).expect_err("mutated private contract rejects");
+        assert!(
+            format!("{diagnostics:?}").contains(expected),
+            "mutation {mutation}: {diagnostics:?}"
+        );
+    }
+}
+
 fn typed(source: &str) -> TypedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()

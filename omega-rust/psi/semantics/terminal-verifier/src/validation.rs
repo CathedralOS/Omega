@@ -55,6 +55,7 @@ mod propositions;
 mod quotient_correspondence;
 mod ranked_scc;
 mod reach_applications;
+pub use reach_applications::has_schema_application_in_call_closure;
 pub(crate) mod record;
 mod root_service_reach;
 pub(crate) mod scalar_array;
