@@ -55,16 +55,19 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   is retained under the application's ignored `build/verification/`; record the
   owning diagnostic before expanding compiler work. Initialization is explicit
   and requires private repository access during in-house development.
-  On `e00ebe8f8e` plus the package-aware `run` repair/macOS ARM64,
-  `python3 samples/apps/squalr/tools/verify.py native --omega target/debug/omega`
-  (Python 3.13) resolves the pinned std package, then exits 200 with 24 checked
-  diagnostics, starting with unsupported reference/non-plain-owned match-result
-  custody joins. Resume in Psi's `validation/src/expression_types/match_dispatch.rs`;
-  the unchanged native command remains the next acceptance, not package setup.
-  The API-only check also exposes exact-owner case and range-result diagnostics
-  requiring triage. Keep these distinct; the setup is not a native pass.
-  The same command on `e4b4aa39dd`/Windows reports 96 std diagnostics beginning
-  with that same match-result custody rejection.
+  On macOS ARM64 with Python 3.13, the unchanged native invocation at
+  `da803b0152` (base `74b0e1c058`) exits 200 on 16 undeclared direct-boundary
+  service reaches in the pinned standard package. The incoming checker now
+  enforces the settled [direct-boundary declaration rule](wiki/spec/language/effects.md#declarations)
+  for private bodies too. Repair those standard-package declarations and refresh
+  its exact review; ordinary wrappers still infer transitive reach. The prior
+  invocation at `dba8e2aec8` (base `129bda7420`) passed std/API checking and reached
+  a separate package-review entrance failure: `squalr-engine-projects` authors
+  only `build.omg`, but review selects missing `main.omg`. Its owner is
+  `omega-rust/omega/packages/manager/src/review/candidate/compilation.rs` and the
+  compiler's existing build source entrance. Preserve the graph and do not add
+  placeholder libraries to make review pass. Both are engineering work; the
+  unchanged native command remains the acceptance.
   Windows runtime controls in `omega-rust/omega/tests/package_commands/probe.rs`
   require a Windows normal-completion adapter for Unit entries: the native
   entry currently returns the last scalar call's register value (7), while the

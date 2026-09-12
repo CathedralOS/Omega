@@ -66,11 +66,9 @@ pub(super) fn expression_is_float_typed(
         ExpressionNode::Cast(cast) => program
             .primitive_type_reference(cast.target_type)
             .is_some_and(|primitive| primitive.accepts_float_literal()),
-        ExpressionNode::Call(call) => {
-            crate::arithmetic_domains::call_return_type(program, machine, call)
-                .and_then(|return_type| program.primitive_type_reference(return_type))
-                .is_some_and(|primitive| primitive.accepts_float_literal())
-        }
+        ExpressionNode::Call(call) => crate::arithmetic_domains::call_return_type(program, call)
+            .and_then(|return_type| program.primitive_type_reference(return_type))
+            .is_some_and(|primitive| primitive.accepts_float_literal()),
         _ => crate::places::declared_place_type(program, machine, state, operand)
             .and_then(|type_reference| program.primitive_type_reference(type_reference))
             .is_some_and(|primitive| matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)),

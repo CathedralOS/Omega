@@ -227,9 +227,7 @@ fn expression_atoms(
             return atoms;
         }
         ExpressionNode::Call(call) => {
-            if let Some(return_type) =
-                crate::arithmetic_domains::call_return_type(program, machine, call)
-            {
+            if let Some(return_type) = crate::arithmetic_domains::call_return_type(program, call) {
                 append_type_atoms(program, return_type, &mut atoms, &mut Vec::new());
             }
             return atoms;

@@ -207,7 +207,7 @@ fn expression_data_symbol(
         crate::places::declared_place_type(program, machine, state, expression).or_else(|| {
             match program.expression_table.expression(expression) {
                 ExpressionNode::Call(call) => {
-                    crate::arithmetic_domains::call_return_type(program, machine, call)
+                    crate::arithmetic_domains::call_return_type(program, call)
                 }
                 _ => None,
             }
