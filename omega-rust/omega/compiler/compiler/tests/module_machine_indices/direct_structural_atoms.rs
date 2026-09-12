@@ -633,7 +633,7 @@ fn qualified_bare_cases_do_not_turn_equality_into_membership_or_erase_nominal_id
         ),
         (
             "use settings; machine make(settings: u32) -> settings::Choice { settings::Choice::Empty }",
-            "StaticPathSegment",
+            "static path through runtime binding `settings`",
         ),
     ] {
         let tree = Sources::new();

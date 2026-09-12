@@ -395,19 +395,40 @@ fn module_array_indices_in_concrete_data_fields_match_static_oracles() {
             root.join("settings.omg"),
             &format!("module settings; data Sizes {{}} const {scope}SIZE: [u8; 2] = [1, 2];"),
         );
-        Sources::write(
-            root.join("main.omg"),
-            &format!(
-                "use settings; {} data Holder {{ value: Indexed<settings::{scope}SIZE>; }}
-         machine read(holder: &Holder) -> Indexed<Oracle::SAME> {{ holder.value }}",
-                declarations("[u8; 2]", "[1, 2]")
-            ),
-        );
-        let checked = compile(&root, root_inputs(&root));
-        assert_eq!(
-            selections(&checked, &format!("settings::{scope}SIZE"), identity(1)).len(),
-            1
-        );
+        for property in ["[copy]", ""] {
+            Sources::write(
+                root.join("main.omg"),
+                &format!(
+                    "use settings; data Sizes {{}} data Oracle {{}}
+                     const Sizes::SIZE: [u8; 2] = [1, 2];
+                     const Oracle::SAME: [u8; 2] = [1, 2];
+                     data Indexed<const Selected: [u8; 2]> {property} {{ value: u8; }}
+                     data Holder {{ value: Indexed<settings::{scope}SIZE>; }}
+                     machine read(holder: &Holder) -> Indexed<Oracle::SAME> {{ holder.value }}"
+                ),
+            );
+            // Canonical index equality permits the field's result type; it
+            // cannot grant copying an otherwise affine value through a borrow.
+            let result = compile_to_checked(CheckedCompileRequest {
+                package_inputs: Some(root_inputs(&root)),
+                ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+            });
+            if property.is_empty() {
+                let errors = result.expect_err("canonical array indices do not grant copyability");
+                assert!(
+                    errors.iter().any(|error| error
+                        .message
+                        .contains("cannot transfer a non-copy value out of borrowed storage")),
+                    "{errors:?}"
+                );
+            } else {
+                let checked = result.expect("copyable field retains its canonical array index");
+                assert_eq!(
+                    selections(&checked, &format!("settings::{scope}SIZE"), identity(1)).len(),
+                    1
+                );
+            }
+        }
     }
 }
 
