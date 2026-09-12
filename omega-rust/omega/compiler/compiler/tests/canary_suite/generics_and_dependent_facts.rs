@@ -20,6 +20,8 @@ fn declared_range_inference_returns_the_selected_endpoint() {
     for (name, arguments, expected) in [
         ("inferred", vec![BuildTimeValue::Int(0)], 256),
         ("computed", vec![BuildTimeValue::Int(0)], 256),
+        ("full_width", vec![BuildTimeValue::Int(0)], 511),
+        ("wide_intermediate", vec![BuildTimeValue::Int(0)], 256),
         ("computed_exclusive", vec![BuildTimeValue::Int(0)], 256),
         ("explicit", vec![BuildTimeValue::Int(0)], 512),
         ("fractional", vec![BuildTimeValue::Int(0)], 256),

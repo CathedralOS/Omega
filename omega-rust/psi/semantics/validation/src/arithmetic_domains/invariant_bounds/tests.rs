@@ -13,6 +13,95 @@ fn typed(source: &str) -> TypedTrees {
 }
 
 #[test]
+fn closed_integer_points_retain_width_and_each_typed_operation() {
+    for (expression, expected) in [
+        ("18446744073709551615u64 % 512u64", Some("511")),
+        (
+            "9223372036854775808u64 + 256 - 9223372036854775808u64",
+            Some("256"),
+        ),
+        ("9223372036854775808u64 + 1", Some("9223372036854775809")),
+        (
+            "4294967295u64 * 4294967295u64",
+            Some("18446744065119617025"),
+        ),
+        (
+            "18446744073709551615u64 / 3u64",
+            Some("6148914691236517205"),
+        ),
+        ("5i64 % -9223372036854775808i64", Some("5")),
+        (
+            "-9223372036854775808i64 % -9223372036854775808i64",
+            Some("0"),
+        ),
+        ("7u8 / 2", Some("3")),
+        ("1 / 2 * 512", Some("256")),
+        ("18446744073709551615u64 + 1 - 1", None),
+        ("9223372036854775808u64 * 2 / 2", None),
+        ("(0u64 - 1) + 1", None),
+        ("0u64 + 18446744073709551616", None),
+        ("0u8 + 256", None),
+        ("1u64 / 0", None),
+        ("1u64 % 0", None),
+        ("-9223372036854775808i64 / -1", None),
+        ("-9223372036854775808i64 % -1", None),
+        ("1u64 + 1i64", None),
+        ("0u64 + 1 / 2", None),
+    ] {
+        let program = typed(&format!("machine value() -> u64 {{ {expression} }}"));
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let typed_trees::statement::StatementNode::Expression(root) =
+            program.statement_table.statements(state.statement_nodes)[0]
+        else {
+            panic!("closed expression");
+        };
+        assert_eq!(
+            crate::closed_integer_range_bound(&program, root)
+                .map(|value| value.to_string())
+                .as_deref(),
+            expected,
+            "{expression}"
+        );
+    }
+}
+
+#[test]
+fn wide_points_do_not_grant_landing_or_static_identity_to_variable_operands() {
+    for expression in [
+        "input / 18446744073709551616",
+        "input % 18446744073709551616",
+        "18446744073709551616 / input",
+        "18446744073709551616 % input",
+        "input + (18446744073709551615u64 + 1 - 1)",
+    ] {
+        assert_eq!(
+            query(&format!(
+                "machine value(input: u64[1..=2]) -> u64 {{ {expression} }}"
+            )),
+            None,
+            "{expression}"
+        );
+    }
+    let program = typed("machine value(input: u64[2..=2]) -> u64 { input + 1 }");
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let typed_trees::statement::StatementNode::Expression(root) =
+        program.statement_table.statements(state.statement_nodes)[0]
+    else {
+        panic!("variable expression");
+    };
+    assert_eq!(
+        immutable_integer_expression_bounds(&program, machine, state, root),
+        Some((3, 3))
+    );
+    assert!(
+        crate::closed_integer_range_bound(&program, root).is_none(),
+        "a singleton parameter is not a static constant"
+    );
+}
+
+#[test]
 fn enforced_type_bounds_require_exact_owned_bounded_integer_carriers() {
     for (field_type, expected) in [
         ("u64 [0..=5]", Some((0, 5))),
@@ -160,7 +249,7 @@ fn unsigned_literal_formation_uses_the_actual_carrier_ceiling() {
     );
     assert_eq!(
         query("machine value() -> u64 { 18446744073709551615u64 % 5u64 }"),
-        Some((0, 4))
+        Some((0, 0))
     );
 }
 
