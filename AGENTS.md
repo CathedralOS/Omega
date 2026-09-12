@@ -583,6 +583,12 @@ findings. Follow the dispatch and review steps in
 [advance](.agents/skills/advance/SKILL.md#delegate-a-bounded-assignment), alongside
 the existing isolation, validation, and landing rules.
 
+Cloud swarm waves are coordinated with [tools/swarm](tools/swarm/README.md):
+the coordinator pre-assigns one board item per session in a wave manifest, and
+each session is an ordinary `advance` invocation restricted to that item. It
+publishes through the landing protocol with a `swarm-<wave>-<name>` owner
+label, and receipts stay in ignored `build/swarm/`, never on boards.
+
 ### Commit naming
 
 Use `lane: statement`. Choose the lane from the changed responsibility below,
