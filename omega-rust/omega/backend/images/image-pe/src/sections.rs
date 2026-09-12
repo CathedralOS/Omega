@@ -11,6 +11,7 @@ use image::{FinalImage, FinalImageLayout};
 pub(crate) struct PeSections {
     pub(crate) text_virtual_size: usize,
     pub(crate) rdata_virtual_size: usize,
+    pub(crate) has_rdata: bool,
     pub(crate) has_data: bool,
     pub(crate) has_reloc: bool,
     pub(crate) has_bss: bool,
@@ -56,7 +57,12 @@ pub(crate) fn plan_pe_sections(image: &FinalImage, rdata_virtual_size: usize) ->
     let bss_rva = align_to_u32(reloc_rva + reloc_virtual_size as u32, SECTION_ALIGNMENT);
     let has_data = !image.memory.data.is_empty();
     let has_bss = image.memory.bss_size > 0;
-    let section_count = 2 + usize::from(has_data) + usize::from(has_reloc) + usize::from(has_bss);
+    let has_rdata = rdata_virtual_size > 0;
+    let section_count = 1
+        + usize::from(has_rdata)
+        + usize::from(has_data)
+        + usize::from(has_reloc)
+        + usize::from(has_bss);
     let headers_size = align_to(
         DOS_HEADER_SIZE
             + 4
@@ -78,6 +84,7 @@ pub(crate) fn plan_pe_sections(image: &FinalImage, rdata_virtual_size: usize) ->
     PeSections {
         text_virtual_size,
         rdata_virtual_size,
+        has_rdata,
         has_data,
         has_reloc,
         has_bss,
