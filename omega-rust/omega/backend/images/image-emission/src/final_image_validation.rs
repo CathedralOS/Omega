@@ -196,7 +196,12 @@ fn validate_terminal_image_with_import_count(
                 validate_linux_x86_scalar_exit_shim(artifact, object, text_bytes, shim, output)?
             }
             super::hosted_unit_entry::EntryShim::DarwinUnit { symbol, offset } => {
-                super::hosted_unit_entry::validate(
+                super::hosted_unit_entry::validate_darwin(
+                    artifact, object, text_bytes, symbol, offset, output,
+                )?
+            }
+            super::hosted_unit_entry::EntryShim::WindowsUnit { symbol, offset } => {
+                super::hosted_unit_entry::validate_windows(
                     artifact, object, text_bytes, symbol, offset, output,
                 )?
             }
