@@ -5,10 +5,11 @@
 //! Explicit selections remain fixed and repeated inferred occurrences must agree.
 //! Never use value/flow bounds or intersect predicates to manufacture a maximum.
 //!
-//! Literal endpoints already include the parser's inclusive-end conversion and
-//! use the existing canonical const leaf route. Computed/symbolic endpoints need
-//! semantic range normalization; the i64 interval evaluator and type display
-//! strings are not substitutes for that missing contract implementation.
+//! Endpoints include the parser's inclusive-end conversion. Closed anonymous
+//! arithmetic uses the shared exact numeric evaluator and canonical const leaves,
+//! so inference cannot truncate fractions or overflow an intermediate carrier.
+//! Named/typed computations still need their own evaluation custody; neither
+//! flow bounds nor type display strings establish a static endpoint.
 
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::bignum::BigInt;
@@ -22,7 +23,7 @@ pub(super) fn collect_literals(program: &TypedTrees, literals: &mut Vec<String>)
         for constraint in program.type_reference_table.constraints(constraints) {
             if let TypeConstraintNode::Range { minimum, maximum } = constraint {
                 for endpoint in [*minimum, *maximum] {
-                    if let Some(value) = literal(program, endpoint) {
+                    if let Some(value) = endpoint_value(program, endpoint) {
                         literals.push(value.to_string());
                     }
                 }
@@ -49,7 +50,7 @@ pub(super) fn infer(
     if required_carrier != actual_carrier {
         return;
     }
-    let values = match actual_endpoints.map(|endpoint| literal(program, endpoint)) {
+    let values = match actual_endpoints.map(|endpoint| endpoint_value(program, endpoint)) {
         [Some(minimum), Some(maximum)] if minimum <= maximum => Some([minimum, maximum]),
         _ => None,
     };
@@ -81,16 +82,25 @@ pub(super) fn infer(
         // Zero records an unresolved occurrence, not permission to ignore it.
         // Another argument must not select a compatible but unequal endpoint
         // before a caller's substitution makes this occurrence checkable.
-        // Unsupported computed endpoints likewise cannot be silently bypassed.
+        // Unsupported endpoint computations likewise cannot be silently bypassed.
         proposals.push((candidate_index, parameter_index, binding));
     }
 }
 
-fn literal(program: &TypedTrees, endpoint: ExpressionHandle) -> Option<BigInt> {
-    let ExpressionNode::Integer(value) = program.expression_table.expression(endpoint) else {
+fn endpoint_value(program: &TypedTrees, endpoint: ExpressionHandle) -> Option<BigInt> {
+    if !program.expression_table.expression_is_valid(endpoint) {
         return None;
-    };
-    value.value_bignum()
+    }
+    if let ExpressionNode::Integer(value) = program.expression_table.expression(endpoint) {
+        return value.value_bignum();
+    }
+    validation::evaluate_anonymous_numeric_expression_with_selected_match_arms(
+        program,
+        endpoint,
+        &[],
+        |expression| validation::has_anonymous_operator_meaning(program, expression),
+    )?
+    .to_integer_exact()
 }
 
 fn declared_range(
@@ -159,7 +169,7 @@ mod tests {
             .constrained_type_reference_sites()[0];
         let (_, endpoints) = declared_range(&program, range).expect("one declared range");
         assert_eq!(
-            literal(&program, endpoints[1])
+            endpoint_value(&program, endpoints[1])
                 .expect("literal endpoint")
                 .to_string(),
             "18446744073709551615"
