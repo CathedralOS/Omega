@@ -5,6 +5,14 @@ This coordinator closes build/target inputs around that phase; it does not add
 target policy to the portable Terminal module. Enter
 [phase_transitions.rs](src/pipeline/phase_transitions.rs).
 
+[Provider selection](src/pipeline/provider/selection.rs) closes the final typed
+target roster before checking: target defaults and via bindings, candidate
+validation, selection, fused erasure authorization, synchronous-cycle validation,
+external bindings, and selected facts/provenance, in that order. Its result owns
+the existing plan evidence, not the typed program. The checked coordinator then
+evaluates deferred constants and enters typed-to-checked settlement; no provider
+selection or build execution is repeated at that boundary.
+
 `CheckedProgramSurface` retains checked Psi with exact predecessor facts:
 selected provider plans/grants, callback placements, accepted template
 classifications, and contract-entailment stand-downs. `TypedToCheckedSettlementInput`
