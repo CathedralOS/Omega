@@ -33,12 +33,9 @@ pub(in crate::tests) fn hosted_custody() -> (
         Vec::new(),
     )
     .expect("hosted source signature");
-    let produced = terminal_production::produce_program_entry_terminal_artifact(
-        &checked,
-        "Main::launch",
-        source.identity().bytes(),
-    )
-    .expect("ProgramEntry Terminal artifact");
+    let produced = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
+        .produce_program_entry(source.identity().bytes())
+        .expect("ProgramEntry Terminal artifact");
     let (
         artifact,
         receipt,

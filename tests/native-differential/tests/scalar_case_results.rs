@@ -51,7 +51,8 @@ fn produce_source(entry: &str, source: &str) -> CanonicalTerminalArtifact {
         .expect("type scalar-case source");
     let checked =
         typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check scalar-case source");
-    let artifact = terminal_production::produce_terminal_artifact(&checked, entry)
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, entry)
+        .produce_artifact()
         .expect("publish scalar-case Terminal");
     let artifact = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
     terminal_verifier::verify_module(

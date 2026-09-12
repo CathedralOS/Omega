@@ -570,8 +570,10 @@ fn closed_sum_unit_closure_shares_helpers_and_preserves_payload_and_cleanup() {
             assert_eq!(lowered.semantic_module.machines.len(), 4);
             assert_closed_sum_unit_catalog(&checked, &lowered);
             assert_closed_sum_unit_source_custody(&checked);
-            let artifact = terminal_production::produce_terminal_artifact(&checked, "Main::main")
-                .expect("complete ordinary callees survive Terminal publication");
+            let artifact =
+                terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+                    .produce_artifact()
+                    .expect("complete ordinary callees survive Terminal publication");
             assert_eq!(
                 terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),
                 lowered.semantic_module

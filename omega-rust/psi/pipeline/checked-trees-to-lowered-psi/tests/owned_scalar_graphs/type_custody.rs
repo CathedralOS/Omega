@@ -84,7 +84,8 @@ fn corrupt(
 }
 
 fn reject(checked: &CheckedTrees) {
-    let error = terminal_production::produce_terminal_artifact(checked, "enter")
+    let error = terminal_production::TerminalProductionRequest::new(checked, "enter")
+        .produce_artifact()
         .expect_err("source type custody must reject a consistently forged catalog");
     assert!(
         format!("{error:?}")
@@ -415,6 +416,7 @@ fn nested_source_range_shells_reconstruct_their_intersection() {
         panic!("bounded source field")
     };
     field.type_reference = reference;
-    let _artifact = terminal_production::produce_terminal_artifact(&checked, "enter")
+    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
+        .produce_artifact()
         .expect("equivalent intersected source ranges preserve the retained catalog");
 }

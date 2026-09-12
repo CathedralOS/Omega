@@ -131,7 +131,9 @@ fn transitive_source_array_arguments_and_returns_reach_native_execution() {
         compiler::compile_to_checked(CheckedCompileRequest::new(&path, Some("macos_arm64")))
             .unwrap();
     let entry = "transitive_computation_row";
-    let artifact = terminal_production::produce_terminal_artifact(&checked, entry).unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, entry)
+        .produce_artifact()
+        .unwrap();
     for target in [
         NativeTarget::linux_x64(),
         NativeTarget::linux_arm64(),

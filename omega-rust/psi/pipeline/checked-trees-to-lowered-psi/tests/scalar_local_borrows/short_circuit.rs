@@ -13,7 +13,9 @@ machine enter(enabled: bool, number: u64) -> u64 {
 }
 "#;
     let checked = support::checked(source);
-    let artifact = terminal_production::produce_terminal_artifact(&checked, "enter").unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
+        .produce_artifact()
+        .unwrap();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     terminal_verifier::verify_module(

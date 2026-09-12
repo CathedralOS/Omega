@@ -5,7 +5,7 @@ use typed_trees::expression::StaticMachineArgument;
 #[derive(Default)]
 pub(crate) struct SourceEditBuilder {
     ignored: bool,
-    edits: Vec<Edit>,
+    edits: Vec<ExpressionEdit>,
     roots: Vec<ExpressionHandle>,
     symbols: Vec<SymbolHandle>,
     static_arguments: Vec<StaticMachineArgument>,
@@ -88,53 +88,15 @@ impl SourceEditBuilder {
             }
         };
         self.roots.push(handle);
-        self.edits.push(Edit::Expression {
+        self.edits.push(ExpressionEdit {
             handle,
             original,
             original_call,
         });
     }
 
-    pub(crate) fn statement(&mut self, program: &TypedTrees, handle: Handle<StatementNode>) {
-        if self.ignored || self.failure.is_some() {
-            return;
-        }
-        let StatementNode::Call(original) = program.statement_table.statement(handle) else {
-            self.unsupported = true;
-            return;
-        };
-        if let Err(diagnostics) = guard::validate_static_arguments(&original.machine_arguments) {
-            self.failure = Some(diagnostics);
-            return;
-        }
-        self.static_arguments
-            .extend_from_slice(&original.machine_arguments);
-        let original_storage = StatementStorage::capture(program, original);
-        self.roots.extend_from_slice(&original_storage.arguments);
-        self.symbols.extend([
-            original.receiver_root_symbol,
-            original.receiver_symbol,
-            original.target_symbol,
-        ]);
-        if let Some(dispatch) = &original.static_requirement_dispatch {
-            self.symbols.extend([
-                dispatch.declaring_trait,
-                dispatch.requirement,
-                dispatch.realization_machine,
-                dispatch.realization_state,
-            ]);
-        }
-        self.edits.push(Edit::Statement {
-            handle,
-            original: original.clone(),
-            original_storage: original_storage.clone(),
-            settled: original.clone(),
-            settled_storage: original_storage,
-        });
-    }
-
     pub(crate) fn finish(
-        mut self,
+        self,
         program: &TypedTrees,
     ) -> Result<SelectedDispatchSourceEdits, Vec<Diagnostic>> {
         if let Some(diagnostics) = self.failure {
@@ -145,41 +107,6 @@ impl SourceEditBuilder {
         }
         if self.edits.is_empty() {
             return Ok(SelectedDispatchSourceEdits::default());
-        }
-        for edit in &mut self.edits {
-            if let Edit::Statement {
-                handle,
-                settled,
-                settled_storage,
-                ..
-            } = edit
-            {
-                let StatementNode::Call(current) = program.statement_table.statement(*handle)
-                else {
-                    return Err(rejected(
-                        "settlement replaced a statement call with another statement kind",
-                    ));
-                };
-                guard::validate_static_arguments(&current.machine_arguments)?;
-                self.static_arguments
-                    .extend_from_slice(&current.machine_arguments);
-                *settled = current.clone();
-                *settled_storage = StatementStorage::capture(program, current);
-                self.roots.extend_from_slice(&settled_storage.arguments);
-                self.symbols.extend([
-                    current.receiver_root_symbol,
-                    current.receiver_symbol,
-                    current.target_symbol,
-                ]);
-                if let Some(dispatch) = &current.static_requirement_dispatch {
-                    self.symbols.extend([
-                        dispatch.declaring_trait,
-                        dispatch.requirement,
-                        dispatch.realization_machine,
-                        dispatch.realization_state,
-                    ]);
-                }
-            }
         }
         let guard = GraphGuard::capture(
             program,

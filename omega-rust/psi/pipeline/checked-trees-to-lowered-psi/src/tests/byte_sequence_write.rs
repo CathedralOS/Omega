@@ -18,14 +18,16 @@ fn fixed_byte_array_lends_mutable_view() {
     let checked = checked_source(&format!(
         "{PUT}\n machine run(out: &mut [u8; 3]) {{ put(out, 65); put(out, 0); }}"
     ));
-    let _artifact = produce_terminal_artifact(&checked, "run")
+    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "run")
+        .produce_artifact()
         .expect("a raw fixed byte array lends its exact initialized writable range");
 }
 
 #[test]
 fn guarded_mutable_byte_view_write_publishes_terminal() {
     let checked = checked_source(PUT);
-    let artifact = produce_terminal_artifact(&checked, "put")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "put")
+        .produce_artifact()
         .expect("guarded mutable byte-view write publishes verified Terminal");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     terminal_verifier::validate_module(&module).unwrap();
@@ -48,7 +50,8 @@ fn byte_view_write_rejects_changed_source_operands_access_and_roster() {
         }
     "#,
     );
-    let _artifact = produce_terminal_artifact(&checked, "put")
+    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "put")
+        .produce_artifact()
         .expect("lawful two-write source publishes first");
     let plan_index = checked
         .facts
@@ -151,7 +154,8 @@ fn guarded_mutable_byte_write_keeps_original_field_extent_and_tail() {
         }}
     "#
         ));
-        let artifact = produce_terminal_artifact(&checked, "Record::run")
+        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Record::run")
+            .produce_artifact()
             .expect("checked caller retains original borrowed field backing");
         let mut redirected = checked.clone();
         let caller = redirected

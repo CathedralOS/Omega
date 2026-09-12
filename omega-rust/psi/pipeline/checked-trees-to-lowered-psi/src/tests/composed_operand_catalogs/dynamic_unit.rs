@@ -95,10 +95,12 @@ fn dynamic_routes_share_ordinary_bodies_and_scalar_helpers() {
                 let lowered = roundtrip(&checked);
                 assert_closure(&checked, &lowered, route);
                 assert_source_custody(&checked);
-                let artifact =
-                    terminal_production::produce_terminal_artifact(&checked, "Main::main").expect(
-                        "dynamic ordinary Unit continuation publishes through the public producer",
-                    );
+                let artifact = terminal_production::TerminalProductionRequest::new(
+                    &checked,
+                    "Main::main",
+                )
+                .produce_artifact()
+                .expect("dynamic ordinary Unit continuation publishes through the public producer");
                 assert_eq!(
                     terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),
                     lowered.semantic_module
@@ -148,7 +150,8 @@ fn unused_root_provider_field_retains_identity_without_a_fabricated_requirement(
             place.kind,
             semantic_vocabulary::StructuralPlaceKind::ProviderAttachment { .. }
         )));
-        let artifact = terminal_production::produce_terminal_artifact(&checked, "Main::main")
+        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+            .produce_artifact()
             .expect("unused provider field survives public publication");
         assert_eq!(
             terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),

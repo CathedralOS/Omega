@@ -282,7 +282,9 @@ fn scalar_local_snapshot_read_rejects_erased_or_reordered_source_namespace() {
 #[test]
 fn independent_verifier_rejects_local_place_tampering_after_valid_publication() {
     let original = publish_original(SOURCE);
-    let artifact = terminal_production::produce_terminal_artifact(&original, "enter").unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(&original, "enter")
+        .produce_artifact()
+        .unwrap();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     let foreign_place = module

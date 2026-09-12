@@ -365,11 +365,11 @@ fn installed_program_storage_provider_transfers_and_settles_both_owned_extent_cl
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
-    let produced = terminal_production::produce_program_entry_terminal_artifact(
+    let produced = terminal_production::TerminalProductionRequest::new(
         &checked,
         "ProgramLocalProducer::handoff",
-        [0xa5; 32],
     )
+    .produce_program_entry([0xa5; 32])
     .expect("receipt-coupled ProgramStorage artifact");
     let module = decode_module(produced.artifact().semantic_bytes()).expect("semantic module");
     let [candidate] = module.provider_candidates.as_slice() else {

@@ -238,10 +238,8 @@ fn float_match_executes_selected_arms_through_verified_terminal() {
     compiler::validate_lowered_ieee_float_comparison_custody(&checked, &lowered)
         .expect("each comparison independently rejoins its selected provider");
     assert_eq!(lowered.selected_ieee_float_comparison_occurrences.len(), 2);
-    let produced =
-        terminal_production::produce_terminal_artifact_with_checked_boundary_operator_scope(
-            &checked, "choose",
-        )
+    let produced = terminal_production::TerminalProductionRequest::new(&checked, "choose")
+        .produce_checked_artifact()
         .expect("selected Match application scope survives canonical publication");
     assert_eq!(produced.boundary_operator_scope().occurrences().len(), 2);
     for change_relation in [false, true] {

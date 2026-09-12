@@ -48,7 +48,8 @@ fn projected_record_getter_replay_rejects_sibling_root_path_and_endpoint_substit
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect("valid projected shared getter source");
     for entry in ["distinct_roots", "projected"] {
-        let _artifact = terminal_production::produce_terminal_artifact(&checked, entry)
+        let _artifact = terminal_production::TerminalProductionRequest::new(&checked, entry)
+            .produce_artifact()
             .expect("unchanged projected receiver custody independently publishes");
     }
     let declared_field = |owner: &str, name: &str| {
@@ -125,7 +126,9 @@ fn projected_record_getter_replay_rejects_sibling_root_path_and_endpoint_substit
             _ => argument.type_identity = "Outer".into(),
         }
         assert!(
-            terminal_production::produce_terminal_artifact(&changed, "distinct_roots").is_err(),
+            terminal_production::TerminalProductionRequest::new(&changed, "distinct_roots")
+                .produce_artifact()
+                .is_err(),
             "projected operand mutation {mutation}"
         );
     }
@@ -164,7 +167,9 @@ fn projected_record_getter_replay_rejects_sibling_root_path_and_endpoint_substit
             _ => call.has_receiver = false,
         }
         assert!(
-            terminal_production::produce_terminal_artifact(&changed, "distinct_roots").is_err(),
+            terminal_production::TerminalProductionRequest::new(&changed, "distinct_roots")
+                .produce_artifact()
+                .is_err(),
             "receiver endpoint mutation {mutation}"
         );
     }
@@ -188,7 +193,8 @@ fn local_record_getter_replay_rejects_substituted_receiver_custody() {
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
     let checked =
         typed_trees_to_checked_trees::lower_typed_trees(typed).expect("valid local getter source");
-    let _artifact = terminal_production::produce_terminal_artifact(&checked, "observe")
+    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "observe")
+        .produce_artifact()
         .expect("unchanged receiver custody independently replays");
     let machine = checked
         .machines()
@@ -249,7 +255,9 @@ fn local_record_getter_replay_rejects_substituted_receiver_custody() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::produce_terminal_artifact(&changed, "observe").is_err(),
+            terminal_production::TerminalProductionRequest::new(&changed, "observe")
+                .produce_artifact()
+                .is_err(),
             "receiver mutation {mutation}"
         );
     }

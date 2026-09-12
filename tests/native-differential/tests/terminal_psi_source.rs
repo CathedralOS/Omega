@@ -177,13 +177,13 @@ fn stage_terminal_component_with_policies(
         )]
     })?;
     let entry_machine = selected_program_entry.machine_name();
-    let artifact = terminal_production::produce_terminal_artifact(checked, entry_machine).map_err(
-        |error| {
+    let artifact = terminal_production::TerminalProductionRequest::new(checked, entry_machine)
+        .produce_artifact()
+        .map_err(|error| {
             vec![diagnostics::Diagnostic::error(format!(
                 "terminal component artifact production failed: {error}"
             ))]
-        },
-    )?;
+        })?;
     let post_terminal_optimizations = checked.optimization_selections().project_post_terminal();
     let native_artifact = realize_native_artifact(
         artifact,
@@ -808,7 +808,8 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
     assert_eq!(demand.profile_identity, "Scheduler::WeakFair");
     assert_eq!(demand.establishment_routes.len(), 1);
 
-    let terminal = terminal_production::produce_terminal_artifact(&checked, "Main::main")
+    let terminal = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+        .produce_artifact()
         .expect("progress source produces canonical Terminal custody");
     let abstract_plan = lower_artifact_sections(
         terminal.semantic_bytes(),

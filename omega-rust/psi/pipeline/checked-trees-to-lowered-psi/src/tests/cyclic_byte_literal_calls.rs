@@ -1,6 +1,6 @@
 //! Published cyclic Unit calls preserve literal contents through resumable execution.
 
-use super::{checked_source, produce_terminal_artifact};
+use super::checked_source;
 mod mixed_and_custody;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
@@ -44,7 +44,8 @@ machine Main::main(&mut self) reaches Trace {
 }
 "#,
     );
-    let artifact = produce_terminal_artifact(&checked, "Main::main")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+        .produce_artifact()
         .expect("cyclic literal calls publish the portable Terminal artifact");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module

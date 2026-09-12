@@ -21,7 +21,9 @@ fn copy_case_return_requires_its_producer_to_dominate_the_return() {
              match selected { true -> Choice::Some { value: 37 }, false -> Choice::Empty }
          }",
     );
-    let artifact = produce_terminal_artifact(&checked, "choose").unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "choose")
+        .produce_artifact()
+        .unwrap();
     let mut module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let machine = module
         .machines
@@ -77,7 +79,8 @@ fn copy_local_case_membership_repeats_direct_and_selected_observations_without_c
     );
     let profile = proof_admission::AdmissionProfile::default();
     for name in ["direct", "selected"] {
-        let artifact = produce_terminal_artifact(&checked, name)
+        let artifact = terminal_production::TerminalProductionRequest::new(&checked, name)
+            .produce_artifact()
             .expect("copy case locals retain no affine disposal debt");
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let root = module
@@ -211,8 +214,9 @@ fn selected_local_case_membership_observes_the_joined_owner_and_rejects_foreign_
         }
     "#,
     );
-    let artifact =
-        produce_terminal_artifact(&checked, "choose").expect("selected local membership");
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "choose")
+        .produce_artifact()
+        .expect("selected local membership");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     let profile = proof_admission::AdmissionProfile::default();
@@ -370,7 +374,9 @@ fn local_case_membership_reuses_one_affine_owner_through_repeated_observations()
         }
     "#,
     );
-    let artifact = produce_terminal_artifact(&checked, "choose").expect("ordinary local case");
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "choose")
+        .produce_artifact()
+        .expect("ordinary local case");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     let profile = proof_admission::AdmissionProfile::default();
@@ -833,8 +839,9 @@ fn selected_constructor_membership_closes_its_affine_frontier_before_the_join() 
         }
     "#,
     );
-    let artifact =
-        produce_terminal_artifact(&checked, "choose").expect("selected case construction");
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "choose")
+        .produce_artifact()
+        .expect("selected case construction");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     let profile = proof_admission::AdmissionProfile::default();

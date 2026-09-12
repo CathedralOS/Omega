@@ -76,7 +76,8 @@ fn package_qualified_constructors_and_locals_execute_with_their_declaring_case()
             ("is_some", !expected),
             ("local_is_empty", expected),
         ] {
-            let artifact = terminal_production::produce_terminal_artifact(&checked, entry)
+            let artifact = terminal_production::TerminalProductionRequest::new(&checked, entry)
+                .produce_artifact()
                 .expect("package-qualified construction reaches Terminal");
             let artifact = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
             execute(

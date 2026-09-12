@@ -55,13 +55,10 @@ fn return_programs_publish_replayable_native_evidence_on_every_target() {
             )
             .unwrap();
         let (artifact, _, scope, _, _) =
-            terminal_production::produce_program_entry_terminal_artifact(
-                &checked,
-                "Main::launch",
-                signature.identity().bytes(),
-            )
-            .unwrap()
-            .into_parts();
+            terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
+                .produce_program_entry(signature.identity().bytes())
+                .unwrap()
+                .into_parts();
         let native = crate::realize_native_artifact(
             artifact,
             crate::NativeRealizationRequest {
@@ -103,8 +100,9 @@ fn return_programs_publish_replayable_native_evidence_on_every_target() {
 fn malformed_unit_inputs_reject_at_legalization() {
     let checked =
         crate::tests::fixtures::checked_source::checked("data Main {} machine Main::launch() {}");
-    let artifact =
-        terminal_production::produce_terminal_artifact(&checked, "Main::launch").unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
+        .produce_artifact()
+        .unwrap();
     let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),

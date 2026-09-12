@@ -1,4 +1,4 @@
-//! Exact selected-dispatch edits, separate from checked source semantics.
+//! Exact selected-dispatch expression edits, separate from checked source semantics.
 //!
 //! Each settlement owner seals its own batch after applying it. A query checks
 //! batches in reverse order, including operand/type graphs, then restores only
@@ -11,14 +11,12 @@ mod records;
 pub(super) use builder::SourceEditBuilder;
 use records::*;
 
-use arena::{Handle, HandleSpan};
+use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use guard::GraphGuard;
 use std::borrow::Cow;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::name::Identifier;
-use typed_trees::statement::{StatementNode, TableCall};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SelectedDispatchSourceEdits {
@@ -53,19 +51,7 @@ impl SelectedDispatchSourceEdits {
                 batch.validate(&source)?;
             }
             for edit in batch.edits.iter().rev() {
-                match edit {
-                    Edit::Expression {
-                        handle, original, ..
-                    } => {
-                        *source.expression_table.expression_mut(*handle) = original.clone();
-                    }
-                    Edit::Statement {
-                        handle, original, ..
-                    } => {
-                        *source.statement_table.statement_mut(*handle) =
-                            StatementNode::Call(original.clone());
-                    }
-                }
+                *source.expression_table.expression_mut(edit.handle) = edit.original.clone();
             }
         }
         Ok(Cow::Owned(source))

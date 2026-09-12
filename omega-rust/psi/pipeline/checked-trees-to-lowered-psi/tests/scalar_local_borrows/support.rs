@@ -81,7 +81,8 @@ pub fn execute(
             "no synthetic source states"
         );
     }
-    let artifact = terminal_production::produce_terminal_artifact(&checked, "enter")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
+        .produce_artifact()
         .expect("scalar local root publishes its complete call closure");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
@@ -327,7 +328,8 @@ fn assert_no_replay(
 
 pub fn publish_original(source: &str) -> CheckedTrees {
     let checked = checked(source);
-    let artifact = terminal_production::produce_terminal_artifact(&checked, "enter")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
+        .produce_artifact()
         .expect("unmodified scalar local source must publish before custody mutations");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
@@ -342,7 +344,9 @@ pub fn publish_original(source: &str) -> CheckedTrees {
 
 pub fn reject(checked: &CheckedTrees, mutation: &str) {
     assert!(
-        terminal_production::produce_terminal_artifact(checked, "enter").is_err(),
+        terminal_production::TerminalProductionRequest::new(checked, "enter")
+            .produce_artifact()
+            .is_err(),
         "accepted scalar local custody mutation: {mutation}"
     );
 }

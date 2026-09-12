@@ -129,7 +129,9 @@ fn assert_corrupted_projected_receiver(callee_borrow: &str) {
     let (source, caller_name, _) =
         projected_source("mut", callee_borrow, true, false, false, false, false);
     let checked = checked_from_source(&source);
-    let artifact = terminal_production::produce_terminal_artifact(&checked, caller_name).unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, caller_name)
+        .produce_artifact()
+        .unwrap();
     drop(checked);
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();

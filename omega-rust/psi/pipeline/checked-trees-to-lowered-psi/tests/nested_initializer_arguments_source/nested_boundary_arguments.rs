@@ -148,7 +148,9 @@ fn nested_boundary_arguments_preserve_effect_order_result_slots_and_cleanup() {
             let checked = checked(&source);
             let artifact = encoded_locals(&checked, &names);
             let published =
-                terminal_production::produce_terminal_artifact(&checked, "Main::main").unwrap();
+                terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+                    .produce_artifact()
+                    .unwrap();
             let module = decode_module(&artifact.0).unwrap();
             assert_eq!(decode_module(published.semantic_bytes()).unwrap(), module);
             let entry = module

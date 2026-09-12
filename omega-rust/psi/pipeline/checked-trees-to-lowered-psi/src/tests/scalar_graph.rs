@@ -65,7 +65,8 @@ fn scalar_completion_after_array_calls_replays_its_expression_and_statement_orde
         "../../../../../../tests/omega/pass/collections/owned_array_scalar_comparisons/main.omg"
     ));
     for entry in ["scalar_comparison", "array_comparison"] {
-        let artifact = produce_terminal_artifact(&checked, entry)
+        let artifact = terminal_production::TerminalProductionRequest::new(&checked, entry)
+            .produce_artifact()
             .expect("comparison completes the ordered array/call body in Terminal");
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
@@ -165,7 +166,9 @@ fn scalar_completion_after_array_calls_replays_its_expression_and_statement_orde
             _ => unreachable!(),
         }
         assert!(
-            produce_terminal_artifact(&changed, "scalar_comparison").is_err(),
+            terminal_production::TerminalProductionRequest::new(&changed, "scalar_comparison")
+                .produce_artifact()
+                .is_err(),
             "corruption {corruption}"
         );
     }

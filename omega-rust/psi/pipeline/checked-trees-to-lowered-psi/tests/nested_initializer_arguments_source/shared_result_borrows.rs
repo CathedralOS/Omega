@@ -15,7 +15,8 @@ fn anonymous_shared_result_keeps_its_owner_until_call_completion() {
         machine main(token: Token) { read(&forward(token)); }
     "#,
     );
-    let _pure_artifact = terminal_production::produce_terminal_artifact(&pure, "main")
+    let _pure_artifact = terminal_production::TerminalProductionRequest::new(&pure, "main")
+        .produce_artifact()
         .expect("anonymous shared call with an empty consumer publishes");
     let boundary = checked(
         r#"
@@ -25,7 +26,8 @@ fn anonymous_shared_result_keeps_its_owner_until_call_completion() {
         machine main() reaches Factory { read(&Factory::create()); }
     "#,
     );
-    let _boundary_artifact = terminal_production::produce_terminal_artifact(&boundary, "main")
+    let _boundary_artifact = terminal_production::TerminalProductionRequest::new(&boundary, "main")
+        .produce_artifact()
         .expect("zero-parameter free caller retains a boundary-produced temporary");
     for boundary in [false, true] {
         for fields in ["value: u64;", "", "elements: [u16; 3];"] {
@@ -63,7 +65,8 @@ fn assert_anonymous_shared(source: &str, boundary: bool, names: &[&str]) {
 
     let checked = checked(source);
     let artifact = encoded_locals(&checked, names);
-    let published = terminal_production::produce_terminal_artifact(&checked, "Main::main")
+    let published = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+        .produce_artifact()
         .expect("anonymous shared argument retains and then cleans its owner");
     let module = decode_module(&artifact.0).unwrap();
     assert_eq!(decode_module(published.semantic_bytes()).unwrap(), module);
@@ -278,7 +281,9 @@ fn anonymous_shared_result_permissions_rejoin_exact_owner_and_continuation() {
                 }
                 *changed.facts.flow.ownership.permissions.get_mut(*handle) = altered;
                 assert!(
-                    terminal_production::produce_terminal_artifact(&changed, "Main::main").is_err(),
+                    terminal_production::TerminalProductionRequest::new(&changed, "Main::main")
+                        .produce_artifact()
+                        .is_err(),
                     "boundary={boundary}, kind={:?}, mutation={mutation}",
                     event.kind
                 );
@@ -297,7 +302,11 @@ fn anonymous_shared_result_permissions_rejoin_exact_owner_and_continuation() {
             .ownership
             .permissions
             .get_mut(events[2].0) = events[1].1.clone();
-        assert!(terminal_production::produce_terminal_artifact(&changed, "Main::main").is_err());
+        assert!(
+            terminal_production::TerminalProductionRequest::new(&changed, "Main::main")
+                .produce_artifact()
+                .is_err()
+        );
     }
 }
 
@@ -345,7 +354,11 @@ fn anonymous_shared_results_reject_conflicting_return_cleanup() {
             panic!("anonymous producer")
         };
         *discard_result_on_return = true;
-        assert!(terminal_production::produce_terminal_artifact(&changed, "Main::main").is_err());
+        assert!(
+            terminal_production::TerminalProductionRequest::new(&changed, "Main::main")
+                .produce_artifact()
+                .is_err()
+        );
     }
 }
 
@@ -391,7 +404,9 @@ fn anonymous_shared_continuation_rejects_missing_delayed_or_rebound_cleanup() {
                 }
             }
             assert!(
-                terminal_production::produce_terminal_artifact(&changed, "Main::main").is_err(),
+                terminal_production::TerminalProductionRequest::new(&changed, "Main::main")
+                    .produce_artifact()
+                    .is_err(),
                 "boundary={boundary}, mutation={mutation}"
             );
         }
@@ -506,7 +521,9 @@ fn named_results_share_their_identity_across_reads_and_final_disposition() {
                 let checked = checked(&source(&format!("{prefix} {calls} {completion}")));
                 let artifact = encoded_locals(&checked, &names);
                 let published =
-                    terminal_production::produce_terminal_artifact(&checked, "Main::main").unwrap();
+                    terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+                        .produce_artifact()
+                        .unwrap();
                 let module = decode_module(&artifact.0).unwrap();
                 assert_eq!(decode_module(published.semantic_bytes()).unwrap(), module);
                 let entry = module

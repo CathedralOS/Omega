@@ -45,12 +45,9 @@ fn entry_fixture(
             Vec::new(),
         )
         .expect("selected source signature");
-    let produced = terminal_production::produce_program_entry_terminal_artifact(
-        &checked,
-        "Main::launch",
-        signature.identity().bytes(),
-    )
-    .expect("source receiver store produces a receipt-coupled Terminal artifact");
+    let produced = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
+        .produce_program_entry(signature.identity().bytes())
+        .expect("source receiver store produces a receipt-coupled Terminal artifact");
     (produced, signature)
 }
 

@@ -71,20 +71,19 @@ pub(super) fn produce_retained_terminal_artifact(
         checked.selected_provider_provenance(),
     )?;
     let psi_optimizations = selections.project_psi();
-    let terminal_trees = checked.terminal_production_trees()?;
-    let produced =
-        terminal_production::produce_terminal_artifact_with_callback_custody_and_optimizations(
-            &terminal_trees,
-            &entry_machine,
-            callback_placements,
-            psi_optimizations.selections().clone(),
-        )
-        .map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "terminal-artifact production failed: {}",
-                error.error(),
-            ))]
-        })?;
+    let terminal_trees = checked.terminal_production_trees();
+    let produced = terminal_production::TerminalProductionRequest {
+        checked: terminal_trees,
+        machine_name: &entry_machine,
+        optimization_selections: psi_optimizations.selections().clone(),
+    }
+    .produce_with_callback_custody(callback_placements)
+    .map_err(|error| {
+        vec![Diagnostic::error(format!(
+            "terminal-artifact production failed: {}",
+            error.error(),
+        ))]
+    })?;
     let (
         artifact,
         checked_boundary_operator_scope,

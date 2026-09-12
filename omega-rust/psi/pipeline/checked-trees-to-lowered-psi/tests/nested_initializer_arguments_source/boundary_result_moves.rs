@@ -114,8 +114,9 @@ fn ordinary_and_direct_boundary_consumers_transfer_the_exact_result_once() {
     ] {
         let checked = checked(&source(completion));
         let artifact = encoded_locals(&checked, &names);
-        let published =
-            terminal_production::produce_terminal_artifact(&checked, "Main::main").unwrap();
+        let published = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+            .produce_artifact()
+            .unwrap();
         assert_eq!(
             decode_module(published.semantic_bytes()).unwrap(),
             decode_module(&artifact.0).unwrap()

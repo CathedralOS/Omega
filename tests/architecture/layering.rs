@@ -1880,11 +1880,22 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let producer = std::fs::read_to_string(&producer_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", producer_path.display()));
     assert!(
-        producer.contains("pub fn produce_terminal_artifact_with_optimizations(")
+        producer.contains("pub struct TerminalProductionRequest<'a>")
             && producer.contains("run_psi_optimization(")
             && producer.contains("finalize_terminal_artifact("),
         "Psi must own the selected optimization stage and exact checked-to-canonical-Terminal-artifact handoff"
     );
+    for phase in [
+        "lower_machine(",
+        "run_psi_optimization(",
+        "finalize_terminal_artifact(",
+    ] {
+        assert_eq!(
+            producer.matches(phase).count(),
+            1,
+            "Terminal request products must share the {phase} operation"
+        );
+    }
     let publication = std::fs::read_to_string(
         root.join("omega-rust/psi/pipeline/lowered-psi-to-terminal-psi/src/lib.rs"),
     )
@@ -1933,7 +1944,9 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     });
     assert!(
         compiler_terminal.contains(".project_psi()")
-            && compiler_terminal.contains("with_callback_custody_and_optimizations(")
+            && compiler_terminal
+                .contains("optimization_selections: psi_optimizations.selections().clone()")
+            && compiler_terminal.contains(".produce_with_callback_custody(")
             && compiler_terminal.contains(".project_post_terminal()"),
         "the retained Terminal-product route must project executed Psi selections into publication and pending physical selections into its companion"
     );
@@ -2576,7 +2589,7 @@ fn retained_native_product_enters_only_terminal_realization() {
         "the StateGraph compatibility compiler must stay deleted"
     );
     for required in [
-        "produce_program_entry_terminal_artifact_with_optimizations(",
+        "produce_program_entry(",
         "validate_native_program_entry_settlement(",
         "realize_native_artifact(",
         "checked_scope: Some(&checked_boundary_operator_scope)",

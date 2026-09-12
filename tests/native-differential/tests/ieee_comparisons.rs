@@ -35,10 +35,8 @@ fn text(
     let lowered = checked_trees_to_lowered_psi::lower_machine(checked, entry).unwrap();
     compiler::validate_lowered_ieee_float_comparison_custody(checked, &lowered)
         .expect("source comparison joins exact selected provider and operands");
-    let produced =
-        terminal_production::produce_terminal_artifact_with_checked_boundary_operator_scope(
-            checked, entry,
-        )
+    let produced = terminal_production::TerminalProductionRequest::new(checked, entry)
+        .produce_checked_artifact()
         .expect("canonical Terminal with retained exact checked scope");
     assert_eq!(
         produced.selected_ieee_float_comparison_occurrences().len(),

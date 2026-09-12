@@ -43,8 +43,12 @@ fn ieee_field_stores_retain_exact_parameters_and_literal_bits() {
                          self.value = {replacement};
                      }}"
                 ));
-                let artifact = produce_terminal_artifact(&checked, "Record::replace")
-                    .expect("IEEE field store publishes canonical Terminal");
+                let artifact = terminal_production::TerminalProductionRequest::new(
+                    &checked,
+                    "Record::replace",
+                )
+                .produce_artifact()
+                .expect("IEEE field store publishes canonical Terminal");
                 let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
                 let entry = module
                     .machines
@@ -200,7 +204,8 @@ fn source_indexed_shared_call_reaches_serialized_interpretation() {
         }
     "#,
     );
-    let artifact = produce_terminal_artifact(&checked, "Root::forward")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Root::forward")
+        .produce_artifact()
         .expect("source indexed shared call produces canonical Terminal");
     drop(checked);
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();

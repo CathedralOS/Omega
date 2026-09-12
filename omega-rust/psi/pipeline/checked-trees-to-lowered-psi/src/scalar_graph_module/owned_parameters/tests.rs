@@ -506,7 +506,8 @@ fn actual_affine_limits_artifact_rejects_missing_duplicate_and_transferred_clean
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("typed");
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).expect("checked");
-    let artifact = terminal_production::produce_terminal_artifact(&checked, "root")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "root")
+        .produce_artifact()
         .expect("publish affine scalar graph");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).expect("module");
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).expect("proof");

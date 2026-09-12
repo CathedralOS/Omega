@@ -21,3 +21,14 @@ pub struct CheckedIntrinsicCallFact {
     pub expression: typed_trees::expression::ExpressionHandle,
     pub intrinsic: language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic,
 }
+
+/// Selected execution of an already-checked boundary requirement. These exact
+/// semantic symbols steer the source interpreter without rewriting source calls.
+/// Provider policy and target realization remain outside checked Psi.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedBoundaryAdapterDispatch {
+    pub receiver: symbols::SymbolHandle,
+    pub requirement: symbols::SymbolHandle,
+    pub realization_state: symbols::SymbolHandle,
+    pub forward_receiver: bool,
+}

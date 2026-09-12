@@ -176,7 +176,8 @@ fn assert_receiver_call(access: StructuralAccess, from_parameter: bool, self_cal
             assert!(scalar_arguments.is_empty());
         }
 
-        let artifact = terminal_production::produce_terminal_artifact(&checked, caller_name)
+        let artifact = terminal_production::TerminalProductionRequest::new(&checked, caller_name)
+            .produce_artifact()
             .expect("receiver call reaches canonical Terminal production");
         drop(checked);
         let module = terminal_codec::decode_module(artifact.semantic_bytes())

@@ -307,7 +307,7 @@ fn compiler_driver_delegates_terminal_product_semantics_to_one_owner() {
         "the compiler driver must stop Terminal production through its named product owner"
     );
     for forbidden in [
-        "produce_terminal_artifact_with_callback_custody",
+        "produce_with_callback_custody",
         "verify_module",
         "TerminalNativeRealizationProposal::new",
         "RetainedTerminalArtifact::new_with_native_realization_proposal",
@@ -321,7 +321,7 @@ fn compiler_driver_delegates_terminal_product_semantics_to_one_owner() {
 
     let mut ordered_owner = owner.as_str();
     for stage in [
-        "produce_terminal_artifact_with_callback_custody_and_optimizations(",
+        "produce_with_callback_custody(",
         "verify_terminal_artifact(",
         "project_terminal_native_realization_proposal(",
         "RetainedTerminalArtifact::new_with_native_realization_proposal(",
@@ -653,7 +653,7 @@ fn typed_to_checked_transition_owns_post_check_settlements_inside_its_surface() 
     let selected_execution_dispatches = [
         "selected_dispatch::settle_selected_execution_dispatch_with_source_edits(",
         "selected_dispatch::retain_selected_compiler_intrinsic_review_identities(",
-        "selected_dispatch::settle_selected_boundary_adapter_dispatch_with_source_edits(",
+        "selected_dispatch::settle_selected_boundary_adapter_dispatch(",
     ];
     let mut ordered_transition_suffix = transition.as_str();
     for settlement_step in [

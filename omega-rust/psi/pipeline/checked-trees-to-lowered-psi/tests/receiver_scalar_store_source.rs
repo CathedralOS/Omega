@@ -56,7 +56,8 @@ fn receiver_store_sequence_retains_each_write_around_an_ordinary_call() {
     "#;
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_from_source(source))
         .expect("ordered receiver stores check");
-    let artifact = terminal_production::produce_terminal_artifact(&checked, "Pair::replace")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Pair::replace")
+        .produce_artifact()
         .expect("every authored store and intervening call reaches Terminal");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
@@ -176,7 +177,8 @@ fn receiver_field_stores_keep_a_local_snapshot_and_a_fresh_read_across_a_borrowe
     "#;
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_from_source(source))
         .expect("local snapshot and current storage field assignments check");
-    let artifact = terminal_production::produce_terminal_artifact(&checked, "Pair::replace")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Pair::replace")
+        .produce_artifact()
         .expect("field stores receive immutable bindings and primitive storage independently");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert_eq!(
@@ -402,7 +404,8 @@ fn assert_receiver_store_with_access(
     assert_eq!(store.statement_index, 0);
     assert_eq!(store.field_identity, "value");
 
-    let artifact = terminal_production::produce_terminal_artifact(&checked, machine_name)
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, machine_name)
+        .produce_artifact()
         .expect("receiver store reaches canonical Terminal through production");
     drop(checked);
     let module = terminal_codec::decode_module(artifact.semantic_bytes())
@@ -646,8 +649,9 @@ fn shared_receiver_store_rejects_during_source_checking() {
 fn canonical_verifier_rejects_shared_access_substituted_for_mutable_receiver() {
     let checked =
         typed_trees_to_checked_trees::lower_typed_trees(typed_from_source(SOURCE)).unwrap();
-    let artifact =
-        terminal_production::produce_terminal_artifact(&checked, "Pair::direct").unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Pair::direct")
+        .produce_artifact()
+        .unwrap();
     let mut module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
         .machines

@@ -23,7 +23,8 @@ fn checked(source: &str) -> CheckedTrees {
 }
 
 fn publish(checked: &CheckedTrees) -> (CanonicalTerminalArtifact, terminal_psi::TerminalModule) {
-    let artifact = terminal_production::produce_terminal_artifact(checked, "enter")
+    let artifact = terminal_production::TerminalProductionRequest::new(checked, "enter")
+        .produce_artifact()
         .expect("unmodified source must publish before custody mutations");
     let module =
         terminal_codec::decode_module(artifact.semantic_bytes()).expect("reload semantics");
@@ -81,7 +82,9 @@ fn reject_erased_contract(original: &CheckedTrees, owner: &str, expected_message
         Ok(_) => panic!("accepted erased scalar contract for {owner}"),
     }
     assert!(
-        terminal_production::produce_terminal_artifact(&changed, "enter").is_err(),
+        terminal_production::TerminalProductionRequest::new(&changed, "enter")
+            .produce_artifact()
+            .is_err(),
         "erased scalar contract must not publish"
     );
 }

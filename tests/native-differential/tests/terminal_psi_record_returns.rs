@@ -33,7 +33,9 @@ fn optimized_record(
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
-    let artifact = terminal_production::produce_terminal_artifact(&checked, "forward").unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "forward")
+        .produce_artifact()
+        .unwrap();
     // The frontend does not yet produce mixed structural-result bodies. Retain
     // its ordinary verified write/call operations and explicitly author the
     // independent Terminal parameter/result contract for this native customer.

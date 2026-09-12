@@ -60,7 +60,9 @@ fn reference_initializer_rejects_coherent_cached_and_operation_read_substitution
             assert!(rows.next().is_none());
         }
         assert!(
-            terminal_production::produce_terminal_artifact(&changed, "observe").is_err(),
+            terminal_production::TerminalProductionRequest::new(&changed, "observe")
+                .produce_artifact()
+                .is_err(),
             "reference read substitution with synchronized cache={synchronize}"
         );
     }
@@ -140,7 +142,9 @@ fn retained_write_only_access_cannot_authorize_a_primitive_initializer_read() {
         caller.structural_parameters[1].access =
             checked_trees::CheckedStructuralAccess::WriteOnlyBorrow;
         assert!(
-            terminal_production::produce_terminal_artifact(&changed, "observe").is_err(),
+            terminal_production::TerminalProductionRequest::new(&changed, "observe")
+                .produce_artifact()
+                .is_err(),
             "{scalar}: write-only parameter cannot retain a readable initializer"
         );
     }

@@ -261,7 +261,9 @@ fn source_common_return_conditionals_use_the_shared_native_pipeline() {
         let checked = crate::tests::fixtures::checked_source::checked(&format!(
             "machine value(left: {operand}, right: {operand}) -> u64\nrequires true\nensures result == result\n{{ transition left {comparison} right {{ true -> 1234605616436508552u64 _ -> 0u64 }} }}"
         ));
-        let artifact = terminal_production::produce_terminal_artifact(&checked, "value").unwrap();
+        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "value")
+            .produce_artifact()
+            .unwrap();
         for target in [
             target::NativeTarget::windows_x64(),
             target::NativeTarget::linux_x64(),

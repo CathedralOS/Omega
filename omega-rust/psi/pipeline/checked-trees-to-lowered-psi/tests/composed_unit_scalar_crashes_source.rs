@@ -65,7 +65,8 @@ fn roundtrip(checked: &checked_trees::CheckedTrees) -> lowered_psi::LoweredPsi {
     .expect("decoded guarded Unit call verifies independently");
     assert_eq!(module, lowered.semantic_module);
     assert_eq!(proof, lowered.proof_bundle);
-    let published = terminal_production::produce_terminal_artifact(checked, "Main::main")
+    let published = terminal_production::TerminalProductionRequest::new(checked, "Main::main")
+        .produce_artifact()
         .expect("guarded Unit closure publishes");
     assert_eq!(
         terminal_codec::decode_module(published.semantic_bytes()).unwrap(),

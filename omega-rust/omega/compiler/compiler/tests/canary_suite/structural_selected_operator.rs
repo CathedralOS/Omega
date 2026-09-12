@@ -182,11 +182,9 @@ fn specialized_structural_fixed_operator_hosted_local_transfer_is_exact() {
         }
     }
 
-    let _ = terminal_production::produce_terminal_artifact_with_checked_boundary_operator_scope(
-        &checked,
-        "Main::main",
-    )
-    .expect("checked local transfers should publish as exact Terminal custody");
+    let _ = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+        .produce_checked_artifact()
+        .expect("checked local transfers should publish as exact Terminal custody");
 }
 
 #[test]
@@ -288,11 +286,9 @@ fn specialized_structural_fixed_operator_hosted_local_transfer_rejects_drift() {
             }
         }
         assert!(
-            terminal_production::produce_terminal_artifact_with_checked_boundary_operator_scope(
-                &drifted,
-                "Main::main",
-            )
-            .is_err(),
+            terminal_production::TerminalProductionRequest::new(&drifted, "Main::main")
+                .produce_checked_artifact()
+                .is_err(),
             "{drift:?} must reject before Terminal publication"
         );
     }
@@ -356,10 +352,8 @@ fn specialized_structural_fixed_operator_unit_terminal_custody_canary_compiles()
     )
     .expect("structural Unit call must retain its exact selected ProviderPlan");
 
-    let produced =
-        terminal_production::produce_terminal_artifact_with_checked_boundary_operator_scope(
-            &checked, "consume",
-        )
+    let produced = terminal_production::TerminalProductionRequest::new(&checked, "consume")
+        .produce_checked_artifact()
         .expect("structural fixed-token Unit application should reach Terminal");
     produced
         .boundary_operator_scope()
@@ -504,10 +498,9 @@ fn specialized_structural_fixed_operator_unit_terminal_custody_rejects_drift() {
                 }
             }
         }
-        if terminal_production::produce_terminal_artifact_with_checked_boundary_operator_scope(
-            &drifted, "consume",
-        )
-        .is_ok()
+        if terminal_production::TerminalProductionRequest::new(&drifted, "consume")
+            .produce_checked_artifact()
+            .is_ok()
         {
             panic!("{drift:?} must reject before Terminal publication");
         }
@@ -670,10 +663,8 @@ fn specialized_mixed_structural_fixed_operator_arguments_are_exact() {
             && trivial_affine_local_discard_ordinals.is_empty()
     ));
 
-    let produced =
-        terminal_production::produce_terminal_artifact_with_checked_boundary_operator_scope(
-            &checked, "consume",
-        )
+    let produced = terminal_production::TerminalProductionRequest::new(&checked, "consume")
+        .produce_checked_artifact()
         .expect("mixed structural/fixed-integer selection should reach Terminal");
     let [occurrence] = produced.boundary_operator_scope().occurrences() else {
         panic!("one exact mixed structural/fixed-integer occurrence")
@@ -901,10 +892,8 @@ fn specialized_mixed_structural_result_operator_has_exact_terminal_custody() {
         Some("linux_x86_64"),
     ))
     .expect("hosted mixed structural-result selection should check");
-    let produced =
-        terminal_production::produce_terminal_artifact_with_checked_boundary_operator_scope(
-            &checked, "consume",
-        )
+    let produced = terminal_production::TerminalProductionRequest::new(&checked, "consume")
+        .produce_checked_artifact()
         .expect("mixed structural-result selection should reach Terminal");
     produced
         .boundary_operator_scope()
@@ -1075,10 +1064,9 @@ fn specialized_mixed_structural_result_operator_rejects_terminal_custody_drift()
             realization.structural_parameter.position = 1;
         }
         assert!(
-            terminal_production::produce_terminal_artifact_with_checked_boundary_operator_scope(
-                &drifted, "consume",
-            )
-            .is_err(),
+            terminal_production::TerminalProductionRequest::new(&drifted, "consume")
+                .produce_checked_artifact()
+                .is_err(),
             "{drift:?} must reject before Terminal publication"
         );
     }
@@ -1151,11 +1139,9 @@ fn specialized_mixed_structural_fixed_operator_rejects_argument_drift() {
             realization.scalar_parameters[0].source_position = 0;
             realization.structural_parameters[0].position = 1;
             assert!(
-                terminal_production::produce_terminal_artifact_with_checked_boundary_operator_scope(
-                    &drifted,
-                    "consume",
-                )
-                .is_err(),
+                terminal_production::TerminalProductionRequest::new(&drifted, "consume")
+                    .produce_checked_artifact()
+                    .is_err(),
                 "{drift:?} must reject before Terminal publication"
             );
             continue;
@@ -1198,10 +1184,9 @@ fn specialized_mixed_structural_fixed_operator_rejects_argument_drift() {
             }
         }
         assert!(
-            terminal_production::produce_terminal_artifact_with_checked_boundary_operator_scope(
-                &drifted, "consume",
-            )
-            .is_err(),
+            terminal_production::TerminalProductionRequest::new(&drifted, "consume")
+                .produce_checked_artifact()
+                .is_err(),
             "{drift:?} must reject before Terminal publication"
         );
     }

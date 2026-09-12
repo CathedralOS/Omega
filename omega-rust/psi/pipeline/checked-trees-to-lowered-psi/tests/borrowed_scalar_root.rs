@@ -342,7 +342,8 @@ fn execute(
     expected: ExecutionExpectations<'_>,
 ) -> terminal_psi::TerminalModule {
     let checked = checked(source);
-    let artifact = terminal_production::produce_terminal_artifact(&checked, "enter")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
+        .produce_artifact()
         .expect("mixed root publishes its complete borrowed scalar call closure");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
@@ -511,7 +512,8 @@ fn execute(
 
 fn publish_original(source: &str) -> CheckedTrees {
     let checked = checked(source);
-    let artifact = terminal_production::produce_terminal_artifact(&checked, "enter")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
+        .produce_artifact()
         .expect("unmodified scalar root must publish before testing custody mutations");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
@@ -552,7 +554,9 @@ fn calls_to(checked: &CheckedTrees, name: &str) -> Vec<CheckedScalarComputationH
 
 fn reject(checked: &CheckedTrees, mutation: &str) {
     assert!(
-        terminal_production::produce_terminal_artifact(checked, "enter").is_err(),
+        terminal_production::TerminalProductionRequest::new(checked, "enter")
+            .produce_artifact()
+            .is_err(),
         "publication accepted scalar root custody mutation: {mutation}"
     );
 }

@@ -19,7 +19,8 @@ fn indexed_write_only_receiver_reaches_canonical_terminal() {
          machine Record::replace(&write self) { self.value = 17; }
          machine forward(records: &write [Record; 2]) { records[1].replace(); }",
     );
-    let _artifact = terminal_production::produce_terminal_artifact(&checked, "forward")
+    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "forward")
+        .produce_artifact()
         .expect("indexed write-only receiver retains its exact portable subloan");
 }
 
@@ -32,7 +33,8 @@ fn indexed_ieee_write_only_receiver_retains_runtime_and_literal_stores() {
                  machine Record::replace(&write self, value: {primitive}) {{ self.value = {replacement}; }}
                  machine forward(records: &write [Record; 2], value: {primitive}) {{ records[1].replace(value); }}"
             ));
-            let artifact = terminal_production::produce_terminal_artifact(&checked, "forward")
+            let artifact = terminal_production::TerminalProductionRequest::new(&checked, "forward")
+                .produce_artifact()
                 .expect("indexed IEEE receiver preserves canonical store custody");
             let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
             let caller = module
@@ -78,7 +80,8 @@ fn retained_write_only_alias_preserves_the_indexed_receiver() {
              held[1].replace();
          }",
     );
-    let _artifact = terminal_production::produce_terminal_artifact(&checked, "forward")
+    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "forward")
+        .produce_artifact()
         .expect("erased alias preserves the original receiver and write-only access");
 }
 
@@ -123,7 +126,8 @@ fn fixed_indexed_receiver_paths_keep_fields_and_nested_arrays() {
     ] {
         let source = source(signature, receiver);
         let checked = checked_from_source(&source);
-        let _artifact = terminal_production::produce_terminal_artifact(&checked, caller)
+        let _artifact = terminal_production::TerminalProductionRequest::new(&checked, caller)
+            .produce_artifact()
             .unwrap_or_else(|error| panic!("{receiver} must retain its source path: {error:?}"));
     }
 }
@@ -153,7 +157,9 @@ fn indexed_receiver_plan_cannot_substitute_another_in_bounds_element() {
     structural_arguments[0].path[0] =
         checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(0);
     assert!(
-        terminal_production::produce_terminal_artifact(&checked, "forward").is_err(),
+        terminal_production::TerminalProductionRequest::new(&checked, "forward")
+            .produce_artifact()
+            .is_err(),
         "valid geometry for another element is not the authored receiver"
     );
 }
@@ -213,7 +219,9 @@ fn projected_alias_capture_executes_once_across_every_fuel_boundary() {
 }
 
 fn assert_indexed_receiver_fuel(checked: &checked_trees::CheckedTrees) {
-    let artifact = terminal_production::produce_terminal_artifact(checked, "forward").unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(checked, "forward")
+        .produce_artifact()
+        .unwrap();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     assert_eq!(
@@ -303,7 +311,9 @@ fn indexed_receiver_keeps_a_scalar_parameter_separate_from_its_loan() {
          machine Record::replace(&write self, replacement: u16) { self.value = replacement; }
          machine forward(replacement: u16, records: &mut [Record; 2]) { records[1].replace(replacement); }",
     );
-    let _artifact = terminal_production::produce_terminal_artifact(&checked, "forward").unwrap();
+    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "forward")
+        .produce_artifact()
+        .unwrap();
 }
 
 #[test]
@@ -312,7 +322,11 @@ fn dynamic_indexed_receiver_remains_checked_without_static_terminal_geometry() {
         "forward(records: &write [Record; 2], index: u64 [0..=1])",
         "records[index]",
     ));
-    assert!(terminal_production::produce_terminal_artifact(&checked, "forward").is_err());
+    assert!(
+        terminal_production::TerminalProductionRequest::new(&checked, "forward")
+            .produce_artifact()
+            .is_err()
+    );
 }
 
 #[test]
@@ -322,7 +336,8 @@ fn unused_projected_receiver_keeps_existing_self_erasure() {
             source("Container::forward(&write self)", receiver).replace("self.value = 17;", "");
         let checked = checked_from_source(&source);
         let _artifact =
-            terminal_production::produce_terminal_artifact(&checked, "Container::forward")
+            terminal_production::TerminalProductionRequest::new(&checked, "Container::forward")
+                .produce_artifact()
                 .unwrap_or_else(|error| {
                     panic!("an unused receiver remains erasable: {receiver}: {error:?}")
                 });

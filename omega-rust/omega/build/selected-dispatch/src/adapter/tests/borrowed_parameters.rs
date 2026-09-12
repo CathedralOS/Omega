@@ -16,12 +16,12 @@ const BORROWED_SOURCE: &str = r#"
     machine OtherProvider::emit(value: i32) satisfies Other::emit {}
     machine OtherProvider::echo(value: i32) -> i32 satisfies Other::echo { value }
 
-    machine output(service: &mut Output, value: i32) {
+    machine output(service: &mut Output, value: i32) reaches Output {
         transition { _ -> send(service, value) }
         state send(service: &mut Output, value: i32) { service.emit(value); }
     }
-    machine query(service: &Output) -> i32 { service.echo(35) }
-    machine other(service: &mut Other) { service.emit(2); }
+    machine query(service: &Output) -> i32 reaches Output { service.echo(35) }
+    machine other(service: &mut Other) reaches Other { service.emit(2); }
 "#;
 
 fn borrowed_fixture() -> (CheckedTrees, effects::SelectedProviderPlanFacts) {
@@ -62,66 +62,29 @@ fn send_state(program: &CheckedTrees) -> typed_trees::state::State {
 }
 
 #[test]
-fn borrowed_boundary_parameters_dispatch_and_restore_exact_source() {
+fn borrowed_boundary_parameters_keep_source_and_exact_selection() {
     let (checked, selected) = borrowed_fixture();
     let send = send_state(&checked);
-    let source_statement = checked.statement_table.statements(send.statement_nodes)[0].clone();
-    let (expression, source_expression) = expression_call(&checked, "echo");
-    let other = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "other")
-        .unwrap();
-    let other_span = checked.machine_states(other)[0].statement_nodes;
-    let other_statement = checked.statement_table.statements(other_span)[0].clone();
-    let emit_target = adapter_entry_symbol(&checked, "OutputProvider::emit");
-    let echo_target = adapter_entry_symbol(&checked, "OutputProvider::echo");
+    let typed_trees::statement::StatementNode::Call(call) =
+        &checked.statement_table.statements(send.statement_nodes)[0]
+    else {
+        panic!("source call")
+    };
+    let receiver = call.receiver_symbol;
+    let requirement = call.target_symbol;
+    let target = adapter_entry_symbol(&checked, "OutputProvider::emit");
     let original = Arc::new(checked);
     let mut settled = Arc::clone(&original);
-    let edits =
-        settle_selected_boundary_adapter_dispatch_with_source_edits(&mut settled, &selected)
-            .unwrap();
-    let typed_trees::statement::StatementNode::Call(call) =
-        &settled.statement_table.statements(send.statement_nodes)[0]
-    else {
-        panic!("selected statement call");
-    };
-    assert_eq!(call.target_symbol, emit_target);
-    assert!(call.receiver.is_empty());
-    assert!(!call.receiver_symbol.is_valid());
-    assert_eq!(
+    settle_selected_boundary_adapter_dispatch(&mut settled, &selected).unwrap();
+    assert_eq!(settled.typed, original.typed);
+    assert!(
         settled
-            .statement_table
-            .expression_handles(call.arguments)
-            .len(),
-        1
-    );
-    let ExpressionNode::Call(call) = settled.expression_table.expression(expression) else {
-        panic!("selected value call");
-    };
-    assert_eq!(call.target_symbol, echo_target);
-    assert!(!call.receiver.is_valid());
-    assert_eq!(
-        settled
-            .expression_table
-            .expression_handles(call.arguments)
-            .len(),
-        1
-    );
-    assert_eq!(
-        settled.statement_table.statements(other_span)[0],
-        other_statement,
-        "same parameter and method spellings on another trait do not select Output"
-    );
-    assert_eq!(settled.facts, original.facts);
-    let restored = edits.source_trees(&settled.typed).unwrap();
-    assert_eq!(
-        restored.statement_table.statements(send.statement_nodes)[0],
-        source_statement
-    );
-    assert_eq!(
-        restored.expression_table.expression(expression),
-        &ExpressionNode::Call(source_expression)
+            .facts
+            .boundary_adapter_dispatch
+            .iter()
+            .any(|row| row.receiver == receiver
+                && row.requirement == requirement
+                && row.realization_state == target)
     );
 }
 
@@ -175,8 +138,7 @@ fn borrowed_boundary_dispatch_rejects_symbol_and_method_drift_atomically() {
         let original = Arc::new(checked);
         let mut rejected = Arc::clone(&original);
         assert!(
-            settle_selected_boundary_adapter_dispatch_with_source_edits(&mut rejected, &selected)
-                .is_err(),
+            settle_selected_boundary_adapter_dispatch(&mut rejected, &selected).is_err(),
             "mutation {mutation}"
         );
         assert!(Arc::ptr_eq(&original, &rejected), "mutation {mutation}");

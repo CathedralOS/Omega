@@ -42,7 +42,8 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
 }
 
 fn artifact(source: &str) -> terminal_codec::CanonicalTerminalArtifact {
-    let artifact = terminal_production::produce_terminal_artifact(&checked(source), "observe")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked(source), "observe")
+        .produce_artifact()
         .unwrap_or_else(|error| panic!("{source}: {error:?}"));
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).expect("reload module");
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).expect("reload proof");

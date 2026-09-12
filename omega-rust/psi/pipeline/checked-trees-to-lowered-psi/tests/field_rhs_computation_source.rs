@@ -106,7 +106,8 @@ fn execute(
     expected_stores: u64,
 ) {
     let checked = checked(source);
-    let artifact = terminal_production::produce_terminal_artifact(&checked, "Main::main")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+        .produce_artifact()
         .expect("field RHS computations publish");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
@@ -469,7 +470,8 @@ fn receiver_field_rhs_call_reaches_canonical_terminal() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("type field RHS call");
     let checked =
         typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check field RHS call");
-    let artifact = terminal_production::produce_terminal_artifact(&checked, "Main::main")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+        .produce_artifact()
         .expect("call-bearing field RHS must reach canonical Terminal");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();

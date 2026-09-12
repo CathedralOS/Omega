@@ -15,7 +15,6 @@ mod service_custody;
 mod source_edits;
 
 pub use adapter::settle_selected_boundary_adapter_dispatch;
-pub use adapter::settle_selected_boundary_adapter_dispatch_with_source_edits;
 pub use compiler_intrinsic::{
     derive_selected_compiler_intrinsic_execution_identity_for_row,
     derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding,

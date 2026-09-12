@@ -85,7 +85,9 @@ fn local_unit_borrow_rejects_missing_duplicate_and_changed_call_evidence() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::produce_terminal_artifact(&changed, "observe").is_err(),
+            terminal_production::TerminalProductionRequest::new(&changed, "observe")
+                .produce_artifact()
+                .is_err(),
             "Unit borrow custody mutation {mutation}"
         );
     }
@@ -132,7 +134,11 @@ fn coherent_local_and_borrow_substitution_still_rejects_the_wrong_authored_actua
             .get_mut(handle)
             .root_symbol = spare;
     }
-    assert!(terminal_production::produce_terminal_artifact(&changed, "observe").is_err());
+    assert!(
+        terminal_production::TerminalProductionRequest::new(&changed, "observe")
+            .produce_artifact()
+            .is_err()
+    );
 }
 
 #[test]
@@ -167,7 +173,9 @@ fn local_unit_call_rejects_changed_access_and_missing_ordered_effects() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::produce_terminal_artifact(&changed, "observe").is_err(),
+            terminal_production::TerminalProductionRequest::new(&changed, "observe")
+                .produce_artifact()
+                .is_err(),
             "Unit call/local roster mutation {mutation}"
         );
     }
@@ -230,5 +238,9 @@ fn local_unit_actual_cannot_change_its_retained_owner_kind_to_a_parameter() {
     };
     structural_arguments[0].source =
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 };
-    assert!(terminal_production::produce_terminal_artifact(&changed, "observe").is_err());
+    assert!(
+        terminal_production::TerminalProductionRequest::new(&changed, "observe")
+            .produce_artifact()
+            .is_err()
+    );
 }

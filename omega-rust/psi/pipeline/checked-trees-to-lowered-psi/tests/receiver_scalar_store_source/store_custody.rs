@@ -37,8 +37,10 @@ fn plan_mut(
 
 #[test]
 fn ordered_store_source_custody_rejects_omission_reordering_and_substitution() {
-    let _artifact = terminal_production::produce_terminal_artifact(&checked(), "Pair::ordered")
-        .expect("unmodified authored store sequence publishes");
+    let _artifact =
+        terminal_production::TerminalProductionRequest::new(&checked(), "Pair::ordered")
+            .produce_artifact()
+            .expect("unmodified authored store sequence publishes");
     for mutation in 0..11 {
         let mut checked = checked();
         let plan = plan_mut(&mut checked);
@@ -130,7 +132,9 @@ fn ordered_store_source_custody_rejects_omission_reordering_and_substitution() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::produce_terminal_artifact(&checked, "Pair::ordered").is_err(),
+            terminal_production::TerminalProductionRequest::new(&checked, "Pair::ordered")
+                .produce_artifact()
+                .is_err(),
             "store custody mutation {mutation} must reject"
         );
     }
@@ -141,7 +145,8 @@ fn unrelated_scalar_local_cannot_hide_an_omitted_call_between_stores() {
     let source = ORDERED_SOURCE.replace("self.left = 1;", "let unrelated: u16 = 7; self.left = 1;");
     let mut checked =
         typed_trees_to_checked_trees::lower_typed_trees(typed_from_source(&source)).unwrap();
-    let _artifact = terminal_production::produce_terminal_artifact(&checked, "Pair::ordered")
+    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "Pair::ordered")
+        .produce_artifact()
         .expect("authored local and ordered stores publish together");
     let plan = plan_mut(&mut checked);
     let position = plan
@@ -150,5 +155,9 @@ fn unrelated_scalar_local_cannot_hide_an_omitted_call_between_stores() {
         .position(|operation| matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. }))
         .unwrap();
     plan.operations.remove(position);
-    assert!(terminal_production::produce_terminal_artifact(&checked, "Pair::ordered").is_err());
+    assert!(
+        terminal_production::TerminalProductionRequest::new(&checked, "Pair::ordered")
+            .produce_artifact()
+            .is_err()
+    );
 }

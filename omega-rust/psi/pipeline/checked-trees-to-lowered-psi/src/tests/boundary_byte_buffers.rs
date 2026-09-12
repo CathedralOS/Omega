@@ -22,7 +22,9 @@ const INPUT_SOURCE: &str = r#"
 
 fn start(source: &str) -> (terminal_psi::TerminalModule, TerminalExecution) {
     let checked = checked_source(source);
-    let artifact = produce_terminal_artifact(&checked, "Record::run").unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Record::run")
+        .produce_artifact()
+        .unwrap();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
         .machines

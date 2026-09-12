@@ -55,7 +55,7 @@ fn produce_candidate(
         .unwrap_or_else(|error| panic!("type scalar cycle: {error:?}\n{source}"));
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .unwrap_or_else(|error| panic!("check scalar cycle: {error:#?}\n{source}"));
-    terminal_production::produce_terminal_artifact(&checked, entry)
+    terminal_production::TerminalProductionRequest::new(&checked, entry).produce_artifact()
 }
 
 fn produce(source: &str, ranked: bool) -> CanonicalTerminalArtifact {
