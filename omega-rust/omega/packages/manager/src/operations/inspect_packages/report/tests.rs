@@ -20,6 +20,65 @@ const TARGET: TargetProfile = TargetProfile::WindowsX64;
 const MAXIMUM_BYTES: usize = 8 * 1024 * 1024;
 static SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
+#[test]
+fn legacy_snapshot_recovers_as_compact_consent_without_changing_pins_or_choices() {
+    use crate::lock::{PackageLock, PackageLockRecoveryLimits};
+    let project = Project::new();
+    project.package(
+        "root",
+        "inspection",
+        "",
+        "pub const VALUE: u64 = 7;\nboundary machine trusted_zero() -> u64 ensures result == 0;\n",
+    );
+    let (source, reviews, _) = project.candidate("legacy", None);
+    let expected = lock(&source, &reviews);
+    let source_text = source
+        .canonical_text(CanonicalSourceClosureSubjectLimits::default())
+        .unwrap();
+    let decisions = expected
+        .decisions()
+        .canonical_text(&source, HistoricalPackagePolicyLimits::default())
+        .unwrap();
+    let mut legacy = format!(
+        "omega_lock 1\ntargets 1\ntarget {}\nsource {}\n{}baselines {}\n",
+        TARGET.identity().as_str(),
+        source_text.len(),
+        source_text,
+        source.packages().len()
+    );
+    for package in source.packages() {
+        let text = reviews
+            .review(package.key())
+            .unwrap()
+            .policy()
+            .canonical_text()
+            .unwrap();
+        write!(&mut legacy, "baseline {}\n{}", text.len(), text).unwrap();
+    }
+    write!(
+        &mut legacy,
+        "decisions {}\n{}end_target\nend\n",
+        decisions.len(),
+        decisions
+    )
+    .unwrap();
+    let recovered =
+        PackageLock::recover_text(&legacy, PackageLockRecoveryLimits::default()).unwrap();
+    assert_eq!(recovered.target(TARGET), Some(&expected));
+    let compact = recovered.canonical_text().unwrap();
+    assert!(compact.starts_with("omega_lock 2\n"));
+    assert!(!compact.contains("field public_api {"));
+    assert!(compact.contains("trusted_zero"));
+    assert!(compact.contains(&source_text));
+    assert!(compact.contains(&decisions));
+    assert_eq!(
+        recovered,
+        PackageLock::recover_text(&compact, PackageLockRecoveryLimits::default()).unwrap()
+    );
+    let (_, _, changes) = project.candidate("fresh", recovered.target(TARGET));
+    assert!(!changes.requires_decision());
+}
+
 fn render(
     target: TargetProfile,
     accepted: Option<&PackageLockTarget>,

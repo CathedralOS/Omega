@@ -47,6 +47,7 @@ fn pinned_ssh_graph_install_reviews_transitive_authority_and_audits_pins() {
     );
     let lock = fixture.lock();
     let target = lock.target(TARGET).unwrap();
+    let fresh = fixture.fresh_reviews(TARGET);
     let policy = |name: &str| {
         let package = target
             .source()
@@ -54,11 +55,7 @@ fn pinned_ssh_graph_install_reviews_transitive_authority_and_audits_pins() {
             .iter()
             .find(|package| package.key().name().as_str() == name)
             .unwrap();
-        target
-            .baselines()
-            .iter()
-            .find(|baseline| baseline.package() == package.key().identity())
-            .unwrap()
+        fresh.review(package.key()).unwrap().policy()
     };
     let host = policy("host-services");
     let filesystem = host
@@ -126,17 +123,14 @@ fn pinned_ssh_initial_boundary_claim_requires_decisions_and_remains_in_audit() {
     assert_locked_graph(&fixture, &[("cli-project", "axiom-ledger", AXIOM)]);
     let lock = fixture.lock();
     let target = lock.target(TARGET).unwrap();
+    let fresh = fixture.fresh_reviews(TARGET);
     let package = target
         .source()
         .packages()
         .iter()
         .find(|package| package.key().name().as_str() == "axiom-ledger")
         .unwrap();
-    let policy = target
-        .baselines()
-        .iter()
-        .find(|baseline| baseline.package() == package.key().identity())
-        .unwrap();
+    let policy = fresh.review(package.key()).unwrap().policy();
     let [proposition] = policy.public_propositions() else {
         panic!("axiom-ledger must retain its public is_zero proposition")
     };
@@ -147,8 +141,8 @@ fn pinned_ssh_initial_boundary_claim_requires_decisions_and_remains_in_audit() {
         .iter()
         .find(|callable| callable.identity().path().contains("trusted_zero"))
         .unwrap();
-    // The fixture's boundary claim is private. The lock retains it as an
-    // assumption even though it is not an exported boundary API.
+    // Fresh checking classifies the private claim; retained consent keeps its
+    // exact claim meaning without storing the public proposition declaration.
     assert_eq!(format!("{:?}", callable.role()), "PrivateAssumption");
     assert_eq!(callable.identity().owner(), proposition.identity().owner());
     assert_eq!(format!("{:?}", callable.supply()), "AdmissionClaim");
@@ -182,19 +176,19 @@ fn pinned_ssh_initial_boundary_claim_requires_decisions_and_remains_in_audit() {
 
 #[test]
 #[ignore = "requires network and private CathedralOS opaque-carrier access over SSH"]
-fn pinned_ssh_claim_free_opaque_representation_installs_with_audit_advice() {
+fn pinned_ssh_claim_free_opaque_representation_stays_in_fresh_audit_without_consent() {
     let fixture = Fixture::new();
     let output = install(&fixture, "opaque-carrier", OPAQUE, 0);
     let stdout = text(&output);
     assert!(
-        stdout.contains("Audit recommended: opaque-carrier"),
+        stdout.contains("Published build.omg and omega.lock"),
         "{stdout}"
     );
     let paths = fixture.review_paths(&output);
     assert_eq!(paths.len(), 1);
     let document = fs::read_to_string(&paths[0]).unwrap();
     let section = package_section(&document, "opaque-carrier");
-    assert!(section.contains("audit-recommended true"), "{section}");
+    assert!(!section.contains("change "), "{section}");
     assert!(
         !document.lines().any(|line| line.starts_with("decision ")),
         "{document}"
@@ -203,6 +197,7 @@ fn pinned_ssh_claim_free_opaque_representation_installs_with_audit_advice() {
     assert_locked_graph(&fixture, &[("cli-project", "opaque-carrier", OPAQUE)]);
     let lock = fixture.lock();
     let target = lock.target(TARGET).unwrap();
+    let fresh = fixture.fresh_reviews(TARGET);
     assert!(target.decisions().decisions().is_empty());
     let package = target
         .source()
@@ -210,11 +205,7 @@ fn pinned_ssh_claim_free_opaque_representation_installs_with_audit_advice() {
         .iter()
         .find(|package| package.key().name().as_str() == "opaque-carrier")
         .unwrap();
-    let policy = target
-        .baselines()
-        .iter()
-        .find(|baseline| baseline.package() == package.key().identity())
-        .unwrap();
+    let policy = fresh.review(package.key()).unwrap().policy();
     let [opaque] = policy.public_data() else {
         panic!("opaque-carrier must retain exactly PlatformToken")
     };

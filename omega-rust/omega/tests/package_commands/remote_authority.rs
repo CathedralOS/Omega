@@ -397,16 +397,21 @@ fn assert_locked_authority(fixture: &Fixture, name: &str, pin: &str, service: &s
         assert_eq!(actual_repository, &repository);
         assert_eq!(actual_revision, revision);
     }
-    let consumer_policy = target
+    let fresh = fixture.fresh_reviews(TARGET);
+    let consumer_policy = fresh.review(consumer.key()).unwrap().policy();
+    let host_policy = fresh.review(host.key()).unwrap().policy();
+    let consent = target
         .baselines()
         .iter()
-        .find(|baseline| baseline.package() == consumer.key().identity())
+        .find(|policy| policy.package() == consumer.key().identity())
         .unwrap();
-    let host_policy = target
-        .baselines()
-        .iter()
-        .find(|baseline| baseline.package() == host.key().identity())
-        .unwrap();
+    assert!(
+        consent
+            .rows()
+            .iter()
+            .any(|row| row.kind().as_str() == "dangerous_capability"
+                && row.canonical_text().contains(service))
+    );
     let host_declaration = host_policy
         .public_traits()
         .iter()

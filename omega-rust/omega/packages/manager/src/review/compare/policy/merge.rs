@@ -58,9 +58,8 @@ pub(super) fn rows(
                 .as_ref()
                 .is_some_and(PackageAcceptanceRow::initial_requires_decision)
         };
-        // Introduction is a change from absence. Representation choices need
-        // that audit recommendation even without a previous package contract;
-        // unchanged presence is a separate, narrower audit classification.
+        // Changed retained consent warrants audit; fresh non-consent findings
+        // are accounted for separately by the package comparison.
         let audit_recommended = previous
             .as_ref()
             .is_some_and(PackageAcceptanceRow::audit_recommended_on_change)

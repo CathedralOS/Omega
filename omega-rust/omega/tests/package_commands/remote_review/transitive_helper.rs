@@ -12,7 +12,7 @@ const ENTRY: &str = "machine main() -> u64 { run_graph_probe() }";
 
 #[test]
 #[ignore = "requires network and private CathedralOS graph-workbench/capability-vault access over SSH"]
-fn pinned_ssh_transitive_private_helper_change_requires_review_with_fixed_public_ceiling() {
+fn pinned_ssh_transitive_private_helper_change_updates_fresh_audit_without_consent() {
     let fixture = Fixture::new();
     fixture.write(
         "root/main.omg",
@@ -34,11 +34,8 @@ fn pinned_ssh_transitive_private_helper_change_requires_review_with_fixed_public
         .iter()
         .find(|package| package.key().name().as_str() == "capability-vault")
         .unwrap();
-    let old_policy = old_target
-        .baselines()
-        .iter()
-        .find(|policy| policy.package() == leaf.key().identity())
-        .unwrap();
+    let original_reviews = fixture.fresh_reviews(TARGET);
+    let old_policy = original_reviews.review(leaf.key()).unwrap().policy();
     let public = old_policy
         .callables()
         .callables()
@@ -96,8 +93,12 @@ fn pinned_ssh_transitive_private_helper_change_requires_review_with_fixed_public
 
     let before = fixture.accepted_files();
     let output = fixture.omega(&["update", "graph_workbench", "--to", GRAPH_AFTER]);
-    assert_status(&output, 3);
-    assert_eq!(fixture.accepted_files(), before);
+    assert_status(&output, 0);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Audit recommended: capability-vault"),
+        "{stdout}"
+    );
     let paths = fixture.review_paths(&output);
     let [path] = paths.as_slice() else {
         panic!("one reviewed target");
@@ -105,53 +106,7 @@ fn pinned_ssh_transitive_private_helper_change_requires_review_with_fixed_public
     let document = fs::read_to_string(path).unwrap();
     let section = package_section(&document, "capability-vault");
     assert!(section.contains("source-changed true\n"), "{section}");
-    let rows = section.split("\nchange ").skip(1).collect::<Vec<_>>();
-    let [row] = rows.as_slice() else {
-        panic!("only the leaf callable's checked policy changes: {section}");
-    };
-    assert!(row.starts_with("callable changed\n"), "{row}");
-    assert!(row.contains("Vault::open_and_keep"), "{row}");
-    let decision = row
-        .lines()
-        .find(|line| line.starts_with("decision row ") && line.ends_with(" pending"))
-        .unwrap();
-    let paths = section
-        .lines()
-        .filter(|line| line.starts_with("- path ") || line.starts_with("+ path "))
-        .collect::<Vec<_>>();
-    assert_eq!(paths.len(), 2);
-    assert_eq!(
-        &paths[0][2..],
-        &paths[1][2..],
-        "before/after dependency identities must stay fixed"
-    );
-    assert!(paths[0].contains(" -> \"graph_workbench\" "));
-    assert!(paths[0].contains(" -> \"capability_vault\" "));
-    assert_eq!(
-        document
-            .lines()
-            .filter(|line| line.starts_with("decision "))
-            .count(),
-        1
-    );
-    for choice in ["pending", "reject"] {
-        fs::write(
-            path,
-            document.replace(
-                decision,
-                &decision.replace(" pending", &format!(" {choice}")),
-            ),
-        )
-        .unwrap();
-        assert_status(&fixture.omega(&["update", "--resume"]), 3);
-        assert_eq!(fixture.accepted_files(), before);
-    }
-    fs::write(
-        path,
-        document.replace(decision, &decision.replace(" pending", " accept")),
-    )
-    .unwrap();
-    assert_status(&fixture.omega(&["update", "--resume"]), 0);
+    assert!(!document.lines().any(|line| line.starts_with("decision ")));
     assert_ne!(fixture.accepted_files().0, before.0);
     assert_ne!(fixture.accepted_files().1, before.1);
     assert_no_proposal(&fixture);
@@ -164,11 +119,9 @@ fn pinned_ssh_transitive_private_helper_change_requires_review_with_fixed_public
     );
     let updated = fixture.lock();
     let target = updated.target(TARGET).unwrap();
-    let policy = target
-        .baselines()
-        .iter()
-        .find(|policy| policy.package() == leaf.key().identity())
-        .unwrap();
+    let fresh = fixture.fresh_reviews(TARGET);
+    let policy = fresh.review(leaf.key()).unwrap().policy();
+    assert_eq!(target.baselines(), old_target.baselines());
     let callable = policy
         .callables()
         .callables()

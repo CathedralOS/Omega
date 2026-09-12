@@ -107,7 +107,7 @@ fn accepted_targets_are_inspected_without_repeating_equal_policy() {
 }
 
 #[test]
-fn current_root_policy_changes_are_reported_without_updating_the_lock() {
+fn current_root_api_changes_are_reported_without_new_consent_or_lock_updates() {
     let fixture = Fixture::new();
     install(&fixture);
     fixture.write(
@@ -116,10 +116,31 @@ fn current_root_policy_changes_are_reported_without_updating_the_lock() {
     );
     let before = fixture.accepted_files();
     let output = fixture.omega(&["audit", "packages", "--details"]);
-    assert_status(&output, 3);
+    assert_status(&output, 0);
     let report = text(&output);
     assert!(report.contains("fresh-analysis complete"), "{report}");
     assert!(report.contains("CHANGED"), "{report}");
+    assert!(report.contains("requires-review false"), "{report}");
+    assert!(report.contains("source-changed true"), "{report}");
+    assert!(report.contains("audit-recommended true"), "{report}");
+    let fresh = fixture.fresh_reviews(target::TargetProfile::LinuxX64);
+    let root = fresh
+        .reviews()
+        .iter()
+        .find(|review| review.key().name().as_str() == "cli-project")
+        .unwrap();
+    assert!(
+        root.policy()
+            .public_consts()
+            .iter()
+            .any(|constant| constant.identity().path() == "CHANGED")
+    );
+    assert!(
+        fixture.lock().targets()[0]
+            .baselines()
+            .iter()
+            .all(|acceptance| acceptance.rows().is_empty())
+    );
     assert_eq!(fixture.accepted_files(), before);
 }
 
@@ -146,7 +167,7 @@ fn default_summary_is_readable_and_details_keep_full_policy() {
 }
 
 #[test]
-fn changed_or_missing_dependency_keeps_accepted_policy_without_fresh_findings() {
+fn changed_or_missing_dependency_keeps_consent_without_historical_api_findings() {
     let fixture = Fixture::new();
     install(&fixture);
     let before = fixture.accepted_files();
@@ -165,7 +186,8 @@ fn changed_or_missing_dependency_keeps_accepted_policy_without_fresh_findings() 
         assert!(report.contains("fresh-analysis unavailable"), "{report}");
         assert!(!report.contains("fresh-analysis complete"), "{report}");
         assert!(report.contains("arithmetic-kernels"), "{report}");
-        assert!(report.contains("value"), "{report}");
+        assert!(report.contains("no historical API snapshot"), "{report}");
+        assert!(!report.contains("fresh-policy"), "{report}");
         assert_eq!(fixture.accepted_files(), before);
     }
 }
