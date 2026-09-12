@@ -14,9 +14,8 @@ use package_evidence::record::{
     PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner,
 };
 use package_manager::admission::{
-    accept_ordinary_closure_evidence, accepted_terminal_authority_permission_policy,
-    realize_accepted_reviewed_package_candidate_with_source_evaluated_imports_and_policy,
-    realize_accepted_terminal_artifact_with_source_evaluated_imports_and_policy,
+    AcceptedNativeInput, AcceptedNativeRealizationRequest, accept_ordinary_closure_evidence,
+    accepted_terminal_authority_permission_policy, realize_accepted_native_report,
 };
 use package_manager::declarations::{PackageKey, PackageName};
 use package_manager::resolution::graph::{
@@ -72,6 +71,123 @@ fn write_file(path: impl AsRef<Path>, source: &str) {
     fs::write(path, source).expect("write semantic-binding fixture source");
 }
 
+fn assert_accepted_native_report_custody(
+    candidate: package_manager::review::ReviewedPackageProductionCandidate,
+    evidence: &package_manager::admission::AcceptedOrdinaryClosureEvidence,
+    checked: &compiler::CheckedCompilation,
+    accepted_permission_policy: native_realization::TerminalAuthorityPermissionPolicy,
+    compile_terminal_report: impl FnOnce() -> compiler::CompileReport,
+) {
+    let receiving_policy_identity = accepted_permission_policy.identity();
+    let rollback =
+        compiler::OptimizationRollback::new([optimization_core::Optimization::ControlFlowCleanup])
+            .expect("one exact subtractive rollback request");
+    assert!(checked.optimization_selections().is_empty());
+    let expected_rollback = rollback.reconcile(checked.optimization_selections());
+    let native_report = realize_accepted_native_report(
+        AcceptedNativeInput::Reviewed {
+            candidate: Box::new(candidate),
+            optimization_rollback: &rollback,
+        },
+        AcceptedNativeRealizationRequest {
+            evidence,
+            profile: &proof_admission::AdmissionProfile::default(),
+            terminal_authority_policy: native_realization::current_terminal_authority_policy(),
+            receiving_terminal_authority_permission_policy: accepted_permission_policy.clone(),
+            imports: &[],
+        },
+    )
+    .expect("manager joins accepted evidence to the exact retained Terminal report");
+    assert_eq!(
+        native_report.optimization_rollback_receipt(),
+        expected_rollback.as_ref()
+    );
+    assert_eq!(
+        native_report.output_kind(),
+        compiler::CompileOutputKind::RetainedNativeArtifact
+    );
+    assert!(!native_report.wrote_output());
+    let native_manifest = native_report
+        .production_manifest()
+        .expect("native report keeps package custody")
+        .clone();
+    assert!(
+        native_manifest.matches_native_artifact(
+            native_report
+                .retained_native_artifact()
+                .expect("native report owns artifact")
+        )
+    );
+    let native = native_report
+        .into_retained_native_artifact()
+        .expect("artifact-only consumer extracts native custody");
+    native
+        .validate()
+        .expect("manager-realized native artifact remains internally valid");
+    assert_eq!(
+        native.terminal_authority_permission_policy_identity(),
+        receiving_policy_identity,
+    );
+
+    let unused_admission = compiler::TrustAdmission::for_provider_plan(
+        "unused admission retained by report conversion".to_owned(),
+        0x0074_7275_7374,
+        effects::provider_plan::ProviderPlanDigest::from_digest([0x74; 32]),
+    )
+    .expect("distinct unused admission");
+    let expected_trust = compiler::admit_checked_compilation(checked, &[unused_admission])
+        .expect("settle exact checked trust with an unused owner admission")
+        .into_settlement();
+    assert_eq!(expected_trust.unused().len(), 1);
+    let terminal_report =
+        compile_terminal_report().with_trust_admission_settlement(expected_trust.clone());
+    let expected_subject = terminal_report
+        .production_manifest()
+        .expect("Terminal package subject")
+        .subject()
+        .clone();
+    let terminal_native_report = realize_accepted_native_report(
+        AcceptedNativeInput::Terminal {
+            report: terminal_report,
+            optimization_selections:
+                &optimization_core::PostTerminalOptimizationSelections::default(),
+        },
+        AcceptedNativeRealizationRequest {
+            evidence,
+            profile: &proof_admission::AdmissionProfile::default(),
+            terminal_authority_policy: native_realization::current_terminal_authority_policy(),
+            receiving_terminal_authority_permission_policy: accepted_permission_policy.clone(),
+            imports: &[],
+        },
+    )
+    .expect("retained Terminal input shares accepted native report production");
+    assert_eq!(
+        terminal_native_report.trust_admission_settlement(),
+        &expected_trust
+    );
+    assert_eq!(
+        terminal_native_report
+            .production_manifest()
+            .expect("native manifest")
+            .subject(),
+        &expected_subject
+    );
+    assert!(
+        terminal_native_report
+            .optimization_rollback_receipt()
+            .is_none()
+    );
+    let terminal_native = terminal_native_report
+        .into_retained_native_artifact()
+        .expect("extract native artifact from report");
+    assert_eq!(
+        terminal_native.identity(),
+        native.identity(),
+        "reviewed and Terminal input retain identical native custody"
+    );
+    assert!(native_manifest.matches_native_artifact(&terminal_native));
+}
+
 #[test]
 fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
     let temporary = TemporaryTree::new();
@@ -121,7 +237,9 @@ machine build(builder: &mut Build) {
 use omega::language::core::service;
 
 data Main { console: Service<Console> in Bound; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self)
+reaches Console
+{
     self.console.exit_process(70);
 }
 
@@ -437,17 +555,21 @@ invokes console;
         reused_permissions.identity(),
         accepted_permission_policy.identity()
     );
-    let denied =
-        realize_accepted_reviewed_package_candidate_with_source_evaluated_imports_and_policy(
-            source_only_candidate,
-            &reused,
-            &proof_admission::AdmissionProfile::default(),
-            &optimization_core::PostTerminalOptimizationSelections::default(),
-            native_realization::current_terminal_authority_policy(),
-            native_realization::current_terminal_authority_permission_policy(),
-            &[],
-        )
-        .expect_err("reused project acceptance cannot override receiving-policy denial");
+    let denied = realize_accepted_native_report(
+        AcceptedNativeInput::Reviewed {
+            candidate: Box::new(source_only_candidate),
+            optimization_rollback: &compiler::OptimizationRollback::default(),
+        },
+        AcceptedNativeRealizationRequest {
+            evidence: &reused,
+            profile: &proof_admission::AdmissionProfile::default(),
+            terminal_authority_policy: native_realization::current_terminal_authority_policy(),
+            receiving_terminal_authority_permission_policy:
+                native_realization::current_terminal_authority_permission_policy(),
+            imports: &[],
+        },
+    )
+    .expect_err("reused project acceptance cannot override receiving-policy denial");
     assert!(denied.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -496,24 +618,17 @@ invokes console;
     })
     .expect("accepted package application checks for subject mutation coverage");
 
-    let receiving_policy_identity = accepted_permission_policy.identity();
-    let native =
-        realize_accepted_reviewed_package_candidate_with_source_evaluated_imports_and_policy(
-            production_candidate,
-            &evidence,
-            &proof_admission::AdmissionProfile::default(),
-            &optimization_core::PostTerminalOptimizationSelections::default(),
-            native_realization::current_terminal_authority_policy(),
-            accepted_permission_policy.clone(),
-            &[],
-        )
-        .expect("manager joins accepted evidence to the exact retained Terminal report");
-    native
-        .validate()
-        .expect("manager-realized native artifact remains internally valid");
-    assert_eq!(
-        native.terminal_authority_permission_policy_identity(),
-        receiving_policy_identity,
+    assert_accepted_native_report_custody(
+        production_candidate,
+        &evidence,
+        &exact_checked,
+        accepted_permission_policy.clone(),
+        || {
+            compile_terminal_report(
+                "retained-native-report-equivalence",
+                root_evidence.semantic_bindings().to_vec(),
+            )
+        },
     );
 
     let observation_probe = temporary.package("observation-probe");
@@ -578,17 +693,21 @@ invokes console;
         Some(substituted_observation_subject),
     )
     .expect("observation substitution remains structurally valid report custody");
-    let observation_diagnostics =
-        realize_accepted_terminal_artifact_with_source_evaluated_imports_and_policy(
-            observation_substituted_report,
-            &evidence,
-            &proof_admission::AdmissionProfile::default(),
-            &optimization_core::PostTerminalOptimizationSelections::default(),
-            native_realization::current_terminal_authority_policy(),
-            accepted_permission_policy.clone(),
-            &[],
-        )
-        .expect_err("accepted evidence must reject a substituted build observation");
+    let observation_diagnostics = realize_accepted_native_report(
+        AcceptedNativeInput::Terminal {
+            report: observation_substituted_report,
+            optimization_selections:
+                &optimization_core::PostTerminalOptimizationSelections::default(),
+        },
+        AcceptedNativeRealizationRequest {
+            evidence: &evidence,
+            profile: &proof_admission::AdmissionProfile::default(),
+            terminal_authority_policy: native_realization::current_terminal_authority_policy(),
+            receiving_terminal_authority_permission_policy: accepted_permission_policy.clone(),
+            imports: &[],
+        },
+    )
+    .expect_err("accepted evidence must reject a substituted build observation");
     assert!(observation_diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -691,17 +810,21 @@ invokes console;
         Some(substituted_source_subject),
     )
     .expect("source substitution remains structurally valid report custody");
-    let source_diagnostics =
-        realize_accepted_terminal_artifact_with_source_evaluated_imports_and_policy(
-            source_substituted_report,
-            &evidence,
-            &proof_admission::AdmissionProfile::default(),
-            &optimization_core::PostTerminalOptimizationSelections::default(),
-            native_realization::current_terminal_authority_policy(),
-            accepted_permission_policy.clone(),
-            &[],
-        )
-        .expect_err("accepted evidence must reject substituted source consumption");
+    let source_diagnostics = realize_accepted_native_report(
+        AcceptedNativeInput::Terminal {
+            report: source_substituted_report,
+            optimization_selections:
+                &optimization_core::PostTerminalOptimizationSelections::default(),
+        },
+        AcceptedNativeRealizationRequest {
+            evidence: &evidence,
+            profile: &proof_admission::AdmissionProfile::default(),
+            terminal_authority_policy: native_realization::current_terminal_authority_policy(),
+            receiving_terminal_authority_permission_policy: accepted_permission_policy.clone(),
+            imports: &[],
+        },
+    )
+    .expect_err("accepted evidence must reject substituted source consumption");
     assert!(source_diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -739,17 +862,21 @@ invokes console;
             ),
         ])
         .expect("construct coordinated widened receiving permission policy");
-    let proposal_diagnostics =
-        realize_accepted_terminal_artifact_with_source_evaluated_imports_and_policy(
-            widened_report,
-            &evidence,
-            &proof_admission::AdmissionProfile::default(),
-            &optimization_core::PostTerminalOptimizationSelections::default(),
-            native_realization::current_terminal_authority_policy(),
-            widened_receiving_policy,
-            &[],
-        )
-        .expect_err("coordinated retained proposal and receiving-policy widening must reject");
+    let proposal_diagnostics = realize_accepted_native_report(
+        AcceptedNativeInput::Terminal {
+            report: widened_report,
+            optimization_selections:
+                &optimization_core::PostTerminalOptimizationSelections::default(),
+        },
+        AcceptedNativeRealizationRequest {
+            evidence: &evidence,
+            profile: &proof_admission::AdmissionProfile::default(),
+            terminal_authority_policy: native_realization::current_terminal_authority_policy(),
+            receiving_terminal_authority_permission_policy: widened_receiving_policy,
+            imports: &[],
+        },
+    )
+    .expect_err("coordinated retained proposal and receiving-policy widening must reject");
     assert!(proposal_diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message

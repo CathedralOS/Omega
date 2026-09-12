@@ -61,117 +61,96 @@ pub fn accepted_terminal_authority_permission_policy(
         .map_err(AcceptedTerminalAuthorityPermissionPolicyError::InvalidPolicy)
 }
 
-/// Consume one package-aware retained Terminal report only after joining it to
-/// the exact package/source subject that produced fresh accepted evidence.
+/// The retained boundary available for an accepted package's native production.
 ///
-/// The accepted permission set is projected here, where callers cannot
-/// substitute a freely constructed policy for package admission. The
-/// receiving policy remains a separate deployment input and may contain
-/// unrelated rows. This entrypoint deliberately requires the complete
-/// compiler report: extracting the retained artifact first would discard the
-/// production manifest that binds it to the accepted source closure.
-pub fn realize_accepted_terminal_artifact_with_source_evaluated_imports_and_policy(
-    report: compiler::CompileReport,
-    evidence: &AcceptedOrdinaryClosureEvidence,
-    profile: &proof_admission::AdmissionProfile,
-    optimization_selections: &optimization_core::PostTerminalOptimizationSelections,
-    terminal_authority_policy: TerminalAuthorityPolicy,
-    receiving_terminal_authority_permission_policy: TerminalAuthorityPermissionPolicy,
-    imports: &[compiler::SourceEvaluatedImportSettlement<'_>],
-) -> Result<compiler::RetainedNativeArtifact, Vec<Diagnostic>> {
-    validate_accepted_terminal_production_subject(&report, evidence)?;
-    let accepted_permission_policy = accepted_terminal_authority_permission_policy(evidence)
-        .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
-    let retained = report.into_retained_terminal_artifact().ok_or_else(|| {
-        diagnostics("accepted Terminal realization requires one retained Terminal artifact")
-    })?;
-    let subsystem = retained
-        .native_realization_proposal()
-        .ok_or_else(|| {
-            diagnostics("retained Terminal product: source-evaluated import realization requires one native proposal")
-        })?
-        .subsystem();
-    let artifact = compiler::realize_retained_native_artifact(
-        retained,
-        compiler::RetainedNativeRealizationRequest {
-            profile,
-            optimization_selections,
-            terminal_authority_policy,
-            accepted_package_terminal_authority_permission_policy: accepted_permission_policy,
-            terminal_authority_permission_policy: receiving_terminal_authority_permission_policy,
-            image_request: native_realization::ExecutableImageEmissionRequest::direct(subsystem),
-            imports,
-        },
-    )
-    .map_err(|(_, diagnostics)| diagnostics)?;
-    match artifact {
-        native_realization::RequestedNativeArtifact::Direct(artifact) => Ok(artifact),
-        native_realization::RequestedNativeArtifact::DynamicElf(_) => Err(diagnostics(
-            "accepted Terminal realization requires direct image custody",
-        )),
-    }
+/// A Terminal report already fixes its exact post-Terminal selection. A reviewed
+/// candidate instead retains the authored build selections against which a
+/// subtractive release rollback must be settled before consuming checked custody.
+pub enum AcceptedNativeInput<'input> {
+    Terminal {
+        report: compiler::CompileReport,
+        optimization_selections: &'input optimization_core::PostTerminalOptimizationSelections,
+    },
+    Reviewed {
+        // Keep the large reviewed owner from inflating every Terminal request's
+        // stack footprint while preserving its consumed custody boundary.
+        candidate: Box<crate::review::ReviewedPackageProductionCandidate>,
+        optimization_rollback: &'input compiler::OptimizationRollback,
+    },
 }
 
-/// Consume the exact checked root retained by final package review and realize
-/// it only after joining its Terminal production subject to accepted evidence.
+/// Explicit admission evidence and receiving inputs for accepted native production.
+/// Freely constructed receiving policies never substitute for package acceptance.
+pub struct AcceptedNativeRealizationRequest<'request> {
+    pub evidence: &'request AcceptedOrdinaryClosureEvidence,
+    pub profile: &'request proof_admission::AdmissionProfile,
+    pub terminal_authority_policy: TerminalAuthorityPolicy,
+    pub receiving_terminal_authority_permission_policy: TerminalAuthorityPermissionPolicy,
+    pub imports: &'request [compiler::SourceEvaluatedImportSettlement<'request>],
+}
+
+/// Consume accepted package custody into one unpublished retained-native report.
 ///
-/// This route never reloads package source, reruns `build.omg`, or reopens
-/// dependency discovery. The review set stays owned for the duration of the
-/// handoff and the resulting native artifact remains unpublished.
-pub fn realize_accepted_reviewed_package_candidate_with_source_evaluated_imports_and_policy(
-    candidate: crate::review::ReviewedPackageProductionCandidate,
-    evidence: &AcceptedOrdinaryClosureEvidence,
-    profile: &proof_admission::AdmissionProfile,
-    optimization_selections: &optimization_core::PostTerminalOptimizationSelections,
-    terminal_authority_policy: TerminalAuthorityPolicy,
-    receiving_terminal_authority_permission_policy: TerminalAuthorityPermissionPolicy,
-    imports: &[compiler::SourceEvaluatedImportSettlement<'_>],
-) -> Result<compiler::RetainedNativeArtifact, Vec<Diagnostic>> {
-    let (_reviews, root_path, checked_root) = candidate.into_production_parts();
-    let report = compiler::retained_terminal_report_from_checked_package(
-        root_path,
-        checked_root,
-        profile.clone(),
-    )?;
-    realize_accepted_terminal_artifact_with_source_evaluated_imports_and_policy(
-        report,
+/// Both input forms join the complete Terminal production subject to fresh
+/// accepted evidence before extracting its artifact or projecting permissions.
+/// Reviewed input consumes the exact checked root without rerunning its build or
+/// source discovery. The resulting native manifest retains the same production
+/// subject and applicable rollback receipt. Terminal input also retains its
+/// existing trust settlement; reviewed input leaves that outcome to its caller.
+/// Artifact-only consumers explicitly extract their custody from this report.
+pub fn realize_accepted_native_report(
+    input: AcceptedNativeInput<'_>,
+    request: AcceptedNativeRealizationRequest<'_>,
+) -> Result<compiler::CompileReport, Vec<Diagnostic>> {
+    let AcceptedNativeRealizationRequest {
         evidence,
         profile,
-        optimization_selections,
         terminal_authority_policy,
         receiving_terminal_authority_permission_policy,
         imports,
-    )
-}
-
-/// Consume a reviewed package candidate into a complete retained-native
-/// compiler report suitable for the ordinary publication boundary.
-///
-/// The optimization overlay is settled against the build-selected set before
-/// checked custody is consumed. The resulting report replaces the Terminal
-/// manifest with an exact native manifest for the same production subject.
-#[allow(clippy::too_many_arguments)]
-pub fn realize_accepted_reviewed_package_candidate_report_with_source_evaluated_imports_and_policy(
-    candidate: crate::review::ReviewedPackageProductionCandidate,
-    evidence: &AcceptedOrdinaryClosureEvidence,
-    profile: &proof_admission::AdmissionProfile,
-    optimization_rollback: &compiler::OptimizationRollback,
-    terminal_authority_policy: TerminalAuthorityPolicy,
-    receiving_terminal_authority_permission_policy: TerminalAuthorityPermissionPolicy,
-    imports: &[compiler::SourceEvaluatedImportSettlement<'_>],
-) -> Result<compiler::CompileReport, Vec<Diagnostic>> {
-    let build_selected = candidate.checked_root().optimization_selections().clone();
-    let rollback_receipt = optimization_rollback.reconcile(&build_selected);
-    let effective_optimizations = rollback_receipt
-        .as_ref()
-        .map_or(build_selected, |receipt| receipt.effective().clone());
-    let post_terminal_optimizations = effective_optimizations.project_post_terminal();
-    let (_reviews, root_path, checked_root) = candidate.into_production_parts();
-    let report = compiler::retained_terminal_report_from_checked_package(
-        root_path,
-        checked_root,
-        profile.clone(),
-    )?;
+    } = request;
+    // Keep the reviewed input's source/review custody alive through realization.
+    let (report, optimization_selections, rollback_receipt, trust_settlement, _reviews) =
+        match input {
+            AcceptedNativeInput::Terminal {
+                report,
+                optimization_selections,
+            } => {
+                let rollback_receipt = report.optimization_rollback_receipt().cloned();
+                let trust_settlement = report.trust_admission_settlement().clone();
+                (
+                    report,
+                    optimization_selections.clone(),
+                    rollback_receipt,
+                    trust_settlement,
+                    None,
+                )
+            }
+            AcceptedNativeInput::Reviewed {
+                candidate,
+                optimization_rollback,
+            } => {
+                let build_selected = candidate.checked_root().optimization_selections().clone();
+                let rollback_receipt = optimization_rollback.reconcile(&build_selected);
+                let effective_optimizations = rollback_receipt
+                    .as_ref()
+                    .map_or(build_selected, |receipt| receipt.effective().clone());
+                let post_terminal_optimizations = effective_optimizations.project_post_terminal();
+                let (reviews, root_path, checked_root) = candidate.into_production_parts();
+                let report = compiler::retained_terminal_report_from_checked_package(
+                    root_path,
+                    checked_root,
+                    profile.clone(),
+                )?;
+                (
+                    report,
+                    post_terminal_optimizations.selections().clone(),
+                    rollback_receipt,
+                    compiler::TrustAdmissionSettlement::default(),
+                    Some(reviews),
+                )
+            }
+        };
     validate_accepted_terminal_production_subject(&report, evidence)?;
     let root_path = report.root_path().to_path_buf();
     let source_file_count = report.source_file_count;
@@ -193,7 +172,7 @@ pub fn realize_accepted_reviewed_package_candidate_report_with_source_evaluated_
         retained,
         compiler::RetainedNativeRealizationRequest {
             profile,
-            optimization_selections: post_terminal_optimizations.selections(),
+            optimization_selections: &optimization_selections,
             terminal_authority_policy,
             accepted_package_terminal_authority_permission_policy: accepted_permission_policy,
             terminal_authority_permission_policy: receiving_terminal_authority_permission_policy,
@@ -214,6 +193,7 @@ pub fn realize_accepted_reviewed_package_candidate_report_with_source_evaluated_
         rollback_receipt,
         production_subject,
     )
+    .map(|report| report.with_trust_admission_settlement(trust_settlement))
     .map_err(|message| vec![Diagnostic::error(message)])
 }
 

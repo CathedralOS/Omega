@@ -9,6 +9,7 @@ pub mod declarations;
 pub mod evidence;
 pub mod inspection;
 pub mod names;
+pub(crate) mod retained_prefix;
 pub mod type_system;
 pub mod values;
 

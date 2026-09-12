@@ -18,6 +18,24 @@ pub struct TypeReferenceTable {
 }
 
 impl TypeReferenceTable {
+    pub(crate) fn retains_exact_prefix(&self, base: &Self) -> bool {
+        let Self {
+            type_references,
+            type_reference_handles,
+            constraints,
+        } = base;
+        crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+            type_references,
+            &self.type_references,
+        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+            type_reference_handles,
+            &self.type_reference_handles,
+        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+            constraints,
+            &self.constraints,
+        )
+    }
+
     pub fn new() -> Self {
         Self {
             type_references: Arena::new(),

@@ -278,45 +278,7 @@ pub fn lower_seeded_extension(
 /// Verify the semantic and custody-bearing base prefix after every extension
 /// phase, including compiler-owned pre-check evaluation performed by Omega.
 pub fn retained_typed_base_is_exact_prefix(base: &TypedTrees, candidate: &TypedTrees) -> bool {
-    let base_snapshot = base.snapshot();
-    let candidate_snapshot = candidate.snapshot();
-    let roots_are_prefixes = candidate_snapshot
-        .roots
-        .const_declarations
-        .starts_with(&base_snapshot.roots.const_declarations)
-        && candidate_snapshot
-            .roots
-            .data_definitions
-            .starts_with(&base_snapshot.roots.data_definitions)
-        && candidate_snapshot
-            .roots
-            .domain_definitions
-            .starts_with(&base_snapshot.roots.domain_definitions)
-        && candidate_snapshot
-            .roots
-            .machines
-            .starts_with(&base_snapshot.roots.machines)
-        && candidate_snapshot
-            .roots
-            .operators
-            .starts_with(&base_snapshot.roots.operators)
-        && candidate_snapshot
-            .roots
-            .propositions
-            .starts_with(&base_snapshot.roots.propositions)
-        && candidate_snapshot
-            .roots
-            .traits
-            .starts_with(&base_snapshot.roots.traits)
-        && candidate_snapshot
-            .roots
-            .conformances
-            .starts_with(&base_snapshot.roots.conformances)
-        && candidate_snapshot
-            .roots
-            .wire_schemas
-            .starts_with(&base_snapshot.roots.wire_schemas)
-        && candidate.measures().starts_with(base.measures());
+    let roots_are_prefixes = candidate.retains_exact_root_storage(base);
     let symbol_prefix_is_exact = candidate.symbols.symbols().nodes().len()
         >= base.symbols.symbols().nodes().len()
         && candidate
@@ -348,10 +310,6 @@ pub fn retained_typed_base_is_exact_prefix(base: &TypedTrees, candidate: &TypedT
                 .map(|(_, member)| member));
     roots_are_prefixes
         && symbol_prefix_is_exact
-        && candidate
-            .authored_declaration_selections()
-            .as_slice()
-            .starts_with(base.authored_declaration_selections().as_slice())
         && candidate.service_reaches == base.service_reaches
         && candidate
             .service_reach_rows

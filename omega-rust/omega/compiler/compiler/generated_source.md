@@ -48,12 +48,18 @@ constraints, semantic qualification casts, and fixed-byte literal landing.
 The matching post-typing evaluator consumes the completed candidate; wire-plan
 publication starts at the extension wire-schema frontier. The structural prefix
 gate returns the owned base unchanged on failure, and orchestration rejects.
+Preservation compares retained roots, node identities, and child-table storage
+directly; diagnostic snapshots do not establish an unchanged predecessor.
+The retained base remains available for the post-evaluation comparison.
 
 Target-scoped units finish their independent pre-resolution evaluation before
 the ordinary target filter. The filter consumes the retained base selection
 into a combined selection, then settles selected origins and target-owned
 `provider_defaults` against the final typed continuation. Only extension
 declarations are mutable during this process.
+Units share one immutable package-selection authority for this continuation;
+sharing it neither makes sibling declarations visible nor admits transitive-only
+package selections.
 
 There is no combined-syntax rebuild switch, second frontend reconstruction, or
 source-span/name recovery of the admitted entry. New cohorts must extend the
