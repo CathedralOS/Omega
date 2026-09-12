@@ -27,6 +27,22 @@ pub(super) fn lower(
     lowered_byte_sequence_literals: &mut usize,
 ) -> Result<AbstractOperation, LoweringError> {
     match &operation.kind {
+        OperationKind::StructuralCaseMembership { source, case } => {
+            let result = operation
+                .result
+                .scalar()
+                .filter(|result| result.scalar_type == ScalarType::Boolean)
+                .ok_or(LoweringError::InvalidStructuralCaseMembership(operation.id))?;
+            Ok(AbstractOperation::StructuralCaseMembership {
+                psi_operation: operation.id,
+                result: abstract_operations::AbstractResult {
+                    value: result.id,
+                    scalar_type: result.scalar_type,
+                },
+                source: *source,
+                case: *case,
+            })
+        }
         OperationKind::EstablishPrimitiveLocal { .. }
         | OperationKind::PrimitiveScalarRead { .. } => {
             super::primitive_storage::lower(operation, machine, structural_types, value_types)

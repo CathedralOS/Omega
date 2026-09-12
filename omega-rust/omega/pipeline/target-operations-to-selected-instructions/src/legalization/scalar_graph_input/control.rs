@@ -96,6 +96,11 @@ pub(super) fn validate(
             && *scalar_type == declared.scalar_type
             && value_type(function, *value) == Some(*scalar_type)
             && (cleanup_actions.is_empty()
+                || (super::aggregate_results::cleanup(function, cleanup_actions)
+                    && node.ownership
+                        == [optimization_unit::OwnershipEvent::Cleanup(
+                            cleanup_actions.clone(),
+                        )])
                 || (super::unobserved_owned::body(function)
                     && node.ownership
                         == [optimization_unit::OwnershipEvent::Cleanup(

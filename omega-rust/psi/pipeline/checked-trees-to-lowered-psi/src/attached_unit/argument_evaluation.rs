@@ -32,6 +32,7 @@ pub(crate) struct Evaluation {
     pub scalar_bindings: Option<crate::scalar_bindings::ScalarBindings>,
     pub structural_parameters: Vec<(u32, StructuralParameterDeclaration)>,
     pub structural_fields: Vec<crate::scalar_bindings::StructuralScalarFieldBinding>,
+    pub structural_cases: Vec<crate::scalar_bindings::structural_cases::StructuralCaseBinding>,
     pub entry: BlockId,
     pub current: BlockId,
     pub parameters: Vec<ValueDeclaration>,
@@ -87,6 +88,7 @@ impl Evaluation {
             primitive_storage: Vec::new(),
             scalar_bindings: None,
             structural_fields: Vec::new(),
+            structural_cases: Vec::new(),
             structural_parameters: Vec::new(),
             entry,
             current: entry,
@@ -191,7 +193,7 @@ impl Evaluation {
             .clone()
             .unwrap_or_else(|| crate::scalar_bindings::ScalarBindings::new(source_value_count))
             .with_structural_parameters(&self.structural_parameters)
-            .with_resolved_structural_fields(&self.structural_fields);
+            .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases);
         let source_bindings = source_bindings
             .with_primitive_storage(&self.primitive_storage)
             .with_array_locals(&self.array_locals);
@@ -339,7 +341,7 @@ impl Evaluation {
             .unwrap_or_else(|| crate::scalar_bindings::ScalarBindings::new(values.len()))
             .with_primitive_storage(&self.primitive_storage)
             .with_structural_parameters(&self.structural_parameters)
-            .with_resolved_structural_fields(&self.structural_fields);
+            .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases);
         let qualifications = prepare_shared_qualifications(checked, machine, values)?;
         let source_types = values
             .iter()

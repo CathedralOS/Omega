@@ -1,4 +1,5 @@
-//! Replay aggregate construction and structural call results independently.
+//! Replay aggregate construction, structural call results and case observations.
+//! Observations rejoin the nominal root and case without consuming the aggregate.
 use super::*;
 
 pub(super) fn validate(
@@ -11,6 +12,28 @@ pub(super) fn validate(
 ) -> Result<(), LegalizationError> {
     let invalid = Error::NonCanonicalLegalizedPlan;
     match (&actual.kind, &node.operation) {
+        (
+            LegalizedScalarInstructionKind::StructuralCaseMembership {
+                source,
+                case,
+                case_tag,
+            },
+            AbstractOperation::StructuralCaseMembership {
+                source: expected,
+                case: expected_case,
+                result,
+                ..
+            },
+        ) if source == expected
+            && case == expected_case
+            && result.scalar_type == ScalarType::Boolean
+            && *case_tag
+                == scalar_graph_input::structural_case::membership_tag(
+                    optimized,
+                    *expected,
+                    *expected_case,
+                    plan,
+                )? => {}
         (
             LegalizedScalarInstructionKind::EstablishScalarArray {
                 result,

@@ -53,6 +53,7 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             places.insert(result.place);
         }
         O::PrimitiveScalarRead { source, .. }
+        | O::StructuralCaseMembership { source, .. }
         | O::ByteSequenceRead { source, .. }
         | O::ByteSequenceWrite {
             destination: source,

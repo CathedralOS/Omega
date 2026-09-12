@@ -541,6 +541,11 @@ pub(super) fn validate_machine(
                         ));
                     }
                 }
+                OperationKind::StructuralCaseMembership { source, case } => {
+                    super::structural_case_membership::validate(
+                        module, machine, operation, source, case,
+                    )?;
+                }
                 OperationKind::BooleanStructuralField { source, field } => {
                     if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
                         return Err(ModuleError::BooleanStructuralFieldRequiresBooleanResult(

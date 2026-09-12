@@ -27,7 +27,8 @@ pub(super) fn uses(function: &PsiOptimizationFunction, plan: &AbstractOperationP
             .any(|node| {
                 matches!(
                     node.operation,
-                    AbstractOperation::EstablishScalarArray { .. }
+                    AbstractOperation::StructuralCaseMembership { .. }
+                        | AbstractOperation::EstablishScalarArray { .. }
                         | AbstractOperation::EstablishScalarCase { .. }
                         | AbstractOperation::CallStructural { .. }
                 ) || matches!(&node.operation,

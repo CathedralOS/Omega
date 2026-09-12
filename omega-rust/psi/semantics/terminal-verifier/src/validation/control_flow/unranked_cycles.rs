@@ -232,6 +232,7 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                     | OperationKind::StructuralByteSequenceFieldLength { .. }
                     | OperationKind::ByteSequenceRead { .. }
                     | OperationKind::IntegerStructuralField { .. }
+                    | OperationKind::StructuralCaseMembership { .. }
                     | OperationKind::BooleanStructuralField { .. } => {
                         operation.result.scalar().is_some()
                     }

@@ -1013,7 +1013,7 @@ pub(super) fn lower_checked_scalar_expression_at(
 pub(super) fn lower_checked_scalar_expression(
     expression: &CheckedScalarExpression,
 ) -> Result<LoweredDirectExpression, LoweringError> {
-    lower_checked_scalar_expression_with_parameters(expression, &[], &[], &[])
+    lower_checked_scalar_expression_with_parameters(expression, &[], &[], &[], &[])
 }
 
 fn byte_observation_parameter(
@@ -1044,6 +1044,7 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
     expression: &CheckedScalarExpression,
     structural_parameters: &[(u32, StructuralParameterDeclaration)],
     structural_fields: &[crate::scalar_bindings::StructuralScalarFieldBinding],
+    structural_cases: &[crate::scalar_bindings::structural_cases::StructuralCaseBinding],
     primitive_storage: &[(symbols::SymbolHandle, PlaceId, ScalarType)],
 ) -> Result<LoweredDirectExpression, LoweringError> {
     match expression {
@@ -1178,12 +1179,14 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
                 left,
                 structural_parameters,
                 structural_fields,
+                structural_cases,
                 primitive_storage,
             )?),
             right: Box::new(lower_checked_scalar_expression_with_parameters(
                 right,
                 structural_parameters,
                 structural_fields,
+                structural_cases,
                 primitive_storage,
             )?),
         }),
@@ -1196,6 +1199,7 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
                 operand,
                 structural_parameters,
                 structural_fields,
+                structural_cases,
                 primitive_storage,
             )?),
         }),
@@ -1208,6 +1212,7 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
                 operand,
                 structural_parameters,
                 structural_fields,
+                structural_cases,
                 primitive_storage,
             )?),
         }),
@@ -1226,6 +1231,7 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
                 index,
                 structural_parameters,
                 structural_fields,
+                structural_cases,
                 primitive_storage,
             )?;
             if index.scalar_type() != terminal_scalar_type(PrimitiveType::U64)? {
@@ -1246,6 +1252,7 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
                 operand,
                 structural_parameters,
                 structural_fields,
+                structural_cases,
                 primitive_storage,
             )?;
             let target = terminal_scalar_type(*primitive_type)?;
@@ -1304,6 +1311,7 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
                 operand,
                 structural_parameters,
                 structural_fields,
+                structural_cases,
                 primitive_storage,
             )?),
         }),
@@ -1312,6 +1320,7 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
                 expression,
                 structural_parameters,
                 structural_fields,
+                structural_cases,
                 primitive_storage,
             )?),
         }),
@@ -1322,13 +1331,14 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
 pub(super) fn lower_checked_boolean_expression(
     expression: &CheckedBooleanExpression,
 ) -> Result<LoweredBooleanReturnExpression, LoweringError> {
-    lower_checked_boolean_expression_with_parameters(expression, &[], &[], &[])
+    lower_checked_boolean_expression_with_parameters(expression, &[], &[], &[], &[])
 }
 
 fn lower_checked_boolean_expression_with_parameters(
     expression: &CheckedBooleanExpression,
     structural_parameters: &[(u32, StructuralParameterDeclaration)],
     structural_fields: &[crate::scalar_bindings::StructuralScalarFieldBinding],
+    structural_cases: &[crate::scalar_bindings::structural_cases::StructuralCaseBinding],
     primitive_storage: &[(symbols::SymbolHandle, PlaceId, ScalarType)],
 ) -> Result<LoweredBooleanReturnExpression, LoweringError> {
     Ok(match expression {
@@ -1385,6 +1395,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 operand,
                 structural_parameters,
                 structural_fields,
+                structural_cases,
                 primitive_storage,
             )?),
         },
@@ -1393,12 +1404,14 @@ fn lower_checked_boolean_expression_with_parameters(
                 left,
                 structural_parameters,
                 structural_fields,
+                structural_cases,
                 primitive_storage,
             )?),
             right: Box::new(lower_checked_boolean_expression_with_parameters(
                 right,
                 structural_parameters,
                 structural_fields,
+                structural_cases,
                 primitive_storage,
             )?),
         },
@@ -1417,20 +1430,26 @@ fn lower_checked_boolean_expression_with_parameters(
                     left,
                     structural_parameters,
                     structural_fields,
+                    structural_cases,
                     primitive_storage,
                 )?),
                 right: Box::new(lower_checked_scalar_expression_with_parameters(
                     right,
                     structural_parameters,
                     structural_fields,
+                    structural_cases,
                     primitive_storage,
                 )?),
             }
         }
+        CheckedBooleanExpression::StructuralCaseMembership { subject, case } => {
+            let (source, case) =
+                crate::scalar_bindings::structural_cases::resolve(structural_cases, subject, case)?;
+            LoweredBooleanReturnExpression::StructuralCaseMembership { source, case }
+        }
         CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
-        | CheckedBooleanExpression::PayloadlessSumEqual { .. }
-        | CheckedBooleanExpression::StructuralCaseMembership { .. } => {
+        | CheckedBooleanExpression::PayloadlessSumEqual { .. } => {
             return unsupported("structural equality is contract-only terminal vocabulary");
         }
         CheckedBooleanExpression::And { left, right } => LoweredBooleanReturnExpression::And {
@@ -1438,12 +1457,14 @@ fn lower_checked_boolean_expression_with_parameters(
                 left,
                 structural_parameters,
                 structural_fields,
+                structural_cases,
                 primitive_storage,
             )?),
             right: Box::new(lower_checked_boolean_expression_with_parameters(
                 right,
                 structural_parameters,
                 structural_fields,
+                structural_cases,
                 primitive_storage,
             )?),
         },
@@ -1452,12 +1473,14 @@ fn lower_checked_boolean_expression_with_parameters(
                 left,
                 structural_parameters,
                 structural_fields,
+                structural_cases,
                 primitive_storage,
             )?),
             right: Box::new(lower_checked_boolean_expression_with_parameters(
                 right,
                 structural_parameters,
                 structural_fields,
+                structural_cases,
                 primitive_storage,
             )?),
         },
@@ -1471,6 +1494,7 @@ pub(super) fn validate_boolean_parameter_types(
     match expression {
         LoweredBooleanReturnExpression::Constant { .. } => Ok(()),
         LoweredBooleanReturnExpression::StructuralField { .. }
+        | LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. } => Ok(()),
         LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. } => {
             unsupported("unresolved structural field crossed Boolean type validation")
@@ -1574,6 +1598,7 @@ fn validate_scalar_graph(
 pub(super) fn contains_short_circuit(expression: &LoweredBooleanReturnExpression) -> bool {
     match expression {
         LoweredBooleanReturnExpression::Constant { .. }
+        | LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::Parameter { .. }
         | LoweredBooleanReturnExpression::Local { .. }
@@ -1634,6 +1659,7 @@ fn validate_short_circuit_expression(
 ) -> Result<(), LoweringError> {
     match expression {
         LoweredBooleanReturnExpression::Constant { .. }
+        | LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::Parameter { .. }
         | LoweredBooleanReturnExpression::StructuralField { .. }
@@ -1841,6 +1867,7 @@ fn evaluate_compile_known_boolean_expression(
             Some(value)
         }
         LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
+        | LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::StructuralField { .. } => None,
         LoweredBooleanReturnExpression::Not { operand } => Some(

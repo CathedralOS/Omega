@@ -403,6 +403,7 @@ pub(super) fn shared_boolean_runtime_parameters(
             Some(parameters)
         }
         LoweredBooleanReturnExpression::Local { .. }
+        | LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
         | LoweredBooleanReturnExpression::Equal { .. } => None,

@@ -128,6 +128,7 @@ pub(super) fn lower_boolean_value_decision(
             })
         }
         LoweredBooleanReturnExpression::Constant { .. }
+        | LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::Parameter { .. }
         | LoweredBooleanReturnExpression::Local { .. }

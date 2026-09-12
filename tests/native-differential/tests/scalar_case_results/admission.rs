@@ -45,11 +45,38 @@ pub(super) fn installation_cannot_change_call_or_result(
                 .parameter_abi
                 .as_ref()
                 .is_some_and(|abi| abi.call_plan.result.is_some())
+                || function.scalar_abi.is_some()
+                || function.mixed_structural_scalar_abi.is_some()
         })
         .expect("aggregate result retains its complete call plan");
     for mutation in 0..5 {
         let mut changed = record.clone();
         let function = &mut changed.functions_mut_for_test()[result_function];
+        if function.parameter_abi.is_none() {
+            if mutation == 0 {
+                function.scalar_abi = None;
+                function.mixed_structural_scalar_abi = None;
+            } else {
+                let plan = if let Some(abi) = &mut function.scalar_abi {
+                    &mut abi.call_plan
+                } else {
+                    &mut function
+                        .mixed_structural_scalar_abi
+                        .as_mut()
+                        .unwrap()
+                        .call_plan
+                };
+                match mutation {
+                    1 => plan.result = None,
+                    2 => plan.result.as_mut().unwrap().shape.byte_size = 8,
+                    3 => plan.result.as_mut().unwrap().locations.clear(),
+                    4 => plan.parameters.clear(),
+                    _ => unreachable!(),
+                }
+            }
+            reject(&changed);
+            continue;
+        }
         match mutation {
             0 => function.parameter_abi = None,
             1 => function.parameter_abi.as_mut().unwrap().call_plan.result = None,

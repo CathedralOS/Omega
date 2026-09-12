@@ -72,7 +72,16 @@ pub(super) fn lower(
                     ))
                     || (parameter.access == StructuralAccess::Owned
                         && (parameter.multiplicity == StructuralMultiplicity::Affine
-                            || scalar_arrays::is_owned_parameter(parameter, structural_types))
+                            || scalar_arrays::is_owned_parameter(parameter, structural_types)
+                            || (parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                                && structural_types
+                                    .get(&parameter.structural_type)
+                                    .is_some_and(|declaration| {
+                                        matches!(
+                                            declaration.shape,
+                                            terminal_psi::StructuralTypeShape::Sum { .. }
+                                        )
+                                    })))
                         && !parameter.is_self))
         }))
         || !function.entry_claims.is_empty()
@@ -129,6 +138,7 @@ pub(super) fn lower(
             AbstractOperation::ByteSequenceLength { result, .. }
             | AbstractOperation::ByteSequenceRead { result, .. }
             | AbstractOperation::PrimitiveScalarRead { result, .. }
+            | AbstractOperation::StructuralCaseMembership { result, .. }
             | AbstractOperation::CallStructuralScalar { result, .. }
             | AbstractOperation::CallDynamicScalar { result, .. }
             | AbstractOperation::CallStoredDynamicScalar { result, .. }
@@ -217,13 +227,8 @@ pub(super) fn lower(
             AbstractOperation::ReturnStructural { .. } => Vec::new(),
             AbstractOperation::Return {
                 cleanup_actions, ..
-            } if cleanup_actions.is_empty()
-                || (unobserved_owned
-                    && super::unobserved_owned::cleanup(function, cleanup_actions)) =>
-            {
-                Vec::new()
             }
-            AbstractOperation::ReturnUnit {
+            | AbstractOperation::ReturnUnit {
                 cleanup_actions, ..
             } if cleanup_actions
                 .iter()

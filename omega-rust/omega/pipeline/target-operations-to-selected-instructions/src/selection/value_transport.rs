@@ -54,6 +54,7 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                 Instruction::Constant(_)
                 | Instruction::HostedReadByte { .. }
                 | Instruction::PrimitiveScalarRead { .. }
+                | Instruction::StructuralCaseMembership { .. }
                 | Instruction::EstablishByteSequenceLiteral { .. }
                 | Instruction::ByteSequenceLength { .. }
                 | Instruction::BoundarySettlement(_) => {}

@@ -14,6 +14,9 @@ mod source_custody;
 #[path = "scalar_case_results/owned_state.rs"]
 mod owned_state;
 
+#[path = "scalar_case_results/membership.rs"]
+mod membership;
+
 #[cfg(any(
     all(
         target_os = "linux",

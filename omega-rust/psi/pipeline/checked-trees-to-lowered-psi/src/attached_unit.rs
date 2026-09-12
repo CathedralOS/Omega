@@ -1499,6 +1499,11 @@ fn assemble_unit_closure(
                 &evaluation.structural_parameters,
                 &structural_types,
             );
+        evaluation.structural_cases =
+            crate::scalar_bindings::structural_cases::StructuralCaseBinding::collect(
+                &evaluation.structural_parameters,
+                &structural_types,
+            );
         let mut staged_subslices = vec![Vec::<(usize, PlaceId)>::new(); plan.operations.len()];
         let mut subslice_places = Vec::new();
         let mut retained_scalar_prefix = None;
@@ -3403,7 +3408,10 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                         crate::scalar_bindings::ScalarBindings::new(scalar_result_values.len())
                             .with_primitive_storage(&evaluation.primitive_storage)
                             .with_structural_parameters(&evaluation.structural_parameters)
-                            .with_resolved_structural_fields(&evaluation.structural_fields);
+                            .with_resolved_structural_observations(
+                                &evaluation.structural_fields,
+                                &evaluation.structural_cases,
+                            );
                     let index = bindings.expression_at(
                         checked,
                         plan.state,

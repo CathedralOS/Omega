@@ -63,6 +63,11 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             psi_operation,
             result,
             ..
+        }
+        | AbstractOperation::StructuralCaseMembership {
+            psi_operation,
+            result,
+            ..
         } => Some((*psi_operation, result.value)),
         AbstractOperation::IeeeFloatConstant {
             psi_operation,
@@ -391,7 +396,8 @@ pub(super) fn validate(
             }
             AbstractOperation::BooleanConstant { .. } => ScalarType::Boolean,
             AbstractOperation::CallStructuralScalar { result, .. }
-            | AbstractOperation::PrimitiveScalarRead { result, .. } => result.scalar_type,
+            | AbstractOperation::PrimitiveScalarRead { result, .. }
+            | AbstractOperation::StructuralCaseMembership { result, .. } => result.scalar_type,
             AbstractOperation::ByteSequenceRead {
                 source,
                 index,

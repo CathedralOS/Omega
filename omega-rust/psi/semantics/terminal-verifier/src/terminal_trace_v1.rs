@@ -229,6 +229,7 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
         | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
         | OperationKind::IeeeFloatCompare { .. }
         | OperationKind::BooleanStructuralField { .. }
+        | OperationKind::StructuralCaseMembership { .. }
         | OperationKind::IntegerStructuralField { .. }
         | OperationKind::BooleanNot { .. }
         | OperationKind::BooleanEqual { .. }

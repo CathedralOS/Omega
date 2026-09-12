@@ -35,6 +35,18 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*destination);
             encode_abstract_result(bytes, *value);
         }
+        O::StructuralCaseMembership {
+            psi_operation,
+            result,
+            source,
+            case,
+        } => {
+            bytes.u8(71);
+            bytes.id(*psi_operation);
+            encode_abstract_result(bytes, *result);
+            bytes.id(*source);
+            bytes.id(*case);
+        }
         O::PrimitiveScalarRead {
             psi_operation,
             result,

@@ -39,6 +39,7 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
                 | AbstractOperation::ReturnStructural { .. }
                 | AbstractOperation::PrimitiveLocalStore { .. }
                 | AbstractOperation::PrimitiveScalarRead { .. }
+                | AbstractOperation::StructuralCaseMembership { .. }
         )
     })
 }
@@ -211,7 +212,8 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         }
         for operation in &abstracted.operations {
             let admitted = match operation {
-                AbstractOperation::EstablishScalarCase { .. }
+                AbstractOperation::StructuralCaseMembership { .. }
+                | AbstractOperation::EstablishScalarCase { .. }
                 | AbstractOperation::EstablishScalarArray { .. }
                 | AbstractOperation::CallStructural { .. }
                 | AbstractOperation::ReturnStructural { .. } => aggregate_results::operation(operation, targeted, selected),
@@ -302,8 +304,10 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 AbstractOperation::Return {
                     cleanup_actions, ..
                 } => cleanup_actions.is_empty()
-                        || (unobserved_owned_arrivals(abstracted, targeted, selected)
-                            && scalar_cleanup_retained(operation, targeted)),
+                        // Mandatory graph replay checks the exact live cleanup frontier.
+                        // Publication rejoins that no-code discard roster to this exit,
+                        // whether its source was observed or left unused.
+                        || scalar_cleanup_retained(operation, targeted),
                 AbstractOperation::ReturnUnit {
                     cleanup_actions, ..
                 } => cleanup_actions.is_empty()

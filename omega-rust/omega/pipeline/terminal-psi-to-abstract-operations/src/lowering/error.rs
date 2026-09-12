@@ -6,6 +6,7 @@ pub enum LoweringError {
     UnsupportedBoundaryCrashContract(semantic_vocabulary::BoundaryMachineId),
     InvalidPrimitiveLocalEstablishment(semantic_vocabulary::OperationId),
     InvalidPrimitiveScalarRead(semantic_vocabulary::OperationId),
+    InvalidStructuralCaseMembership(semantic_vocabulary::OperationId),
     SemanticIdentity(CodecError),
     /// Abstract block entries cannot retain borrowed-view descriptor bindings yet.
     UnsupportedStructuralBlockParameters {

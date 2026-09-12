@@ -49,6 +49,13 @@ pub enum TargetUnitOperation {
         result: AbstractResult,
         source: PlaceId,
     },
+    StructuralCaseMembership {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: PlaceId,
+        case: semantic_vocabulary::StructuralCaseId,
+        case_tag: u32,
+    },
     /// One ordered scalar definition; residence is assigned downstream, not
     /// prescribed as a stack slot by target lowering.
     ScalarDefinition {

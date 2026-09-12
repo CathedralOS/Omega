@@ -62,6 +62,20 @@ fn package_qualified_case_values_and_membership_select_the_declaring_owner() {
         )
         .unwrap();
         let checked = compile(&root, inputs);
+        let artifact = terminal_production::produce_terminal_artifact(&checked, "matches")
+            .expect("package-qualified borrowed membership reaches canonical Terminal");
+        let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+        assert!(
+            module
+                .machines
+                .iter()
+                .flat_map(|machine| &machine.blocks)
+                .flat_map(|block| &block.operations)
+                .any(|operation| matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::StructuralCaseMembership { .. }
+                ))
+        );
         assert!(!selections(&checked, "settings::Choice::Empty", identity(2)).is_empty());
         assert!(!selections(&checked, "settings::Choice::Some", identity(2)).is_empty());
         let membership_owners = selections(&checked, "settings::Choice", identity(2));
@@ -208,7 +222,7 @@ fn qualified_cases_reject_wrong_owners_private_carriers_and_invalid_values() {
         (
             "pub data Choice { case Empty; }",
             "machine wrong(shapes: u32) -> shapes::settings::Choice { shapes::settings::Choice::Empty }",
-            "StaticPathSegment",
+            "static path through runtime binding `shapes`",
         ),
         (
             "pub data Choice { case Empty; }",

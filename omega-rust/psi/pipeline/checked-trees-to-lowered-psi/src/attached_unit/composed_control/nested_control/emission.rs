@@ -57,6 +57,7 @@ pub(super) fn emit(
             primitive_storage: Vec::new(),
             scalar_bindings: None,
             structural_fields: Vec::new(),
+            structural_cases: Vec::new(),
             structural_parameters: Vec::new(),
             entry: state_ids[index],
             current: state_ids[index],

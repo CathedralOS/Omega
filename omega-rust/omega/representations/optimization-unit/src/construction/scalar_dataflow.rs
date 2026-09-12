@@ -25,6 +25,7 @@ pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(Val
         | O::CallStoredDynamicScalar { result, .. }
         | O::CallDynamicParameterScalar { result, .. }
         | O::PrimitiveScalarRead { result, .. }
+        | O::StructuralCaseMembership { result, .. }
         | O::ByteSequenceRead { result, .. }
         | O::ByteSequenceLength { result, .. }
         | O::IntegerStructuralField { result, .. } => Some((result.value, result.scalar_type)),

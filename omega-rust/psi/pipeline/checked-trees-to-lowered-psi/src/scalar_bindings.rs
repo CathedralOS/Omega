@@ -3,6 +3,7 @@
 use super::*;
 use crate::scalar_source_custody as source_custody;
 
+pub(super) mod structural_cases;
 pub(super) mod structural_fields;
 #[cfg(test)]
 mod tests;
@@ -17,9 +18,31 @@ pub(super) struct ScalarBindings {
     structural_parameters: Vec<(u32, StructuralParameterDeclaration)>,
     array_locals: Vec<(symbols::SymbolHandle, StructuralArgument)>,
     structural_fields: Vec<StructuralScalarFieldBinding>,
+    structural_cases: Vec<structural_cases::StructuralCaseBinding>,
 }
 
 impl ScalarBindings {
+    pub(crate) fn with_structural_observations(
+        mut self,
+        types: &[StructuralTypeDeclaration],
+    ) -> Self {
+        self.structural_fields =
+            StructuralScalarFieldBinding::collect(&self.structural_parameters, types);
+        self.structural_cases =
+            structural_cases::StructuralCaseBinding::collect(&self.structural_parameters, types);
+        self
+    }
+
+    pub(crate) fn with_resolved_structural_observations(
+        mut self,
+        fields: &[StructuralScalarFieldBinding],
+        cases: &[structural_cases::StructuralCaseBinding],
+    ) -> Self {
+        self.structural_fields = fields.to_vec();
+        self.structural_cases = cases.to_vec();
+        self
+    }
+
     pub(super) fn for_computation_operands(offset: usize, count: usize) -> Self {
         Self {
             immutable: (offset..offset + count).map(Some).collect(),
@@ -28,6 +51,7 @@ impl ScalarBindings {
             structural_parameters: Vec::new(),
             array_locals: Vec::new(),
             structural_fields: Vec::new(),
+            structural_cases: Vec::new(),
         }
     }
 
@@ -39,6 +63,7 @@ impl ScalarBindings {
             structural_parameters: Vec::new(),
             array_locals: Vec::new(),
             structural_fields: Vec::new(),
+            structural_cases: Vec::new(),
         }
     }
 
@@ -48,6 +73,7 @@ impl ScalarBindings {
     ) -> Self {
         self.structural_parameters = parameters.to_vec();
         self.structural_fields.clear();
+        self.structural_cases.clear();
         self
     }
 
@@ -376,6 +402,7 @@ impl ScalarBindings {
             &expression,
             &self.structural_parameters,
             &self.structural_fields,
+            &self.structural_cases,
             &self.primitive_storage,
         )
     }

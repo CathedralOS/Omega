@@ -32,17 +32,23 @@ pub(super) fn validate_control_flow(
         .map(|parameter| parameter.id)
         .collect::<BTreeSet<_>>();
     let mut definition_blocks = BTreeMap::new();
-    let mut borrowed_view_definitions = BTreeMap::new();
+    // Unrestricted constructed values still require dominance even though they
+    // never enter the affine ownership frontier. Track structural establishment
+    // independently; each operation separately checks its permitted source shape.
+    let mut structural_definitions = BTreeMap::new();
     let mut primitive_local_definitions = BTreeMap::new();
     let mut scalar_array_definitions = BTreeMap::new();
     for block in blocks.values() {
         for parameter in &block.structural_parameters {
-            borrowed_view_definitions.insert(parameter.place, block.id);
+            structural_definitions.insert(parameter.place, block.id);
         }
         for parameter in &block.parameters {
             definition_blocks.insert(parameter.id, block.id);
         }
         for operation in &block.operations {
+            if let Some(result) = operation.result.structural() {
+                structural_definitions.insert(result.place, block.id);
+            }
             if let Some(result) = operation.result.structural()
                 && super::scalar_array::plain_return_source(module, machine, result.place)
             {
@@ -55,12 +61,7 @@ pub(super) fn validate_control_flow(
             }
             if let OperationKind::EstablishByteSequenceLiteral { destination, .. } = operation.kind
             {
-                borrowed_view_definitions.insert(destination, block.id);
-            }
-            if let Some(result) = operation.result.structural()
-                && super::byte_sequence_subslice::borrowed_result(machine, result.place).is_some()
-            {
-                borrowed_view_definitions.insert(result.place, block.id);
+                structural_definitions.insert(destination, block.id);
             }
             if let Some(result) = operation.result.scalar() {
                 definition_blocks.insert(result.id, block.id);
@@ -244,7 +245,7 @@ pub(super) fn validate_control_flow(
         defined.extend(definition_blocks.iter().filter_map(|(value, definition)| {
             (*definition != block_id && block_dominators.contains(definition)).then_some(*value)
         }));
-        let mut available_views = borrowed_view_definitions
+        let mut available_structural = structural_definitions
             .iter()
             .filter_map(|(place, definition)| {
                 (*definition != block_id && block_dominators.contains(definition)).then_some(*place)
@@ -262,23 +263,28 @@ pub(super) fn validate_control_flow(
                 (*definition != block_id && block_dominators.contains(definition)).then_some(*place)
             })
             .collect::<BTreeSet<_>>();
-        available_views.extend(
+        available_structural.extend(
             block
                 .structural_parameters
                 .iter()
                 .map(|parameter| parameter.place),
         );
         if let Some(mutable) = mutable_views.get(&block_id) {
-            available_views
+            available_structural
                 .retain(|place| !super::block_views::is_mutable_parameter(machine, *place));
-            available_views.extend(mutable.iter().copied());
+            available_structural.extend(mutable.iter().copied());
         }
         for operation in &block.operations {
+            super::structural_case_membership::validate_available(
+                machine,
+                operation,
+                &available_structural,
+            )?;
             super::byte_sequence_subslice::validate_uses(
                 module,
                 machine,
                 operation,
-                &available_views,
+                &available_structural,
             )?;
             super::primitive_storage::validate_uses(machine, operation, &available_primitives)?;
             validate_operation_operands(
@@ -320,12 +326,12 @@ pub(super) fn validate_control_flow(
             }
             if let OperationKind::EstablishByteSequenceLiteral { destination, .. } = operation.kind
             {
-                available_views.insert(destination);
+                available_structural.insert(destination);
             }
             if let Some(result) = operation.result.structural()
-                && borrowed_view_definitions.contains_key(&result.place)
+                && structural_definitions.contains_key(&result.place)
             {
-                available_views.insert(result.place);
+                available_structural.insert(result.place);
             }
         }
         match &block.terminator {
@@ -350,7 +356,7 @@ pub(super) fn validate_control_flow(
                     *edge,
                     blocks[target],
                     structural_arguments,
-                    &available_views,
+                    &available_structural,
                     block_dominators,
                 )?;
             }
@@ -375,7 +381,7 @@ pub(super) fn validate_control_flow(
                         successor.edge,
                         blocks[&successor.target],
                         &successor.structural_arguments,
-                        &available_views,
+                        &available_structural,
                         block_dominators,
                     )?;
                     validate_successor_bindings(
@@ -410,7 +416,7 @@ pub(super) fn validate_control_flow(
                         successor.edge,
                         blocks[&successor.target],
                         &[],
-                        &available_views,
+                        &available_structural,
                         block_dominators,
                     )?;
                 }

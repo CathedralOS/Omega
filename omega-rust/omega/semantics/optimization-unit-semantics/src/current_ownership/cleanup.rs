@@ -159,6 +159,26 @@ pub(super) fn validate_scalar_cleanup_actions(
     let mut remaining = frontier.clone();
     let mut actions = actions.iter();
 
+    // Completed affine results are cleaned before locals and parameters, in
+    // the same reverse establishment order as unit and structural exits.
+    for place in expected_trivial_affine_discards(function, &remaining) {
+        if !function.structural_places.iter().any(|declared| {
+            declared.id == place
+                && matches!(
+                    declared.kind,
+                    semantic_vocabulary::StructuralPlaceKind::OperationResult { .. }
+                )
+        }) {
+            continue;
+        }
+        if remaining.partial_custody_paths.contains_key(&place)
+            || actions.next() != Some(&TerminalAffineCleanupAction::DiscardRoot(place))
+        {
+            return Err(mismatch());
+        }
+        remaining.owned_places.remove(&place);
+    }
+
     let mut locals = function
         .structural_places
         .iter()

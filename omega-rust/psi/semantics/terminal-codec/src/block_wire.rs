@@ -62,6 +62,11 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
                 writer.u8(62);
                 writer.id(source);
             }
+            OperationKind::StructuralCaseMembership { source, case } => {
+                writer.u8(66);
+                writer.id(source);
+                writer.id(case);
+            }
             OperationKind::ByteSequenceSubslice {
                 source,
                 start,
@@ -949,6 +954,10 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
             },
             62 => OperationKind::PrimitiveScalarRead {
                 source: reader.id("PlaceId")?,
+            },
+            66 => OperationKind::StructuralCaseMembership {
+                source: reader.id("PlaceId")?,
+                case: reader.id("StructuralCaseId")?,
             },
             43 => OperationKind::WriteOnlyPrimitiveStore {
                 destination: reader.id("PlaceId")?,

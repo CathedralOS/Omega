@@ -263,6 +263,7 @@ pub(super) fn append_operation(
         | OperationKind::EstablishAffineScalarRecord { .. }
         | OperationKind::PortWrite { .. }
         | OperationKind::BooleanStructuralField { .. }
+        | OperationKind::StructuralCaseMembership { .. }
         | OperationKind::IntegerStructuralField { .. } => {
             unreachable!("structural/effect rows return before specialized reconstruction")
         }

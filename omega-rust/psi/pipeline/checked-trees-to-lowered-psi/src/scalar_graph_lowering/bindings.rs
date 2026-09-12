@@ -124,7 +124,7 @@ pub(super) fn prepare(
         .collect::<Vec<_>>();
     let mut scalar_bindings = storage::ScalarBindings::new(parameter_types.len())
         .with_structural_parameters(&structural_namespace)
-        .with_structural_fields(structural_types);
+        .with_structural_observations(structural_types);
     for parameter in source_custody::parameter_storage(checked, machine, state)? {
         scalar_bindings.initialize_parameter(
             parameter.symbol,

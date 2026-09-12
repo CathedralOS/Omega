@@ -203,6 +203,13 @@ pub enum OperationKind {
         result_case: StructuralCaseId,
         fields: Vec<crate::ScalarCaseField>,
     },
+    /// Observe a whole sum's active case without moving or refining its payload.
+    /// The Boolean result is an observation, not a transfer or a reusable proof
+    /// that the case remains unchanged after a later mutation.
+    StructuralCaseMembership {
+        source: PlaceId,
+        case: StructuralCaseId,
+    },
     /// Establish one immutable borrowed byte-sequence literal in a declared
     /// structural place. `bytes` are exact octets; no text transcoding occurs.
     EstablishByteSequenceLiteral {

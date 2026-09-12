@@ -63,6 +63,11 @@ fn definition(operation: &TargetUnitOperation) -> Option<(ValueId, Source)> {
             result,
             ..
         }
+        | TargetUnitOperation::StructuralCaseMembership {
+            psi_operation,
+            result,
+            ..
+        }
         | TargetUnitOperation::StructuralScalarCall {
             psi_operation,
             result,

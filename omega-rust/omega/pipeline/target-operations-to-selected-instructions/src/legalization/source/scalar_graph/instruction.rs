@@ -1,5 +1,5 @@
 use super::*;
-use semantic_vocabulary::IntegerValue;
+use semantic_vocabulary::{IntegerValue, ScalarType};
 pub(super) fn project(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
@@ -98,6 +98,23 @@ pub(super) fn project(
             destination: *destination,
             value: *value,
         },
+        AbstractOperation::StructuralCaseMembership {
+            source,
+            case,
+            result,
+            ..
+        } => {
+            if result.scalar_type != ScalarType::Boolean {
+                return Err(Error::SourceCustodyMismatch);
+            }
+            LegalizedScalarInstructionKind::StructuralCaseMembership {
+                source: *source,
+                case: *case,
+                case_tag: scalar_graph_input::structural_case::membership_tag(
+                    optimized, *source, *case, plan,
+                )?,
+            }
+        }
         AbstractOperation::PrimitiveScalarRead { source, .. } => {
             LegalizedScalarInstructionKind::PrimitiveScalarRead { source: *source }
         }

@@ -46,6 +46,13 @@ pub enum AbstractOperation {
         result: AbstractResult,
         source: PlaceId,
     },
+    /// Observe the exact active case without consuming the readable sum root.
+    StructuralCaseMembership {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: PlaceId,
+        case: StructuralCaseId,
+    },
     /// Establish an immutable view with the exact source, endpoints and two-leg bounds proof.
     ByteSequenceSubslice {
         psi_operation: OperationId,

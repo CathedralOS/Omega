@@ -31,6 +31,42 @@ fn checked_source() -> checked_trees::CheckedTrees {
     checked(SOURCE)
 }
 
+#[test]
+fn borrowed_case_membership_uses_an_observation_operation() {
+    for body in [
+        "choice in Choice::Empty",
+        "!(choice in Choice::Some)",
+        "let empty: bool = choice in Choice::Empty; empty && !(choice in Choice::Some)",
+    ] {
+        let checked = checked(&format!(
+            "
+            data Choice {{ case Empty; case Some(value: u32); }}
+            machine observe(choice: &Choice) -> bool {{ {body} }}
+        "
+        ));
+        let artifact = terminal_production::produce_terminal_artifact(&checked, "observe")
+            .expect("whole borrowed case membership reaches Terminal");
+        let module = decode_module(artifact.semantic_bytes()).unwrap();
+        assert!(
+            module
+                .machines
+                .iter()
+                .flat_map(|machine| &machine.blocks)
+                .flat_map(|block| &block.operations)
+                .any(|operation| matches!(
+                    operation.kind,
+                    OperationKind::StructuralCaseMembership { .. }
+                ))
+        );
+        terminal_verifier::verify_module(
+            &module,
+            &decode_proof_bundle(artifact.proof_bytes()).unwrap(),
+            &AdmissionProfile::default(),
+        )
+        .unwrap();
+    }
+}
+
 fn checked(source: &str) -> checked_trees::CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");

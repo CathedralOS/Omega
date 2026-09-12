@@ -338,6 +338,7 @@ use ScalarLeafResultShape as ResultShape;
 operation_semantic_rows! {
     EstablishPrimitiveLocal => ("schema:operation:establish-primitive-local", LeafDenotation, None),
     PrimitiveScalarRead => ("schema:operation:primitive-scalar-read", LeafDenotation, None),
+    StructuralCaseMembership => ("schema:operation:structural-case-membership", LeafDenotation, None),
     WriteOnlyPrimitiveStore => ("schema:operation:write-only-primitive-store", LeafDenotation, None),
     StructuralScalarFieldStore => ("schema:operation:structural-scalar-field-store", LeafDenotation, None),
     StructuralByteSequenceFieldStore => ("schema:operation:structural-byte-sequence-field-store", LeafDenotation, None),
@@ -772,14 +773,14 @@ mod tests {
 
     #[test]
     fn operation_inventory_is_exact_unique_and_closed() {
-        assert_eq!(OperationSemanticTag::ALL.len(), 65);
-        assert_eq!(OperationSemanticRow::ALL.len(), 65);
+        assert_eq!(OperationSemanticTag::ALL.len(), 66);
+        assert_eq!(OperationSemanticRow::ALL.len(), 66);
         assert_eq!(
             OperationSemanticRow::ALL
                 .iter()
                 .filter(|row| row.custody == OperationSemanticCustody::LeafDenotation)
                 .count(),
-            55,
+            56,
         );
         assert_eq!(
             OperationSemanticRow::ALL
@@ -801,7 +802,7 @@ mod tests {
                 .map(|row| row.tag)
                 .collect::<BTreeSet<_>>()
                 .len(),
-            65,
+            66,
         );
         assert_eq!(
             OperationSemanticRow::ALL
@@ -809,7 +810,7 @@ mod tests {
                 .map(|row| row.identity)
                 .collect::<BTreeSet<_>>()
                 .len(),
-            65,
+            66,
         );
         assert!(
             OperationSemanticRow::ALL

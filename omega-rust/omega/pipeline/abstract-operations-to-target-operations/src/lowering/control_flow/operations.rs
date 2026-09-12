@@ -186,6 +186,15 @@ pub(super) fn lower_operation(
             operations,
             provenance,
         ),
+        AbstractOperation::StructuralCaseMembership { .. } => super::structural_case::observe(
+            operation,
+            function,
+            structural_types,
+            prepared,
+            live,
+            operations,
+            provenance,
+        ),
         AbstractOperation::EstablishPrimitiveLocal { .. }
         | AbstractOperation::PrimitiveLocalStore { .. }
         | AbstractOperation::PrimitiveScalarRead { .. } => super::primitive_storage::lower(

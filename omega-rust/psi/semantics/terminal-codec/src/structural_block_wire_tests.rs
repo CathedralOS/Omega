@@ -160,7 +160,7 @@ fn primitive_local_operations_round_trip_with_exact_result_and_operand_identitie
         };
 
         let bytes = encode_module(&module).expect("primitive local module encodes");
-        assert_eq!(&bytes[8..12], &[88, 0, 98, 0]);
+        assert_eq!(&bytes[8..12], &[89, 0, 99, 0]);
         let decoded = decode_module(&bytes).expect("primitive local module decodes");
         assert_eq!(decoded, module);
         assert_eq!(encode_module(&decoded).unwrap(), bytes);
@@ -261,7 +261,7 @@ fn structural_block_module() -> TerminalModule {
 fn structural_block_bindings_round_trip_and_bind_each_argument_order() {
     let module = structural_block_module();
     let bytes = encode_module(&module).expect("borrowed block bindings encode");
-    assert_eq!(&bytes[8..12], &[88, 0, 98, 0]);
+    assert_eq!(&bytes[8..12], &[89, 0, 99, 0]);
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(
         encode_module(&decode_module(&bytes).unwrap()),
@@ -301,7 +301,7 @@ fn structural_block_bindings_round_trip_and_bind_each_argument_order() {
             super::semantic_fingerprint(&module).unwrap()
         );
     }
-    for (offset, marker) in [(8, 87_u16), (8, 89), (10, 97), (10, 99)] {
+    for (offset, marker) in [(8, 88_u16), (8, 90), (10, 98), (10, 100)] {
         let mut stale = bytes.clone();
         stale[offset..offset + 2].copy_from_slice(&marker.to_le_bytes());
         assert!(decode_module(&stale).is_err());

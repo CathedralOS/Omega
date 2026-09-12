@@ -275,6 +275,17 @@ pub(super) fn emit_boolean_expression(
             next_value_identity,
             operations,
         ),
+        LoweredBooleanReturnExpression::StructuralCaseMembership { source, case } => {
+            emit_scalar_leaf(
+                OperationKind::StructuralCaseMembership {
+                    source: *source,
+                    case: *case,
+                },
+                ScalarType::Boolean,
+                next_value_identity,
+                operations,
+            )
+        }
         LoweredBooleanReturnExpression::StructuralField { source, field } => {
             let id = value_id(*next_value_identity);
             *next_value_identity = next_value_identity

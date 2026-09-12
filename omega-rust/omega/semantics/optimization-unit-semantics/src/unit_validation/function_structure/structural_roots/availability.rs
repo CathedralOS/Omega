@@ -162,6 +162,7 @@ pub(in crate::unit_validation::function_structure) fn operation_place_inputs(
             dynamic_dispatch.rebound.source.place,
         ],
         O::PrimitiveScalarRead { source, .. }
+        | O::StructuralCaseMembership { source, .. }
         | O::ByteSequenceSubslice { source, .. }
         | O::StructuralCase { source, .. }
         | O::ByteSequenceRead { source, .. }

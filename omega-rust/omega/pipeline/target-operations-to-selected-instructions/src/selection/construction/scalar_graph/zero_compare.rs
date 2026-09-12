@@ -76,6 +76,7 @@ pub(super) fn folded_zero<'a>(
                 }
                 LegalizedScalarInstructionKind::Constant(_)
                 | LegalizedScalarInstructionKind::PrimitiveScalarRead { .. }
+                | LegalizedScalarInstructionKind::StructuralCaseMembership { .. }
                 | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                 | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
                 | LegalizedScalarInstructionKind::BoundarySettlement(_) => false,

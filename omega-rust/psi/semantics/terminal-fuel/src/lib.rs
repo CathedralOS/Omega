@@ -70,6 +70,7 @@ impl TerminalFuelSchedule {
             | OperationKind::IeeeFloatCompare { .. }
             | OperationKind::BooleanConstant { .. }
             | OperationKind::BooleanStructuralField { .. }
+            | OperationKind::StructuralCaseMembership { .. }
             | OperationKind::IntegerStructuralField { .. }
             | OperationKind::BooleanNot { .. }
             | OperationKind::BooleanEqual { .. }

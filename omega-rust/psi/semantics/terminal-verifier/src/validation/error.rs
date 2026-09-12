@@ -1104,6 +1104,11 @@ pub enum ModuleError {
         actual: ScalarType,
     },
     BooleanStructuralFieldRequiresBooleanResult(OperationId),
+    InvalidStructuralCaseObservation {
+        operation: OperationId,
+        source: PlaceId,
+        case: semantic_vocabulary::StructuralCaseId,
+    },
     InvalidBooleanStructuralField {
         operation: OperationId,
         source: PlaceId,
