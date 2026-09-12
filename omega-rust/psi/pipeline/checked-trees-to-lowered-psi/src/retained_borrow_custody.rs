@@ -239,6 +239,7 @@ pub(super) fn retain_foreign_borrow_custodies(
             identity: row.callable_identity.clone(),
             attachment: None,
             scalar_parameters: Vec::new(),
+            crash_routes: Vec::new(),
             structural_parameters: Vec::new(),
             result: BoundaryMachineResult::Unit,
             requires: Vec::new(),

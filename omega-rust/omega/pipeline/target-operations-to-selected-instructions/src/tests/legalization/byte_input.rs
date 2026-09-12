@@ -73,6 +73,7 @@ pub(crate) fn fixture(
             program_local_root_introductions: vec![],
             content_guarantees: vec![],
             published_service_ceiling: vec![],
+            crash_routes: Vec::new(),
         });
     source.functions[0].operations.insert(
         0,

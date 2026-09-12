@@ -1053,7 +1053,7 @@ fn build_contract_plans(
             "selected operator crash invocation has no owning machine contract",
         )]);
     }
-    let crash_capsules = build_crash_contract_capsules(program, &content_conservation);
+    let crash_capsules = build_crash_contract_capsules(program, &content_conservation, operators);
     crash_calls::attach_checked_crash_calls(
         program,
         operators,
@@ -1371,6 +1371,7 @@ fn build_closed_scalar_value_contract_plan(
 fn build_crash_contract_capsules(
     program: &TypedTrees,
     content_conservation: &[validation::ContentConservationSourcePlan],
+    operators: &checked_trees::CheckedOperatorFacts,
 ) -> Vec<checked_trees::CrashContractCapsule> {
     let mut signatures = Vec::new();
     for machine in program.machines() {
@@ -1426,8 +1427,8 @@ fn build_crash_contract_capsules(
                 contracts,
                 &parameter_names,
                 content_conservation,
-                None,
-                None,
+                Some(CrashContractOwner::Signature(signature)),
+                Some(operators),
                 &[],
             );
             let crash = checked_trees::CrashPlan::published_ceiling(published.clone());
@@ -1575,7 +1576,7 @@ fn build_published_crash_plan(
         program.machine_contracts(machine),
         parameter_names,
         content_conservation,
-        Some(machine),
+        Some(CrashContractOwner::Machine(machine)),
         Some(operators),
         exact_integer_casts,
     );
@@ -1648,7 +1649,7 @@ pub(crate) fn derive_authored_machine_crash_buckets(
         program.machine_contracts(machine),
         &parameter_names,
         &conservation,
-        Some(machine),
+        Some(CrashContractOwner::Machine(machine)),
         None,
         &[],
     )
@@ -1698,12 +1699,17 @@ pub(super) fn derive_authored_operator_crash_buckets(
     )
 }
 
+enum CrashContractOwner<'program> {
+    Machine(&'program typed_trees::machine::Machine),
+    Signature(&'program typed_trees::signature::StateSignature),
+}
+
 fn build_published_crash_buckets(
     program: &TypedTrees,
     contracts: &[typed_trees::signature::SignatureContract],
     parameter_names: &[String],
     content_conservation: &[validation::ContentConservationSourcePlan],
-    machine: Option<&typed_trees::machine::Machine>,
+    owner: Option<CrashContractOwner<'_>>,
     operators: Option<&checked_trees::CheckedOperatorFacts>,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Vec<checked_trees::CrashRouteBucket> {
@@ -1749,15 +1755,28 @@ fn build_published_crash_buckets(
                         parameter_names,
                         Some(content_conservation),
                     );
-                    let scalar = machine.zip(operators).and_then(|(machine, operators)| {
-                        crate::values::lower_machine_entry_boolean_expression(
-                            program,
-                            operators,
-                            machine,
-                            *expression,
-                            exact_integer_casts,
-                        )
-                    });
+                    let scalar = owner
+                        .as_ref()
+                        .zip(operators)
+                        .and_then(|(owner, operators)| match owner {
+                            CrashContractOwner::Machine(machine) => {
+                                crate::values::lower_machine_entry_boolean_expression(
+                                    program,
+                                    operators,
+                                    machine,
+                                    *expression,
+                                    exact_integer_casts,
+                                )
+                            }
+                            CrashContractOwner::Signature(signature) => {
+                                crate::values::lower_signature_crash_contract_expression(
+                                    program,
+                                    operators,
+                                    signature,
+                                    *expression,
+                                )
+                            }
+                        });
                     let identity = if let Some(scalar) = scalar {
                         checked_trees::CrashPredicateIdentity::from_expression_and_scalar(
                             structured, scalar,

@@ -12,10 +12,8 @@ use crate::shared::*;
 use machine::lower_machine;
 use terminal_psi::TerminalModule;
 
-/// Consume the complete verified module after the artifact entry has decoded
-/// and verified it. The initial terminal vocabulary has one unconditional
-/// executable chain per machine, so its Omega requirement stream is flat and
-/// ordered.
+/// Consume the complete module after artifact decoding and independent
+/// verification, retaining its explicit control-flow and operation relationships.
 pub(crate) fn lower_decoded_verified_module(
     verified: &VerifiedTerminalModule<'_>,
 ) -> Result<AbstractOperationPlan, LoweringError> {
@@ -29,6 +27,16 @@ pub(crate) fn lower_decoded_optimizable_module(
 }
 
 fn lower_decoded_module(module: &TerminalModule) -> Result<AbstractOperationPlan, LoweringError> {
+    // Terminal replay now retains the opaque requirement's crash contract.
+    // Omega's boundary outcome/effect projections do not yet consume it; an
+    // ordinary BoundaryCall shape must not silently erase the new permission.
+    if let Some(boundary) = module
+        .boundary_machines
+        .iter()
+        .find(|boundary| !boundary.crash_routes.is_empty())
+    {
+        return Err(LoweringError::UnsupportedBoundaryCrashContract(boundary.id));
+    }
     block_bindings::validate_structural_block_bindings(module)?;
     if !module
         .machines

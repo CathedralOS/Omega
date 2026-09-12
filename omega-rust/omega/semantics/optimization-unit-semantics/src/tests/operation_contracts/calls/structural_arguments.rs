@@ -56,6 +56,7 @@ fn rejects_structural_call_argument_arity_and_access_corruption() {
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
             published_service_ceiling: Vec::new(),
+            crash_routes: Vec::new(),
         });
     let (psi_operation, structural_arguments) =
         match &boundary.functions[0].blocks[0].nodes[0].operation {

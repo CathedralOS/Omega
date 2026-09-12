@@ -448,6 +448,7 @@ fn canonical_identity_binds_every_retained_field_class() {
         program_local_root_introductions: Vec::new(),
         content_guarantees: Vec::new(),
         published_service_ceiling: vec![id(107, ServiceId::new)],
+        crash_routes: Vec::new(),
     });
     mutations.push(("module boundary declaration", unit));
     let mut unit = baseline.clone();

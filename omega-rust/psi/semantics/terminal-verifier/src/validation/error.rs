@@ -420,6 +420,9 @@ pub enum ModuleError {
     RootInstallationReachDependenciesMismatch,
     DuplicateBoundaryMachine(BoundaryMachineId),
     InvalidBoundaryMachineIdentity(BoundaryMachineId),
+    NonCanonicalBoundaryCrashRoutes(BoundaryMachineId),
+    InvalidBoundaryCrashParameters(BoundaryMachineId),
+    UnsupportedBoundaryCrashPredicate(BoundaryMachineId),
     UnknownMachineAttachment {
         machine: MachineId,
         attachment: StructuralTypeId,

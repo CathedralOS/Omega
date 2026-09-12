@@ -28,6 +28,8 @@ use terminal_verifier::{
     reconstruct_terminal_obligations, validate_module, verify_module,
 };
 
+#[path = "calls/boundary_crashes.rs"]
+mod boundary_crashes;
 #[path = "calls/byte_views.rs"]
 mod byte_views;
 #[path = "calls/provider_results.rs"]
@@ -812,6 +814,7 @@ fn boundary_call_module() -> TerminalModule {
         reborrow_root_handoffs: Vec::new(),
         reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
+            crash_routes: Vec::new(),
             id: boundary_id(1),
             identity: "test::observe".into(),
             attachment: None,

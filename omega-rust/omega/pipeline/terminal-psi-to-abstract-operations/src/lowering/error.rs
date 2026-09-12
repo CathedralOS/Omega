@@ -2,6 +2,8 @@ use crate::shared::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    /// Boundary crash permissions need explicit downstream outcome/effect support.
+    UnsupportedBoundaryCrashContract(semantic_vocabulary::BoundaryMachineId),
     InvalidPrimitiveLocalEstablishment(semantic_vocabulary::OperationId),
     InvalidPrimitiveScalarRead(semantic_vocabulary::OperationId),
     SemanticIdentity(CodecError),

@@ -56,6 +56,7 @@ fn rejects_self_consistent_internal_claim_transfer_and_boundary_completion_corru
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
             published_service_ceiling: Vec::new(),
+            crash_routes: Vec::new(),
         });
     let (psi_operation, structural_arguments) =
         match &boundary.functions[0].blocks[0].nodes[0].operation {

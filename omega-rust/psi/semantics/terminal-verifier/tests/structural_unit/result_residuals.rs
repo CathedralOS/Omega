@@ -4,6 +4,7 @@ fn produced_partial_module() -> TerminalModule {
     let mut module = partial_affine_field_module();
     let root_type = module.machines[0].structural_parameters[0].structural_type;
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        crash_routes: Vec::new(),
         id: boundary_id(1),
         identity: "produce_pair".into(),
         attachment: None,

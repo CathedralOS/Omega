@@ -321,6 +321,12 @@ pub(super) fn signature_contracts_are_exact_parameter_qualifications(
 
     let mut actual = Vec::<(usize, SemanticDomainId)>::new();
     for contract in program.state_signature_contracts(signature) {
+        // Crash ceilings have their own checked capsule and Terminal lane.
+        if matches!(contract.kind, SignatureContractKind::Crashes { .. })
+            && contract.binding.is_none()
+        {
+            continue;
+        }
         if contract.kind != SignatureContractKind::Requires || contract.binding.is_some() {
             return false;
         }

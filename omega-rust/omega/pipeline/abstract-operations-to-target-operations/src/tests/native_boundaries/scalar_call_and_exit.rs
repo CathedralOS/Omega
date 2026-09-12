@@ -17,6 +17,7 @@ fn checked_scalar_call_and_literal_exit_compose_in_one_shared_unit_body() {
         program_local_root_introductions: Vec::new(),
         content_guarantees: Vec::new(),
         published_service_ceiling: Vec::new(),
+        crash_routes: Vec::new(),
     });
     let caller = &mut plan.functions[0];
     let return_operation = caller.operations.pop().expect("caller return");

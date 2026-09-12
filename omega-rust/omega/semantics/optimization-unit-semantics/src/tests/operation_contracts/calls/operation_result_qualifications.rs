@@ -178,6 +178,7 @@ fn boundary_requirement_consumes_a_dominating_operation_result_qualification() {
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
             published_service_ceiling: Vec::new(),
+            crash_routes: Vec::new(),
         });
     let entry_claim = unit.functions[0].entry_claim_declarations[0].clone();
     let return_block = unit.functions[0]

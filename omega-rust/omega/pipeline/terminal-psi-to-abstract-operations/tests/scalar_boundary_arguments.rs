@@ -55,6 +55,7 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
             published_service_ceiling: Vec::new(),
+            crash_routes: Vec::new(),
         }],
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -136,6 +137,45 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
     assert_eq!(result, &AbstractBoundaryResult::Unit);
     assert_eq!(*lowered_boundary, boundary);
     assert_eq!(arguments, &[byte.id, boolean.id]);
+
+    // Verification retains the opaque requirement even when no executable
+    // provider exists. Neither execution nor native projection may erase it.
+    let mut crashing = module.clone();
+    let crash = terminal_psi::CrashRouteBucket {
+        cause: terminal_psi::CrashCause::Trap,
+        alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+    };
+    crashing.boundary_machines[0].crash_routes = vec![crash.clone()];
+    crashing.machines[0].contract.crash_routes = vec![crash];
+    terminal_verifier::verify_module(
+        &crashing,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("covered opaque boundary contract verifies independently");
+    let crashing_semantic = encode_module(&crashing).unwrap();
+    assert!(matches!(
+        lower_artifact_sections(&crashing_semantic, &proof, &AdmissionProfile::default()),
+        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::Lowering(
+            terminal_psi_to_abstract_operations::LoweringError::UnsupportedBoundaryCrashContract(id)
+        )) if id == boundary
+    ));
+    let execution = terminal_interpreter::TerminalExecution::start_artifact(
+        &crashing_semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+    );
+    assert!(matches!(
+        execution,
+        Err(
+            terminal_interpreter::TerminalArtifactInterpretError::Execution(
+                terminal_interpreter::TerminalInterpretError::UnsupportedSemanticVariant(
+                    "boundary crash outcome execution"
+                )
+            )
+        )
+    ));
 
     let structural_type = structural_type_id(1);
     let place = place_id(1);

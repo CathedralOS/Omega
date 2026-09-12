@@ -342,6 +342,12 @@ pub(super) fn validate_operation_operands(
             defined,
             ScalarCallKind::Boundary,
         )?;
+        super::crash::validate_boundary_call_crash_coverage(
+            machine,
+            boundary,
+            arguments,
+            operation.id,
+        )?;
         return Ok(());
     }
     if let OperationKind::IntegerExactCast { operand, .. } = operation.kind.clone() {

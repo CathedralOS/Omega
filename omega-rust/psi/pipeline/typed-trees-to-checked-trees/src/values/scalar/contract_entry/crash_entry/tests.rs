@@ -366,7 +366,8 @@ fn structural_entry_expression_and_type_walks_are_bounded() {
     let mut reader = Reader {
         program: &program,
         operators: &operators,
-        machine,
+        machine: Some(machine),
+        owner: machine.symbol,
         parameters,
         remaining: 1,
     };

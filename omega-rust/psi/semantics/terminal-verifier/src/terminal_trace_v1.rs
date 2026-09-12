@@ -591,6 +591,7 @@ mod tests {
         }];
         module.root_service_reach.concrete = vec![service];
         module.boundary_machines = vec![BoundaryMachineDeclaration {
+            crash_routes: Vec::new(),
             id: boundary,
             identity: "Console::publish".into(),
             attachment: None,

@@ -45,6 +45,7 @@ pub(crate) fn byte_literal_boundary_unit() -> PsiOptimizationUnit {
                 program_local_root_introductions: Vec::new(),
                 content_guarantees: Vec::new(),
                 published_service_ceiling: Vec::new(),
+                crash_routes: Vec::new(),
             }],
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -170,6 +171,7 @@ pub(crate) fn partial_path_qualified_boundary_unit() -> PsiOptimizationUnit {
                 program_local_root_introductions: Vec::new(),
                 content_guarantees: Vec::new(),
                 published_service_ceiling: Vec::new(),
+                crash_routes: Vec::new(),
             }],
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {

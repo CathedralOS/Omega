@@ -34,6 +34,7 @@ fn hosted_exit_process_i32_retains_runtime_source_abi_and_nonreturning_tail() {
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
             published_service_ceiling: Vec::new(),
+            crash_routes: Vec::new(),
         }],
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {
