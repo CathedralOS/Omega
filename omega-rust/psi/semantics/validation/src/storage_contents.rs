@@ -163,9 +163,12 @@ fn resolve(
                 .collect::<Option<Vec<_>>>()?;
             Some(ContentType::Data(*base_symbol, resolved))
         }
+        // Extent zero does not introduce loans or cleanup. Retain and classify
+        // the element carrier just as for nonempty arrays; operation-specific
+        // layout and indexing requirements are checked by their consumers.
         TypeReferenceNode::FixedArray {
             element_type,
-            length: typed_trees::types::FixedArrayLength::Literal(length @ 1..),
+            length: typed_trees::types::FixedArrayLength::Literal(length),
         } => Some(ContentType::Array(
             Box::new(resolve(program, *element_type, arguments, requirement)?),
             *length,

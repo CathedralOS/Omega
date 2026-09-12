@@ -145,6 +145,23 @@ pub(in crate::generic_data) fn relabel_data_literal_for_expected_type(
     selection: Option<&constant_selection::ConstantSelection>,
     frontier: &ConstructorFrontier<'_>,
 ) {
+    // The destination constrains each result arm, not the dispatch subject or
+    // patterns. Keep the match intact for ordinary coverage, ownership and
+    // selective execution; only its value-producing children inherit this type.
+    if let ExpressionNode::Match(dispatch) = syntax.expressions.expression(expression) {
+        let arms = syntax.expressions.match_arms(dispatch.arms).to_vec();
+        for arm in arms {
+            relabel_data_literal_for_expected_type(
+                syntax,
+                arm.value,
+                expected_type,
+                instances,
+                selection,
+                frontier,
+            );
+        }
+        return;
+    }
     if let ExpressionNode::Name(path) = syntax.expressions.expression(expression)
         && frontier.captures(syntax, *path)
     {

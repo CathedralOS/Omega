@@ -346,6 +346,34 @@ fn check_sum(body: &str) -> Result<compiler::CheckedCompilation, Vec<diagnostics
 }
 
 #[test]
+fn match_constructor_results_keep_exact_expected_applications() {
+    check_sum(
+        r#"
+        machine keep(value: first::Choice<u64>) -> first::Choice<u64> { value }
+        machine make(selected: bool) -> first::Choice<u64> {
+            keep(match selected {
+                true -> first::Choice::Full { value: 7 },
+                false -> first::Choice::Empty
+            })
+        }
+        machine nested(selected: bool) -> first::Choice<second::Choice<bool>> {
+            let result: first::Choice<second::Choice<bool>> = match selected {
+                true -> first::Choice::Full {
+                    value: match selected {
+                        true -> second::Choice::Full { value: true },
+                        false -> second::Choice::Empty
+                    }
+                },
+                false -> first::Choice::Empty
+            };
+            result
+        }
+    "#,
+    )
+    .expect("return, call and nested field destinations retain distinct tuples");
+}
+
+#[test]
 fn qualified_sums_reject_wrong_carriers_cases_and_payloads() {
     for body in [
         "machine wrong() -> first::Choice<u64> { second::Choice::Full { value: 7 } }",
@@ -356,6 +384,9 @@ fn qualified_sums_reject_wrong_carriers_cases_and_payloads() {
         "machine wrong(value: first::Choice<bool>) -> first::Choice<u64> { value }",
         "machine wrong() -> first::Choice<first::Leaf> { first::Choice::Full { value: second::Leaf { value: 3 } } }",
         "use first::Choice; use second::Choice; machine wrong() -> first::Choice<u64> { Choice::Empty }",
+        "machine wrong() -> first::Choice<u64> { match true { true -> first::Choice::Empty, false -> second::Choice::Empty } }",
+        "machine wrong() -> first::Choice<u64> { match true { true -> first::Choice::Empty, false -> first::Choice::Full { value: true } } }",
+        "machine wrong(Choice: u64) -> first::Choice<u64> { match true { true -> first::Choice::Empty, false -> Choice::Empty } }",
     ] {
         assert!(check_sum(body).is_err(), "accepted: {body}");
     }

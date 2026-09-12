@@ -102,6 +102,83 @@ machine Main::main(&mut self) {}
 }
 
 #[test]
+fn evaluates_match_selected_binding_with_closed_constructor_arms() {
+    for selected in [true, false] {
+        let fixture = TemporaryProgram::new(&format!(
+            r#"
+use omega::language::core::external_binding;
+boundary trait Host {{ machine ping(); }}
+windows_x86_64 machine binding() -> Binding<12, 11, 0> {{
+    match {selected} {{
+        true -> Binding::DllImport {{
+            import: DllImport::PeByName {{ library: "kernel32.dll", export: "ExitProcess" }}
+        }},
+        false -> Binding::DllImport {{
+            import: DllImport::PeByName {{ library: "kernel32.dll", export: "FreeLibrary" }}
+        }}
+    }}
+}}
+machine ping_leaf() satisfies Host::ping via binding();
+"#,
+        ));
+        let checked = compile_to_checked(&fixture.main(), Some("windows_x86_64"))
+            .expect("match result supplies the exact constructor destinations");
+        let bindings = checked
+            .provider_plans()
+            .iter()
+            .flat_map(|plan| &plan.rows)
+            .filter_map(|row| match &row.binding {
+                ProviderBinding::Import { evaluated } => Some(evaluated),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [binding] = bindings.as_slice() else {
+            panic!("one import binding");
+        };
+        assert_eq!(
+            binding.locator().locator(),
+            &ForeignLocatorCandidate::PeByName {
+                library: b"kernel32.dll".to_vec(),
+                export: if selected {
+                    b"ExitProcess"
+                } else {
+                    b"FreeLibrary"
+                }
+                .to_vec(),
+            }
+        );
+    }
+}
+
+#[test]
+fn skipped_binding_arm_still_checks_its_declared_byte_width() {
+    let fixture = TemporaryProgram::new(
+        r#"
+use omega::language::core::external_binding;
+windows_x86_64 machine binding() -> Binding<12, 11, 0> {
+    match true {
+        true -> Binding::DllImport {
+            import: DllImport::PeByName { library: "kernel32.dll", export: "ExitProcess" }
+        },
+        false -> Binding::DllImport {
+            import: DllImport::PeByName { library: "wrong", export: "FreeLibrary" }
+        }
+    }
+}
+"#,
+    );
+    let diagnostics = compile_to_checked(&fixture.main(), Some("windows_x86_64"))
+        .expect_err("selective execution does not waive source type obligations");
+    assert!(
+        diagnostics.iter().any(
+            |diagnostic| diagnostic.message.contains("has 5 source byte(s)")
+                && diagnostic.message.contains("requires exactly 12")
+        ),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
 fn imported_binding_arrays_preserve_exact_declared_widths() {
     for width in [11, 13] {
         let source = format!(
