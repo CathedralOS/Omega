@@ -30,10 +30,9 @@ fn retains_owned_affine_i64_record_literal_for_direct_unit_call() {
     assert!(matches!(
         root.operations.as_slice(),
         [
-            CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal {
-                declaration_ordinal: 0,
-                field_identity,
-                value: CheckedScalarExpression::IntegerLiteral { literal },
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                result,
+                discard_result_on_return: false,
                 ..
             },
             CheckedUnitEffectOperationPlan::CallUnit {
@@ -44,14 +43,41 @@ fn retains_owned_affine_i64_record_literal_for_direct_unit_call() {
                 trivial_affine_local_discard_ordinals,
                 ..
             }
-        ] if field_identity.ends_with("value")
-            && literal.value_i64() == Some(7)
+        ] if result.binding_ordinal == 0
             && matches!(structural_arguments.as_slice(), [argument]
-                if argument.source_affine_scalar_record_local_declaration_ordinal() == Some(0)
+                if argument.source_structural_result_binding_ordinal() == Some(0)
                     && argument.path.is_empty()
                     && argument.access == checked_trees::CheckedStructuralAccess::Owned)
             && trivial_affine_local_discard_ordinals.is_empty()
     ));
+    let CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } =
+        &root.operations[0]
+    else {
+        panic!("record construction");
+    };
+    let checked_trees::CheckedStructuralValueKind::Record { fields, .. } = checked
+        .facts
+        .values
+        .structural_values
+        .nodes
+        .get(*value)
+        .kind
+    else {
+        panic!("record fields");
+    };
+    let [field] = checked
+        .facts
+        .values
+        .structural_values
+        .record_fields
+        .span_or_empty(fields)
+    else {
+        panic!("one field");
+    };
+    assert!(
+        matches!(&checked.facts.values.scalar_computations.nodes.get(field.value).kind,
+        checked_trees::CheckedScalarComputationKind::Value(CheckedScalarExpression::IntegerLiteral { literal }) if literal.value_i64() == Some(7))
+    );
 }
 
 #[test]

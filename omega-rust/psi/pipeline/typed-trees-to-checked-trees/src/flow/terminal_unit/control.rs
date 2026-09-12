@@ -1216,14 +1216,6 @@ pub(super) fn build_checked_machine_with(
     let construction = build_affine_array_construction_prefix(
         program, facts, shapes, machine, state, &binders, statements,
     );
-    let affine_scalar_record_local = construction
-        .is_none()
-        .then(|| {
-            build_unit_affine_scalar_record_local(
-                program, facts, shapes, machine, state, &binders, statements,
-            )
-        })
-        .flatten();
     let selected_ieee_float_fma_result_locals = selected_ieee_float_fma_result_locals(
         program,
         machine,
@@ -1281,8 +1273,7 @@ pub(super) fn build_checked_machine_with(
     // Construction remains owned by the existing prefix builders. The shared
     // statement sequence receives their exact local identities, not a synthetic
     // structural result or a second establishment operation.
-    let sequence_trivial_locals = if construction.is_none() && affine_scalar_record_local.is_none()
-    {
+    let sequence_trivial_locals = if construction.is_none() {
         let count = statements
             .iter()
             .take_while(|statement| {
@@ -1308,11 +1299,7 @@ pub(super) fn build_checked_machine_with(
     } else {
         None
     };
-    let construction_statement_count = if affine_scalar_record_local.is_some() {
-        1
-    } else {
-        sequence_trivial_locals.as_ref().map_or(0, Vec::len)
-    };
+    let construction_statement_count = sequence_trivial_locals.as_ref().map_or(0, Vec::len);
     let statement_sequence = if selected_scalar_result_local.is_none()
         && selected_structural_result_local.is_none()
         && selected_ieee_float_fma_result_locals.is_none()
@@ -1337,7 +1324,6 @@ pub(super) fn build_checked_machine_with(
             &entry_claims,
             &calls,
             sequence_trivial_locals.as_deref().unwrap_or(&[]),
-            affine_scalar_record_local.as_slice(),
             construction_statement_count,
         )?)
     } else {
@@ -1368,10 +1354,7 @@ pub(super) fn build_checked_machine_with(
             )
         });
     let has_scalar_result_local = scalar_result_local_count != 0;
-    if has_scalar_result_local
-        && statement_sequence.is_none()
-        && (construction.is_some() || affine_scalar_record_local.is_some())
-    {
+    if has_scalar_result_local && statement_sequence.is_none() && construction.is_some() {
         return None;
     }
     if write_only_store.is_some()
@@ -1388,8 +1371,6 @@ pub(super) fn build_checked_machine_with(
     });
     let local_count = if has_scalar_result_local {
         scalar_result_local_count
-    } else if affine_scalar_record_local.is_some() {
-        1
     } else {
         construction.as_ref().map_or_else(
             || {
@@ -1410,7 +1391,6 @@ pub(super) fn build_checked_machine_with(
     };
     if write_only_store.is_some() || structural_scalar_field_store.is_some() {
         if construction.is_some()
-            || affine_scalar_record_local.is_some()
             || if scalar_result_local.is_some() {
                 local_count != 1 || calls.len() != 1 || statements.len() != 2
             } else if selected_scalar_result_local.is_some() {
@@ -1502,17 +1482,11 @@ pub(super) fn build_checked_machine_with(
             return None;
         }
     }
-    let local_rows = match (
-        has_scalar_result_local,
-        construction,
-        borrow_alias_prefix,
-        affine_scalar_record_local.as_ref(),
-    ) {
-        (true, None, None, None) => sequence_trivial_locals.unwrap_or_default(),
-        (true, None, None, Some(_)) if statement_sequence.is_some() => Vec::new(),
-        (false, Some((rows, _)), None, None) => rows,
-        (false, None, Some(_), None) | (false, None, None, Some(_)) => Vec::new(),
-        (false, None, None, None) => build_unit_trivial_affine_locals(
+    let local_rows = match (has_scalar_result_local, construction, borrow_alias_prefix) {
+        (true, None, None) => sequence_trivial_locals.unwrap_or_default(),
+        (false, Some((rows, _)), None) => rows,
+        (false, None, Some(_)) => Vec::new(),
+        (false, None, None) => build_unit_trivial_affine_locals(
             program,
             facts,
             shapes,
@@ -1533,11 +1507,6 @@ pub(super) fn build_checked_machine_with(
         .iter()
         .map(|(_, symbol)| *symbol)
         .collect::<Vec<_>>();
-    admitted_local_symbols.extend(
-        affine_scalar_record_local
-            .as_ref()
-            .map(|local| local.symbol),
-    );
     admitted_local_symbols.extend(selected_structural_result_symbol);
     admitted_local_symbols.extend(structural_result_symbol);
     if let Some(sequence) = &statement_sequence {
@@ -1559,17 +1528,6 @@ pub(super) fn build_checked_machine_with(
             },
         )
         .collect::<Vec<_>>();
-    if let Some(local) = &affine_scalar_record_local {
-        operations.push(
-            CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal {
-                statement_index: local.declaration_ordinal,
-                declaration_ordinal: local.declaration_ordinal,
-                type_identity: local.type_identity.clone(),
-                field_identity: local.field_identity.clone(),
-                value: local.value.clone(),
-            },
-        );
-    }
     if statement_sequence.is_none()
         && scalar_result_local.is_none()
         && selected_scalar_result_local.is_none()
@@ -1628,7 +1586,6 @@ pub(super) fn build_checked_machine_with(
                 state,
                 &structural_parameters,
                 &local_rows,
-                affine_scalar_record_local.as_slice(),
                 &entry_claims,
                 call,
                 false,
@@ -1666,7 +1623,6 @@ pub(super) fn build_checked_machine_with(
                 state,
                 &structural_parameters,
                 &local_rows,
-                affine_scalar_record_local.as_slice(),
                 &entry_claims,
                 call,
                 false,
@@ -1748,7 +1704,6 @@ pub(super) fn build_checked_machine_with(
                     state,
                     &structural_parameters,
                     &local_rows,
-                    affine_scalar_record_local.as_slice(),
                     &entry_claims,
                     call,
                     false,
@@ -1789,7 +1744,6 @@ pub(super) fn build_checked_machine_with(
                 state,
                 &structural_parameters,
                 &local_rows,
-                affine_scalar_record_local.as_slice(),
                 &entry_claims,
                 call,
                 false,
@@ -1859,11 +1813,7 @@ pub(super) fn build_checked_machine_with(
                 ..
             } => structural_arguments
                 .iter()
-                .filter_map(|argument| {
-                    argument.source_local_declaration_ordinal().or_else(|| {
-                        argument.source_affine_scalar_record_local_declaration_ordinal()
-                    })
-                })
+                .filter_map(|argument| argument.source_local_declaration_ordinal())
                 .collect::<Vec<_>>(),
             CheckedUnitEffectOperationPlan::PortWrite { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
@@ -1876,7 +1826,6 @@ pub(super) fn build_checked_machine_with(
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
             | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
             | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
-            | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
             | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
@@ -1885,8 +1834,7 @@ pub(super) fn build_checked_machine_with(
         .collect::<BTreeSet<_>>();
     operations.push(CheckedUnitEffectOperationPlan::Complete {
         statement_index: u32::try_from(statements.len()).ok()?,
-        trivial_affine_local_discard_ordinals: (0..trivial_affine_locals.len()
-            + usize::from(affine_scalar_record_local.is_some()))
+        trivial_affine_local_discard_ordinals: (0..trivial_affine_locals.len())
             .rev()
             .map(|ordinal| u32::try_from(ordinal).ok())
             .collect::<Option<Vec<_>>>()?

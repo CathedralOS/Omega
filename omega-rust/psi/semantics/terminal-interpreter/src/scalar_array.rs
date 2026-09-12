@@ -159,7 +159,7 @@ impl TerminalExecution {
                 .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
             self.blocks = caller.blocks;
             self.values = caller.values;
-            self.retire_primitive_locals();
+            self.retire_plain_locals();
             self.structural_values = caller.structural_values;
             self.scalar_case_values = caller.scalar_case_values;
             // Caller arrays precede this call and survive alongside its result.
@@ -175,7 +175,7 @@ impl TerminalExecution {
             return Ok(None);
         }
         let result = TerminalExecutionResult::ScalarArray(TerminalScalarArrayResult { value });
-        self.retire_primitive_locals();
+        self.retire_plain_locals();
         self.result = Some(result.clone());
         Ok(Some(TerminalExecutionStatus::Complete(result)))
     }

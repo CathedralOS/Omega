@@ -46,7 +46,7 @@ pub(crate) fn reconstruct_declared_places(
                 | O::ByteSequenceSubslice { result, .. }
                 | O::EstablishScalarArray { result, .. }
                 | O::EstablishScalarCase { result, .. }
-                | O::EstablishAffineScalarRecord { result, .. }
+                | O::EstablishScalarRecord { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),
@@ -111,7 +111,7 @@ pub(crate) fn validate_operation_places(
         }
         O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
-        | O::EstablishAffineScalarRecord { .. } => {}
+        | O::EstablishScalarRecord { .. } => {}
         O::PrimitiveLocalStore { destination, .. } => require(*destination, known)?,
         O::WriteOnlyPrimitiveStore { destination, .. }
         | O::StructuralScalarFieldStore { destination, .. } => {

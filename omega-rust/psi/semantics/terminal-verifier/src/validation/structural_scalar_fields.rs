@@ -126,6 +126,16 @@ pub(super) fn validate_integer_structural_field(
         source,
         field,
     };
+    if super::scalar_record::plain_return_source(module, machine, source) {
+        let result = super::scalar_record::result(machine, source).ok_or_else(invalid)?;
+        if matches!(result_type, ScalarType::Integer(_))
+            && direct_relevant_scalar_field(module, result.structural_type, field, true)
+                == Some(result_type)
+        {
+            return Ok(());
+        }
+        return Err(invalid());
+    }
     let parameter = readable_parameter_for(machine, source).ok_or_else(invalid)?;
     if !matches!(
         parameter.multiplicity,
@@ -160,6 +170,16 @@ pub(super) fn validate_boolean_structural_field(
         source,
         field,
     };
+    if super::scalar_record::plain_return_source(module, machine, source) {
+        let result = super::scalar_record::result(machine, source).ok_or_else(invalid)?;
+        return if direct_relevant_scalar_field(module, result.structural_type, field, true)
+            == Some(ScalarType::Boolean)
+        {
+            Ok(())
+        } else {
+            Err(invalid())
+        };
+    }
     let parameter = readable_parameter_for(machine, source).ok_or_else(invalid)?;
     if parameter.access == StructuralAccess::WriteOnlyBorrow {
         return Err(ModuleError::StructuralObservationRequiresReadableAccess { operation, source });

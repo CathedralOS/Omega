@@ -58,6 +58,12 @@ an unqualified Boolean. Decoding and verification reconstruct readable access,
 nominal case ownership, dominance and current ownership; no payload projection
 or reusable mutable-storage equation is encoded by this observation.
 
+Scalar record construction uses operation tag 67 followed by a counted list of
+field/value identity pairs in declaration order. The exact result type,
+multiplicity, and result-place producer remain in the ordinary operation result.
+The retired literal-only record tag 51 rejects; its integer payload is not
+reinterpreted as an SSA field roster.
+
 The semantic scalar-range-invariant roster precedes the machine table. Rows
 are strictly ordered by `(machine, header, parameter)` and encode those three
 identities, the integer carrier, inclusive minimum and maximum, and a counted

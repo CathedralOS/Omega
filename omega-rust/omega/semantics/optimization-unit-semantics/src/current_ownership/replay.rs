@@ -311,7 +311,7 @@ pub(super) fn validate_current_ownership_cfg(
                 O::ByteSequenceSubslice { .. } => None,
                 O::EstablishScalarArray { result, .. }
                 | O::EstablishScalarCase { result, .. }
-                | O::EstablishAffineScalarRecord { result, .. }
+                | O::EstablishScalarRecord { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),

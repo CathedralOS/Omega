@@ -14,6 +14,55 @@ pub(super) fn validate(
     let invalid = LegalizationError::SourceCustodyMismatch;
     match (target, abstracted) {
         (
+            TargetUnitOperation::EstablishScalarRecord {
+                psi_operation,
+                result_home,
+                fields,
+            },
+            AbstractOperation::EstablishScalarRecord {
+                psi_operation: expected_operation,
+                result,
+                fields: expected_fields,
+            },
+        ) => {
+            let declaration = plan
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == result.structural_type)
+                .ok_or(invalid.clone())?;
+            let terminal_psi::StructuralTypeShape::Record {
+                fields: declarations,
+            } = &declaration.shape
+            else {
+                return Err(invalid);
+            };
+            if psi_operation != expected_operation
+                || fields != expected_fields
+                || fields.len() != declarations.len()
+                || *result_home
+                    != scalar_graph_input::aggregate_results::result_home(
+                        optimized,
+                        result.place,
+                        plan,
+                    )?
+                || fields.iter().zip(declarations).any(|(field, declaration)| {
+                    field.field != declaration.id
+                        || declaration.relevance.is_erased()
+                        || matches!(
+                            declaration.field_type,
+                            terminal_psi::StructuralFieldType::BoundedInteger(_)
+                        )
+                        || !sources.iter().any(|(value, source)| {
+                            *value == field.value
+                                && declaration.field_type.scalar_type()
+                                    == Some(source.scalar_type())
+                        })
+                })
+            {
+                return Err(invalid);
+            }
+        }
+        (
             TargetUnitOperation::EstablishScalarArray {
                 psi_operation,
                 result_home,

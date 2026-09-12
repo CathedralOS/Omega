@@ -35,6 +35,7 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
             operation,
             AbstractOperation::EstablishPrimitiveLocal { .. }
                 | AbstractOperation::EstablishScalarCase { .. }
+                | AbstractOperation::EstablishScalarRecord { .. }
                 | AbstractOperation::EstablishScalarArray { .. }
                 | AbstractOperation::CallStructural { .. }
                 | AbstractOperation::ReturnStructural { .. }
@@ -215,6 +216,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
             let admitted = match operation {
                 AbstractOperation::StructuralCaseMembership { .. }
                 | AbstractOperation::EstablishScalarCase { .. }
+                | AbstractOperation::EstablishScalarRecord { .. }
                 | AbstractOperation::EstablishScalarArray { .. }
                 | AbstractOperation::CallStructural { .. }
                 | AbstractOperation::ReturnStructural { .. } => aggregate_results::operation(operation, targeted, selected),

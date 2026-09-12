@@ -107,18 +107,17 @@ pub(super) fn lower(
                 structural_type: declaration,
             }
         }
-        OperationKind::EstablishAffineScalarRecord { field, value } => {
+        OperationKind::EstablishScalarRecord { fields } => {
             let Some(result) = operation.result.structural().cloned() else {
                 return Err(LoweringError::UnsupportedStructuralReturn {
                     machine: machine.id,
                     edge: block.terminator.edge(),
                 });
             };
-            AbstractOperation::EstablishAffineScalarRecord {
+            AbstractOperation::EstablishScalarRecord {
                 psi_operation: operation.id,
                 result,
-                field,
-                value,
+                fields,
             }
         }
         _ => unreachable!("structural-establishment router is exhaustive"),

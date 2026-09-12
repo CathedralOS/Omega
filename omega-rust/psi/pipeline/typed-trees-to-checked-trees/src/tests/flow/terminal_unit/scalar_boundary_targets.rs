@@ -678,9 +678,12 @@ fn scalar_boundary_wrapper_consumes_existing_constructed_local_kinds() {
         if scalar_record {
             assert!(matches!(
                 &caller.operations[0],
-                CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal {
-                    statement_index: 0,
-                    declaration_ordinal: 0,
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    result: checked_trees::CheckedUnitStructuralResultBindingPlan {
+                        statement_index: 0,
+                        binding_ordinal: 0,
+                        ..
+                    },
                     ..
                 }
             ));
@@ -712,7 +715,7 @@ fn scalar_boundary_wrapper_consumes_existing_constructed_local_kinds() {
         assert_eq!(structural_arguments.len(), 1);
         if scalar_record {
             assert_eq!(
-                structural_arguments[0].source_affine_scalar_record_local_declaration_ordinal(),
+                structural_arguments[0].source_structural_result_binding_ordinal(),
                 Some(0)
             );
         } else {

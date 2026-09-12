@@ -184,7 +184,7 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
             StatementNode::Expression(expression) => Some((*expression, state.return_type)),
             _ => None,
         };
-        // Structural dispatch operands and selected case fields own their calls.
+        // Structural dispatch operands and constructor fields own their calls.
         // This is the static call roster, not an instruction to evaluate every
         // arm: emission follows the structural value's selected control path.
         for (_, root) in facts
@@ -198,6 +198,7 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
                     && matches!(
                         root.role,
                         CheckedScalarExpressionRole::StructuralValueField { .. }
+                            | CheckedScalarExpressionRole::RecordField { .. }
                             | CheckedScalarExpressionRole::StructuralValueSubject { .. }
                             | CheckedScalarExpressionRole::StructuralValuePattern { .. }
                     )

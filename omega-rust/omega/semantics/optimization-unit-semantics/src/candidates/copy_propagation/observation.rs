@@ -110,6 +110,11 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
                 replace(&mut field.value);
             }
         }
+        O::EstablishScalarRecord { fields, .. } => {
+            for field in fields {
+                replace(&mut field.value);
+            }
+        }
         O::EstablishPrimitiveLocal { value, .. }
         | O::PrimitiveLocalStore { value, .. }
         | O::WriteOnlyPrimitiveStore { value, .. }
@@ -209,7 +214,6 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | O::StoreDynamicDescriptor { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
-        | O::EstablishAffineScalarRecord { .. }
         | O::CallUnitWithDynamicArguments { .. }
         | O::CallStructuralScalarWithDynamicArguments { .. }
         | O::CallDynamicScalar { .. }

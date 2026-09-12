@@ -210,58 +210,8 @@ pub(super) fn validate_unit_operation_static(
         OperationKind::EstablishScalarCase { .. } => {
             super::scalar_case::fields(module, machine, operation)?;
         }
-        OperationKind::EstablishAffineScalarRecord { field, value } => {
-            let Some(result) = operation.result.structural() else {
-                return Err(ModuleError::AffineScalarRecordResultMismatch(operation.id));
-            };
-            let Some(place) = machine
-                .structural_places
-                .iter()
-                .find(|place| place.id == result.place)
-            else {
-                return Err(ModuleError::AffineScalarRecordResultMismatch(operation.id));
-            };
-            if !matches!(
-                place.kind,
-                StructuralPlaceKind::OperationResult { producer, structural_type }
-                    if producer == operation.id && structural_type == result.structural_type
-            ) || result.multiplicity != StructuralMultiplicity::Affine
-                || !super::structural_result_contracts::has_empty_qualification_rosters(
-                    &result.qualifications,
-                    &result.projected_qualifications,
-                )
-                || !result.claims.is_empty()
-            {
-                return Err(ModuleError::AffineScalarRecordResultMismatch(operation.id));
-            }
-            let declaration = module
-                .structural_types
-                .iter()
-                .find(|declaration| declaration.id == result.structural_type)
-                .ok_or(ModuleError::UnknownStructuralType(result.structural_type))?;
-            let exact_i64_field = matches!(
-                &declaration.shape,
-                StructuralTypeShape::Record { fields }
-                    if matches!(fields.as_slice(), [candidate]
-                        if candidate.id == *field
-                            && candidate.relevance == terminal_psi::BindingRelevance::Relevant
-                            && matches!(candidate.field_type,
-                                StructuralFieldType::Scalar(ScalarType::Integer(integer_type))
-                                    if integer_type.sign() == IntegerSign::Signed
-                                        && integer_type.bits() == 64))
-            );
-            if !exact_i64_field {
-                return Err(ModuleError::AffineScalarRecordRequiresSingleI64Field {
-                    operation: operation.id,
-                    structural_type: result.structural_type,
-                    field: *field,
-                });
-            }
-            let i64_type = IntegerType::new(IntegerSign::Signed, 64)
-                .expect("signed i64 is a valid fixed integer type");
-            if !i64_type.admits(*value) {
-                return Err(ModuleError::AffineScalarRecordValueOutsideI64(operation.id));
-            }
+        OperationKind::EstablishScalarRecord { .. } => {
+            super::scalar_record::fields(module, machine, operation)?;
         }
         OperationKind::CallUnit {
             callee,
@@ -479,6 +429,12 @@ pub(super) fn validate_unit_operation_static(
                             && !(argument.path.is_empty()
                                 && super::primitive_storage::local_result(machine, argument.place)
                                     .is_some())
+                            && !(argument.path.is_empty()
+                                && super::scalar_record::plain_return_source(
+                                    module,
+                                    machine,
+                                    argument.place,
+                                ))
                             && !(argument.access == StructuralAccess::SharedBorrow
                                 && (is_structural_call_result(machine, argument.place)
                                     || (argument.path.is_empty()
@@ -1033,6 +989,7 @@ fn validate_primitive_structural_call(
         return Ok(false);
     };
     let primitive_payload = super::scalar_case::plain_type(module, result.structural_type)
+        || super::scalar_record::plain_type(module, result.structural_type)
         || (result.multiplicity == StructuralMultiplicity::Unrestricted
             && terminal_semantics::scalar_array_leaf_shape(
                 module.structural_types.iter(),
@@ -1316,6 +1273,18 @@ pub(super) fn validate_structural_arguments(
                     }
                     match place.kind {
                         StructuralPlaceKind::OperationResult { structural_type, .. }
+                            if matches!(source_policy,
+                                StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
+                                    | StructuralArgumentSourcePolicy::ParametersOrAffineOperationResults)
+                                && argument.path.is_empty()
+                                && super::scalar_record::plain_return_source(module, caller, argument.place) =>
+                        {
+                            let result = caller.blocks.iter().flat_map(|block| &block.operations)
+                                .filter_map(|operation| operation.result.structural())
+                                .find(|result| result.place == argument.place)?;
+                            Some((structural_type, result.multiplicity, StructuralAccess::Owned, &[][..], &[][..]))
+                        }
+                        StructuralPlaceKind::OperationResult { structural_type, .. }
                             if ordinary_call
                                 && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
                                 && argument.path.is_empty() && argument.access == StructuralAccess::Owned
@@ -1411,9 +1380,6 @@ pub(super) fn validate_structural_arguments(
                                 .flat_map(|block| &block.operations)
                                 .any(|operation| {
                                     let admitted_producer = match operation.kind {
-                                        OperationKind::EstablishAffineScalarRecord { .. } => {
-                                            source_policy != StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
-                                        }
                                         OperationKind::CallStructuralWithScalarArguments { .. }
                                         | OperationKind::BoundaryCall { .. } => {
                                             matches!(argument.access,
@@ -1550,6 +1516,7 @@ pub(super) fn validate_structural_arguments(
             && actual_access == StructuralAccess::Owned
             && actual_multiplicity == StructuralMultiplicity::Affine
             && (is_structural_call_result(caller, argument.place)
+                || super::scalar_record::plain_return_source(module, caller, argument.place)
                 || caller
                     .structural_parameters
                     .iter()

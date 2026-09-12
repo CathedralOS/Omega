@@ -28,6 +28,7 @@ pub(super) fn uses(function: &PsiOptimizationFunction, plan: &AbstractOperationP
                 matches!(
                     node.operation,
                     AbstractOperation::StructuralCaseMembership { .. }
+                        | AbstractOperation::EstablishScalarRecord { .. }
                         | AbstractOperation::EstablishScalarArray { .. }
                         | AbstractOperation::EstablishScalarCase { .. }
                         | AbstractOperation::CallStructural { .. }
@@ -551,6 +552,14 @@ pub(in crate::legalization) fn home_layout(
     result: &StructuralOperationResult,
     plan: &AbstractOperationPlan,
 ) -> Result<target_operations::TargetStructuralHomeLayout, LegalizationError> {
+    if plan.structural_types.iter().any(|declaration| {
+        declaration.id == result.structural_type
+            && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+    }) {
+        return Ok(target_operations::TargetStructuralHomeLayout::Aggregate(
+            super::scalar_arrays::record_shape(result, plan)?,
+        ));
+    }
     if plan.structural_types.iter().any(|declaration| {
         declaration.id == result.structural_type
             && matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })

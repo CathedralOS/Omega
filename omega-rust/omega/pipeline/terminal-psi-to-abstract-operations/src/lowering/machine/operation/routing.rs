@@ -157,7 +157,7 @@ pub(super) fn lower(
         | OperationKind::EstablishScalarCase { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
-        | OperationKind::EstablishAffineScalarRecord { .. } => structural_establishment::lower(
+        | OperationKind::EstablishScalarRecord { .. } => structural_establishment::lower(
             operation,
             block,
             machine,

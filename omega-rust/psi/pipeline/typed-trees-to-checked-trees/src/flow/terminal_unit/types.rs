@@ -75,7 +75,6 @@ pub(super) fn return_unit_affine_discards(
             | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
             | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
-            | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
             | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }

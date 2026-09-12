@@ -95,6 +95,20 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     }
                     super::calling::encode_shape(bytes, *shape);
                 }
+                LegalizedScalarInstructionKind::EstablishScalarRecord {
+                    result,
+                    fields,
+                    shape,
+                } => {
+                    bytes.push(34);
+                    super::structural_result::encode_operation_result(bytes, result);
+                    encode_len(bytes, fields.len());
+                    for field in fields {
+                        bytes.extend_from_slice(&field.field.get().to_le_bytes());
+                        bytes.extend_from_slice(&field.value.get().to_le_bytes());
+                    }
+                    super::calling::encode_shape(bytes, *shape);
+                }
                 LegalizedScalarInstructionKind::EstablishScalarCase {
                     result,
                     result_case,

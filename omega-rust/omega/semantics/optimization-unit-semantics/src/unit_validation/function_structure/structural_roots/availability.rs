@@ -25,7 +25,7 @@ pub(crate) fn validate_structural_place_availability(
                 | O::ByteSequenceSubslice { result, .. }
                 | O::EstablishScalarArray { result, .. }
                 | O::EstablishScalarCase { result, .. }
-                | O::EstablishAffineScalarRecord { result, .. }
+                | O::EstablishScalarRecord { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),

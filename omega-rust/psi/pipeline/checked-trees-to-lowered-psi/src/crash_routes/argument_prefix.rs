@@ -13,7 +13,6 @@ pub(crate) fn structural_crash_route_argument_prefix(
     argument: &StructuralArgument,
     parameters: &[StructuralParameterDeclaration],
     trivial_affine_locals: &[StructuralPlaceDeclaration],
-    affine_scalar_record_locals: &[StructuralPlaceDeclaration],
     structural_results: &[(StructuralPlaceDeclaration, bool)],
     structural_types: &[StructuralTypeDeclaration],
     primitive_locals: &[PrimitiveLocal],
@@ -35,9 +34,9 @@ pub(crate) fn structural_crash_route_argument_prefix(
             })
         })
         .or_else(|| {
-            affine_scalar_record_locals
+            structural_results
                 .iter()
-                .chain(structural_results.iter().map(|(place, _)| place))
+                .map(|(place, _)| place)
                 // These are the established caller referents, with their original producers.
                 .chain(primitive_locals.iter().map(|local| &local.declaration))
                 .find_map(|local| {

@@ -54,6 +54,9 @@ mod case_access;
 #[path = "straight_line/case_payload.rs"]
 mod case_payload;
 
+#[path = "straight_line/scalar_record.rs"]
+mod scalar_record;
+
 #[path = "straight_line/literal_byte_extent.rs"]
 mod literal_byte_extent;
 

@@ -543,13 +543,7 @@ pub enum ModuleError {
         structural_type: semantic_vocabulary::StructuralTypeId,
         result_case: semantic_vocabulary::StructuralCaseId,
     },
-    AffineScalarRecordResultMismatch(OperationId),
-    AffineScalarRecordRequiresSingleI64Field {
-        operation: OperationId,
-        structural_type: StructuralTypeId,
-        field: StructuralFieldId,
-    },
-    AffineScalarRecordValueOutsideI64(OperationId),
+    ScalarRecordResultMismatch(OperationId),
     WriteOnlyPrimitiveStoreDestinationMismatch {
         operation: OperationId,
         place: PlaceId,

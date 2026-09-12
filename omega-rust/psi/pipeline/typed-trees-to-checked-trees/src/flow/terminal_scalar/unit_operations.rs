@@ -57,7 +57,6 @@ pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
                                     &state.structural_parameters,
                                     &[],
                                     &[],
-                                    &[],
                                     call,
                                     true,
                                     None,

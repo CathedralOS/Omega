@@ -1306,10 +1306,6 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
     /// Dense declaration ordinal in the caller's checked trivial-affine-local
     /// table. This source is always the exact whole local.
     TrivialAffineLocal { declaration_ordinal: u32 },
-    /// Dense declaration ordinal among the caller's affine scalar-record
-    /// constructor results. This source is always the exact whole initialized
-    /// local.
-    AffineScalarRecordLocal { declaration_ordinal: u32 },
     /// Exact binding ordinal of an earlier whole structural call result.
     StructuralResult { binding_ordinal: u32 },
     /// Exact byte sequence passed directly to a bodyless boundary.
@@ -1362,7 +1358,6 @@ impl CheckedUnitStructuralArgumentPlan {
             CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. } => None,
@@ -1377,22 +1372,6 @@ impl CheckedUnitStructuralArgumentPlan {
             CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. } => None,
-        }
-    }
-
-    pub fn source_affine_scalar_record_local_declaration_ordinal(&self) -> Option<u32> {
-        match self.source {
-            CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal {
-                declaration_ordinal,
-            } => Some(declaration_ordinal),
-            CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. } => None,
@@ -1408,7 +1387,6 @@ impl CheckedUnitStructuralArgumentPlan {
             | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. } => None,
         }
@@ -1422,8 +1400,7 @@ impl CheckedUnitStructuralArgumentPlan {
             | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
             | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal { .. } => None,
+            | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. } => None,
         }
     }
 }
@@ -1675,15 +1652,6 @@ pub enum CheckedUnitEffectOperationPlan {
         statement_index: u32,
         declaration_ordinal: u32,
         type_identity: String,
-    },
-    /// Atomically establish one complete owned-affine direct record from its
-    /// single compiler-checked fixed-width scalar field.
-    EstablishAffineScalarRecordLocal {
-        statement_index: u32,
-        declaration_ordinal: u32,
-        type_identity: String,
-        field_identity: String,
-        value: CheckedScalarExpression,
     },
     /// Establish one immutable primitive local from a retained pure expression
     /// or selective computation. The result coordinate names the

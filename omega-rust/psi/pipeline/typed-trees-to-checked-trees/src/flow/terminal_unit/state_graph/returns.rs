@@ -21,21 +21,33 @@ pub(in crate::flow::terminal_unit) fn signature(
         return None;
     }
     let type_identity = shapes.add_type(reference, &[], &[])?;
-    let CheckedUnitStructuralTypeShape::Sum { cases } = &shapes.types.get(&type_identity)?.shape
-    else {
-        return None;
-    };
-    if cases.is_empty()
-        || cases.iter().any(|case| {
-            case.fields.iter().any(|field| {
-                !matches!(
+    let valid_fields = |fields: &[CheckedUnitStructuralFieldPlan]| {
+        fields.iter().all(|field| {
+            !field.relevance.is_erased()
+                && matches!(
                     field.field_type,
                     CheckedUnitStructuralFieldType::Scalar(_)
                         | CheckedUnitStructuralFieldType::BoundedInteger(_)
                 )
-            })
         })
-    {
+    };
+    let valid = match &shapes.types.get(&type_identity)?.shape {
+        CheckedUnitStructuralTypeShape::Record { fields } => valid_fields(fields),
+        CheckedUnitStructuralTypeShape::Sum { cases } => {
+            !cases.is_empty()
+                && cases.iter().all(|case| {
+                    case.fields.iter().all(|field| {
+                        matches!(
+                            field.field_type,
+                            CheckedUnitStructuralFieldType::Scalar(_)
+                                | CheckedUnitStructuralFieldType::BoundedInteger(_)
+                        )
+                    })
+                })
+        }
+        _ => false,
+    };
+    if !valid {
         return None;
     }
     Some(CheckedControlResultPlan::Structural(

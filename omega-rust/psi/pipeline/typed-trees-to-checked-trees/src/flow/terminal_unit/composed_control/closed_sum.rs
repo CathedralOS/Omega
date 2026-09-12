@@ -134,7 +134,6 @@ pub(super) fn build(
         &[],
         &[],
         &[],
-        &[],
         result_call,
         false,
         Some(ExpectedCallValueResult::Structural(&result)),
@@ -435,7 +434,6 @@ fn build_leaf(
         &scalar_parameters,
         &[],
         &calls,
-        &[],
         &[],
         0,
     )?;

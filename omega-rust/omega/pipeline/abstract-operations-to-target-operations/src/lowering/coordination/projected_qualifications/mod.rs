@@ -29,6 +29,7 @@ fn has_any_projected_qualifications(plan: &AbstractOperationPlan) -> bool {
                 .is_some_and(|result| !result.projected_qualifications.is_empty())
             || function.operations.iter().any(|operation| match operation {
                 AbstractOperation::EstablishScalarArray { result, .. }
+                | AbstractOperation::EstablishScalarRecord { result, .. }
                 | AbstractOperation::EstablishScalarCase { result, .. }
                 | AbstractOperation::CallStructural { result, .. } => {
                     !result.projected_qualifications.is_empty()

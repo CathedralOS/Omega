@@ -33,21 +33,20 @@ fn indirect_aggregate_returns_remain_an_explicit_realization_limit() {
 pub(super) fn installation_cannot_change_call_or_result(
     record: &image_emission::InstallationRecord,
     image: &image_emission::ExecutableImage,
+    result_machine: semantic_vocabulary::MachineId,
 ) {
-    let reject = |changed: &image_emission::InstallationRecord| {
-        assert!(image_emission::validate_installation_record(changed, image).is_err());
+    let reject = |changed: &image_emission::InstallationRecord, mutation| {
+        assert!(
+            image_emission::validate_installation_record(changed, image).is_err(),
+            "installation mutation {mutation} must reject"
+        );
     };
     let result_function = record
         .functions()
         .iter()
-        .position(|function| {
-            function
-                .parameter_abi
-                .as_ref()
-                .is_some_and(|abi| abi.call_plan.result.is_some())
-                || function.scalar_abi.is_some()
-                || function.mixed_structural_scalar_abi.is_some()
-        })
+        // A scalar-returning helper may precede the aggregate producer. Select
+        // by retained machine identity, not whichever ABI happens to appear first.
+        .position(|function| function.machine == result_machine)
         .expect("aggregate result retains its complete call plan");
     for mutation in 0..5 {
         let mut changed = record.clone();
@@ -68,7 +67,7 @@ pub(super) fn installation_cannot_change_call_or_result(
                 };
                 match mutation {
                     1 => plan.result = None,
-                    2 => plan.result.as_mut().unwrap().shape.byte_size = 8,
+                    2 => plan.result.as_mut().unwrap().shape.byte_size += 1,
                     3 => plan.result.as_mut().unwrap().locations.clear(),
                     4 => {
                         // Zero-argument source functions must undergo a real
@@ -82,7 +81,7 @@ pub(super) fn installation_cannot_change_call_or_result(
                     _ => unreachable!(),
                 }
             }
-            reject(&changed);
+            reject(&changed, mutation);
             continue;
         }
         match mutation {
@@ -98,7 +97,7 @@ pub(super) fn installation_cannot_change_call_or_result(
                     .as_mut()
                     .unwrap()
                     .shape
-                    .byte_size = 8
+                    .byte_size += 1
             }
             3 => {
                 let locations = &mut function
@@ -119,10 +118,23 @@ pub(super) fn installation_cannot_change_call_or_result(
                     locations.clear();
                 }
             }
-            4 => function.parameter_abi.as_mut().unwrap().parameters.clear(),
+            4 => {
+                let abi = function.parameter_abi.as_mut().unwrap();
+                if abi.parameters.is_empty() {
+                    // Borrowed structural inputs have no scalar identity row,
+                    // but still occupy the complete positional call plan.
+                    if abi.call_plan.parameters.is_empty() {
+                        abi.call_plan.parameters.push(abi.call_plan.result.clone().unwrap());
+                    } else {
+                        abi.call_plan.parameters.clear();
+                    }
+                } else {
+                    abi.parameters.clear();
+                }
+            }
             _ => unreachable!(),
         }
-        reject(&changed);
+        reject(&changed, mutation);
     }
     for (function_index, function) in record.functions().iter().enumerate() {
         if function.unit_call_stacks.is_empty() {
@@ -144,7 +156,7 @@ pub(super) fn installation_cannot_change_call_or_result(
                 5 => function.unit_call_stacks.push(function.unit_call_stacks[0]),
                 _ => unreachable!(),
             }
-            reject(&changed);
+            reject(&changed, mutation + 5);
         }
     }
     let mut old_format = image_emission::encode_installation_record(record).unwrap();

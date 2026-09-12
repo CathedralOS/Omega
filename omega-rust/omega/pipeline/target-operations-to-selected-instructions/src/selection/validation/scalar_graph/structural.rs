@@ -157,7 +157,8 @@ pub(super) fn operation(
     }
     if matches!(
         node.kind,
-        LegalizedScalarInstructionKind::EstablishScalarArray { .. }
+        LegalizedScalarInstructionKind::EstablishScalarRecord { .. }
+            | LegalizedScalarInstructionKind::EstablishScalarArray { .. }
     ) {
         scalar_array::establish(source, node, replay)?;
         return Ok(true);

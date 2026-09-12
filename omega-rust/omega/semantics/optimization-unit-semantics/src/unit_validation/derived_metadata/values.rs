@@ -185,6 +185,7 @@ pub(crate) fn expected_uses(
     let values = match operation {
         O::EstablishScalarArray { elements, .. } => elements.clone(),
         O::EstablishScalarCase { fields, .. } => fields.iter().map(|field| field.value).collect(),
+        O::EstablishScalarRecord { fields, .. } => fields.iter().map(|field| field.value).collect(),
         O::ByteSequenceRead { index, length, .. } => vec![*index, *length],
         O::ByteSequenceWrite {
             index,

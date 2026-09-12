@@ -209,7 +209,7 @@ pub(super) fn validate_machine(
             }
             if matches!(
                 operation.kind,
-                OperationKind::EstablishAffineScalarRecord { .. }
+                OperationKind::EstablishScalarRecord { .. }
                     | OperationKind::EstablishScalarArray { .. }
                     | OperationKind::EstablishPrimitiveLocal { .. }
             ) {
@@ -378,7 +378,7 @@ pub(super) fn validate_machine(
                 | OperationKind::EstablishScalarCase { .. }
                 | OperationKind::EstablishScalarArray { .. }
                 | OperationKind::ByteSequenceSubslice { .. }
-                | OperationKind::EstablishAffineScalarRecord { .. }
+                | OperationKind::EstablishScalarRecord { .. }
                 | OperationKind::EstablishPrimitiveLocal { .. }
                 | OperationKind::StoreDynamicDescriptor { .. }
                 | OperationKind::PortWrite { .. }
@@ -445,6 +445,7 @@ pub(super) fn validate_machine(
                     )?;
                     if callee.structural_places.iter().any(|place| {
                         !super::scalar_array::plain_return_source(module, callee, place.id)
+                            && !super::scalar_record::plain_return_source(module, callee, place.id)
                     }) || !callee.content_entry_claims.is_empty()
                         || !callee.content_identity_reshuffles.is_empty()
                         || !callee.content_partition_compositions.is_empty()

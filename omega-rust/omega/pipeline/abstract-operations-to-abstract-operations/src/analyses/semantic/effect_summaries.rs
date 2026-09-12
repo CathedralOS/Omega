@@ -386,7 +386,7 @@ fn operation_effect(
         | O::EstablishScalarCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
-        | O::EstablishAffineScalarRecord { .. }
+        | O::EstablishScalarRecord { .. }
         | O::BooleanStructuralField { .. }
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceSubslice { .. }

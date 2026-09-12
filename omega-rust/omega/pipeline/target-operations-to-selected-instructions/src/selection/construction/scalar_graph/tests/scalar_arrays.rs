@@ -94,6 +94,117 @@ fn array_fixture(target: target::NativeTarget, length: u16) -> LegalizedScalarFu
 }
 
 #[test]
+fn scalar_record_selection_replays_field_identity_operands_and_store_offsets() {
+    for target in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let mut source = array_fixture(target, 2);
+        let fields = [
+            semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+            semantic_vocabulary::StructuralFieldId::new(2).unwrap(),
+        ];
+        let scalar = source.blocks[0].instructions[0].result.unwrap().scalar_type;
+        source
+            .structural
+            .as_mut()
+            .unwrap()
+            .structural_types
+            .make_mut()[0]
+            .shape = StructuralTypeShape::Record {
+            fields: fields
+                .iter()
+                .enumerate()
+                .map(
+                    |(ordinal, field)| terminal_psi::StructuralFieldDeclaration {
+                        id: *field,
+                        identity: format!("field{ordinal}"),
+                        relevance: terminal_psi::BindingRelevance::Relevant,
+                        field_type: terminal_psi::StructuralFieldType::Scalar(scalar),
+                    },
+                )
+                .collect(),
+        };
+        let row = &mut source.blocks[0].instructions[2];
+        let LegalizedScalarInstructionKind::EstablishScalarArray {
+            result,
+            elements,
+            shape,
+        } = row.kind.clone()
+        else {
+            panic!("array fixture");
+        };
+        row.kind = LegalizedScalarInstructionKind::EstablishScalarRecord {
+            result,
+            shape,
+            fields: fields
+                .into_iter()
+                .zip(elements)
+                .map(|(field, value)| terminal_psi::ScalarRecordFieldValue { field, value })
+                .collect(),
+        };
+        let environment =
+            register_environment::baseline_target_register_environment(target).unwrap();
+        let constraints = SelectedSelectionConstraints {
+            keys: environment.selected_keys(),
+            fixed_inputs: Vec::new(),
+        };
+        let selected = build(
+            0,
+            &source,
+            target,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        let validate = |source: &LegalizedScalarFunction, selected: &SelectedFunction| {
+            crate::selection::validation::scalar_graph::validate(
+                0,
+                source,
+                selected,
+                target,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+        };
+        validate(&source, &selected).unwrap();
+        for mutation in 0..3 {
+            let mut changed = source.clone();
+            let LegalizedScalarInstructionKind::EstablishScalarRecord { fields, shape, .. } =
+                &mut changed.blocks[0].instructions[2].kind
+            else {
+                panic!("record");
+            };
+            match mutation {
+                0 => fields[0].value = fields[1].value,
+                1 => fields.swap(0, 1),
+                2 => shape.byte_size = 4,
+                _ => unreachable!(),
+            }
+            assert!(
+                validate(&changed, &selected).is_err(),
+                "source mutation {mutation}"
+            );
+        }
+        let mut changed = selected.clone();
+        let store = changed.blocks[0]
+            .instructions
+            .iter_mut()
+            .find(|row| matches!(row.kind, SelectedInstructionKind::Store { .. }))
+            .unwrap();
+        store.kind = SelectedInstructionKind::Store {
+            byte_offset: 1,
+            byte_size: 1,
+        };
+        assert!(validate(&source, &changed).is_err());
+    }
+}
+
+#[test]
 fn array_selection_rejects_reordered_operands_and_changed_layout() {
     for target in [
         target::NativeTarget::linux_x64(),

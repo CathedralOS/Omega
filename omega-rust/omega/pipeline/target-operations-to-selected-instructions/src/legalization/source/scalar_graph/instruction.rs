@@ -72,6 +72,13 @@ pub(super) fn project(
                 crash_continuations: crash_continuations.clone(),
             })
         }
+        AbstractOperation::EstablishScalarRecord { result, fields, .. } => {
+            LegalizedScalarInstructionKind::EstablishScalarRecord {
+                result: result.clone(),
+                fields: fields.clone(),
+                shape: scalar_graph_input::scalar_arrays::record_shape(result, plan)?,
+            }
+        }
         AbstractOperation::EstablishScalarArray {
             result, elements, ..
         } => LegalizedScalarInstructionKind::EstablishScalarArray {

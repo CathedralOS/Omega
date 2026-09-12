@@ -407,7 +407,7 @@ pub(crate) fn validate_structural_root_operations(
                                         result,
                                         ..
                                     }
-                                    | O::EstablishAffineScalarRecord {
+                                    | O::EstablishScalarRecord {
                                         psi_operation,
                                         result,
                                         ..

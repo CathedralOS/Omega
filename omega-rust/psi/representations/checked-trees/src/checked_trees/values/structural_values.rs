@@ -12,6 +12,7 @@ pub struct CheckedStructuralValuePlans {
     pub roots: Arena<CheckedStructuralValueRoot>,
     pub nodes: Arena<CheckedStructuralValue>,
     pub dispatch_arms: Arena<CheckedStructuralDispatchArm>,
+    pub record_fields: Arena<CheckedStructuralRecordField>,
 }
 
 pub type CheckedStructuralValueHandle = Handle<CheckedStructuralValue>;
@@ -35,10 +36,20 @@ pub struct CheckedStructuralValue {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedStructuralValueKind {
     Case(crate::CheckedScalarCaseConstruction),
+    Record {
+        data_symbol: SymbolHandle,
+        fields: HandleSpan<CheckedStructuralRecordField>,
+    },
     Dispatch {
         subject: CheckedScalarComputationHandle,
         arms: HandleSpan<CheckedStructuralDispatchArm>,
     },
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedStructuralRecordField {
+    pub field: SymbolHandle,
+    pub value: CheckedScalarComputationHandle,
 }
 
 impl Default for CheckedStructuralValueKind {

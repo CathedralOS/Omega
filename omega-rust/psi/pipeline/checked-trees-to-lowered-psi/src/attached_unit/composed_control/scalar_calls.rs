@@ -60,6 +60,7 @@ fn selected_roots(
                                 && matches!(
                                     root.role,
                                     CheckedScalarExpressionRole::StructuralValueSubject { .. }
+                                        | CheckedScalarExpressionRole::RecordField { .. }
                                         | CheckedScalarExpressionRole::StructuralValuePattern { .. }
                                         | CheckedScalarExpressionRole::StructuralValueField { .. }
                                 )

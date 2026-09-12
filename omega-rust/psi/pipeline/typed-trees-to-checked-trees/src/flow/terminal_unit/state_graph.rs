@@ -86,12 +86,15 @@ pub(super) fn build(
                             CheckedStructuralAccess::SharedBorrow
                                 | CheckedStructuralAccess::MutableBorrow
                         )
-                        || byte_sequence_carrier(
-                            program,
-                            program.state_parameters(state)[parameter.position as usize]
-                                .type_reference,
-                            &[],
-                        ) != Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+                        || {
+                            let reference = program.state_parameters(state)[parameter.position as usize].type_reference;
+                            let primitive_reference = matches!(program.type_reference_table.type_reference(reference),
+                                TypeReferenceNode::Reference { referee, .. }
+                                    if matches!(program.type_reference_table.type_reference(*referee), TypeReferenceNode::Named { .. })
+                                        && program.primitive_type_reference(*referee).is_some());
+                            !primitive_reference && byte_sequence_carrier(program, reference, &[])
+                                != Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+                        }
                 }
         }) {
             return None;
@@ -162,7 +165,6 @@ pub(super) fn build(
             scalar,
             &[],
             &calls,
-            &[],
             &[],
             binding_count,
         )?;

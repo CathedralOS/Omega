@@ -72,7 +72,6 @@ pub(in crate::attached_unit::composed_control) fn emit_call_operation(
         parameters,
         &[],
         &[],
-        &[],
         &target.structural_parameters,
         type_ids,
         structural_types,
@@ -82,7 +81,6 @@ pub(in crate::attached_unit::composed_control) fn emit_call_operation(
     let structural_arguments = lower_structural_arguments(
         structural_arguments,
         parameters,
-        &[],
         &[],
         &[],
         byte_argument_places,

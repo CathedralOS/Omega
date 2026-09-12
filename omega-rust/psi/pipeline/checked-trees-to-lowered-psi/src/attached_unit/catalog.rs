@@ -168,10 +168,6 @@ pub(super) fn lower_unit_structural_types_including(
                 }
                 CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
                     type_identity, ..
-                }
-                | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal {
-                    type_identity,
-                    ..
                 } => roots.push(type_identity.clone()),
                 CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
                     realization_machine,
@@ -758,7 +754,6 @@ pub(super) fn lower_unit_services_including(
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
-                | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                 | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }

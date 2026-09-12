@@ -6,6 +6,7 @@ pub(in crate::legalization) fn instruction(
     node: &OptimizationNode,
 ) -> Option<(OperationId, Option<ValueId>)> {
     if let AbstractOperation::ByteSequenceSubslice { psi_operation, .. }
+    | AbstractOperation::EstablishScalarRecord { psi_operation, .. }
     | AbstractOperation::EstablishScalarArray { psi_operation, .. }
     | AbstractOperation::EstablishScalarCase { psi_operation, .. }
     | AbstractOperation::CallStructural { psi_operation, .. }
@@ -323,7 +324,8 @@ pub(super) fn validate(
         }
         if matches!(
             node.operation,
-            AbstractOperation::EstablishScalarArray { .. }
+            AbstractOperation::EstablishScalarRecord { .. }
+                | AbstractOperation::EstablishScalarArray { .. }
                 | AbstractOperation::EstablishScalarCase { .. }
                 | AbstractOperation::CallStructural { .. }
         ) {

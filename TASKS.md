@@ -66,7 +66,14 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `validation/src/calls/expression_scanning/result_realization.rs`;
   **STATE-LOCAL-VALUE-FRONTIER** owns the general join. Preserve local storage,
   authored operation order and the full package graph; keep build-only packages
-  explicitly unported. This is engineering work, with the unchanged native
+  explicitly unported. Plain scalar-record construction now uses the ordinary
+  structural-value/evaluation path in
+  `checked-trees-to-lowered-psi/src/attached_unit/structural_values/record.rs`.
+  Reuse that producer; the next join must retain local receiver storage and
+  shared scalar-result callee signatures through call normalization and native
+  argument preparation. Do not remove the source fence before that complete
+  route works, or restore the retired literal-only constructor.
+  This is engineering work, with the unchanged native
   command and `Squalr geometry: PASS` as acceptance.
   Windows runtime controls in `omega-rust/omega/tests/package_commands/probe.rs`
   require a Windows normal-completion adapter for Unit entries: the native

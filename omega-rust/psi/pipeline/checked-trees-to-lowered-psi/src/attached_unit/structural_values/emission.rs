@@ -97,13 +97,19 @@ pub(crate) fn emit(
         {
             return unsupported("structural value repeats its local binding");
         }
-        let cases = crate::scalar_bindings::structural_cases::LocalCaseBinding::new(
-            checked,
-            local.symbol,
-            local.type_reference,
-            place,
-            structural_types,
-        )?;
+        if structural_types.iter().any(|declaration| {
+            declaration.id == structural_type
+                && matches!(declaration.shape, StructuralTypeShape::Sum { .. })
+        }) {
+            let cases = crate::scalar_bindings::structural_cases::LocalCaseBinding::new(
+                checked,
+                local.symbol,
+                local.type_reference,
+                place,
+                structural_types,
+            )?;
+            emission.evaluation.local_cases.push(cases);
+        }
         emission.evaluation.structural_locals.push((
             local.symbol,
             StructuralArgument {
@@ -112,7 +118,6 @@ pub(crate) fn emit(
                 access: StructuralAccess::Owned,
             },
         ));
-        emission.evaluation.local_cases.push(cases);
     }
     Ok(declaration)
 }
@@ -147,6 +152,31 @@ impl Emission<'_, '_, '_> {
             .get(value)
             .clone();
         match node.kind {
+            CheckedStructuralValueKind::Record { .. } => {
+                let source_count = self.values.len();
+                let declaration = super::emit_record(
+                    self.checked,
+                    self.machine,
+                    self.state,
+                    self.statement,
+                    value,
+                    self.structural_type,
+                    self.multiplicity,
+                    self.structural_types,
+                    self.evaluation,
+                    self.values,
+                    source_count,
+                    self.next_value,
+                    self.next_block,
+                    self.next_edge,
+                    self.next_place,
+                    self.operations,
+                    self.calls,
+                )?;
+                let place = declaration.id;
+                self.temporary_places.push(declaration);
+                Ok(place)
+            }
             CheckedStructuralValueKind::Case(construction) => {
                 let source = validation::scalar_case_constructor(
                     &self.checked.typed,

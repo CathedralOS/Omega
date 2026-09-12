@@ -629,7 +629,7 @@ fn assert_constructed_wrapper_execution(source: &str) {
     .unwrap();
     assert!(execution.live_affine_frontier().next().is_none());
     let mut observer = ObserveSettlement {
-        expected_opaque_identity: Some(local_place.get()),
+        capture_opaque_identity: true,
         reject: true,
         ..ObserveSettlement::default()
     };
@@ -707,7 +707,7 @@ fn assert_constructed_wrapper_execution(source: &str) {
                     !matches!(
                         operation.kind,
                         terminal_psi::OperationKind::EstablishTrivialAffineLocal { .. }
-                            | terminal_psi::OperationKind::EstablishAffineScalarRecord { .. }
+                            | terminal_psi::OperationKind::EstablishScalarRecord { .. }
                     )
                 });
             }
@@ -765,10 +765,10 @@ fn assert_constructed_wrapper_execution(source: &str) {
     match &mut structural_arguments[0].source {
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal {
             declaration_ordinal,
-        }
-        | checked_trees::CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal {
-            declaration_ordinal,
         } => *declaration_ordinal += 1,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            binding_ordinal,
+        } => *binding_ordinal += 1,
         _ => panic!("constructed local source"),
     }
     assert!(checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter").is_err());
@@ -862,43 +862,38 @@ fn unit_wrapper_constructor_value_cannot_drift_from_source() {
     let replacement = checked(&constructed_wrapper_source("value: i64;", "value: 8i64"));
     let value = replacement
         .facts
-        .flow
-        .terminal_unit_effects
-        .machines
-        .iter()
-        .flat_map(|machine| &machine.operations)
-        .find_map(|operation| {
-            if let CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal {
-                value, ..
-            } = operation
-            {
-                Some(value.clone())
-            } else {
-                None
-            }
-        })
-        .unwrap();
-    let retained = original
+        .values
+        .scalar_computations
+        .nodes
+        .get(record_field_computation(&replacement))
+        .kind
+        .clone();
+    let handle = record_field_computation(&original);
+    let retained = &mut original
         .facts
-        .flow
-        .terminal_unit_effects
-        .machines
-        .iter_mut()
-        .flat_map(|machine| &mut machine.operations)
-        .find_map(|operation| {
-            if let CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal {
-                value, ..
-            } = operation
-            {
-                Some(value)
-            } else {
-                None
-            }
-        })
-        .unwrap();
+        .values
+        .scalar_computations
+        .nodes
+        .get_mut(handle)
+        .kind;
     assert_ne!(*retained, value);
     *retained = value;
     assert!(checked_trees_to_lowered_psi::lower_machine(&original, "Root::enter").is_err());
+}
+
+fn record_field_computation(
+    checked: &checked_trees::CheckedTrees,
+) -> checked_trees::CheckedScalarComputationHandle {
+    checked
+        .facts
+        .values
+        .structural_values
+        .record_fields
+        .iter()
+        .next()
+        .expect("retained scalar field")
+        .1
+        .value
 }
 
 #[test]
@@ -1440,6 +1435,7 @@ struct ObserveSettlement {
     crash: Option<terminal_psi::CrashCause>,
     erased_reference_self: bool,
     expected_opaque_identity: Option<u64>,
+    capture_opaque_identity: bool,
 }
 
 impl TerminalEffectHandler for ObserveSettlement {
@@ -1465,6 +1461,12 @@ impl TerminalEffectHandler for ObserveSettlement {
             let [receipt] = structural_arguments.as_slice() else {
                 panic!("one whole-root receipt");
             };
+            if self.capture_opaque_identity {
+                // Runtime identity is independent of a frame-local place ID;
+                // retain the first observation to check rejection/resume custody.
+                self.expected_opaque_identity
+                    .get_or_insert(receipt.opaque_identity);
+            }
             assert_eq!(
                 receipt.opaque_identity,
                 self.expected_opaque_identity.unwrap_or(700)

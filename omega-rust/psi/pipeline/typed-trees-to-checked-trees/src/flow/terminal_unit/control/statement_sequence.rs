@@ -28,6 +28,19 @@ pub(super) fn has_structural_result(
     if !local.initial_value.is_valid() {
         return false;
     }
+    if facts
+        .values
+        .structural_values
+        .roots
+        .iter()
+        .any(|(_, root)| {
+            root.machine == machine.symbol
+                && root.expression == local.initial_value
+                && root.type_reference == local.type_reference
+        })
+    {
+        return !local.is_mutable;
+    }
     if validation::is_fresh_scalar_case_value(program, local.initial_value, local.type_reference) {
         return !local.is_mutable;
     }
@@ -93,7 +106,13 @@ pub(super) fn has_statement_shape(
                             .statement_table
                             .statements(state.statement_nodes)
                             .len()
-                        && (validation::is_fresh_scalar_case_value(
+                        && (u32::try_from(index).ok().is_some_and(|ordinal| {
+                            facts
+                                .values
+                                .structural_values
+                                .root_at(state.symbol, ordinal)
+                                .is_some()
+                        }) || validation::is_fresh_scalar_case_value(
                             program,
                             *expression,
                             state.return_type,
@@ -128,14 +147,12 @@ pub(in crate::flow::terminal_unit) fn build(
     entry_claims: &[CheckedUnitEntryClaimPlan],
     calls: &[&checked_trees::FlowCallFact],
     trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
-    affine_scalar_record_locals: &[AffineScalarRecordLocal],
     construction_statement_count: usize,
 ) -> Option<StatementSequence> {
     let scalar_control = scalar_control(program, facts, machine, state).map(|(control, _)| control);
     if scalar_control.is_some()
         && (!entry_claims.is_empty()
             || !trivial_affine_locals.is_empty()
-            || !affine_scalar_record_locals.is_empty()
             || structural_parameters.iter().any(|parameter| {
                 parameter.multiplicity != Multiplicity::Unrestricted
                     || !parameter.qualifications.is_empty()
@@ -472,7 +489,6 @@ pub(in crate::flow::terminal_unit) fn build(
                 state,
                 structural_parameters,
                 trivial_affine_locals,
-                affine_scalar_record_locals,
                 entry_claims,
                 nested,
                 false,
@@ -527,7 +543,6 @@ pub(in crate::flow::terminal_unit) fn build(
             state,
             structural_parameters,
             trivial_affine_locals,
-            affine_scalar_record_locals,
             entry_claims,
             call,
             partial_temporary.is_some(),

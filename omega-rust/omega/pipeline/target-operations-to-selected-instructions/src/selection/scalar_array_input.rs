@@ -5,6 +5,98 @@ use legalized_operations::{
 };
 use semantic_vocabulary::{ScalarType, StructuralTypeId};
 
+/// Reconstruct constructor stores from the semantic type and exact operands.
+/// Construction and independent instruction replay each consume this input.
+pub(super) fn storage<'a>(
+    source: &LegalizedScalarFunction,
+    row: &'a LegalizedScalarInstruction,
+) -> Option<(
+    &'a terminal_psi::StructuralOperationResult,
+    ValueShape,
+    Vec<(semantic_vocabulary::ValueId, ScalarType, u32, u8)>,
+)> {
+    match &row.kind {
+        LegalizedScalarInstructionKind::EstablishScalarArray {
+            result,
+            elements: values,
+            shape,
+        } => {
+            let (scalar, width) = elements(source, row)?;
+            let stores = values
+                .iter()
+                .enumerate()
+                .map(|(ordinal, value)| {
+                    Some((
+                        *value,
+                        scalar,
+                        u32::try_from(ordinal).ok()?.checked_mul(u32::from(width))?,
+                        width,
+                    ))
+                })
+                .collect::<Option<Vec<_>>>()?;
+            Some((result, *shape, stores))
+        }
+        LegalizedScalarInstructionKind::EstablishScalarRecord {
+            result,
+            fields,
+            shape,
+        } => {
+            if row.result.is_some()
+                || result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+                || !result.claims.is_empty()
+                || !result.qualifications.is_empty()
+                || !result.projected_qualifications.is_empty()
+            {
+                return None;
+            }
+            let declarations = &source.structural.as_ref()?.structural_types;
+            let mut matches = declarations
+                .iter()
+                .filter(|declaration| declaration.id == result.structural_type);
+            let declaration = matches.next()?;
+            let terminal_psi::StructuralTypeShape::Record {
+                fields: declarations,
+            } = &declaration.shape
+            else {
+                return None;
+            };
+            if matches.next().is_some() || declarations.len() != fields.len() {
+                return None;
+            }
+            let mut size = 0_u16;
+            let mut alignment = 1_u16;
+            let mut stores = Vec::with_capacity(fields.len());
+            for (field, declaration) in fields.iter().zip(declarations) {
+                let scalar = declaration.field_type.scalar_type()?;
+                if declaration.relevance.is_erased()
+                    || declaration.id != field.field
+                    || matches!(
+                        declaration.field_type,
+                        terminal_psi::StructuralFieldType::BoundedInteger(_)
+                    )
+                {
+                    return None;
+                }
+                let field_shape = super::scalar_call_abi::scalar_shape(scalar)?;
+                alignment = alignment.max(field_shape.alignment);
+                size = size.checked_next_multiple_of(field_shape.alignment)?;
+                stores.push((
+                    field.value,
+                    scalar,
+                    u32::from(size),
+                    u8::try_from(field_shape.byte_size).ok()?,
+                ));
+                size = size.checked_add(field_shape.byte_size)?;
+            }
+            if *shape != ValueShape::integer(size.checked_next_multiple_of(alignment)?, alignment) {
+                return None;
+            }
+            Some((result, *shape, stores))
+        }
+        _ => None,
+    }
+}
+
 pub(super) fn shape(
     source: &LegalizedScalarFunction,
     structural_type: StructuralTypeId,
