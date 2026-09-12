@@ -309,6 +309,10 @@ fn every_prefix_version_and_trailing_field_rejects() {
     let mut changed = bytes.clone();
     changed[CALLABLE_POLICY_MAGIC.len()] = 255;
     assert_eq!(recover(&changed), Err(Error::UnsupportedVersion));
+    let mut previous = bytes.clone();
+    previous[CALLABLE_POLICY_MAGIC.len()..CALLABLE_POLICY_MAGIC.len() + 2]
+        .copy_from_slice(&2_u16.to_le_bytes());
+    assert_eq!(recover(&previous), Err(Error::UnsupportedVersion));
     let mut changed = bytes;
     changed.push(0);
     assert_eq!(recover(&changed), Err(Error::TrailingBytes));

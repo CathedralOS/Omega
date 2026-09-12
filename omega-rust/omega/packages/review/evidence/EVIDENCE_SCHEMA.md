@@ -1,11 +1,11 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 130 and row schema version 88. This file
+The canonical review schema is version 131 and row schema version 89. This file
 records the closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance. Proof-interface sections follow the
 [contract/bundle direction](../../../../../wiki/spec/proofs/contracts.md)
 and require encoding migration; they are not a claim that replacement proof
-rows already exist in version 130. The source/codec changes and exact-version
+rows already exist in version 131. The source/codec changes and exact-version
 rejection controls belong to `PROOF-CONTRACT-MIGRATION`.
 
 This describes the current encoding and support limits, not a
@@ -18,7 +18,7 @@ certificates below answer actual compiler proof questions. Compiler proof/reach
 checks and native artifact validation remain independent of installation.
 
 The separate external-supply policy component uses
-`OMEGA-EXTERNAL-SUPPLY-POLICY` version 2, bounded to 4 MiB. It preserves the
+`OMEGA-EXTERNAL-SUPPLY-POLICY` version 3, bounded to 4 MiB. It preserves the
 complete callable and requirement coordinates, all eight binding alternatives,
 the exact four foreign-locator forms, target, and producer identities. It omits
 evaluation accounting, evaluator/materializer schema markers, closure/evaluation/
@@ -41,7 +41,7 @@ policy baseline below includes this component; the manager joins that baseline
 to source pins and accepted decisions. This component does not change the
 full-review schema or any compiler validator.
 
-`OMEGA-PACKAGE-POLICY` version 1 composes the full inert package baseline under
+`OMEGA-PACKAGE-POLICY` version 2 composes the full inert package baseline under
 those same aggregate ceilings. Its field order is package, target, public API
 (traits, conformances, domains, consts, operators, data), callables,
 selected providers, terminal permissions, representation, external supplies,
@@ -49,9 +49,16 @@ dangerous capabilities, slack, semantic dependencies, and D29 applications
 (symbolic demands, closed realizations). Child components share the enclosing
 writer/reader directly; they do not embed component envelopes or reset budgets.
 The callable, calling, selected-provider, terminal-permission, representation,
-and external-supply component schemas are version 2 for complete nested policy
-signatures. Conformance and physical-calling component schemas remain version 1.
-The full-review, row, and canonical-row recovery versions remain unchanged.
+and external-supply component schemas are version 3 for complete nested policy
+signatures, including exact nominal case membership. Conformance and
+physical-calling component schemas remain version 1. Nominal membership uses
+contract-expression tag 22 with a recursive subject and exact nominal case;
+it carries neither a constructed RHS value nor a selected operator meaning.
+Existing expression tags retain their encoding. The shared expression vocabulary
+versions the complete review, review rows, baseline, and every signature-bearing
+policy component. Text grammar, normalized comparison-row framing, canonical-row
+recovery, and ledger versions remain unchanged; their enclosing schema bindings
+already reject unsupported policy/review meaning.
 Unknown policy versions reject; recovery does not invent missing meaning from
 old signatures. Source pins, graph edges and project decisions belong to the
 manager's lock envelope, not this policy record. Compiler proof/discharge and
@@ -82,7 +89,7 @@ canonical scratch; verification does not allocate another expanded text buffer.
 This adds no proof, acceptance, or replay fields and changes no binary schema.
 
 Complete normalized comparison rows have their own version 1, independent of
-legacy review row version 88. Binary rows start with
+legacy review row version 89. Binary rows start with
 `OMEGA-PACKAGE-POLICY-ROW` and a zero byte; named text starts with
 `omega_package_policy_row_text 1` and LF. Each row binds its row and baseline
 schemas, package, exact target, kind, initial/update decision classification,
@@ -129,6 +136,7 @@ a supported selected application, executable call, or native realization.
 | Byte literal | Typed decoded octets without an invented text encoding; escape-equivalent spelling is stable. |
 | Array literal | Ordered recursive elements; an unsupported child rejects the complete row. |
 | Record/case constructor | Exact qualified data, case, fields and recursive values, sorted by semantic field identity rather than source order. |
+| Nominal case membership | Recursive subject and exact qualified case classifier, independently joined to the checked carrier and authored membership selection. It is not value equality, construction, or an operator overload; recovery retains identity without reconstructing foreign declarations or granting proof authority. |
 | Index/range | Exact public-interface operator occurrence, builtin/declared meaning, collection, index/endpoints, and inclusive-end bit. |
 | Cast | Structural operand, target, arithmetic policy, qualified domain/arguments, and value/recast form; no private domain exposure through a public contract. |
 | `zero_value<T>()` | Exact qualified/alpha-normalized observed type, not layout bytes or a checker verdict. Quotients remain outside the representation-observer contract. |
@@ -151,6 +159,11 @@ call grammar. Executable evidence projections and nested executable machine
 applications are not admitted by adding a review row. Contract/bundle migration
 must preserve exact occurrence, substitution, law/member, and witness joins;
 replacement encodings remain `PROOF-CONTRACT-MIGRATION` work.
+
+Nominal membership capture currently requires an actual checked machine or
+machine-state subject context supported by Psi's exact carrier validator.
+Non-machine declarations, nested signatures and propositions remain unsupported;
+the review capture must not invent a receiver environment from the classifier.
 
 Outcome-specific guarantees retain exact result-data/case identity and canonical
 fact joined to their checked guarded owner. Ordering is not meaning, but moving

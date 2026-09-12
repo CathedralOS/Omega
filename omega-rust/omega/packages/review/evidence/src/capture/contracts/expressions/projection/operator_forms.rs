@@ -26,9 +26,21 @@ pub(super) fn project_operator_form(
             })
         })()),
         ExpressionNode::Binary(binary) => Some((|| {
+            if super::super::case_membership::is_case_membership(compilation, expression, binary) {
+                let case = super::super::case_membership::checked_case_classifier(
+                    compilation,
+                    context,
+                    expression,
+                    binary,
+                )?;
+                return Ok(PackageReviewContractExpression::CaseMembership {
+                    subject: Box::new(child(binary.left)?),
+                    case,
+                });
+            }
             let operator = project_contract_binary_operator(binary.operator).ok_or_else(|| {
                 vec![Diagnostic::error(
-                    "package contract review does not yet support case-membership operations",
+                    "contract operator has no ordinary binary representation",
                 )]
             })?;
             Ok(PackageReviewContractExpression::Binary {

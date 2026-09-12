@@ -89,6 +89,34 @@ fn fixture() -> PackagePolicyBaseline {
 }
 
 #[test]
+fn case_membership_traversal_visits_subject_and_classifier_owners() {
+    let value = PackageReviewContractExpression::CaseMembership {
+        subject: Box::new(PackageReviewContractExpression::Nominal(
+            PackageReviewNominalIdentity {
+                owner: PackageReviewNominalOwner::Package(package(1)),
+                path: "Subject".to_owned(),
+            },
+        )),
+        case: PackageReviewNominalIdentity {
+            owner: PackageReviewNominalOwner::Package(package(2)),
+            path: "Message::Data".to_owned(),
+        },
+    };
+    for missing in [package(1), package(2)] {
+        let mut visitor = visitor::Visitor::new(
+            |candidate| candidate != missing,
+            PackagePolicyMembershipLimits::default(),
+        );
+        let mut encoder = super::super::encoder::Encoder::policy_membership(&mut visitor);
+        let _ = super::super::encode_contract_expression(&mut encoder, &value);
+        assert_eq!(
+            encoder.membership_error(),
+            Some(PackagePolicyMembershipError::UnknownPackage { package: missing })
+        );
+    }
+}
+
+#[test]
 fn complete_traversal_checks_typed_owners_without_changing_encoding() {
     let value = fixture();
     let bytes = value.canonical_bytes().unwrap();

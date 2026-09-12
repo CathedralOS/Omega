@@ -234,7 +234,7 @@ fn all_binding_variants_remain_distinct_policy_data() {
             policy.binding(),
             &PackagePolicyExternalBinding::from(row.binding())
         );
-        assert!(bytes(row).starts_with(b"OMEGA-EXTERNAL-SUPPLY-POLICY\0\x02\x00"));
+        assert!(bytes(row).starts_with(b"OMEGA-EXTERNAL-SUPPLY-POLICY\0\x03\x00"));
         for other in &supplies[..position] {
             assert_changed(row, other);
         }

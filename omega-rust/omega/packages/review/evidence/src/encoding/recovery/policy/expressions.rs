@@ -125,6 +125,10 @@ pub(super) fn expression(
                     ordering,
                 }
             }
+            22 => Expression::CaseMembership {
+                subject: reader.boxed(expression)?,
+                case: nominal(reader)?,
+            },
             _ => return Err(Error::InvalidTag),
         })
     })

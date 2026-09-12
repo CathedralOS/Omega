@@ -387,7 +387,7 @@ pub machine GenericProvider::identity<Value>(value: Value) -> Value
     let policy_bytes = policy
         .canonical_bytes()
         .expect("checked external supply projects to policy without native emission");
-    assert!(policy_bytes.starts_with(b"OMEGA-EXTERNAL-SUPPLY-POLICY\0\x02\x00"));
+    assert!(policy_bytes.starts_with(b"OMEGA-EXTERNAL-SUPPLY-POLICY\0\x03\x00"));
     let recovered_policy =
         package_evidence::record::PackagePolicyExternalExecutableSupply::recover_canonical(
             &policy_bytes,

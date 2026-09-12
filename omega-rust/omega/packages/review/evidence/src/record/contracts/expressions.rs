@@ -332,6 +332,12 @@ pub enum PackageReviewContractExpression {
     Result,
     GenericBinder(u32),
     Nominal(PackageReviewNominalIdentity),
+    /// Exact nominal tag observation. The case is a classifier, not a
+    /// constructed value or a selected equality overload.
+    CaseMembership {
+        subject: Box<PackageReviewContractExpression>,
+        case: PackageReviewNominalIdentity,
+    },
     /// One explicit denotational reference formation. Runtime loan identity
     /// and source lifetime spelling are not package contract identity.
     Reference {

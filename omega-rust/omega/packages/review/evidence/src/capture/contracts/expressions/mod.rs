@@ -1,5 +1,6 @@
 pub(in crate::capture) mod atomic_loads;
 pub(in crate::capture) mod calls;
+mod case_membership;
 pub(in crate::capture) mod casts;
 pub(in crate::capture) mod constructors;
 pub(in crate::capture) mod evidence;

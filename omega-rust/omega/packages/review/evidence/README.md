@@ -95,7 +95,7 @@ equality.
 external executable supplies, retaining
 the complete callable signature, requirement, binding, target, and producer
 identity while omitting evaluator accounting and reconstruction receipts. Its
-bounded `OMEGA-EXTERNAL-SUPPLY-POLICY` component encoding is version 2.
+bounded `OMEGA-EXTERNAL-SUPPLY-POLICY` component encoding is version 3.
 Capture needs the original checked signatures: the legacy review shape cannot
 recover an absent result, complete nested progress routes, or actual conformance
 lifetime arguments after those distinctions have been projected away.
@@ -116,7 +116,7 @@ The authoritative build's empty lifetime telescope is distinct from a called
 requirement's telescope. Its name, spans, and compiler receipts do not enter
 policy identity.
 
-The `OMEGA-REPRESENTATION-POLICY` version-2 encoding embeds full calling and
+The `OMEGA-REPRESENTATION-POLICY` version-3 encoding embeds full calling and
 conformance meanings under one recovery budget. It checks exact ownership,
 producer/selection associations, and complete opaque-use coverage within each
 retained calling application. This is inert policy, not reconstructed native
@@ -141,7 +141,7 @@ compilation when there are no static parameters to instantiate. Nonempty
 static parameter lists retain clone-local instantiation. Both paths preserve
 source association, lifetime validation, and complete signature projection.
 
-The `OMEGA-SELECTED-PROVIDER-POLICY` version-2 component places grants inside
+The `OMEGA-SELECTED-PROVIDER-POLICY` version-3 component places grants inside
 their complete normalized plan and links atomic family coordinates by canonical
 plan index. Recovery checks complete family coverage and typed structural
 associations under one shared resource budget. Generic declaration families
@@ -156,7 +156,7 @@ root static and lifetime telescopes, structured signatures, and checked calling
 context when present. Generic declarations retain symbolic parameter relations;
 they do not invent a closed provider or calling application. An explicit empty
 class set is distinct from no permission. The bounded
-`OMEGA-TERMINAL-PERMISSION-POLICY` version-2 component shares the service codec
+`OMEGA-TERMINAL-PERMISSION-POLICY` version-3 component shares the service codec
 and one recovery budget with nested contracts and calling applications.
 
 Legacy review and policy capture share exact accepted-service and inherited
@@ -172,7 +172,7 @@ private admission-claim, and private external-callable surfaces for one exact
 checked root and target. Private external leaves retain their own outer
 contracts and operational promises even when unused; an equal supplied
 requirement and binding do not imply equal authored leaf policy.
-The `OMEGA-CALLABLE-POLICY` version-2 component retains full static and lifetime
+The `OMEGA-CALLABLE-POLICY` version-3 component retains full static and lifetime
 signatures, ordered contracts, exact overloaded callable identities, and actual
 conformance lifetime arguments as well as their equality partition. Published
 reach, direct-invocation, suspension, blocking, and termination promises remain
@@ -197,7 +197,7 @@ derivation tables, grants authority, or certifies an assumption. The existing
 review encoding is unchanged.
 
 `project_checked_package_policy` composes `PackagePolicyBaseline` for one exact
-checked root package and target. Its version-1 `OMEGA-PACKAGE-POLICY` envelope
+checked root package and target. Its version-2 `OMEGA-PACKAGE-POLICY` envelope
 contains all seven public declaration families, the normalized components above,
 every package-owned external supply (including unused private leaves), dangerous
 authority and ceiling slack, semantic dependencies, and D29 application links.
@@ -211,7 +211,7 @@ execution commitments.
 Public and nested policy signatures distinguish no result from a declared empty
 data result, retain typed crash guards and complete progress establishment routes,
 and preserve lexical static/lifetime scopes. The affected component schemas,
-including `OMEGA-CALLING-POLICY`, are version 2; old policy versions require fresh
+including `OMEGA-CALLING-POLICY`, are version 3; old policy versions require fresh
 comparison rather than an inferred upgrade from lossy records.
 
 The whole baseline uses one byte, element, allocation, and nesting budget,
@@ -312,7 +312,7 @@ total-direct `define` and position-preserving transport-backed `lift`
 correspondences. The manager owns comparison and policy; neither entrance
 admits a package or executable operation.
 
-The canonical review schema is version 130, row schema version 88, and
+The canonical review schema is version 131, row schema version 89, and
 canonical-row recovery envelope version 23. Exact vocabulary and revision
 notes live in
 [`EVIDENCE_SCHEMA.md`](EVIDENCE_SCHEMA.md).
