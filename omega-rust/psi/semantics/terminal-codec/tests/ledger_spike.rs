@@ -147,6 +147,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
     };
 
     let caller = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(10),
         attachment: None,
         parameters: Vec::new(),
@@ -208,6 +209,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
     };
 
     let callee = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(20),
         attachment: None,
         parameters: Vec::new(),
@@ -332,6 +334,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
     let service = service_id(1);
 
     let entry = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: None,
         parameters: vec![ValueDeclaration {
@@ -419,6 +422,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
     };
 
     let establish = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(2),
         attachment: None,
         parameters: Vec::new(),
@@ -463,6 +467,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
     };
 
     let cleanup = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(3),
         attachment: Some(boolean_box),
         parameters: Vec::new(),
@@ -584,6 +589,7 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
     });
 
     let caller = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: None,
         parameters: vec![value(10), value(11), i16_value(12)],
@@ -939,6 +945,7 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
     };
 
     let callee = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(2),
         attachment: None,
         parameters: vec![value(200), value(201)],

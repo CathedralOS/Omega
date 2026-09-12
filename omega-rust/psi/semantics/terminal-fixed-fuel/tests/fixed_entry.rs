@@ -157,6 +157,7 @@ fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
     let caller_result_place = place_id(913);
     module.machines = vec![
         TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: machine_id(900),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -292,6 +293,7 @@ fn nominal_affine_cleanup_composes_the_cleanup_machine_bound() {
         }],
     };
     module.machines.push(TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: cleanup_machine,
         attachment: Some(structural_type),
         parameters: Vec::new(),
@@ -1625,6 +1627,7 @@ fn unit_fixture() -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: machine_id(900),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -1689,6 +1692,7 @@ fn ordered_empty_nominal_affine_fixture(same_target: bool) -> TerminalModule {
         },
     };
     let cleanup_machine = |id, attachment, block, edge, contract| TerminalMachine {
+        declared_service_reach: Vec::new(),
         id,
         attachment: Some(attachment),
         parameters: Vec::new(),
@@ -2050,6 +2054,7 @@ fn executable_nominal_affine_fixture() -> TerminalModule {
         }],
     };
     module.machines.push(TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(901),
         attachment: Some(token_type),
         parameters: Vec::new(),
@@ -2087,6 +2092,7 @@ fn executable_nominal_affine_fixture() -> TerminalModule {
         contract: empty_contract(901),
     });
     module.machines.push(TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(902),
         attachment: Some(helper_type),
         parameters: Vec::new(),
@@ -2136,6 +2142,7 @@ fn two_helper_nominal_affine_fixture() -> TerminalModule {
         },
     });
     module.machines.push(TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(903),
         attachment: Some(second_helper_type.id),
         parameters: Vec::new(),
@@ -2255,6 +2262,7 @@ fn unit_effect_fixture() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: machine_id(700),
                 attachment: None,
                 parameters: Vec::new(),
@@ -2309,6 +2317,7 @@ fn unit_effect_fixture() -> TerminalModule {
                 },
             },
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: machine_id(701),
                 attachment: None,
                 parameters: Vec::new(),
@@ -2469,6 +2478,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: machine_id(1),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -2595,6 +2605,7 @@ fn call_fixture() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: machine_id(1),
                 attachment: None,
                 structural_parameters: Vec::new(),
@@ -2638,6 +2649,7 @@ fn call_fixture() -> TerminalModule {
                 contract: empty_contract(1),
             },
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: machine_id(2),
                 attachment: None,
                 structural_parameters: Vec::new(),

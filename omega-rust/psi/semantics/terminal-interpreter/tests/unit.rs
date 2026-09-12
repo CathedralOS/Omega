@@ -741,6 +741,7 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: machine_id(1),
             attachment: None,
             parameters: Vec::new(),
@@ -2727,6 +2728,7 @@ fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: machine_id(1),
             attachment: None,
             parameters: Vec::new(),
@@ -2833,6 +2835,7 @@ fn scalar_boundary_effect_module() -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: machine_id(1),
             attachment: None,
             parameters: Vec::new(),
@@ -3003,6 +3006,7 @@ fn effect_module() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: machine_id(1),
                 attachment: Some(structural_type),
                 parameters: Vec::new(),
@@ -3066,6 +3070,7 @@ fn effect_module() -> TerminalModule {
                 contract: empty_contract(contract_id(1)),
             },
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: machine_id(2),
                 attachment: Some(structural_type),
                 parameters: Vec::new(),
@@ -3248,6 +3253,7 @@ fn payloadless_call_module() -> TerminalModule {
     callee.contract.id = contract_id(2);
 
     let caller = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: None,
         structural_parameters: Vec::new(),
@@ -3352,6 +3358,7 @@ fn unit_module() -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: machine_id(1),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -3483,6 +3490,7 @@ fn write_only_primitive_call_module() -> TerminalModule {
     }];
 
     module.machines.push(TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(92),
         attachment: None,
         structural_parameters: vec![parameter(callee_place, 0)],
@@ -3658,6 +3666,7 @@ fn structural_scalar_field_call_module() -> TerminalModule {
     };
 
     module.machines.push(TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(96),
         attachment: Some(item_type),
         parameters: Vec::new(),
@@ -3845,6 +3854,7 @@ fn parameter_dynamic_scalar_call_module() -> TerminalModule {
     };
     let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
     module.machines.push(TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: helper,
         attachment: None,
         parameters: Vec::new(),
@@ -4111,6 +4121,7 @@ fn nominal_affine_module() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: machine_id(1),
                 attachment: None,
                 parameters: Vec::new(),
@@ -4158,6 +4169,7 @@ fn nominal_affine_module() -> TerminalModule {
                 contract: empty_contract(contract_id(1)),
             },
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: machine_id(2),
                 attachment: Some(token.id),
                 parameters: Vec::new(),
@@ -4873,6 +4885,7 @@ fn executable_nominal_affine_module() -> TerminalModule {
         },
     });
     module.machines.push(TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(3),
         attachment: Some(helper_type.id),
         parameters: Vec::new(),
@@ -4922,6 +4935,7 @@ fn two_helper_nominal_affine_module() -> TerminalModule {
         },
     });
     module.machines.push(TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(4),
         attachment: Some(second_helper_type.id),
         parameters: Vec::new(),
@@ -5011,6 +5025,7 @@ fn partial_affine_field_module() -> TerminalModule {
         },
     };
     let caller = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: None,
         parameters: Vec::new(),
@@ -5072,6 +5087,7 @@ fn partial_affine_field_module() -> TerminalModule {
         contract: empty_contract(contract_id(1)),
     };
     let callee = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(2),
         attachment: None,
         parameters: Vec::new(),
@@ -5158,6 +5174,7 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
         alternatives: vec![CrashRouteGuard::Truth],
     };
     let caller = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: None,
         parameters: Vec::new(),
@@ -5270,6 +5287,7 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
         },
     };
     let callee = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(2),
         attachment: None,
         parameters: Vec::new(),

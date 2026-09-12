@@ -251,6 +251,7 @@ mod tests {
         scalar_type: ScalarType,
     ) -> TerminalMachine {
         TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: owner,
             attachment: None,
             parameters: vec![ValueDeclaration {

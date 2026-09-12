@@ -64,6 +64,7 @@ fn verified_exact_self_division_or_remainder_unit(divide: bool) -> VerifiedPsiOp
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: machine,
             attachment: None,
             parameters: vec![declaration(operand)],
@@ -199,6 +200,7 @@ pub(in crate::pass_manager::tests) fn verified_exact_remainder_by_one_unit()
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: machine,
             attachment: None,
             parameters: vec![declaration(operand)],
@@ -328,6 +330,7 @@ pub(in crate::pass_manager::tests) fn verified_exact_signed_remainder_by_negativ
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: machine,
             attachment: None,
             parameters: Vec::new(),

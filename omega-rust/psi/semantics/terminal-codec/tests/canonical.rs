@@ -91,7 +91,7 @@ fn suspension_call_plan_round_trips_canonically_and_rejects_prior_format() {
     module.suspension_call_plans = vec![plan];
 
     let bytes = encode_module(&module).expect("suspension plan encodes");
-    assert_eq!(&bytes[8..10], 89_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 90_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(
         encode_module(&decode_module(&bytes).unwrap()),
@@ -121,7 +121,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 89_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 90_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -129,7 +129,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "573d2b454050ddae4b96763e375c301cf8a668483b0093b86d59151553e61f05"
+        "0a0bf3a9b26cdc1441cbc10ded02de7e3235daf43f9d3d09a9d1f9a7227f6b3f"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -142,7 +142,7 @@ fn proof_recursive_components_round_trip_and_enter_terminal_identity() {
     let mut module = unit_fixture();
     module.proof_recursive_components = vec![proof_recursive_component_fixture()];
     let bytes = encode_module(&module).expect("proof-recursive module should encode");
-    assert_eq!(&bytes[8..10], 89_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 90_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
 
     let original = semantic_fingerprint(&module).expect("recursive semantic identity");
@@ -249,7 +249,7 @@ fn placed_view_input_round_trips_with_exact_semantic_identity() {
 fn ranked_countdown_round_trips_in_current_terminal_identity() {
     let module = ranked_countdown_fixture();
     let bytes = encode_module(&module).expect("ranked representation should encode");
-    assert_eq!(&bytes[8..10], 89_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 90_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -310,7 +310,7 @@ fn natural_ranking_round_trips_exact_semantic_rows_and_rejects_malformed_coverag
     };
     module.machines[0].ranked_scc = Some(TerminalRankedScc::Natural(vec![cycle.clone()]));
     let bytes = encode_module(&module).expect("natural ranking representation encodes");
-    assert_eq!(&bytes[8..12], &[89, 0, 99, 0]);
+    assert_eq!(&bytes[8..12], &[90, 0, 100, 0]);
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_ne!(semantic_fingerprint(&module).unwrap(), countdown_identity);
     let mut stale = bytes;
@@ -481,6 +481,7 @@ fn proof_only_float_projections_round_trip_and_reject_tampering() {
     };
     let direct_operation = operation_id(9);
     module.machines.push(TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: direct_result_owner,
         attachment: None,
         parameters: vec![ValueDeclaration {
@@ -1104,7 +1105,7 @@ fn payload_sum_shape_round_trips_exact_fields_and_requires_canonical_order() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 89_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 90_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -1117,7 +1118,7 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 89_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 90_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -1154,7 +1155,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 89_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 90_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -1483,6 +1484,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
     let first_affine = place_id(52);
     let second_affine = place_id(53);
     let machine = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: None,
         parameters: Vec::new(),
@@ -2997,10 +2999,11 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&90_u16.to_le_bytes());
+    let future_marker = u16::from_le_bytes([bytes[8], bytes[9]]) + 1;
+    future_format[8..10].copy_from_slice(&future_marker.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(90))
+        Err(CodecError::UnsupportedFormatMarker(future_marker))
     );
 
     let mut stale_format = bytes.clone();
@@ -3196,6 +3199,7 @@ fn partial_affine_fixture() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: machine_id(1),
                 attachment: Some(root_type),
                 parameters: Vec::new(),
@@ -3263,6 +3267,7 @@ fn partial_affine_fixture() -> TerminalModule {
                 },
             },
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: machine_id(2),
                 attachment: Some(sink_type),
                 parameters: Vec::new(),
@@ -3440,6 +3445,7 @@ fn nominal_affine_fixture() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: machine_id(1),
                 attachment: Some(owner_type),
                 parameters: Vec::new(),
@@ -3493,6 +3499,7 @@ fn nominal_affine_fixture() -> TerminalModule {
                 },
             },
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: machine_id(2),
                 attachment: Some(resource_type),
                 parameters: Vec::new(),
@@ -3636,6 +3643,7 @@ fn structural_effect_fixture() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: machine_id(100),
                 attachment: Some(structural_type_id(2)),
                 parameters: Vec::new(),
@@ -3701,6 +3709,7 @@ fn structural_effect_fixture() -> TerminalModule {
                 },
             },
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: machine_id(101),
                 attachment: Some(structural_type_id(3)),
                 parameters: Vec::new(),
@@ -3783,7 +3792,7 @@ fn structural_call_result_round_trips_with_current_format_and_vocabulary() {
     let module = structural_call_fixture();
     let bytes = encode_module(&module).expect("structural call should encode");
 
-    assert_eq!(&bytes[8..10], 89_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 90_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -4447,6 +4456,7 @@ fn unit_fixture() -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: machine_id(900),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -4689,6 +4699,7 @@ fn fixture() -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: machine_id(1),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -4853,6 +4864,7 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: machine_id(80),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -5092,6 +5104,7 @@ fn call_fixture() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: machine_id(100),
                 attachment: None,
                 structural_parameters: Vec::new(),
@@ -5141,6 +5154,7 @@ fn call_fixture() -> TerminalModule {
                 },
             },
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: machine_id(101),
                 attachment: None,
                 structural_parameters: Vec::new(),

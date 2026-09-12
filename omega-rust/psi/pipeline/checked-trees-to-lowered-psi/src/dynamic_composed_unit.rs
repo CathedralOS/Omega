@@ -347,6 +347,7 @@ fn lower_dynamic_composed_unit_machine(
             quotient_correspondences: Vec::new(),
             machines: {
                 let mut machines = vec![TerminalMachine {
+                    declared_service_reach: Vec::new(),
                     id: caller_machine,
                     attachment: Some(caller_attachment),
                     parameters: Vec::new(),
@@ -1603,6 +1604,7 @@ fn materialize_forwarded_helper_for_source(
     let (_, requirement_slot) = dynamic_parameter_interface(application, selected_row)?;
     let scalar_type = terminal_scalar_type(plan.result.primitive_type)?;
     Ok(TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: ids.machine,
         attachment: None,
         parameters: Vec::new(),
@@ -2072,6 +2074,7 @@ fn materialize_dynamic_realizations(
                 ))?;
             let result_value = value_id(allocate_dense(next_value)?);
             Ok(TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: realization.machine,
                 attachment: Some(source_type),
                 parameters: Vec::new(),

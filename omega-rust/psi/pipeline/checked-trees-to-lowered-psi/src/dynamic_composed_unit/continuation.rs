@@ -358,6 +358,7 @@ pub(super) fn lower(
     lowered.semantic_module.machines.insert(
         0,
         TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: caller_machine,
             attachment: Some(caller_attachment),
             parameters: Vec::new(),

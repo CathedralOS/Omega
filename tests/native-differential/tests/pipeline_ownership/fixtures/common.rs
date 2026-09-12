@@ -127,6 +127,7 @@ pub(crate) fn artifact() -> (Vec<u8>, Vec<u8>) {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: machine,
             attachment: None,
             parameters: Vec::new(),
@@ -424,6 +425,7 @@ pub(crate) fn conditional_u64_integer_equal_parameters_machine(
         scalar_type,
     };
     TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine,
         attachment: None,
         parameters: vec![
@@ -575,6 +577,7 @@ pub(crate) fn conditional_immediate_machine(
         scalar_type,
     };
     TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine,
         attachment: None,
         parameters: vec![declaration(condition, ScalarType::Boolean)],

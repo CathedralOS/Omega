@@ -117,6 +117,7 @@ fn restored_call_use_module() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: caller,
                 attachment: None,
                 parameters: Vec::new(),
@@ -164,6 +165,7 @@ fn restored_call_use_module() -> TerminalModule {
                 contract: contract(1),
             },
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: callee,
                 attachment: None,
                 parameters: Vec::new(),
@@ -287,6 +289,7 @@ fn exact_two_and_three_member_shared_freeze_cohorts_validate_and_fence_roster_dr
         projected_qualifications: Vec::new(),
     };
     module.machines.push(TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: observer,
         attachment: None,
         parameters: Vec::new(),

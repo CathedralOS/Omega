@@ -118,8 +118,9 @@ fn literal_lengths_are_exact_u64_and_meter_once_across_resume() {
 #[test]
 fn byte_sequence_length_artifact_rejects_stale_vocabulary() {
     let semantic = encode_module(&literal_module(vec![0xff])).unwrap();
-    assert_eq!(&semantic[10..12], &99_u16.to_le_bytes());
-    for generation in [90_u16, 91, 92, 93, 94, 95, 96, 97, 98, 100] {
+    assert_eq!(&semantic[10..12], &100_u16.to_le_bytes());
+    let current = terminal_psi::VocabularyMarker::CURRENT.get();
+    for generation in (90_u16..current).chain(std::iter::once(current + 1)) {
         let mut stale = semantic.clone();
         stale[10..12].copy_from_slice(&generation.to_le_bytes());
         assert!(decode_module(&stale).is_err());

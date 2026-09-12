@@ -664,6 +664,7 @@ fn boolean_constant_axiom_proves_the_return_contract() {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: MachineId::new(10).expect("machine"),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -781,6 +782,7 @@ fn boolean_not_axiom_proves_the_return_contract() {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: MachineId::new(20).expect("machine"),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -1025,6 +1027,7 @@ fn boolean_equality_axiom_proves_the_return_contract() {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: MachineId::new(30).expect("machine"),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -1187,6 +1190,7 @@ fn integer_equality_axiom_proves_the_return_contract() {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: MachineId::new(40).expect("machine"),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -1397,6 +1401,7 @@ fn integer_ordering_axioms_prove_return_contracts() {
             suspension_call_plans: Vec::new(),
             quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: MachineId::new(50).expect("machine"),
                 attachment: None,
                 structural_parameters: Vec::new(),
@@ -1599,6 +1604,7 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
             suspension_call_plans: Vec::new(),
             quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: MachineId::new(60).expect("machine"),
                 attachment: None,
                 structural_parameters: Vec::new(),
@@ -1751,6 +1757,7 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: MachineId::new(65).expect("machine"),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -1882,6 +1889,7 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: MachineId::new(68).expect("machine"),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -2041,6 +2049,7 @@ fn preserves_address_carrier_identity() {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: MachineId::new(168).expect("machine"),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -2125,6 +2134,7 @@ fn exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligatio
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: MachineId::new(170).expect("machine"),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -2256,6 +2266,7 @@ fn exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: MachineId::new(180).expect("machine"),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -2364,6 +2375,7 @@ fn exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: MachineId::new(190).expect("machine"),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -2475,6 +2487,7 @@ fn exact_add_requires_same_fixed_integer_operands_and_an_obligation() {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: MachineId::new(194).expect("machine"),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -2567,6 +2580,7 @@ fn exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: MachineId::new(198).expect("machine"),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -2659,6 +2673,7 @@ fn exact_multiply_requires_same_fixed_integer_operands_and_an_obligation() {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: MachineId::new(202).expect("machine"),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -2759,6 +2774,7 @@ fn exact_divide_requires_same_fixed_integer_operands_and_an_obligation() {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: MachineId::new(212).expect("machine"),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -2877,6 +2893,7 @@ fn exact_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: MachineId::new(222).expect("machine"),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -2968,6 +2985,7 @@ fn wrapping_divide_requires_same_fixed_integer_operands_and_an_obligation() {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: MachineId::new(232).expect("machine"),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -3059,6 +3077,7 @@ fn wrapping_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: MachineId::new(242).expect("machine"),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -3150,6 +3169,7 @@ fn saturating_divide_requires_same_fixed_integer_operands_and_an_obligation() {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: MachineId::new(252).expect("machine"),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -3241,6 +3261,7 @@ fn saturating_remainder_requires_same_fixed_integer_operands_and_an_obligation()
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: MachineId::new(256).expect("machine"),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -3357,6 +3378,7 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
             suspension_call_plans: Vec::new(),
             quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: MachineId::new(70).expect("machine"),
                 attachment: None,
                 structural_parameters: Vec::new(),
@@ -5042,6 +5064,7 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
         .expect("one projection yields one proposition");
     let obligation = ObligationId::new(90).expect("obligation");
     let machine = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: MachineId::new(90).expect("machine"),
         attachment: None,
         structural_parameters: vec![StructuralParameterDeclaration {
@@ -5200,6 +5223,7 @@ fn structural_call_module() -> TerminalModule {
         projected_qualifications: Vec::new(),
     };
     let caller_machine = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: caller,
         attachment: None,
         parameters: Vec::new(),
@@ -5289,6 +5313,7 @@ fn structural_call_module() -> TerminalModule {
         },
     };
     let callee_machine = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: callee,
         attachment: None,
         parameters: Vec::new(),
@@ -5571,6 +5596,7 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
         projected_qualifications: Vec::new(),
     };
     let machine = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: MachineId::new(90).expect("machine"),
         attachment: None,
         parameters: vec![ValueDeclaration {
@@ -5787,6 +5813,7 @@ fn reflexive_content_module() -> (TerminalModule, Proposition, ObligationId) {
     ));
     let obligation = ObligationId::new(80).expect("obligation");
     let machine = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: MachineId::new(80).expect("machine"),
         attachment: None,
         structural_parameters: Vec::new(),
@@ -6316,6 +6343,7 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
         ScalarTerm::wrapping_integer_add(integer, term(left), term(right)).unwrap(),
     );
     let machine = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: MachineId::new(20).expect("machine"),
         attachment: None,
         structural_parameters: Vec::new(),
@@ -6424,6 +6452,7 @@ fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
         ScalarTerm::saturating_integer_add(integer, term(left), term(right)).unwrap(),
     );
     let machine = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: MachineId::new(30).expect("machine"),
         attachment: None,
         structural_parameters: Vec::new(),
@@ -6532,6 +6561,7 @@ fn wrapping_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
         ScalarTerm::wrapping_integer_subtract(integer, term(left), term(right)).unwrap(),
     );
     let machine = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: MachineId::new(40).expect("machine"),
         attachment: None,
         structural_parameters: Vec::new(),
@@ -6640,6 +6670,7 @@ fn saturating_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
         ScalarTerm::saturating_integer_subtract(integer, term(left), term(right)).unwrap(),
     );
     let machine = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: MachineId::new(50).expect("machine"),
         attachment: None,
         structural_parameters: Vec::new(),
@@ -6748,6 +6779,7 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
         ScalarTerm::wrapping_integer_multiply(integer, term(left), term(right)).unwrap(),
     );
     let machine = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: MachineId::new(60).expect("machine"),
         attachment: None,
         structural_parameters: Vec::new(),
@@ -6856,6 +6888,7 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
         ScalarTerm::saturating_integer_multiply(integer, term(left), term(right)).unwrap(),
     );
     let machine = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: MachineId::new(70).expect("machine"),
         attachment: None,
         structural_parameters: Vec::new(),
@@ -7100,6 +7133,7 @@ fn unit_module() -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: MachineId::new(900).unwrap(),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -7398,6 +7432,7 @@ impl Fixture {
         let goal = Proposition::Equal(ScalarTerm::value(result, scalar_type), seven);
 
         let machine = TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: MachineId::new(1).expect("machine"),
             attachment: None,
             structural_parameters: Vec::new(),

@@ -12,7 +12,34 @@ pub(crate) fn checked_scalar_call_closure(
     checked: &CheckedTrees,
     roots: &[symbols::SymbolHandle],
 ) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
-    checked_scalar_call_closure_with_structural_roots(checked, roots, &[])
+    let closure = checked_scalar_call_closure_with_structural_roots(checked, roots, &[])?;
+    // The legacy standalone helper emitter has no service namespace. Shared
+    // assembly uses the discovery entry below and retains those contracts.
+    for machine in &closure {
+        let mut reaches = checked
+            .facts
+            .service_reaches
+            .machines()
+            .iter()
+            .filter(|reach| reach.machine == *machine);
+        let reach = reaches.next().ok_or(LoweringError::Unsupported(
+            "scalar helper lost its checked service contract",
+        ))?;
+        if reaches.next().is_some() {
+            return unsupported("scalar helper has ambiguous checked service contracts");
+        }
+        if !checked
+            .facts
+            .service_reaches
+            .rows
+            .services(reach.effective)
+            .is_empty()
+            || !reach.unresolved_installation_reaches.is_empty()
+        {
+            return unsupported("service-bearing scalar helpers require the shared catalog");
+        }
+    }
+    Ok(closure)
 }
 
 pub(crate) fn checked_scalar_call_closure_with_structural_roots(
@@ -47,6 +74,7 @@ pub(crate) fn checked_scalar_call_closure_with_structural_roots(
         let supported_signature = matches!(
             selection.signature,
             CheckedTerminalSignatureEligibility::Eligible
+                | CheckedTerminalSignatureEligibility::FreeUnitEffect
                 | CheckedTerminalSignatureEligibility::Attached
         );
         if selection.name.is_empty() || !supported_signature {

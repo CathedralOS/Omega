@@ -67,6 +67,7 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: machine_id(91),
             attachment: None,
             parameters: Vec::new(),
@@ -146,6 +147,7 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
     callee.contract.id = contract_id(92);
     let call = semantic_vocabulary::OperationId::new(93).unwrap();
     let caller = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(91),
         attachment: None,
         parameters: Vec::new(),

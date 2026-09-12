@@ -71,6 +71,7 @@ pub(super) fn lower_payloadless_guarded_call_return_machine(
         "guarded payloadless callee attachment is absent",
     ))?;
     let caller = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: Some(attachment),
         structural_parameters: Vec::new(),
@@ -151,6 +152,7 @@ pub(super) fn lower_payloadless_guarded_call_return_machine(
         .any(|selection| selection.tail_use.is_some())
     {
         module.machines.push(TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: machine_id(3),
             attachment: Some(attachment),
             parameters: Vec::new(),

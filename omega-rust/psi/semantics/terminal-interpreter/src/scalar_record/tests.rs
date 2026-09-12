@@ -37,6 +37,7 @@ fn unit_module() -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: MachineId::new(900).unwrap(),
             attachment: None,
             structural_parameters: Vec::new(),

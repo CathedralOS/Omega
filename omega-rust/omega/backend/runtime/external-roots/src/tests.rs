@@ -2587,6 +2587,7 @@ fn program_local_root_module() -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![terminal_psi::TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: entry,
             attachment: None,
             parameters: Vec::new(),

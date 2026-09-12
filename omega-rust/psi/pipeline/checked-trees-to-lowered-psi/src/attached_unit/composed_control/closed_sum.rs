@@ -420,6 +420,11 @@ fn emit(
         )?,
     );
     let machine = TerminalMachine {
+        declared_service_reach: crate::attached_unit::lower_declared_service_reach(
+            checked,
+            plan.machine,
+            &catalogs.service_ids,
+        )?,
         id: machine_id(1),
         attachment: Some(attachment),
         parameters: Vec::new(),

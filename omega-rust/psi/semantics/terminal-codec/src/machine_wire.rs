@@ -67,6 +67,7 @@ pub(super) fn encode_machine(
         writer.id(claim.input);
         encode_structural_path(writer, "entry claim path", &claim.path)?;
     }
+    encode_service_ceiling(writer, &machine.declared_service_reach)?;
     encode_service_ceiling(writer, &machine.published_service_ceiling)?;
     writer.len("content entry claims", machine.content_entry_claims.len())?;
     for binding in &machine.content_entry_claims {
@@ -138,6 +139,7 @@ pub(super) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine,
             path: decode_structural_path(reader)?,
         })
     })?;
+    let declared_service_reach = decode_ids(reader, "ServiceId")?;
     let published_service_ceiling = decode_ids(reader, "ServiceId")?;
     let count = reader.count()?;
     let mut content_entry_claims = Vec::new();
@@ -170,6 +172,7 @@ pub(super) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine,
         result,
         structural_places,
         entry_claims,
+        declared_service_reach,
         published_service_ceiling,
         content_entry_claims,
         content_identity_reshuffles,

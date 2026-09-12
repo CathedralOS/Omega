@@ -189,6 +189,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: caller,
                 attachment: None,
                 parameters: Vec::new(),
@@ -230,6 +231,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
                 contract: empty_contract(1),
             },
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: realization,
                 attachment: None,
                 parameters: Vec::new(),
@@ -385,6 +387,7 @@ fn parameter_dynamic_dispatch_module() -> TerminalModule {
         crash_continuations: Vec::new(),
     };
     module.machines.push(TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: helper,
         attachment: None,
         parameters: Vec::new(),

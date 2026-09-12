@@ -5,9 +5,11 @@ use super::*;
 pub(crate) mod callee;
 pub(crate) mod embedded;
 
-/// A scalar-only entry can still call a helper that owns real structural places.
-/// Select the shared assembler before the scalar-only catalog rejects its leaves.
-pub(super) fn requires_place_namespace(
+/// Scalar bodies share the ordinary catalog whenever their closure needs places
+/// or services. A selected callback's published reach is a contract contribution
+/// even when its body only returns a scalar; the pure assembler has no service
+/// namespace and must not erase that contribution.
+pub(super) fn requires_shared_catalog(
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
 ) -> Result<bool, LoweringError> {
@@ -18,6 +20,28 @@ pub(super) fn requires_place_namespace(
             continue;
         }
         visited.push(machine);
+        let mut reaches = checked
+            .facts
+            .service_reaches
+            .machines()
+            .iter()
+            .filter(|reach| reach.machine == machine);
+        let reach = reaches.next().ok_or(LoweringError::Unsupported(
+            "scalar call closure lost its checked service contract",
+        ))?;
+        if reaches.next().is_some() {
+            return unsupported("scalar call closure has ambiguous service contracts");
+        }
+        if !checked
+            .facts
+            .service_reaches
+            .rows
+            .services(reach.effective)
+            .is_empty()
+            || !reach.unresolved_installation_reaches.is_empty()
+        {
+            return Ok(true);
+        }
         let Some(graph) = checked
             .facts
             .flow

@@ -265,6 +265,11 @@ pub(crate) fn emit_boundary_scalar_return(
     });
     evaluation.blocks.sort_by_key(|block| block.id);
     let machine = TerminalMachine {
+        declared_service_reach: crate::attached_unit::lower_declared_service_reach(
+            checked,
+            plan.machine,
+            service_ids,
+        )?,
         id: identities.machine,
         attachment: Some(lookup_type_id(type_ids, &plan.attachment_type_identity)?),
         parameters: scalar_parameters.clone(),

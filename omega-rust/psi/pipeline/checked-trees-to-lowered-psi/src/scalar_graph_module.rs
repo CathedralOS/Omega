@@ -1339,6 +1339,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             suspension_call_plans: Vec::new(),
             quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: terminal_machine,
                 attachment: None,
                 structural_parameters: structural_parameters.to_vec(),

@@ -347,6 +347,41 @@ pub(crate) fn lower_contract_service_ceiling(
     Ok(lowered)
 }
 
+/// Keep the authored concrete basis, not the flattened inferred ceiling. A
+/// Console declaration and a Console installation upper bound may overlap;
+/// subtracting the bound would erase the declaration. Terminal independently
+/// unions this basis with retained calls to reconstruct the concrete root row.
+pub(crate) fn lower_declared_service_reach(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    service_ids: &[(ServiceReachId, ServiceId)],
+) -> Result<Vec<ServiceId>, LoweringError> {
+    let mut sources = checked
+        .typed
+        .machines()
+        .iter()
+        .filter(|source| source.symbol == machine);
+    let source = sources.next().ok_or(LoweringError::Unsupported(
+        "service declaration lost its source machine",
+    ))?;
+    if sources.next().is_some() {
+        return unsupported("service declaration has ambiguous source machines");
+    }
+    if source.service_reach_is_installation_bound {
+        return Ok(Vec::new());
+    }
+    let mut declared = checked
+        .typed
+        .service_reach_rows
+        .services(source.service_reach_row)
+        .iter()
+        .map(|service| lookup_service_id(service_ids, *service))
+        .collect::<Result<Vec<_>, _>>()?;
+    declared.sort();
+    declared.dedup();
+    Ok(declared)
+}
+
 pub(crate) fn lower_published_service_ceiling(
     rows: &language_semantics::ServiceReachRowTable,
     contract: ServiceReachPlan,

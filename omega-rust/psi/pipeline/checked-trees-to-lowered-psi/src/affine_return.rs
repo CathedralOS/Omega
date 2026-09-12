@@ -201,6 +201,7 @@ pub(super) fn lower_claim_free_affine_return_machines(
                 ))?,
         );
         machines.push(TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: terminal_machine,
             attachment: realization
                 .attachment_type_identity

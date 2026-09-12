@@ -84,6 +84,7 @@ pub(crate) fn conditional_exact_binary_artifact_with_values(
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: machine,
             attachment: None,
             parameters: vec![declaration(condition, ScalarType::Boolean)],

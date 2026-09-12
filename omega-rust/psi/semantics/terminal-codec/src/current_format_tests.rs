@@ -16,15 +16,15 @@ const LEGACY_UNIT: &[u8] = &[
 
 // The same Unit semantics with the current declaration rosters and markers.
 const CURRENT_UNIT: &[u8] = &[
-    80, 83, 73, 84, 69, 82, 77, 0, 89, 0, 99, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    80, 83, 73, 84, 69, 82, 77, 0, 90, 0, 100, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0,
-    0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
+    0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 1, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
 
 #[test]
@@ -52,6 +52,73 @@ fn current_unit_golden_bytes_remain_identical() {
         terminal_psi::TerminalMachineResult::Unit
     );
     assert_eq!(encode_module(&module).unwrap(), CURRENT_UNIT);
+}
+
+fn declared_service_module() -> terminal_psi::TerminalModule {
+    let mut module = decode_module(CURRENT_UNIT).expect("current Unit fixture");
+    let service = semantic_vocabulary::ServiceId::new(1).unwrap();
+    module.services.push(terminal_psi::ServiceDeclaration {
+        id: service,
+        identity: "Console".into(),
+        parents: Vec::new(),
+    });
+    module.machines[0].declared_service_reach = vec![service];
+    module.machines[0].published_service_ceiling = vec![service];
+    module.root_service_reach.concrete = vec![service];
+    module
+}
+
+#[test]
+fn declared_service_reach_roundtrips_and_participates_in_semantic_identity() {
+    let module = declared_service_module();
+    let bytes = encode_module(&module).expect("declared service contract encodes");
+    assert_eq!(decode_module(&bytes).unwrap(), module);
+    assert_eq!(
+        encode_module(&decode_module(&bytes).unwrap()).unwrap(),
+        bytes
+    );
+    let mut undeclared = module.clone();
+    undeclared.machines[0].declared_service_reach.clear();
+    undeclared.root_service_reach.concrete.clear();
+    assert_ne!(
+        super::terminal_psi_identity(&module).unwrap(),
+        super::terminal_psi_identity(&undeclared).unwrap()
+    );
+}
+
+#[test]
+fn declared_service_reach_decoder_rejects_corrupt_rows_and_missing_root() {
+    let module = declared_service_module();
+    let mut duplicate = module.clone();
+    duplicate.machines[0]
+        .declared_service_reach
+        .push(semantic_vocabulary::ServiceId::new(1).unwrap());
+    let bytes = super::encode_raw(&duplicate).expect("raw corrupt fixture");
+    assert!(matches!(
+        decode_module(&bytes),
+        Err(CodecError::InvalidModule(
+            terminal_verifier::ModuleError::DuplicatePublishedService { .. }
+        ))
+    ));
+    let mut missing_root = module;
+    missing_root.root_service_reach.concrete.clear();
+    let bytes = super::encode_raw(&missing_root).expect("raw stale root fixture");
+    assert!(matches!(
+        decode_module(&bytes),
+        Err(CodecError::InvalidModule(
+            terminal_verifier::ModuleError::RootConcreteServiceReachMismatch { .. }
+        ))
+    ));
+}
+
+#[test]
+fn declared_service_reach_format_rejects_previous_contract_encoding() {
+    let mut bytes = encode_module(&declared_service_module()).unwrap();
+    bytes[8..10].copy_from_slice(&(FORMAT_MARKER - 1).to_le_bytes());
+    assert_eq!(
+        decode_module(&bytes),
+        Err(CodecError::UnsupportedFormatMarker(FORMAT_MARKER - 1))
+    );
 }
 
 #[test]

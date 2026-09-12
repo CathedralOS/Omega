@@ -2,6 +2,9 @@ use super::*;
 
 /// Reconstruct the selected entry's exact executable service closure.
 ///
+/// Fixed declarations and executable operations both contribute concrete reach.
+/// Declarations remain even for an inert body; neither producer summaries nor
+/// incidental absence of an operation can erase the published contract input.
 /// Concrete reach and provider-selected installation dependencies are different
 /// axes. A concrete operation continues to contribute its service even when
 /// that service also appears in an abstract dependency's upper bound; nothing
@@ -44,6 +47,7 @@ pub(super) fn validate_root_service_reach_exact(
             .get(&machine_id)
             .copied()
             .ok_or(ModuleError::UnknownEntryMachine(machine_id))?;
+        concrete.extend(machine.declared_service_reach.iter().copied());
         for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
             match &operation.kind {
                 OperationKind::Call { callee, .. }

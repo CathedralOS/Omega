@@ -187,6 +187,7 @@ fn module_with(quotient_correspondences: Vec<RetainedQuotientCorrespondence>) ->
         suspension_call_plans: Vec::new(),
         quotient_correspondences,
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: machine,
             attachment: None,
             structural_parameters: Vec::new(),
@@ -226,7 +227,7 @@ fn quotient_correspondence_round_trips_and_enters_module_identity() {
     let module = module_with(vec![correspondence("Public::apply")]);
     validate_module_representation(&module).expect("representation replay");
     let bytes = encode_module(&module).expect("quotient correspondence encodes");
-    assert_eq!(&bytes[8..10], 89_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 90_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         terminal_psi::VocabularyMarker::CURRENT.get().to_le_bytes()

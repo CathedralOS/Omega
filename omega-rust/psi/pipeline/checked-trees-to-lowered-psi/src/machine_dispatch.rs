@@ -594,6 +594,13 @@ pub(super) fn lower_selected_machine(
     }
     match selection.signature {
         CheckedTerminalSignatureEligibility::Eligible => {}
+        CheckedTerminalSignatureEligibility::FreeUnitEffect
+            if checked
+                .facts
+                .flow
+                .terminal_scalar_graphs
+                .for_machine(selection.machine)
+                .is_some() => {}
         CheckedTerminalSignatureEligibility::Attached
         | CheckedTerminalSignatureEligibility::FreeUnitEffect => {
             return source_mapped_machine(
@@ -616,7 +623,7 @@ pub(super) fn lower_selected_machine(
         .ok_or(LoweringError::Unsupported(
             "machine has no source-independent checked scalar control plan",
         ))?;
-    if crate::scalar_call_closure::requires_place_namespace(checked, selection.machine)? {
+    if crate::scalar_call_closure::requires_shared_catalog(checked, selection.machine)? {
         return source_mapped_machine(
             crate::attached_unit::lower_scalar_effect_closure(checked, selection.machine),
             SelectedMachineRoute::ScalarGraph,

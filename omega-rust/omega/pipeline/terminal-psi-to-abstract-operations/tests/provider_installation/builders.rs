@@ -177,6 +177,7 @@ fn machine(
     service: ServiceId,
 ) -> TerminalMachine {
     TerminalMachine {
+        declared_service_reach: Vec::new(),
         id,
         attachment,
         parameters: Vec::new(),

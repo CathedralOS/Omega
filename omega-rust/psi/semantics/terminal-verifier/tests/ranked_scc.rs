@@ -81,6 +81,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: machine,
             attachment: None,
             parameters: vec![ValueDeclaration {

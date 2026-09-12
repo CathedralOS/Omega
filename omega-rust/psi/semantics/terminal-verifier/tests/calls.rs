@@ -32,6 +32,8 @@ use terminal_verifier::{
 mod boundary_crashes;
 #[path = "calls/byte_views.rs"]
 mod byte_views;
+#[path = "calls/declared_service_reach.rs"]
+mod declared_service_reach;
 #[path = "calls/provider_results.rs"]
 mod provider_results;
 #[path = "calls/scalar_array_arguments.rs"]
@@ -842,6 +844,7 @@ fn boundary_call_module() -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            declared_service_reach: Vec::new(),
             id: machine_id(1),
             attachment: None,
             structural_parameters: Vec::new(),
@@ -927,6 +930,7 @@ fn provider_candidate_module() -> TerminalModule {
             },
         });
     module.machines.push(TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(2),
         attachment: Some(provider_type),
         structural_parameters: Vec::new(),
@@ -997,6 +1001,7 @@ fn call_module() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: machine_id(1),
                 attachment: None,
                 structural_parameters: Vec::new(),
@@ -1050,6 +1055,7 @@ fn call_module() -> TerminalModule {
                 },
             },
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: machine_id(2),
                 attachment: None,
                 structural_parameters: Vec::new(),
@@ -1145,6 +1151,7 @@ fn payloadless_guarded_call_module() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: machine_id(1),
                 attachment: None,
                 structural_parameters: Vec::new(),
@@ -1219,6 +1226,7 @@ fn payloadless_guarded_call_module() -> TerminalModule {
                 },
             },
             TerminalMachine {
+                declared_service_reach: Vec::new(),
                 id: machine_id(2),
                 attachment: None,
                 structural_parameters: Vec::new(),

@@ -243,6 +243,7 @@ pub(super) fn lower_trait_operator_scalar_return_machine(
         scalar_type: result_type,
     };
     let caller = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: plan
             .attachment_type_identity
@@ -901,6 +902,7 @@ pub(super) fn lower_structural_scalar_return_machine_in_namespace(
         scalar_type: result_type,
     };
     let machine = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: terminal_machine,
         attachment: plan
             .attachment_type_identity

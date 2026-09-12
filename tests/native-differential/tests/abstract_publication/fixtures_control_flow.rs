@@ -23,6 +23,7 @@ pub(super) fn unreachable_private_machine_verified() -> VerifiedPsiOptimizationU
     let private_machine = MachineId::new(1_044).unwrap();
     let private_block = BlockId::new(1_045).unwrap();
     module.machines.push(TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: private_machine,
         attachment: None,
         parameters: Vec::new(),

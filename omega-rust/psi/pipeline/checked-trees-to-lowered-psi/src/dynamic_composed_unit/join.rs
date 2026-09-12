@@ -278,6 +278,7 @@ pub(super) fn lower(
     )?;
     let root_service_reach = lower_root_service_reach(checked, first.caller_machine, &[])?;
     let mut machines = vec![TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: caller_machine,
         attachment: Some(caller_attachment),
         parameters: vec![ValueDeclaration {

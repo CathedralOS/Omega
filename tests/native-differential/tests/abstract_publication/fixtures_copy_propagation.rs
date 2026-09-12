@@ -116,6 +116,7 @@ pub(super) fn call_result_block_parameter_verified() -> VerifiedPsiOptimizationU
         ],
     );
     module.machines.push(TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: callee,
         attachment: None,
         parameters: Vec::new(),

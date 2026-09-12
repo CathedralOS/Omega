@@ -4454,6 +4454,7 @@ fn write_only_primitive_store_module() -> TerminalModule {
         },
     };
     let machine = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: None,
         parameters: vec![ValueDeclaration {
@@ -4567,6 +4568,7 @@ fn hard_root_module() -> TerminalModule {
     };
 
     let caller = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: None,
         parameters: Vec::new(),
@@ -4616,6 +4618,7 @@ fn hard_root_module() -> TerminalModule {
     };
 
     let callee = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(2),
         attachment: None,
         parameters: Vec::new(),
@@ -4812,6 +4815,7 @@ fn partial_affine_field_module() -> TerminalModule {
         projected_qualifications: Vec::new(),
     };
     let caller = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: None,
         parameters: Vec::new(),
@@ -4865,6 +4869,7 @@ fn partial_affine_field_module() -> TerminalModule {
         contract: empty_contract(contract_id(1)),
     };
     let callee = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(2),
         attachment: None,
         parameters: Vec::new(),
@@ -5092,6 +5097,7 @@ fn nominal_affine_module() -> TerminalModule {
         shape: StructuralTypeShape::Record { fields: Vec::new() },
     };
     let caller = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: None,
         parameters: Vec::new(),
@@ -5133,6 +5139,7 @@ fn nominal_affine_module() -> TerminalModule {
         contract: empty_contract(contract_id(1)),
     };
     let cleanup = TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(2),
         attachment: Some(token.id),
         parameters: Vec::new(),
@@ -5499,6 +5506,7 @@ fn executable_nominal_affine_module() -> TerminalModule {
         },
     });
     module.machines.push(TerminalMachine {
+        declared_service_reach: Vec::new(),
         id: machine_id(3),
         attachment: Some(helper_type.id),
         parameters: Vec::new(),
