@@ -32,6 +32,8 @@ mod module_constants;
 mod module_generic_data;
 #[path = "package_compilation_inputs/module_namespaces.rs"]
 mod module_namespaces;
+#[path = "package_compilation_inputs/module_template_methods.rs"]
+mod module_template_methods;
 
 struct TempTree(PathBuf);
 

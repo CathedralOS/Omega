@@ -1,0 +1,3 @@
+module first;
+pub data Envelope<T [copy]> { value: T; }
+pub machine Envelope::read<T [copy]>(&self) -> T { self.value }

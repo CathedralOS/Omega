@@ -11,6 +11,7 @@ pub(super) fn assign_statement_reference_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
 ) {
+    let attached_machines = super::scope::attached_machines(program);
     let SymbolResolvedTrees {
         roots:
             symbol_resolved_trees::SymbolResolvedRoots {
@@ -52,6 +53,7 @@ pub(super) fn assign_statement_reference_symbols(
             ..
         } = &mut machine.storage;
         let machine_scope = MachineScope {
+            attached_machines: &attached_machines,
             symbol: machine_symbol,
             type_parameters: data_type_parameters.span_or_empty(machine_type_parameters),
             attached_data: machine.attached_data.as_ref(),

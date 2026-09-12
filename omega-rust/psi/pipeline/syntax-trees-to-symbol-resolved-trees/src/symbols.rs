@@ -303,12 +303,15 @@ pub(crate) fn assign_symbols(
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let mut symbols = build_symbol_table(
         program,
-        sources,
+        sources.clone(),
         source_scoped_top_level_bindings,
         const_declarations,
         !namespace_declarations.modules.is_empty(),
     );
     namespace_declarations.install(&mut symbols)?;
+    let has_sources = sources.is_some() || !namespace_declarations.modules.is_empty();
+    let symbols =
+        symbol_table::insert_selected_machine_children(program, symbols, sources, 0, has_sources);
     let diagnostics = assign_top_level_symbols(program, &symbols);
     assign_type_reference_symbols(program, &symbols);
     propositions::assign_proposition_expression_symbols(program, &symbols);
@@ -335,12 +338,20 @@ pub(crate) fn assign_symbols_against_resolved_base(
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     symbol_table::extend_symbol_table(
         program,
-        sources,
+        sources.clone(),
         source_scoped_top_level_bindings,
         roots,
         const_declarations,
     );
     namespace_declarations.install(&mut program.symbols)?;
+    let table = std::mem::take(&mut program.symbols);
+    program.symbols = symbol_table::insert_selected_machine_children(
+        program,
+        table,
+        Some(sources),
+        roots.machines,
+        true,
+    );
     let symbols = program.symbols.clone();
     let diagnostics = assign_top_level_symbols(program, &symbols);
     assign_type_reference_symbols(program, &symbols);
@@ -364,8 +375,10 @@ pub(crate) fn assign_constant_expression_symbols(
     program: &mut SymbolResolvedTrees,
     initializers: impl IntoIterator<Item = symbol_resolved_trees::expression::ExpressionHandle>,
 ) {
+    let attached_machines = scope::attached_machines(program);
     let declarations = &mut program.tables.declarations;
     let scope = scope::MachineScope {
+        attached_machines: &attached_machines,
         symbol: symbols::SymbolHandle::invalid(),
         type_parameters: &[],
         attached_data: None,

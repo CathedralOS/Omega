@@ -289,7 +289,7 @@ uses exact module/package selection after lexical name assignment and retains
 the selected declaration at the original use. This is not completion of the
 [module/name contract](../../../wiki/spec/language/modules.md):
 foreign/generic constant attachments and specialized template normalization,
-template attachments, trait defaults,
+trait defaults,
 operator homes, qualified case membership in declared-domain proof facts,
 and the remaining declaration forms still need exact
 namespace-aware resolution.
@@ -340,11 +340,23 @@ remain ordinary `.` expressions. Check the sum customer with
 `omega --check tests/omega/pass/modules/closed_sum_constructors/main.omg`.
 The `package_compilation_inputs::module_generic_data` probes cover these
 checked-source relationships and rejection of private or transitive-only access.
+Ordinary methods on closed templates retain the selected template attachment
+when synthesized, including methods authored in another module. Their headers
+select the actual closed carrier before publishing inherited fields and states.
+Calls rejoin the static carrier or receiver type and the selected method state.
+Same-leaf methods cannot borrow another carrier's fields, and copied inherited fields retain their
+authored declaration provenance. Method binders must remain within the existing
+carrier-binder synthesis rules; borrowing and per-use package authority still
+apply. Check this source boundary with
+`omega --check tests/omega/pass/modules/closed_template_methods/main.omg` and
+`package_compilation_inputs::module_template_methods`. This establishes checked
+source behavior; native receiver storage and execution have their own admission.
+
 Generated-source normalization borrows the retained resolved predecessor for
 nominal argument and domain selection. It does not synthesize retained templates
 or expand the continuation's flat, root-owned nominal declaration boundary.
 Unsupported scoped constants, module-owned specialized templates,
-template attachments, traits, conformances, domains, and operators still reject
+traits, conformances, domains, and operators still reject
 before their bare-name transforms.
 Closed data applications select named constant indices through the shared
 source-aware resolver before folding. Loader import bindings reach evaluation

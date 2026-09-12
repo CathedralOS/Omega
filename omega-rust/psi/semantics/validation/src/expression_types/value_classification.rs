@@ -296,7 +296,7 @@ fn constructed_data_symbol(
         .map(|definition| definition.symbol)
 }
 
-fn value_concrete_data_symbol(
+pub(crate) fn value_concrete_data_symbol(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,

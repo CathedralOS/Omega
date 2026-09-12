@@ -2198,12 +2198,13 @@ pub(crate) fn reject_refuted_value_call_requires(
     callee_machine: &Machine,
     callee_state: &typed_trees::state::State,
     arguments: &[ExpressionHandle],
+    self_is_argument: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let parameters = program
         .state_parameters(callee_state)
         .iter()
-        .filter(|parameter| !parameter.is_self)
+        .filter(|parameter| self_is_argument || !parameter.is_self)
         .collect::<Vec<_>>();
     if parameters.len() != arguments.len() {
         return;

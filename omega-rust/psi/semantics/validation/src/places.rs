@@ -153,17 +153,30 @@ pub(crate) fn direct_self_field_member(
     }
 }
 
-/// The machine's attached-data `DataDefinition`, resolved by name. `None` for a
-/// machine with no attached data (a free machine) or an unresolvable data name.
+/// Select one live nominal declaration without replacing retained identity by
+/// a coincidentally matching diagnostic name.
+fn data_definition_by_symbol(
+    program: &TypedTrees,
+    symbol: symbols::SymbolHandle,
+) -> Option<&DataDefinition> {
+    if !symbol.is_valid() || program.symbols.get(symbol).kind != symbols::SymbolKind::Data {
+        return None;
+    }
+    let mut definitions = program
+        .data_definitions()
+        .iter()
+        .filter(|definition| definition.symbol == symbol);
+    let definition = definitions.next()?;
+    definitions.next().is_none().then_some(definition)
+}
+
+/// The attached declaration selected for this machine. Diagnostic attachment
+/// spelling is not authority to recover a missing or different nominal owner.
 pub(crate) fn machine_attached_data<'a>(
     program: &'a TypedTrees,
     machine: &Machine,
 ) -> Option<&'a DataDefinition> {
-    let attached = machine.attached_data.as_ref()?;
-    program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == attached.as_str())
+    data_definition_by_symbol(program, machine.attached_data_symbol)
 }
 
 /// The DECLARED type of a simple place argument: a bare local/parameter name
@@ -241,18 +254,24 @@ pub fn declared_place_type_raw(
         );
     }
 
+    if let Some(field) = exact_self_field(program, current_machine, handle) {
+        return Some(field.type_reference);
+    }
+
+    // Preserve the retained root while traversing ordinary member expressions.
+    // Flattening first loses a bare inherited field's declaration identity.
+    if let ExpressionNode::Member(member) = program.expression_table.expression(handle) {
+        let receiver =
+            declared_place_type_raw(program, current_machine, current_state, member.receiver)?;
+        let data = data_definition_for_type(program, receiver)?;
+        return data_field_or_payload_type(program, data, member.member.as_str());
+    }
     if let Some(members) = collect_member_path(program, handle) {
         return declared_member_path_type(program, current_machine, current_state, &members);
     }
     match program.expression_table.expression(handle) {
         ExpressionNode::ArrayLiteral(_) => crate::declared_constant_array_type(program, handle),
         ExpressionNode::Call(call) => crate::calls::resolved_call_result_type(program, call),
-        ExpressionNode::Member(member) => {
-            let receiver =
-                declared_place_type_raw(program, current_machine, current_state, member.receiver)?;
-            let data = data_definition_for_type(program, receiver)?;
-            data_field_or_payload_type(program, data, member.member.as_str())
-        }
         ExpressionNode::Indexed(_) => {
             declared_indexed_projection_type_raw(program, current_machine, current_state, handle)
         }
@@ -312,11 +331,7 @@ pub(crate) fn declared_place_leaf_symbol(
             }
             data_definition_for_type(program, owned.type_reference)?
         } else {
-            let attached = current_machine.attached_data.as_ref()?;
-            program
-                .data_definitions()
-                .iter()
-                .find(|data| data.name == *attached)?
+            machine_attached_data(program, current_machine)?
         }
     } else {
         let (_, receiver_type) =
@@ -471,3 +486,6 @@ pub fn unwrapped_type_reference(
         _ => Some(type_reference),
     }
 }
+
+#[cfg(test)]
+mod owner_tests;

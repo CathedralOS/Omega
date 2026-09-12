@@ -268,6 +268,7 @@ pub(crate) fn validate_call_node(
                 arguments,
                 current_machine,
                 current_state,
+                false,
                 diagnostics,
             );
             return;
@@ -302,6 +303,7 @@ pub(crate) fn validate_call_node(
                 arguments,
                 current_machine,
                 current_state,
+                false,
                 diagnostics,
             );
             return;
@@ -360,6 +362,7 @@ pub(crate) fn validate_call_node(
             arguments,
             current_machine,
             current_state,
+            false,
             diagnostics,
         );
         return;
@@ -464,6 +467,7 @@ pub(crate) fn validate_call_node(
                 arguments,
                 current_machine,
                 current_state,
+                false,
                 diagnostics,
             );
             return;
@@ -501,6 +505,7 @@ pub(crate) fn validate_call_node(
             arguments,
             current_machine,
             current_state,
+            false,
             diagnostics,
         );
         return;
@@ -562,6 +567,20 @@ pub(crate) fn report_argument_count_mismatch(
         .filter(|parameter| !parameter.is_self)
         .count();
 
+    report_callable_argument_count_mismatch(
+        target_name,
+        callable_parameter_count,
+        arguments,
+        diagnostics,
+    )
+}
+
+fn report_callable_argument_count_mismatch(
+    target_name: &str,
+    callable_parameter_count: usize,
+    arguments: &[ExpressionHandle],
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
     if arguments.len() != callable_parameter_count {
         diagnostics.push(Diagnostic::error(format!(
             "state `{}` expects {} argument(s), got {}",
@@ -1000,12 +1019,12 @@ fn validate_value_call_argument_classes(
     executes: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    validate_value_call_argument_classes_with_receiver(
+    validate_value_call_argument_classes_with_self_argument(
         program,
         current_machine,
         current_state,
         value_env,
-        None,
+        false,
         arguments,
         callee_machine,
         callee_state,
@@ -1015,12 +1034,12 @@ fn validate_value_call_argument_classes(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn validate_value_call_argument_classes_with_receiver(
+fn validate_value_call_argument_classes_with_self_argument(
     program: &TypedTrees,
     current_machine: &Machine,
     current_state: &State,
     value_env: &ValueEnv,
-    receiver_type: Option<TypeReferenceHandle>,
+    self_is_argument: bool,
     arguments: &[ExpressionHandle],
     callee_machine: &Machine,
     callee_state: &State,
@@ -1037,9 +1056,14 @@ fn validate_value_call_argument_classes_with_receiver(
     // count compiled silently (a missing arg then read its ZII default). Safe here
     // because this function runs only on a RESOLVED callee -- the resolver's blind
     // spots fall through earlier without reaching it.
-    if report_argument_count_mismatch(
+    let parameters = program.state_parameters(callee_state);
+    let parameter_count = parameters
+        .iter()
+        .filter(|parameter| self_is_argument || !parameter.is_self)
+        .count();
+    if report_callable_argument_count_mismatch(
         callee_state.name.as_str(),
-        program.state_parameters(callee_state),
+        parameter_count,
         arguments,
         diagnostics,
     ) {
@@ -1056,6 +1080,7 @@ fn validate_value_call_argument_classes_with_receiver(
             callee_machine,
             callee_state,
             arguments,
+            self_is_argument,
             diagnostics,
         );
     }
@@ -1067,7 +1092,7 @@ fn validate_value_call_argument_classes_with_receiver(
         .collect::<Vec<_>>();
     let quotient_lift = crate::quotients::legacy_quotient_call_candidate(
         program,
-        receiver_type,
+        None,
         &argument_types,
         callee_state,
     );
@@ -1082,7 +1107,7 @@ fn validate_value_call_argument_classes_with_receiver(
         program
             .state_parameters(callee_state)
             .iter()
-            .filter(|parameter| !parameter.is_self),
+            .filter(|parameter| self_is_argument || !parameter.is_self),
     ) {
         crate::literals::validate_suffix_landing(
             program,

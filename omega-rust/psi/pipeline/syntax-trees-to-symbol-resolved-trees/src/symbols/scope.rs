@@ -3,8 +3,57 @@ use symbol_resolved_trees::data::{DataDefinition, DataMember};
 use symbol_resolved_trees::types::TypeReference;
 use symbols::{SymbolHandle, SymbolTable};
 
+#[derive(Clone, Copy)]
+pub(super) struct AttachedMachine {
+    pub(super) owner: SymbolHandle,
+    pub(super) machine: SymbolHandle,
+}
+
+pub(super) fn attached_machines(
+    program: &symbol_resolved_trees::SymbolResolvedTrees,
+) -> Vec<AttachedMachine> {
+    use symbol_resolved_trees::trait_definition::{
+        ConformanceImplementation, ConformanceRowSource,
+    };
+    program
+        .machines
+        .iter()
+        .enumerate()
+        .filter_map(|(ordinal, machine)| {
+            // Inline/default realizations belong to their closed conformance map.
+            // They are routed there after ordinary resolution, not competing
+            // ambient methods. Referenced authored machines remain ordinary.
+            let closed_realization = program.conformances.iter().any(|conformance| {
+                let ConformanceImplementation::Closed { rows } = &conformance.implementation else {
+                    return false;
+                };
+                rows.iter().any(|row| {
+                    matches!(
+                        row.source,
+                        ConformanceRowSource::Inline | ConformanceRowSource::TraitDefault
+                    ) && row.provisional_realization_ordinal.map_or_else(
+                        || {
+                            row.realization_machine.is_valid()
+                                && row.realization_machine == machine.symbol
+                        },
+                        |selected| selected == ordinal,
+                    )
+                })
+            });
+            (!closed_realization
+                && machine.symbol.is_valid()
+                && machine.attached_data_symbol.is_valid())
+            .then_some(AttachedMachine {
+                owner: machine.attached_data_symbol,
+                machine: machine.symbol,
+            })
+        })
+        .collect()
+}
+
 pub(super) struct MachineScope<'program> {
     pub(super) symbol: SymbolHandle,
+    pub(super) attached_machines: &'program [AttachedMachine],
     pub(super) type_parameters: &'program [symbol_resolved_trees::data::TypeParameter],
     pub(super) attached_data: Option<&'program symbol_resolved_trees::name::DiagnosticName>,
     pub(super) attached_data_symbol: SymbolHandle,
@@ -26,6 +75,76 @@ pub(super) struct MachineScope<'program> {
 }
 
 impl MachineScope<'_> {
+    pub(super) fn attached_call_target(
+        &self,
+        symbols: &SymbolTable,
+        owner: SymbolHandle,
+        target: &symbol_resolved_trees::name::DiagnosticName,
+    ) -> SymbolHandle {
+        if !owner.is_valid() || symbols.get(owner).kind != symbols::SymbolKind::Data {
+            return SymbolHandle::invalid();
+        }
+        let mut selected = SymbolHandle::invalid();
+        for attachment in self
+            .attached_machines
+            .iter()
+            .filter(|entry| entry.owner == owner)
+        {
+            let state = super::lookup::child_symbol_by_kinds(
+                symbols,
+                attachment.machine,
+                &[symbols::SymbolKind::State],
+                target.as_str(),
+            );
+            if !state.is_valid() {
+                continue;
+            }
+            // Lookup spellings only test exposure of an already-selected
+            // declaration. The exact attachment establishes receiver identity.
+            let path = symbols.display_path(attachment.machine, "::");
+            let selects = |path: &str| {
+                symbols
+                    .lookup_top_level_by_name_and_kinds_from_source_matching(
+                        path,
+                        &[symbols::SymbolKind::Machine],
+                        target.source_span(),
+                        |candidate| {
+                            self.attached_machines
+                                .iter()
+                                .any(|entry| entry.machine == candidate && entry.owner == owner)
+                        },
+                    )
+                    .unique()
+                    == Some(attachment.machine)
+            };
+            let mut visible = selects(&path);
+            if !visible {
+                for import in symbols.source_module_import_paths(target.source_span().source_id) {
+                    let mut prefix_end = 0;
+                    for member in import.split("::") {
+                        prefix_end += member.len();
+                        if selects(&format!("{}::{path}", &import[..prefix_end])) {
+                            visible = true;
+                            break;
+                        }
+                        prefix_end += 2;
+                    }
+                    if visible {
+                        break;
+                    }
+                }
+            }
+            if !visible {
+                continue;
+            }
+            if selected.is_valid() {
+                return SymbolHandle::invalid();
+            }
+            selected = state;
+        }
+        selected
+    }
+
     pub(super) fn field_type_reference(
         &self,
         symbols: &SymbolTable,
@@ -52,7 +171,7 @@ impl MachineScope<'_> {
     }
 
     /// Walk a `self`-rooted member chain of SPELLED names (`["self", "p", "a"]`)
-    /// through the declared field types and return the type name AFTER the last
+    /// through the declared field types and return the exact type symbol AFTER the last
     /// segment (`"BoxI"` for `self.p.a` where `a: BoxI`). Each hop's field type
     /// must be a plain `Named` type: shell-wrapped intermediates (`&mut`,
     /// constrained, arrays) return `None` -- conservative, so an unsupported
@@ -60,7 +179,7 @@ impl MachineScope<'_> {
     /// than silently binding 0. `None` unless the root is `self` and every hop
     /// resolves. Used by the nested-receiver symbol stamping (rung 2b of the
     /// receiver-place staircase).
-    pub(super) fn nested_self_chain_type(&self, chain: &[&str]) -> Option<&str> {
+    pub(super) fn nested_self_chain_type(&self, chain: &[&str]) -> Option<SymbolHandle> {
         let (root, hops) = chain.split_first()?;
         if *root != "self" {
             return None;
@@ -69,7 +188,6 @@ impl MachineScope<'_> {
         if !current_symbol.is_valid() {
             return None;
         }
-        let mut current_type = self.attached_data?.as_str();
         for hop in hops {
             let definition = self
                 .data_definitions
@@ -83,13 +201,11 @@ impl MachineScope<'_> {
                     DataMember::Field(field) if field.name.as_str() == *hop => Some(field),
                     _ => None,
                 })?;
-            (current_symbol, current_type) = match &field.type_reference {
-                TypeReference::Named { symbol, name } if symbol.is_valid() => {
-                    (*symbol, name.as_str())
-                }
+            current_symbol = match &field.type_reference {
+                TypeReference::Named { symbol, .. } if symbol.is_valid() => *symbol,
                 _ => return None,
             };
         }
-        Some(current_type)
+        Some(current_symbol)
     }
 }

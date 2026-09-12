@@ -20,6 +20,7 @@ pub(super) fn assign_contract_reference_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
 ) {
+    let attached_machines = super::scope::attached_machines(program);
     let SymbolResolvedTrees { roots, tables, .. } = program;
     let data_definitions = &roots.data_definitions;
     let data_members = &tables.declarations.data_members;
@@ -39,6 +40,7 @@ pub(super) fn assign_contract_reference_symbols(
             .iter()
             .find(|definition| definition.symbol == machine.attached_data_symbol);
         let scope = MachineScope {
+            attached_machines: &attached_machines,
             symbol: machine.symbol,
             type_parameters: data_type_parameters.span_or_empty(machine.type_parameters),
             attached_data: machine.attached_data.as_ref(),
@@ -92,6 +94,7 @@ pub(super) fn assign_contract_reference_symbols(
     // the machine scope.
     for trait_definition in roots.traits.iter() {
         let scope = MachineScope {
+            attached_machines: &attached_machines,
             symbol: trait_definition.symbol,
             type_parameters: data_type_parameters.span_or_empty(trait_definition.type_parameters),
             attached_data: None,
@@ -133,6 +136,7 @@ pub(super) fn assign_contract_reference_symbols(
         }))
     {
         let scope = MachineScope {
+            attached_machines: &attached_machines,
             symbol: operator.symbol,
             type_parameters: data_type_parameters.span_or_empty(operator.type_parameters),
             attached_data: None,
@@ -171,6 +175,7 @@ pub(super) fn assign_contract_reference_symbols(
             continue;
         };
         let scope = MachineScope {
+            attached_machines: &attached_machines,
             symbol: signature.symbol,
             type_parameters: data_type_parameters.span_or_empty(signature.type_parameters),
             attached_data: None,

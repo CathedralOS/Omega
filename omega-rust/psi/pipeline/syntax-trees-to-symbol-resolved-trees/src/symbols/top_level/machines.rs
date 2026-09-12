@@ -87,6 +87,20 @@ pub(super) fn assign_machine_symbols(
             )
         })
         .collect::<Vec<_>>();
+    // Resolve every attachment before visiting bodies: a method may be declared
+    // after its caller or outside its carrier's module. Bodies borrow this exact
+    // declaration cohort instead of rebuilding attachment identity from a name.
+    program.machines.for_each_mut(|machine| {
+        if !machine.symbol.is_valid() {
+            machine.symbol = next_child_of_kind(root_children, symbols, SymbolKind::Machine);
+        }
+        machine.attached_data_symbol = machine
+            .attached_data
+            .as_ref()
+            .map(|attached| top_level_symbol_for_source(symbols, SymbolKind::Data, attached))
+            .unwrap_or_else(SymbolHandle::invalid);
+    });
+    let attached_machines = crate::symbols::scope::attached_machines(program);
     let tables = &mut program.tables;
     let type_constraints = &tables.types.constraints;
     let declarations = &mut tables.declarations;
@@ -106,14 +120,6 @@ pub(super) fn assign_machine_symbols(
     } = &mut program.roots;
 
     machines.for_each_mut(|machine| {
-        if !machine.symbol.is_valid() {
-            machine.symbol = next_child_of_kind(root_children, symbols, SymbolKind::Machine);
-        }
-        machine.attached_data_symbol = machine
-            .attached_data
-            .as_ref()
-            .map(|attached| top_level_symbol_for_source(symbols, SymbolKind::Data, attached))
-            .unwrap_or_else(SymbolHandle::invalid);
         let inherited_field_count = inherited_field_count(
             data_definitions.iter(),
             data_members,
@@ -213,6 +219,7 @@ pub(super) fn assign_machine_symbols(
                 assign_expression_table_symbols(
                     symbols,
                     &MachineScope {
+                        attached_machines: &attached_machines,
                         symbol: machine_symbol,
                         type_parameters: &local_type_parameters,
                         attached_data: machine.attached_data.as_ref(),
@@ -301,6 +308,7 @@ pub(super) fn assign_machine_symbols(
                 assign_expression_table_symbols(
                     symbols,
                     &MachineScope {
+                        attached_machines: &attached_machines,
                         symbol: machine_symbol,
                         type_parameters: &local_type_parameters,
                         attached_data: machine.attached_data.as_ref(),

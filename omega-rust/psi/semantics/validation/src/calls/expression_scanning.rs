@@ -22,6 +22,8 @@ use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceNode};
 
 mod result_realization;
+#[cfg(test)]
+mod selected_attached_tests;
 mod target_resolution;
 mod traversal;
 
@@ -379,6 +381,7 @@ fn validate_expression_call_bounds(
                 arguments,
                 current_machine,
                 Some(current_state),
+                false,
                 diagnostics,
             );
             validate_value_call_argument_classes(
@@ -414,6 +417,7 @@ fn validate_expression_call_bounds(
                 arguments,
                 current_machine,
                 Some(current_state),
+                false,
                 diagnostics,
             );
             validate_value_call_argument_classes(
@@ -471,6 +475,7 @@ fn validate_expression_call_bounds(
                 arguments,
                 current_machine,
                 Some(current_state),
+                false,
                 diagnostics,
             );
             validate_value_call_argument_classes(
@@ -516,6 +521,7 @@ fn validate_expression_call_bounds(
                 arguments,
                 current_machine,
                 Some(current_state),
+                false,
                 diagnostics,
             );
             validate_value_call_argument_classes(
@@ -661,6 +667,106 @@ fn validate_expression_call_bounds(
         return;
     }
 
+    // Attached calls retain their selected state. Rejoin that declaration with
+    // the receiver's nominal type; a display name cannot select another module's
+    // same-leaf method or substitute an unrelated closed generic instance.
+    if let Some((callee_machine, callee_state)) =
+        machine_state_by_symbol(program, call.target_symbol)
+        && callee_machine.attached_data_symbol.is_valid()
+    {
+        let receiver_symbol = receiver_type_reference
+            .map(
+                |receiver| match program.type_reference_table.type_reference(receiver) {
+                    TypeReferenceNode::Named { symbol, .. } => *symbol,
+                    TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
+                    _ => symbols::SymbolHandle::invalid(),
+                },
+            )
+            .or_else(|| {
+                // A static attached call names its carrier, rather than a
+                // runtime receiver place. Retain that selected Data symbol;
+                // a collection's element or a spelling is not a carrier home.
+                let ExpressionNode::Name(path) = program.expression_table.expression(call.receiver)
+                else {
+                    return None;
+                };
+                (program.symbols.get(path.symbol).kind == symbols::SymbolKind::Data)
+                    .then_some(path.symbol)
+            })
+            .unwrap_or_default();
+        if receiver_symbol != callee_machine.attached_data_symbol {
+            diagnostics.push(Diagnostic::error(format!(
+                "selected attached call `{}` does not belong to the receiver's exact data type",
+                call.target,
+            )));
+            return;
+        }
+        if receiver_type_reference.is_none()
+            && program
+                .state_parameters(callee_state)
+                .iter()
+                .any(|parameter| parameter.is_self)
+            && let Some(argument) = arguments.first()
+            && crate::expression_types::value_concrete_data_symbol(
+                program,
+                current_machine,
+                Some(current_state),
+                *argument,
+            ) != Some(callee_machine.attached_data_symbol)
+        {
+            // A static carrier selects the declaration. Its explicit self
+            // argument must still supply that same receiver owner; the formal
+            // Self symbol is not itself a concrete data declaration.
+            diagnostics.push(Diagnostic::error(format!(
+                "explicit self argument for attached call `{}` does not belong to the receiver's exact data type",
+                call.target,
+            )));
+            return;
+        }
+        report_void_value_callee(
+            program,
+            callee_machine,
+            current_machine,
+            current_state,
+            callee_state,
+            expression,
+            diagnostics,
+        );
+        fence_generic_value_callee(
+            program,
+            current_machine,
+            callee_machine,
+            call.target.as_str(),
+            diagnostics,
+        );
+        validate_machine_call_type_parameter_bounds(
+            program,
+            symbols,
+            callee_machine,
+            callee_state,
+            callee_state.name.as_str(),
+            arguments,
+            current_machine,
+            Some(current_state),
+            receiver_type_reference.is_none(),
+            diagnostics,
+        );
+        super::validate_value_call_argument_classes_with_self_argument(
+            program,
+            current_machine,
+            current_state,
+            value_env,
+            receiver_type_reference.is_none(),
+            arguments,
+            callee_machine,
+            callee_state,
+            executes,
+            diagnostics,
+        );
+        let _ = writable_roots;
+        return;
+    }
+
     // External machine receiver.
     if let Some(callee_machine) = receiver_type
         .and_then(|type_name| symbols.machine(type_name))
@@ -696,6 +802,7 @@ fn validate_expression_call_bounds(
                 arguments,
                 current_machine,
                 Some(current_state),
+                false,
                 diagnostics,
             );
             validate_value_call_argument_classes(
@@ -724,51 +831,6 @@ fn validate_expression_call_bounds(
         return;
     }
 
-    // Attached-data machine receiver.
-    if let Some((callee_machine, callee_state)) = receiver_type.and_then(|type_name| {
-        symbols.attached_machine_state(program, type_name, call.target.as_str())
-    }) {
-        report_void_value_callee(
-            program,
-            callee_machine,
-            current_machine,
-            current_state,
-            callee_state,
-            expression,
-            diagnostics,
-        );
-        fence_generic_value_callee(
-            program,
-            current_machine,
-            callee_machine,
-            call.target.as_str(),
-            diagnostics,
-        );
-        validate_machine_call_type_parameter_bounds(
-            program,
-            symbols,
-            callee_machine,
-            callee_state,
-            callee_state.name.as_str(),
-            arguments,
-            current_machine,
-            Some(current_state),
-            diagnostics,
-        );
-        validate_value_call_argument_classes(
-            program,
-            current_machine,
-            current_state,
-            value_env,
-            arguments,
-            callee_machine,
-            callee_state,
-            executes,
-            diagnostics,
-        );
-        let _ = writable_roots;
-        return;
-    }
     report_unresolved_value_call(
         program,
         current_machine,

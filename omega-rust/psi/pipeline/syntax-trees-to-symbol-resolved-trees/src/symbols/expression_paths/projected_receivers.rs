@@ -11,7 +11,6 @@ use symbol_resolved_trees::statement::Statement;
 use symbol_resolved_trees::types::TypeReference;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
-use super::super::lookup::child_symbol_by_kinds;
 use super::super::scope::MachineScope;
 
 #[cfg(test)]
@@ -201,28 +200,7 @@ pub(super) fn call_target(
         if !owner.is_valid() || symbols.get(owner).kind != SymbolKind::Data {
             return None;
         }
-        let name = format!("{}::{}", symbols.name(owner), call.target.as_str());
-        let declaration = symbols.find_top_level_by_name_and_kinds_from_source_matching(
-            &name,
-            &[SymbolKind::Machine],
-            call.target.source_span(),
-            |candidate| {
-                let reference = symbols
-                    .symbol_provenance_source_span(candidate)
-                    .unwrap_or_default();
-                symbols.find_top_level_by_name_and_kinds_from_source(
-                    symbols.name(owner),
-                    &[SymbolKind::Data],
-                    reference,
-                ) == Some(owner)
-            },
-        )?;
-        let target = child_symbol_by_kinds(
-            symbols,
-            declaration,
-            &[SymbolKind::State],
-            call.target.as_str(),
-        );
+        let target = machine.attached_call_target(symbols, owner, &call.target);
         target.is_valid().then_some(target)
     };
     resolve().unwrap_or_else(SymbolHandle::invalid)

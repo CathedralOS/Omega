@@ -40,6 +40,7 @@ pub(super) fn validate_machine_call_type_parameter_bounds(
     arguments: &[ExpressionHandle],
     current_machine: &Machine,
     current_state: Option<&State>,
+    self_is_argument: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // A claim-free bodyless boundary declaration is a SYMBOL for contracts,
@@ -74,7 +75,7 @@ pub(super) fn validate_machine_call_type_parameter_bounds(
         program
             .state_parameters(callee_state)
             .iter()
-            .filter(|parameter| !parameter.is_self),
+            .filter(|parameter| self_is_argument || !parameter.is_self),
     ) {
         let Some(type_parameter) =
             referenced_type_parameter(program, type_parameters, parameter.type_reference)

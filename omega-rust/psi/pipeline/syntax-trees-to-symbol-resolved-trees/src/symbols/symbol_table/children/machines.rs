@@ -9,10 +9,11 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
     program: &SymbolResolvedTrees,
     machine_symbol: SymbolHandle,
     machine: &symbol_resolved_trees::machine::Machine,
+    attached_data: Option<&symbol_resolved_trees::data::DataDefinition>,
     has_sources: bool,
     sources: Option<&source::SourceMap>,
 ) {
-    let inherited_fields = inherited_data_field_symbols(program, machine, has_sources, sources);
+    let inherited_fields = inherited_data_field_symbols(program, attached_data, has_sources);
     let inherited_field_count = inherited_fields.len();
     let machine_children = builder.insert_children(
         machine_symbol,
@@ -199,49 +200,23 @@ fn insert_state_symbol_children(
 
 fn inherited_data_field_symbols<'program>(
     program: &'program SymbolResolvedTrees,
-    machine: &'program symbol_resolved_trees::machine::Machine,
+    selected: Option<&'program symbol_resolved_trees::data::DataDefinition>,
     has_sources: bool,
-    sources: Option<&source::SourceMap>,
 ) -> Vec<SymbolSeed<'program>> {
-    let Some(attached) = machine.attached_data.as_ref() else {
-        return Vec::new();
-    };
-    let candidates = program
-        .data_definitions
-        .iter()
-        .filter(|data_definition| {
-            data_definition.name == *attached
-                && sources.is_none_or(|sources| {
-                    sources.reference_can_see_declaration(
-                        attached.source_span(),
-                        data_definition.name.source_span(),
-                    )
-                })
-        })
-        .collect::<Vec<_>>();
-    let selected = candidates
-        .iter()
-        .copied()
-        .find(|data_definition| {
-            data_definition.name.source_span().source_id == attached.source_span().source_id
-        })
-        .or_else(|| {
-            sources.and_then(|sources| {
-                candidates.iter().copied().find(|data_definition| {
-                    !sources.resolution_strata_separate(
-                        attached.source_span(),
-                        data_definition.name.source_span(),
-                    )
-                })
-            })
-        })
-        .or_else(|| candidates.first().copied());
     selected
         .into_iter()
         .flat_map(|data_definition| program.data_members(data_definition.members).iter())
         .filter_map(move |member| match member {
             symbol_resolved_trees::data::DataMember::Field(field) => {
-                Some(symbol_seed(SymbolKind::Field, &field.name, has_sources))
+                // Copied inherited fields retain the authored declaration even
+                // for syntax-only clients without a SourceMap. Specialization
+                // replay must not confuse a fresh storage symbol with a new
+                // authored field selection.
+                Some(symbol_seed(
+                    SymbolKind::Field,
+                    &field.name,
+                    has_sources || field.name.is_source_backed(),
+                ))
             }
             symbol_resolved_trees::data::DataMember::Variant(_) => None,
         })
