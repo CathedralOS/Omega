@@ -8,7 +8,7 @@
 //! result equation. Graph and captured-local expansion share one bounded budget.
 
 use super::{
-    CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar,
+    BooleanSubject, CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar,
     CheckedScalarExpressionRole, ExitScalars, ExpressionHandle, PrimitiveType, SymbolHandle,
     bind_boolean,
 };
@@ -146,7 +146,7 @@ impl ExitScalars<'_, '_> {
                     self.exit.state_symbol,
                 )?;
                 // Reconstruct the pure operation/slot relationship, not its
-                // runtime value. StorageRead is still rejected by the binder.
+                // runtime value. Mutable reads rejoin their selected prior store.
                 let selected = crate::values::lower_unit_scalar_argument(
                     self.program,
                     &self.facts.operators,
@@ -274,10 +274,10 @@ impl ExitScalars<'_, '_> {
                 }
                 bind_boolean(
                     template,
-                    &mut |position, local, remaining, depth| {
-                        if local {
+                    &mut |subject, remaining, depth| {
+                        let BooleanSubject::Parameter(position) = subject else {
                             return None;
-                        }
+                        };
                         self.bind_boolean_computation(
                             *operands.get(position)?,
                             *sources.get(position)?,
@@ -360,14 +360,17 @@ impl ExitScalars<'_, '_> {
                 };
                 bind_boolean(
                     &expression,
-                    &mut |position, local, _, _| {
-                        (!local).then_some(Boolean::Parameter { position })
+                    &mut |subject, _, _| {
+                        let BooleanSubject::Parameter(position) = subject else {
+                            return None;
+                        };
+                        Some(Boolean::Parameter { position })
                     },
                     remaining,
                     depth + 1,
                 )
             }
-            // Storage snapshots, structural/qualified values, and dispatch
+            // Structural/qualified values and dispatch
             // need their own evidence joins, not source-spelling guesses.
             _ => None,
         })();

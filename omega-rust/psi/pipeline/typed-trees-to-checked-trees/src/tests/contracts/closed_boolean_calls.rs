@@ -166,6 +166,10 @@ fn saved_boolean_guarantees_follow_immutable_definition_order() {
         "let first: bool = !value; Host::finish(false); let second: bool = first; second",
         "let unrelated: u16 = marker; let first: bool = value; let second: bool = !first; second",
         "let unrelated: bool = Host::read(); let saved: bool = !value; saved",
+        "let mut saved: bool = !value; saved",
+        "let mut storage: bool = value; let saved: bool = !storage; saved",
+        "let mut storage: bool = value; let saved: bool = !storage; storage = !storage; saved",
+        "let mut storage: bool = value; storage = !storage; let saved: bool = storage; saved",
     ] {
         let program = parse_typed_trees(&format!(
             "boundary trait Host {{ machine finish(value: bool) reaches Host; machine read() -> bool reaches Host; }}
@@ -178,6 +182,33 @@ fn saved_boolean_guarantees_follow_immutable_definition_order() {
 }
 
 #[test]
+fn saved_boolean_guarantees_reject_borrowed_overwrites() {
+    for body in [
+        "let saved: bool = value; overwrite(&mut saved); saved",
+        "let mut current: bool = value; overwrite(&mut current); let saved: bool = current; saved",
+        "let mut current: bool = value; let alias: &mut bool = &mut current; alias = false; let saved: bool = current; saved",
+        "let mut current: bool = value; current = other; let saved: bool = current; saved",
+        "let saved: bool = value; first(clear(&mut saved), saved)",
+    ] {
+        let program = parse_typed_trees(&format!(
+            "machine overwrite(destination: &mut bool) {{ destination = false; }}
+             machine clear(destination: &mut bool) -> bool {{ destination = false; false }}
+             machine first(ignored: bool, value: bool) -> bool ensures result == value {{ value }}
+             machine compute(value: bool, other: bool) -> bool ensures result == value {{ {body} }}"
+        ));
+        let Err(diagnostics) = lower_typed_trees(program) else {
+            panic!("overwritten binding retained its old value: {body}");
+        };
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("cannot prove ensures contract for exit from compute")),
+            "{body}: {diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
 fn saved_boolean_guarantees_do_not_confuse_storage_or_call_results_with_entry_values() {
     for (parameters, body) in [
         (
@@ -185,11 +216,6 @@ fn saved_boolean_guarantees_do_not_confuse_storage_or_call_results_with_entry_va
             "let saved: bool = !other; saved",
         ),
         ("mut value: bool", "let saved: bool = !value; saved"),
-        ("value: bool", "let mut saved: bool = !value; saved"),
-        (
-            "value: bool",
-            "let mut storage: bool = value; let saved: bool = !storage; saved",
-        ),
         ("value: bool", "let saved: bool = identity(!value); saved"),
     ] {
         let program = parse_typed_trees(&format!(
@@ -282,6 +308,63 @@ fn saved_boolean_guarantees_require_exact_source_bound_definitions() {
         }
         let diagnostics = crate::checks::check_checked_facts(&checked.typed, &facts)
             .expect_err("altered definition custody");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("cannot prove ensures contract for exit from compute")),
+            "mutation {mutation}: {diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
+fn mutable_boolean_snapshots_require_exact_store_custody() {
+    use checked_trees::CheckedScalarExpressionRole as Role;
+    let checked = lower_typed_trees(parse_typed_trees(
+        "machine compute(value: bool) -> bool ensures result == !value {
+            let mut current: bool = value;
+            current = !current;
+            let saved: bool = current;
+            saved
+        }",
+    ))
+    .expect("selected store snapshot");
+    for mutation in 0..7 {
+        let mut facts = checked.facts.clone();
+        let plans = &mut facts.values.scalar_expressions;
+        let (store, row) = plans
+            .source_bindings
+            .iter()
+            .find(|(_, row)| row.role == Role::AssignmentValue)
+            .unwrap();
+        let row = row.clone();
+        match mutation {
+            0 => {
+                plans.source_bindings.append(row);
+            }
+            1 => {
+                plans.source_bindings.get_mut(store).destination = symbols::SymbolHandle::invalid()
+            }
+            2 => plans.source_bindings.get_mut(store).state = symbols::SymbolHandle::invalid(),
+            3 => plans.source_bindings.get_mut(store).statement_ordinal = 0,
+            4 => plans.source_bindings.get_mut(store).role = Role::StorageInitializer,
+            5 => {
+                plans.source_bindings.get_mut(store).expression =
+                    typed_trees::expression::ExpressionHandle::invalid()
+            }
+            6 => {
+                let selected = plans
+                    .expressions
+                    .iter()
+                    .find(|plan| plan.role == Role::AssignmentValue)
+                    .unwrap()
+                    .clone();
+                plans.expressions.push(selected);
+            }
+            _ => unreachable!(),
+        }
+        let diagnostics = crate::checks::check_checked_facts(&checked.typed, &facts)
+            .expect_err("altered storage definition custody");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
                 .message

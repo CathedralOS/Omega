@@ -899,6 +899,29 @@ fn ordered_saved_boolean_result_preserves_its_normal_guarantee() {
 }
 
 #[test]
+fn ordered_mutable_boolean_snapshot_preserves_its_normal_guarantee() {
+    for body in [
+        "let mut current: bool = value; let saved: bool = current; current = !current; Host::finish(current); saved",
+        "let mut current: bool = !value; current = !current; let saved: bool = current; Host::finish(!current); saved",
+        "let mut current: bool = value; let mut other: bool = !value; let saved: bool = current; other = !other; current = !current; Host::finish(current); saved",
+    ] {
+        for input in [false, true] {
+            let source = boolean_guarantee_source(body, input);
+            let published = artifact(&checked_from_source(&source));
+            let (status, observed) = execute(&published);
+            assert_eq!(
+                status,
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+            );
+            assert_eq!(
+                observed.arguments,
+                [!input, input].map(|value| vec![TerminalScalarValue::Boolean(value)])
+            );
+        }
+    }
+}
+
+#[test]
 fn ordered_saved_boolean_computations_compose_across_boundary_effects() {
     for bits in 0..16 {
         let inputs = [bits & 1 != 0, bits & 2 != 0, bits & 4 != 0, bits & 8 != 0];

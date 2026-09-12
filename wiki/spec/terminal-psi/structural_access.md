@@ -127,6 +127,15 @@ fresh scalar observation of an established local or readable primitive borrow.
 Establishment must dominate every local use. A read is not equality with the
 initializer or a previous read: intervening stores and calls can change storage.
 
+An exact reaching-store check may equate the copied SSA result with a stored SSA
+value only when every actual arrival reaches that same stored SSA value and the
+definition-to-read interval excludes potentially aliasing writes. An unknown
+arrival, intervening effect, or unproved cyclic arrival supplies no equality.
+This is storage-version availability, not evaluation of a symbolic expression.
+The resulting equality relates immutable values; writes after the capture do
+not invalidate it. Floating-point copies do not license mathematical reflexive
+equality, since NaN remains unequal to itself.
+
 Each execution of establishment creates a fresh referent, including loop reentry
 and nested activations of the same machine. Locals remain live through borrowed
 calls and suspension; dead activation-local backing is reclaimed without affine

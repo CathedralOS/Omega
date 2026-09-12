@@ -6,6 +6,9 @@
 //! These plans exist before contract checking; later execution plans cannot
 //! authorize this check. Expansion establishes denotation, not reevaluation:
 //! only immutable origins and earlier captured locals may supply operands.
+//! Storage reads rejoin their last selected store at the capture coordinate;
+//! complete write frames preserve that interval, including writes through loans
+//! to otherwise immutable bindings. Later writes do not alter an earlier value.
 //! Call-produced locals use exact captured arguments and declared normal-result
 //! equations. Reading candidate clauses and expanding their substitutions share
 //! one budget; neither callee bodies nor current mutable storage supply values.
@@ -19,6 +22,13 @@ use typed_trees::types::PrimitiveType;
 use super::{ExitScalars, ExpressionHandle, exit_return_expression};
 
 mod computations;
+mod storage;
+
+enum BooleanSubject {
+    Parameter(usize),
+    Local(usize),
+    Storage(SymbolHandle),
+}
 
 impl ExitScalars<'_, '_> {
     pub(super) fn proves_boolean_result(&self, expression: ExpressionHandle) -> Option<bool> {
@@ -110,17 +120,20 @@ impl ExitScalars<'_, '_> {
         )?;
         let predicate = bind_boolean(
             &predicate,
-            &mut |position, local, remaining, depth| {
-                if local {
+            &mut |subject, remaining, depth| {
+                let BooleanSubject::Parameter(position) = subject else {
                     return None;
-                }
+                };
                 if position == scalar_parameters().count() {
                     // Keep substitution inside the same budget, even for
                     // repeated reserved-result occurrences.
                     bind_boolean(
                         &returned,
-                        &mut |position, local, _, _| {
-                            (!local).then_some(CheckedBooleanExpression::Parameter { position })
+                        &mut |subject, _, _| {
+                            let BooleanSubject::Parameter(position) = subject else {
+                                return None;
+                            };
+                            Some(CheckedBooleanExpression::Parameter { position })
                         },
                         remaining,
                         depth,
@@ -149,7 +162,20 @@ impl ExitScalars<'_, '_> {
     ) -> Option<CheckedBooleanExpression> {
         bind_boolean(
             expression,
-            &mut |position, local, remaining, depth| {
+            &mut |subject, remaining, depth| {
+                let (position, local) = match subject {
+                    BooleanSubject::Parameter(position) => (position, false),
+                    BooleanSubject::Local(position) => (position, true),
+                    BooleanSubject::Storage(symbol) => {
+                        return self.bind_boolean_storage_at(
+                            symbol,
+                            before_statement,
+                            entry_position,
+                            remaining,
+                            depth,
+                        );
+                    }
+                };
                 let symbol = *symbols.get(position)?;
                 if !local {
                     return entry_position(symbol)
@@ -198,6 +224,7 @@ impl ExitScalars<'_, '_> {
                 {
                     return None;
                 }
+                self.boolean_local_preserved(symbol, statement, before_statement, remaining)?;
                 let plans = &self.facts.values.scalar_expressions;
                 let mut definitions = plans.source_bindings.iter().filter(|(_, binding)| {
                     binding.state == self.exit.state_symbol && binding.destination == symbol
@@ -266,7 +293,7 @@ impl ExitScalars<'_, '_> {
                     return None;
                 };
                 // Strictly earlier definition coordinates rule out forward/cyclic
-                // capture. StorageRead still lacks snapshot evidence.
+                // capture. Mutable reads join their own earlier selected store.
                 self.bind_selected_boolean(
                     selected,
                     operands,
@@ -400,12 +427,14 @@ impl ExitScalars<'_, '_> {
             // is never available to prove the call's own requirements.
             if let Some(value) = bind_boolean(
                 definition,
-                &mut |position, local, remaining, depth| {
-                    if local
-                        || self
-                            .program
-                            .primitive_type_reference(parameters.get(position)?.type_reference)
-                            != Some(PrimitiveType::Bool)
+                &mut |subject, remaining, depth| {
+                    let BooleanSubject::Parameter(position) = subject else {
+                        return None;
+                    };
+                    if self
+                        .program
+                        .primitive_type_reference(parameters.get(position)?.type_reference)
+                        != Some(PrimitiveType::Bool)
                     {
                         return None;
                     }
@@ -423,7 +452,7 @@ impl ExitScalars<'_, '_> {
 
 fn bind_boolean(
     expression: &CheckedBooleanExpression,
-    resolve: &mut dyn FnMut(usize, bool, &mut usize, usize) -> Option<CheckedBooleanExpression>,
+    resolve: &mut dyn FnMut(BooleanSubject, &mut usize, usize) -> Option<CheckedBooleanExpression>,
     remaining: &mut usize,
     depth: usize,
 ) -> Option<CheckedBooleanExpression> {
@@ -436,11 +465,17 @@ fn bind_boolean(
         Boolean::Constant(value) => Boolean::Constant(*value),
         Boolean::Parameter { position } | Boolean::Local { position } => {
             return resolve(
-                *position,
-                matches!(expression, Boolean::Local { .. }),
+                if matches!(expression, Boolean::Local { .. }) {
+                    BooleanSubject::Local(*position)
+                } else {
+                    BooleanSubject::Parameter(*position)
+                },
                 remaining,
                 depth + 1,
             );
+        }
+        Boolean::StorageRead { symbol } => {
+            return resolve(BooleanSubject::Storage(*symbol), remaining, depth + 1);
         }
         Boolean::Not(operand) => match bind_boolean(operand, resolve, remaining, depth + 1)? {
             Boolean::Constant(value) => Boolean::Constant(!value),
@@ -488,7 +523,7 @@ fn bind_boolean(
                 },
             }
         }
-        // Storage and non-Boolean computations need their own retained
+        // Non-Boolean computations need their own retained
         // value/effect evidence; matching their spelling or shape is not proof.
         _ => return None,
     })

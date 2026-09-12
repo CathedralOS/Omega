@@ -153,6 +153,13 @@ logical ordering alone does not establish availability.
 - A partial operation establishes its result equation only on its normal
   successor, after its safety obligation is discharged. That equation cannot
   prove the operation that creates it.
+- A primitive read may introduce an equality between its copied SSA result and
+  an exact reaching stored SSA value. Every actual predecessor must supply that
+  same value; potentially aliasing writes, unknown call effects, missing stores,
+  and unproved cyclic arrivals prevent introduction. The store/read types and
+  dominance must check independently. Subsequent writes cannot change either
+  captured SSA value. This does not introduce symbolic store summaries or a
+  floating-point equality rule.
 
 The scalar block-predicate rule generalizes range induction to matching-token
 merges without introducing a union of path facts. Its ledger prerequisites are

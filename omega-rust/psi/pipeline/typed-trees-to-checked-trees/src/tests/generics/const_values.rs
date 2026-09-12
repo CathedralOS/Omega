@@ -258,6 +258,45 @@ fn const_body_values_and_ensures_close_through_forwarded_static_arguments() {
 }
 
 #[test]
+fn const_return_promises_follow_static_binder_identity_not_spelling() {
+    accepts(
+        "machine endpoint<const Selected: u64>() -> u64 ensures result == Selected { Selected }
+         machine forward<const Expected: u64>() -> u64
+             ensures result == Expected { endpoint<Expected>() }
+         machine main() -> u64 { forward<2>() }",
+    );
+    rejects(
+        "machine endpoint<const N: u64, const M: u64>() -> u64 ensures result == N { N }
+         machine forward<const N: u64, const M: u64>() -> u64
+             ensures result == N { endpoint<M, N>() }
+         machine main() -> u64 { forward<2, 3>() }",
+        "ensures",
+    );
+    rejects(
+        "machine endpoint<const N: u64>() -> u64 ensures result == N { N }
+         machine forward<const N: u64>() -> u64 ensures result == N { endpoint<0>() }
+         machine main() -> u64 { forward<0>() }",
+        "ensures",
+    );
+}
+
+#[test]
+fn const_return_call_requires_a_declared_guarantee() {
+    rejects(
+        "machine endpoint<const N: u64>() -> u64 { N }
+         machine forward<const N: u64>() -> u64 ensures result == N { endpoint<N>() }
+         machine main() -> u64 { forward<2>() }",
+        "ensures",
+    );
+    rejects(
+        "machine endpoint<const result: u64>() -> u64 ensures result == result { 0 }
+         machine forward<const N: u64>() -> u64 ensures result == N { endpoint<N>() }
+         machine main() -> u64 { 0 }",
+        "ensures",
+    );
+}
+
+#[test]
 fn a_const_binder_in_ensures_does_not_prove_a_different_body_value() {
     rejects(
         "machine endpoint<const N: u64>(witness: &[u8; N]) -> u64

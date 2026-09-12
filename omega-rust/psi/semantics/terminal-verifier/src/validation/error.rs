@@ -962,6 +962,7 @@ pub enum ModuleError {
     },
     NonCanonicalCrashSiteGuard(BlockId),
     CrashSiteReconstructionLimitExceeded(MachineId),
+    PrimitiveSnapshotReconstructionLimitExceeded(MachineId),
     CrashSiteGuardUnproved {
         block: BlockId,
         edge: EdgeId,

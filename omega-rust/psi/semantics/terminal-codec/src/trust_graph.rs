@@ -51,6 +51,9 @@ const PROOF_BUNDLE_SOURCE: &[u8] =
     include_bytes!("../../terminal-verifier/src/verification/proof_bundle.rs");
 const RECONSTRUCTION_SOURCE: &[u8] =
     include_bytes!("../../terminal-verifier/src/verification/reconstruction.rs");
+const PRIMITIVE_SNAPSHOT_RECONSTRUCTION_SOURCE: &[u8] = include_bytes!(
+    "../../terminal-verifier/src/verification/reconstruction/primitive_snapshots.rs"
+);
 const PATH_FACTS_SOURCE: &[u8] =
     include_bytes!("../../terminal-verifier/src/verification/reconstruction/path_facts.rs");
 const DISCRETE_PATH_FACTS_SOURCE: &[u8] = include_bytes!(

@@ -43,6 +43,9 @@ mod boundary_buffers;
 #[path = "structural_unit/parameter_returns.rs"]
 mod parameter_returns;
 
+#[path = "structural_unit/primitive_snapshots.rs"]
+mod primitive_snapshots;
+
 #[test]
 fn unused_provider_attachment_verifies_without_roots_calls_or_codec() {
     let mut module = unused_provider_attachment_module();
