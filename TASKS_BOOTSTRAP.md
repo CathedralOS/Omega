@@ -115,11 +115,20 @@ prerequisite to every lower-rung milestone.
   compiler results but grew the module from 4,731 to 5,542 bytes and four to
   twelve definitions, traversing 21 tail links instead of six. They added no
   layout guarantee and were not retained; do not repeat them as the solution.
-  Start by comparing one field declaration, construction, and one destructuring
-  operation with checked constructor identity and arity against the existing
-  pair implementation. Static typing is a separate candidate with additional
-  declaration and call judgments, not an assumed feature bundle. Neither
-  candidate has measured evaluator cost or human defect-localization evidence.
+  The [product comparison experiment](tests/gamma/product-comparison-experiment/README.md)
+  at `7595f3028e` pins one construction and one destructuring of that payload
+  as nested pairs against a source-emulated named product with identity and
+  arity words: same order, scope, and tail behavior; 6 versus 8 pairs and
+  101,859 versus 147,419 whole-run Alpha steps under the untrusted reference
+  interpreter on Linux (selected-evaluator runs remain unmeasured there); a
+  wrong identity or arity maps to a chosen scalar status instead of an anonymous
+  trap; and a forged header passes both checks and traps exactly like pairs,
+  so source-level checks remove no manual layout obligation. Enforcement needs
+  evaluator-minted identities, whose representation, Beta, contract, heap
+  capacity, test, and proof costs the experiment README counts but does not
+  build. Static typing is a separate candidate with additional declaration and
+  call judgments, not an assumed feature bundle; no fixture represents it.
+  Human defect-localization evidence from the customer remains unmeasured.
   Acceptance: compare the Beta implementation, representation, validation,
   resources, tests, and proof obligations against the customer code and manual
   layout obligations removed. Check construction order, scope, tail behavior,

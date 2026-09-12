@@ -1,0 +1,21 @@
+; Candidate A failure witness: a producer that drops the last field. The
+; consumer projects a scalar and takes the authored trap (status 2); the failure
+; carries no identity, arity,
+; or field position, so defect localization is manual.
+(def build_short
+  ((node Int) (actual_count Int) (arguments Int) (expected_count Int)
+   (expected_types Int) (result_type Int)) Int
+  (pair node (pair actual_count (pair arguments
+    (pair expected_count (pair expected_types result_type))))))
+
+(def consume_frame ((payload Int)) Int
+  (let ((actual Int (second payload))
+        (arguments_and_expected Int (second actual))
+        (expected Int (second arguments_and_expected))
+        (types_and_result Int (second expected))
+        (result_and_locals Int (second types_and_result)))
+    (+ (first payload) (+ (first actual) (+ (first arguments_and_expected)
+      (+ (first expected) (+ (first types_and_result)
+        (+ (first result_and_locals) (second result_and_locals)))))))))
+
+(def main () Int (consume_frame (build_short 1 2 3 4 5 6)))

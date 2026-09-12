@@ -1,0 +1,33 @@
+; Candidate B, source-emulated: a named product with constructor identity and
+; arity written as two header words in front of the same seven-field spine.
+; The consumer checks both words before decoding and maps disagreement to a
+; scalar status instead of a projection trap. The identity is an ordinary
+; integer, so it is forgeable from source; see forged.gamma.
+(def argument_frame_tag () Int 1095910214)
+(def argument_frame_arity () Int 7)
+
+(def build_frame
+  ((node Int) (actual_count Int) (arguments Int) (expected_count Int)
+   (expected_types Int) (result_type Int) (locals Int)) Int
+  (pair (argument_frame_tag) (pair (argument_frame_arity)
+    (pair node (pair actual_count (pair arguments
+      (pair expected_count (pair expected_types (pair result_type locals)))))))))
+
+(def consume_fields ((payload Int)) Int
+  (let ((actual Int (second payload))
+        (arguments_and_expected Int (second actual))
+        (expected Int (second arguments_and_expected))
+        (types_and_result Int (second expected))
+        (result_and_locals Int (second types_and_result)))
+    (+ (first payload) (+ (first actual) (+ (first arguments_and_expected)
+      (+ (first expected) (+ (first types_and_result)
+        (+ (first result_and_locals) (second result_and_locals)))))))))
+
+(def consume_frame ((product Int)) Int
+  (if (eq (first product) (argument_frame_tag))
+    (if (eq (first (second product)) (argument_frame_arity))
+      (consume_fields (second (second product)))
+      202)
+    201))
+
+(def main () Int (consume_frame (build_frame 1 2 3 4 5 6 7)))

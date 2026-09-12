@@ -1,0 +1,28 @@
+; Candidate B forged identity: any source can write the identity and arity
+; words, so a six-field payload claiming seven fields passes both checks and
+; then traps exactly like candidate A. Source-level checks document the
+; layout; only an evaluator-minted identity (like the private pair provenance)
+; could enforce it.
+(def argument_frame_tag () Int 1095910214)
+(def argument_frame_arity () Int 7)
+
+(def consume_fields ((payload Int)) Int
+  (let ((actual Int (second payload))
+        (arguments_and_expected Int (second actual))
+        (expected Int (second arguments_and_expected))
+        (types_and_result Int (second expected))
+        (result_and_locals Int (second types_and_result)))
+    (+ (first payload) (+ (first actual) (+ (first arguments_and_expected)
+      (+ (first expected) (+ (first types_and_result)
+        (+ (first result_and_locals) (second result_and_locals)))))))))
+
+(def consume_frame ((product Int)) Int
+  (if (eq (first product) (argument_frame_tag))
+    (if (eq (first (second product)) (argument_frame_arity))
+      (consume_fields (second (second product)))
+      202)
+    201))
+
+(def main () Int
+  (consume_frame (pair 1095910214 (pair 7
+    (pair 1 (pair 2 (pair 3 (pair 4 (pair 5 6)))))))))

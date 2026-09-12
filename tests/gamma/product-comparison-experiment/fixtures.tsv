@@ -1,0 +1,7 @@
+# fixture	exit	published-hex
+pairs.gamma	0	1c
+pairs_short.gamma	2	
+checked.gamma	0	1c
+checked_wrong_tag.gamma	0	c9
+checked_wrong_arity.gamma	0	ca
+forged.gamma	2	
