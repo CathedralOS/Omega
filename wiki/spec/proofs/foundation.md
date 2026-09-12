@@ -223,8 +223,8 @@ ledger. Each example needs a valid derivation and an invalid control:
   interface and its exact admitted or proved laws.
 
 These are discriminating controls, not a proof of consistency or mathematical
-completeness. [Source punctuation](../../../OWNER_QUESTIONS.md#mathematical-binders)
-remains open. The
+completeness. [Mathematical source forms](mathematical_bindings.md) are selected;
+their checked elaboration remains required. The
 [application PCC contract](publication.md) fixes the common
 checking authority and separate receiver-owned obligation interpretation;
 implementation must supply their exact rules and soundness evidence.

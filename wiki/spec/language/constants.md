@@ -8,6 +8,11 @@ pub const PAGE_SIZE: u64 = 4096;
 const EfiStatus::SUCCESS = EfiStatus { code: 0 };
 ```
 
+Symbolic mathematical definitions instead use
+[parameterized top-level `let`](../proofs/mathematical_bindings.md#named-mathematical-definitions).
+They name checked terms without requesting evaluation. This distinction does
+not change local `let` or make `const` a noncomputability escape.
+
 Constants are not fields and do not contribute to `sizeof`. Their complete
 types recursively permit copying and have no cleanup obligation, shared
 ownership, or interior mutability. Fixed arrays, records, and copy-eligible sums

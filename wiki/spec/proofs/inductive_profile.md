@@ -7,7 +7,8 @@ It adds typed function eta, relevant identity, a two-element type and W-types.
 Indexed families are checked derived constructions, not a second primitive
 inductive-declaration mechanism. It adds no source keyword, anonymous machine
 or authored `-> Prop`.
-Source-level mathematical binders remain [separately open](../../../OWNER_QUESTIONS.md#mathematical-binders).
+Source-level mathematical binders follow the
+[mathematical source contract](mathematical_bindings.md).
 
 The rules below are requirements, not evidence of completed implementation or
 metatheory. `PROOF-KERNEL-CORE` owns their checking and justification;

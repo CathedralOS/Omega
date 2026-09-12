@@ -144,9 +144,10 @@ local facts. A name does not make a fact true or extend its lifetime.
 
 Use a domain for a reusable qualification, a helper machine to establish a
 guarantee, and an explicit trait conformance to bundle operations and laws.
-General logical-binder syntax remains [source-design work](../../OWNER_QUESTIONS.md#mathematical-binders);
-optional formula naming is a [proposal](../proposals/0001_proof_formula_syntax.md),
-not an extra current declaration category.
+General mathematics uses [typed term bindings, logical hypotheses and witness
+bundles](../spec/proofs/mathematical_bindings.md). A top-level mathematical `let`
+names a term, not its proof. Predicate-specific formula declarations remain an
+[optional proposal](../proposals/0001_proof_formula_syntax.md).
 
 ## Type Properties
 

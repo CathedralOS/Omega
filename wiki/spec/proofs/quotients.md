@@ -7,8 +7,9 @@ The retained representative is not observable quotient meaning.
 
 This contract depends on [general proof logic](contracts.md): proof-static
 carrier families, relation expressions, witness/law bundles, and exact selected
-conformances. General predicate and quantifier source forms remain undetermined.
-Schematic relation notation below is mathematics, not an extra declaration form.
+conformances. [Mathematical bindings](mathematical_bindings.md) supply arbitrary
+relation terms, logical hypotheses and existence evidence without quantifier
+keywords. Schematic relation notation below is mathematics, not an extra declaration form.
 These rules imply no arbitrary runtime value-to-type computation or layout.
 
 The set-quotient foundation below is the selected assumption-bearing interface,

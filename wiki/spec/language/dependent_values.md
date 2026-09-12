@@ -4,10 +4,10 @@ Runtime ranges, contracts, and layout/view conditions may name in-scope program
 values. These are flow-sensitive facts about exact values and places, not
 arbitrary runtime computation of nominal types. This systems contract does not
 restrict the general mathematical quantification of the
-[selected foundation](../proofs/foundation.md). Its source binders remain an
-[open join](../proofs/contracts.md#open-joins); the
-[W-based profile](../proofs/inductive_profile.md) is selected but still needs
-its required metatheory, encodings and checker implementation.
+[selected foundation](../proofs/foundation.md). Its
+[mathematical source binders](../proofs/mathematical_bindings.md) and the
+[W-based profile](../proofs/inductive_profile.md) are selected but still need
+their required metatheory, encodings and checker implementation.
 
 ## Static indices and runtime witnesses
 
