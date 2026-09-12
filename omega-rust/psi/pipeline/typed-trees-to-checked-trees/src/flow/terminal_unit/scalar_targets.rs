@@ -283,8 +283,11 @@ pub(super) fn is_available(
             || plan.structural_result.is_some()
             || plan.contract_report_fingerprint != contract.report_fingerprint
             || plan.contract_commitment != contract.commitment
-            || !program.machine_contracts(machine).is_empty()
-            || !program.state_contracts(state).is_empty()
+            || program
+                .machine_contracts(machine)
+                .iter()
+                .chain(program.state_contracts(state))
+                .any(|contract| !matches!(contract.kind, SignatureContractKind::Crashes { .. }))
             || matches!(
                 program
                     .type_reference_table
@@ -324,6 +327,7 @@ pub(super) fn is_available(
                     .filter(|operation| {
                         matches!(operation,
                             CheckedUnitEffectOperationPlan::ScalarCall { result, .. }
+                            | CheckedUnitEffectOperationPlan::BoundaryScalarCall { result, .. }
                             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. }
                                 if result == completion
                         )

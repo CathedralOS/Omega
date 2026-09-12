@@ -620,7 +620,10 @@ pub(in crate::flow::terminal_unit) fn build(
         }
         consume_results(&mut operations, &operation)?;
         operations.push(match result {
-            Some(result) => bind_scalar_call_result(facts, operation, result, !completes_machine)?,
+            // Returning the value directly uses the same call completion as a
+            // local binding. Only the following return consumes that result;
+            // a boundary crash establishes neither value nor normal exit.
+            Some(result) => bind_scalar_call_result(facts, operation, result, true)?,
             None => operation,
         });
         if let Some((result, root)) = partial_temporary {

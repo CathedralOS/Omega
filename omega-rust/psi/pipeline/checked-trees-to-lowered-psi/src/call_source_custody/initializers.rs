@@ -174,19 +174,24 @@ pub(crate) fn validate(
         super::authored::locate_source(checked, caller_state, coordinate)?;
         return Ok(());
     }
-    let Some(StatementNode::LocalData(local)) = checked
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(coordinate.statement_index as usize)
-    else {
-        return unsupported("computed result operands have no authored initializer");
+    let statements = checked.statement_table.statements(state.statement_nodes);
+    let expression = match statements.get(coordinate.statement_index as usize) {
+        Some(StatementNode::LocalData(local)) => local.initial_value,
+        // A final value-producing call has the same ordered operand custody as
+        // an initializer. Its result destination is checked by scalar completion.
+        Some(StatementNode::Expression(expression))
+            if coordinate.call_ordinal == 0
+                && coordinate.statement_index as usize + 1 == statements.len()
+                && checked
+                    .primitive_type_reference(state.return_type)
+                    .is_some() =>
+        {
+            *expression
+        }
+        _ => return unsupported("computed result operands have no authored value-producing call"),
     };
     if machine.symbol != caller_machine
-        || !validation::result_initializer_call_is_supported(
-            &checked.typed,
-            machine,
-            local.initial_value,
-        )
+        || !validation::result_initializer_call_is_supported(&checked.typed, machine, expression)
     {
         return unsupported(
             "computed result operands disagree with their authored initializer route",
@@ -197,6 +202,6 @@ pub(crate) fn validate(
         caller_machine,
         caller_state,
         coordinate,
-        local.initial_value,
+        expression,
     )
 }

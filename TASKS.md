@@ -645,14 +645,19 @@ Owners include
   evidence. Complete interpreter boundary-outcome validation for mathematical
   integer guards; `terminal-verifier/src/validation/crash/outcome.rs` rejects
   unsupported closed predicates rather than interpreting them as false.
+  Reuse proof admission's mathematical denotation only with bounded-resource
+  failure: its current closed shift evaluator can request unbounded allocation.
+  Source crash predicates currently lower through fixed-width `ScalarTerm`;
+  proof-only mathematical terms do not imply an authored mathematical guard route.
   Boundary crash observation profiles, guarded refinement of crashing providers,
   and Omega projection remain open. The edge-only `TerminalTraceV1` profile and
   Omega projection reject nonempty boundary routes; crash-free providers can
   already refine a may-crash requirement. Extend the source-to-execution controls above
   while preserving exact call sites, guard actuals, abandoned claims, staged
   writeback and no-result/no-cleanup behavior.
-  Extend the ordinary scalar-call sequencing path for direct boundary returns;
-  the existing result-bearing producer still requires a local-result binding.
+  Carry normal predicate contracts and qualified scalar results through ordered
+  boundary completion; the shared sequence still excludes those contracts,
+  while the older result-binding route retains its separate contract support.
 
   Package contract review still needs exact carrier/value custody for declaration
   and result projections through indexes, case payloads and generic field

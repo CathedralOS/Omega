@@ -24,6 +24,26 @@ pub fn result_initializer_call_is_supported(
     machine: &Machine,
     value: ExpressionHandle,
 ) -> bool {
+    // Completion owns its call directly, while a local initializer may instead
+    // belong to the scalar graph's whole-call computation. Do not reclassify
+    // those existing local computations merely because final calls are supported.
+    if let [state] = program.machine_states(machine)
+        && program
+            .primitive_type_reference(state.return_type)
+            .is_some()
+        && matches!(program.statement_table.statements(state.statement_nodes).last(),
+            Some(StatementNode::Expression(expression)) if *expression == value)
+        && program.expression_table.expression_is_valid(value)
+    {
+        return initializer_target_is_supported(
+            program,
+            machine,
+            value,
+            state.return_type,
+            true,
+            false,
+        );
+    }
     unit_result_initializer_call_is_supported(program, machine, value)
         || boundary_return::is_supported(program, machine, value)
 }

@@ -181,10 +181,9 @@ pub(super) fn validate_operation(
             .typed
             .statement_table
             .statements(state.statement_nodes);
-        // A final ordinary call owns the return expression, not an invented
+        // A final scalar call owns the return expression, not an invented
         // local. Completion replay separately checks its exact result binding.
-        let role = if matches!(operation, CheckedUnitEffectOperationPlan::ScalarCall { .. })
-            && result.statement_index as usize + 1 == statements.len()
+        let role = if result.statement_index as usize + 1 == statements.len()
             && matches!(
                 statements.last(),
                 Some(checked_trees::statement::StatementNode::Expression(_))

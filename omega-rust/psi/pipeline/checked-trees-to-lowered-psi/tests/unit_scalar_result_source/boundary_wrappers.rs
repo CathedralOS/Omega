@@ -135,6 +135,105 @@ fn scalar_wrapper_result_executes_and_publishes_with_exact_services() {
 }
 
 #[test]
+fn direct_boundary_return_composes_with_ordered_calls_and_locals() {
+    for (body, expected) in [
+        ("Host::measure(70)", &[70, 70][..]),
+        ("let input: i32 = 70; Host::measure(input)", &[70, 70][..]),
+        ("Host::finish(11); Host::measure(70)", &[11, 70, 70][..]),
+        (
+            "let first: i32 = Host::measure(11); Host::finish(first); Host::measure(70)",
+            &[11, 11, 70, 70][..],
+        ),
+        ("Host::measure(identity(70))", &[70, 70][..]),
+    ] {
+        let source = format!(
+            "machine identity(value: i32) -> i32 {{ value }}\n{}",
+            source().replace(
+                "let result: i32 = Host::measure(70);\n            result",
+                body
+            )
+        );
+        let checked = checked_from_source(&source);
+        let artifact = artifact(&checked);
+        let (status, observed) = execute(&artifact);
+        assert_eq!(
+            status,
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+        );
+        let expected = expected
+            .iter()
+            .map(|value| vec![integer(*value)])
+            .collect::<Vec<_>>();
+        assert_eq!(observed.arguments, expected, "{body}");
+    }
+}
+
+#[test]
+fn direct_boundary_return_rejects_result_and_occurrence_substitution() {
+    let source = source().replace(
+        "let result: i32 = Host::measure(70);\n            result",
+        "let prior: i32 = Host::measure(11); Host::measure(70)",
+    );
+    let original = checked_from_source(&source);
+    let target = original
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Scalar::measure")
+        .unwrap()
+        .symbol;
+    artifact(&original);
+    for mutation in 0..4 {
+        let mut changed = original.clone();
+        let plan = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .find(|plan| plan.machine == target)
+            .unwrap();
+        let first = plan
+            .operations
+            .iter()
+            .find_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::BoundaryScalarCall { result, .. } => Some(*result),
+                _ => None,
+            })
+            .unwrap();
+        match mutation {
+            0 => plan.scalar_result = Some(first),
+            1 => plan.operations.insert(1, plan.operations[0].clone()),
+            2 => {
+                let earlier_site = match &plan.operations[0] {
+                    CheckedUnitEffectOperationPlan::BoundaryScalarCall { source_site, .. } => {
+                        *source_site
+                    }
+                    _ => unreachable!(),
+                };
+                let CheckedUnitEffectOperationPlan::BoundaryScalarCall { source_site, .. } =
+                    &mut plan.operations[1]
+                else {
+                    unreachable!()
+                };
+                *source_site = earlier_site;
+            }
+            _ => {
+                let CheckedUnitEffectOperationPlan::BoundaryScalarCall { result, .. } =
+                    &mut plan.operations[1]
+                else {
+                    unreachable!()
+                };
+                result.binding_ordinal = first.binding_ordinal;
+            }
+        }
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+            "mutation {mutation} must not substitute another same-typed result"
+        );
+    }
+}
+
+#[test]
 fn scalar_wrapper_parameters_forward_through_named_and_unit_entries() {
     let source = source()
         .replace("Scalar::measure() ->", "Scalar::measure(value: i32) ->")
@@ -513,36 +612,49 @@ fn wrapper_operand_crash_preserves_call_ceiling_and_prevents_boundary_effects() 
             .replace("reaches Host {", "reaches Host crashes Abort {")
             .replace("reaches Host\n{", "reaches Host\ncrashes Abort\n{")
     );
-    let artifact = artifact(&checked_from_source(&source));
-    let (status, observed) = execute(&artifact);
-    let TerminalExecutionStatus::Crashed(crash) = status else {
-        panic!("the nested helper must crash before invoking the boundary")
-    };
-    assert_eq!(crash.cause, terminal_psi::CrashCause::Abort);
-    assert!(observed.arguments.is_empty());
-    let mut module = decode_module(&artifact.0).unwrap();
-    let proof = decode_proof_bundle(&artifact.1).unwrap();
-    let entry = module
-        .machines
-        .iter_mut()
-        .find(|machine| machine.id == module.entry)
-        .unwrap();
-    for operation in entry
-        .blocks
-        .iter_mut()
-        .flat_map(|block| &mut block.operations)
-    {
-        if let terminal_psi::OperationKind::Call {
-            crash_continuations,
-            ..
-        } = &mut operation.kind
+    for source in [
+        source.clone(),
+        source.replace(
+            "let result: i32 = Host::measure(abort());\n            result",
+            "Host::measure(abort())",
+        ),
+    ] {
+        let artifact = artifact(&checked_from_source(&source));
+        let (status, observed) = execute(&artifact);
+        let TerminalExecutionStatus::Crashed(crash) = status else {
+            panic!("the nested helper must crash before invoking the boundary")
+        };
+        assert_eq!(crash.cause, terminal_psi::CrashCause::Abort);
+        assert!(observed.arguments.is_empty());
+        let mut module = decode_module(&artifact.0).unwrap();
+        let proof = decode_proof_bundle(&artifact.1).unwrap();
+        let entry = module
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == module.entry)
+            .unwrap();
+        for operation in entry
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.operations)
         {
-            crash_continuations.clear();
+            if let terminal_psi::OperationKind::Call {
+                crash_continuations,
+                ..
+            }
+            | terminal_psi::OperationKind::CallStructuralScalar {
+                crash_continuations,
+                ..
+            } = &mut operation.kind
+            {
+                crash_continuations.clear();
+            }
         }
+        assert!(
+            terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default())
+                .is_err()
+        );
     }
-    assert!(
-        terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default()).is_err()
-    );
 }
 
 #[test]

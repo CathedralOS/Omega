@@ -1095,13 +1095,22 @@ pub(super) fn build_checked_machine_with(
         return None;
     }
     // Scalar operation completion carries an existing call result, not scalar
-    // predicate or refinement evidence. Leave those signatures on their
+    // normal predicate or refinement evidence. Leave those signatures on their
     // established scalar-graph route until this body retains that evidence.
+    // Published crashes already use the shared closure's exact-actual replay.
     if program
         .primitive_type_reference(state.return_type)
         .is_some()
-        && (!program.machine_contracts(machine).is_empty()
-            || !program.state_contracts(state).is_empty()
+        && (program
+            .machine_contracts(machine)
+            .iter()
+            .chain(program.state_contracts(state))
+            .any(|contract| {
+                !matches!(
+                    contract.kind,
+                    typed_trees::signature::SignatureContractKind::Crashes { .. }
+                )
+            })
             || matches!(
                 program
                     .type_reference_table

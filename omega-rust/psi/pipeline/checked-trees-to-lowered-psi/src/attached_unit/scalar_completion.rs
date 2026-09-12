@@ -47,10 +47,22 @@ pub(super) fn validate(
     ) {
         return unsupported("scalar operation completion requires result refinement evidence");
     }
-    // Ordered scalar completion has no predicate-contract lowering yet. Keep
+    // Ordered scalar completion has no normal predicate-contract lowering yet. Keep
     // those bodies with their existing scalar-graph owner rather than dropping
     // requirements or guarantees when selecting an operation-body result.
-    if !checked.machine_contracts(source).is_empty() || !checked.state_contracts(state).is_empty() {
+    // Crash routes already belong to the shared call closure and are replayed
+    // against exact actuals independently of how the normal result is returned.
+    if checked
+        .machine_contracts(source)
+        .iter()
+        .chain(checked.state_contracts(state))
+        .any(|contract| {
+            !matches!(
+                contract.kind,
+                checked_trees::signature::SignatureContractKind::Crashes { .. }
+            )
+        })
+    {
         return unsupported("scalar operation completion cannot erase authored scalar contracts");
     }
     if result.statement_index as usize + 1 == statements.len()
@@ -115,11 +127,16 @@ pub(super) fn validate(
                 coordinate,
                 result: candidate,
                 ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                coordinate,
+                result: candidate,
+                ..
             } if candidate == result => Some(*coordinate),
             _ => None,
         });
     let coordinate = producers.next().ok_or(LoweringError::Unsupported(
-        "scalar completion has no exact ordinary call result",
+        "scalar completion has no exact call result",
     ))?;
     if producers.next().is_some()
         || coordinate.statement_index != result.statement_index
