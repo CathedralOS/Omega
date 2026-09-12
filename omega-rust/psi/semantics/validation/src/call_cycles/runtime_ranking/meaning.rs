@@ -16,6 +16,17 @@ pub(super) fn binary_is_builtin(
     binary: &TableBinaryExpression,
 ) -> bool {
     let spelling = match binary.operator {
+        BinaryOperator::CaseMembership => {
+            return program
+                .machines()
+                .iter()
+                .find(|value| value.symbol == machine)
+                .is_some_and(|machine| {
+                    crate::bound_expression_meaning::has_exact_case_membership_meaning(
+                        program, machine, None, expression, binary,
+                    )
+                });
+        }
         BinaryOperator::Add => OperatorSpelling::Add,
         BinaryOperator::Subtract => OperatorSpelling::Subtract,
         BinaryOperator::Multiply => OperatorSpelling::Multiply,

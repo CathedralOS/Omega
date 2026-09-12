@@ -11,6 +11,35 @@ use source::SourceSpan;
 use std::sync::Arc;
 use symbols::SymbolHandle;
 
+#[test]
+fn case_membership_meaning_survives_expression_copies_without_becoming_equality() {
+    let mut source = ExpressionTable::new();
+    let subject = source.insert(ExpressionNode::Boolean(false));
+    let classifier = source.insert(ExpressionNode::Boolean(true));
+    // The table owns operation identity, not type admission. These leaves keep
+    // this storage test independent of nominal-case validation.
+    let membership = source.insert(ExpressionNode::Binary(TableBinaryExpression {
+        left: subject,
+        operator: BinaryOperator::CaseMembership,
+        right: classifier,
+    }));
+    let equality = source.insert(ExpressionNode::Binary(TableBinaryExpression {
+        left: subject,
+        operator: BinaryOperator::Equal,
+        right: classifier,
+    }));
+    assert!(!source.expressions_structurally_equal(membership, equality));
+    let copied = source.insert_copy(membership);
+    assert!(source.expressions_structurally_equal(membership, copied));
+    let tree = source.to_tree(membership);
+    let roundtrip = source.insert_tree(&tree);
+    assert!(source.expressions_structurally_equal(membership, roundtrip));
+    assert!(!source.expressions_structurally_equal(equality, roundtrip));
+    let mut target = ExpressionTable::new();
+    let copied = target.copy_from(&source, membership);
+    assert_eq!(target.to_tree(copied), tree);
+}
+
 fn authored_selection_occurrences() -> [AuthoredDeclarationSelectionOccurrenceId; 2] {
     let mut selections = AuthoredDeclarationSelections::default();
     let first = selections

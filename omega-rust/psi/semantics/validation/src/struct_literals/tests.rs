@@ -19,6 +19,40 @@ fn construction_diagnostics(source: &str) -> Vec<Diagnostic> {
 }
 
 #[test]
+fn synthesized_payload_tags_are_not_constructor_values() {
+    let mut program = typed(
+        "trait Equatable { machine equals(&self, rhs: &Self) -> bool; }
+         data Message { case Empty; case Data(value: i32); }
+         MessageEquatable: Message satisfies Equatable;
+         data Envelope { message: Message; }
+         EnvelopeEquatable: Envelope satisfies Equatable;
+         machine equal(left: Envelope, right: Envelope) -> bool { left == right }",
+    );
+    let mut diagnostics = Vec::new();
+    validate_struct_literal_fields(&program, &mut diagnostics);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let generated: Vec<_> = program.expression_table.expression_entries().filter_map(|(expression, node)| {
+        matches!(node, ExpressionNode::Binary(binary) if binary.operator == typed_trees::expression::BinaryOperator::CaseMembership)
+            .then_some(expression)
+    }).collect();
+    assert!(!generated.is_empty());
+    for expression in generated {
+        let ExpressionNode::Binary(binary) = program.expression_table.expression_mut(expression)
+        else {
+            panic!("generated tag");
+        };
+        binary.operator = typed_trees::expression::BinaryOperator::Equal;
+    }
+    validate_struct_literal_fields(&program, &mut diagnostics);
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("has a payload")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn array_elements_require_explicit_integer_carrier_conversions() {
     for source in [
         "machine read(input: u8) -> [u16;1] { [input] }",

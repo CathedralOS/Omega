@@ -109,7 +109,8 @@ impl ContractExpressionEvaluator<'_, '_> {
                 | BinaryOperator::Multiply
                 | BinaryOperator::ShiftLeft
                 | BinaryOperator::ShiftRight
-                | BinaryOperator::Subtract => None,
+                | BinaryOperator::Subtract
+                | BinaryOperator::CaseMembership => None,
             },
             ExpressionNode::Name(_) => {
                 if self.operators.is_some() {

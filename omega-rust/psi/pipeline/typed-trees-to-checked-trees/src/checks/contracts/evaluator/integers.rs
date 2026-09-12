@@ -73,7 +73,8 @@ impl ContractExpressionEvaluator<'_, '_> {
                     | BinaryOperator::NotEqual
                     | BinaryOperator::Or
                     | BinaryOperator::ShiftLeft
-                    | BinaryOperator::ShiftRight => None,
+                    | BinaryOperator::ShiftRight
+                    | BinaryOperator::CaseMembership => None,
                 }
             }
             ExpressionNode::Integer(value) => value.value_i64(),

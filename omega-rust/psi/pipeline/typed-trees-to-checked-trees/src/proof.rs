@@ -1326,6 +1326,15 @@ pub(crate) fn exact_outcome_case_test(
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return None;
     };
+    if binary.operator == BinaryOperator::CaseMembership {
+        // Validation has checked the exact nominal subject and classifier.
+        // Only the left operand is observed; the right operand is not a value
+        // to copy, move, or reverse with the subject as ordinary equality can.
+        let ExpressionNode::Name(case) = program.expression_table.expression(binary.right) else {
+            return None;
+        };
+        return Some((binary.left, case.symbol));
+    }
     if binary.operator == BinaryOperator::Equal {
         let is_true = |candidate| {
             matches!(

@@ -1614,7 +1614,8 @@ fn resolve_authored_operator_without_use_fact<'program>(
                 | BinaryOperator::BitwiseXor
                 | BinaryOperator::Or
                 | BinaryOperator::ShiftLeft
-                | BinaryOperator::ShiftRight => return None,
+                | BinaryOperator::ShiftRight
+                | BinaryOperator::CaseMembership => return None,
             };
             (
                 spelling,
@@ -1784,7 +1785,8 @@ fn operator_has_no_authored_spelling_candidate(
             | BinaryOperator::BitwiseXor
             | BinaryOperator::Or
             | BinaryOperator::ShiftLeft
-            | BinaryOperator::ShiftRight => return true,
+            | BinaryOperator::ShiftRight
+            | BinaryOperator::CaseMembership => return true,
         },
         ExpressionNode::Indexed(indexed) => {
             if matches!(
@@ -2266,6 +2268,7 @@ fn expression_is_intrinsic_primitive_without_origin(
                     | typed_trees::expression::BinaryOperator::Or
                     | typed_trees::expression::BinaryOperator::ShiftLeft
                     | typed_trees::expression::BinaryOperator::ShiftRight
+                    | typed_trees::expression::BinaryOperator::CaseMembership
             ) =>
         {
             return true;
@@ -2292,7 +2295,8 @@ fn expression_is_intrinsic_primitive_without_origin(
                 | BinaryOperator::BitwiseXor
                 | BinaryOperator::Or
                 | BinaryOperator::ShiftLeft
-                | BinaryOperator::ShiftRight => unreachable!("handled above"),
+                | BinaryOperator::ShiftRight
+                | BinaryOperator::CaseMembership => unreachable!("handled above"),
             };
             let operand_types = [
                 authored_operand_type(program, binary.left),
@@ -2360,7 +2364,8 @@ pub(crate) fn typed_operator_authored_selection_candidates(
                 | BinaryOperator::BitwiseXor
                 | BinaryOperator::Or
                 | BinaryOperator::ShiftLeft
-                | BinaryOperator::ShiftRight => return Vec::new(),
+                | BinaryOperator::ShiftRight
+                | BinaryOperator::CaseMembership => return Vec::new(),
             };
             (
                 spelling,

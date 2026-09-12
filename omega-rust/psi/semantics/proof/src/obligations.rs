@@ -2704,7 +2704,8 @@ pub(crate) fn integer_binary_range(
         | BinaryOperator::LessOrEqual
         | BinaryOperator::NotEqual
         | BinaryOperator::Or
-        | BinaryOperator::ShiftLeft => None,
+        | BinaryOperator::ShiftLeft
+        | BinaryOperator::CaseMembership => None,
     }
 }
 
@@ -2763,7 +2764,8 @@ fn float_binary_range(
         | BinaryOperator::NotEqual
         | BinaryOperator::Or
         | BinaryOperator::ShiftLeft
-        | BinaryOperator::ShiftRight => None,
+        | BinaryOperator::ShiftRight
+        | BinaryOperator::CaseMembership => None,
     }
 }
 

@@ -592,6 +592,11 @@ Owners include
   Extend the ordinary scalar-call sequencing path for direct boundary returns;
   the existing result-bearing producer still requires a local-result binding.
 
+  Package contract review must retain generated case-tag observations distinctly
+  from value equality. `package-evidence`'s contract operator projection rejects
+  `CaseMembership` until its review vocabulary and canonical recovery carry that
+  meaning; source/Terminal acceptance alone does not close package projection.
+
   Extend `facts/crash_entry_values.rs` beyond immutable plain-content roots to
   state arrivals, rebinding, mutable field versions and receiver/case projections,
   including the separate named-operator use path. Unknown

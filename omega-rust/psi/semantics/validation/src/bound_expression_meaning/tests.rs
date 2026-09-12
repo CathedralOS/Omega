@@ -240,3 +240,131 @@ fn inequality_is_not_a_lowered_membership_test() {
     comparison.operator = BinaryOperator::NotEqual;
     assert!(!is_exact_membership(&program, member));
 }
+
+#[test]
+fn generated_case_membership_requires_exact_nominal_subject_and_classifier() {
+    let (mut program, member, foreign) = membership_program();
+    let ExpressionNode::Binary(mut comparison) =
+        program.expression_table.expression(member).clone()
+    else {
+        panic!("membership comparison");
+    };
+    comparison.operator = BinaryOperator::CaseMembership;
+    let generated = program
+        .expression_table
+        .insert(ExpressionNode::Binary(comparison));
+    assert!(
+        program
+            .expression_table
+            .authored_selection_occurrences(generated)
+            .next()
+            .is_none()
+    );
+    assert!(is_exact_membership(&program, generated));
+    let ExpressionNode::Binary(foreign_comparison) = program.expression_table.expression(foreign)
+    else {
+        panic!("foreign membership");
+    };
+    let foreign_comparison = *foreign_comparison;
+    for replacement in [
+        typed_trees::expression::TableBinaryExpression {
+            operator: BinaryOperator::Equal,
+            ..comparison
+        },
+        typed_trees::expression::TableBinaryExpression {
+            left: comparison.right,
+            ..comparison
+        },
+        typed_trees::expression::TableBinaryExpression {
+            left: foreign_comparison.left,
+            ..comparison
+        },
+        typed_trees::expression::TableBinaryExpression {
+            right: foreign_comparison.right,
+            ..comparison
+        },
+        typed_trees::expression::TableBinaryExpression {
+            left: ExpressionHandle::invalid(),
+            ..comparison
+        },
+        typed_trees::expression::TableBinaryExpression {
+            right: ExpressionHandle::invalid(),
+            ..comparison
+        },
+    ] {
+        *program.expression_table.expression_mut(generated) = ExpressionNode::Binary(replacement);
+        assert!(!is_exact_membership(&program, generated), "{replacement:?}");
+    }
+    *program.expression_table.expression_mut(generated) = ExpressionNode::Binary(comparison);
+    let machine = &program.machines()[0];
+    let collection = program
+        .state_parameters(&program.machine_states(machine)[0])
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "choices")
+        .unwrap()
+        .symbol;
+    let ExpressionNode::Name(subject) = program.expression_table.expression_mut(comparison.left)
+    else {
+        panic!("subject");
+    };
+    subject.head_symbol = collection;
+    subject.symbol = collection;
+    assert!(!is_exact_membership(&program, generated));
+}
+
+#[test]
+fn attached_self_membership_requires_its_owner_and_receiver() {
+    let tokens = Lexer::new(
+        "data Choice { case Ready(value: u64); case Empty; }
+         data Foreign { case Ready(value: u64); case Empty; }
+         machine Choice::member(&self) -> bool { self in Choice::Ready }",
+    )
+    .tokenize()
+    .unwrap();
+    let syntax = parse_syntax_trees(&tokens).unwrap();
+    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let program = lower_symbol_resolved_trees(&resolved).unwrap();
+    let (expression, comparison) = program
+        .expression_table
+        .expression_entries()
+        .find_map(|(expression, node)| {
+            if let ExpressionNode::Binary(binary) = node {
+                Some((expression, binary))
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    assert!(has_exact_case_membership_meaning(
+        &program,
+        machine,
+        Some(state),
+        expression,
+        comparison
+    ));
+    let mut foreign_machine = machine.clone();
+    foreign_machine.attached_data_symbol = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Foreign")
+        .unwrap()
+        .symbol;
+    assert!(!has_exact_case_membership_meaning(
+        &program,
+        &foreign_machine,
+        Some(state),
+        expression,
+        comparison
+    ));
+    let mut no_receiver = state.clone();
+    no_receiver.parameters = arena::HandleSpan::empty();
+    assert!(!has_exact_case_membership_meaning(
+        &program,
+        machine,
+        Some(&no_receiver),
+        expression,
+        comparison
+    ));
+}

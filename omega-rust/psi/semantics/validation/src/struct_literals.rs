@@ -245,13 +245,22 @@ fn scan_expression(
                 environment,
                 diagnostics,
             );
-            if !crate::bound_expression_meaning::has_exact_case_membership_meaning(
+            let membership = crate::bound_expression_meaning::has_exact_case_membership_meaning(
                 program,
                 machine,
                 Some(state),
                 expression,
                 binary,
-            ) {
+            );
+            if binary.operator == typed_trees::expression::BinaryOperator::CaseMembership
+                && !membership
+            {
+                diagnostics.push(Diagnostic::error(
+                    "case-membership operation lost its exact subject, carrier or case identity",
+                ));
+                return;
+            }
+            if !membership {
                 // A failed nominal membership check is not ordinary equality.
                 // Payload-free cases can share a tag and leaf spelling across
                 // packages; neither is evidence that the subject has this owner.

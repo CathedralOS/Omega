@@ -13,6 +13,11 @@
 //!
 //! A hand-written `Type::equals` wins (check-then-synthesize): `==` lowers to
 //! a value call targeting it instead of expanding.
+//!
+//! Generated tag guards use typed CaseMembership rather than value equality.
+//! Their RHS is a classifier, not a payload constructor, and their subject is
+//! observed rather than moved. The operation survives ordinary expression
+//! copies without fabricating authored membership-selection rows.
 
 use super::lowerer::ExpressionTableLowerer;
 use crate::equatable::{
@@ -828,8 +833,11 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             ))
     }
 
-    /// `value == Type::Case`: the symbol-stamped tag compare shape shared
-    /// with case-membership lowering (the backend's tag clamp keys off it).
+    /// Retain tag observation as an operation, not an authored equality use.
+    /// Generated tests have no authored membership selection to recover after
+    /// lowering. A plain equality node would instead demand a payload value
+    /// constructor or select a value operator. Copies retain this distinction
+    /// in the operator itself; validation still checks both nominal identities.
     fn tag_compare(
         &mut self,
         data: &DataDefinition,
@@ -860,7 +868,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             .insert(typed::expression::ExpressionNode::Binary(
                 typed::expression::TableBinaryExpression {
                     left: place,
-                    operator: typed::expression::BinaryOperator::Equal,
+                    operator: typed::expression::BinaryOperator::CaseMembership,
                     right: case_reference,
                 },
             ))

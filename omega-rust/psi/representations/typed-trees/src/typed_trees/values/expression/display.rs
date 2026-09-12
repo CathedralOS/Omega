@@ -332,6 +332,7 @@ impl BinaryOperator {
             Self::ShiftLeft => "<<",
             Self::ShiftRight => ">>",
             Self::Subtract => "-",
+            Self::CaseMembership => "in",
         }
     }
 }

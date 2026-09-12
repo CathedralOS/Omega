@@ -112,6 +112,9 @@ fn evaluate_domain_fact_binary(
             Less => Ok(ConstProofValue::Boolean(left < right)),
             LessOrEqual => Ok(ConstProofValue::Boolean(left <= right)),
             And | Or => Err("logical proof operators require boolean operands".to_string()),
+            CaseMembership => {
+                Err("case membership requires a nominal subject and case classifier".to_string())
+            }
         },
         (ConstProofValue::Boolean(left), ConstProofValue::Boolean(right)) => match operator {
             And => Ok(ConstProofValue::Boolean(left && right)),

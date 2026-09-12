@@ -1229,6 +1229,7 @@ fn index_binary_operator_name(operator: BinaryOperator) -> &'static str {
         BinaryOperator::ShiftLeft => "shift-left",
         BinaryOperator::ShiftRight => "shift-right",
         BinaryOperator::Subtract => "subtract",
+        BinaryOperator::CaseMembership => "case_membership",
     }
 }
 
