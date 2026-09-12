@@ -1,0 +1,65 @@
+{
+  "wave": "w1",
+  "max_acu_limit": 10,
+  "devin_mode": null,
+  "bypass_approval": true,
+  "resumable": true,
+  "tags": ["omega-swarm", "w1"],
+  "owner_label_prefix": "Jarod / swarm-w1",
+  "exclusions": [
+    "WRITE-ONLY-BORROW",
+    "SPILL-REALIZATION",
+    "SQUALR-HEADLESS",
+    "MACOS-APPLICATION-PUBLICATION",
+    "ALPHA-WINDOWS-CONFORMANCE",
+    "ADDRESS-TRANSLATION-CANARY",
+    "EXCEPTION-ROOTS-AND-TIMER"
+  ],
+  "sessions": [
+    {
+      "name": "codec-lineage",
+      "board": "TASKS.md",
+      "item": "CODEC-LINEAGE-CLOSURE",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/semantics/validation/src/wire",
+        "omega-rust/psi/semantics/build-time-evaluation/src/wire_plans.rs",
+        "omega-rust/omega/compiler/compiler/src/pipeline/reporting/wire.rs"
+      ],
+      "suggested_first_slice": "the old/new ordinary declaration pair with an explicitly selected checked migration, plus its missing-route rejection"
+    },
+    {
+      "name": "boundary-qual",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "BOUNDARY-QUALIFICATION-PRESERVATION",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules",
+        "omega-rust/omega/semantics/optimization-unit-semantics/src/unit_validation"
+      ]
+    },
+    {
+      "name": "custody-mutation",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "CUSTODY-MUTATION-COVERAGE",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/backend/images/image-emission/src/unit_call_custody",
+        "omega-rust/omega/backend/images/image-emission/src/unit_scalar_call_custody",
+        "omega-rust/omega/packages/review/evidence"
+      ]
+    },
+    {
+      "name": "gamma-products",
+      "board": "TASKS_BOOTSTRAP.md",
+      "item": "GAMMA-PRODUCT-COMPARISON",
+      "host": "linux",
+      "owning_paths": [
+        "bootstrap/3_delta/implementation/checking/types/calls.gamma",
+        "bootstrap/2_gamma"
+      ],
+      "suggested_first_slice": "compare one field declaration, construction, and one destructuring operation against the existing pair implementation"
+    }
+  ]
+}
