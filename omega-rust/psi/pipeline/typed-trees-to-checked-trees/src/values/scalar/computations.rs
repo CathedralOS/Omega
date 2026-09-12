@@ -562,6 +562,18 @@ impl Builder<'_, '_> {
         {
             return;
         }
+        // Structural value traversal and the ordinary call-operand roster can
+        // reach the same authored operand. Retain its computation once; a
+        // different source or type at this coordinate must remain a conflicting
+        // root for independent custody checking to reject.
+        if let Some(existing) = self.plans.root_at(self.state, statement_ordinal, role)
+            && existing.machine == self.machine
+            && self.plans.nodes.is_valid(existing.root)
+            && self.plans.nodes.get(existing.root).authored_root == expression
+            && self.plans.nodes.get(existing.root).primitive_type == expected_type
+        {
+            return;
+        }
         if let Some(root) = self.expression(expression, expected_type) {
             self.plans.nodes.get_mut(root).authored_root = expression;
             self.plans.roots.append(CheckedScalarComputationRoot {

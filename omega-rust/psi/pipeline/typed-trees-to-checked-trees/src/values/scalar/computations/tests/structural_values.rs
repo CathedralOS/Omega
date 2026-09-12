@@ -5,6 +5,45 @@ use checked_trees::{
 };
 
 #[test]
+fn primitive_reference_leaves_compose_under_store_operands_and_completion() {
+    let checked = checked_source(
+        r#"
+        machine change(value: &mut u64, mask: u64) -> u64 { value = value ^ mask; value }
+        machine toggle(value: &mut bool) -> bool { value = !value; value }
+    "#,
+        false,
+    );
+    for owner in checked.machines() {
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter()
+            .find(|plan| plan.machine == owner.symbol)
+            .unwrap_or_else(|| {
+                panic!(
+                    "{} retains its ordinary store and scalar completion",
+                    owner.name.as_str()
+                )
+            });
+        assert!(
+            plan.scalar_result.is_some(),
+            "{} scalar completion",
+            owner.name.as_str()
+        );
+        assert!(
+            matches!(
+                plan.operations.first(),
+                Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. })
+            ),
+            "{} begins with its authored store",
+            owner.name.as_str()
+        );
+    }
+}
+
+#[test]
 fn fresh_match_value_keeps_ordered_case_roots_and_ordinary_owned_state_transfer() {
     let checked = checked_source(
         r#"

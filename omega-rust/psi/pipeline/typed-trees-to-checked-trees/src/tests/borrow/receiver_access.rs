@@ -252,6 +252,23 @@ fn write_only_parameter_field_read_rejects() {
 }
 
 #[test]
+fn write_only_primitive_reads_remain_forbidden_below_scalar_operators() {
+    for source in [
+        "machine observe(value: &write u64, mask: u64) -> u64 { value ^ mask }",
+        "machine observe(value: &write bool) -> bool { !value }",
+    ] {
+        let diagnostics = reject_source(source);
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("reads write-only parameter `value`")
+                && diagnostic.message.contains("never observation")),
+            "nested scalar read retains source access rejection: {diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
 fn write_only_parameter_literal_index_read_rejects() {
     let diagnostics = reject_source(
         r#"
