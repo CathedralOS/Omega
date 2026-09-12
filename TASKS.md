@@ -56,24 +56,27 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   owning diagnostic before expanding compiler work. Initialization is explicit
   and requires private repository access during in-house development.
   On macOS ARM64 with Python 3.13 and `RUST_MIN_STACK=33554432`, the unchanged
-  native invocation at `0adf79ac7f` (base `023f97382f`) exits 200 on 18
-  local-receiver realization diagnostics in the actual `Main::main`, after checking std and the dependency
-  graph. The application pins the published standard-package declaration repair
-  at `a91d878cb9252647d977c45787969b16e6ef937a`. Calls such as
-  `aligned.get_element_count(..)` need their local receiver's value/storage
-  retained through the ordinary checked call and Terminal production path.
-  The current fence is
+  native invocation with code from `12c70b7e72` (base `a235820d53`) exits 200 on 16
+  local-receiver realization diagnostics in the actual `Main::main`, after checking
+  std and the dependency graph. The application remains at `1141aa1406b2` with
+  standard-package pin `a91d878cb9252647d977c45787969b16e6ef937a`.
+  The remaining reported receivers include nested `SnapshotRegionFilter` values
+  (`aligned.get_element_count(..)`), mutable `NormalizedRegion` locals, and
+  `MemoryAlignment` sum results with refined scalar returns. The current fence is
   `validation/src/calls/expression_scanning/result_realization.rs`;
   **STATE-LOCAL-VALUE-FRONTIER** owns the general join. Preserve local storage,
   authored operation order and the full package graph; keep build-only packages
-  explicitly unported. Plain scalar-record construction now uses the ordinary
-  structural-value/evaluation path in
+  explicitly unported. Reuse the ordinary structural-value/evaluation path in
   `checked-trees-to-lowered-psi/src/attached_unit/structural_values/record.rs`.
-  Reuse that producer; the next join must retain local receiver storage and
-  shared scalar-result callee signatures through call normalization and native
-  argument preparation, including `SnapshotRegionFilter`'s nested `NormalizedRegion`
-  field and its constructor result. Do not remove the source fence before that
-  complete route works, or restore the retired literal-only constructor.
+  The next join must construct `SnapshotRegionFilter` with its call-produced
+  `NormalizedRegion` field and preserve that nested field's ownership and
+  projected receiver through the ordinary call/native path. Whole immutable
+  scalar-field record getters already use retained structural homes; extend that
+  route, not a copied-field receiver ABI or another constructor recognizer.
+  Shared-self forwarding inside getters, mutable local storage, and sum/refined
+  receiver results remain separate consumer dependencies. Keep their source fences
+  until the corresponding complete routes work; removing a diagnostic alone does
+  not establish Terminal production or native execution.
   This is engineering work, with the unchanged native
   command and `Squalr geometry: PASS` as acceptance.
   Windows runtime controls in `omega-rust/omega/tests/package_commands/probe.rs`
