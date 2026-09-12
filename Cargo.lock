@@ -713,6 +713,7 @@ dependencies = [
  "iced-x86",
  "image",
  "image-elf",
+ "image-emission",
  "image-macho",
  "image-pe",
  "installation-evidence",
