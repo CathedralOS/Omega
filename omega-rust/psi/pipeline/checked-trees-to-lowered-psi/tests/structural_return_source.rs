@@ -19,6 +19,9 @@ use typed_trees_to_checked_trees::lower_typed_trees;
 #[path = "structural_return_source/boundary_arguments.rs"]
 mod boundary_arguments;
 
+#[path = "structural_return_source/service_reach.rs"]
+mod service_reach;
+
 const SOURCE: &str = r#"
     data ByteUnit {}
     data CountedQuantity<Unit> { magnitude: u64; }

@@ -7,6 +7,7 @@ cargo run -p omega -- --check tests/omega/pass/effects/nominal_callback_dependen
 cargo nextest run -p package-evidence --test callable_policy reach_dependencies --no-fail-fast --no-tests fail
 cargo nextest run -p package-manager --test package_policy_changes generic_reach --no-fail-fast --no-tests fail
 cargo nextest run -p checked-trees-to-lowered-psi --lib service_reach_contracts --no-fail-fast --no-tests fail
+cargo nextest run -p checked-trees-to-lowered-psi --test structural_return_source service_reach --no-fail-fast --no-tests fail
 cargo nextest run -p terminal-codec --lib -E 'test(closed_reach) | test(structural_callback_requirement)' --no-fail-fast --no-tests fail
 ```
 
@@ -45,6 +46,13 @@ optimization and publication. Their complete telescope can retain an unused
 Console callback's bound and selected contract without emitting its body or
 adding its reach to the identity callback. Source-free interpretation returns
 the input, while removing that unused selection's bound still rejects.
+
+Direct linear structural calls retain both exact source owners before projection,
+so a const-generic callee keeps its complete closed application through publication,
+reload and identity-preserving interpretation. Stale source coordinates and
+same-shaped target substitutions reject before publication; returned-claim checks
+remain independently enforced. The [nominal structural callback customer](../structural_callback_reach/README.md)
+still needs ordinary linear call-result completion through normalized locals.
 
 These are ordinary semantic inputs, not optional proof sidecars. The original
 source-to-contract projection remains producer-trusted: existing commitment

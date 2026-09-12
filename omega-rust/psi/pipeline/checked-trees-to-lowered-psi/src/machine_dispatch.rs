@@ -471,7 +471,7 @@ pub(super) fn lower_selected_machine(
         if selection.signature != CheckedTerminalSignatureEligibility::Attached {
             return unsupported("structural call result transfer requires an attached signature");
         }
-        return routed_machine(
+        return source_mapped_machine(
             lower_structural_call_return_machine(checked, plan),
             SelectedMachineRoute::StructuralCallReturn,
         );
