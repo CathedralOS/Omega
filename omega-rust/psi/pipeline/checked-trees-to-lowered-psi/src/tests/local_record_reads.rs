@@ -24,7 +24,9 @@ const SOURCE: &str = "
 fn local_record_reads_publish_direct_and_transported_places() {
     let checked = checked_source(SOURCE);
     for name in ["observe", "joined"] {
-        let artifact = produce_terminal_artifact(&checked, name).expect("record read publishes");
+        let artifact = terminal_production::TerminalProductionRequest::new(&checked, name)
+            .produce_artifact()
+            .expect("record read publishes");
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let entry = module
             .machines
@@ -57,8 +59,9 @@ fn local_record_reads_publish_direct_and_transported_places() {
 #[test]
 fn local_record_reads_reject_changed_field_source_and_carrier() {
     let checked = checked_source(SOURCE);
-    let _artifact =
-        produce_terminal_artifact(&checked, "observe").expect("uncorrupted source publishes");
+    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "observe")
+        .produce_artifact()
+        .expect("uncorrupted source publishes");
     let handle = checked
         .facts
         .values
@@ -102,7 +105,9 @@ fn local_record_reads_reject_changed_field_source_and_carrier() {
             _ => unreachable!(),
         }
         assert!(
-            produce_terminal_artifact(&changed, "observe").is_err(),
+            terminal_production::TerminalProductionRequest::new(&changed, "observe")
+                .produce_artifact()
+                .is_err(),
             "corruption {corruption} must reject"
         );
     }
@@ -119,8 +124,9 @@ fn shared_record_getter_keeps_receiver_custody_separate_from_arguments() {
             retained.get_payload()
         }",
     );
-    let artifact =
-        produce_terminal_artifact(&checked, "observe").expect("shared local getter publishes");
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "observe")
+        .produce_artifact()
+        .expect("shared local getter publishes");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
         .machines
@@ -173,7 +179,9 @@ fn shared_record_getter_keeps_receiver_custody_separate_from_arguments() {
     };
     argument.access = checked_trees::CheckedStructuralAccess::Owned;
     assert!(
-        produce_terminal_artifact(&changed, "observe").is_err(),
+        terminal_production::TerminalProductionRequest::new(&changed, "observe")
+            .produce_artifact()
+            .is_err(),
         "a shared receiver cannot become an owned transfer"
     );
 }
@@ -196,7 +204,8 @@ fn local_record_reads_compose_with_calls_and_selective_booleans() {
          }",
     ] {
         let checked = checked_source(source);
-        let artifact = produce_terminal_artifact(&checked, "observe")
+        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "observe")
+            .produce_artifact()
             .expect("record reads compose in ordinary expressions");
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         terminal_verifier::verify_module(
@@ -218,8 +227,9 @@ fn local_record_reads_cannot_swap_same_typed_operand_occurrences() {
             retained.first ^ retained.second
         }",
     );
-    let _artifact =
-        produce_terminal_artifact(&checked, "observe").expect("distinct fields publish");
+    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "observe")
+        .produce_artifact()
+        .expect("distinct fields publish");
     let fields = checked
         .facts
         .values
@@ -252,7 +262,9 @@ fn local_record_reads_cannot_swap_same_typed_operand_occurrences() {
         .get_mut(fields[0])
         .kind = replacement;
     assert!(
-        produce_terminal_artifact(&changed, "observe").is_err(),
+        terminal_production::TerminalProductionRequest::new(&changed, "observe")
+            .produce_artifact()
+            .is_err(),
         "another valid same-typed read cannot replace this operand"
     );
 }
