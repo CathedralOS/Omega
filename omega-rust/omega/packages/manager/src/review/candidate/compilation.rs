@@ -257,7 +257,15 @@ fn compile_resolved_package_reviews_in_session(
                     errors,
                 },
             )?;
-        let default_entry = custody.snapshot_root().join("main.omg");
+        let main_entry = custody.snapshot_root().join("main.omg");
+        // Package review checks authored build-only packages through the compiler's
+        // existing build entrance. Explicit application/check entries below retain
+        // their own source requirement; no source or product exports are invented.
+        let default_entry = if main_entry.is_file() {
+            main_entry
+        } else {
+            custody.snapshot_root().join("build.omg")
+        };
         let entry = if &key == closure.graph().root() {
             retained_root_entry.unwrap_or(&default_entry)
         } else {
