@@ -113,6 +113,49 @@ impl ExpressionTableCapacity {
 }
 
 impl ExpressionTable {
+    pub(crate) fn retains_exact_prefix(&self, base: &Self) -> bool {
+        let Self {
+            expressions,
+            authored_selection_occurrence_ids,
+            expression_handles,
+            name_path_members,
+            name_path_member_symbols,
+            struct_fields,
+            match_arms,
+            source_spans,
+            authored_selection_occurrences,
+        } = base;
+        crate::typed_trees::retained_prefix::arena_is_exact_prefix(expressions, &self.expressions)
+            && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+                authored_selection_occurrence_ids,
+                &self.authored_selection_occurrence_ids,
+            )
+            && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+                expression_handles,
+                &self.expression_handles,
+            )
+            && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+                name_path_members,
+                &self.name_path_members,
+            )
+            && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+                name_path_member_symbols,
+                &self.name_path_member_symbols,
+            )
+            && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+                struct_fields,
+                &self.struct_fields,
+            )
+            && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+                match_arms,
+                &self.match_arms,
+            )
+            && self.source_spans.starts_with(source_spans)
+            && self
+                .authored_selection_occurrences
+                .starts_with(authored_selection_occurrences)
+    }
+
     pub fn insert_match_arms(
         &mut self,
         arms: impl IntoIterator<Item = TableMatchArm>,

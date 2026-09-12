@@ -876,15 +876,17 @@ fn try_seeded_extension(
     // nominal arguments are selectable; sibling units and base templates are
     // not silently re-normalized together.
     let resolved_base = base.resolved_base_for_extension();
-    for unit in extension_units {
-        let authority = package_inputs.map(|inputs| {
+    let authority = package_inputs
+        .filter(|_| !extension_units.is_empty())
+        .map(|inputs| {
             Arc::new(inputs.clone()) as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
         });
+    for unit in extension_units {
         let evaluated = build_time_evaluation::evaluate_pre_resolution_extension(
             unit,
             sources.clone(),
             Vec::new(),
-            authority,
+            authority.clone(),
             &resolved_base,
         )?;
         let (unit, pre_check) = evaluated.into_syntax_and_pre_check();

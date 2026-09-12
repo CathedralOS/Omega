@@ -2,8 +2,8 @@
 
 use super::PreparedLocalProject;
 use crate::admission::{
-    AcceptedOrdinaryEvidenceError, accept_ordinary_closure_evidence,
-    realize_accepted_reviewed_package_candidate_report_with_source_evaluated_imports_and_policy,
+    AcceptedNativeInput, AcceptedNativeRealizationRequest, AcceptedOrdinaryEvidenceError,
+    accept_ordinary_closure_evidence, realize_accepted_native_report,
 };
 use crate::review::{
     CanonicalPackageReconstructionQuestionLimits, CompileResolvedPackageReviewsError,
@@ -175,14 +175,18 @@ pub fn compile_prepared_local_project_for_native_with_observation<Observation>(
         .map_err(CompilePreparedLocalProjectNativeError::ObservationOutput)?;
     let trust_settlement = admission.into_settlement();
     let observation = observe(candidate.checked_root());
-    realize_accepted_reviewed_package_candidate_report_with_source_evaluated_imports_and_policy(
-        candidate,
-        &evidence,
-        &proof_admission::AdmissionProfile::default(),
-        &optimization_rollback,
-        current_terminal_authority_policy(),
-        receiving_terminal_authority_permission_policy,
-        &[],
+    realize_accepted_native_report(
+        AcceptedNativeInput::Reviewed {
+            candidate: Box::new(candidate),
+            optimization_rollback: &optimization_rollback,
+        },
+        AcceptedNativeRealizationRequest {
+            evidence: &evidence,
+            profile: &proof_admission::AdmissionProfile::default(),
+            terminal_authority_policy: current_terminal_authority_policy(),
+            receiving_terminal_authority_permission_policy,
+            imports: &[],
+        },
     )
     .map(|report| {
         (

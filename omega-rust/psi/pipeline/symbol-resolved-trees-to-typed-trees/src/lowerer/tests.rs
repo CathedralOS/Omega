@@ -79,6 +79,39 @@ fn numeric_result_policies_are_retained_without_result_annotations_or_input_rang
 }
 
 #[test]
+fn retained_base_rejects_type_identity_changes_hidden_by_display_snapshots() {
+    use typed_trees::types::TypeReferenceNode;
+    let tokens = Lexer::new("machine main(value: u64) { value; }")
+        .tokenize()
+        .expect("type identity tokens");
+    let syntax = parse_syntax_trees(&tokens).expect("type identity syntax");
+    let resolved = lower_syntax_trees(&syntax).expect("type identity resolution");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type identity typing");
+    let parameter = &typed.state_parameters(&typed.machine_states(&typed.machines()[0])[0])[0];
+    let mut changed = typed.clone();
+    let TypeReferenceNode::Named { name, .. } = changed
+        .type_reference_table
+        .type_reference(parameter.type_reference)
+        .clone()
+    else {
+        panic!("named scalar parameter");
+    };
+    changed.type_reference_table.substitute_node(
+        parameter.type_reference,
+        TypeReferenceNode::Named {
+            name,
+            symbol: symbols::SymbolHandle::invalid(),
+        },
+    );
+    assert_eq!(
+        typed.snapshot(),
+        changed.snapshot(),
+        "display is not identity"
+    );
+    assert!(!retained_typed_base_is_exact_prefix(&typed, &changed));
+}
+
+#[test]
 fn retained_base_rejects_a_changed_local_inference_origin() {
     let tokens = Lexer::new("machine main() -> u64 { let value: u64 = 7; value }")
         .tokenize()
