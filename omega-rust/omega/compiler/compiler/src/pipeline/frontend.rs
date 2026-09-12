@@ -152,7 +152,7 @@ pub fn lex_sources(sources: LoadedSources) -> Result<LexedSources, Vec<Diagnosti
             path: loaded_source.path.clone(),
             source: loaded_source.source.clone(),
             origin: loaded_source.origin,
-            tokens: own_token_stream(&tokens, &loaded_source.source),
+            tokens: own_token_stream(tokens, &loaded_source.source),
         });
     }
 
@@ -505,26 +505,123 @@ pub fn extend_source_storage(
     source_storage.extend(parsed)
 }
 
-fn own_token_stream(tokens: &TokenStream<'_>, source: &Arc<str>) -> TokenStream<'static> {
-    let tokens = tokens.as_slice();
-    let mut owned_tokens = Vec::with_capacity(tokens.len());
+/// Retain this source's lexer output beyond its borrow, moving decoded literal
+/// buffers. Individual shared lexemes also supply source ownership to the
+/// parser's independently retained identifiers and source text.
+fn own_token_stream(tokens: TokenStream<'_>, source: &Arc<str>) -> TokenStream<'static> {
+    TokenStream::new(
+        tokens
+            .into_tokens()
+            .into_iter()
+            .map(|token| {
+                let lexeme = match token.lexeme {
+                    TokenText::Source(_) => TokenText::shared(source.clone(), token.span),
+                    TokenText::Shared { source, span } => TokenText::Shared { source, span },
+                    TokenText::Owned(value) => TokenText::Owned(value),
+                    TokenText::OwnedBytes(value) => TokenText::OwnedBytes(value),
+                };
+                Token {
+                    kind: token.kind,
+                    lexeme,
+                    span: token.span,
+                }
+            })
+            .collect(),
+    )
+}
 
-    for token in tokens {
-        let lexeme = match &token.lexeme {
-            TokenText::Source(_) => TokenText::shared(source.clone(), token.span),
-            TokenText::Shared { source, span } => TokenText::shared(source.clone(), *span),
-            TokenText::Owned(value) => TokenText::owned(value.clone()),
-            TokenText::OwnedBytes(value) => TokenText::owned_bytes(value.clone()),
-        };
+#[cfg(test)]
+mod token_retention_tests {
+    use super::own_token_stream;
+    use crate::lexer;
+    use source::Span;
+    use std::sync::Arc;
+    use tokens::{Token, TokenKind, TokenStream, TokenText};
 
-        owned_tokens.push(Token {
-            kind: token.kind,
-            lexeme,
-            span: token.span,
-        });
+    #[test]
+    fn retention_moves_decoded_literal_allocations_and_preserves_tokens() {
+        let source: Arc<str> = Arc::from(r#"name "line\ntext" "\xFF\0""#);
+        let tokens = lexer::Lexer::new(&source)
+            .tokenize()
+            .expect("lex literal fixture");
+        let expected = tokens
+            .iter()
+            .map(|token| (token.kind, token.span, token.lexeme.as_bytes().to_vec()))
+            .collect::<Vec<_>>();
+        let decoded_allocations = tokens
+            .iter()
+            .filter(|token| token.is_string_literal())
+            .map(|token| token.lexeme.as_bytes().as_ptr())
+            .collect::<Vec<_>>();
+        assert_eq!(decoded_allocations.len(), 2);
+        let owned = own_token_stream(tokens, &source);
+        let actual = owned
+            .iter()
+            .map(|token| (token.kind, token.span, token.lexeme.as_bytes().to_vec()))
+            .collect::<Vec<_>>();
+        assert_eq!(actual, expected);
+        let literals = owned
+            .iter()
+            .filter(|token| token.is_string_literal())
+            .collect::<Vec<_>>();
+        assert!(matches!(literals[0].lexeme, TokenText::Owned(_)));
+        assert!(matches!(literals[1].lexeme, TokenText::OwnedBytes(_)));
+        assert_eq!(literals[0].lexeme.as_bytes(), b"line\ntext");
+        assert_eq!(literals[1].lexeme.as_bytes(), &[255, 0]);
+        for (literal, allocation) in literals.iter().zip(decoded_allocations) {
+            assert_eq!(literal.lexeme.as_bytes().as_ptr(), allocation);
+        }
     }
 
-    TokenStream::new(owned_tokens)
+    #[test]
+    fn retained_token_keeps_source_alive_after_stream_and_owner_drop() {
+        let source: Arc<str> = Arc::from("name");
+        let weak_source = Arc::downgrade(&source);
+        let tokens = lexer::Lexer::new(&source)
+            .tokenize()
+            .expect("lex identifier");
+        let owned = own_token_stream(tokens, &source);
+        let retained = owned[0].clone();
+        assert_eq!(retained.lexeme.as_bytes().as_ptr(), source.as_ptr());
+        drop(owned);
+        drop(source);
+        assert!(weak_source.upgrade().is_some());
+        assert_eq!(retained.lexeme, "name");
+        drop(retained);
+        assert!(weak_source.upgrade().is_none());
+    }
+
+    #[test]
+    fn retention_preserves_existing_shared_owner_and_owned_byte_storage() {
+        let source: Arc<str> = Arc::from("different source");
+        let existing: Arc<str> = Arc::from("shared text");
+        let shared_pointer = existing.as_ptr();
+        let weak_existing = Arc::downgrade(&existing);
+        let bytes = b"valid utf8 bytes".to_vec();
+        let bytes_pointer = bytes.as_ptr();
+        let tokens = TokenStream::new(vec![
+            Token {
+                kind: TokenKind::Identifier,
+                lexeme: TokenText::Shared {
+                    source: existing,
+                    span: Span::new(0, 6),
+                },
+                span: Span::new(0, 6),
+            },
+            Token {
+                kind: TokenKind::StringLiteral,
+                lexeme: TokenText::OwnedBytes(bytes),
+                span: Span::new(7, 10),
+            },
+        ]);
+        let owned = own_token_stream(tokens, &source);
+        assert_eq!(owned[0].lexeme.as_bytes().as_ptr(), shared_pointer);
+        assert_eq!(weak_existing.strong_count(), 1);
+        assert_eq!(owned[1].lexeme.as_bytes().as_ptr(), bytes_pointer);
+        assert!(matches!(owned[1].lexeme, TokenText::OwnedBytes(_)));
+        drop(owned);
+        assert!(weak_existing.upgrade().is_none());
+    }
 }
 
 fn resolve_source_path(root_dir: &Path, source_path: &[Identifier]) -> PathBuf {
