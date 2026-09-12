@@ -15,6 +15,8 @@ pub(crate) struct GitTreeEntry {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum GitTreeEntryKind {
     Tree,
+    /// An authenticated parent-tree edge, never fetched or materialized.
+    Gitlink,
     File {
         executable: bool,
         bytes: GitBlobBytes,
@@ -42,5 +44,21 @@ impl GitBlobBytes {
 
     pub(crate) fn as_slice(&self) -> &[u8] {
         &self.batch[self.start..self.end]
+    }
+}
+
+impl GitTreeEntry {
+    pub(crate) fn validate_source_entry(&self) -> Result<(), crate::error::SourceResolveError> {
+        if matches!(self.kind, GitTreeEntryKind::Gitlink)
+            || self
+                .relative_bytes
+                .split(|byte| *byte == b'/')
+                .any(|component| component.eq_ignore_ascii_case(b".gitmodules"))
+        {
+            return Err(crate::error::SourceResolveError::GitSubmodulesUnsupported {
+                path: self.relative_path.clone(),
+            });
+        }
+        Ok(())
     }
 }

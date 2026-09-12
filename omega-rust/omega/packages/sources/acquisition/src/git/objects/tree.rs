@@ -18,13 +18,15 @@ pub(crate) fn parse_git_tree_entries(
         listing,
         repository,
         limits,
-        GitTreePayloadLimitPolicy::WholeTree,
+        GitTreeInspectionScope::WholeTree,
     )
 }
 
 /// Parse a complete recursive graph without charging unopened blob payloads to
 /// the eventual package projection. The listing and graph remain bounded by
-/// compiler-owned entry/depth ceilings and the process-output ceiling.
+/// compiler-owned entry/depth ceilings and the process-output ceiling. Unselected
+/// gitlinks are inert parent-tree edges; only a selected source projection may
+/// request payloads, and that projection still rejects submodule content.
 pub(super) fn parse_git_tree_graph_entries(
     listing: &[u8],
     repository: &Path,
@@ -37,12 +39,12 @@ pub(super) fn parse_git_tree_graph_entries(
             max_bytes: u64::MAX,
             max_depth: SOURCE_DEPTH_ABSOLUTE_LIMIT,
         },
-        GitTreePayloadLimitPolicy::SelectedOnly,
+        GitTreeInspectionScope::SelectedOnly,
     )
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum GitTreePayloadLimitPolicy {
+enum GitTreeInspectionScope {
     WholeTree,
     SelectedOnly,
 }
@@ -51,7 +53,7 @@ fn parse_git_tree_entries_with_policy(
     listing: &[u8],
     repository: &Path,
     limits: LocalSourceLimits,
-    payload_limit_policy: GitTreePayloadLimitPolicy,
+    inspection_scope: GitTreeInspectionScope,
 ) -> Result<Vec<GitTreeEntry>, SourceResolveError> {
     let mut entries = Vec::new();
     let mut paths = BTreeMap::new();
@@ -80,21 +82,25 @@ fn parse_git_tree_entries_with_policy(
         if !is_object_id(oid) {
             return Err(git_tree_invalid(path, "object ID has an invalid spelling"));
         }
-        if mode == b"160000" || object_type == b"commit" {
+        if inspection_scope == GitTreeInspectionScope::WholeTree
+            && (mode == b"160000" || object_type == b"commit")
+        {
             return Err(SourceResolveError::GitSubmodulesUnsupported {
                 path: git_path_from_bytes(path).unwrap_or_else(|_| repository.to_path_buf()),
             });
         }
         let relative_path = validate_git_path(path, limits)?;
-        if path
-            .split(|byte| *byte == b'/')
-            .any(|component| component.eq_ignore_ascii_case(b".gitmodules"))
+        if inspection_scope == GitTreeInspectionScope::WholeTree
+            && path
+                .split(|byte| *byte == b'/')
+                .any(|component| component.eq_ignore_ascii_case(b".gitmodules"))
         {
             return Err(SourceResolveError::GitSubmodulesUnsupported {
                 path: relative_path,
             });
         }
         let (size, kind) = match (mode, object_type, fields[3]) {
+            (b"160000", b"commit", b"-") => (0, GitTreeEntryKind::Gitlink),
             (b"040000", b"tree", b"-") => (0, GitTreeEntryKind::Tree),
             (b"100644", b"blob", size) => (
                 parse_git_blob_size(path, size)?,
@@ -136,7 +142,7 @@ fn parse_git_tree_entries_with_policy(
                 limit: limits.max_entries,
             });
         }
-        if payload_limit_policy == GitTreePayloadLimitPolicy::WholeTree
+        if inspection_scope == GitTreeInspectionScope::WholeTree
             && !matches!(&kind, GitTreeEntryKind::Tree)
         {
             blob_bytes = blob_bytes

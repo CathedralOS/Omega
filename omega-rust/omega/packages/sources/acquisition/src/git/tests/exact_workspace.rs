@@ -3,6 +3,7 @@
 use super::*;
 mod fixtures;
 mod planner;
+mod submodules;
 use fixtures::{Fixture, declaration_limits, limits};
 use planner::Planner;
 

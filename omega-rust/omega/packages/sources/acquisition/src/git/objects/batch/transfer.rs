@@ -39,6 +39,9 @@ pub(in crate::git::objects) fn read_git_blobs_batch(
     limits: LocalSourceLimits,
 ) -> Result<(), SourceResolveError> {
     executor.verify_budget()?;
+    for entry in entries.iter() {
+        entry.validate_source_entry()?;
+    }
     if entries
         .iter()
         .all(|entry| matches!(&entry.kind, GitTreeEntryKind::Tree))
@@ -85,6 +88,9 @@ pub(crate) fn read_git_blobs_batch_from_path(
     limits: LocalSourceLimits,
 ) -> Result<(), SourceResolveError> {
     executor.verify_budget()?;
+    for entry in entries.iter() {
+        entry.validate_source_entry()?;
+    }
     if entries
         .iter()
         .all(|entry| matches!(&entry.kind, GitTreeEntryKind::Tree))

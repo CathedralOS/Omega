@@ -56,7 +56,7 @@ Public requests admit HTTPS, SSH URLs, and SCP-like SSH locators. Host
 `insteadOf` configuration may route between HTTPS and SSH because both belong
 to the admitted production transport class. HTTP, unauthenticated `git://`,
 `file`, `ext`, redirects outside the requested repository policy, hooks,
-submodules, and credential-bearing locators reject. The test-only
+submodule acquisition, and credential-bearing locators reject. The test-only
 local-repository adapter is not a production transport.
 
 HTTPS and SSH use the invoking environment's system authentication facilities.
@@ -182,6 +182,14 @@ without checkout filters, hooks, submodules, or package execution. Repository
 inspection reconstructs modes, names, object IDs, and payloads from the
 selected tree. Workspace selection reads only compiler-authorized declaration
 paths and publishes only the verified selected member.
+
+An unrelated `.gitmodules` blob or gitlink may remain inert in the authenticated
+repository graph for named-member selection. Its exact mode, path and object ID
+still participate in parent-tree authentication; no gitlink commit is opened or
+fetched. Whole-tree acquisition and selected member source reject `.gitmodules`
+and gitlinks. Declaration selection cannot read through a gitlink. This permits
+independent repository members without granting submodule loading or inventing
+package edges; selected packages still declare their own dependencies.
 
 “Verified” here means that the materialized bytes and graph rejoin the resolved
 Git object identities. It does not authenticate a repository owner or package

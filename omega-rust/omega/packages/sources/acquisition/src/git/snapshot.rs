@@ -148,7 +148,9 @@ fn resolve_git_snapshot_in_collection(
     for entry in &entries {
         executor.verify_budget()?;
         checked_git_destination(&source, entry)?;
+        entry.validate_source_entry()?;
         match &entry.kind {
+            GitTreeEntryKind::Gitlink => unreachable!("source entry validation rejects gitlinks"),
             GitTreeEntryKind::Tree => {
                 open_or_create_snapshot_directory(
                     kind,
@@ -275,7 +277,9 @@ fn authenticated_git_snapshot_identity(
     let mut identity = SourceIdentityHasher::new(entries.len());
     let mut file_count = 0_usize;
     for entry in entries {
+        entry.validate_source_entry()?;
         match &entry.kind {
+            GitTreeEntryKind::Gitlink => unreachable!("source entry validation rejects gitlinks"),
             GitTreeEntryKind::Tree => {
                 identity.add_directory(&entry.relative_bytes, CANONICAL_DIRECTORY_MODE);
             }
@@ -335,7 +339,7 @@ fn checked_git_destination(
 fn release_git_blob_payloads(entries: &mut [GitTreeEntry]) {
     for entry in entries {
         match &mut entry.kind {
-            GitTreeEntryKind::Tree => {}
+            GitTreeEntryKind::Tree | GitTreeEntryKind::Gitlink => {}
             GitTreeEntryKind::File { bytes, .. } => *bytes = GitBlobBytes::empty(),
             GitTreeEntryKind::Symlink { target_bytes } => {
                 *target_bytes = GitBlobBytes::empty();
@@ -393,6 +397,9 @@ fn verify_captured_git_snapshot_shape(
     captured: &[CapturedLocalEntry],
     entries: &[GitTreeEntry],
 ) -> Result<(), SourceResolveError> {
+    for entry in entries {
+        entry.validate_source_entry()?;
+    }
     let mut expected_directories = git_directory_paths(entries);
     let mut expected_leaves = entries
         .iter()
