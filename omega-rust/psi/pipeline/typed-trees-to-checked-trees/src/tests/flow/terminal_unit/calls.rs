@@ -387,7 +387,7 @@ fn retains_arm_local_boundary_result_discard_on_each_closed_sum_return() {
             machine write_byte(value: i32) reaches Console;
         }
         data Main { console: Console; }
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Console {
             let first: ByteRead = self.console.read_byte();
             transition first {
                 ByteRead::Byte { value } -> byte(value)
@@ -493,7 +493,7 @@ fn composes_conditional_unit_control_with_exact_boundary_call_leaves() {
         r#"
         boundary trait Host { machine exit(code: i32); }
         data Root {}
-        machine Root::enter(flag: bool) {
+        machine Root::enter(flag: bool) reaches Host {
             transition flag { true -> yes() _ -> no() }
             state yes() { Host::exit(1); }
             state no() { Host::exit(2); }
@@ -566,7 +566,7 @@ fn composes_one_compile_known_u64_binding_with_exact_boundary_leaves() {
         r#"
         boundary trait Host { machine exit(code: i32); }
         data Root { values: [i32; 5]; }
-        machine Root::enter(&mut self) {
+        machine Root::enter(&mut self) reaches Host {
             let length: u64 = (self.values[1..4]).len;
             transition length == 3 {
                 true -> yes()
@@ -626,7 +626,7 @@ fn rejects_the_whole_composed_control_plan_when_one_leaf_is_unsupported() {
         data Helper {}
         machine Helper::touch() {}
         data Root {}
-        machine Root::enter(flag: bool) {
+        machine Root::enter(flag: bool) reaches Host {
             transition flag { true -> yes() _ -> no() }
             state yes() { Host::exit(1); }
             state no() { Helper::touch(); let local: u8 = 1u8; }
@@ -652,7 +652,7 @@ fn retains_multiple_calls_in_a_composed_leaf_beside_a_boundary_leaf() {
         data Helper {}
         machine Helper::touch() {}
         data Root {}
-        machine Root::enter(flag: bool) {
+        machine Root::enter(flag: bool) reaches Host {
             transition flag { true -> yes() _ -> no() }
             state yes() { Host::exit(1); }
             state no() { Helper::touch(); Helper::touch(); }

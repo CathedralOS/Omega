@@ -22,7 +22,7 @@ data Main {
     status: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches NativeFixedArrays {
     self.status = self.foreign.take_bytes(self.bytes);
     self.status = self.foreign.take_floats(self.floats);
     self.status = self.foreign.take_pointer(&self.bytes);

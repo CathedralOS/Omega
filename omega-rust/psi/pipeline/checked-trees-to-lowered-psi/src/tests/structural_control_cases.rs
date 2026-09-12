@@ -8,7 +8,7 @@ fn lowers_conditional_unit_control_with_exact_boundary_effect_leaves() {
         r#"
             boundary trait Host { machine exit(code: i32); }
             data Root {}
-            machine Root::enter(flag: bool) {
+            machine Root::enter(flag: bool) reaches Host {
                 transition flag { true -> yes() _ -> no() }
                 state yes() { Host::exit(1); }
                 state no() { Host::exit(2); }
@@ -126,7 +126,7 @@ fn lowers_one_compile_known_u64_binding_and_rejects_checked_drift() {
     let source = r#"
         boundary trait Host { machine exit(code: i32); }
         data Root { values: [i32; 5]; }
-        machine Root::enter(&mut self) {
+        machine Root::enter(&mut self) reaches Host {
             let length: u64 = (self.values[1..4]).len;
             transition length == 3 {
                 true -> yes()

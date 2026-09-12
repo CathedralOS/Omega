@@ -4,21 +4,24 @@ use super::*;
 
 #[test]
 fn nested_boundary_results_keep_dense_postorder_and_exact_temporary_transfers() {
-    for (factory, create, nominal) in [
+    for (factory, create, nominal, reach) in [
         (
             "pub data Factory {} boundary machine Factory::create(first: u16, last: u16) -> Token ensures true;",
             "Factory::create",
             false,
+            "reaches Sink",
         ),
         (
             "boundary trait Factory { machine create(first: u16, last: u16) -> Token; }",
             "Factory::create",
             false,
+            "reaches Factory + Sink",
         ),
         (
             "boundary trait Factory { machine create(first: u16, last: u16) -> Token; }",
             "Create",
             true,
+            "reaches Sink",
         ),
     ] {
         let signature = if nominal {
@@ -37,7 +40,7 @@ fn nested_boundary_results_keep_dense_postorder_and_exact_temporary_transfers() 
             machine identity(input: u16) -> u16 {{ input }}
             machine forward(first: u16, token: Token, last: u16) -> Token {{ token }}
             data Root {{}}
-            {signature} {{
+            {signature} {reach} {{
                 let prior: u16 = input;
                 Sink::take(Sink::replace(
                     forward(identity(11u16), {create}(identity(prior), identity(22u16)), identity(33u16)),
@@ -223,21 +226,24 @@ fn nested_boundary_results_keep_dense_postorder_and_exact_temporary_transfers() 
 
 #[test]
 fn nested_ordinary_results_keep_postorder_and_exact_boundary_operand_roles() {
-    for (declaration, invocation, nominal) in [
+    for (declaration, invocation, nominal, reach) in [
         (
             "pub data Sink {} boundary machine Sink::take(first: u16, token: Token, last: u16) ensures true;",
             "Sink::take",
             false,
+            "",
         ),
         (
             "boundary trait Sink { machine take(first: u16, token: Token, last: u16); }",
             "Sink::take",
             false,
+            "reaches Sink",
         ),
         (
             "boundary trait Sink { machine take(first: u16, token: Token, last: u16); }",
             "Take",
             true,
+            "",
         ),
     ] {
         let signature = if nominal {
@@ -252,7 +258,7 @@ fn nested_ordinary_results_keep_postorder_and_exact_boundary_operand_roles() {
             machine identity(input: u16) -> u16 {{ input }}
             machine forward(first: u16, token: Token, last: u16) -> Token {{ token }}
             data Root {{}}
-            {signature} {{
+            {signature} {reach} {{
                 let prior: u16 = input;
                 {invocation}(identity(prior),
                     forward(identity(11u16), forward(identity(22u16), token, identity(33u16)), identity(44u16)),

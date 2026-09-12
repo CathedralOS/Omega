@@ -21,7 +21,11 @@ use typed_trees::trait_definition::TraitDefinition;
 use typed_trees::trait_definition::{ConformanceImplementation, ConformanceRowSource};
 use typed_trees::types::TypeReferenceHandle;
 
-pub(crate) fn validate_conformances(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+pub(crate) fn validate_conformances(
+    program: &TypedTrees,
+    service_reaches: &flow_effects::ServiceReachInferencePlan,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     for (index, conformance) in program.conformances().iter().enumerate() {
         let (subject_name, carrier_name) = match &conformance.subject {
             typed_trees::trait_definition::ConformanceSubject::Carrier(type_name) => {
@@ -147,6 +151,7 @@ pub(crate) fn validate_conformances(program: &TypedTrees, diagnostics: &mut Vec<
                 if let Some(type_name) = carrier_name {
                     validate_data_satisfies_trait(
                         program,
+                        service_reaches,
                         conformance.carrier_symbol,
                         type_name,
                         trait_definition,
@@ -163,6 +168,7 @@ pub(crate) fn validate_conformances(program: &TypedTrees, diagnostics: &mut Vec<
             }
             ConformanceImplementation::Closed { rows } => validate_closed_rows(
                 program,
+                service_reaches,
                 subject_name,
                 trait_definition,
                 arguments,
@@ -176,6 +182,7 @@ pub(crate) fn validate_conformances(program: &TypedTrees, diagnostics: &mut Vec<
 
 fn validate_closed_rows(
     program: &TypedTrees,
+    service_reaches: &flow_effects::ServiceReachInferencePlan,
     type_name: &str,
     root_trait: &TraitDefinition,
     root_arguments: &[TypeReferenceHandle],
@@ -245,6 +252,7 @@ fn validate_closed_rows(
         };
         super::conformance::validate_machine_state_satisfies_trait_signature_with_arguments(
             program,
+            service_reaches,
             machine,
             state,
             declaring_trait,
@@ -306,6 +314,7 @@ pub(crate) fn arguments_for_declaring_trait(
 
 fn validate_data_satisfies_trait(
     program: &TypedTrees,
+    service_reaches: &flow_effects::ServiceReachInferencePlan,
     data_symbol: symbols::SymbolHandle,
     type_name: &str,
     trait_definition: &TraitDefinition,
@@ -332,6 +341,7 @@ fn validate_data_satisfies_trait(
 
         super::conformance::validate_machine_state_satisfies_trait_signature_with_arguments(
             program,
+            service_reaches,
             machine,
             state,
             trait_definition,
@@ -365,6 +375,7 @@ fn validate_data_satisfies_trait(
         );
         validate_data_satisfies_trait(
             program,
+            service_reaches,
             data_symbol,
             type_name,
             required_trait,

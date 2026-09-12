@@ -97,6 +97,28 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
         }
     }
 
+    // A receiverless static binder call retains the same exact requirement
+    // identity as an ordinary call. State targets keep precedence above.
+    if path.len() == 1
+        && !named.path_starts_at_self
+        && let Some(target_name) = target_name.as_ref()
+    {
+        let target_symbol = super::calls::resolve_call_target_symbol(
+            machine,
+            parameters,
+            false,
+            SymbolHandle::invalid(),
+            target_name,
+            child_type_references,
+            symbols,
+        );
+        if symbols.get(target_symbol).kind == SymbolKind::MachineParameter {
+            named.head_symbol = target_symbol;
+            named.symbol = target_symbol;
+            return;
+        }
+    }
+
     let (head_symbol, symbol) = resolve_state_scoped_members(
         symbols,
         machine.symbol,

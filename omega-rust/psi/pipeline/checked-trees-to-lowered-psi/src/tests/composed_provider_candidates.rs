@@ -87,7 +87,7 @@ fn composed_provider_candidate_preserves_helper_effects_across_every_fuel_pause(
                 machine mark(value: u64) reaches Host invokes Host;
             }
             data RelayProvider {}
-            machine RelayProvider::mark(value: u64) satisfies Relay::mark {
+            machine RelayProvider::mark(value: u64) satisfies Relay::mark reaches Host {
                 Host::mark(value);
             }
             machine mark_middle() reaches Host + Relay { Relay::mark(7); }

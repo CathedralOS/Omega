@@ -16,7 +16,7 @@ data Main {
     seed: u64;
     result: Pair32;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches DirectAggregateResultImport {
     self.seed = 7;
     self.result = self.foreign.receive(self.seed);
 }

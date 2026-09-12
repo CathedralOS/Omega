@@ -41,6 +41,8 @@ pub(super) fn project_package_callables(
     let mut callables = Vec::new();
     let mut external_executable_supply = Vec::new();
     let mut projected_build_machine = false;
+    let operational = validation::infer_operational_may(compilation);
+    let service_reaches = validation::infer_service_reaches(compilation, &operational);
 
     for machine in compilation.machines() {
         let role = if Some(machine.symbol) == build_machine {
@@ -78,6 +80,7 @@ pub(super) fn project_package_callables(
         contract_locations.extend(project_machine_service_reach_source_locations(
             compilation,
             machine,
+            &service_reaches,
         )?);
         contract_locations.extend(project_machine_operational_source_locations(
             compilation,

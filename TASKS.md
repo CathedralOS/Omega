@@ -229,15 +229,15 @@ Optimizer revision/analysis reuse is tracked only in `TASKS_OPTIMIZER.md`.
 
 ## Automatic service reach
 
-Implement [reach propagation and static callback dependencies](wiki/spec/language/effects.md#static-callback-reach-dependencies)
-in Psi contract checking, call-component normalization, specialization, exported
-contract identity, and Terminal evidence/replay. Direct boundary calls require
-authored service declarations; ordinary wrappers, including exports, propagate
-reach without repeated annotations. Nominal callback calls retain bounded union
-dependencies and specialize from selected public contracts. Replace the old
-export-omission-is-empty and generic-always-uses-fixed-reach rules, not the
-independent suspension/blocking checks. No forwarding syntax, closure machinery,
-reach-prohibition syntax, or backend effect inference.
+Complete [static callback reach dependencies](wiki/spec/language/effects.md#static-callback-reach-dependencies)
+in Psi call-component normalization, specialization, exported contract identity,
+and Terminal evidence/replay. Nominal callback calls must retain bounded union
+dependencies and specialize from selected public contracts instead of always
+publishing the fixed requirement upper bound. Compose these dependencies through
+ordinary checked wrappers and recursive call components. Preserve direct boundary
+declarations, pinned requirement bounds, and independent suspension/blocking
+checks. No forwarding syntax, closure machinery, reach-prohibition syntax, or
+backend effect inference.
 
 Acceptance: the same named traversal with no-reach and Console callbacks publishes
 empty and Console rows to ordinary callers and evaluation admission respectively;

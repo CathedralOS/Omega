@@ -19,7 +19,7 @@ data Main {
     result: i64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches HfaStackImport {
     self.first = Quad { a: 1.0, b: 2.0, c: 3.0, d: 4.0 };
     self.second = Quad { a: 5.0, b: 6.0, c: 7.0, d: 8.0 };
     self.trailing = Pair { first: 9.0, second: 10.0 };

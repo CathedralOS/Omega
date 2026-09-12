@@ -141,7 +141,7 @@ fn rejects_suspension_while_borrow_carrying_local_remains_live() {
         machine Main::read(&mut self, cell: &Cell) -> i32 {
             transition { _ -> cell.value }
         }
-        machine Main::run(&mut self) {
+        machine Main::run(&mut self) reaches Scheduler {
             let message: Message = Message { body: &self.cell };
             suspend self.scheduler.park();
             let value: i32 = self.read(message.body);
@@ -173,7 +173,7 @@ fn accepts_suspension_after_restrictive_locals_last_use() {
         machine Main::read(&mut self, cell: &Cell) -> i32 {
             transition { _ -> cell.value }
         }
-        machine Main::run(&mut self) {
+        machine Main::run(&mut self) reaches Scheduler {
             let message: Message = Message { body: &self.cell };
             let value: i32 = self.read(message.body);
             suspend self.scheduler.park();
@@ -190,7 +190,7 @@ fn checked_crossing_records_canonical_site_and_joined_policy() {
         boundary trait Scheduler { machine park() suspends; }
         data Main { scheduler: Scheduler; }
         machine Main::keep(&self, value: &i32) {}
-        machine Main::run(&mut self) {
+        machine Main::run(&mut self) reaches Scheduler {
             let value: i32 = 7;
             suspend self.scheduler.park();
             self.keep(&value);
@@ -243,7 +243,7 @@ fn admitted_across_suspend_permission_relaxes_only_the_claim_suspension_axis() {
         }
         boundary trait Scheduler { machine park() suspends; }
         data Main { issuer: TokenIssuer; scheduler: Scheduler; }
-        machine Main::run(&mut self) -> Token {
+        machine Main::run(&mut self) -> Token reaches TokenIssuer + Scheduler {
             let token: Token = self.issuer.issue(7);
             suspend self.scheduler.park();
             transition { _ -> token }
@@ -307,7 +307,7 @@ fn non_suspension_claim_permission_does_not_relax_suspension() {
         }
         boundary trait Scheduler { machine park() suspends; }
         data Main { issuer: TokenIssuer; scheduler: Scheduler; }
-        machine Main::run(&mut self) -> Token {
+        machine Main::run(&mut self) -> Token reaches TokenIssuer + Scheduler {
             let token: Token = self.issuer.issue(7);
             suspend self.scheduler.park();
             transition { _ -> token }
@@ -340,7 +340,7 @@ fn admitted_linear_bodyless_claim_without_permissions_is_born_strict() {
         }
         boundary trait Scheduler { machine park() suspends; }
         data Main { issuer: TokenIssuer; scheduler: Scheduler; }
-        machine Main::run(&mut self) -> Token {
+        machine Main::run(&mut self) -> Token reaches TokenIssuer + Scheduler {
             let token: Token = self.issuer.issue(7);
             suspend self.scheduler.park();
             transition { _ -> token }
@@ -374,7 +374,7 @@ fn state_parameter_claim_retains_its_strict_origin_without_a_permission() {
         }
         boundary trait Scheduler { machine park() suspends; }
         data Main { issuer: TokenIssuer; scheduler: Scheduler; }
-        machine Main::run(&mut self) -> Token {
+        machine Main::run(&mut self) -> Token reaches TokenIssuer + Scheduler {
             let token: Token = self.issuer.issue(7);
             transition { _ -> hold(token) }
 
@@ -413,7 +413,7 @@ fn state_parameter_claim_retains_its_exact_carry_permission() {
         }
         boundary trait Scheduler { machine park() suspends; }
         data Main { issuer: TokenIssuer; scheduler: Scheduler; }
-        machine Main::run(&mut self) -> Token {
+        machine Main::run(&mut self) -> Token reaches TokenIssuer + Scheduler {
             let token: Token = self.issuer.issue(7);
             transition { _ -> hold(token) }
 
@@ -443,7 +443,7 @@ fn checked_one_to_one_call_infers_the_claims_exact_carry_policy() {
         machine forward(token: Token) -> Token { token }
         boundary trait Scheduler { machine park() suspends; }
         data Main { issuer: TokenIssuer; scheduler: Scheduler; }
-        machine Main::run(&mut self) -> Token {
+        machine Main::run(&mut self) -> Token reaches TokenIssuer + Scheduler {
             let token: Token = self.issuer.issue(7);
             let first: Token = forward(token);
             let forwarded: Token = forward(first);
@@ -538,7 +538,7 @@ fn checked_nary_call_inherits_each_claims_exact_carry_policy() {
         }
         boundary trait Scheduler { machine park() suspends; }
         data Main { issuer: TokenIssuer; scheduler: Scheduler; }
-        machine Main::run(&mut self) -> Pair {
+        machine Main::run(&mut self) -> Pair reaches TokenIssuer + Scheduler {
             let left: Token = self.issuer.issue_safe(1);
             let right: Token = self.issuer.issue_strict(2);
             let packed: Pair = pack(left, right);
@@ -580,7 +580,7 @@ fn checked_nary_call_retains_distinct_claim_policy_facts() {
         }
         boundary trait Scheduler { machine park() suspends; }
         data Main { issuer: TokenIssuer; scheduler: Scheduler; }
-        machine Main::run(&mut self) -> Pair {
+        machine Main::run(&mut self) -> Pair reaches TokenIssuer + Scheduler {
             let left: Token = self.issuer.issue(1);
             let right: Token = self.issuer.issue(2);
             let packed: Pair = pack(left, right);
@@ -637,7 +637,7 @@ fn checked_one_to_one_call_cannot_erase_a_strict_claim_origin() {
         machine forward(token: Token) -> Token { token }
         boundary trait Scheduler { machine park() suspends; }
         data Main { issuer: TokenIssuer; scheduler: Scheduler; }
-        machine Main::run(&mut self) -> Token {
+        machine Main::run(&mut self) -> Token reaches TokenIssuer + Scheduler {
             let token: Token = self.issuer.issue(7);
             let forwarded: Token = forward(token);
             suspend self.scheduler.park();
@@ -679,7 +679,7 @@ fn admitted_one_to_one_call_cannot_erase_a_strict_claim_origin() {
             transformer: TokenTransformer;
             scheduler: Scheduler;
         }
-        machine Main::run(&mut self) -> Token {
+        machine Main::run(&mut self) -> Token reaches TokenIssuer + TokenTransformer + Scheduler {
             let token: Token = self.issuer.issue(7);
             let forwarded: Token = self.transformer.forward(token);
             suspend self.scheduler.park();
@@ -710,7 +710,7 @@ fn rejects_transitive_suspension_reach_with_live_restrictive_value() {
             machine park() suspends;
         }
         data Main { scheduler: Scheduler; cell: Cell; }
-        machine Main::wait(&mut self) { suspend self.scheduler.park(); }
+        machine Main::wait(&mut self) reaches Scheduler { suspend self.scheduler.park(); }
         machine Main::read(&mut self, cell: &Cell) -> i32 {
             transition { _ -> cell.value }
         }
@@ -743,7 +743,7 @@ fn rejects_suspension_while_restrictive_self_field_remains_live() {
         machine Main::read(&mut self, cell: &Cell) -> i32 {
             transition { _ -> cell.value }
         }
-        machine Main::run(&mut self) {
+        machine Main::run(&mut self) reaches Scheduler {
             suspend self.scheduler.park();
             let value: i32 = self.read(self.message.body);
         }
@@ -771,7 +771,7 @@ fn accepts_suspension_after_restrictive_self_field_last_use() {
         machine Main::read(&mut self, cell: &Cell) -> i32 {
             transition { _ -> cell.value }
         }
-        machine Main::run(&mut self) {
+        machine Main::run(&mut self) reaches Scheduler {
             let value: i32 = self.read(self.message.body);
             suspend self.scheduler.park();
         }
@@ -791,7 +791,7 @@ fn rejects_suspension_when_self_field_is_used_in_reachable_state() {
         machine Main::read(&mut self, cell: &Cell) -> i32 {
             transition { _ -> cell.value }
         }
-        machine Main::run(&mut self) {
+        machine Main::run(&mut self) reaches Scheduler {
             suspend self.scheduler.park();
             transition { _ -> resumed() }
             state resumed(&mut self) {
@@ -821,7 +821,7 @@ fn rejects_restrictive_argument_carried_by_suspending_call() {
             machine park(message: Message) suspends;
         }
         data Main { scheduler: Scheduler; cell: Cell; }
-        machine Main::run(&mut self) {
+        machine Main::run(&mut self) reaches Scheduler {
             let message: Message = Message { body: &self.cell };
             suspend self.scheduler.park(message);
         }
@@ -852,7 +852,7 @@ fn rejects_nested_suspending_call_before_carry_analysis() {
         machine Main::read(&mut self, cell: &Cell) -> i32 {
             transition { _ -> cell.value }
         }
-        machine Main::run(&mut self) {
+        machine Main::run(&mut self) reaches Scheduler {
             let message: Message = Message { body: &self.cell };
             let values: [i32; 2] = [suspend self.scheduler.park(), self.read(message.body)];
         }
@@ -881,7 +881,7 @@ fn accepts_restrictive_use_before_nested_suspending_call_in_same_statement() {
         machine Main::read(&mut self, cell: &Cell) -> i32 {
             transition { _ -> cell.value }
         }
-        machine Main::run(&mut self) {
+        machine Main::run(&mut self) reaches Scheduler {
             let message: Message = Message { body: &self.cell };
             let first: i32 = self.read(message.body);
             let parked: i32 = suspend self.scheduler.park();

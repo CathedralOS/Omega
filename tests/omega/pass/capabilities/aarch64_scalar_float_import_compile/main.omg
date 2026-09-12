@@ -9,6 +9,6 @@ boundary trait ScalarFloatImport {
 machine scalar_float_import(value: f64) -> f64 satisfies ScalarFloatImport::call via Binding::DllImport("libSystem.B.dylib", "omega_scalar_float_probe");
 
 data Main { foreign: ScalarFloatImport; value: f64; result: f64; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches ScalarFloatImport {
     self.result = self.foreign.call(self.value);
 }

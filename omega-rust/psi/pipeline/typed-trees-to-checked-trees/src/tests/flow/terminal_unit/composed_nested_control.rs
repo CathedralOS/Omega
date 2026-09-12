@@ -25,7 +25,7 @@ fn composes_nested_boolean_control_with_one_scalar_handoff() {
         r#"
         boundary trait Host { machine exit(code: i32); }
         data Root {}
-        machine Root::enter(first: bool, second: bool) {
+        machine Root::enter(first: bool, second: bool) reaches Host {
             transition first {
                 true -> dispatch(second)
                 _ -> outer_no()
@@ -85,7 +85,7 @@ fn composes_the_smallest_two_frontier_convergent_graph() {
         r#"
         boundary trait Host { machine exit(code: i32); }
         data Root {}
-        machine Root::enter(first: bool, second: bool) {
+        machine Root::enter(first: bool, second: bool) reaches Host {
             transition first { true -> dispatch(second) _ -> no() }
             state dispatch(flag: bool) {
                 transition flag { true -> yes() _ -> no() }
@@ -119,7 +119,7 @@ fn composes_an_internal_unit_call_before_a_conditional() {
         boundary trait Host { machine exit(code: i32); }
         data Root {}
         machine Root::quiet() {}
-        machine Root::enter(first: bool, second: bool) {
+        machine Root::enter(first: bool, second: bool) reaches Host {
             Root::quiet();
             transition first { true -> dispatch(second) _ -> no() }
             state dispatch(flag: bool) {
@@ -158,7 +158,7 @@ fn composes_a_finite_internal_call_prefix_before_a_conditional() {
         data Root {}
         machine Root::quiet_a() {}
         machine Root::quiet_b() {}
-        machine Root::enter(first: bool, second: bool) {
+        machine Root::enter(first: bool, second: bool) reaches Host {
             Root::quiet_a();
             Root::quiet_b();
             transition first { true -> dispatch(second) _ -> no() }
@@ -200,7 +200,7 @@ fn composes_a_parameterless_boundary_call_before_a_conditional() {
             machine exit(code: i32);
         }
         data Root {}
-        machine Root::enter(first: bool, second: bool) {
+        machine Root::enter(first: bool, second: bool) reaches Host {
             Host::tick();
             transition first { true -> dispatch(second) _ -> no() }
             state dispatch(flag: bool) {
@@ -291,7 +291,7 @@ fn composes_three_frontiers_with_recursive_scalar_suffix_handoffs() {
         r#"
         boundary trait Host { machine exit(code: i32); }
         data Root {}
-        machine Root::enter(first: bool, second: bool, third: bool) {
+        machine Root::enter(first: bool, second: bool, third: bool) reaches Host {
             transition first { true -> middle(second, third) _ -> outer_no() }
             state middle(second: bool, third: bool) {
                 transition second { true -> inner(third) _ -> middle_no() }
@@ -350,7 +350,7 @@ fn composes_balanced_control_with_a_convergent_leaf() {
         r#"
         boundary trait Host { machine exit(code: i32); }
         data Root {}
-        machine Root::enter(first: bool, left_guard: bool, right_guard: bool) {
+        machine Root::enter(first: bool, left_guard: bool, right_guard: bool) reaches Host {
             transition first {
                 true -> left(left_guard)
                 _ -> right(right_guard)

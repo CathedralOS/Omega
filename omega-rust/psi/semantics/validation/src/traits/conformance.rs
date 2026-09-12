@@ -488,6 +488,7 @@ fn native_carrier_diagnostic(
 
 pub(crate) fn validate_machine_trait_conformances(
     program: &TypedTrees,
+    service_reaches: &flow_effects::ServiceReachInferencePlan,
     machine: &Machine,
     symbols: &crate::symbols::TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -500,6 +501,7 @@ pub(crate) fn validate_machine_trait_conformances(
         }) {
             validate_machine_top_level_requirement_conformance(
                 program,
+                service_reaches,
                 machine,
                 requirement,
                 conformance,
@@ -578,6 +580,7 @@ pub(crate) fn validate_machine_trait_conformances(
         };
         validate_machine_single_requirement(
             program,
+            service_reaches,
             machine,
             trait_definition,
             requirement_name,
@@ -592,6 +595,7 @@ pub(crate) fn validate_machine_trait_conformances(
 
 fn validate_machine_top_level_requirement_conformance(
     program: &TypedTrees,
+    service_reaches: &flow_effects::ServiceReachInferencePlan,
     machine: &Machine,
     requirement: &Machine,
     conformance: &typed_trees::machine::TraitConformance,
@@ -838,6 +842,7 @@ fn validate_machine_top_level_requirement_conformance(
 
     validate_top_level_requirement_effect_ceiling(
         program,
+        service_reaches,
         machine,
         requirement,
         &label,
@@ -866,6 +871,8 @@ pub fn revalidate_top_level_requirement_realization(
     conformance: &typed_trees::machine::TraitConformance,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    let operational = crate::infer_operational_may(program);
+    let service_reaches = crate::infer_service_reaches(program, &operational);
     if requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement
         || conformance.symbol != requirement.symbol
     {
@@ -876,6 +883,7 @@ pub fn revalidate_top_level_requirement_realization(
     } else {
         validate_machine_top_level_requirement_conformance(
             program,
+            &service_reaches,
             machine,
             requirement,
             conformance,
@@ -905,6 +913,7 @@ fn nominal_type_symbol(program: &TypedTrees, handle: TypeReferenceHandle) -> Opt
 
 fn validate_top_level_requirement_effect_ceiling(
     program: &TypedTrees,
+    service_reaches: &flow_effects::ServiceReachInferencePlan,
     machine: &Machine,
     requirement: &Machine,
     label: &str,
@@ -913,10 +922,16 @@ fn validate_top_level_requirement_effect_ceiling(
     let allowed_services = program
         .service_reach_rows
         .services(requirement.service_reach_row);
-    for service in program
-        .service_reach_rows
-        .services(machine.service_reach_row)
-    {
+    // Checked providers contribute their whole call closure. Comparing only
+    // authored clauses would let an annotation-free helper evade this bound.
+    let Some(summary) = service_reaches.for_machine(machine.symbol) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` has no inferred service-reach summary for requirement checking",
+            machine.name,
+        )));
+        return;
+    };
+    for service in service_reaches.services(summary.effective) {
         if !allowed_services.contains(service) {
             let service_name = program
                 .service_reaches
@@ -1789,6 +1804,7 @@ fn validate_machine_operator_conformance(
 /// declared-law match (rung B: contract_entailment::check_law_conformance).
 fn validate_machine_single_requirement(
     program: &TypedTrees,
+    service_reaches: &flow_effects::ServiceReachInferencePlan,
     machine: &Machine,
     trait_definition: &TraitDefinition,
     requirement_name: &typed_trees::name::Identifier,
@@ -1861,6 +1877,7 @@ fn validate_machine_single_requirement(
 
     validate_machine_state_satisfies_trait_signature_with_arguments(
         program,
+        service_reaches,
         machine,
         entry_state,
         trait_definition,
@@ -2141,6 +2158,7 @@ pub(super) fn compose_forwarded_trait_arguments(
 
 pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
     program: &TypedTrees,
+    service_reaches: &flow_effects::ServiceReachInferencePlan,
     machine: &Machine,
     state: &State,
     trait_definition: &TraitDefinition,
@@ -2470,6 +2488,7 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
 
     validate_trait_effect_ceiling(
         program,
+        service_reaches,
         machine,
         state,
         trait_definition.name.as_str(),
@@ -2480,6 +2499,7 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
 
 fn validate_trait_effect_ceiling(
     program: &TypedTrees,
+    service_reaches: &flow_effects::ServiceReachInferencePlan,
     machine: &Machine,
     state: &State,
     trait_name: &str,
@@ -2489,10 +2509,16 @@ fn validate_trait_effect_ceiling(
     let allowed_services = program
         .service_reach_rows
         .services(requirement.service_reach_row);
-    for service in program
-        .service_reach_rows
-        .services(machine.service_reach_row)
-    {
+    // The requirement stays fixed while the checked provider's published
+    // service row includes conservative reach through ordinary helpers.
+    let Some(summary) = service_reaches.for_machine(machine.symbol) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` has no inferred service-reach summary for requirement checking",
+            machine.name,
+        )));
+        return;
+    };
+    for service in service_reaches.services(summary.effective) {
         if !allowed_services.contains(service) {
             let service_name = program
                 .service_reaches

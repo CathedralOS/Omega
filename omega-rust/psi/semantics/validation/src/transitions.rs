@@ -13,6 +13,54 @@ use typed_trees::statement::{TransitionTargetHandle, TransitionTargetNode};
 mod evaluation;
 pub(crate) use evaluation::TransitionValueEnvironments;
 
+/// Resolve a named transfer's exact declaration, retaining its owning machine.
+/// Machine declarations select entry; state declarations select that state.
+pub(crate) fn resolved_transition_target_state(
+    program: &TypedTrees,
+    target: symbols::SymbolHandle,
+) -> Option<(&Machine, &State)> {
+    if !target.is_valid() {
+        return None;
+    }
+    program.machines().iter().find_map(|machine| {
+        let states = program.machine_states(machine);
+        let state = if machine.symbol == target {
+            states.first()
+        } else {
+            states.iter().find(|state| state.symbol == target)
+        }?;
+        Some((machine, state))
+    })
+}
+
+/// Named state transfers remain control flow; named machine and requirement
+/// targets contribute ordinary call contracts, including static binder bounds.
+pub(crate) fn named_transition_call_symbol(
+    program: &TypedTrees,
+    caller: symbols::SymbolHandle,
+    target: symbols::SymbolHandle,
+) -> symbols::SymbolHandle {
+    if let Some((owner, state)) = resolved_transition_target_state(program, target) {
+        return if owner.symbol != caller || target == owner.symbol {
+            state.symbol
+        } else {
+            symbols::SymbolHandle::invalid()
+        };
+    }
+    if program.machine_parameter_signature(target).is_some()
+        || program.traits().iter().any(|definition| {
+            program
+                .trait_machine_signatures(definition)
+                .iter()
+                .any(|signature| signature.symbol == target)
+        })
+    {
+        target
+    } else {
+        symbols::SymbolHandle::invalid()
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_transition_target_node(
     program: &TypedTrees,
@@ -39,16 +87,7 @@ pub(crate) fn validate_transition_target_node(
     // name their state declaration. Resolve both exact identities before the
     // compatibility spelling paths: a generated `entry` state is not found
     // by looking up the machine's source name in the local state table.
-    if path.symbol.is_valid()
-        && let Some(state) = program.machines().iter().find_map(|machine| {
-            let states = program.machine_states(machine);
-            if machine.symbol == path.symbol {
-                states.first()
-            } else {
-                states.iter().find(|state| state.symbol == path.symbol)
-            }
-        })
-    {
+    if let Some((_, state)) = resolved_transition_target_state(program, path.symbol) {
         validate_transition_arguments_handles(
             program,
             current_machine,
@@ -60,6 +99,24 @@ pub(crate) fn validate_transition_target_node(
             program.state_parameters(state),
             state,
             writable_roots,
+            diagnostics,
+        );
+        return;
+    }
+
+    if let Some(signature) = program.machine_parameter_signature_in(current_machine, path.symbol) {
+        validate_call_arguments_handles_with_policy_retention(
+            program,
+            current_machine,
+            current_state,
+            value_env,
+            arguments,
+            signature.name.as_str(),
+            program.state_signature_parameters(signature),
+            None,
+            writable_roots,
+            false,
+            argument_environments,
             diagnostics,
         );
         return;

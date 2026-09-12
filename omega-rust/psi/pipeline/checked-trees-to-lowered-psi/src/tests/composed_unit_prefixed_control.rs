@@ -7,7 +7,7 @@ fn checked_prefixed_control() -> CheckedTrees {
         r#"
             boundary trait Host { machine exit(code: i32); }
             data Root {}
-            machine Root::enter(flag: bool) {
+            machine Root::enter(flag: bool) reaches Host {
                 transition { _ -> dispatch(flag) }
                 state dispatch(flag: bool) {
                     transition flag { true -> yes() _ -> no() }
@@ -24,7 +24,7 @@ fn checked_multi_prefixed_control() -> CheckedTrees {
         r#"
             boundary trait Host { machine exit(code: i32); }
             data Root {}
-            machine Root::enter(flag: bool) {
+            machine Root::enter(flag: bool) reaches Host {
                 transition { _ -> relay(flag) }
                 state relay(flag: bool) { transition { _ -> dispatch(flag) } }
                 state dispatch(flag: bool) {

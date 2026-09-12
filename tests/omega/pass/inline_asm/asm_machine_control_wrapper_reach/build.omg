@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    builder.application("asm-machine-control-wrapper-reach");
+    builder.subsystem = Subsystem::EfiApplication;
+    builder.freestanding = true;
+}

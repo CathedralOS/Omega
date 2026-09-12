@@ -257,27 +257,55 @@ fn rejects_missing_direct_port_io_service_declaration() {
 }
 
 #[test]
-fn rejects_missing_transitive_machine_control_service_declaration() {
-    let source = r#"
-        data Main {}
-
-        machine Main::helper(&mut self) reaches MachineControl {
-            asm { hlt }
-        }
-
-        machine Main::main(&mut self) {
-            self.helper();
-        }
-    "#;
-
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
-        .expect_err("an asm service may not be laundered through a helper");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("reaches inline-assembly service `MachineControl`")
-            && diagnostic
-                .message
-                .contains("call path to inline assembly for `MachineControl`")
-    }));
+fn checked_helpers_propagate_asm_services_without_repeated_declarations() {
+    for (service_name, instruction) in [
+        ("MachineControl", "hlt"),
+        ("PortIo", "out self.port, self.value"),
+    ] {
+        let source = format!(
+            "data Main {{ port: u16; value: u8; }}\n\
+             machine Main::helper(&mut self) reaches {service_name} {{ asm {{ {instruction} }} }}\n\
+             machine Main::main(&mut self) {{ self.helper(); }}",
+        );
+        let checked = lower_typed_trees(parse_typed_trees(&source))
+            .expect("ordinary callers propagate the instruction owner's service contract");
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::main")
+            .expect("wrapper machine");
+        assert!(
+            checked
+                .authored_service_reach_rows_for(machine.symbol)
+                .next()
+                .is_none()
+        );
+        let service = checked
+            .facts
+            .service_reaches
+            .services
+            .id_for_name(service_name)
+            .expect("canonical assembly service");
+        let summary = checked
+            .facts
+            .service_reaches
+            .for_machine(machine.symbol)
+            .expect("wrapper service summary");
+        assert_eq!(
+            checked
+                .facts
+                .service_reaches
+                .rows
+                .services(summary.effective),
+            [service],
+        );
+        assert_eq!(
+            checked
+                .facts
+                .service_reaches
+                .rows
+                .services(summary.inferred_transitive),
+            [service],
+        );
+    }
 }

@@ -1979,7 +1979,7 @@ fn boundary_witness_survives_disjoint_internal_call_frame() {
             small: u32 [0..=8];
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.touch_other();
             self.small = self.n;
@@ -2009,7 +2009,7 @@ fn boundary_witness_survives_disjoint_recast_local_call_frame() {
             small: u32 [0..=8];
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.touch_other_through_recast();
             self.small = self.n;
@@ -2039,7 +2039,7 @@ fn boundary_witness_dies_under_overlapping_recast_local_call_frame() {
             small: u32 [0..=8];
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.touch_n_through_recast();
             self.small = self.n;
@@ -2076,7 +2076,7 @@ fn boundary_witness_survives_disjoint_local_alias_call_frame() {
             small: u32 [0..=8];
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.touch_other_through_alias();
             self.small = self.n;
@@ -2111,7 +2111,7 @@ fn boundary_witness_dies_when_internal_call_frame_writes_place() {
             small: u32 [0..=8];
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.touch_n();
             self.small = self.n;
@@ -2146,7 +2146,7 @@ fn boundary_witness_dies_when_local_alias_call_frame_writes_place() {
             small: u32 [0..=8];
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.touch_n_through_alias();
             self.small = self.n;
@@ -2192,7 +2192,7 @@ fn boundary_witness_survives_disjoint_projected_alias_frame() {
             small: u32 [0..=8];
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.cell.size);
             self.touch_other_through_projection();
             self.small = self.cell.size;
@@ -2228,7 +2228,7 @@ fn boundary_witness_dies_under_overlapping_projected_alias_frame() {
             small: u32 [0..=8];
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.cell.size);
             self.touch_size_through_projection();
             self.small = self.cell.size;
@@ -2270,7 +2270,7 @@ fn boundary_witness_survives_disjoint_member_indexed_alias_frame() {
             small: u32 [0..=8];
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.group.other);
             self.touch_cells_through_member_index();
             self.small = self.group.other;
@@ -2307,7 +2307,7 @@ fn boundary_witness_dies_under_member_indexed_alias_collection_frame() {
             small: u32 [0..=8];
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.group.cells[0]);
             self.touch_cells_through_member_index();
             self.small = self.group.cells[0];
@@ -2350,7 +2350,7 @@ fn boundary_witness_survives_disjoint_direct_member_after_index_frame() {
             small: u32 [0..=8];
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.other);
             self.touch_direct_member_after_index();
             self.small = self.other;
@@ -2385,7 +2385,7 @@ fn boundary_witness_dies_under_direct_member_after_index_frame() {
             small: u32 [0..=8];
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.cells[0].value);
             self.touch_direct_member_after_index();
             self.small = self.cells[0].value;
@@ -2422,7 +2422,7 @@ fn boundary_witness_survives_caller_isolated_local_collection_frame() {
             small: u32 [0..=8];
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.touch_local_collection();
             self.small = self.n;
@@ -2458,7 +2458,7 @@ fn boundary_witness_survives_transparently_forwarded_local_collection() {
             values
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.touch_computed_local_collection();
             self.small = self.n;
@@ -2495,7 +2495,7 @@ fn boundary_witness_survives_transparent_call_result_alias_chain() {
             values
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.touch_values_through_identity_calls();
             self.small = self.n;
@@ -2538,7 +2538,7 @@ fn boundary_witness_survives_transparent_result_with_pure_call_scratch() {
             values
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.touch_values_after_scratch();
             self.small = self.n;
@@ -2583,7 +2583,7 @@ fn boundary_witness_dies_when_transparent_result_scratch_call_writes_it() {
             values
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.touch_values_and_n();
             self.small = self.n;
@@ -2625,7 +2625,7 @@ fn boundary_witness_survives_disjoint_projected_call_result_frame() {
             &mut values[0]
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.touch_projected_call_result();
             self.small = self.n;
@@ -2660,7 +2660,7 @@ fn boundary_witness_dies_under_projected_call_result_frame() {
             &mut values[0]
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.values[1]);
             self.touch_projected_call_result();
             self.small = self.values[1];
@@ -2698,7 +2698,7 @@ fn boundary_witness_survives_disjoint_indexed_alias_collection_frame() {
             small: u32 [0..=8];
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.other);
             self.touch_cells_through_indexed_alias();
             self.small = self.other;
@@ -2729,7 +2729,7 @@ fn boundary_witness_dies_under_indexed_alias_collection_frame() {
             small: u32 [0..=8];
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.cells[0]);
             self.touch_cells_through_indexed_alias();
             self.small = self.cells[0];
@@ -2846,7 +2846,7 @@ fn bounded_byte_domain_membership_projects_to_matching_slice_domain() {
             text: [u8; 4] in Utf8;
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Sink {
             self.text = "Gate";
             self.sink.write(self.text);
         }
@@ -2876,7 +2876,7 @@ fn bounded_byte_domain_projection_proves_the_requested_predicate_independently()
             text: [u8; 4] in Text;
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Sink {
             self.text = "G\x00te";
             self.sink.write(self.text);
         }

@@ -4,26 +4,31 @@ use crate::capture::source::locations::canonical_source_span_location;
 use crate::record::PackageReviewSourceLocationRole;
 use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
+use flow_effects::ServiceReachInferencePlan;
 use symbols::SymbolHandle;
 
 pub(crate) fn project_machine_service_reach_source_locations(
     compilation: &CheckedCompilation,
     machine: &typed_trees::machine::Machine,
+    inferred: &ServiceReachInferencePlan,
 ) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
-    checked_machine_service_reach(compilation, machine).map(authored_service_reach_locations)
+    checked_machine_service_reach(compilation, machine, inferred)
+        .map(authored_service_reach_locations)
 }
 
 /// Rejoin authored targets and checked ceilings without constructing location rows.
 pub(crate) fn validate_machine_service_reach(
     compilation: &CheckedCompilation,
     machine: &typed_trees::machine::Machine,
+    inferred: &ServiceReachInferencePlan,
 ) -> Result<(), Vec<Diagnostic>> {
-    checked_machine_service_reach(compilation, machine).map(|_| ())
+    checked_machine_service_reach(compilation, machine, inferred).map(|_| ())
 }
 
 fn checked_machine_service_reach<'a>(
     compilation: &'a CheckedCompilation,
     machine: &typed_trees::machine::Machine,
+    inferred: &ServiceReachInferencePlan,
 ) -> Result<Option<&'a typed_trees::signature::AuthoredServiceReachRow>, Vec<Diagnostic>> {
     let authored = exact_authored_service_reach_row(
         compilation,
@@ -68,13 +73,30 @@ fn checked_machine_service_reach<'a>(
         || machine.is_public
         || authored.is_some()
         || !declared.is_empty();
+    let expected = exactly_one(
+        inferred
+            .machines()
+            .iter()
+            .filter(|fact| fact.machine == machine.symbol),
+        machine.name.as_str(),
+        "reconstructed service-reach",
+    )?;
     let expected_interface = if should_publish {
-        language_semantics::ServiceReachInterface::PublishedCeiling(machine.service_reach_row)
+        language_semantics::ServiceReachInterface::PublishedCeiling(checked.published_ceiling)
     } else {
         language_semantics::ServiceReachInterface::InternalInferred
     };
+    // Authored custody remains exact above; publication additionally includes
+    // ordinary checked callees, reconstructed once for this capture request.
+    let published = compilation
+        .facts
+        .service_reaches
+        .rows
+        .services(checked.published_ceiling);
     if checked.interface != expected_interface
-        || checked.published_ceiling != machine.service_reach_row
+        || (published.is_empty()
+            && checked.published_ceiling != language_semantics::ServiceReachRowTable::EMPTY_ROW)
+        || published != inferred.rows.services(expected.published)
     {
         return Err(vec![Diagnostic::error(format!(
             "reviewed callable `{}` authored service-reach custody does not equal its exact checked service-reach fact",

@@ -16,7 +16,7 @@ data Journal {
     console: Console;
 }
 
-machine Journal::record(&mut self) {
+machine Journal::record(&mut self) reaches Console {
     self.console.write_line("entry one");
     self.console.write_line("entry two");
 }

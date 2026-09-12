@@ -4,16 +4,22 @@ use super::*;
 use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan};
 
 fn retains_literal_graph(boundary: bool) {
-    let declaration = if boundary {
-        "boundary trait Host { machine emit(first: &[u8], marker: u8, second: &[u8]); }"
+    let (declaration, reach) = if boundary {
+        (
+            "boundary trait Host { machine emit(first: &[u8], marker: u8, second: &[u8]); }",
+            "reaches Host",
+        )
     } else {
-        "data Host {} machine Host::emit(first: &[u8], marker: u8, second: &[u8]) {}"
+        (
+            "data Host {} machine Host::emit(first: &[u8], marker: u8, second: &[u8]) {}",
+            "",
+        )
     };
     let checked = checked(&format!(
         r#"
         {declaration}
         data Root {{ value: u8; }}
-        machine Root::run(&mut self, again: bool) {{
+        machine Root::run(&mut self, again: bool) {reach} {{
             Host::emit("entry", 1u8, "");
             self.value = 7;
             Host::emit("after store", 2u8, "é");

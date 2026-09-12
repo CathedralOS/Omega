@@ -75,10 +75,6 @@ pub(super) fn project<'a>(
     };
     let machine_type_parameters = compilation.machine_type_parameters(machine);
     if policy_mode {
-        crate::capture::source::service_reach::validate_machine_service_reach(
-            compilation,
-            machine,
-        )?;
         crate::capture::source::invocations::validate_machine_invocations(compilation, machine)?;
         crate::capture::source::suspension::validate_machine_operational(compilation, machine)?;
     }

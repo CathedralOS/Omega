@@ -500,7 +500,9 @@ fn validate_program_internal(
     content_projections::validate_content_projection_conformances(program, &mut diagnostics);
     content_conservation::validate_content_conservation_contracts(program, &mut diagnostics);
     qualification_evidence::validate_qualification_authorization(program, &mut diagnostics);
-    validate_conformances(program, &mut diagnostics);
+    let conformance_operational = infer_operational_may(program);
+    let conformance_service_reaches = infer_service_reaches(program, &conformance_operational);
+    validate_conformances(program, &conformance_service_reaches, &mut diagnostics);
     if let Err(mut dynamic_diagnostics) = collect_dynamic_conformance_selections(program) {
         diagnostics.append(&mut dynamic_diagnostics);
     }
@@ -598,7 +600,13 @@ fn validate_program_internal(
         if !generic_contract_was_prevalidated {
             validate_machine_contract_entailment(program, machine, &mut diagnostics);
         }
-        validate_machine_trait_conformances(program, machine, &symbols, &mut diagnostics);
+        validate_machine_trait_conformances(
+            program,
+            &conformance_service_reaches,
+            machine,
+            &symbols,
+            &mut diagnostics,
+        );
 
         // PRV4 step 1: a `via <Binding>` clause is the EXTERNAL LEAF's
         // realization -- it must never parse and then silently drop. Exactly

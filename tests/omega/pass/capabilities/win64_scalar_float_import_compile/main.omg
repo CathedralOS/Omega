@@ -18,6 +18,6 @@ data Main {
     fifth: f64;
     result: f64;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches ScalarFloatImport {
     self.result = self.foreign.call(self.before, self.value, self.after, self.fourth, self.fifth);
 }

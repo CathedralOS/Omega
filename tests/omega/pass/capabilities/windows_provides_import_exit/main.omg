@@ -13,7 +13,7 @@ use omega_language_std::console;
 boundary trait Beeper { machine beep(value: i32) -> i32; }
 data Main { console: Console; beeper: Beeper; m: i32; v: i32; }
 machine beeper_abs(value: i32) -> i32 satisfies Beeper::beep via Binding::DllImport("msvcrt.dll", "abs");
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Beeper + Console {
     self.v = 0 - 42;
     self.m = self.beeper.beep(self.v);
     transition self.m == 42 { true -> good() _ -> bad(71) }

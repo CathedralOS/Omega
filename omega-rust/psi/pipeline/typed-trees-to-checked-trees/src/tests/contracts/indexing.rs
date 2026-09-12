@@ -724,7 +724,7 @@ fn boundary_out_param_ensures_discharges_index_bounds() {
             ensures size <= 8;
         }
         data Main { fw: Firmware; buf: [u8; 12]; n: u32; }
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.buf[self.n] = 7;
         }
@@ -740,7 +740,7 @@ fn boundary_out_param_without_ensures_keeps_index_refusal() {
             machine get_size(size: &mut u32);
         }
         data Main { fw: Firmware; buf: [u8; 12]; n: u32; }
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.buf[self.n] = 7;
         }
@@ -765,7 +765,7 @@ fn boundary_out_param_ensures_bound_too_wide_keeps_index_refusal() {
             ensures size <= 12;
         }
         data Main { fw: Firmware; buf: [u8; 12]; n: u32; }
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.buf[self.n] = 7;
         }
@@ -791,7 +791,7 @@ fn boundary_ensures_transport_through_transition_arguments() {
             ensures size <= 8;
         }
         data Main { fw: Firmware; buf: [u8; 12]; n: u32; }
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             transition { _ -> walk(self.n) }
             state walk(&mut self, off: u32) {
@@ -814,7 +814,7 @@ fn boundary_ensures_transport_poisoned_by_unbounded_edge() {
             ensures size <= 8;
         }
         data Main { fw: Firmware; buf: [u8; 12]; n: u32; wild: u32; }
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             transition self.wild == 0 {
                 true -> walk(self.n)
@@ -845,7 +845,7 @@ fn boundary_ensures_transport_rebind_before_transition_kills_the_fact() {
             ensures size <= 8;
         }
         data Main { fw: Firmware; buf: [u8; 12]; n: u32; wild: u32; }
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.n = self.wild;
             transition { _ -> walk(self.n) }
@@ -874,7 +874,7 @@ fn boundary_ensures_witness_discharges_bounded_assignment() {
             ensures size <= 8;
         }
         data Main { fw: Firmware; n: u32; m: u32 [0..=9]; }
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.m = self.n + 1;
         }
@@ -892,7 +892,7 @@ fn boundary_ensures_witness_wide_bounded_assignment_refuses() {
             ensures size <= 8;
         }
         data Main { fw: Firmware; n: u32; m: u32 [0..=9]; }
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.m = self.n + 2;
         }
@@ -918,7 +918,7 @@ fn boundary_ensures_witness_survives_unrelated_later_call() {
             machine poke();
         }
         data Main { fw: Firmware; n: u32; m: u32 [0..=9]; }
-        machine Main::main(&mut self) {
+        machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.fw.poke();
             self.m = self.n + 1;

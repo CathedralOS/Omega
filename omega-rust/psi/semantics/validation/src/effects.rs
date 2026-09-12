@@ -9,8 +9,8 @@ pub fn validate_behavior_plan(
     let service_reaches = crate::infer_service_reaches(program, operational);
 
     validate_pure_discards(program, operational, &service_reaches, &mut diagnostics);
-    validate_asm_intrinsic_declarations(program, operational, &service_reaches, &mut diagnostics);
-    validate_service_reach_ceilings(program, &service_reaches, &mut diagnostics);
+    validate_asm_intrinsic_declarations(program, &service_reaches, &mut diagnostics);
+    validate_service_reach_ceilings(program, operational, &service_reaches, &mut diagnostics);
 
     for machine_summary in operational.machines() {
         let Some(machine) = program
@@ -63,28 +63,35 @@ pub fn validate_behavior_plan(
 
 fn validate_service_reach_ceilings(
     program: &TypedTrees,
+    operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for machine in program.machines() {
-        let publishes = machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-            || machine.is_public
-            || !program
-                .service_reach_rows
-                .services(machine.service_reach_row)
-                .is_empty();
-        if !publishes {
-            continue;
-        }
         let Some(summary) = service_reaches.for_machine(machine.symbol) else {
             continue;
         };
-        let published = service_reaches.services(summary.published);
-        let missing = service_reaches
-            .services(summary.inferred_transitive)
+        let declared = program
+            .service_reach_rows
+            .services(machine.service_reach_row);
+        let required = if machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+        {
+            // Ordinary calls propagate automatically, but direct boundary use
+            // still requires an authored declaration, even in a private body.
+            crate::effect_inference::required_boundary_services(
+                program,
+                operational,
+                machine.symbol,
+            )
+        } else {
+            service_reaches
+                .services(summary.inferred_transitive)
+                .to_vec()
+        };
+        let missing = required
             .iter()
             .copied()
-            .filter(|service| !published.contains(service))
+            .filter(|service| !declared.contains(service))
             .collect::<Vec<_>>();
         if missing.is_empty() {
             continue;
@@ -102,7 +109,7 @@ fn validate_service_reach_ceilings(
         diagnostics.push(Diagnostic::error(format!(
             "machine `{}` publishes service reach `{}` but its checked body reaches undeclared service{} `{}`",
             machine.name,
-            format_service_row(program, published),
+            format_service_row(program, declared),
             if names.len() == 1 { "" } else { "s" },
             names.join(" + "),
         )));

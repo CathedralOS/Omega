@@ -258,7 +258,7 @@ fn checked_progress_call_instantiates_and_covers_the_exact_public_subject() {
         machine process(
             runtime: &mut SchedulerRuntime,
             scheduler: SchedulerHandle
-        )
+        ) reaches SchedulerRuntime
         requires scheduler in WeakFair
         terminates
         {
@@ -301,7 +301,7 @@ fn checked_progress_retains_provider_receiver_as_build_bound_demand() {
         boundary trait SchedulerAdmission {
             machine grant(scheduler: SchedulerRuntime) -> SchedulerRuntime in WeakFair;
         }
-        machine helper(runtime: SchedulerRuntime in WeakFair)
+        machine helper(runtime: SchedulerRuntime in WeakFair) reaches SchedulerRuntime
         {
             runtime.wait();
         }
@@ -363,7 +363,7 @@ fn admitted_provider_receiver_receipt_removes_build_bound_demand() {
         machine process(
             admission: &mut SchedulerAdmission,
             runtime: SchedulerRuntime
-        )
+        ) reaches SchedulerAdmission + SchedulerRuntime
         terminates
         {
             let granted: SchedulerRuntime in WeakFair = admission.grant(runtime);
@@ -409,7 +409,7 @@ fn checked_progress_call_rejects_an_unpublished_subject_dependency() {
         machine process(
             runtime: &mut SchedulerRuntime,
             scheduler: SchedulerHandle in WeakFair
-        )
+        ) reaches SchedulerRuntime
         terminates
         {
             runtime.wait(scheduler);
@@ -446,7 +446,7 @@ fn private_progress_dependencies_substitute_through_the_exact_helper_call() {
         machine helper(
             runtime: &mut SchedulerRuntime,
             scheduler: SchedulerHandle
-        )
+        ) reaches SchedulerRuntime
         requires scheduler in WeakFair
         {
             runtime.wait(scheduler);
@@ -548,6 +548,7 @@ const MEASURED_PROGRESS_COUNTDOWN: &str = r#"
             scheduler: SchedulerHandle,
             remaining: u64
         )
+        reaches SchedulerRuntime
         requires scheduler in WeakFair
         terminates by remaining;
         {
@@ -653,7 +654,7 @@ fn admitted_local_progress_receipt_discharges_the_selected_call_premise() {
             admission: &mut SchedulerAdmission,
             runtime: &mut SchedulerRuntime,
             scheduler: SchedulerHandle
-        )
+        ) reaches SchedulerAdmission + SchedulerRuntime
         terminates
         {
             let granted: SchedulerHandle in WeakFair = admission.grant(scheduler);
@@ -703,7 +704,7 @@ fn progress_subject_identity_threads_through_named_state_transitions() {
         machine process(
             runtime: &mut SchedulerRuntime,
             scheduler: SchedulerHandle
-        )
+        ) reaches SchedulerRuntime
         requires scheduler in WeakFair
         terminates
         {
@@ -761,7 +762,7 @@ fn progress_subject_alternatives_across_state_predecessors_remain_explicit() {
             first: SchedulerHandle,
             second: SchedulerHandle,
             choose_first: bool
-        )
+        ) reaches SchedulerRuntime
         requires first in WeakFair
         requires second in WeakFair
         terminates
@@ -6928,7 +6929,7 @@ mod effects_analysis {
                 console: Console;
             }
 
-            machine Main::main(&mut self) {
+            machine Main::main(&mut self) reaches Console {
                 self.console.write_line("hello");
             }
             "#,

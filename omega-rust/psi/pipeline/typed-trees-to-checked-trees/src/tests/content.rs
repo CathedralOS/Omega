@@ -987,7 +987,7 @@ fn checked_facts_compose_authored_partitions_through_a_direct_wrapper() {
         }
         data Main { splitter: Splitter; }
         machine Main::forward(&mut self, pair: Pair) -> Pair
-        requires
+        reaches Splitter requires
             pair.left in Region::Owned;
             pair.right in Region::Owned
         {
@@ -1133,7 +1133,7 @@ fn checked_facts_compose_partitions_through_exact_staged_result_rewrites() {
             pair_splitter: PairSplitter;
         }
         machine Main::repack(&mut self, pair: Pair) -> Pair
-        requires
+        reaches Splitter requires
             pair.left in Region::Owned;
             pair.right in Region::Owned
         {
@@ -1141,7 +1141,7 @@ fn checked_facts_compose_partitions_through_exact_staged_result_rewrites() {
             result
         }
         machine Main::envelope(&mut self, pair: Pair) -> Envelope
-        requires
+        reaches Splitter requires
             pair.left in Region::Owned;
             pair.right in Region::Owned
         {
@@ -1149,7 +1149,7 @@ fn checked_facts_compose_partitions_through_exact_staged_result_rewrites() {
             Envelope { pair: result }
         }
         machine Main::two_hop(&mut self, pair: Pair) -> Pair
-        requires
+        reaches Splitter requires
             pair.left in Region::Owned;
             pair.right in Region::Owned
         {
@@ -1162,11 +1162,11 @@ fn checked_facts_compose_partitions_through_exact_staged_result_rewrites() {
             left: Region in Owned,
             right: Region in Owned
         ) -> Pair
-        {
+        reaches PairSplitter {
             self.pair_splitter.partition(Pair { left: left, right: right })
         }
         machine Main::two_calls(&mut self, first: Pair, second: Pair) -> Double
-        requires
+        reaches Splitter requires
             first.left in Region::Owned;
             first.right in Region::Owned;
             second.left in Region::Owned;
@@ -1366,7 +1366,7 @@ fn checked_facts_compose_partitions_through_exact_array_and_case_arguments() {
             left: Region in Owned,
             right: Region in Owned
         ) -> Pair
-        {
+        reaches ArraySplitter {
             self.array_splitter.partition([left, right])
         }
         machine Main::case_argument(
@@ -1374,7 +1374,7 @@ fn checked_facts_compose_partitions_through_exact_array_and_case_arguments() {
             left: Region in Owned,
             right: Region in Owned
         ) -> Pair
-        {
+        reaches CaseSplitter {
             self.case_splitter.partition(SumPair::Pair {
                 left: left,
                 right: right,
@@ -1385,7 +1385,7 @@ fn checked_facts_compose_partitions_through_exact_array_and_case_arguments() {
             left: Region in Owned,
             right: Region in Owned
         ) -> Pair
-        {
+        reaches CaseSplitter {
             self.case_splitter.partition(SumPair::Mirror {
                 left: left,
                 right: right,

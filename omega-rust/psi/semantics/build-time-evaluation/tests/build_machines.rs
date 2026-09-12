@@ -188,6 +188,31 @@ fn admission_plan_owns_result_machine_lookup_gate_and_evaluation() {
 }
 
 #[test]
+fn exported_wrapper_reach_controls_evaluation_admission() {
+    for declaration in ["", "reaches Host"] {
+        let program = typed(&format!(
+            "pub boundary trait Host {{}}\n\
+             machine helper() -> u64 {declaration} {{ 7 }}\n\
+             machine memberless() -> u64 reaches {{ helper() }}\n\
+             pub machine exported() -> u64 {{ memberless() }}"
+        ));
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(program)
+            .expect("ordinary wrappers propagate their helper's service row");
+        let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&checked);
+        let result = admission.evaluate_const_evaluable_machine(&checked, "exported", vec![]);
+        if declaration.is_empty() {
+            assert_eq!(
+                result.expect("empty reach evaluates"),
+                BuildTimeValue::Int(7)
+            );
+        } else {
+            let error = result.expect_err("memberless and exported wrappers cannot hide reach");
+            assert!(error.contains("service reach [Host]"), "{error}");
+        }
+    }
+}
+
+#[test]
 fn invocation_const_boundary_admits_an_exact_boolean_snapshot() {
     let typed = typed(
         r#"

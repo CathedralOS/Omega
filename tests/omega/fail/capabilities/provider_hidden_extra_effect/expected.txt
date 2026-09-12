@@ -1,1 +1,1 @@
-but its checked body reaches undeclared service `Filesystem`
+service `Filesystem` is not allowed by the trait requirement

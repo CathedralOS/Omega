@@ -7,7 +7,7 @@ fn eliminated_extent_preserves_collection_evaluation_bounds_and_selection() {
     let source = r#"
         boundary trait Host { machine exit(code: i32); }
         data Root { values: [i32; 5]; }
-        machine Root::enter(&mut self) {
+        machine Root::enter(&mut self) reaches Host {
             let length: u64 = (self.values[1..4]).len;
             transition length == 3 {
                 true -> yes()

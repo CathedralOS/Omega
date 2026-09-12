@@ -1,6 +1,115 @@
 use super::*;
 
 #[test]
+fn checked_wrappers_publish_authored_and_transitive_service_union() {
+    let source = r#"
+        boundary trait Readable {}
+        boundary trait Queryable {}
+        machine helper() -> u64 reaches Readable { 7 }
+        pub machine forward() -> u64 reaches Queryable { helper() }
+        machine caller() -> u64 { forward() }
+        machine memberless() -> u64 reaches { forward() }
+        pub machine exported() -> u64 { memberless() }
+        pub machine recursive_left(remaining: u64) -> u64
+        reaches Queryable
+        requires 0 <= remaining && remaining <= 10;
+        terminates by remaining in 0..=10;
+        {
+            transition remaining > 0 {
+                true -> recursive_right(remaining)
+                false -> remaining
+            }
+        }
+        machine recursive_right(remaining: u64) -> u64
+        reaches Readable
+        requires 0 <= remaining && remaining <= 10;
+        terminates by remaining in 0..=10;
+        {
+            transition remaining > 0 {
+                true -> recursive_left(remaining - 1)
+                false -> remaining
+            }
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize reach composition");
+    let syntax = parse_syntax_trees(&tokens).expect("parse reach composition");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve reach composition");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type reach composition");
+    let checked = lower_typed_trees(typed).expect("checked wrappers inherit callee reach");
+    for name in [
+        "forward",
+        "caller",
+        "memberless",
+        "exported",
+        "recursive_left",
+        "recursive_right",
+    ] {
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .expect("wrapper machine");
+        let reach = checked
+            .facts
+            .service_reaches
+            .for_machine(machine.symbol)
+            .expect("checked reach facts");
+        let mut services = checked
+            .facts
+            .service_reaches
+            .rows
+            .services(reach.effective)
+            .iter()
+            .map(|service| {
+                checked
+                    .facts
+                    .service_reaches
+                    .services
+                    .definition(*service)
+                    .expect("nominal service")
+                    .name
+                    .as_str()
+            })
+            .collect::<Vec<_>>();
+        services.sort_unstable();
+        assert_eq!(services, ["Queryable", "Readable"]);
+        if name == "forward" {
+            assert_eq!(reach.published_ceiling, reach.effective);
+        }
+    }
+}
+
+#[test]
+fn private_direct_boundary_calls_require_authored_service_reach() {
+    let source = r#"
+        boundary trait Readable { machine read() -> u64; }
+        data Worker { reader: Readable; }
+        machine Worker::read(&mut self) -> u64 { self.reader.read() }
+        machine static_read() -> u64 { Readable::read() }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize direct reach");
+    let syntax = parse_syntax_trees(&tokens).expect("parse direct reach");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve direct reach");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type direct reach");
+    let diagnostics =
+        lower_typed_trees(typed).expect_err("a private boundary call needs a declaration");
+    assert_eq!(
+        diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic
+                .message
+                .contains("reaches undeclared service `Readable`"))
+            .count(),
+        2,
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn symbol_resolved_service_reach_propagates_boundary_identity_and_parent_closure() {
     let source = r#"
     boundary trait Readable {
@@ -260,11 +369,11 @@ fn checked_machine_operational_facts_keep_suspension_and_blocking_independent() 
 
     data Harness { sleeper: Sleeper; waiter: Waiter; }
 
-    machine Harness::suspend_only(&mut self) suspends; {
+    machine Harness::suspend_only(&mut self) reaches Sleeper suspends; {
         suspend self.sleeper.sleep();
     }
 
-    machine Harness::block_only(&mut self) blocks; {
+    machine Harness::block_only(&mut self) reaches Waiter blocks; {
         block self.waiter.wait();
     }
     "#;
@@ -408,8 +517,8 @@ fn qualification_facts_record_policy_commitments() {
 fn contract_plans_fingerprint_published_halves() {
     // STR4 checked plans (wiki/spec/language/machines.md): the contract fingerprint
     // covers ONLY the published halves -- two machines with the same
-    // declared surface share it; a different `reaches` clause changes it;
-    // inferred rows never enter (prover-independence by construction).
+    // published surface share it; a different derived service row changes it.
+    // Service propagation is independent of prover heuristics.
     let source = r#"
     boundary trait Filesystem {}
     boundary trait Network {}
@@ -530,7 +639,7 @@ fn contract_plans_fingerprint_published_halves() {
         machine overwrite(value: &mut u64);
     }
     data Wrapper { device: Device; value: u64; }
-    machine Wrapper::boundary_call(&mut self) {
+    machine Wrapper::boundary_call(&mut self) reaches Device {
         self.device.overwrite(&mut self.value);
     }
     machine Main::direct_self_loop(&mut self) {

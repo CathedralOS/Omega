@@ -19,7 +19,7 @@ data Main {
     after: u64;
     status: i32;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches DirectAggregateImport {
     self.before = 7;
     self.input = Pair32 { first: 1, second: 2 };
     self.after = 9;

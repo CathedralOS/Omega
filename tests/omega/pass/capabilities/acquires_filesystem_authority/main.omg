@@ -17,7 +17,7 @@ data Archiver {
     disk: Disk;
 }
 
-machine Archiver::flush(&mut self) {
+machine Archiver::flush(&mut self) reaches Disk {
     self.disk.write_line("flush log");
 }
 

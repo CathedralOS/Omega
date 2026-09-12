@@ -22,11 +22,11 @@ fn source(producer: &str, final_move: bool) -> String {
         machine forward(token: Token) -> Token {{ token }}
         data Root {{}}
         machine Root::observe(token: &Token) {{}}
-        machine Root::read(token: &Token) -> bool {{
+        machine Root::read(token: &Token) -> bool reaches Sink {{
             let accepted: bool = Sink::read(token);
             accepted
         }}
-        machine Root::enter(initial: Token) {{
+        machine Root::enter(initial: Token) reaches Sink {{
             let token: Token = {producer};
             Root::observe(&token);
             let accepted: bool = Root::read(&token);
@@ -44,7 +44,7 @@ fn shared_result_boundary_signature_also_accepts_existing_shared_parameters() {
         pub data Token { flag: bool; }
         boundary trait Sink { machine inspect(token: &Token); }
         data Root {}
-        machine Root::enter(token: &Token) { Sink::inspect(token); }
+        machine Root::enter(token: &Token) reaches Sink { Sink::inspect(token); }
     "#,
     );
     let machine = machine_named(&checked, "enter");

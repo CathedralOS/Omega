@@ -8,6 +8,11 @@
 //! early execution can validate their declaration authority without inventing
 //! a call-closure machine edge.
 
+//! Operational summaries share borrow/semantic call-site coordinates. Every
+//! named transfer reserves its parent ordinal before argument calls, including
+//! internal state transfers that add no machine-call edge. Exact machine-entry
+//! and requirement targets contribute to the ordinary recursive summaries.
+
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -82,7 +87,7 @@ fn build_machine_work(program: &TypedTrees) -> Vec<MachineWork> {
                 direct_may_block: false,
                 transitive_may_suspend: false,
                 transitive_may_block: false,
-                calls: collect_state_calls(program, state),
+                calls: collect_state_calls(program, machine.symbol, state),
             })
             .collect();
 
@@ -102,7 +107,11 @@ fn build_machine_work(program: &TypedTrees) -> Vec<MachineWork> {
     machines
 }
 
-fn collect_state_calls(program: &TypedTrees, state: &State) -> Vec<CallWork> {
+fn collect_state_calls(
+    program: &TypedTrees,
+    machine: SymbolHandle,
+    state: &State,
+) -> Vec<CallWork> {
     let mut calls = Vec::new();
 
     for (statement_index, statement) in program
@@ -116,6 +125,7 @@ fn collect_state_calls(program: &TypedTrees, state: &State) -> Vec<CallWork> {
         let mut call_ordinal = 0usize;
         collect_statement_calls(
             program,
+            machine,
             statement,
             statement_index,
             &mut call_ordinal,
@@ -128,6 +138,7 @@ fn collect_state_calls(program: &TypedTrees, state: &State) -> Vec<CallWork> {
 
 fn collect_statement_calls(
     program: &TypedTrees,
+    machine: SymbolHandle,
     statement: &StatementNode,
     statement_index: usize,
     call_ordinal: &mut usize,
@@ -175,6 +186,7 @@ fn collect_statement_calls(
             }
             collect_transition_target_expression_calls(
                 program,
+                machine,
                 transition.target,
                 statement_index,
                 call_ordinal,
@@ -183,6 +195,7 @@ fn collect_statement_calls(
             if transition.continuation.is_valid() {
                 collect_transition_target_expression_calls(
                     program,
+                    machine,
                     transition.continuation,
                     statement_index,
                     call_ordinal,
@@ -195,6 +208,7 @@ fn collect_statement_calls(
 
 fn collect_transition_target_expression_calls(
     program: &TypedTrees,
+    machine: SymbolHandle,
     target: typed_trees::statement::TransitionTargetHandle,
     statement_index: usize,
     call_ordinal: &mut usize,
@@ -204,7 +218,34 @@ fn collect_transition_target_expression_calls(
         return;
     }
     match program.statement_table.transition_target(target) {
-        typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
+        typed_trees::statement::TransitionTargetNode::Named {
+            path, arguments, ..
+        } => {
+            let target =
+                crate::transitions::named_transition_call_symbol(program, machine, path.symbol);
+            if target.is_valid() {
+                let target_name = program
+                    .statement_table
+                    .name_path_members(path.members)
+                    .iter()
+                    .map(|member| member.as_str())
+                    .collect::<Vec<_>>()
+                    .join("::");
+                push_call(
+                    program,
+                    &target_name,
+                    target,
+                    SymbolHandle::invalid(),
+                    Default::default(),
+                    statement_index,
+                    call_ordinal,
+                    calls,
+                );
+            } else {
+                // Borrow and semantic call-site traversal reserve a parent
+                // coordinate even for an internal named state transfer.
+                *call_ordinal = call_ordinal.checked_add(1).expect("call ordinal overflow");
+            }
             for argument in program.statement_table.expression_handles(*arguments) {
                 collect_expression_calls(program, *argument, statement_index, call_ordinal, calls);
             }

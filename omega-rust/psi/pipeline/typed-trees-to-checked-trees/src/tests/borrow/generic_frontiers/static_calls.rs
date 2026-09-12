@@ -74,7 +74,7 @@ fn source(view: bool) -> String {
         machine work(arguments: Job) -> i32 {{ 0 }}
         data Client {{ requests: &Requests; }}
         trait Other<Arguments> {{}}
-        machine Client::run(&mut self, job: Job) {{
+        machine Client::run(&mut self, job: Job) reaches Requests {{
             let outcome: Outcome<i32, Job> = self.requests.submit<work>(job);
         }}
     "#

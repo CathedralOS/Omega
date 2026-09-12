@@ -1,8 +1,7 @@
 // DECISION 20 admission fixture -- the HIDDEN extra effect: the provider
 // declares exactly the requirement's ceiling but REACHES Filesystem
-// through a callee. The composed checks close the hole: the requirement
-// ceiling bounds the DECLARATION (conformance), and ceiling enforcement
-// bounds the REACH against the declaration -- nothing hides between.
+// through a callee. The requirement's fixed ceiling checks the provider's
+// propagated reach; its authored Clock contribution cannot hide Filesystem.
 use omega::language::std::console;
 data Main { console: Console; }
 
@@ -31,6 +30,6 @@ reaches Clock
     transition { _ -> (hidden) }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.exit_process(70);
 }

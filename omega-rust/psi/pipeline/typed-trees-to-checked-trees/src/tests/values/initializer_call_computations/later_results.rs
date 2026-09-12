@@ -600,6 +600,11 @@ fn direct_boundary_result_operands_retain_exact_nonself_transfer_events() {
         if nominal {
             source = source.replace("machine Root::enter(input: u32)",
                 "machine Root::enter<machine Take>(input: u32) where machine Take satisfies Host::take;");
+        } else if invocation == "Host::take(result);" {
+            source = source.replace(
+                "machine Root::enter(input: u32)",
+                "machine Root::enter(input: u32) reaches Host",
+            );
         }
         let checked = lower_typed_trees(typed_trees(&source))
             .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"));
