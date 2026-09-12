@@ -7,6 +7,7 @@ cargo run -p omega -- --check tests/omega/pass/effects/nominal_callback_dependen
 cargo nextest run -p package-evidence --test callable_policy reach_dependencies --no-fail-fast --no-tests fail
 cargo nextest run -p package-manager --test package_policy_changes generic_reach --no-fail-fast --no-tests fail
 cargo nextest run -p checked-trees-to-lowered-psi --lib service_reach_contracts --no-fail-fast --no-tests fail
+cargo nextest run -p terminal-codec --lib -E 'test(closed_reach) | test(structural_callback_requirement)' --no-fail-fast --no-tests fail
 ```
 
 The public traversal depends on its nominal Step binder, whose conservative
@@ -30,8 +31,19 @@ Console-declared, and private-helper Console selections. Each concrete traversal
 publishes, decodes, verifies, and interprets to 7 while retaining its selected
 service row. Removing the declared contribution or the concrete root row rejects.
 Scalar calls use the shared service catalog; inert callbacks retain authored reach
-without inventing boundary I/O. This closes concrete-row preservation, not the
-remaining portable original-telescope and exact-substitution replay obligation.
+without inventing boundary I/O. Closed exact-owned callback applications also
+retain the original finite dependency, full ordered telescope, selected public
+rows, and exact emitted-call bindings. Reload checks the finite substitution and
+both sides of each call join. Overlapping rows cannot hide a deleted nominal
+dependency; structural callbacks retain their fixed requirement row. Wire tests
+reject changed bounds, missing binders/receipts/markers, and redirected calls to
+same-shaped, same-reach callbacks.
+
+These are ordinary semantic inputs, not optional proof sidecars. The original
+source-to-contract projection remains producer-trusted: existing commitment
+digests identify provenance but are not independently checkable projection
+openings. Inlined or missing callees, generic selected schemas, unresolved
+installation selections, and full generic PCC remain outside this coverage.
 
 Unit callbacks must also have an exact closed selection before publication.
 The focused Terminal command rejects an unresolved nominal binder as an entry,

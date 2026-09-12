@@ -267,16 +267,22 @@ Keep the source-to-canonical-policy regression in
 public generic also has closed applications; original interface identity must
 not depend on which applications are present. Its private closed-application and
 unused-generic controls establish template preservation, not Terminal custody.
-Its `service_reach_contracts` command covers concrete callback rows through
-publication, reload and interpretation, including inert declared reach and
-private helper propagation. Resume with portable original dependency/telescope
-custody tied to selected public contracts and emitted calls. Concrete row
-preservation and producer-side specialization replay do not establish those
-portable relationships. Original finite reach dependencies now enter the existing
-template commitment and replay against the retained graph in
-`validation/src/static_machine_call_contracts.rs`; the remainder of the template
-contract still needs independent reconstruction. Its current canonical encoding
-contains frontend-local contract identities and is not a portable telescope codec.
+Its `service_reach_contracts` command covers publication, reload and interpretation,
+including inert declared reach, private helpers, and interleaved binder positions.
+The `1b55493dcb8` implementation checkpoint preserves closed exact-owned callback
+telescopes and independently checks finite substitution,
+selected public rows, and two-sided emitted-call joins after source discard.
+Run the README's Cargo/nextest commands on macOS ARM64 to exercise that boundary.
+Producer ownership is `checked-trees-to-lowered-psi/src/closed_reach_applications.rs`;
+reload checks are `terminal-verifier/src/validation/reach_applications.rs`.
+Resume with portable coverage for inlined/missing callees, generic selected
+schemas, and unresolved installation selections, then independently checkable
+original-contract projection openings. The retained template/specialization
+commitments identify provenance; they do not authenticate the structured
+projection. Original finite dependencies replay against the retained source graph
+in `validation/src/static_machine_call_contracts.rs`, but the remaining template
+encoding contains frontend-local identities. Full source-contract reconstruction
+and generic PCC remain open; ordinary relational replay does not establish them.
 
 ## Semantic reflection
 
