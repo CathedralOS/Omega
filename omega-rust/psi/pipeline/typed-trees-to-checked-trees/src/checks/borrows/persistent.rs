@@ -299,27 +299,28 @@ fn analyze_persistent_state(
         .iter()
         .enumerate()
     {
-        let value_writes = call_frames
-            .and_then(|frames| frames.statement_value_may_write_paths(machine, statement));
         if retain_static_paths_across_call_frame(
             program,
             state,
             persistent,
             &mut static_persistent_paths,
-            value_writes,
+            &static_persistent_places,
+            || {
+                call_frames
+                    .and_then(|frames| frames.statement_value_may_write_paths(machine, statement))
+            },
         ) {
             static_persistent_places.clear();
         }
 
         if let StatementNode::Call(call) = statement {
-            let statement_writes =
-                call_frames.and_then(|frames| frames.may_write_paths(machine, call));
             if retain_static_paths_across_call_frame(
                 program,
                 state,
                 persistent,
                 &mut static_persistent_paths,
-                statement_writes,
+                &static_persistent_places,
+                || call_frames.and_then(|frames| frames.may_write_paths(machine, call)),
             ) {
                 static_persistent_places.clear();
             }
@@ -679,16 +680,24 @@ fn add_static_borrow_frontier(
 }
 
 /// Apply one complete R5 may-write frame to the stable provenance paths.
-/// Returns whether any call was opaque or may write something, in which case
-/// state-local canonical markers are conservatively retired as well.
+/// Returns whether existing state-local canonical markers must retire as well.
+/// Resolve the frame only when either provenance frontier needs invalidation.
 fn retain_static_paths_across_call_frame(
     program: &typed_trees::TypedTrees,
     state: &typed_trees::state::State,
     persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
     paths: &mut Vec<StaticPersistentPath>,
-    written: Option<Vec<String>>,
+    local_places: &[crate::flow::CanonicalPlace],
+    written: impl FnOnce() -> Option<Vec<String>>,
 ) -> bool {
-    let Some(written) = written else {
+    // Frames only invalidate established provenance; they cannot create it.
+    // Avoid recursively summarizing callees when neither frontier has facts.
+    // Canonical local markers can exist without a stable cross-state path, so
+    // checking only `paths` would incorrectly preserve those markers over calls.
+    if paths.is_empty() && local_places.is_empty() {
+        return false;
+    }
+    let Some(written) = written() else {
         paths.clear();
         return true;
     };
@@ -706,6 +715,9 @@ fn retain_static_paths_across_call_frame(
     });
     true
 }
+
+#[cfg(test)]
+mod tests;
 
 fn static_path_frame_aliases(
     program: &typed_trees::TypedTrees,
