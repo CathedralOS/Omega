@@ -210,8 +210,8 @@ pub(super) fn validate_unit_operation_static(
         OperationKind::EstablishScalarCase { .. } => {
             super::scalar_case::fields(module, machine, operation)?;
         }
-        OperationKind::EstablishScalarRecord { .. } => {
-            super::scalar_record::fields(module, machine, operation)?;
+        OperationKind::EstablishRecord { .. } => {
+            super::record::fields(module, machine, operation)?;
         }
         OperationKind::CallUnit {
             callee,
@@ -411,53 +411,7 @@ pub(super) fn validate_unit_operation_static(
                     actual,
                 });
             }
-            // Construction-local loans remain separate. Initialized primitive
-            // locals may supply whole loans; affine call results and immutable
-            // byte views may supply shared reads. The common source validator
-            // checks shape and access; frontier and dominance validation retain
-            // exact producer custody.
-            if let Some((argument_index, argument)) =
-                structural_arguments
-                    .iter()
-                    .enumerate()
-                    .find(|(_, argument)| {
-                        argument.access != StructuralAccess::Owned
-                            && !machine
-                                .structural_parameters
-                                .iter()
-                                .any(|parameter| parameter.place == argument.place)
-                            && !(argument.path.is_empty()
-                                && super::primitive_storage::local_result(machine, argument.place)
-                                    .is_some())
-                            && !(argument.path.is_empty()
-                                && super::scalar_record::plain_return_source(
-                                    module,
-                                    machine,
-                                    argument.place,
-                                ))
-                            && !(argument.access == StructuralAccess::SharedBorrow
-                                && (is_structural_call_result(machine, argument.place)
-                                    || (argument.path.is_empty()
-                                        && super::byte_sequence_length::validate_source(
-                                            module,
-                                            machine,
-                                            operation,
-                                            argument.place,
-                                            || ModuleError::InvalidByteSequenceLengthSource {
-                                                operation: operation.id,
-                                                source: argument.place,
-                                            },
-                                        )
-                                        .is_ok())))
-                    })
-            {
-                return Err(ModuleError::StructuralArgumentAccessMismatch {
-                    operation: operation.id,
-                    argument_index: argument_index as u32,
-                    expected: StructuralAccess::Owned,
-                    actual: argument.access,
-                });
-            }
+            // Exact completed-record receiver custody is independent of scalar return shape.
             validate_structural_arguments(
                 module,
                 machine,
@@ -989,7 +943,7 @@ fn validate_primitive_structural_call(
         return Ok(false);
     };
     let primitive_payload = super::scalar_case::plain_type(module, result.structural_type)
-        || super::scalar_record::plain_type(module, result.structural_type)
+        || super::record::plain_type(module, result.structural_type)
         || (result.multiplicity == StructuralMultiplicity::Unrestricted
             && terminal_semantics::scalar_array_leaf_shape(
                 module.structural_types.iter(),
@@ -1073,12 +1027,18 @@ fn validate_primitive_structural_call(
         || !callee.content_identity_reshuffles.is_empty() || !callee.content_partition_compositions.is_empty()
         || module.evidence_contract_lanes.iter().any(|lane| lane.machine == callee.id)
         || requirement_obligations.len() != callee.contract.requires.len()
-        || arguments.len() != callee.parameters.len()
         || !machine.structural_places.iter().any(|place| place.id == result.place
             && matches!(place.kind, StructuralPlaceKind::OperationResult { producer, structural_type }
                 if producer == operation.id && structural_type == result.structural_type))
     {
         return Err(failure());
+    }
+    if arguments.len() != callee.parameters.len() {
+        return Err(ModuleError::CallArgumentArityMismatch {
+            operation: operation.id,
+            expected: callee.parameters.len(),
+            actual: arguments.len(),
+        });
     }
     let borrowed_projections = structural_arguments
         .iter()
@@ -1272,17 +1232,14 @@ pub(super) fn validate_structural_arguments(
                         return None;
                     }
                     match place.kind {
-                        StructuralPlaceKind::OperationResult { structural_type, .. }
-                            if matches!(source_policy,
-                                StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
-                                    | StructuralArgumentSourcePolicy::ParametersOrAffineOperationResults)
-                                && argument.path.is_empty()
-                                && super::scalar_record::plain_return_source(module, caller, argument.place) =>
+                        StructuralPlaceKind::OperationResult { .. }
+                            if source_policy != StructuralArgumentSourcePolicy::OnlyParameters
+                                && source_policy != StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
+                                && (argument.path.is_empty() || argument.access != StructuralAccess::Owned)
+                                && super::record::completed_source(module, caller, argument.place).is_some() =>
                         {
-                            let result = caller.blocks.iter().flat_map(|block| &block.operations)
-                                .filter_map(|operation| operation.result.structural())
-                                .find(|result| result.place == argument.place)?;
-                            Some((structural_type, result.multiplicity, StructuralAccess::Owned, &[][..], &[][..]))
+                            let result = super::record::completed_source(module, caller, argument.place)?;
+                            Some((result.structural_type, result.multiplicity, StructuralAccess::Owned, &[][..], &[][..]))
                         }
                         StructuralPlaceKind::OperationResult { structural_type, .. }
                             if ordinary_call
@@ -1516,31 +1473,32 @@ pub(super) fn validate_structural_arguments(
             && actual_access == StructuralAccess::Owned
             && actual_multiplicity == StructuralMultiplicity::Affine
             && (is_structural_call_result(caller, argument.place)
-                || super::scalar_record::plain_return_source(module, caller, argument.place)
+                || super::record::plain_return_source(module, caller, argument.place)
                 || caller
                     .structural_parameters
                     .iter()
                     .any(|parameter| parameter.place == argument.place));
-        let actual_multiplicity = if shared_affine_loan {
-            StructuralMultiplicity::Unrestricted
-        } else if argument.path.is_empty() {
-            actual_multiplicity
-        } else if unrestricted_write_only_field_subloan
-            || unrestricted_shared_field_subloan
-            || unrestricted_mutable_field_subloan
-            || (buffer_presentation
-                && actual_access == StructuralAccess::MutableBorrow
-                && actual_multiplicity == StructuralMultiplicity::Unrestricted)
-        {
-            StructuralMultiplicity::Unrestricted
-        } else if expected.multiplicity == StructuralMultiplicity::Affine
-            && is_partial_affine_path(module, root_type, &argument.path)
-            && actual_multiplicity == StructuralMultiplicity::Affine
-        {
-            StructuralMultiplicity::Affine
-        } else {
-            StructuralMultiplicity::Linear
-        };
+        let actual_multiplicity =
+            if shared_affine_loan || is_completed_record_loan(module, caller, expected, argument) {
+                StructuralMultiplicity::Unrestricted
+            } else if argument.path.is_empty() {
+                actual_multiplicity
+            } else if unrestricted_write_only_field_subloan
+                || unrestricted_shared_field_subloan
+                || unrestricted_mutable_field_subloan
+                || (buffer_presentation
+                    && actual_access == StructuralAccess::MutableBorrow
+                    && actual_multiplicity == StructuralMultiplicity::Unrestricted)
+            {
+                StructuralMultiplicity::Unrestricted
+            } else if expected.multiplicity == StructuralMultiplicity::Affine
+                && is_partial_affine_path(module, root_type, &argument.path)
+                && actual_multiplicity == StructuralMultiplicity::Affine
+            {
+                StructuralMultiplicity::Affine
+            } else {
+                StructuralMultiplicity::Linear
+            };
         if actual_multiplicity != expected.multiplicity {
             return Err(ModuleError::StructuralArgumentMultiplicityMismatch {
                 operation,
@@ -1843,6 +1801,21 @@ pub(super) fn validate_service_reach(
     Ok(())
 }
 
+fn is_completed_record_loan(
+    module: &TerminalModule,
+    caller: &TerminalMachine,
+    parameter: &StructuralParameterDeclaration,
+    argument: &StructuralArgument,
+) -> bool {
+    argument.access != StructuralAccess::Owned
+        && parameter.access == argument.access
+        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+        && super::record::completed_source(module, caller, argument.place).is_some_and(|result| {
+            resolve_structural_path(module, result.structural_type, &argument.path)
+                == Some(parameter.structural_type)
+        })
+}
+
 fn validate_unit_call_claim_transfers(
     module: &TerminalModule,
     caller: &TerminalMachine,
@@ -1901,7 +1874,9 @@ fn validate_unit_call_claim_transfers(
                     .entry_claims
                     .iter()
                     .all(|claim| claim.input != argument.place);
-            if !claim_free_unrestricted_write_only_field
+            if !(is_completed_record_loan(module, caller, parameter, argument)
+                && callee_claims.is_empty())
+                && !claim_free_unrestricted_write_only_field
                 && !claim_free_unrestricted_shared_field
                 && !claim_free_unrestricted_mutable_field
                 && !claim_free_direct_affine

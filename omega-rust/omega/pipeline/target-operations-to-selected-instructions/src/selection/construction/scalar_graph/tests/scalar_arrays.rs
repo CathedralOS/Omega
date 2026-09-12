@@ -8,7 +8,7 @@ use terminal_psi::{
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
-fn array_fixture(target: target::NativeTarget, length: u16) -> LegalizedScalarFunction {
+pub(super) fn array_fixture(target: target::NativeTarget, length: u16) -> LegalizedScalarFunction {
     let mut source = fixture(target, 0);
     source.attachment = None;
     source.blocks[0].instructions.truncate(3);
@@ -136,13 +136,19 @@ fn scalar_record_selection_replays_field_identity_operands_and_store_offsets() {
         else {
             panic!("array fixture");
         };
-        row.kind = LegalizedScalarInstructionKind::EstablishScalarRecord {
+        row.kind = LegalizedScalarInstructionKind::EstablishRecord {
             result,
             shape,
             fields: fields
                 .into_iter()
                 .zip(elements)
-                .map(|(field, value)| terminal_psi::ScalarRecordFieldValue { field, value })
+                .map(|(field, value)| terminal_psi::RecordFieldInitializer {
+                    field,
+                    value: terminal_psi::RecordFieldValue::Scalar {
+                        value,
+                        range_obligation: None,
+                    },
+                })
                 .collect(),
         };
         let environment =
@@ -174,13 +180,13 @@ fn scalar_record_selection_replays_field_identity_operands_and_store_offsets() {
         validate(&source, &selected).unwrap();
         for mutation in 0..3 {
             let mut changed = source.clone();
-            let LegalizedScalarInstructionKind::EstablishScalarRecord { fields, shape, .. } =
+            let LegalizedScalarInstructionKind::EstablishRecord { fields, shape, .. } =
                 &mut changed.blocks[0].instructions[2].kind
             else {
                 panic!("record");
             };
             match mutation {
-                0 => fields[0].value = fields[1].value,
+                0 => fields[0].value = fields[1].value.clone(),
                 1 => fields.swap(0, 1),
                 2 => shape.byte_size = 4,
                 _ => unreachable!(),
@@ -274,18 +280,17 @@ fn array_selection_rejects_reordered_operands_and_changed_layout() {
             if target != target::NativeTarget::windows_x64() {
                 continue;
             }
-            assert!(
-                build(
-                    0,
-                    &array_fixture(target, length),
-                    target,
-                    &constraints,
-                    environment.physical(),
-                    environment.constraints()
-                )
-                .is_err(),
-                "indirect array transport {length}"
-            );
+            let source = array_fixture(target, length);
+            let selected = build(
+                0,
+                &source,
+                target,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            validate(&source, &selected).unwrap();
         }
     }
 }

@@ -146,8 +146,8 @@ fn execution() -> (TerminalExecution, Operation) {
         )]),
         structural_primitive_storage: BTreeMap::new(),
         structural_primitive_entry_places: BTreeMap::new(),
-        primitive_local_identities:
-            crate::primitive_storage::PrimitiveLocalIdentities::with_reserved_identities([
+        local_structural_identities:
+            crate::primitive_storage::LocalStructuralIdentities::with_reserved_identities([
                 1, 2, 101,
             ]),
         structural_scalar_fields: BTreeMap::new(),

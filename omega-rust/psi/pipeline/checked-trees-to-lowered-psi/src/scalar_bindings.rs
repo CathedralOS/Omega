@@ -285,7 +285,7 @@ impl ScalarBindings {
         {
             let mut locals = self.structural_locals.iter().filter(|row| row.0 == symbol);
             let (_, source) = locals.next().ok_or(LoweringError::Unsupported(
-                "computed owned array operand lost its established local",
+                "computed owned structural operand lost its established local",
             ))?;
             if !symbol.is_valid()
                 || locals.next().is_some()
@@ -294,7 +294,7 @@ impl ScalarBindings {
                 || !source.path.is_empty()
                 || source.access != StructuralAccess::Owned
             {
-                return unsupported("computed owned array operand changes its source custody");
+                return unsupported("computed owned structural operand changes its source custody");
             }
             return Ok(source.clone());
         }

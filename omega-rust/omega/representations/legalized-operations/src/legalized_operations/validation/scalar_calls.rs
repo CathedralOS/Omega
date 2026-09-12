@@ -36,7 +36,7 @@ impl LegalizedScalarCall {
         if self.result_placement != self.call_plan.result
             || self.result_placement.as_ref().is_some_and(|placement| {
                 if self.structural_result.is_some() {
-                    !direct_aggregate_registers(placement)
+                    !direct_aggregate_registers(placement) && !indirect_aggregate_result(placement)
                 } else {
                     !direct_scalar_register(placement)
                 }
@@ -119,6 +119,16 @@ fn direct_scalar_register(placement: &ValuePlacement) -> bool {
                 ..
             }] if *byte_size == width
         )
+}
+
+fn indirect_aggregate_result(placement: &ValuePlacement) -> bool {
+    placement.shape.class == calling_conventions::ValueClass::Integer
+        && placement.shape.byte_size > 0
+        && placement.shape.alignment.is_power_of_two()
+        && matches!(placement.locations.as_slice(), [ValueLocation::Indirect {
+            pointer: calling_conventions::IndirectPointerLocation::Register(_),
+            copy_stack_byte_offset: None, byte_size, alignment,
+        }] if *byte_size == placement.shape.byte_size && *alignment == placement.shape.alignment)
 }
 
 #[cfg(test)]

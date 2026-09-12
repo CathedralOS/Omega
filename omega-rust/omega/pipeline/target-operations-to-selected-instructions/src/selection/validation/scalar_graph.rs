@@ -70,6 +70,7 @@ pub(in crate::selection) fn validate_with_environment(
         transport: structural::Transport::default(),
         constraints,
     };
+    structural::indirect_results::entry(source, environment, &mut replay)?;
     structural::entry(source, environment, &mut replay)?;
     register_entry::validate(source, environment, catalog, &mut replay)?;
     scalar_stack::entry(source, &mut replay)?;
@@ -438,8 +439,8 @@ pub(in crate::selection) fn validate_with_environment(
                         )?;
                         output
                     }
-                    LegalizedScalarInstructionKind::EstablishScalarCase { .. }
-                    | LegalizedScalarInstructionKind::EstablishScalarRecord { .. }
+                    LegalizedScalarInstructionKind::EstablishRecord { .. }
+                    | LegalizedScalarInstructionKind::EstablishScalarCase { .. }
                     | LegalizedScalarInstructionKind::EstablishScalarArray { .. }
                     | LegalizedScalarInstructionKind::HostedExitProcessI32 { .. }
                     | LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }

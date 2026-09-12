@@ -4,6 +4,7 @@ mod catalog;
 mod content_projection;
 mod function_catalog;
 mod provider_specialization;
+mod records;
 mod scalar_arrays;
 mod scalar_cases;
 mod structural_roots;

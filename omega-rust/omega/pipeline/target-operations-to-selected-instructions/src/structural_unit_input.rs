@@ -60,7 +60,7 @@ pub(crate) fn accepts_graph(
     .is_ok_and(|expected| expected == *call_plan)
 }
 
-pub(crate) fn accepts_write_borrow(
+pub(crate) fn accepts_borrowed_parameters(
     call_plan: &CallPlan,
     parameters: &[Parameter<'_>],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
@@ -102,12 +102,13 @@ pub(crate) fn accepts_write_borrow(
             return false;
         };
         let primitive = matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_));
-        // Multiple primitive references have independent incoming pointers.
-        // Scalar-returning stores admit fixed integers and Boolean referents;
-        // the narrow Boolean payload does not change reference transport. IEEE
-        // referents and the single-record store route retain their result restriction.
-        if (parameters.len() > 1 && !primitive)
+        // Shared record observations use the same exact incoming pointer ABI.
+        // The operation reader separately rejoins each readable field and result.
+        let shared_record = semantic.access == StructuralAccess::SharedBorrow
+            && matches!(declaration.shape, StructuralTypeShape::Record { .. });
+        if (parameters.len() > 1 && !primitive && !shared_record)
             || result_shape.is_some()
+                && !shared_record
                 && declaration.shape != StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)
                 && !matches!(declaration.shape,
                 StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
@@ -132,7 +133,8 @@ pub(crate) fn accepts_write_borrow(
             || !(matches!(
                 semantic.access,
                 StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-            ) || semantic.access == StructuralAccess::SharedBorrow && primitive)
+            ) || semantic.access == StructuralAccess::SharedBorrow
+                && (primitive || shared_record))
             || semantic.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
             || !semantic.qualifications.is_empty()
             || !semantic.projected_qualifications.is_empty()

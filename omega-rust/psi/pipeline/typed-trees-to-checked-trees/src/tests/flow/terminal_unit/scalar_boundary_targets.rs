@@ -733,15 +733,22 @@ fn scalar_boundary_wrapper_consumes_existing_constructed_local_kinds() {
 
         let mutable = checked(&source.replace("let payload:", "let mut payload:"));
         let root = machine_named(&mutable, "run");
-        assert!(
-            mutable
-                .facts
-                .flow
-                .terminal_unit_effects
-                .for_machine(root)
-                .is_none(),
-            "mutable construction remains outside the immutable local path"
-        );
+        let plan = mutable
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(root)
+            .expect("mutable owned construction retains original storage for transfer");
+        assert!(matches!(plan.operations.as_slice(), [
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, discard_result_on_return: false, .. },
+            CheckedUnitEffectOperationPlan::ScalarCall { coordinate, structural_arguments, claim_transfers, .. },
+            CheckedUnitEffectOperationPlan::Complete { trivial_affine_discards, trivial_affine_local_discard_ordinals, .. }
+        ] if result.statement_index == 0 && result.binding_ordinal == 0
+            && coordinate.statement_index == 1 && structural_arguments.len() == 1
+            && structural_arguments[0].source_structural_result_binding_ordinal() == Some(0)
+            && structural_arguments[0].access == checked_trees::CheckedStructuralAccess::Owned
+            && structural_arguments[0].path.is_empty() && claim_transfers.is_empty()
+            && trivial_affine_discards.is_empty() && trivial_affine_local_discard_ordinals.is_empty()));
     }
 }
 

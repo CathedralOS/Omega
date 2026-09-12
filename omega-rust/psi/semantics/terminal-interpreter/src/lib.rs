@@ -12,8 +12,8 @@ mod byte_sequence_subslice;
 use byte_sequence_binding::{ByteSequenceBinding, StructuralCallArguments};
 mod byte_sequence_view;
 mod byte_sequence_write;
+mod record;
 mod scalar_array;
-mod scalar_record;
 mod structural_byte_arrays;
 pub use scalar_array::{TerminalScalarArrayResult, TerminalScalarArrayValue};
 pub use structural_byte_arrays::TerminalStructuralByteArrayValue;
@@ -532,7 +532,7 @@ pub struct TerminalExecution {
     /// place maps are only views into this stable logical storage arena.
     structural_primitive_storage: BTreeMap<StructuralRuntimePlace, TerminalScalarValue>,
     structural_primitive_entry_places: BTreeMap<u32, StructuralRuntimePlace>,
-    primitive_local_identities: primitive_storage::PrimitiveLocalIdentities,
+    local_structural_identities: primitive_storage::LocalStructuralIdentities,
     /// Scalar leaves written below aggregate structural values. Keys use the
     /// invocation-independent opaque identity and resolved parent path, so a
     /// projected call observes the same field without native layout claims.
@@ -1057,7 +1057,7 @@ impl TerminalExecution {
             structural_values,
             structural_primitive_storage,
             structural_primitive_entry_places,
-            primitive_local_identities: primitive_storage::PrimitiveLocalIdentities::new(
+            local_structural_identities: primitive_storage::LocalStructuralIdentities::new(
                 module,
                 structural_arguments,
             ),
@@ -1269,10 +1269,7 @@ impl TerminalExecution {
         }
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
         let mut structural_values = prepared_arguments.values;
-        self.copy_owned_scalar_record_arguments(
-            &callee.structural_parameters,
-            &mut structural_values,
-        )?;
+        self.copy_owned_record_arguments(&callee.structural_parameters, &mut structural_values)?;
         let byte_sequence_values = prepared_arguments.byte_sequences;
         let callee_affine_frontier =
             bind_affine_frontier(&callee.structural_parameters, &structural_values)?;
@@ -1369,10 +1366,7 @@ impl TerminalExecution {
         let prepared_arguments =
             self.prepare_structural_call_arguments(callee_id, structural_arguments)?;
         let mut structural_values = prepared_arguments.values;
-        self.copy_owned_scalar_record_arguments(
-            &callee.structural_parameters,
-            &mut structural_values,
-        )?;
+        self.copy_owned_record_arguments(&callee.structural_parameters, &mut structural_values)?;
         let byte_sequence_values = prepared_arguments.byte_sequences;
         let callee_affine_frontier =
             bind_affine_frontier(&callee.structural_parameters, &structural_values)?;
@@ -1486,14 +1480,9 @@ impl TerminalExecution {
                             !field.relevance.is_erased() && field.field_type.scalar_type().is_some()
                         })
                     }),
-                    StructuralTypeShape::Record { fields } => fields.iter().all(|field| {
-                        !field.relevance.is_erased()
-                            && matches!(
-                                field.field_type,
-                                terminal_psi::StructuralFieldType::Scalar(_)
-                                    | terminal_psi::StructuralFieldType::IeeeFloat(_)
-                            )
-                    }),
+                    StructuralTypeShape::Record { .. } => {
+                        self.plain_record_type(result.structural_type)
+                    }
                     _ => false,
                 })
                 || (result.multiplicity == StructuralMultiplicity::Unrestricted
@@ -1528,10 +1517,7 @@ impl TerminalExecution {
         }
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
         let mut structural_values = prepared_arguments.values;
-        self.copy_owned_scalar_record_arguments(
-            &callee.structural_parameters,
-            &mut structural_values,
-        )?;
+        self.copy_owned_record_arguments(&callee.structural_parameters, &mut structural_values)?;
         let byte_sequence_values = prepared_arguments.byte_sequences;
         let callee_affine_frontier =
             bind_affine_frontier(&callee.structural_parameters, &structural_values)?;
@@ -1920,8 +1906,14 @@ impl TerminalExecution {
                             structural_type: *structural_type,
                         });
                     }
-                    OperationKind::EstablishScalarRecord { fields } => {
-                        self.execute_scalar_record_establishment(&operation, &fields)?;
+                    OperationKind::EstablishRecord { fields } => {
+                        self.establish_record(
+                            operation
+                                .result
+                                .structural()
+                                .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?,
+                            &fields,
+                        )?;
                     }
                     OperationKind::CallUnit {
                         callee,
@@ -2282,7 +2274,7 @@ impl TerminalExecution {
                         }
                         boundary_arguments.validate_writeback()?;
                         if let TerminalEffectResult::Structural(value) = &returned {
-                            self.primitive_local_identities.reserve_host(value)?;
+                            self.local_structural_identities.reserve_host(value)?;
                         }
                         effect_results::commit_boundary_result(
                             &mut self.values,

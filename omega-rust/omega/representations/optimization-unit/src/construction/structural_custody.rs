@@ -3,6 +3,19 @@ use super::*;
 pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSet<PlaceId>) {
     use AbstractOperation as O;
     match operation {
+        O::EstablishRecord { result, fields, .. } => {
+            places.insert(result.place);
+            places.extend(
+                fields
+                    .iter()
+                    .filter_map(|initializer| match &initializer.value {
+                        terminal_psi::RecordFieldValue::Structural(argument) => {
+                            Some(argument.place)
+                        }
+                        terminal_psi::RecordFieldValue::Scalar { .. } => None,
+                    }),
+            );
+        }
         O::Jump {
             structural_bindings,
             ..
@@ -44,7 +57,6 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         O::EstablishPrimitiveLocal { result, .. }
         | O::EstablishScalarArray { result, .. }
         | O::EstablishScalarCase { result, .. }
-        | O::EstablishScalarRecord { result, .. }
         | O::CallStructural { result, .. }
         | O::BoundaryCall {
             result: abstract_operations::AbstractBoundaryResult::Structural(result),
@@ -145,7 +157,7 @@ pub(super) fn collect_operation_structural_places(
             result,
             ..
         }
-        | AbstractOperation::EstablishScalarRecord {
+        | AbstractOperation::EstablishRecord {
             psi_operation,
             result,
             ..

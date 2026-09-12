@@ -1624,6 +1624,7 @@ pub enum CheckedUnitEffectOperationPlan {
     EstablishStructuralValue {
         result: CheckedUnitStructuralResultBindingPlan,
         value: crate::CheckedStructuralValueHandle,
+        calls: Vec<CheckedStructuralValueCall>,
         discard_result_on_return: bool,
     },
     /// Construct an unrestricted primitive fixed array in authored row-major
@@ -1833,11 +1834,11 @@ pub enum CheckedUnitEffectOperationPlan {
     },
     /// Replace one whole unrestricted primitive through an exclusive borrowed
     /// parameter or initialized mutable local. Evaluate the retained scalar
-    /// expression against current storage before committing the write.
+    /// expression or computation against current storage before committing the write.
     WriteOnlyPrimitiveStore {
         statement_index: u32,
         destination: CheckedPrimitiveStoreDestination,
-        value: CheckedScalarExpression,
+        value: crate::CheckedCallScalarArgument,
     },
     /// Replace one relevant primitive field through an exact common-field
     /// path, optionally followed by one literal fixed-array index, below an
@@ -1862,6 +1863,42 @@ pub enum CheckedUnitEffectOperationPlan {
         /// in reverse declaration order.
         trivial_affine_discards: Vec<u32>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStructuralValueCall {
+    pub value: crate::CheckedStructuralValueHandle,
+    operation: CheckedUnitEffectOperationPlan,
+}
+
+impl CheckedStructuralValueCall {
+    pub fn new(
+        value: crate::CheckedStructuralValueHandle,
+        operation: CheckedUnitEffectOperationPlan,
+    ) -> Option<Self> {
+        matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::StructuralCall { .. }
+        )
+        .then_some(Self { value, operation })
+    }
+
+    pub fn operation(&self) -> &CheckedUnitEffectOperationPlan {
+        &self.operation
+    }
+}
+
+impl CheckedUnitEffectOperationPlan {
+    /// Enumerate retained operation dependencies for signature/catalog readers.
+    /// This is not execution order: structural expressions evaluate their call
+    /// operands in their own authored field and selected-arm order.
+    pub fn with_value_calls(&self) -> impl Iterator<Item = &Self> {
+        let calls = match self {
+            Self::EstablishStructuralValue { calls, .. } => calls.as_slice(),
+            _ => &[],
+        };
+        std::iter::once(self).chain(calls.iter().map(|call| &call.operation))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

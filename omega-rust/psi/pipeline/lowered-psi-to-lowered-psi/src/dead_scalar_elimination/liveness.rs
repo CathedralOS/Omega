@@ -124,8 +124,11 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         O::EstablishScalarCase { fields, .. } => {
             values.extend(fields.iter().map(|field| field.value));
         }
-        O::EstablishScalarRecord { fields } => {
-            values.extend(fields.iter().map(|field| field.value));
+        O::EstablishRecord { fields } => {
+            values.extend(fields.iter().filter_map(|field| match field.value {
+                terminal_psi::RecordFieldValue::Scalar { value, .. } => Some(value),
+                terminal_psi::RecordFieldValue::Structural(_) => None,
+            }));
         }
         O::EstablishScalarArray { elements } => values.extend(elements),
         O::BooleanNot { operand }

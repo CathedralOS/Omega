@@ -14,12 +14,12 @@ pub(super) fn validate(
     let invalid = LegalizationError::SourceCustodyMismatch;
     match (target, abstracted) {
         (
-            TargetUnitOperation::EstablishScalarRecord {
+            TargetUnitOperation::EstablishRecord {
                 psi_operation,
                 result_home,
                 fields,
             },
-            AbstractOperation::EstablishScalarRecord {
+            AbstractOperation::EstablishRecord {
                 psi_operation: expected_operation,
                 result,
                 fields: expected_fields,
@@ -48,15 +48,29 @@ pub(super) fn validate(
                 || fields.iter().zip(declarations).any(|(field, declaration)| {
                     field.field != declaration.id
                         || declaration.relevance.is_erased()
-                        || matches!(
-                            declaration.field_type,
-                            terminal_psi::StructuralFieldType::BoundedInteger(_)
-                        )
-                        || !sources.iter().any(|(value, source)| {
-                            *value == field.value
-                                && declaration.field_type.scalar_type()
-                                    == Some(source.scalar_type())
-                        })
+                        || match &field.value {
+                            terminal_psi::RecordFieldValue::Scalar {
+                                value: operand,
+                                range_obligation,
+                            } => {
+                                matches!(
+                                    declaration.field_type,
+                                    terminal_psi::StructuralFieldType::BoundedInteger(_)
+                                ) != range_obligation.is_some()
+                                    || !sources.iter().any(|(value, source)| {
+                                        *value == *operand
+                                            && declaration.field_type.scalar_type()
+                                                == Some(source.scalar_type())
+                                    })
+                            }
+                            terminal_psi::RecordFieldValue::Structural(argument) => {
+                                !matches!(
+                                    declaration.field_type,
+                                    terminal_psi::StructuralFieldType::Structural(_)
+                                ) || argument.access != terminal_psi::StructuralAccess::Owned
+                                    || !argument.path.is_empty()
+                            }
+                        }
                 })
             {
                 return Err(invalid);

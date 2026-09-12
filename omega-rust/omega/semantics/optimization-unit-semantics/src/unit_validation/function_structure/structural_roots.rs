@@ -242,12 +242,13 @@ pub(crate) fn validate_structural_root_operations(
                             == terminal_psi::StructuralMultiplicity::Unrestricted
                             && parameter.access == terminal_psi::StructuralAccess::SharedBorrow;
 
-                        (affine_entry_observation || unrestricted_shared_observation)
+                        (unrestricted_shared_observation
+                            || (affine_entry_observation
+                                && observations
+                                    .iter()
+                                    .all(|candidate| candidate == &(*source, *field))))
                             && parameter.qualifications.is_empty()
                             && parameter.access != terminal_psi::StructuralAccess::WriteOnlyBorrow
-                            && observations
-                                .iter()
-                                .all(|candidate| candidate == &(*source, *field))
                             && function.content_entry_claims.is_empty()
                             && function
                                 .entry_claim_declarations
@@ -379,7 +380,7 @@ pub(crate) fn validate_structural_root_operations(
                                         result,
                                         ..
                                     }
-                                    | O::EstablishScalarRecord {
+                                    | O::EstablishRecord {
                                         psi_operation,
                                         result,
                                         ..
@@ -478,7 +479,7 @@ fn readable_field_type(
             .flat_map(|block| &block.nodes)
             .any(|node| {
                 let result = match &node.operation {
-                    O::EstablishScalarRecord { result, .. }
+                    O::EstablishRecord { result, .. }
                     | O::EstablishScalarArray { result, .. }
                     | O::EstablishScalarCase { result, .. }
                     | O::CallStructural { result, .. }

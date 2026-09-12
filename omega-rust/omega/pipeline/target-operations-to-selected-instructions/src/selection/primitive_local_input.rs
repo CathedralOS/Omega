@@ -160,7 +160,7 @@ pub(super) fn read_geometry(
                     .flat_map(|block| &block.instructions)
                     .filter_map(|row| {
                         let result = match &row.kind {
-                            Instruction::EstablishScalarRecord { result, .. } => result,
+                            Instruction::EstablishRecord { result, .. } => result,
                             Instruction::Call(call) => call.structural_result.as_ref()?,
                             _ => return None,
                         };

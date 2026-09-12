@@ -36,6 +36,37 @@ pub(super) fn reconcile(
                     })
                     .then_some(entry.state)
             }))
+            .chain(
+                facts
+                    .flow
+                    .terminal_structural_scalar_returns
+                    .machines
+                    .iter()
+                    .filter(|plan| {
+                        plan.structural_parameters.iter().any(|parameter| {
+                            parameter.is_self && parameter.access != CheckedStructuralAccess::Owned
+                        })
+                    })
+                    .map(|plan| plan.state),
+            )
+            .chain(
+                facts
+                    .flow
+                    .terminal_scalar_graphs
+                    .machines
+                    .iter()
+                    .filter_map(|plan| {
+                        let state = plan.states.first()?;
+                        state
+                            .structural_parameters
+                            .iter()
+                            .any(|parameter| {
+                                parameter.is_self
+                                    && parameter.access != CheckedStructuralAccess::Owned
+                            })
+                            .then_some(state.state)
+                    }),
+            )
             .collect::<Vec<_>>();
         let demanded = candidates
             .iter()
@@ -48,6 +79,11 @@ pub(super) fn reconcile(
                         ..
                     }
                     | CheckedUnitEffectOperationPlan::StructuralCall {
+                        coordinate,
+                        target_state,
+                        ..
+                    }
+                    | CheckedUnitEffectOperationPlan::ScalarCall {
                         coordinate,
                         target_state,
                         ..
@@ -125,42 +161,101 @@ fn reconcile_operands(
     candidates: &mut Vec<CheckedUnitEffectMachinePlan>,
     composed: &mut Vec<CheckedComposedUnitControlMachinePlan>,
 ) {
-    let retained = candidates
-        .iter()
-        .filter_map(|plan| {
-            let (index, receiver) = borrowed_self(plan)?;
-            Some((
-                plan.machine,
-                plan.state,
-                index,
-                receiver.clone(),
-                plan.structural_parameters.len(),
-            ))
-        })
-        .chain(composed.iter().filter_map(|plan| {
-            let entry = plan.states.first()?;
-            let (index, receiver) =
-                entry
-                    .structural_parameters
+    let retained =
+        candidates
+            .iter()
+            .filter_map(|plan| {
+                let (index, receiver) = borrowed_self(plan)?;
+                Some((
+                    plan.machine,
+                    plan.state,
+                    index,
+                    receiver.clone(),
+                    plan.structural_parameters.len(),
+                ))
+            })
+            .chain(composed.iter().filter_map(|plan| {
+                let entry = plan.states.first()?;
+                let (index, receiver) =
+                    entry
+                        .structural_parameters
+                        .iter()
+                        .enumerate()
+                        .find(|(_, parameter)| {
+                            parameter.is_self && parameter.access != CheckedStructuralAccess::Owned
+                        })?;
+                Some((
+                    plan.machine,
+                    entry.state,
+                    index,
+                    receiver.clone(),
+                    entry.structural_parameters.len(),
+                ))
+            }))
+            .chain(
+                facts
+                    .flow
+                    .terminal_structural_scalar_returns
+                    .machines
                     .iter()
-                    .enumerate()
-                    .find(|(_, parameter)| {
-                        parameter.is_self && parameter.access != CheckedStructuralAccess::Owned
-                    })?;
-            Some((
-                plan.machine,
-                entry.state,
-                index,
-                receiver.clone(),
-                entry.structural_parameters.len(),
-            ))
-        }))
-        .collect::<Vec<_>>();
+                    .filter_map(|plan| {
+                        let (index, receiver) =
+                            plan.structural_parameters.iter().enumerate().find(
+                                |(_, parameter)| {
+                                    parameter.is_self
+                                        && parameter.access != CheckedStructuralAccess::Owned
+                                },
+                            )?;
+                        Some((
+                            plan.machine,
+                            plan.state,
+                            index,
+                            receiver.clone(),
+                            plan.structural_parameters.len(),
+                        ))
+                    }),
+            )
+            .chain(
+                facts
+                    .flow
+                    .terminal_scalar_graphs
+                    .machines
+                    .iter()
+                    .filter_map(|plan| {
+                        let state = plan.states.first()?;
+                        let (index, receiver) =
+                            state.structural_parameters.iter().enumerate().find(
+                                |(_, parameter)| {
+                                    parameter.is_self
+                                        && parameter.access != CheckedStructuralAccess::Owned
+                                },
+                            )?;
+                        Some((
+                            plan.machine,
+                            state.state,
+                            index,
+                            receiver.clone(),
+                            state.structural_parameters.len(),
+                        ))
+                    }),
+            )
+            .collect::<Vec<_>>();
     let reconcile_state =
         |machine,
          state,
          parameters: &[CheckedUnitStructuralParameterPlan],
          operations: &mut [CheckedUnitEffectOperationPlan]| {
+            let results = operations
+                .iter()
+                .filter_map(|operation| match operation {
+                    CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+                    | CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
+                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } => {
+                        Some(result.clone())
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
             for operation in operations {
                 let (
                     coordinate,
@@ -170,6 +265,14 @@ fn reconcile_operands(
                     claim_transfers,
                 ) = match operation {
                     CheckedUnitEffectOperationPlan::CallUnit {
+                        coordinate,
+                        target_machine,
+                        target_state,
+                        structural_arguments,
+                        claim_transfers,
+                        ..
+                    }
+                    | CheckedUnitEffectOperationPlan::ScalarCall {
                         coordinate,
                         target_machine,
                         target_state,
@@ -218,7 +321,20 @@ fn reconcile_operands(
                     parameters,
                     &place,
                     target,
-                ) else {
+                )
+                .or_else(|| {
+                    result_receiver_argument(
+                        program,
+                        facts,
+                        machine,
+                        state,
+                        *coordinate,
+                        *target_state,
+                        &results,
+                        &place,
+                        target,
+                    )
+                }) else {
                     return false;
                 };
                 if structural_arguments.len().checked_add(1) != Some(*count)
@@ -258,6 +374,114 @@ fn reconcile_operands(
             )
         })
     });
+}
+
+#[allow(clippy::too_many_arguments)]
+fn result_receiver_argument(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    coordinate: CheckedUnitCallCoordinate,
+    target_state: SymbolHandle,
+    results: &[CheckedUnitStructuralResultBindingPlan],
+    place: &crate::flow::CanonicalPlace,
+    target: &CheckedUnitStructuralParameterPlan,
+) -> Option<CheckedUnitStructuralArgumentPlan> {
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return None;
+    };
+    if !matches!(
+        target.access,
+        CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+    ) || !target.qualifications.is_empty()
+    {
+        return None;
+    }
+    let source = crate::find_state(program, state)?;
+    let mut matching = results.iter().filter_map(|result| {
+        if result.statement_index >= coordinate.statement_index {
+            return None;
+        }
+        let StatementNode::LocalData(local) = program
+            .statement_table
+            .statements(source.statement_nodes)
+            .get(result.statement_index as usize)?
+        else {
+            return None;
+        };
+        (local.symbol == symbol).then_some((result, local))
+    });
+    let (result, local) = matching.next()?;
+    if matching.next().is_some()
+        || !local.initial_value.is_valid()
+        || !validation::has_plain_owned_contents_with_numeric_constraints(
+            program,
+            local.type_reference,
+        )
+        || program
+            .normalized_type_identity(local.type_reference)
+            .as_str()
+            != result.type_identity
+        || program.type_multiplicity(local.type_reference) != result.multiplicity
+        || result.multiplicity == Multiplicity::Linear
+    {
+        return None;
+    }
+    let flow = state_flow(facts, machine, state)?;
+    let mut calls = facts
+        .flow
+        .control
+        .calls
+        .span(flow.calls)?
+        .iter()
+        .filter(|call| {
+            call.statement_index == coordinate.statement_index as usize
+                && call.call_ordinal == coordinate.call_ordinal as usize
+                && call.target_symbol == target_state
+        });
+    let call = calls.next()?;
+    let borrow_state = facts
+        .borrow
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .find(|candidate| candidate.machine_symbol == machine && candidate.state_symbol == state)?;
+    let mut borrow_calls = facts
+        .borrow
+        .calls
+        .span_or_empty(borrow_state.calls)
+        .iter()
+        .filter(|candidate| {
+            candidate.statement_index == call.statement_index
+                && candidate.call_ordinal == call.call_ordinal
+                && candidate.target_symbol == call.target_symbol
+        });
+    let borrow_call = borrow_calls.next()?;
+    // Implicit receivers have their own capture. The argument access roster
+    // contains explicit operands and must not be used to invent a receiver loan.
+    if calls.next().is_some()
+        || borrow_calls.next().is_some()
+        || !call.has_receiver
+        || !borrow_call.has_receiver
+        || borrow_call.receiver_symbol != call.receiver_symbol
+        || (target.access == CheckedStructuralAccess::MutableBorrow && !local.is_mutable)
+    {
+        return None;
+    }
+    let (reference, path) =
+        calls::projected_argument_path(program, state, coordinate.statement_index as usize, place)?;
+    if base_type_identity(program, reference, &[])? != target.type_identity {
+        return None;
+    }
+    Some(CheckedUnitStructuralArgumentPlan {
+        source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            binding_ordinal: result.binding_ordinal,
+        },
+        path,
+        type_identity: target.type_identity.clone(),
+        access: target.access,
+    })
 }
 
 fn receiver_place(
@@ -371,7 +595,11 @@ fn receiver_argument(
         // type; the operand names the leaf, without transferring ownership.
         if !matches!(
             (parameter.access, target.access),
-            (MutableBorrow, MutableBorrow | WriteOnlyBorrow) | (WriteOnlyBorrow, WriteOnlyBorrow)
+            (
+                MutableBorrow,
+                SharedBorrow | MutableBorrow | WriteOnlyBorrow
+            ) | (SharedBorrow, SharedBorrow)
+                | (WriteOnlyBorrow, WriteOnlyBorrow)
         ) || parameter.multiplicity != Multiplicity::Unrestricted
             || !parameter.qualifications.is_empty()
             || !place.segments.iter().all(|segment| {

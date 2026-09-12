@@ -181,11 +181,13 @@ pub fn validate_x86_64_selected_scalar_call_template(
                 crate::register_model::x86_64_system_v_aggregate_call_keys()
                     .into_iter()
                     .chain(crate::x86_64_system_v_mixed_aggregate_call_keys())
+                    .chain(crate::x86_64_indirect_aggregate_call_keys(false))
                     .collect()
             } else {
                 crate::register_model::x86_64_microsoft_aggregate_call_keys()
                     .into_iter()
                     .chain(crate::x86_64_microsoft_mixed_aggregate_call_keys())
+                    .chain(crate::x86_64_indirect_aggregate_call_keys(true))
                     .collect()
             }
         } else if floating_scalar {

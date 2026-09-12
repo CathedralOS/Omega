@@ -50,7 +50,7 @@ pub(crate) fn authored_postorder(
             next_ordinal = 1;
             (true, ExpressionHandle::invalid())
         }
-        StatementNode::LocalData(local) if !local.is_mutable => {
+        StatementNode::LocalData(local) => {
             pending.push((local.initial_value, true, None));
             (false, local.initial_value)
         }
@@ -60,7 +60,16 @@ pub(crate) fn authored_postorder(
                 machine,
                 state,
                 *expression,
-            ) =>
+            ) || checked
+                .facts
+                .values
+                .structural_values
+                .root_at(caller_state, statement_index)
+                .is_some_and(|root| {
+                    root.machine == machine.symbol
+                        && root.expression == *expression
+                        && root.type_reference == state.return_type
+                }) =>
         {
             pending.push((*expression, true, None));
             (false, *expression)
@@ -161,6 +170,14 @@ pub(crate) fn authored_postorder(
                     ))?;
                 Some(ordinal)
             }
+            ExpressionNode::StructLiteral(literal) => {
+                let fields = table.struct_fields(literal.fields);
+                if fields.len() != literal.fields.count() as usize {
+                    return unsupported("nested constructor has an invalid field span");
+                }
+                children.extend(fields.iter().map(|field| (field.value, true, None)));
+                None
+            }
             ExpressionNode::ArrayLiteral(elements) => {
                 let values = table.expression_handles(*elements);
                 if values.len() != elements.count() as usize {
@@ -201,9 +218,7 @@ pub(crate) fn authored_postorder(
                 children.push((member.receiver, direct_argument, None));
                 None
             }
-            ExpressionNode::Borrow(borrow)
-                if direct_argument && borrow.access == language_core::ReferenceAccess::Shared =>
-            {
+            ExpressionNode::Borrow(borrow) if direct_argument => {
                 children.push((borrow.target, true, None));
                 None
             }

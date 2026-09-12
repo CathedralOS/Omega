@@ -20,6 +20,8 @@ use terminal_psi::{
 
 use crate::{legalize_target_operations, validate_legalized_operations};
 
+mod block_values;
+mod field_reads;
 mod locals;
 mod scalar_returns;
 

@@ -36,6 +36,9 @@ pub struct CheckedStructuralValue {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedStructuralValueKind {
     Case(crate::CheckedScalarCaseConstruction),
+    Call {
+        source_call: Handle<crate::FlowCallFact>,
+    },
     Record {
         data_symbol: SymbolHandle,
         fields: HandleSpan<CheckedStructuralRecordField>,
@@ -52,7 +55,21 @@ pub enum CheckedStructuralValueKind {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedStructuralRecordField {
     pub field: SymbolHandle,
-    pub value: CheckedScalarComputationHandle,
+    pub expression: ExpressionHandle,
+    pub type_reference: TypeReferenceHandle,
+    pub value: CheckedStructuralRecordFieldValue,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedStructuralRecordFieldValue {
+    Scalar(CheckedScalarComputationHandle),
+    Structural(CheckedStructuralValueHandle),
+}
+
+impl Default for CheckedStructuralRecordFieldValue {
+    fn default() -> Self {
+        Self::Scalar(Handle::invalid())
+    }
 }
 
 impl Default for CheckedStructuralValueKind {

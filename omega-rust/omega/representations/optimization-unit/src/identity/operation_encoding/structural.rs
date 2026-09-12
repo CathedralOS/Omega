@@ -144,7 +144,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             encode_place_declaration(bytes, *place);
             encode_structural_type(bytes, structural_type);
         }
-        O::EstablishScalarRecord {
+        O::EstablishRecord {
             psi_operation,
             result,
             fields,
@@ -152,9 +152,28 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.u8(56);
             bytes.id(*psi_operation);
             encode_structural_operation_result(bytes, result);
-            bytes.slice(fields, |bytes, field| {
-                bytes.id(field.field);
-                bytes.id(field.value);
+            bytes.slice(fields, |bytes, initializer| {
+                bytes.id(initializer.field);
+                match &initializer.value {
+                    terminal_psi::RecordFieldValue::Scalar {
+                        value,
+                        range_obligation,
+                    } => {
+                        bytes.u8(0);
+                        bytes.id(*value);
+                        match range_obligation {
+                            Some(obligation) => {
+                                bytes.u8(1);
+                                bytes.id(*obligation);
+                            }
+                            None => bytes.u8(0),
+                        }
+                    }
+                    terminal_psi::RecordFieldValue::Structural(argument) => {
+                        bytes.u8(1);
+                        encode_structural_argument(bytes, argument);
+                    }
+                }
             });
         }
         _ => unreachable!("operation family routing admitted a non-structural operation"),

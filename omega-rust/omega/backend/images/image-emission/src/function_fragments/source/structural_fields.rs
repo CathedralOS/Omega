@@ -125,7 +125,7 @@ fn read_access(
     }
     for operation in &function.operations {
         let (producer, result) = match operation {
-            AbstractOperation::EstablishScalarRecord {
+            AbstractOperation::EstablishRecord {
                 psi_operation,
                 result,
                 ..
@@ -148,7 +148,7 @@ fn read_access(
                 .flat_map(|block| &block.operations)
                 .any(|operation| {
                     let home = match operation {
-                        TargetUnitOperation::EstablishScalarRecord { result_home, .. }
+                        TargetUnitOperation::EstablishRecord { result_home, .. }
                         | TargetUnitOperation::StructuralResultCall {
                             result_home: Some(result_home),
                             ..

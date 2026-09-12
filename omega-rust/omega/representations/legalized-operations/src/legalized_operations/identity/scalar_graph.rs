@@ -95,7 +95,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     }
                     super::calling::encode_shape(bytes, *shape);
                 }
-                LegalizedScalarInstructionKind::EstablishScalarRecord {
+                LegalizedScalarInstructionKind::EstablishRecord {
                     result,
                     fields,
                     shape,
@@ -105,7 +105,22 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     encode_len(bytes, fields.len());
                     for field in fields {
                         bytes.extend_from_slice(&field.field.get().to_le_bytes());
-                        bytes.extend_from_slice(&field.value.get().to_le_bytes());
+                        match &field.value {
+                            terminal_psi::RecordFieldValue::Scalar {
+                                value,
+                                range_obligation,
+                            } => {
+                                bytes.push(0);
+                                bytes.extend_from_slice(&value.get().to_le_bytes());
+                                encode_option_id(bytes, range_obligation.map(|id| id.get()));
+                            }
+                            terminal_psi::RecordFieldValue::Structural(argument) => {
+                                bytes.push(1);
+                                super::structural_types::encode_structural_argument(
+                                    bytes, argument,
+                                );
+                            }
+                        }
                     }
                     super::calling::encode_shape(bytes, *shape);
                 }

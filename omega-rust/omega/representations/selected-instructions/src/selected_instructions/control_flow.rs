@@ -21,6 +21,32 @@ pub struct SelectedFunction {
     pub blocks: Vec<SelectedBlock>,
 }
 
+impl SelectedFunction {
+    /// Physical entry liveness, after independent source/ABI replay. A hidden
+    /// result destination is an ABI input but never a semantic parameter.
+    pub fn is_entry_register(&self, register: &VirtualRegister) -> bool {
+        use super::VirtualRegisterOrigin;
+        match register.origin {
+            VirtualRegisterOrigin::EntryParameter { .. }
+            | VirtualRegisterOrigin::StructuralParameter { .. } => true,
+            VirtualRegisterOrigin::AbiTransport {
+                instruction: super::SelectedInstructionId(0),
+                place,
+                byte_offset: 0,
+            } => {
+                register.entry_fixed_view.is_some()
+                    && register.definition_site.is_none()
+                    && self
+                        .structural
+                        .as_ref()
+                        .and_then(|signature| signature.result.as_ref())
+                        .is_some_and(|result| result.place == place)
+            }
+            _ => false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedBlock {
     pub id: SelectedBlockId,

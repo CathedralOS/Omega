@@ -121,10 +121,13 @@ fn record_module() -> TerminalModule {
             projected_qualifications: Vec::new(),
             claims: Vec::new(),
         }),
-        kind: OperationKind::EstablishScalarRecord {
-            fields: vec![ScalarRecordFieldValue {
+        kind: OperationKind::EstablishRecord {
+            fields: vec![RecordFieldInitializer {
                 field: StructuralFieldId::new(1).unwrap(),
-                value: ValueId::new(1).unwrap(),
+                value: terminal_psi::RecordFieldValue::Scalar {
+                    value: ValueId::new(1).unwrap(),
+                    range_obligation: None,
+                },
             }],
         },
     });

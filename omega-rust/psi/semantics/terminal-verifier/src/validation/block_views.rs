@@ -167,7 +167,7 @@ pub(super) fn validate_successor(
             // The constructor establishes its own exact type; a successor may
             // not substitute the selected result's type for an untouched owner.
             (super::scalar_case::plain_return_source(module, machine, argument.place)
-                || super::scalar_record::plain_return_source(module, machine, argument.place))
+                || super::record::plain_return_source(module, machine, argument.place))
                 && machine.blocks.iter().any(|block| {
                     dominating_blocks.contains(&block.id)
                         && block.operations.iter().any(|operation| {

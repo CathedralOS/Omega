@@ -116,6 +116,7 @@ impl<'a> UnitBody<'a> {
         ordinary
             .iter()
             .chain(composed.iter().flat_map(|state| &state.operations))
+            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
     }
 
     pub(crate) fn structural_parameters(

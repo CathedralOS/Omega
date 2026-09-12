@@ -68,14 +68,17 @@ the selected callee, ordered arguments, result home, exact ABI and contract.
 Parallel transfers must preserve duplicate sources and cycles before replacing
 destinations. Allocation owns the actual snapshots and frame locations.
 
-Plain scalar record construction uses the existing aggregate result home.
-Each field retains its semantic identity and already evaluated SSA operand;
-target and legalized receiving checks reconstruct the field roster, scalar
-carriers, shape, and storage offsets. Selection shares scalar-array store
-emission and independent replay, with record-specific layout derived at the
-input boundary. No literal-only construction or separate record storage graph
-remains. Direct aggregate returns are exercised on Linux x64/ARM64 and macOS
-ARM64; Windows indirect aggregate returns remain a realization dependency.
+Plain record construction uses the existing aggregate result home. Each field
+retains its declaration identity and evaluated scalar operand or completed owned
+child. Target and legalized receiving checks reconstruct the field roster, scalar
+carriers, child types, range obligations, shape, and storage offsets. Selection
+initializes complete storage before publishing its address; nested copies use exact
+child extents and incoming owned values use captured ABI fragments. Calls borrowing
+a local record retain the original home. Direct and hidden-pointer aggregate results
+use the same calling-plan custody. Scalar-field record block arrivals retain the
+existing aggregate edge transport. Nested record block arrivals and indirect owned
+entry arguments remain unsupported; no literal-only constructor or separate record storage
+graph is retained.
 
 Shared calls can borrow a constructed plain record's existing home, including
 one produced by an ordinary call. The borrow passes its address, not copied

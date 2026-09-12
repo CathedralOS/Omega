@@ -223,10 +223,12 @@ fn missing_duplicate_redirected_and_changed_store_plans_reject() {
                 else {
                     panic!("store")
                 };
-                *value = checked_trees::CheckedScalarExpression::Parameter {
-                    position: 0,
-                    primitive_type: checked_trees::types::PrimitiveType::U64,
-                };
+                *value = checked_trees::CheckedCallScalarArgument::Pure(
+                    checked_trees::CheckedScalarExpression::Parameter {
+                        position: 0,
+                        primitive_type: checked_trees::types::PrimitiveType::U64,
+                    },
+                );
             }
             _ => unreachable!(),
         }
@@ -252,7 +254,10 @@ fn unsupported_authored_contracts_cannot_disappear_from_store_return_bodies() {
                 .is_empty(),
             "{contract}"
         );
-        assert!(checked_trees_to_lowered_psi::lower_machine(&checked, "reset").is_err());
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(&checked, "reset").is_err(),
+            "{contract}"
+        );
         // Producer evidence may be incomplete or substituted. The consumer must
         // inspect the authored contract even after its proof rows disappear.
         let plain = self::checked("machine reset(value: &mut u64) -> u64 { value = 0; 0 }");
@@ -393,9 +398,11 @@ fn ordinary_store_completion_replays_retained_effects_without_legacy_return_rows
                             parameter_index: 1,
                         };
                     } else {
-                        *value = checked_trees::CheckedScalarExpression::IntegerLiteral {
-                            literal: numerics::literals::IntegerLiteral::from_value(9),
-                        };
+                        *value = checked_trees::CheckedCallScalarArgument::Pure(
+                            checked_trees::CheckedScalarExpression::IntegerLiteral {
+                                literal: numerics::literals::IntegerLiteral::from_value(9),
+                            },
+                        );
                     }
                 }
                 _ => unreachable!(),

@@ -1013,22 +1013,19 @@ pub(in crate::flow) fn build_call_operation(
                     )
             })
             && transfers.is_empty()
-            && ((result.multiplicity == Multiplicity::Affine
-                && validation::has_plain_owned_contents_with_numeric_constraints(
-                    program,
-                    target_state.return_type,
-                )
-                && matches!(
-                    program
-                        .type_reference_table
-                        .type_reference(target_state.return_type),
-                    TypeReferenceNode::Named { .. }
-                ))
-                || (result.multiplicity == Multiplicity::Unrestricted
-                    && validation::is_closed_primitive_array_type(
-                        program,
-                        target_state.return_type,
-                    )))
+            && ((matches!(
+                result.multiplicity,
+                Multiplicity::Affine | Multiplicity::Unrestricted
+            ) && validation::has_plain_owned_contents_with_numeric_constraints(
+                program,
+                target_state.return_type,
+            ) && matches!(
+                program
+                    .type_reference_table
+                    .type_reference(target_state.return_type),
+                TypeReferenceNode::Named { .. }
+            )) || (result.multiplicity == Multiplicity::Unrestricted
+                && validation::is_closed_primitive_array_type(program, target_state.return_type)))
             && program
                 .machine_states(target_machine)
                 .first()

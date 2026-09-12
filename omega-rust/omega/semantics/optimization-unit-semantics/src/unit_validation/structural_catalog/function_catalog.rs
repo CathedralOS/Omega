@@ -131,7 +131,7 @@ pub(crate) fn validate_function_structural_catalog(
                                     result,
                                     ..
                                 }
-                                | O::EstablishScalarRecord {
+                                | O::EstablishRecord {
                                     psi_operation,
                                     result,
                                     ..
@@ -199,7 +199,7 @@ pub(crate) fn validate_function_structural_catalog(
             | O::ByteSequenceSubslice { result, .. }
             | O::EstablishScalarArray { result, .. }
             | O::EstablishScalarCase { result, .. }
-            | O::EstablishScalarRecord { result, .. }
+            | O::EstablishRecord { result, .. }
             | O::CallStructural { result, .. }
             | O::BoundaryCall {
                 result: abstract_operations::AbstractBoundaryResult::Structural(result),
@@ -248,7 +248,7 @@ pub(crate) fn validate_function_structural_catalog(
                 result,
                 ..
             }
-            | O::EstablishScalarRecord {
+            | O::EstablishRecord {
                 psi_operation,
                 result,
                 ..

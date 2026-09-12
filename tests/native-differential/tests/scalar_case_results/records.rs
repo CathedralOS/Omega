@@ -216,16 +216,25 @@ fn record_wire_rejects_retired_literal_tag_and_changed_field_roster() {
         .flat_map(|machine| &machine.blocks)
         .flat_map(|block| &block.operations)
         .find_map(|operation| match &operation.kind {
-            terminal_psi::OperationKind::EstablishScalarRecord { fields } => Some(fields),
+            terminal_psi::OperationKind::EstablishRecord { fields } => Some(fields),
             _ => None,
         })
         .unwrap();
     // Pin the new row's bytes so tag 51 can never silently acquire new meaning.
-    let mut row = vec![67];
+    let mut row = vec![68];
     row.extend_from_slice(&u32::try_from(fields.len()).unwrap().to_le_bytes());
     for field in fields {
         row.extend_from_slice(&field.field.get().to_le_bytes());
-        row.extend_from_slice(&field.value.get().to_le_bytes());
+        let terminal_psi::RecordFieldValue::Scalar {
+            value,
+            range_obligation: None,
+        } = field.value
+        else {
+            panic!("plain scalar field");
+        };
+        row.push(1);
+        row.extend_from_slice(&value.get().to_le_bytes());
+        row.push(0);
     }
     let offsets = artifact
         .semantic_bytes()
@@ -236,9 +245,11 @@ fn record_wire_rejects_retired_literal_tag_and_changed_field_roster() {
     let [offset] = offsets.as_slice() else {
         panic!("one exact record wire row");
     };
-    let mut stale = artifact.semantic_bytes().to_vec();
-    stale[*offset] = 51;
-    assert!(terminal_codec::decode_module(&stale).is_err());
+    for retired in [51, 67] {
+        let mut stale = artifact.semantic_bytes().to_vec();
+        stale[*offset] = retired;
+        assert!(terminal_codec::decode_module(&stale).is_err());
+    }
     let mut changed = module.clone();
     let fields = changed
         .machines
@@ -246,7 +257,7 @@ fn record_wire_rejects_retired_literal_tag_and_changed_field_roster() {
         .flat_map(|machine| &mut machine.blocks)
         .flat_map(|block| &mut block.operations)
         .find_map(|operation| match &mut operation.kind {
-            terminal_psi::OperationKind::EstablishScalarRecord { fields } => Some(fields),
+            terminal_psi::OperationKind::EstablishRecord { fields } => Some(fields),
             _ => None,
         })
         .unwrap();

@@ -5552,3 +5552,6 @@ fn structural_domain_id(raw: u64) -> StructuralDomainId {
 fn service_id(raw: u64) -> ServiceId {
     ServiceId::new(raw).unwrap()
 }
+
+#[path = "unit/records.rs"]
+mod records;

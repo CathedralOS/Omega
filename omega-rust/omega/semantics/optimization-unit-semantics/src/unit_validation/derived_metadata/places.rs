@@ -46,7 +46,7 @@ pub(crate) fn reconstruct_declared_places(
                 | O::ByteSequenceSubslice { result, .. }
                 | O::EstablishScalarArray { result, .. }
                 | O::EstablishScalarCase { result, .. }
-                | O::EstablishScalarRecord { result, .. }
+                | O::EstablishRecord { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),
@@ -80,6 +80,13 @@ pub(crate) fn validate_operation_places(
         }
     };
     match operation {
+        O::EstablishRecord { fields, .. } => {
+            for initializer in fields {
+                if let terminal_psi::RecordFieldValue::Structural(argument) = &initializer.value {
+                    require(argument.place, known)?;
+                }
+            }
+        }
         O::StructuralCase { source, cases } => {
             require(*source, known)?;
             for place in cases.iter().flat_map(|case| &case.trivial_affine_discards) {
@@ -109,9 +116,7 @@ pub(crate) fn validate_operation_places(
                 require(binding.argument.place, known)?;
             }
         }
-        O::EstablishByteSequenceLiteral { .. }
-        | O::EstablishTrivialAffineLocal { .. }
-        | O::EstablishScalarRecord { .. } => {}
+        O::EstablishByteSequenceLiteral { .. } | O::EstablishTrivialAffineLocal { .. } => {}
         O::PrimitiveLocalStore { destination, .. } => require(*destination, known)?,
         O::WriteOnlyPrimitiveStore { destination, .. }
         | O::StructuralScalarFieldStore { destination, .. } => {

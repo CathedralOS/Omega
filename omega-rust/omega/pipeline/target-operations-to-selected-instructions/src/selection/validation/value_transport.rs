@@ -87,9 +87,8 @@ fn reaches_observer(function: &LegalizedScalarFunction, value: ValueId) -> bool 
 fn reads(instruction: &Instruction, value: ValueId) -> bool {
     match instruction {
         Instruction::EstablishScalarArray { elements, .. } => elements.contains(&value),
-        Instruction::EstablishScalarRecord { fields, .. } => {
-            fields.iter().any(|field| field.value == value)
-        }
+        Instruction::EstablishRecord { fields, .. } => fields.iter().any(|field|
+            matches!(&field.value, terminal_psi::RecordFieldValue::Scalar { value: operand, .. } if *operand == value)),
         Instruction::EstablishScalarCase { fields, .. } => {
             fields.iter().any(|field| field.value == value)
         }

@@ -88,11 +88,11 @@ pub(super) fn project(
                 crash_continuations: crash_continuations.clone(),
             })
         }
-        AbstractOperation::EstablishScalarRecord { result, fields, .. } => {
-            LegalizedScalarInstructionKind::EstablishScalarRecord {
+        AbstractOperation::EstablishRecord { result, fields, .. } => {
+            LegalizedScalarInstructionKind::EstablishRecord {
                 result: result.clone(),
                 fields: fields.clone(),
-                shape: scalar_graph_input::scalar_arrays::record_shape(result, plan)?,
+                shape: scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape(),
             }
         }
         AbstractOperation::EstablishScalarArray {

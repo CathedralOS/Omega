@@ -84,7 +84,7 @@ Reconverging paths must establish the same ordered structural frontier; their
 scalar values need not be identical.
 
 This is an ownership-obligation frontier, not a catalog of every evaluated value.
-Plain unrestricted primitive-array, scalar-case, and scalar-record payloads have no disposal
+Plain unrestricted primitive-array, scalar-case, and plain record payloads have no disposal
 obligation. As with primitive local storage, their uses require an independently
 established producer that dominates the use, including operation order within a
 block. A branch-local payload cannot be used after a join reached without its

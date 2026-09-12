@@ -19,8 +19,11 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
         for instruction in &block.instructions {
             match &instruction.kind {
                 Instruction::EstablishScalarArray { elements, .. } => pending.extend(elements),
-                Instruction::EstablishScalarRecord { fields, .. } => {
-                    pending.extend(fields.iter().map(|field| field.value))
+                Instruction::EstablishRecord { fields, .. } => {
+                    pending.extend(fields.iter().filter_map(|field| match &field.value {
+                        terminal_psi::RecordFieldValue::Scalar { value, .. } => Some(*value),
+                        terminal_psi::RecordFieldValue::Structural(_) => None,
+                    }))
                 }
                 Instruction::EstablishScalarCase { fields, .. } => {
                     pending.extend(fields.iter().map(|field| field.value))

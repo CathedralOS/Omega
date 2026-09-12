@@ -7,7 +7,7 @@ use selected_instructions::{
     LivenessPosition, OperandPosition, SuccessorLiveness,
 };
 use selected_instructions::{
-    SelectedBlock, SelectedFunction, SelectedInstruction, VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedBlock, SelectedFunction, SelectedInstruction, VirtualRegisterId,
 };
 
 mod control;
@@ -111,13 +111,7 @@ pub(crate) fn compute_function(
     let entry_definitions = function
         .virtual_registers
         .iter()
-        .filter(|register| {
-            matches!(
-                register.origin,
-                VirtualRegisterOrigin::EntryParameter { .. }
-                    | VirtualRegisterOrigin::StructuralParameter { .. }
-            )
-        })
+        .filter(|register| function.is_entry_register(register))
         .map(|register| EntryDefinition {
             virtual_register: register.id,
             class: register.class,

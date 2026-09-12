@@ -29,8 +29,7 @@ mod traversal;
 
 use result_realization::report_void_value_callee;
 pub(crate) use result_realization::{
-    report_local_receiver_value_call, report_nested_call_in_local_assignment,
-    report_nested_call_in_local_initializer,
+    report_nested_call_in_local_assignment, report_nested_call_in_local_initializer,
 };
 pub use result_realization::{
     result_initializer_call_is_supported, unit_result_initializer_call_is_supported,

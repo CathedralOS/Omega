@@ -1,4 +1,4 @@
-//! Branch-free primitive replacement executes in authored order after reload.
+//! Primitive replacement completes scalar evaluation before its ordered store.
 
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::{
@@ -58,7 +58,141 @@ fn multiple_primitive_stores_preserve_order_across_suspension() {
     );
 }
 
-fn execute(source: &str, arguments: &[TerminalScalarValue], expected: &[TerminalScalarValue]) {
+#[test]
+fn primitive_assignment_evaluates_selected_match_call_before_mutation() {
+    for choose_first in [false, true] {
+        execute(
+            r#"
+            data Sink {}
+            machine value(input: i32) -> i32 { input }
+            machine Sink::fill(destination: &write i32, choose_first: bool) {
+                destination = match choose_first { true -> value(7), false -> value(9) };
+            }
+            "#,
+            &[TerminalScalarValue::Boolean(choose_first)],
+            &[signed(91), signed(if choose_first { 7 } else { 9 })],
+        );
+    }
+}
+
+#[test]
+fn primitive_assignment_expands_short_circuit_value_before_mutation() {
+    execute(
+        r#"
+        data Sink {}
+        machine Sink::fill(destination: &write bool, choose: bool) {
+            destination = choose && false;
+        }
+        "#,
+        &[TerminalScalarValue::Boolean(true)],
+        &[
+            TerminalScalarValue::Boolean(true),
+            TerminalScalarValue::Boolean(false),
+        ],
+    );
+}
+
+#[test]
+fn computed_primitive_store_rejects_replaced_roots_and_literal_meaning() {
+    use checked_trees::{
+        CheckedCallScalarArgument, CheckedScalarComputationKind, CheckedScalarExpression,
+    };
+    let original = checked_source(
+        r#"
+        data Sink {}
+        machine Sink::fill(destination: &write i32, choose: bool) {
+            destination = match choose { true -> 7, false -> 9 };
+        }
+    "#,
+    );
+    let _original_artifact =
+        terminal_production::TerminalProductionRequest::new(&original, "Sink::fill")
+            .produce_artifact()
+            .expect("original computed assignment");
+    for mutation in 0..3 {
+        let mut changed = original.clone();
+        if mutation == 0 {
+            let operation =
+                changed
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .machines
+                    .iter_mut()
+                    .flat_map(|plan| &mut plan.operations)
+                    .find(|operation| {
+                        matches!(operation,
+                    checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. })
+                    })
+                    .unwrap();
+            let checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                value,
+                ..
+            } = operation
+            else {
+                unreachable!()
+            };
+            *value = CheckedCallScalarArgument::Pure(CheckedScalarExpression::IntegerLiteral {
+                literal: numerics::literals::IntegerLiteral::from_value(7),
+            });
+        } else if mutation == 1 {
+            let (handle, _) = changed
+                .facts
+                .values
+                .scalar_computations
+                .roots
+                .iter()
+                .next()
+                .unwrap();
+            changed
+                .facts
+                .values
+                .scalar_computations
+                .roots
+                .get_mut(handle)
+                .machine = symbols::SymbolHandle::invalid();
+        } else {
+            let handle = changed
+                .facts
+                .values
+                .scalar_computations
+                .nodes
+                .iter()
+                .find_map(|(handle, node)| {
+                    matches!(
+                        node.kind,
+                        CheckedScalarComputationKind::Value(
+                            CheckedScalarExpression::IntegerLiteral { .. }
+                        )
+                    )
+                    .then_some(handle)
+                })
+                .unwrap();
+            let CheckedScalarComputationKind::Value(CheckedScalarExpression::IntegerLiteral {
+                literal,
+                ..
+            }) = &mut changed
+                .facts
+                .values
+                .scalar_computations
+                .nodes
+                .get_mut(handle)
+                .kind
+            else {
+                unreachable!()
+            };
+            *literal = numerics::literals::IntegerLiteral::from_value(42);
+        }
+        assert!(
+            terminal_production::TerminalProductionRequest::new(&changed, "Sink::fill")
+                .produce_artifact()
+                .is_err(),
+            "store mutation {mutation}"
+        );
+    }
+}
+
+fn checked_source(source: &str) -> checked_trees::CheckedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .expect("tokenize");
@@ -67,7 +201,11 @@ fn execute(source: &str, arguments: &[TerminalScalarValue], expected: &[Terminal
         syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check");
+    typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check")
+}
+
+fn execute(source: &str, arguments: &[TerminalScalarValue], expected: &[TerminalScalarValue]) {
+    let checked = checked_source(source);
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Sink::fill")
         .produce_artifact()
         .expect("publish exact store sequence");

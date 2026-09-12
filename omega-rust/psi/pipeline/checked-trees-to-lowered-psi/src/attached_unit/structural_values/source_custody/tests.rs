@@ -119,6 +119,7 @@ fn operation(
                 multiplicity: checked.type_multiplicity(root.type_reference),
             },
             value: root.root,
+            calls: Vec::new(),
             discard_result_on_return: false,
         },
     )
@@ -270,4 +271,110 @@ fn structural_replay_rejects_case_identity_and_root_owner_substitution() {
         .get_mut(root)
         .machine = state;
     assert!(validate(&checked, machine, state, &operation).is_err());
+}
+
+#[test]
+fn nested_call_replay_rejects_an_equal_row_outside_the_owning_state() {
+    let mut checked = checked_source(
+        "data Inner { value: u64; } data Outer { child: Inner; }
+        machine make_child(value: u64) -> Inner { Inner { value: value } }
+        machine make() -> Outer { Outer { child: make_child(7) } }",
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "make")
+        .unwrap();
+    let symbol = machine.symbol;
+    let state = checked.machine_states(machine)[0].symbol;
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(symbol)
+        .expect("ordinary nested constructor");
+    let operation = plan
+        .operations
+        .iter()
+        .find(|operation| {
+            matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+            )
+        })
+        .unwrap()
+        .clone();
+    validate(&checked, symbol, state, &operation).expect("actual nested call occurrence");
+    let CheckedUnitEffectOperationPlan::EstablishStructuralValue { calls, .. } = &operation else {
+        unreachable!()
+    };
+    let [call] = calls.as_slice() else {
+        panic!("one nested call")
+    };
+    let handle = call.value;
+    let CheckedStructuralValueKind::Call { source_call } = checked
+        .facts
+        .values
+        .structural_values
+        .nodes
+        .get(handle)
+        .kind
+    else {
+        panic!("call value")
+    };
+    let equal_row = checked.facts.flow.control.calls.get(source_call).clone();
+    let outside_state = checked.facts.flow.control.calls.append(equal_row);
+    checked
+        .facts
+        .values
+        .structural_values
+        .nodes
+        .get_mut(handle)
+        .kind = CheckedStructuralValueKind::Call {
+        source_call: outside_state,
+    };
+    assert!(
+        validate(&checked, symbol, state, &operation)
+            .unwrap_err()
+            .to_string()
+            .contains("outside its source state")
+    );
+}
+
+#[test]
+fn owned_record_child_replay_rejects_same_carrier_parameter_substitution() {
+    let mut checked = checked_source(
+        "data Inner { value: u64; } data Outer { child: Inner; }
+        machine wrap(first: Inner, second: Inner) -> Outer { Outer { child: first } }",
+    );
+    let (machine, state, operation) = operation(&checked);
+    validate(&checked, machine, state, &operation).unwrap();
+    let value = checked
+        .facts
+        .values
+        .structural_values
+        .nodes
+        .iter()
+        .find_map(|(handle, value)| {
+            matches!(value.kind, CheckedStructuralValueKind::Place(_)).then_some(handle)
+        })
+        .unwrap();
+    let CheckedStructuralValueKind::Place(argument) = &mut checked
+        .facts
+        .values
+        .structural_values
+        .nodes
+        .get_mut(value)
+        .kind
+    else {
+        unreachable!()
+    };
+    argument.source =
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 };
+    assert!(
+        validate(&checked, machine, state, &operation)
+            .unwrap_err()
+            .to_string()
+            .contains("substituted its parameter")
+    );
 }

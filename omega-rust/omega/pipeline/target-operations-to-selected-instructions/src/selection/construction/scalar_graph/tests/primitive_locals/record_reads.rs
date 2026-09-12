@@ -35,14 +35,17 @@ fn record_fixture(native: target::NativeTarget) -> LegalizedScalarFunction {
     else {
         panic!("local");
     };
-    source.blocks[0].instructions[1].kind = LegalizedScalarInstructionKind::EstablishScalarRecord {
+    source.blocks[0].instructions[1].kind = LegalizedScalarInstructionKind::EstablishRecord {
         result,
         shape: ValueShape::integer(16, 8),
         fields: fields
             .into_iter()
-            .map(|field| terminal_psi::ScalarRecordFieldValue {
+            .map(|field| terminal_psi::RecordFieldInitializer {
                 field,
-                value: value.value,
+                value: terminal_psi::RecordFieldValue::Scalar {
+                    value: value.value,
+                    range_obligation: None,
+                },
             })
             .collect(),
     };

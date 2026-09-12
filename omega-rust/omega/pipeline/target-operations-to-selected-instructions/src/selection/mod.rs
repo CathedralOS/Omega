@@ -17,6 +17,7 @@ mod literal_storage_input;
 mod model;
 pub(crate) mod primitive_local_input;
 mod read_result_input;
+mod record_input;
 mod scalar_array_input;
 mod scalar_call_abi;
 mod shared;

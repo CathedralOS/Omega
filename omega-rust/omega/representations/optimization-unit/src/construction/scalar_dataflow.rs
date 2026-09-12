@@ -166,7 +166,13 @@ pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
     use AbstractOperation as O;
     match operation {
         O::EstablishScalarCase { fields, .. } => fields.iter().map(|field| field.value).collect(),
-        O::EstablishScalarRecord { fields, .. } => fields.iter().map(|field| field.value).collect(),
+        O::EstablishRecord { fields, .. } => fields
+            .iter()
+            .filter_map(|initializer| match &initializer.value {
+                terminal_psi::RecordFieldValue::Scalar { value, .. } => Some(*value),
+                terminal_psi::RecordFieldValue::Structural(_) => None,
+            })
+            .collect(),
         O::EstablishScalarArray { elements, .. } => elements.clone(),
         O::ByteSequenceRead { index, length, .. } => vec![*index, *length],
         O::ByteSequenceWrite {

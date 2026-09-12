@@ -1,9 +1,11 @@
+use super::super::control_flow::retained as cleanup_retained;
 use super::*;
 use abstract_operations::{AbstractFunctionResult, AbstractResult};
 use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
 use semantic_vocabulary::{
     BlockId, EdgeId, MachineId, PlaceId, ScalarType, StructuralTypeId, ValueId,
 };
+use target_operations::TargetControlTerminator;
 use target_operations::{
     TargetBooleanExpression, TargetControlBlock, TargetControlGraph, TargetScalarExpression,
 };
@@ -139,7 +141,7 @@ fn fixture() -> (AbstractFunction, TargetFunction, SelectedFunction) {
 fn scalar_discard_requires_exact_retained_return() {
     // These predicate fixtures are not complete source replay certificates.
     let (function, target, _) = fixture();
-    assert!(scalar_cleanup_retained(&function.operations[0], &target));
+    assert!(cleanup_retained(&function.operations[0], &target));
     for mutation in 0..5 {
         let mut changed = target.clone();
         let graph = &mut changed.graph;
@@ -163,7 +165,7 @@ fn scalar_discard_requires_exact_retained_return() {
             _ => graph.blocks.push(graph.blocks[0].clone()),
         }
         assert!(
-            !scalar_cleanup_retained(&function.operations[0], &changed),
+            !cleanup_retained(&function.operations[0], &changed),
             "mutation {mutation}"
         );
     }
@@ -241,4 +243,50 @@ fn unobserved_owned_keeps_the_complete_mixed_abi_join() {
         }
         assert!(admit(&changed, &selected).is_err(), "mutation {mutation}");
     }
+}
+
+#[test]
+fn unit_discard_requires_exact_unique_return_and_ordered_roots() {
+    let (mut function, mut target, _) = fixture();
+    let edge = EdgeId::new(1).unwrap();
+    let actions = vec![
+        TerminalAffineCleanupAction::DiscardRoot(PlaceId::new(1).unwrap()),
+        TerminalAffineCleanupAction::DiscardRoot(PlaceId::new(2).unwrap()),
+    ];
+    function.operations[0] = AbstractOperation::ReturnUnit {
+        psi_edge: edge,
+        cleanup_actions: actions.clone(),
+    };
+    target.graph.blocks[0].terminator = TargetControlTerminator::Return {
+        psi_edge: edge,
+        cleanup_actions: actions,
+    };
+    assert!(cleanup_retained(&function.operations[0], &target));
+    for mutation in 0..5 {
+        let mut changed = target.clone();
+        let graph = &mut changed.graph;
+        let TargetControlTerminator::Return {
+            psi_edge,
+            cleanup_actions,
+        } = &mut graph.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        match mutation {
+            0 => cleanup_actions.clear(),
+            1 => *psi_edge = EdgeId::new(2).unwrap(),
+            2 => cleanup_actions.reverse(),
+            3 => {
+                cleanup_actions[0] =
+                    TerminalAffineCleanupAction::DiscardRoot(PlaceId::new(3).unwrap())
+            }
+            _ => graph.blocks.push(graph.blocks[0].clone()),
+        }
+        assert!(
+            !cleanup_retained(&function.operations[0], &changed),
+            "mutation {mutation}"
+        );
+    }
+    let (_, scalar_target, _) = fixture();
+    assert!(!cleanup_retained(&function.operations[0], &scalar_target));
 }

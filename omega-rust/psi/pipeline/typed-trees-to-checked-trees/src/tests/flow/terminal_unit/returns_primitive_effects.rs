@@ -38,7 +38,7 @@ fn primitive_store_scalar_return_retains_source_effect_and_borrow() {
             [CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 statement_index: 0,
                 destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
-                value: CheckedScalarExpression::IntegerLiteral { literal },
+                value: checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::IntegerLiteral { literal }),
             }] if literal.value_i64() == Some(0)
         ));
         // Scalar completion shares the ordinary operation owner. Its source

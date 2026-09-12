@@ -44,9 +44,28 @@ then writes the declared tag and exact-width fields. The carrier-address
 instruction retains the single source-operation charge; its other initialization
 instructions add none. Ordinary calls capture every direct result fragment into
 the caller's result slot, and returns load every fragment under the same retained
-ABI plan. Result definitions are not also unknown call clobbers. Current direct
-carriers cover one or two register fragments; hidden-pointer returns remain an
-explicit realization limit, including 16-byte sums on Microsoft x64.
+ABI plan. Result definitions are not also unknown call clobbers. Direct
+carriers cover one or two register fragments. Indirect results use the exact
+calling plan’s hidden pointer: RCX/RDI on x86-64 and X8 on AArch64. Entry captures
+that pointer before calls; the caller reserves result storage before the call
+and publishes its initialized home after completion. x86-64 returns the pointer
+in RAX. Independent replay checks the hidden input, shifted ordinary parameters,
+result storage, exact writes, and return convention.
+
+Plain record establishment uses the same aggregate homes. Each initializer rejoins
+its exact declared field, recursive layout, scalar value or completed owned child,
+and range obligation. Selection initializes padding and copies nested children at
+exact widths before publishing the result address. Child storage may come from an
+operation result or an owned entry parameter whose ABI fragments are already
+captured; borrowed operands cannot substitute for owned children. Scalar-field record block arrivals use the existing aggregate edge transport;
+nested record block arrivals and indirect owned entry arguments remain unsupported. Independent replay
+reconstructs field placement, child sources, stores, and the single operation charge.
+
+Scalar field observations retain the exact readable parameter, nominal field,
+result type, and original operation. Each read materializes a scalar SSA value
+before subsequent calls or stores. Independent target and selected replay
+reconstructs the field offset and exact-width load from the declaration; a
+same-typed field or later reload cannot substitute for the retained observation.
 
 Primitive arrays share that aggregate storage and call/return path without a sum
 tag. [Array input](src/selection/scalar_array_input.rs) reconstructs the declared
@@ -83,8 +102,7 @@ no payload slot, address, register, or memory access. Constructor operation/fuel
 provenance prefixes the next instruction in the same block, including a terminator;
 independent replay reconstructs that ordered prefix. Empty-result calls and returns
 reuse physical Unit instructions without changing their structural contracts.
-Indirect owned arguments and hidden-pointer results remain explicit transport
-limits. Zero physical size never erases the semantic array type. The native differential
+Indirect owned entry arguments remain an explicit transport limit. Zero physical size never erases the semantic array type. The native differential
 `scalar_array_results` target covers full publication and matching-host execution;
 its 17-byte SysV mixed-call case exercises independently verified runtime spills
 through the high-pressure acyclic graph. That case publishes on any development

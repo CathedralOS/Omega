@@ -156,7 +156,7 @@ fn source_contract(
             },
             O::CallStructural { result, .. }
             | O::EstablishScalarCase { result, .. }
-            | O::EstablishScalarRecord { result, .. }
+            | O::EstablishRecord { result, .. }
                 if result.place == place
                     && matches!(
                         result.multiplicity,

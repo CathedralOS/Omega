@@ -709,7 +709,7 @@ fn assert_constructed_wrapper_execution(source: &str) {
                     !matches!(
                         operation.kind,
                         terminal_psi::OperationKind::EstablishTrivialAffineLocal { .. }
-                            | terminal_psi::OperationKind::EstablishScalarRecord { .. }
+                            | terminal_psi::OperationKind::EstablishRecord { .. }
                     )
                 });
             }
@@ -886,7 +886,7 @@ fn unit_wrapper_constructor_value_cannot_drift_from_source() {
 fn record_field_computation(
     checked: &checked_trees::CheckedTrees,
 ) -> checked_trees::CheckedScalarComputationHandle {
-    checked
+    let checked_trees::CheckedStructuralRecordFieldValue::Scalar(value) = checked
         .facts
         .values
         .structural_values
@@ -896,6 +896,10 @@ fn record_field_computation(
         .expect("retained scalar field")
         .1
         .value
+    else {
+        panic!("record field retains its scalar computation");
+    };
+    value
 }
 
 #[test]

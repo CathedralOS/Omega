@@ -551,7 +551,7 @@ pub enum ModuleError {
         structural_type: semantic_vocabulary::StructuralTypeId,
         result_case: semantic_vocabulary::StructuralCaseId,
     },
-    ScalarRecordResultMismatch(OperationId),
+    RecordResultMismatch(OperationId),
     WriteOnlyPrimitiveStoreDestinationMismatch {
         operation: OperationId,
         place: PlaceId,

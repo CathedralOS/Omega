@@ -72,6 +72,7 @@ pub(super) fn build_with_environment(
         definitions: Vec::new(),
         transport: structural::Transport::default(),
     };
+    structural::indirect_results::entry(source, environment, &mut builder)?;
     structural::entry(function, source, environment, &mut builder)?;
     // Entry ABI precoloring ends at a copy. The semantic parameter may remain
     // live across calls without being pinned to a caller-clobbered register.
@@ -425,8 +426,8 @@ pub(super) fn build_with_environment(
                         )?;
                         output
                     }
-                    LegalizedScalarInstructionKind::EstablishScalarCase { .. }
-                    | LegalizedScalarInstructionKind::EstablishScalarRecord { .. }
+                    LegalizedScalarInstructionKind::EstablishRecord { .. }
+                    | LegalizedScalarInstructionKind::EstablishScalarCase { .. }
                     | LegalizedScalarInstructionKind::EstablishScalarArray { .. }
                     | LegalizedScalarInstructionKind::HostedExitProcessI32 { .. }
                     | LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }

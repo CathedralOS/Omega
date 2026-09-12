@@ -536,6 +536,13 @@ downstream unsupported-shape rejection.
 
 ## Bounded Terminal correspondence
 
+Plain nested-record construction retains selected fields and authored operand
+ordinals. Constructor calls carry their exact captured source occurrence, and
+whole owned child names select existing parameter/local storage. Original local
+receiver loans and child transfers share the ordinary result roster; only owned
+affine transfer removes a result's disposal debt. The receiving producer checks
+these relationships independently before exposing the constructed result.
+
 Fixed arrays can retain affine records containing bounded byte fields through
 the existing owned-content classifier. Stored references and nominal-drop
 elements remain outside that array route. Mutable boundary byte arguments keep

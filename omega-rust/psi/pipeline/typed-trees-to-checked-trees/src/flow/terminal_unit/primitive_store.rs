@@ -174,7 +174,7 @@ pub(super) fn build_write_only_primitive_store(
         destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter {
             parameter_index: 0,
         },
-        value: value.clone(),
+        value: checked_trees::CheckedCallScalarArgument::Pure(value.clone()),
     })
 }
 
@@ -219,6 +219,7 @@ pub(super) fn primitive_local_before<'program>(
 pub(super) fn build_primitive_store_at(
     program: &TypedTrees,
     facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     statement_index: u32,
@@ -303,6 +304,42 @@ pub(super) fn build_primitive_store_at(
             program.primitive_type_reference(*referee)?,
         )
     };
+    // Computed RHS values share the ordinary scalar evaluator. Keep the
+    // authored assignment root until emission completes it, then replace storage.
+    let computations = &facts.values.scalar_computations;
+    let mut roots = computations
+        .roots
+        .iter()
+        .map(|(_, root)| root)
+        .filter(|root| {
+            root.state == state.symbol
+                && root.statement_ordinal == statement_index
+                && root.role == CheckedScalarExpressionRole::AssignmentValue
+        });
+    if let Some(root) = roots.next() {
+        if roots.next().is_some()
+            || root.machine != machine.symbol
+            || !computations.nodes.is_valid(root.root)
+            || computations.nodes.get(root.root).authored_root != assignment.value
+            || computations.nodes.get(root.root).primitive_type != primitive_type
+            || facts
+                .values
+                .scalar_expressions
+                .expression_at(
+                    state.symbol,
+                    statement_index,
+                    CheckedScalarExpressionRole::AssignmentValue,
+                )
+                .is_some()
+        {
+            return None;
+        }
+        return Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+            statement_index,
+            destination,
+            value: checked_trees::CheckedCallScalarArgument::Computation(root.root),
+        });
+    }
     let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
         state.symbol,
         statement_index,
@@ -312,14 +349,13 @@ pub(super) fn build_primitive_store_at(
         || binding.destination != symbol
         || crate::values::scalar_expression_type(value) != Some(primitive_type)
         || !scalar_custody_is_exact(program, facts, state, binding, value, primitive_type)
-        || matches!(value, CheckedScalarExpression::Boolean(expression) if checked_boolean_contains_short_circuit(expression))
     {
         return None;
     }
     Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
         statement_index,
         destination,
-        value: value.clone(),
+        value: checked_trees::CheckedCallScalarArgument::Pure(value.clone()),
     })
 }
 

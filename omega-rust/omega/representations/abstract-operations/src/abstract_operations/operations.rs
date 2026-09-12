@@ -146,13 +146,13 @@ pub enum AbstractOperation {
         place: StructuralPlaceDeclaration,
         structural_type: StructuralTypeDeclaration,
     },
-    /// Atomically establish one complete record from its ordered scalar operands.
-    /// The operation-result place remains semantic
-    /// custody; target lowering must assign a physical home before use.
-    EstablishScalarRecord {
+    /// Atomically establish a complete record from declaration-ordered scalar
+    /// values and owned child records. The result retains exact semantic custody;
+    /// target lowering assigns its physical home before use.
+    EstablishRecord {
         psi_operation: OperationId,
         result: StructuralOperationResult,
-        fields: Vec<terminal_psi::ScalarRecordFieldValue>,
+        fields: Vec<terminal_psi::RecordFieldInitializer>,
     },
     /// Invoke one Unit-result machine with exact caller-local scalar and
     /// structural arguments. Physical ABI placement remains downstream.

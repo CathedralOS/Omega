@@ -13,12 +13,12 @@ use super::{
     TerminalStructuralValue, terminal_scalar_belongs_to_type,
 };
 
-pub(super) struct PrimitiveLocalIdentities {
+pub(super) struct LocalStructuralIdentities {
     reserved: BTreeSet<u64>,
     next: Option<u64>,
 }
 
-impl PrimitiveLocalIdentities {
+impl LocalStructuralIdentities {
     #[cfg(test)]
     pub(crate) fn with_reserved_identities(reserved: impl IntoIterator<Item = u64>) -> Self {
         Self {
@@ -188,7 +188,7 @@ impl TerminalExecution {
         if scalar.scalar_type() != *expected || !terminal_scalar_belongs_to_type(scalar) {
             return Err(invalid());
         }
-        let identity = self.primitive_local_identities.allocate()?;
+        let identity = self.local_structural_identities.allocate()?;
         let view = TerminalStructuralValue {
             opaque_identity: identity,
             structural_type: result.structural_type,
@@ -281,7 +281,7 @@ impl TerminalExecution {
                     .remove(&StructuralRuntimePlace::from(&view));
             }
         }
-        self.retire_unrestricted_scalar_records();
+        self.retire_unrestricted_records();
     }
 }
 
@@ -291,7 +291,7 @@ mod tests {
 
     #[test]
     fn fresh_identities_skip_reserved_values_and_do_not_wrap() {
-        let mut identities = PrimitiveLocalIdentities {
+        let mut identities = LocalStructuralIdentities {
             reserved: BTreeSet::from([0, 2]),
             next: Some(0),
         };
@@ -307,7 +307,7 @@ mod tests {
 
     #[test]
     fn host_results_cannot_reintroduce_allocated_local_identity() {
-        let mut identities = PrimitiveLocalIdentities {
+        let mut identities = LocalStructuralIdentities {
             reserved: BTreeSet::from([0]),
             next: Some(0),
         };

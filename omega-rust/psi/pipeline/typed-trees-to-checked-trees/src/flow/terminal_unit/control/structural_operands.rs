@@ -8,6 +8,103 @@ pub(in crate::flow::terminal_unit) enum Operand<'facts> {
     Array(crate::values::CallArrayConstruction),
 }
 
+/// Retain ordinary call plans at their expression nodes. Their order here is
+/// catalog order only: the structural value evaluator invokes each call when
+/// that operand is reached, after all earlier authored field evaluations.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::flow::terminal_unit) fn value_calls(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    parameters: &[CheckedUnitStructuralParameterPlan],
+    trivial_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
+    entry_claims: &[CheckedUnitEntryClaimPlan],
+    results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+    count: &mut usize,
+    root: checked_trees::CheckedStructuralValueHandle,
+) -> Option<Vec<checked_trees::CheckedStructuralValueCall>> {
+    let plans = &facts.values.structural_values;
+    let mut pending = vec![root];
+    let mut visited = Vec::new();
+    let mut output = Vec::new();
+    while let Some(value) = pending.pop() {
+        if !plans.nodes.is_valid(value) || visited.contains(&value) {
+            return None;
+        }
+        visited.push(value);
+        match &plans.nodes.get(value).kind {
+            checked_trees::CheckedStructuralValueKind::Call { source_call } => {
+                if !facts.flow.control.calls.is_valid(*source_call) {
+                    return None;
+                }
+                let call = facts.flow.control.calls.get(*source_call);
+                if call.authored_expression != plans.nodes.get(value).expression {
+                    return None;
+                }
+                let reference = crate::flow::call_target_return_type(program, call.target_symbol)?;
+                let mut result = checked_structural_result_type(
+                    program,
+                    shapes,
+                    reference,
+                    &machine_binders(program, machine),
+                )?;
+                result.statement_index = u32::try_from(call.statement_index).ok()?;
+                result.binding_ordinal = u32::try_from(*count).ok()?;
+                let operation = build_call_operation(
+                    program,
+                    facts,
+                    machine,
+                    state,
+                    parameters,
+                    trivial_locals,
+                    entry_claims,
+                    call,
+                    false,
+                    Some(ExpectedCallValueResult::Structural(&result)),
+                    results,
+                )?;
+                let mut operation = bind_structural_call_result(operation, result)?;
+                let CheckedUnitEffectOperationPlan::StructuralCall {
+                    discard_result_on_return,
+                    ..
+                } = &mut operation
+                else {
+                    return None;
+                };
+                *discard_result_on_return = false;
+                output.push(checked_trees::CheckedStructuralValueCall::new(
+                    value, operation,
+                )?);
+                *count = count.checked_add(1)?;
+            }
+            checked_trees::CheckedStructuralValueKind::Record { fields, .. } => {
+                for field in plans.record_fields.span(*fields)?.iter().rev() {
+                    if let checked_trees::CheckedStructuralRecordFieldValue::Structural(value) =
+                        field.value
+                    {
+                        pending.push(value);
+                    }
+                }
+            }
+            checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
+                pending.extend(
+                    plans
+                        .dispatch_arms
+                        .span(*arms)?
+                        .iter()
+                        .rev()
+                        .map(|arm| arm.value),
+                );
+            }
+            checked_trees::CheckedStructuralValueKind::Case(_)
+            | checked_trees::CheckedStructuralValueKind::Place(_) => {}
+        }
+    }
+    Some(output)
+}
+
 pub(in crate::flow::terminal_unit) fn for_call<'a>(
     program: &TypedTrees,
     facts: &'a CheckFacts,

@@ -31,13 +31,19 @@ fn record_fixture() -> (
     else {
         panic!("array fixture");
     };
-    source.functions[0].operations[2] = O::EstablishScalarRecord {
+    source.functions[0].operations[2] = O::EstablishRecord {
         psi_operation,
         result,
         fields: fields
             .into_iter()
             .zip(elements)
-            .map(|(field, value)| terminal_psi::ScalarRecordFieldValue { field, value })
+            .map(|(field, value)| terminal_psi::RecordFieldInitializer {
+                field,
+                value: terminal_psi::RecordFieldValue::Scalar {
+                    value,
+                    range_obligation: None,
+                },
+            })
             .collect(),
     };
     let target = abstract_operations_to_target_operations::lower_to_target_operations(
@@ -61,7 +67,7 @@ fn scalar_record_target_replays_exact_field_value_and_home_correspondence() {
     validate_legalized_operations(&target, &source, &unit, legalized.plan().clone()).unwrap();
     for mutation in 0..5 {
         let mut changed = target.clone();
-        let TargetUnitOperation::EstablishScalarRecord {
+        let TargetUnitOperation::EstablishRecord {
             fields,
             result_home,
             psi_operation,
@@ -70,7 +76,7 @@ fn scalar_record_target_replays_exact_field_value_and_home_correspondence() {
             panic!("record");
         };
         match mutation {
-            0 => fields[0].value = fields[1].value,
+            0 => fields[0].value = fields[1].value.clone(),
             1 => fields.swap(0, 1),
             2 => {
                 fields.pop();
@@ -97,9 +103,9 @@ fn scalar_record_target_replays_exact_field_value_and_home_correspondence() {
         let instruction = changed.scalar_functions[0].blocks[0]
             .instructions
             .iter_mut()
-            .find(|instruction| matches!(instruction.kind, K::EstablishScalarRecord { .. }))
+            .find(|instruction| matches!(instruction.kind, K::EstablishRecord { .. }))
             .unwrap();
-        let K::EstablishScalarRecord {
+        let K::EstablishRecord {
             fields,
             result,
             shape,
@@ -108,7 +114,7 @@ fn scalar_record_target_replays_exact_field_value_and_home_correspondence() {
             panic!("record");
         };
         match mutation {
-            0 => fields[0].value = fields[1].value,
+            0 => fields[0].value = fields[1].value.clone(),
             1 => fields.swap(0, 1),
             2 => *shape = ValueShape::integer(4, 1),
             3 => result.place = PlaceId::new(99).unwrap(),

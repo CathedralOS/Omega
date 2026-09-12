@@ -4664,8 +4664,18 @@ fn unit_body_affine_local_slice_fences_every_wider_local_shape() {
         "#,
     );
 
+    let mutable = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "mutable_local"))
+        .expect("mutable plain record local has one owned result");
+    assert!(matches!(mutable.operations.as_slice(), [
+        checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, discard_result_on_return: true, .. },
+        checked_trees::CheckedUnitEffectOperationPlan::Complete { trivial_affine_discards, trivial_affine_local_discard_ordinals, .. }
+    ] if result.multiplicity == Multiplicity::Affine && result.statement_index == 0 && result.binding_ordinal == 0
+        && trivial_affine_discards.is_empty() && trivial_affine_local_discard_ordinals.is_empty()));
     for machine in [
-        "mutable_local",
         "nonempty_local",
         "qualified_local",
         "nominal_cleanup_local",

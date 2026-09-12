@@ -409,6 +409,88 @@ pub(super) fn emit_call_operations(
             CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
         ) {
             let mut calls = catalogs.scalar_calls.emission_context();
+            let mut emit_operand_call =
+                |operand: &CheckedUnitEffectOperationPlan,
+                 evaluated: Option<&[ValueDeclaration]>,
+                 call_context: &mut CallEmissionContext<'_>,
+                 output: &mut OperationBuffer,
+                 place_counter: &mut u64| {
+                    let CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. } =
+                        operand
+                    else {
+                        return unsupported("record operand is not a structural call");
+                    };
+                    let callee = lookup_machine_id(call_context.machine_ids, *target_machine)?;
+                    let shared =
+                        catalogs
+                            .shared_units
+                            .as_ref()
+                            .ok_or(LoweringError::Unsupported(
+                                "nested structural target has no shared closure",
+                            ))?;
+                    let target = shared
+                        .semantic_module
+                        .machines
+                        .iter()
+                        .find(|target| target.id == callee)
+                        .ok_or(LoweringError::Unsupported(
+                            "nested structural target is missing",
+                        ))?;
+                    let entry = super::super::bodies::UnitBody::find(
+                        &checked.facts.flow.terminal_unit_effects,
+                        *target_machine,
+                    )?
+                    .entry()?;
+                    if entry.structural_parameters.len() != target.structural_parameters.len() {
+                        return unsupported("nested target predicate roster differs");
+                    }
+                    let predicates = entry
+                        .structural_parameters
+                        .iter()
+                        .zip(&target.structural_parameters)
+                        .map(|(source, parameter)| StructuralParameterDeclaration {
+                            position: source.position,
+                            ..parameter.clone()
+                        })
+                        .collect::<Vec<_>>();
+                    let earlier = catalogs
+                        .result_places
+                        .iter()
+                        .cloned()
+                        .map(|place| (place, false))
+                        .collect::<Vec<_>>();
+                    let prepared = super::super::ordinary_calls::prepare(
+                        checked,
+                        &checked.facts.flow.terminal_unit_effects,
+                        operand,
+                        super::super::ordinary_calls::Target {
+                            parameters: &target.structural_parameters,
+                            scalar_parameters: &target.parameters,
+                            predicate_parameters: &predicates,
+                            runtime_requirements: &target.contract.requires,
+                        },
+                        evaluated,
+                        parameters,
+                        &[],
+                        &earlier,
+                        &[],
+                        &catalogs.type_ids,
+                        &catalogs.structural_types,
+                        &[],
+                        call_context,
+                    )?;
+                    let declaration = super::super::ordinary_calls::emit_structural(
+                        state.state,
+                        operand,
+                        prepared,
+                        callee,
+                        &catalogs.type_ids,
+                        place_counter,
+                        output,
+                    )?;
+                    catalogs.result_places.push(declaration);
+                    Ok(declaration)
+                };
             let declaration = crate::attached_unit::structural_values::emit(
                 checked,
                 machine,
@@ -418,6 +500,7 @@ pub(super) fn emit_call_operations(
                 &catalogs.type_ids,
                 &mut catalogs.next_place,
                 &mut catalogs.temporary_places,
+                &mut emit_operand_call,
                 &mut calls,
                 evaluation,
                 values,

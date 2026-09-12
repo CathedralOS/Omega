@@ -188,9 +188,75 @@ fn unrestricted_shared_boolean_structural_field_direct_realization_validates() {
 }
 
 #[test]
+fn shared_boolean_observations_validate_each_declared_field_independently() {
+    let mut candidate = direct_realization_boolean_structural_field_unit();
+    let mut second = candidate.functions[0].blocks[0].nodes[0].clone();
+    let O::BooleanStructuralField {
+        psi_operation,
+        result,
+        field,
+        ..
+    } = &mut second.operation
+    else {
+        unreachable!()
+    };
+    *psi_operation = id(4_714, OperationId::new);
+    *result = id(4_715, ValueId::new);
+    *field = id(4_713, semantic_vocabulary::StructuralFieldId::new);
+    let terminal_psi::StructuralTypeShape::Record { fields } =
+        &mut candidate.structural_types.make_mut()[0].shape
+    else {
+        unreachable!()
+    };
+    fields.push(terminal_psi::StructuralFieldDeclaration {
+        id: *field,
+        identity: "validation::second-boolean".into(),
+        relevance: terminal_psi::BindingRelevance::Relevant,
+        field_type: terminal_psi::StructuralFieldType::Scalar(ScalarType::Boolean),
+    });
+    candidate.functions[0].blocks[0].nodes.insert(1, second);
+    refresh_function_derivatives(&mut candidate, 0);
+    validate_psi_optimization_unit(&candidate)
+        .expect("independent exact Boolean fields on one shared record");
+}
+
+#[test]
 fn unrestricted_shared_integer_structural_field_direct_realization_validates() {
     validate_psi_optimization_unit(&direct_realization_integer_structural_field_unit())
         .expect("an unqualified unrestricted shared integer field read validates");
+}
+
+#[test]
+fn shared_integer_observations_validate_each_declared_field_independently() {
+    let mut candidate = direct_realization_integer_structural_field_unit();
+    let mut second = candidate.functions[0].blocks[0].nodes[0].clone();
+    let O::IntegerStructuralField {
+        psi_operation,
+        result,
+        field,
+        ..
+    } = &mut second.operation
+    else {
+        unreachable!()
+    };
+    *psi_operation = id(4_714, OperationId::new);
+    result.value = id(4_715, ValueId::new);
+    *field = id(4_713, semantic_vocabulary::StructuralFieldId::new);
+    let terminal_psi::StructuralTypeShape::Record { fields } =
+        &mut candidate.structural_types.make_mut()[0].shape
+    else {
+        unreachable!()
+    };
+    fields.push(terminal_psi::StructuralFieldDeclaration {
+        id: *field,
+        identity: "validation::second-integer".into(),
+        relevance: terminal_psi::BindingRelevance::Relevant,
+        field_type: terminal_psi::StructuralFieldType::Scalar(result.scalar_type),
+    });
+    candidate.functions[0].blocks[0].nodes.insert(1, second);
+    refresh_function_derivatives(&mut candidate, 0);
+    validate_psi_optimization_unit(&candidate)
+        .expect("independent exact fields on one shared record");
 }
 
 #[test]

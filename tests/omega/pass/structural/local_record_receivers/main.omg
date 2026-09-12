@@ -1,0 +1,62 @@
+data Region {
+    base: u64;
+    size: u64;
+}
+
+machine Region::new(base: u64, size: u64) -> Region {
+    Region { base: base, size: size }
+}
+
+machine Region::base(&self) -> u64 { self.base }
+machine Region::set_base(&mut self, base: u64) { self.base = base; }
+
+data Envelope {
+    marker: u64;
+    region: Region;
+}
+
+machine Envelope::base(&self) -> u64 { self.region.base() }
+machine Envelope::marker(&self) -> u64 { self.marker }
+machine Envelope::set_base(&mut self, base: u64) { self.region.set_base(base); }
+
+machine stamp(trace: &mut u64, value: u64) -> u64 {
+    trace = value;
+    value
+}
+
+machine make_record(trace: &mut u64) -> Envelope {
+    // Authored evaluation order differs from declaration order. The nested
+    // result and its scalar operand must finish before the marker is evaluated.
+    Envelope {
+        region: Region::new(stamp(&mut trace, 17), 16),
+        marker: stamp(&mut trace, 29)
+    }
+}
+
+data Pair [copy] {
+    left: u8;
+    right: u8;
+}
+
+machine Pair::total(&self) -> u64 { (self.left as u64) + (self.right as u64) }
+
+machine sum_local() -> u64 {
+    let pair: Pair = Pair { left: 40, right: 2 };
+    let result: u64 = pair.total();
+    result
+}
+
+machine observe(output: &mut u64, trace: &mut u64, choose_first: bool) {
+    let earlier_scalar: u64 = 7;
+    let helper_result: u64 = sum_local();
+    let mut first: Envelope = make_record(&mut trace);
+    let before: u64 = first.base();
+    let second: Envelope = Envelope { marker: 41, region: Region::new(200, 8) };
+    first.set_base(100);
+    let after: u64 = first.base();
+    let independent: u64 = second.base();
+    let marker: u64 = first.marker();
+    let selected: u64 = match choose_first { true -> after, false -> independent };
+    let correct: bool = helper_result == 42 && earlier_scalar == 7 && before == 17 && after == 100 && independent == 200 && marker == 29;
+    output = match correct { true -> selected, false -> 9999 };
+}

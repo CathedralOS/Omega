@@ -1206,13 +1206,6 @@ fn validate_state_statement_node(
                 assignment,
                 diagnostics,
             );
-            calls::report_local_receiver_value_call(
-                program,
-                machine,
-                state_name,
-                assignment.value,
-                diagnostics,
-            );
             let before = diagnostics.len();
             let assignment_target_domain = assignment_target_type
                 .map(|handle| program.arithmetic_domain_for_type_reference(handle))
@@ -1691,13 +1684,6 @@ fn validate_state_statement_node(
                 );
             }
             calls::report_nested_call_in_local_initializer(
-                program,
-                machine,
-                state_name,
-                local_data.initial_value,
-                diagnostics,
-            );
-            calls::report_local_receiver_value_call(
                 program,
                 machine,
                 state_name,

@@ -282,6 +282,9 @@ pub use register_model::{
     X86_64_MICROSOFT_CALL_UNIT, X86_64_STORE, X86_64_STORE64,
 };
 
+pub use register_model::x86_64_indirect_aggregate_call_keys;
+pub use register_model::{x86_64_float_scalar_call_keys, x86_64_float_scalar_return_keys};
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -325,4 +328,3 @@ mod tests {
         assert_eq!(&byte_read[byte_read.len() - 2..], &[0x0f, 0x0b]);
     }
 }
-pub use register_model::{x86_64_float_scalar_call_keys, x86_64_float_scalar_return_keys};

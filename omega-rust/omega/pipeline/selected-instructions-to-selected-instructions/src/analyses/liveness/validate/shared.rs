@@ -13,7 +13,6 @@ pub(super) use selected_instructions::{
 };
 pub(super) use selected_instructions::{
     SelectedBlock, SelectedFunction, SelectedInstruction, SelectedTerminator, VirtualRegisterId,
-    VirtualRegisterOrigin,
 };
 
 pub(super) fn ordered_instructions(block: &SelectedBlock) -> Vec<&SelectedInstruction> {

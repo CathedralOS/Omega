@@ -161,8 +161,14 @@ pub(super) fn unit_key(
             views.push(environment.fixed_register_view(placement_register(placement)?)?);
         }
     }
-    let inputs = views.len();
-    if let Some(result) = &call.result_placement {
+    let mut inputs = views.len();
+    let hidden = call.result_placement.as_ref().and_then(|placement| {
+        crate::selection::aggregate_result_input::indirect_result(placement, call.call_plan.policy)
+    });
+    if let Some(hidden) = hidden {
+        views.push(environment.fixed_register_view(hidden)?);
+        inputs += 1;
+    } else if let Some(result) = &call.result_placement {
         for location in &result.locations {
             let ValueLocation::Register { register, .. } = location else {
                 return None;
@@ -240,6 +246,35 @@ pub(super) fn validate(
                     .ok_or_else(invalid)?;
             }
         }
+    }
+    if call.result_placement.as_ref().is_some_and(|placement| {
+        crate::selection::aggregate_result_input::indirect_result(placement, call.call_plan.policy)
+            .is_some()
+    }) {
+        crate::selection::aggregate_result_input::call_result(source, call).ok_or_else(invalid)?;
+        let canonical = evaluate_call_plan(
+            call.call_plan.policy,
+            &CallSignature {
+                parameters: call
+                    .arguments
+                    .iter()
+                    .map(|argument| argument.placement().shape)
+                    .collect(),
+                result: call
+                    .result_placement
+                    .as_ref()
+                    .map(|placement| placement.shape),
+            },
+        )
+        .map_err(|_| invalid())?;
+        if call.call_plan != canonical
+            || unit_key(call, environment) != Some(key)
+            || environment.constraint(key) != Some(row)
+            || row.key != key
+        {
+            return Err(invalid());
+        }
+        return Ok(());
     }
     let count = call.arguments.len();
     let register_count = register_argument_count(call);

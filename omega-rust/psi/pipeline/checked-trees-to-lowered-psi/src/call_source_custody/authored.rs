@@ -53,7 +53,19 @@ pub(crate) fn locate_source(
         .ok_or(LoweringError::Unsupported(
             "call source custody has no authored statement",
         ))?;
-    let (source_target, arguments, source_site) = if coordinate.call_ordinal != 0 {
+    let direct_root = match statement {
+        StatementNode::Call(_) => true,
+        StatementNode::LocalData(local) => matches!(
+            program.expression_table.expression(local.initial_value),
+            ExpressionNode::Call(_)
+        ),
+        StatementNode::Expression(expression) => matches!(
+            program.expression_table.expression(*expression),
+            ExpressionNode::Call(_)
+        ),
+        _ => false,
+    };
+    let (source_target, arguments, source_site) = if coordinate.call_ordinal != 0 || !direct_root {
         let expression =
             nested::authored_postorder(checked, caller_state, coordinate.statement_index)?
                 .into_iter()
@@ -101,9 +113,7 @@ pub(crate) fn locate_source(
                     ))),
                 )
             }
-            StatementNode::LocalData(local)
-                if coordinate.call_ordinal == 0 && !local.is_mutable =>
-            {
+            StatementNode::LocalData(local) if coordinate.call_ordinal == 0 => {
                 expression_call(checked, local.initial_value)?
             }
             StatementNode::Expression(expression) if coordinate.call_ordinal == 0 => {

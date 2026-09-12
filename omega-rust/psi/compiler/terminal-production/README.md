@@ -256,26 +256,40 @@ through installation replay for Linux x64/ARM64 and macOS ARM64. Windows
 indirect aggregate returns remain a realization dependency; see
 `tests/native-differential/tests/scalar_case_results.rs` at the repository root.
 
-Plain scalar records use the same checked structural-value roots and ordinary
-operand evaluator, followed by `EstablishScalarRecord`. Runtime integer, Boolean,
-and IEEE field operands retain authored evaluation order; the constructor's
-field/value roster is in declaration order. Source replay checks the exact
-nominal declaration, field occurrences, operand computations, and named affine
-local establishment permission. This replaces the separate one-field literal-i64
-local recognizer. Direct structural returns use the existing result homes and
-ABI; no new record-specific function representation is introduced.
+Plain records use the same checked structural-value roots and ordinary operand
+evaluator, followed by `EstablishRecord`. Runtime integer, Boolean, IEEE, and
+nested plain-record operands retain authored evaluation order; only the completed
+field/value roster is reordered to declaration order. Nested constructor calls
+reuse ordinary call emission, including exact source occurrence, requirements,
+crash behavior, and result publication. Source replay rejoins each captured call
+to the actual owning state and checks selected field identities and operands.
+
+Whole owned record children may come from constructors, calls, or existing
+parameter/local places. A local binding becomes available after its exact
+initializer completes; an affine child transfer retires that original result's
+cleanup debt, while an unrestricted child remains reusable. Shared getters and
+mutable setters on record locals borrow the original storage, including nested
+field paths. They retain the local's cleanup and cannot acquire mutation through
+an immutable local or shared view. Scalar-result helpers use this same ordinary
+sequence. The source regression is
+`checked-trees-to-lowered-psi --test local_record_receivers_source`; native
+publication and execution are checked separately by
+`tests/native-differential/tests/local_record_receivers.rs`.
 
 The admitted record is affine or unrestricted, unqualified, and claim-free.
-Nested/erased fields and declaration-restricted integers still require additional
-construction/evidence support. Whole plain records can pass through typed block
-parameters and return from their arriving home, including across an unrelated
-owned selection. Immutable plain-record locals retain their actual
-structural place through shared attached calls, whether established directly or
-returned by an ordinary constructor call. The implicit receiver precedes explicit
-structural operands but has its own captured occurrence, not a fabricated explicit
-argument observation. Scalar computations own initializer, tail, and nested calls;
-source replay checks their complete call roster without scheduling a second call.
-Scalar-result callees retain declared shared `self` independently of body reads.
+Erased fields and declaration-restricted integer construction still require
+additional construction/evidence support. Whole plain records can pass through
+typed block parameters and return from their arriving home, including across an
+unrelated owned selection. Direct structural returns use existing result homes
+with their exact declared ownership; there is no record-specific function
+representation or separate one-field local recognizer.
+Shared attached calls retain the established local's actual structural place,
+whether established directly or returned by an ordinary constructor call. The
+implicit receiver precedes explicit structural operands but has its own captured
+occurrence, not a fabricated explicit argument observation. Scalar computations
+own initializer, tail, and nested calls; source replay checks their complete call
+roster without scheduling a second call. Scalar-result callees retain declared
+shared `self` independently of body reads.
 Direct integer and Boolean field reads resolve the exact declared field against
 the local's current place, including after an unrelated owned selection. Each
 read materializes its own scalar observation before subsequent operands or calls;
@@ -283,9 +297,7 @@ an earlier observation is not a delayed load from the final storage contents.
 The native `scalar_case_results::records` controls consume full-width integer
 getter results through further computation; `scalar_case_results::record_reads`
 also covers direct reads, padded layouts, distinct roots, and block arrivals.
-Nested owned record construction, direct nested-field reads, and mutable local
-receiver storage remain separate
-dependencies; this does not remove their realization fences.
+Direct nested-field reads retain their separate source-admission boundary.
 
 Closed integer field restrictions retain their exact carrier and inclusive
 bounds through the checked catalog and Terminal declaration. The selected case

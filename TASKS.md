@@ -55,34 +55,27 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   is retained under the application's ignored `build/verification/`; record the
   owning diagnostic before expanding compiler work. Initialization is explicit
   and requires private repository access during in-house development.
-  On macOS ARM64 with Python 3.13 and `RUST_MIN_STACK=33554432`, the unchanged
-  native invocation with code from `78a6730259` (base `fd1a0a3aca`) exits 200 on 16
-  local-receiver realization diagnostics in the actual `Main::main`, after checking
-  std and the dependency graph. The application remains at `1141aa1406b2` with
-  standard-package pin `a91d878cb9252647d977c45787969b16e6ef937a`.
-  The remaining reported receivers include nested `SnapshotRegionFilter` values
-  (`aligned.get_element_count(..)`), mutable `NormalizedRegion` locals, and
-  `MemoryAlignment` sum results with refined scalar returns. The current fence is
-  `validation/src/calls/expression_scanning/result_realization.rs`;
-  **STATE-LOCAL-VALUE-FRONTIER** owns the general join. Preserve local storage,
-  authored operation order and the full package graph; keep build-only packages
-  explicitly unported. Reuse the ordinary structural-value/evaluation path in
-  `checked-trees-to-lowered-psi/src/attached_unit/structural_values/record.rs`.
-  The next join must construct `SnapshotRegionFilter` with its call-produced
-  `NormalizedRegion` field and preserve that nested field's ownership and local
-  storage through the ordinary call/native path. Incoming borrowed plain records
-  already support shared-self forwarding and nested projected getters using the
-  original pointer and exact field paths; whole immutable scalar-field record
-  locals use retained structural homes. Reuse those routes, not a copied-field
-  receiver ABI or another constructor recognizer. Nested owned construction
-  requires structural field operands; `EstablishScalarRecord` only carries scalar
-  SSA operands and cannot establish a nested record by itself.
-  Mutable local storage, explicit projected arguments, and sum/refined receiver
-  results remain separate consumer dependencies. Keep their source fences
-  until the corresponding complete routes work; removing a diagnostic alone does
-  not establish Terminal production or native execution.
-  This is engineering work, with the unchanged native
-  command and `Squalr geometry: PASS` as acceptance.
+  With compiler `62edd46e2f` on macOS ARM64, Python 3.13 and
+  `RUST_MIN_STACK=67108864`, the unchanged
+  native invocation exits 200 on one diagnostic: `Main::main` publishes no service
+  reach while its body reaches `Console`. The application is at `1141aa1406b2`
+  with standard-package pin `a91d878cb9252647d977c45787969b16e6ef937a`.
+  Resolve the application's authored entry contract under the existing service
+  reach rules, then rerun native acceptance to identify the next compiler join.
+  The current diagnostic belongs to `validation/src/effects.rs`; do not weaken
+  service checking to reach later lowering. Geometry execution remains unverified.
+
+  Reuse the ordinary structural-value/evaluation path in
+  `checked-trees-to-lowered-psi/src/attached_unit/structural_values/record.rs`
+  and the unified Terminal `EstablishRecord` operands for nested owned fields.
+  Local receivers retain their original structural homes through ordinary calls,
+  including mutable nested fields; shared projected getters retain exact paths.
+  **STATE-LOCAL-VALUE-FRONTIER** owns remaining joins exposed by the actual
+  application. Preserve authored operation order and the full package graph;
+  keep build-only packages explicitly unported. Source admission and focused
+  native receiver coverage do not establish the application's remaining sum,
+  refined-result, state-transition, and provider execution paths. This is
+  engineering work, with `Squalr geometry: PASS` as the native acceptance marker.
   Windows runtime controls in `omega-rust/omega/tests/package_commands/probe.rs`
   require a Windows normal-completion adapter for Unit entries: the native
   entry currently returns the last scalar call's register value (7), while the

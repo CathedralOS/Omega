@@ -1,7 +1,7 @@
 //! Admission over already replayed current source; this never proves an erasure.
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use selected_instructions::{SelectedFunction, SelectedStructuralTransport, SelectedTerminator};
-use target_operations::{TargetControlTerminator, TargetFunction};
+use target_operations::TargetFunction;
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, TerminalAffineCleanupAction};
 #[cfg(test)]
 mod tests;
@@ -131,7 +131,7 @@ pub(in crate::function_fragments) fn arrivals(
         AbstractOperation::Return {
             cleanup_actions, ..
         } => {
-            scalar_cleanup_retained(operation, target)
+            super::control_flow::retained(operation, target)
                 && cleanup_actions.iter().all(|action| {
                     let TerminalAffineCleanupAction::DiscardRoot(place) = action else {
                         return false;
@@ -166,42 +166,4 @@ fn primitive_local(function: &AbstractFunction, place: semantic_vocabulary::Plac
             })
             .count()
             == 1
-}
-
-/// Match the exact scalar return edge, value, and ordered no-code actions.
-/// Complete source replay separately verifies disposal eligibility and order.
-pub(in crate::function_fragments) fn scalar_cleanup_retained(
-    operation: &AbstractOperation,
-    target: &TargetFunction,
-) -> bool {
-    let AbstractOperation::Return {
-        psi_edge,
-        value,
-        cleanup_actions,
-        ..
-    } = operation
-    else {
-        return false;
-    };
-    let graph = &target.graph;
-    if !cleanup_actions
-        .iter()
-        .all(|action| matches!(action, TerminalAffineCleanupAction::DiscardRoot(_)))
-    {
-        return false;
-    }
-    let mut returns = graph
-        .blocks
-        .iter()
-        .filter_map(|block| match &block.terminator {
-            TargetControlTerminator::ReturnScalar {
-                psi_edge: edge,
-                source_value,
-                cleanup_actions,
-                ..
-            } if edge == psi_edge => Some((source_value, cleanup_actions)),
-            _ => None,
-        });
-    matches!(returns.next(), Some((source_value, actions)) if source_value == value && actions == cleanup_actions)
-        && returns.next().is_none()
 }

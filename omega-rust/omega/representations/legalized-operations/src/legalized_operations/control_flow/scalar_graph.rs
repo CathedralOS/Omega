@@ -72,7 +72,7 @@ impl LegalizedScalarInstruction {
     pub fn references_value(&self, value: ValueId) -> bool {
         match &self.kind {
                     LegalizedScalarInstructionKind::EstablishScalarArray { elements, .. } => elements.contains(&value),
-                    LegalizedScalarInstructionKind::EstablishScalarRecord { fields, .. } => fields.iter().any(|field| field.value == value),
+                    LegalizedScalarInstructionKind::EstablishRecord { fields, .. } => fields.iter().any(|field| matches!(&field.value, terminal_psi::RecordFieldValue::Scalar { value: source, .. } if *source == value)),
                     LegalizedScalarInstructionKind::EstablishScalarCase { fields, .. } => fields.iter().any(|field| field.value == value),
                     LegalizedScalarInstructionKind::HostedWriteByteI32 { source, .. }
                     | LegalizedScalarInstructionKind::HostedExitProcessI32 { source, .. } => *source == value,
@@ -113,11 +113,6 @@ impl LegalizedScalarInstruction {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarInstructionKind {
-    EstablishScalarRecord {
-        result: terminal_psi::StructuralOperationResult,
-        fields: Vec<terminal_psi::ScalarRecordFieldValue>,
-        shape: calling_conventions::ValueShape,
-    },
     IeeeFloatCompare {
         comparison: semantic_vocabulary::IeeeFloatComparisonOperation,
         format: semantic_vocabulary::IeeeFloatFormat,
@@ -127,6 +122,11 @@ pub enum LegalizedScalarInstructionKind {
     EstablishScalarArray {
         result: terminal_psi::StructuralOperationResult,
         elements: Vec<ValueId>,
+        shape: calling_conventions::ValueShape,
+    },
+    EstablishRecord {
+        result: terminal_psi::StructuralOperationResult,
+        fields: Vec<terminal_psi::RecordFieldInitializer>,
         shape: calling_conventions::ValueShape,
     },
     EstablishScalarCase {

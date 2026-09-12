@@ -1487,7 +1487,7 @@ pub(super) fn build_checked_machine_with(
                 .iter()
                 .all(|parameter| !parameter.is_self && !parameter.is_const);
         if carries_primitive
-            && calls.is_empty()
+            && source_calls.is_empty()
             && !statement_sequence.as_ref().is_some_and(|sequence| {
                 sequence.operations.iter().any(|operation| {
                     matches!(
@@ -2216,8 +2216,7 @@ pub(super) fn checked_unit_structural_result_local(
     let StatementNode::LocalData(local) = statements.first()? else {
         return None;
     };
-    if local.is_mutable
-        || !local.initial_value.is_valid()
+    if !local.initial_value.is_valid()
         || !matches!(
             program.expression_table.expression(local.initial_value),
             ExpressionNode::Call(_)

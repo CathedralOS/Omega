@@ -132,8 +132,11 @@ pub(super) fn validate(
                 .map(|(_, register)| *register)
         })
         .collect::<Vec<_>>();
+    let hidden = super::structural::indirect_results::prepare_call(source, operation, replay)?;
     let mut result_registers = Vec::new();
-    if let Some(result) = &call.structural_result {
+    if let Some(pointer) = hidden {
+        operands.push(pointer);
+    } else if let Some(result) = &call.structural_result {
         for location in &call
             .result_placement
             .as_ref()
@@ -197,6 +200,9 @@ pub(super) fn validate(
             ..Default::default()
         },
     )?;
+    if hidden.is_some() {
+        return super::structural::indirect_results::finish_call(source, operation, replay);
+    }
     if let Some((result, placement)) =
         crate::selection::aggregate_result_input::call_result(source, call)
     {

@@ -96,6 +96,7 @@ machine observe(selector: u64) {
         CheckedUnitEffectOperationPlan::EstablishStructuralValue {
             result,
             value,
+            calls,
             discard_result_on_return: false,
         },
         CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. },
@@ -106,6 +107,7 @@ machine observe(selector: u64) {
             state.operations
         );
     };
+    assert!(calls.is_empty());
     assert_eq!(*value, root.root);
     let CheckedComposedUnitControlTerminatorPlan::Jump { successor } = &state.terminator else {
         panic!("ordinary state successor");

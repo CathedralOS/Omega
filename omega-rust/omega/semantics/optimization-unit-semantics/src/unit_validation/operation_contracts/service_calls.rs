@@ -92,9 +92,7 @@ pub(crate) fn operation_structural_call_contract_matches(
         O::EstablishScalarCase { .. } => {
             scalar_case_establishment_matches(caller, operation, types)
         }
-        O::EstablishScalarRecord { .. } => {
-            scalar_record_establishment_matches(caller, operation, types)
-        }
+        O::EstablishRecord { .. } => record_establishment_matches(caller, operation, types),
         O::CallUnit {
             callee,
             structural_arguments,
@@ -226,12 +224,15 @@ pub(crate) fn operation_structural_call_contract_matches(
                 structural_arguments,
                 &callee.structural_parameters,
                 types,
-                if plain_scalar_aggregate_call(operation, callee, types) {
+                if plain_scalar_sum_call(operation, callee, types)
+                    || plain_record_call(operation, callee, types)
+                {
                     StructuralProjectionPolicy::Unit
                 } else {
                     StructuralProjectionPolicy::EmptyOnly
                 },
-                plain_scalar_aggregate_call(operation, callee, types),
+                plain_scalar_sum_call(operation, callee, types)
+                    || plain_record_call(operation, callee, types),
             ) && validate_internal_claim_transfers(
                 caller,
                 callee,
@@ -242,7 +243,8 @@ pub(crate) fn operation_structural_call_contract_matches(
                 callee,
                 exact_payloadless_structural_call(operation, callee, types)
                     || plain_scalar_array_call(operation, callee, types)
-                    || plain_scalar_aggregate_call(operation, callee, types)
+                    || plain_scalar_sum_call(operation, callee, types)
+                    || plain_record_call(operation, callee, types)
                     || exact_plain_affine_structural_call(operation, callee, types),
                 claim_transfers,
                 returned_claim_transfers,

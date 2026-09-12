@@ -90,6 +90,7 @@ pub(super) fn build_structural_scalar_field_store_sequence(
                         if let Some(store) = super::primitive_store::build_primitive_store_at(
                             program,
                             facts,
+                            machine,
                             state,
                             structural_parameters,
                             statement_index,

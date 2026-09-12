@@ -10,7 +10,7 @@ mod control_flow;
 mod structural_case;
 mod structural_fields;
 mod unobserved_owned;
-pub(super) use unobserved_owned::{arrivals as unobserved_owned_arrivals, scalar_cleanup_retained};
+pub(super) use unobserved_owned::arrivals as unobserved_owned_arrivals;
 #[cfg(test)]
 mod tests;
 
@@ -36,7 +36,7 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
             operation,
             AbstractOperation::EstablishPrimitiveLocal { .. }
                 | AbstractOperation::EstablishScalarCase { .. }
-                | AbstractOperation::EstablishScalarRecord { .. }
+                | AbstractOperation::EstablishRecord { .. }
                 | AbstractOperation::EstablishScalarArray { .. }
                 | AbstractOperation::CallStructural { .. }
                 | AbstractOperation::ReturnStructural { .. }
@@ -223,7 +223,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 }
                 AbstractOperation::StructuralCaseMembership { .. }
                 | AbstractOperation::EstablishScalarCase { .. }
-                | AbstractOperation::EstablishScalarRecord { .. }
+                | AbstractOperation::EstablishRecord { .. }
                 | AbstractOperation::EstablishScalarArray { .. }
                 | AbstractOperation::CallStructural { .. }
                 | AbstractOperation::ReturnStructural { .. } => aggregate_results::operation(operation, targeted, selected),
@@ -317,10 +317,11 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                         // Mandatory graph replay checks the exact live cleanup frontier.
                         // Publication rejoins that no-code discard roster to this exit,
                         // whether its source was observed or left unused.
-                        || scalar_cleanup_retained(operation, targeted),
+                        || control_flow::retained(operation, targeted),
                 AbstractOperation::ReturnUnit {
                     cleanup_actions, ..
                 } => cleanup_actions.is_empty()
+                        || control_flow::retained(operation, targeted)
                         || super::structural::read_result_cleanup_actions_match(abstracted, selected, cleanup_actions),
                 AbstractOperation::BooleanEqual { .. }
                 // Like the other pure comparisons, source/selection replay

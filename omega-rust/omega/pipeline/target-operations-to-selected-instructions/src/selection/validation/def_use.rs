@@ -79,20 +79,17 @@ fn validate(
         if register.id.0 as usize != position {
             return Err(invalid());
         }
-        match register.origin {
-            VirtualRegisterOrigin::EntryParameter { .. }
-            | VirtualRegisterOrigin::StructuralParameter { .. } => {
-                definitions[position] = Some((None, None))
-            }
-            VirtualRegisterOrigin::BlockParameter { block, .. } => {
-                let block = function
-                    .blocks
-                    .iter()
-                    .position(|candidate| candidate.id == block)
-                    .ok_or_else(invalid)?;
-                definitions[position] = Some((Some(block), None));
-            }
-            _ => {}
+        if function.is_entry_register(register) {
+            definitions[position] = Some((None, None));
+            continue;
+        }
+        if let VirtualRegisterOrigin::BlockParameter { block, .. } = register.origin {
+            let block = function
+                .blocks
+                .iter()
+                .position(|candidate| candidate.id == block)
+                .ok_or_else(invalid)?;
+            definitions[position] = Some((Some(block), None));
         }
     }
     for (block_index, block) in function.blocks.iter().enumerate() {

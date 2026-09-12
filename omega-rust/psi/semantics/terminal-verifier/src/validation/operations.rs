@@ -53,8 +53,8 @@ pub(super) fn validate_operation_operands(
     if matches!(operation.kind, OperationKind::EstablishScalarCase { .. }) {
         return super::scalar_case::operands(module, machine, operation, value_types, defined);
     }
-    if matches!(operation.kind, OperationKind::EstablishScalarRecord { .. }) {
-        return super::scalar_record::operands(module, machine, operation, value_types, defined);
+    if matches!(operation.kind, OperationKind::EstablishRecord { .. }) {
+        return super::record::operands(module, machine, operation, value_types, defined);
     }
     if let OperationKind::StructuralByteSequenceFieldByteStore {
         index,
@@ -774,7 +774,7 @@ pub(super) fn validate_operation_operands(
         | OperationKind::PortWrite { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
-        | OperationKind::EstablishScalarRecord { .. }
+        | OperationKind::EstablishRecord { .. }
         | OperationKind::StoreDynamicDescriptor { .. } => None,
     }) else {
         return Ok(());

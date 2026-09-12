@@ -562,33 +562,47 @@ pub(crate) fn validate_transfer_shape(
             else {
                 return unsupported("Unit structural result source has no producer operation");
             };
+            let record_borrow =
+                matches!(
+                    argument.access,
+                    checked_trees::CheckedStructuralAccess::SharedBorrow
+                        | checked_trees::CheckedStructuralAccess::MutableBorrow
+                ) && record_projection_type(structural_types, structural_type, &argument.path)
+                    == Some(lookup_type_id(type_ids, &argument.type_identity)?);
             let unrestricted_array = target.multiplicity == Multiplicity::Unrestricted
                 && argument.access == checked_trees::CheckedStructuralAccess::Owned
                 && argument.path.is_empty()
                 && structural_types.iter().any(|declaration| {
                     declaration.id == structural_type
-                        && matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
+                        && matches!(
+                            declaration.shape,
+                            StructuralTypeShape::FixedArray { .. }
+                                | StructuralTypeShape::Record { .. }
+                        )
                 });
             if (!argument.path.is_empty()
-                && argument.access != checked_trees::CheckedStructuralAccess::Owned)
+                && argument.access != checked_trees::CheckedStructuralAccess::Owned
+                && !record_borrow)
                 || argument.type_identity != target.type_identity
                 || (argument.path.is_empty()
                     && structural_type != lookup_type_id(type_ids, &argument.type_identity)?)
-                || !matches!(
-                    argument.access,
-                    checked_trees::CheckedStructuralAccess::Owned
-                        | checked_trees::CheckedStructuralAccess::SharedBorrow
-                )
+                || (!record_borrow
+                    && !matches!(
+                        argument.access,
+                        checked_trees::CheckedStructuralAccess::Owned
+                            | checked_trees::CheckedStructuralAccess::SharedBorrow
+                    ))
                 || argument.access != target.access
                 || target.multiplicity
                     != if unrestricted_array
+                        || record_borrow
                         || argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
                     {
                         Multiplicity::Unrestricted
                     } else {
                         Multiplicity::Affine
                     }
-                || target.is_self
+                || (target.is_self && !record_borrow)
                 || !target.qualifications.is_empty()
                 || target.fused_service_erasure.is_some()
                 || transfers.iter().any(|transfer| {
@@ -820,21 +834,14 @@ pub(crate) fn lower_structural_arguments(
             }
             if let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() {
                 let source = structural_result_source(structural_results, binding_ordinal, argument.access)?;
-                if (!argument.path.is_empty()
-                    && argument.access != checked_trees::CheckedStructuralAccess::Owned)
-                    || !matches!(argument.access,
-                        checked_trees::CheckedStructuralAccess::Owned
-                            | checked_trees::CheckedStructuralAccess::SharedBorrow)
-                {
-                    return unsupported("Unit structural result argument drifted from whole affine custody");
-                }
                 return Ok(StructuralArgument {
                     place: source.id,
                     path: lower_structural_path(&argument.path),
-                    access: if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
-                        StructuralAccess::SharedBorrow
-                    } else {
-                        StructuralAccess::Owned
+                    access: match argument.access {
+                        checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
+                        checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
+                        checked_trees::CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
+                        checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => StructuralAccess::WriteOnlyBorrow,
                     },
                 });
             }
@@ -911,4 +918,37 @@ pub(crate) fn lower_structural_path(
             }
         })
         .collect()
+}
+
+/// Record receiver projections preserve the root place; the path selects only
+/// exact nested record declarations, never a scalar snapshot or a sum payload.
+fn record_projection_type(
+    types: &[StructuralTypeDeclaration],
+    root: StructuralTypeId,
+    path: &[CheckedUnitStructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    let mut current = root;
+    for segment in path {
+        let StructuralTypeShape::Record { fields } =
+            &types.iter().find(|item| item.id == current)?.shape
+        else {
+            return None;
+        };
+        let CheckedUnitStructuralPathSegment::Field(identity) = segment else {
+            return None;
+        };
+        let StructuralFieldType::Structural(child) = fields
+            .iter()
+            .find(|field| field.identity == *identity)?
+            .field_type
+        else {
+            return None;
+        };
+        current = child;
+    }
+    matches!(
+        types.iter().find(|item| item.id == current)?.shape,
+        StructuralTypeShape::Record { .. }
+    )
+    .then_some(current)
 }

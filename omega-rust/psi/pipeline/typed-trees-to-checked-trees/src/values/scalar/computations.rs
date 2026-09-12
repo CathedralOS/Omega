@@ -109,7 +109,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     plans: &mut plans,
                 };
                 let construction_destination = match statement {
-                    StatementNode::LocalData(local) if !local.is_mutable => {
+                    StatementNode::LocalData(local) => {
                         Some((local.initial_value, local.type_reference))
                     }
                     StatementNode::Expression(expression) => Some((*expression, state.return_type)),
@@ -119,7 +119,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     && (validation::is_scalar_case_value(program, expression, expected)
                         || matches!(program.expression_table.expression(expression), ExpressionNode::StructLiteral(literal) if literal.case_symbol.is_none()))
                     && let Some(root) =
-                        builder.structural_value(expression, expected, &mut structural_values)
+                        builder.structural_value(expression, expected, &mut structural_values, pure)
                 {
                     structural_values
                         .roots
@@ -348,12 +348,21 @@ pub(crate) fn build_checked_value_computation_plans(
                             .find(|local| local.symbol == name.symbol && local.is_mutable)
                             .map(|local| local.primitive_type)
                             .or_else(|| {
-                                parameters
+                                // Storage destinations use the authored parameter roster;
+                                // dense scalar inputs deliberately exclude reference parameters.
+                                program
+                                    .state_parameters(state)
                                     .iter()
                                     .find(|parameter| parameter.symbol == name.symbol)
+                                    .filter(|parameter| {
+                                        parameter.is_mutable
+                                            && !parameter.is_self
+                                            && !parameter.is_const
+                                    })
                                     .and_then(|parameter| {
-                                        crate::values::mutable_scalar_parameter_type(
-                                            program, parameter,
+                                        super::assignment_target_primitive_type(
+                                            program,
+                                            parameter.type_reference,
                                         )
                                     })
                             })

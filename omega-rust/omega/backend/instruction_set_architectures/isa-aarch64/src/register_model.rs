@@ -12,6 +12,8 @@ use register_model::{
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
+mod indirect_results;
+pub use indirect_results::*;
 mod float_scalar_calls;
 #[cfg(test)]
 mod float_transport_tests;
@@ -1432,6 +1434,7 @@ pub fn aarch64_register_constraint_catalog(
     }
     mixed_calls::append_constraints(&mut constraints, model);
     float_scalar_calls::append_constraints(&mut constraints, model);
+    indirect_results::append_constraints(&mut constraints, model);
     constraints.sort_by_key(|constraint| constraint.key);
     for (id, constraint) in constraints.iter_mut().enumerate() {
         constraint.id =
@@ -1446,6 +1449,7 @@ pub fn aarch64_register_constraint_catalog(
             for darwin in [false, true] {
                 required.extend(aarch64_float_scalar_call_keys(darwin));
                 required.extend(aarch64_float_scalar_return_keys(darwin));
+                required.extend(aarch64_indirect_aggregate_call_keys(darwin));
                 required.extend(aarch64_register_aggregate_call_keys(darwin));
                 required.extend(aarch64_mixed_aggregate_call_keys(darwin));
                 required.extend(aarch64_register_aggregate_return_keys(darwin));
@@ -1678,6 +1682,8 @@ mod tests {
         assert_eq!(
             catalog.required.len(),
             AARCH64_REQUIRED_REGISTER_CONSTRAINTS.len()
+                + aarch64_indirect_aggregate_call_keys(false).len()
+                + aarch64_indirect_aggregate_call_keys(true).len()
                 + aarch64_float_scalar_call_keys(false).len()
                 + aarch64_float_scalar_call_keys(true).len()
                 + aarch64_float_scalar_return_keys(false).len()

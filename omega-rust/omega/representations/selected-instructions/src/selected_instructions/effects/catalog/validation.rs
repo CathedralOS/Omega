@@ -263,7 +263,10 @@ fn validate_encoded_effects(
             .take_while(|operand| operand.access == RegisterOperandAccess::Use)
             .count();
         let (arguments, results) = constraint.operands.split_at(arity);
-        if !(1..=2).contains(&results.len())
+        // An indirect aggregate returns through its hidden input pointer; its
+        // exact ABI and destination are checked by ordinary call replay.
+        if results.len() > 2
+            || (results.is_empty() && arguments.is_empty())
             || results.iter().any(|operand| {
                 operand.access != RegisterOperandAccess::Def || operand.fixed_view.is_none()
             })

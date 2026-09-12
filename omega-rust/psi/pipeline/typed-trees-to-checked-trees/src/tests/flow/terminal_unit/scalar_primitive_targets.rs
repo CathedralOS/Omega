@@ -300,10 +300,10 @@ fn write_only_scalar_call_stores_its_result_after_scalar_parameters() {
             destination:
                 checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
             value:
-                CheckedScalarExpression::Local {
+                checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Local {
                     position: 1,
                     primitive_type: PrimitiveType::U64,
-                },
+                }),
         },
         CheckedUnitEffectOperationPlan::Complete { .. },
     ] = plan.operations.as_slice()

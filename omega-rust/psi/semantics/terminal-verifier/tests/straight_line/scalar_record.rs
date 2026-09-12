@@ -53,11 +53,14 @@ fn module() -> TerminalModule {
             projected_qualifications: Default::default(),
             claims: Vec::new(),
         }),
-        kind: OperationKind::EstablishScalarRecord {
+        kind: OperationKind::EstablishRecord {
             fields: (1..=2)
-                .map(|identity| terminal_psi::ScalarRecordFieldValue {
+                .map(|identity| terminal_psi::RecordFieldInitializer {
                     field: StructuralFieldId::new(identity).unwrap(),
-                    value: ValueId::new(identity).unwrap(),
+                    value: terminal_psi::RecordFieldValue::Scalar {
+                        value: ValueId::new(identity).unwrap(),
+                        range_obligation: None,
+                    },
                 })
                 .collect(),
         },
@@ -65,8 +68,8 @@ fn module() -> TerminalModule {
     module
 }
 
-fn fields(module: &mut TerminalModule) -> &mut Vec<terminal_psi::ScalarRecordFieldValue> {
-    let OperationKind::EstablishScalarRecord { fields } =
+fn fields(module: &mut TerminalModule) -> &mut Vec<terminal_psi::RecordFieldInitializer> {
+    let OperationKind::EstablishRecord { fields } =
         &mut module.machines[0].blocks[0].operations[0].kind
     else {
         panic!("constructor")
@@ -84,8 +87,18 @@ fn runtime_scalar_record_requires_complete_ordered_exact_defined_fields() {
                 fields(&mut module).pop();
             }
             1 => fields(&mut module).swap(0, 1),
-            2 => fields(&mut module)[0].value = ValueId::new(2).unwrap(),
-            3 => fields(&mut module)[0].value = ValueId::new(99).unwrap(),
+            2 => {
+                fields(&mut module)[0].value = terminal_psi::RecordFieldValue::Scalar {
+                    value: ValueId::new(2).unwrap(),
+                    range_obligation: None,
+                }
+            }
+            3 => {
+                fields(&mut module)[0].value = terminal_psi::RecordFieldValue::Scalar {
+                    value: ValueId::new(99).unwrap(),
+                    range_obligation: None,
+                }
+            }
             4 => fields(&mut module)[0].field = StructuralFieldId::new(99).unwrap(),
             _ => unreachable!(),
         }

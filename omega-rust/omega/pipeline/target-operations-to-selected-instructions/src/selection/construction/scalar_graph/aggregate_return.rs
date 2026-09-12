@@ -41,6 +41,22 @@ pub(super) fn build(
     }) {
         return Err(invalid());
     }
+    if crate::selection::aggregate_result_input::indirect_result(placement, source.call_plan.policy)
+        .is_some()
+    {
+        super::structural::indirect_results::returned(
+            source,
+            block,
+            returned,
+            slot.ok_or_else(invalid)?,
+            placement,
+            builder,
+        )?;
+        return Ok(SelectedTerminator::Return {
+            instruction: builder.instructions.last().cloned().ok_or_else(invalid)?,
+            psi_return_edge: returned.edge,
+        });
+    }
     let scalar_return = builder.constraints.keys.return_aggregate.is_empty()
         && matches!(
             placement.locations.as_slice(),

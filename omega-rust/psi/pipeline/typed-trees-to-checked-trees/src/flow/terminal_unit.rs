@@ -433,14 +433,16 @@ pub(crate) fn build_checked_unit_effect_plans(
         // Every scalar call observes the same candidate roster for this pass.
         // Mutating it during availability checks would make transitive pruning
         // depend on declaration order; no body copies are needed to retain it.
-        let retained_candidates =
-            candidates
-                .iter()
-                .map(|plan| {
-                    if !unique_entries.contains(&(plan.machine, plan.state)) {
-                        return false;
-                    }
-                    plan.operations.iter().all(|operation| {
+        let retained_candidates = candidates
+            .iter()
+            .map(|plan| {
+                if !unique_entries.contains(&(plan.machine, plan.state)) {
+                    return false;
+                }
+                plan.operations
+                    .iter()
+                    .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                    .all(|operation| {
                         match operation {
                     CheckedUnitEffectOperationPlan::CallUnit {
                         target_machine,
@@ -497,8 +499,8 @@ pub(crate) fn build_checked_unit_effect_plans(
                     | CheckedUnitEffectOperationPlan::Complete { .. } => true,
                 }
                     })
-                })
-                .collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
         let mut retained_candidates = retained_candidates.into_iter();
         candidates.retain(|_| retained_candidates.next().unwrap_or(false));
         composed_machines.retain(|plan| {
@@ -509,6 +511,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                     .states
                     .iter()
                     .flat_map(|state| &state.operations)
+                    .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
                     .all(|operation| match operation {
                         CheckedUnitEffectOperationPlan::CallUnit {
                             target_machine,
@@ -690,7 +693,11 @@ pub(crate) fn build_checked_unit_effect_plans(
             ]
         }))
         .collect::<BTreeSet<_>>();
-    for operation in candidates.iter().flat_map(|plan| &plan.operations) {
+    for operation in candidates
+        .iter()
+        .flat_map(|plan| &plan.operations)
+        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+    {
         match operation {
             CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
                 realization_machine,
