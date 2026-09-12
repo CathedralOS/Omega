@@ -16,6 +16,7 @@ use typed_trees::TypedTrees;
 
 mod carry;
 mod crash_calls;
+mod crash_entry_values;
 mod index_compatibility;
 pub(crate) mod operator_crashes;
 #[cfg(test)]

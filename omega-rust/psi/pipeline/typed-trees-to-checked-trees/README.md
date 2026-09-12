@@ -130,14 +130,17 @@ in each machine's `CrashPlan`, separate from machine-call ordinals. Source
 checking reconstructs this roster, retains empty discharged rows, checks
 same-cause published coverage, and includes surviving routes in private helper
 summaries. A guard can use captured operand facts without making those values
-invocation-entry parameters. Entry-relative export currently requires exact
-immutable entry scalar parameters with no entry-state re-arrival, or literals.
-Immutable scalar aliases and Boolean negation preserve these origins only when
-every dependency has the same proof; unknown provenance widens the same cause
-to `Truth`. Ordinary private-helper
-substitution uses the same provenance boundary, so a mutable call actual cannot
-restore a discarded entry identity. Newer storage facts cannot discharge an
-earlier copy.
+invocation-entry parameters. `facts/crash_entry_values.rs` shares entry-relative
+export between operators and ordinary calls: literals, immutable entry values
+without state re-arrival, their immutable aliases, field projections and Boolean
+negation. Structural roots must have plain owned contents, or be a shared borrow
+of such contents; the existing owned-storage validator follows nested/generic
+fields and rejects stored references or other hidden authority. An immutable
+wrapper does not freeze a mutable referent. Mutable bindings and unknown origins
+widen the same cause to `Truth`, including through private-helper summaries.
+Newer storage facts cannot discharge an earlier copy. The source-to-artifact and
+interpreter regressions are `mixed_unit_crash_arguments_source` and
+`mixed_unit_crash_requirements_source` in `checked-trees-to-lowered-psi`.
 
 The loose-source probe `mbx run -p omega -- --check --output-only
 tests/omega/pass/operators/crash_routes/main.omg` exercises discharge and a
