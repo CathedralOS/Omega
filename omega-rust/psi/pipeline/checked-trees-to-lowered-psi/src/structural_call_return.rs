@@ -1,11 +1,28 @@
 //! Bounded final internal structural-result call lowering.
+//!
+//! Both emitted bodies retain their exact checked owners, and the ordinary
+//! structural call retains its checked occurrence. Reach projection consumes
+//! those joins before publication; treating this two-body route as root-only
+//! silently loses generic callee contracts.
 
 use super::*;
+use crate::machine_dispatch::SourceMappedLowered;
 
 pub(super) fn lower_structural_call_return_machine(
     checked: &CheckedTrees,
     plan: &CheckedStructuralCallReturnMachinePlan,
-) -> Result<LoweredPsi, LoweringError> {
+) -> Result<SourceMappedLowered, LoweringError> {
+    // A self-consistent checked plan can still name a different same-shaped
+    // leaf. Rejoin the authored call before retaining its source occurrence;
+    // stale plan coordinates cannot establish exact call provenance.
+    let authored = crate::call_source_custody::authored::locate(
+        checked,
+        plan.machine,
+        plan.state,
+        plan.call.coordinate,
+        plan.call.target_machine,
+        plan.call.target_state,
+    )?;
     let target_plan = checked
         .facts
         .flow
@@ -293,5 +310,27 @@ pub(super) fn lower_structural_call_return_machine(
     };
     module.entry = caller.id;
     module.machines.insert(0, caller);
-    Ok(lowered)
+    lowered
+        .source_call_occurrences
+        .push(LoweredSourceCallOccurrence {
+            source_site: authored.source_site,
+            source_state: plan.state,
+            statement_index: usize::try_from(plan.call.coordinate.statement_index).map_err(
+                |_| {
+                    LoweringError::Unsupported("structural call statement coordinate exceeds usize")
+                },
+            )?,
+            call_ordinal: usize::try_from(plan.call.coordinate.call_ordinal)
+                .map_err(|_| LoweringError::Unsupported("structural call ordinal exceeds usize"))?,
+            terminal_operation: operation_id(1),
+            source_target: authored.source_target,
+            source_values_before_call: Vec::new(),
+        });
+    SourceMappedLowered::new(
+        lowered,
+        vec![
+            (plan.machine, machine_id(1)),
+            (plan.call.target_machine, target_machine),
+        ],
+    )
 }

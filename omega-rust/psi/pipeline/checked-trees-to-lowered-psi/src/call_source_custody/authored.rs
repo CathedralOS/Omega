@@ -20,7 +20,7 @@ pub(crate) struct AuthoredCall {
     pub target_state: SymbolHandle,
 }
 
-pub(super) fn locate(
+pub(crate) fn locate(
     checked: &CheckedTrees,
     caller_machine: SymbolHandle,
     caller_state: SymbolHandle,

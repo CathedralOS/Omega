@@ -312,9 +312,17 @@ joins; exercise source-free execution and hostile controls with
 `tests/omega/pass/effects/generic_callback_schema_reach/README.md`.
 The same projection covers fixed-only type/const applications, isolated identity
 callbacks, and unused selected ordinary or generic contracts without emitted bodies.
-Resume with portable coverage for inlined/missing callees and unresolved
-installation selections, then independently checkable original-contract
-projection openings. Template/specialization commitments identify provenance;
+Next customer: [linear structural callback reach](tests/omega/pass/effects/structural_callback_reach/README.md).
+At `2ee4b27042` on macOS ARM64, its selected callback retains the exact checked
+call, input-origin claim outcome and content identity reshuffle, but normalization
+hoists the call into a returned local. The single-expression structural-call
+planner omits that sequence. Continue through ordinary structural result binding
+and completion in `typed-trees-to-checked-trees/src/flow/terminal_unit/control/statement_sequence.rs`
+and its linear-custody consumers, not another source-family recognizer. The README
+keeps the CLI publication command and source-free direct-generic-callee regression.
+Broader portable coverage for inlined/missing callees, unresolved installation
+selections and independently checkable original-contract projection openings
+remains required. Template/specialization commitments identify provenance;
 they do not authenticate the structured projection. Original finite dependencies
 replay against the retained source graph
 in `validation/src/static_machine_call_contracts.rs`, but the remaining template
