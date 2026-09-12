@@ -1,4 +1,6 @@
 //! Scalar record fields use the shared evaluator before one atomic establishment.
+//! Evaluation follows authored order; only the completed field/value roster is
+//! reordered for canonical declaration order. Calls must not be reordered with it.
 
 use super::*;
 
@@ -82,6 +84,9 @@ pub(crate) fn emit_record(
             shape_fields[position].field_type.clone(),
         ));
     }
+    // Evaluation may create private blocks and replace saved values with their
+    // successor parameters. Keep positions in that remapped vector until every
+    // field has completed, rather than retaining stale pre-join ValueIds.
     let leaf_start = values.len();
     let mut field_positions = Vec::with_capacity(fields.len());
     for (ordinal, field) in fields.iter().enumerate() {

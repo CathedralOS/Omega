@@ -56,7 +56,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   owning diagnostic before expanding compiler work. Initialization is explicit
   and requires private repository access during in-house development.
   On macOS ARM64 with Python 3.13, the unchanged native invocation at
-  `e0d24c82fb` (base `5b51c42b0a`) exits 200 on 18 local-receiver realization
+  `f2df6230df` (base `90a03052fc`) exits 200 on 18 local-receiver realization
   diagnostics in the actual `Main::main`, after checking std and the dependency
   graph. The application pins the published standard-package declaration repair
   at `a91d878cb9252647d977c45787969b16e6ef937a`. Calls such as
@@ -71,8 +71,9 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `checked-trees-to-lowered-psi/src/attached_unit/structural_values/record.rs`.
   Reuse that producer; the next join must retain local receiver storage and
   shared scalar-result callee signatures through call normalization and native
-  argument preparation. Do not remove the source fence before that complete
-  route works, or restore the retired literal-only constructor.
+  argument preparation, including `SnapshotRegionFilter`'s nested `NormalizedRegion`
+  field and its constructor result. Do not remove the source fence before that
+  complete route works, or restore the retired literal-only constructor.
   This is engineering work, with the unchanged native
   command and `Squalr geometry: PASS` as acceptance.
   Windows runtime controls in `omega-rust/omega/tests/package_commands/probe.rs`
