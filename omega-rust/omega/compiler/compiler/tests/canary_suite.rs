@@ -663,6 +663,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "constraints/contract_range_membership_unimplemented",
     "constraints/scalar_ensures_field_contract_surface",
     "constraints/scalar_requires_satisfied_by_literal",
+    "modules/closed_template_methods",
     "modules/module_declaration",
     "modules/package_declaration",
     "modules/pub_visibility_modifier",

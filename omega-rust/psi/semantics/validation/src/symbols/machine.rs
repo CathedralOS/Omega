@@ -53,12 +53,7 @@ impl<'program> MachineSymbols<'program> {
             states: Vec::with_capacity(program.machine_states(machine).len()),
         };
 
-        if let Some(data_definition) = machine.attached_data.as_ref().and_then(|attached_data| {
-            program
-                .data_definitions()
-                .iter()
-                .find(|definition| &definition.name == attached_data)
-        }) {
+        if let Some(data_definition) = crate::places::machine_attached_data(program, machine) {
             for member in program.data_members(data_definition) {
                 let DataMember::Field(field) = member else {
                     continue;

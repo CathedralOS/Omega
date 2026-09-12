@@ -29,7 +29,6 @@ pub(super) fn extend_symbol_table(
     const_declarations: &[crate::lowerer::PendingConstDeclaration],
 ) {
     let has_sources = true;
-    let resolution_sources = Some(sources.clone());
     let mut extension = std::mem::take(&mut program.symbols)
         .begin_extension(Some(sources), source_scoped_top_level_bindings);
 
@@ -77,14 +76,6 @@ pub(super) fn extend_symbol_table(
             &machine.name,
             has_sources,
         )])[0];
-        insert_machine_symbol_children(
-            &mut extension,
-            program,
-            symbol,
-            &machine,
-            has_sources,
-            resolution_sources.as_deref(),
-        );
         program.machines[index].symbol = symbol;
     }
     for index in roots.propositions..program.propositions.len() {
@@ -172,7 +163,6 @@ pub(super) fn build_symbol_table(
     has_authored_modules: bool,
 ) -> SymbolTable {
     let has_sources = sources.is_some() || has_authored_modules;
-    let resolution_sources = sources.clone();
     let root_operator_names = program
         .operators
         .iter()
@@ -299,17 +289,10 @@ pub(super) fn build_symbol_table(
             );
         }
     }
-    for machine in &program.machines {
-        if let Some(machine_symbol) = root_children.next() {
-            insert_machine_symbol_children(
-                &mut builder,
-                program,
-                machine_symbol,
-                machine,
-                has_sources,
-                resolution_sources.as_deref(),
-            );
-        }
+    // Machine children require namespace-aware attachment selection. Their root
+    // headers already exist; publish children after the namespace is installed.
+    for _ in &program.machines {
+        let _ = root_children.next();
     }
     for proposition in &program.propositions {
         if let Some(proposition_symbol) = root_children.next() {
@@ -351,4 +334,51 @@ pub(super) fn build_symbol_table(
     }
 
     builder.finish()
+}
+
+/// Machine children and the later assignment pass must use the same selected
+/// attachment. Inherited field slots cannot be guessed from a qualified name:
+/// omitting them would shift the state's actual symbol slot during assignment.
+pub(super) fn insert_selected_machine_children(
+    program: &SymbolResolvedTrees,
+    table: SymbolTable,
+    sources: Option<Arc<SourceMap>>,
+    first_machine: usize,
+    has_sources: bool,
+) -> SymbolTable {
+    let roots = || table.child_handles(table.root()).into_iter().flatten();
+    let selections = roots()
+        .filter(|handle| table.get(*handle).kind == SymbolKind::Machine)
+        .zip(program.machines.iter())
+        .skip(first_machine)
+        .map(|(symbol, machine)| {
+            let selected = machine.attached_data.as_ref().and_then(|attached| {
+                table.find_top_level_by_name_and_kinds_from_source(
+                    attached.as_str(),
+                    &[SymbolKind::Data],
+                    attached.source_span(),
+                )
+            });
+            let owner = selected.and_then(|selected| {
+                roots()
+                    .filter(|handle| table.get(*handle).kind == SymbolKind::Data)
+                    .zip(program.data_definitions.iter())
+                    .find_map(|(handle, definition)| (handle == selected).then_some(definition))
+            });
+            (symbol, machine, owner)
+        })
+        .collect::<Vec<_>>();
+    let mut extension = table.begin_extension(sources.clone(), Vec::new());
+    for (symbol, machine, owner) in selections {
+        insert_machine_symbol_children(
+            &mut extension,
+            program,
+            symbol,
+            machine,
+            owner,
+            has_sources,
+            sources.as_deref(),
+        );
+    }
+    extension.finish()
 }

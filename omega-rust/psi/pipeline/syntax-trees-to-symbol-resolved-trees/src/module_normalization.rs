@@ -63,15 +63,9 @@ pub(crate) fn validate_with_const_resolution_mode(
     if module_sources.is_empty() {
         return Ok(());
     }
-    let generic_data = syntax
-        .root_items()
-        .filter_map(|item| {
-            let Item::Data(data) = item else {
-                return None;
-            };
-            (!data.type_parameters.is_empty()).then_some(data)
-        })
-        .collect::<Vec<_>>();
+    // Generic method cloning selects attachments by exact carrier declaration
+    // in their source context. Same-leaf module carriers need no spelling fence;
+    // the common synthesis owner retains its ordinary eligibility restrictions.
     for item in syntax.root_items() {
         let unsupported = match item {
             Item::Trait(definition)
@@ -141,19 +135,6 @@ pub(crate) fn validate_with_const_resolution_mode(
                 Some((
                     &data.name,
                     "module-owned generic data requires namespace-aware template normalization",
-                ))
-            }
-            Item::Machine(machine)
-                if module_sources.contains(&machine.name.source_span().source_id)
-                    && machine.attached_data.as_ref().is_some_and(|carrier| {
-                        generic_data
-                            .iter()
-                            .any(|data| data.name.as_str() == carrier.as_str())
-                    }) =>
-            {
-                Some((
-                    &machine.name,
-                    "module-owned attached machines sharing a generic carrier spelling require namespace-aware template normalization",
                 ))
             }
             _ => None,
@@ -423,16 +404,19 @@ mod tests {
     }
 
     #[test]
-    fn module_attached_methods_cannot_join_unrelated_generic_carriers() {
+    fn module_attached_methods_do_not_join_unrelated_generic_carriers() {
         let syntax = parse(&[
             "data Box<T> { value: T; }",
             "module other; data Box {} machine Box::act(&self) {}",
         ]);
-        assert!(
-            crate::normalize_generic_data(syntax)
-                .expect_err("same carrier spelling has distinct owners")[0]
-                .message
-                .contains("attached machines")
+        let syntax = crate::normalize_generic_data(syntax)
+            .expect("same carrier spelling has distinct owners");
+        assert_eq!(
+            syntax
+                .root_items()
+                .filter(|item| matches!(item, Item::Machine(_)))
+                .count(),
+            1
         );
     }
 

@@ -501,9 +501,9 @@ fn boundary_expression_and_initializer_arguments_keep_authored_handles() {
         "let result: bool = Sink::read(flag); result",
     ] {
         let source = format!(
-            "data Root {{}} pub data Sink {{}}
-             boundary machine Sink::read(flag: bool) -> bool;
-             machine Root::read(flag: bool) -> bool {{ {body} }}"
+            "data Root {{}}
+             boundary trait Sink {{ machine read(flag: bool) -> bool; }}
+             machine Root::read(flag: bool) -> bool reaches Sink {{ {body} }}"
         );
         let checked = lower_typed_trees(typed_trees(&source)).unwrap();
         let machine = checked

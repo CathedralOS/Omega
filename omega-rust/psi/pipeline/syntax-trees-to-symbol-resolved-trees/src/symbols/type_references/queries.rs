@@ -1,7 +1,8 @@
 use arena::Arena;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
-use crate::symbols::lookup::{call_target_for_attached_data, child_symbol_by_kinds};
+use crate::symbols::lookup::child_symbol_by_kinds;
+use crate::symbols::scope::MachineScope;
 
 fn type_reference_symbol(
     child_type_references: &Arena<symbol_resolved_trees::types::TypeReference>,
@@ -38,6 +39,7 @@ fn type_reference_symbol(
 }
 
 pub(in crate::symbols) fn call_target_for_type_reference(
+    machine: &MachineScope<'_>,
     symbols: &SymbolTable,
     child_type_references: &Arena<symbol_resolved_trees::types::TypeReference>,
     type_reference: &symbol_resolved_trees::types::TypeReference,
@@ -51,12 +53,7 @@ pub(in crate::symbols) fn call_target_for_type_reference(
     }
 
     if type_symbol.is_valid() && matches!(symbols.get(type_symbol).kind, SymbolKind::Data) {
-        return call_target_for_attached_data(
-            symbols,
-            symbols.name(type_symbol),
-            target.as_str(),
-            target.source_span(),
-        );
+        return machine.attached_call_target(symbols, type_symbol, target);
     }
 
     SymbolHandle::invalid()

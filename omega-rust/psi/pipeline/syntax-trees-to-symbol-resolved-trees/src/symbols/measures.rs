@@ -8,6 +8,7 @@ pub(super) fn assign_measure_expression_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
 ) {
+    let attached_machines = super::scope::attached_machines(program);
     let declarations = &mut program.tables.declarations;
     let expressions = &mut program.tables.bodies.expressions;
     for measure in &program.roots.measures {
@@ -19,6 +20,7 @@ pub(super) fn assign_measure_expression_symbols(
         // Reuse expression traversal with the measure's lexical child scope,
         // but no machine receiver: `self` must not name this declaration.
         let scope = MachineScope {
+            attached_machines: &attached_machines,
             symbol: SymbolHandle::invalid(),
             type_parameters: &[],
             attached_data: None,

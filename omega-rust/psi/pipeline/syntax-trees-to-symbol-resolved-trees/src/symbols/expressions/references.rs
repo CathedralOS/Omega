@@ -6,8 +6,7 @@ use super::super::expression_paths::{
     stamp_receiver_path_symbols_in_table,
 };
 use super::super::lookup::{
-    call_target_for_attached_data, child_symbol_by_kinds, diagnostic_path_source_span,
-    top_level_symbol_for_source,
+    child_symbol_by_kinds, diagnostic_path_source_span, top_level_symbol_for_source,
 };
 use super::super::scope::MachineScope;
 use super::super::scoped_paths::{
@@ -71,12 +70,7 @@ fn nested_receiver_leaf_field_symbol(
     let Some(owner_type) = machine.nested_self_chain_type(&borrowed[..borrowed.len() - 1]) else {
         return SymbolHandle::invalid();
     };
-    let reference = symbols
-        .symbol_provenance_source_span(machine.symbol)
-        .unwrap_or_default();
-    let owner_data = symbols
-        .find_top_level_by_name_and_kinds_from_source(owner_type, &[SymbolKind::Data], reference)
-        .unwrap_or_else(SymbolHandle::invalid);
+    let owner_data = owner_type;
     if !owner_data.is_valid() {
         return SymbolHandle::invalid();
     }
@@ -105,7 +99,7 @@ fn nested_receiver_call_target_symbol(
     let Some(leaf_type) = machine.nested_self_chain_type(&borrowed) else {
         return SymbolHandle::invalid();
     };
-    call_target_for_attached_data(symbols, leaf_type, target.as_str(), target.source_span())
+    machine.attached_call_target(symbols, leaf_type, target)
 }
 
 pub(super) fn assign_call_symbol(

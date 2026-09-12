@@ -102,8 +102,9 @@ pub(super) fn named_type_reference_name(
 }
 
 /// True when `type_name` resolves the value-call target through any of the
-/// channels the LOWERING understands: a boundary-trait machine signature, a
-/// machine's local state, or a machine attached to that data type.
+/// remaining channels the lowering understands: a boundary-trait machine
+/// signature or a machine's local state. Attached calls use their selected state
+/// and exact receiver type before this unresolved-call diagnostic.
 fn type_name_resolves_value_call(
     program: &TypedTrees,
     symbols: &TopLevelSymbols<'_>,
@@ -126,9 +127,7 @@ fn type_name_resolves_value_call(
     {
         return true;
     }
-    symbols
-        .attached_machine_state(program, type_name, target)
-        .is_some()
+    false
 }
 
 /// Decision layer for the value-call fall-through: everything the partial

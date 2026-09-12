@@ -136,7 +136,9 @@ fn payload_candidates_reject_foreign_fields_cases_and_roots() {
         panic!("foreign case");
     };
     let foreign_field = program.data_payload_fields(foreign_variant.payload)[0].symbol;
+    let attachments = crate::symbols::scope::attached_machines(&program);
     let scope = MachineScope {
+        attached_machines: &attachments,
         symbol: machine.symbol,
         type_parameters: &[],
         attached_data: machine.attached_data.as_ref(),
@@ -292,7 +294,9 @@ fn payload_candidates_keep_same_spelled_nominal_owners_in_their_source() {
         })
         .unwrap();
     let state = program.machine_state(program.machine_state_handles(machine.states)[0]);
+    let attachments = crate::symbols::scope::attached_machines(&program);
     let scope = MachineScope {
+        attached_machines: &attachments,
         symbol: machine.symbol,
         type_parameters: &[],
         attached_data: machine.attached_data.as_ref(),
@@ -467,7 +471,9 @@ fn indexed_candidate_rejects_foreign_and_stale_parameter_roots() {
     else {
         panic!("call");
     };
+    let attachments = crate::symbols::scope::attached_machines(&program);
     let scope = MachineScope {
+        attached_machines: &attachments,
         symbol: machine.symbol,
         type_parameters: &[],
         attached_data: machine.attached_data.as_ref(),

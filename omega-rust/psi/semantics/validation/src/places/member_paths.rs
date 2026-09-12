@@ -38,11 +38,7 @@ pub(crate) fn declared_member_path_type(
             None
         }
         [root, field_name] if root == "self" => {
-            let attached = current_machine.attached_data.as_ref()?;
-            let data = program
-                .data_definitions()
-                .iter()
-                .find(|data| data.name == *attached)?;
+            let data = super::machine_attached_data(program, current_machine)?;
             let field = program
                 .data_members(data)
                 .iter()
@@ -153,11 +149,7 @@ pub(crate) fn first_unknown_nested_field(
         if is_machine_owned_data {
             return None;
         }
-        let attached = current_machine.attached_data.as_ref()?;
-        program
-            .data_definitions()
-            .iter()
-            .find(|data| data.name == *attached)?
+        super::machine_attached_data(program, current_machine)?
     } else {
         let receiver_type = local_or_parameter_type(program, current_state, root)?;
         data_definition_for_type(program, receiver_type)?
@@ -190,11 +182,7 @@ fn resolve_nested_member_path(
 ) -> Option<TypeReferenceHandle> {
     let (root, rest) = path.split_first()?;
     let mut current_data = if root == "self" {
-        let attached = current_machine.attached_data.as_ref()?;
-        program
-            .data_definitions()
-            .iter()
-            .find(|data| data.name == *attached)?
+        super::machine_attached_data(program, current_machine)?
     } else {
         let receiver_type = local_or_parameter_type(program, current_state, root)?;
         data_definition_for_type(program, receiver_type)?
@@ -235,15 +223,14 @@ pub(crate) fn data_definition_for_type(
     type_reference: TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     let unwrapped = unwrapped_type_reference(program, type_reference)?;
-    let name = match program.type_reference_table.type_reference(unwrapped) {
-        TypeReferenceNode::Named { name, .. } => name,
-        TypeReferenceNode::Generic { base_name, .. } => base_name,
+    let symbol = match program.type_reference_table.type_reference(unwrapped) {
+        TypeReferenceNode::Named { symbol, .. } => *symbol,
+        TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
         _ => return None,
     };
-    program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name == *name)
+    // Generic references select their retained declaration here; this lookup
+    // does not manufacture a closed instance or substitute its fields.
+    super::data_definition_by_symbol(program, symbol)
 }
 
 /// Resolve a bare local-data or state-parameter name to its declared type.

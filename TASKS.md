@@ -1064,7 +1064,7 @@ Owners include
   `syntax-trees-to-symbol-resolved-trees/src/module_normalization.rs`,
   `build-time-evaluation/src/const_initializers.rs`, and the shared generic
   evaluator. Remaining forms include computed aggregate/open-template indices,
-  specialized module templates and template attachments, foreign/generic constant
+  specialized module templates, foreign/generic constant
   attachments, trait defaults, operator homes and qualified case membership in
   declared-domain proof facts. Preserve exact lexical/package selection before
   evaluation, per-use exposure under specialization and owner-local imports.

@@ -476,7 +476,24 @@ pub(super) fn desugar_generic_data_instances_with_selection(
                     format!("{}::{}", instance.synthetic_name, method_tail),
                     machine.name.source_span(),
                 );
-                clone.attached_data = Some(Identifier::generated(instance.synthetic_name.as_str()));
+                // An attachment may be authored outside the carrier's module.
+                // Reuse selected carrier lookup metadata in that source context;
+                // retaining only the span would lose an imported qualification.
+                clone.attached_data =
+                    Some(
+                        closed_constructor_carrier(
+                            &snapshot,
+                            selection,
+                            instance,
+                            machine.attached_data.as_ref().expect("selected attachment"),
+                            false,
+                        )
+                        .ok_or_else(|| {
+                            vec![Diagnostic::error(
+                        "generic method lost its selected closed carrier lookup context",
+                    ).with_source_span(machine.name.source_span())]
+                        })?,
+                    );
                 clone.generic_data_template = machine.name.clone();
                 clone.type_parameters = HandleSpan::default();
                 for (handle, name) in syntax

@@ -3676,6 +3676,7 @@ fn explicit_conformance_binder_rewrites_a_procedure_requirement_call() {
 #[test]
 fn static_named_witness_requirement_call_keeps_public_lanes_and_private_dispatch_separate() {
     let source = r#"
+        data Root {}
         trait Evidence {}
         proposition ready() evidence Evidence;
 
@@ -3935,6 +3936,7 @@ fn static_named_witness_requirement_call_accepts_exact_i32_result() {
 #[test]
 fn static_named_witness_i32_result_rejects_receiver_and_ordinary_argument() {
     let source = r#"
+        data Root {}
         trait Evidence {}
         proposition ready() evidence Evidence;
 
@@ -4170,6 +4172,7 @@ fn static_named_witness_scalar_result_rejects_primitive_outside_bounded_cohort()
 #[test]
 fn static_named_witness_requirement_call_accepts_one_exact_trait_default() {
     let source = r#"
+        data Root {}
         trait Evidence {}
         proposition ready() evidence Evidence;
 
@@ -4269,6 +4272,7 @@ fn static_named_witness_requirement_call_accepts_one_exact_trait_default() {
 #[test]
 fn static_named_witness_trait_defaults_remain_conformance_scoped() {
     let source = r#"
+        data Root {}
         trait Evidence {}
         proposition ready() evidence Evidence;
 

@@ -54,6 +54,7 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
                 };
             }
             return call_target_for_type_reference(
+                machine,
                 symbols,
                 child_type_references,
                 reference,
@@ -62,6 +63,7 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
         }
         if let Some(field_type_reference) = machine.field_type_reference(symbols, receiver_symbol) {
             let symbol = call_target_for_type_reference(
+                machine,
                 symbols,
                 child_type_references,
                 field_type_reference,
@@ -88,6 +90,7 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
             .find(|parameter| parameter.symbol == receiver_symbol)
         {
             let direct = call_target_for_type_reference(
+                machine,
                 symbols,
                 child_type_references,
                 &parameter.type_reference,
@@ -110,12 +113,7 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
         // machines take the old shape and the migration target as ordinary
         // parameters, so they are called through the type, not through a value.
         if matches!(receiver_kind, SymbolKind::Data) {
-            let target_symbol = call_target_for_attached_data(
-                symbols,
-                symbols.name(receiver_symbol),
-                target.as_str(),
-                target.source_span(),
-            );
+            let target_symbol = machine.attached_call_target(symbols, receiver_symbol, target);
             if target_symbol.is_valid() {
                 return target_symbol;
             }
@@ -151,15 +149,9 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
             receiver_kind,
             SymbolKind::Machine | SymbolKind::Trait | SymbolKind::ConformanceParameter
         ) {
-            if receiver_symbol == machine.symbol
-                && let Some(attached_data) = machine.attached_data
-            {
-                let target_symbol = call_target_for_attached_data(
-                    symbols,
-                    attached_data.as_str(),
-                    target.as_str(),
-                    target.source_span(),
-                );
+            if receiver_symbol == machine.symbol && machine.attached_data_symbol.is_valid() {
+                let target_symbol =
+                    machine.attached_call_target(symbols, machine.attached_data_symbol, target);
                 if target_symbol.is_valid() {
                     return target_symbol;
                 }
