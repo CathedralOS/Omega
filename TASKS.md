@@ -279,8 +279,10 @@ not depend on which applications are present. Its private closed-application and
 unused-generic controls establish template preservation, not Terminal custody.
 Its `service_reach_contracts` command covers concrete callback rows through
 publication, reload and interpretation, including inert declared reach and
-private helper propagation. Resume with original dependency/telescope custody
-and exact substitution replay; concrete row preservation does not establish them.
+private helper propagation. Resume with portable original dependency/telescope
+custody tied to selected public contracts and emitted calls. Concrete row
+preservation and producer-side specialization replay do not establish those
+portable relationships or reconstruct the complete original generic dependency.
 
 ## Semantic reflection
 

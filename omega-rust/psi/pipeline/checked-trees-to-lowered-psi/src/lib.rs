@@ -1261,6 +1261,32 @@ pub fn lower_machine(
     } else {
         vec![(selection.machine, lowered.semantic_module.entry)]
     };
+    // Specialization custody applies to ordinary calls as well as calls that
+    // produce proof evidence. Reuse exact source owners and call occurrences;
+    // display names and matching callback signatures cannot select a body.
+    // Replay once per selected batch before source companions are discarded.
+    let specialization_instances = checked
+        .machine_specializations
+        .iter()
+        .filter(|specialization| {
+            source_machines.contains(&specialization.instance)
+                || checked.machines().iter().any(|machine| {
+                    machine.symbol == specialization.instance
+                        && checked.machine_states(machine).iter().any(|state| {
+                            lowered.source_call_occurrences.iter().any(|call| {
+                                call.source_state == state.symbol
+                                    || call.source_target == state.symbol
+                            })
+                        })
+                })
+        })
+        .map(|specialization| specialization.instance)
+        .collect::<Vec<_>>();
+    validation::validate_checked_machine_specialization_commitments(
+        checked,
+        &specialization_instances,
+    )
+    .map_err(LoweringError::Unsupported)?;
     retain_selected_placed_view_inputs(
         checked,
         selection.machine,
@@ -1495,6 +1521,19 @@ pub fn lower_bounded_callback_identity_machine(
         );
     }
     let lowered = lower_selected_scalar_graph_machine(checked, source_machine, graph)?;
+    // Isolated callback production is another public lowering entrance, not
+    // permission to omit the selected generic body's application custody.
+    let specialization_instances = checked
+        .machine_specializations
+        .iter()
+        .filter(|specialization| specialization.instance == source_machine)
+        .map(|specialization| specialization.instance)
+        .collect::<Vec<_>>();
+    validation::validate_checked_machine_specialization_commitments(
+        checked,
+        &specialization_instances,
+    )
+    .map_err(LoweringError::Unsupported)?;
     terminal_verifier::validate_module(&lowered.semantic_module)
         .map_err(LoweringError::InvalidTerminalModule)?;
     let [machine] = lowered.semantic_module.machines.as_slice() else {
