@@ -7,8 +7,8 @@ use typed_trees::{TypedTrees, expression::ExpressionHandle, machine::Machine};
 
 use super::super::{
     prover::{
-        ScalarValue, evaluate_checked_scalar, evaluate_scalar, has_builtin_operators,
-        scalar_value_at_place,
+        ScalarValue, evaluate_checked_scalar, evaluate_scalar, evaluate_with_atoms,
+        has_builtin_operators, scalar_value_at_place, semantic_contexts_prove_boolean_expression,
     },
     return_values::{exit_return_expression, is_result_reference},
 };
@@ -54,9 +54,25 @@ pub(super) fn proves<'program>(
     if evaluator.proves_immutable_result_comparison(expression) {
         return true;
     }
-    evaluate_scalar(program, expression, &mut |leaf| {
-        evaluator.contract_value(leaf)
-    }) == Some(ScalarValue::Boolean(true))
+    let cases =
+        super::cases::CaseObservation::for_requirement(program, facts, exit, contexts, requirement);
+    evaluate_with_atoms(
+        program,
+        expression,
+        &mut |leaf| evaluator.contract_value(leaf),
+        &|_, _| true,
+        &mut |atom| {
+            cases
+                .as_ref()
+                .and_then(|cases| cases.observe(atom))
+                .or_else(|| {
+                    // A current predicate can be known without fixing its scalar
+                    // operands to single values. Use the same exit premises as the
+                    // whole-contract prover; failed search never supplies false.
+                    evaluator.current_predicate(atom).then_some(true)
+                })
+        },
+    ) == Some(ScalarValue::Boolean(true))
 }
 
 struct ExitScalars<'program, 'facts> {
@@ -70,6 +86,65 @@ struct ExitScalars<'program, 'facts> {
 }
 
 impl ExitScalars<'_, '_> {
+    fn current_predicate(&self, expression: ExpressionHandle) -> bool {
+        use typed_trees::expression::{BinaryOperator, ExpressionNode, UnaryOperator};
+        // The scalar leaf resolver can rebind entry parameters through exact
+        // origins. The ordinary predicate prover does not perform that
+        // substitution, so only unchanged binder identities may reach it.
+        if self
+            .facts
+            .flow
+            .control
+            .exit_parameter_origins
+            .span_or_empty(self.exit.parameter_origins)
+            .iter()
+            .any(|origin| {
+                origin.contract == self.contract && origin.entry_parameter != origin.state_parameter
+            })
+        {
+            return false;
+        }
+        let Some(state) = crate::find_state_in_machine(
+            self.program,
+            self.exit.machine_symbol,
+            self.exit.state_symbol,
+        ) else {
+            return false;
+        };
+        let boolean = match self.program.expression_table.expression(expression) {
+            ExpressionNode::Binary(binary) => matches!(
+                binary.operator,
+                BinaryOperator::And
+                    | BinaryOperator::Or
+                    | BinaryOperator::Equal
+                    | BinaryOperator::NotEqual
+                    | BinaryOperator::Less
+                    | BinaryOperator::LessOrEqual
+                    | BinaryOperator::Greater
+                    | BinaryOperator::GreaterOrEqual
+                    | BinaryOperator::CaseMembership
+            ),
+            ExpressionNode::Unary(unary) => unary.operator == UnaryOperator::LogicalNot,
+            _ => {
+                validation::expression_result_type_reference(
+                    self.program,
+                    self.machine,
+                    state,
+                    expression,
+                )
+                .and_then(|reference| self.program.primitive_type_reference(reference))
+                    == Some(typed_trees::types::PrimitiveType::Bool)
+            }
+        };
+        boolean
+            && semantic_contexts_prove_boolean_expression(
+                self.program,
+                &self.facts.semantic,
+                self.contexts,
+                expression,
+            )
+    }
+
     fn proves_immutable_result_comparison(&self, expression: ExpressionHandle) -> bool {
         use typed_trees::expression::{BinaryOperator, ExpressionNode};
         let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)

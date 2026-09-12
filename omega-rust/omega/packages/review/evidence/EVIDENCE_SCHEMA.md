@@ -164,9 +164,14 @@ Nominal membership capture uses Psi's exact carrier validator with either the
 real machine/state owner or the declaration's own parameter roster. Nested
 static-machine signature guards support direct, borrowed, field and builtin-index
 subjects without inventing an executable receiver. A same-spelled parameter from
-another signature cannot supply that scope. Domain/data subjects and result
-guarantees still need their own subject custody; proposition case classifiers
-remain blocked earlier in source typing. Declared indexing requires its exact
+another signature cannot supply that scope. A reserved `result` rejoins its exact
+authored postcondition occurrence and owning machine's declared return carrier;
+an equal carrier on another machine or a shadowing parameter is not that result.
+Domain/data subjects and projected result subjects still need their own custody.
+Legacy `proposition` declarations
+remain subject to the [proof-contract migration](../../../../../wiki/spec/proofs/contracts.md#delivery-obligations);
+their implementation fences are not requests to expand the retired surface.
+Declared indexing requires its exact
 application result, not an assumed collection element type.
 
 Crash predicates are ceiling guards, not established requires/ensures facts.

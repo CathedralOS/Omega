@@ -7,6 +7,9 @@ use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
+mod walk;
+pub(crate) use walk::collect_expression_nodes;
+
 mod cast_validation;
 mod float_cast_proofs;
 mod float_destinations;

@@ -89,9 +89,9 @@ fn project(
             matches!(program.expression_table.expression(expression), ExpressionNode::Name(path)
             if parameter.symbol.is_valid() && path.symbol == parameter.symbol && path.head_symbol == parameter.symbol)
         } else {
-            crate::proof_embeddings::reserved_result_owner(program, expression).is_some_and(
-                |(owner, return_type)| owner == machine.symbol && return_type == entry.return_type,
-            )
+            crate::reserved_result_owner(program, expression).is_some_and(|(owner, return_type)| {
+                owner == machine.symbol && return_type == entry.return_type
+            })
         }
     };
     let (other, subject_on_left) = if result(binary.left) {

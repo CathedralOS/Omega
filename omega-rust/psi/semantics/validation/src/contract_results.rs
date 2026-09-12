@@ -1,4 +1,6 @@
 //! Rejoin reserved `result` occurrences to their exact authored contract owner.
+//! Integer embeddings and nominal tag predicates need the same result scope:
+//! spelling or an equal carrier on another machine cannot authorize a result.
 
 use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
@@ -6,7 +8,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::TypeReferenceHandle;
 
-pub(super) fn type_reference(
+pub(crate) fn type_reference(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
@@ -16,14 +18,21 @@ pub(super) fn type_reference(
 /// Identify the exact machine owning a reserved result occurrence. Matching
 /// carrier types do not establish ownership, and an authored parameter named
 /// `result` takes precedence over the reserved contract form.
-pub(crate) fn reserved_result_owner(
+pub fn reserved_result_owner(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<(symbols::SymbolHandle, TypeReferenceHandle)> {
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
         return None;
     };
-    if !matches!(program.expression_table.name_path_members(path.members),
+    if path.symbol.is_valid()
+        || path.head_symbol.is_valid()
+        || program
+            .expression_table
+            .name_path_member_symbols(path.member_symbols)
+            .iter()
+            .any(|symbol| symbol.is_valid())
+        || !matches!(program.expression_table.name_path_members(path.members),
         [name] if name.as_str() == "result")
     {
         return None;
@@ -39,17 +48,25 @@ pub(crate) fn reserved_result_owner(
             for fact in program.proof_facts.span_or_empty(contract.facts) {
                 match fact {
                     ProofFact::Expression(root) => {
-                        super::collect_expression_nodes(program, *root, &mut nodes);
+                        crate::expression_types::collect_expression_nodes(
+                            program, *root, &mut nodes,
+                        );
                     }
                     ProofFact::Membership(membership) => {
-                        super::collect_expression_nodes(program, membership.value, &mut nodes);
+                        crate::expression_types::collect_expression_nodes(
+                            program,
+                            membership.value,
+                            &mut nodes,
+                        );
                     }
                     ProofFact::Proposition(application) => {
                         for argument in program
                             .expression_table
                             .expression_handles(application.arguments)
                         {
-                            super::collect_expression_nodes(program, *argument, &mut nodes);
+                            crate::expression_types::collect_expression_nodes(
+                                program, *argument, &mut nodes,
+                            );
                         }
                     }
                 }
@@ -149,5 +166,32 @@ mod tests {
         let occurrences = result_occurrences(&program);
         assert_eq!(occurrences.len(), 1);
         assert_eq!(reserved_result_owner(&program, occurrences[0]), None);
+    }
+
+    #[test]
+    fn resolved_symbol_cannot_impersonate_reserved_result() {
+        let program = typed("machine value(input: u16) -> u16 ensures result == input { input }");
+        let expression = result_occurrences(&program)[0];
+        assert!(reserved_result_owner(&program, expression).is_some());
+        let symbol = program.machines()[0].symbol;
+        for component in 0..3 {
+            let mut altered = program.clone();
+            let ExpressionNode::Name(mut path) = *altered.expression_table.expression(expression)
+            else {
+                panic!("result")
+            };
+            match component {
+                0 => path.symbol = symbol,
+                1 => path.head_symbol = symbol,
+                _ => {
+                    path.member_symbols = arena::HandleSpan::empty();
+                    altered
+                        .expression_table
+                        .push_name_path_member_symbol(&mut path.member_symbols, symbol);
+                }
+            }
+            *altered.expression_table.expression_mut(expression) = ExpressionNode::Name(path);
+            assert_eq!(reserved_result_owner(&altered, expression), None);
+        }
     }
 }
