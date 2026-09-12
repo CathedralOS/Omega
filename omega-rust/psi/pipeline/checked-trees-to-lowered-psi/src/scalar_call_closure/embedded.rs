@@ -165,11 +165,7 @@ impl EmbeddedScalarCalls {
                 .ok_or(LoweringError::Unsupported(
                     "embedded scalar helper has no checked graph",
                 ))?;
-            let prepared = if roots.contains(symbol) {
-                prepare_embedded_scalar_graph_machine(checked, *symbol, graph)?
-            } else {
-                prepare_scalar_graph_machine(checked, &qualifications, *symbol, graph)?
-            };
+            let prepared = prepare_scalar_graph_machine(checked, &qualifications, *symbol, graph)?;
             if !prepared.identity_reshuffles.structural_places.is_empty()
                 || !prepared.identity_reshuffles.entry_claims.is_empty()
                 || !prepared.identity_reshuffles.reshuffles.is_empty()

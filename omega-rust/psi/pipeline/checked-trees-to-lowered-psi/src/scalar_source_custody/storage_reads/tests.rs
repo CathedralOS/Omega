@@ -114,6 +114,148 @@ fn source(checked: &CheckedTrees) -> (symbols::SymbolHandle, ExpressionHandle) {
     (state.symbol, *expression)
 }
 
+fn ensures_left(checked: &CheckedTrees, owner: &str) -> (symbols::SymbolHandle, ExpressionHandle) {
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == owner)
+        .expect("contract owner");
+    let contract = checked
+        .machine_contracts(machine)
+        .iter()
+        .find(|contract| contract.kind == checked_trees::signature::SignatureContractKind::Ensures)
+        .expect("normal guarantee");
+    let [checked_trees::domain::ProofFact::Expression(expression)] =
+        checked.proof_facts.span_or_empty(contract.facts)
+    else {
+        panic!("expression guarantee");
+    };
+    let ExpressionNode::Binary(binary) = checked.expression_table.expression(*expression) else {
+        panic!("comparison guarantee");
+    };
+    (checked.machine_states(machine)[0].symbol, binary.left)
+}
+
+fn result_parameter(position: usize) -> CheckedScalarExpression {
+    CheckedScalarExpression::Parameter {
+        position,
+        primitive_type: PrimitiveType::U64,
+    }
+}
+
+#[test]
+fn normal_result_reads_keep_reserved_slot_separate_from_parameters_and_locals() {
+    let checked =
+        checked_source("machine read(input: u64) -> u64 ensures result == input { input }");
+    let (state, expression) = ensures_left(&checked, "read");
+    assert!(
+        validate_normal_result_read_expression(&checked, state, expression, &result_parameter(1))
+            .is_ok()
+    );
+    for forged in [
+        result_parameter(0),
+        result_parameter(2),
+        CheckedScalarExpression::Local {
+            position: 1,
+            primitive_type: PrimitiveType::U64,
+        },
+        CheckedScalarExpression::StorageRead {
+            symbol: checked.machines()[0].symbol,
+            primitive_type: PrimitiveType::U64,
+        },
+        CheckedScalarExpression::Parameter {
+            position: 1,
+            primitive_type: PrimitiveType::I64,
+        },
+    ] {
+        assert!(
+            validate_normal_result_read_expression(&checked, state, expression, &forged).is_err(),
+            "{forged:?}"
+        );
+    }
+    let local =
+        checked_source("machine read(input: u64) -> u64 { let result: u64 = input; result }");
+    let (local_state, local_expression) = source(&local);
+    assert!(
+        validate_normal_result_read_expression(
+            &local,
+            local_state,
+            local_expression,
+            &result_parameter(1)
+        )
+        .is_err()
+    );
+
+    let shadowed =
+        checked_source("machine read(result: u64) -> u64 ensures result == result { result }");
+    let (state, expression) = ensures_left(&shadowed, "read");
+    assert!(
+        validate_normal_result_read_expression(&shadowed, state, expression, &result_parameter(0))
+            .is_ok()
+    );
+    assert!(
+        validate_normal_result_read_expression(&shadowed, state, expression, &result_parameter(1))
+            .is_err()
+    );
+}
+
+#[test]
+fn normal_result_reads_reject_foreign_owner_and_forged_resolved_identity() {
+    let checked = checked_source(
+        "machine read(input: u64) -> u64 ensures result == input { input }
+         machine other(input: u64) -> u64 ensures result == input { input }",
+    );
+    let (state, expression) = ensures_left(&checked, "read");
+    let (_, foreign) = ensures_left(&checked, "other");
+    assert!(
+        validate_normal_result_read_expression(&checked, state, foreign, &result_parameter(1))
+            .is_err()
+    );
+    for component in 0..3 {
+        let mut changed = checked.clone();
+        let symbol = changed.machines()[0].symbol;
+        let ExpressionNode::Name(mut path) = *changed.expression_table.expression(expression)
+        else {
+            panic!("reserved result");
+        };
+        match component {
+            0 => path.symbol = symbol,
+            1 => path.head_symbol = symbol,
+            _ => {
+                path.member_symbols = arena::HandleSpan::empty();
+                changed
+                    .typed
+                    .expression_table
+                    .push_name_path_member_symbol(&mut path.member_symbols, symbol);
+            }
+        }
+        *changed.typed.expression_table.expression_mut(expression) = ExpressionNode::Name(path);
+        assert!(
+            validate_normal_result_read_expression(
+                &changed,
+                state,
+                expression,
+                &result_parameter(1)
+            )
+            .is_err(),
+            "component {component}"
+        );
+    }
+}
+
+#[test]
+fn normal_result_reads_do_not_reinterpret_mutable_post_state_as_entry() {
+    let checked = checked_source("machine read(mut input: u64) -> u64 { input }");
+    let (state, expression) = source(&checked);
+    assert!(
+        validate_entry_read_expression(&checked, state, expression, &result_parameter(0)).is_ok()
+    );
+    assert!(
+        validate_normal_result_read_expression(&checked, state, expression, &result_parameter(0))
+            .is_err()
+    );
+}
+
 fn validate_return(
     checked: &CheckedTrees,
     retained: &CheckedScalarExpression,

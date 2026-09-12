@@ -290,7 +290,9 @@ pub(super) fn is_available(
                 .any(|contract| {
                     !matches!(
                         contract.kind,
-                        SignatureContractKind::Crashes { .. } | SignatureContractKind::Requires
+                        SignatureContractKind::Crashes { .. }
+                            | SignatureContractKind::Requires
+                            | SignatureContractKind::Ensures
                     ) || contract.binding.is_some()
                 })
             || matches!(

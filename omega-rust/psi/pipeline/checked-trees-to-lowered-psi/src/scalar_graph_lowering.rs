@@ -190,15 +190,21 @@ pub(super) fn lower_scalar_graph_machine(
     Ok(lowered)
 }
 
-/// Lower one scalar realization whose contract/satisfaction is retained by an
-/// enclosing target-owned admission rather than reconstructed as a closed
-/// standalone scalar contract.
+/// Lower one scalar realization while preserving its ordinary scalar contract.
+/// The enclosing target owns satisfaction/ABI evidence, not a replacement for
+/// the callee's authored requirements and normal guarantees.
 pub(super) fn lower_selected_scalar_graph_machine(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     graph: &CheckedScalarMachineGraph,
 ) -> Result<LoweredPsi, LoweringError> {
-    let prepared = prepare_embedded_scalar_graph_machine(checked, machine, graph)?;
+    let qualifications = PreparedScalarQualifications::prepare(checked, &[machine])?;
+    if !qualifications.catalog().domains.is_empty() {
+        return unsupported(
+            "selected scalar qualifications require an enclosing catalog namespace",
+        );
+    }
+    let prepared = prepare_scalar_graph_machine(checked, &qualifications, machine, graph)?;
     let machine_ids = [(machine, machine_id(1))];
     let requirement_counts = [(machine, prepared.contract.requirement_count())];
     let mut lowered = build_scalar_graph_module(
@@ -257,38 +263,9 @@ fn prepare_standalone_scalar_graph_machine(
     )
 }
 
-/// Prepare an exact scalar body for inclusion beneath an attached Unit root.
-/// The enclosing checked call retains the target contract identity; unlike the
-/// standalone scalar lane, a parameter-relative contract need not reduce to
-/// one closed literal when the caller consumes only the runtime value.
-pub(super) fn prepare_embedded_scalar_graph_machine(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    graph: &CheckedScalarMachineGraph,
-) -> Result<PreparedScalarMachine, LoweringError> {
-    let qualifications = PreparedScalarQualifications::prepare(checked, &[machine])?;
-    if !qualifications.catalog().domains.is_empty() {
-        return unsupported(
-            "embedded scalar qualifications require the enclosing catalog namespace",
-        );
-    }
-    prepare_scalar_graph_machine_with_contract_mode(
-        checked,
-        &qualifications,
-        machine,
-        graph,
-        ScalarContractMode::EmbeddedByEnclosingCall,
-        &[],
-        &[],
-        &[],
-        &mut 1,
-    )
-}
-
 pub(crate) fn prepare_scalar_graph_in_namespace(
     checked: &CheckedTrees,
     graph: &CheckedScalarMachineGraph,
-    embedded: bool,
     parameters: &[StructuralParameterDeclaration],
     primitive_locals: &[primitive_locals::PrimitiveLocal],
     structural_types: &[StructuralTypeDeclaration],
@@ -305,11 +282,7 @@ pub(crate) fn prepare_scalar_graph_in_namespace(
         &qualifications,
         graph.machine,
         graph,
-        if embedded {
-            ScalarContractMode::EmbeddedByEnclosingCall
-        } else {
-            ScalarContractMode::ClosedRuntimeValue
-        },
+        ScalarContractMode::ClosedRuntimeValue,
         parameters,
         primitive_locals,
         structural_types,
@@ -321,7 +294,6 @@ pub(crate) fn prepare_scalar_graph_in_namespace(
 enum ScalarContractMode {
     ClosedRuntimeValue,
     StandaloneProofOnlyFloatResult,
-    EmbeddedByEnclosingCall,
 }
 
 fn prepare_scalar_graph_machine_with_contract_mode(
@@ -649,9 +621,10 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         .iter()
         .chain(plan.ensures())
         .any(|clause| matches!(clause, Some(ClosedScalarContractValue::Predicate(_))));
-    let contract = if contract_mode == ScalarContractMode::EmbeddedByEnclosingCall {
-        PreparedScalarContract::Empty
-    } else if plan.requires().is_empty()
+    // A helper remains a real callee when embedded in another execution plan.
+    // Its checked call identity does not discharge requirements or establish
+    // guarantees. Retain the same contract regardless of closure-root position.
+    let contract = if plan.requires().is_empty()
         && plan.ensures().is_empty()
         && !plan.has_outcome_specific_clauses()
     {

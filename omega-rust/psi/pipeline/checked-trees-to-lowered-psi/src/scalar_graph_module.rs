@@ -5,7 +5,7 @@ use super::*;
 mod owned_parameters;
 mod qualifications;
 mod ranking;
-pub(crate) mod result_contract;
+use crate::scalar_contracts;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build_scalar_graph_module(
@@ -1199,12 +1199,12 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         }
         (_, PreparedScalarContract::Empty) => (Vec::new(), Vec::new(), Vec::new()),
         (_, PreparedScalarContract::Predicates(plan)) => {
-            let requires = result_contract::clauses(plan.requires(), &parameters)?
+            let requires = scalar_contracts::clauses(plan.requires(), &parameters)?
                 .into_iter()
                 .collect();
             let mut namespace = parameters.clone();
             namespace.push(result);
-            let ensures = result_contract::clauses(plan.ensures(), &namespace)?
+            let ensures = scalar_contracts::clauses(plan.ensures(), &namespace)?
                 .into_iter()
                 .map(|proposition| ContractClause {
                     obligation: obligation_id(

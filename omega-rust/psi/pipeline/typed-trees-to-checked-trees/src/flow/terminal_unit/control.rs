@@ -1094,9 +1094,9 @@ pub(super) fn build_checked_machine_with(
     {
         return None;
     }
-    // Entry predicates belong to the shared invocation contract, independent
-    // of the operation that produces the result. Postconditions and result
-    // refinements still need their separate normal-return evidence.
+    // Entry predicates and normal guarantees belong to the shared invocation
+    // contract, independent of the operation that produces the result. Result
+    // refinements still need their separate qualification evidence.
     if program
         .primitive_type_reference(state.return_type)
         .is_some()
@@ -1109,6 +1109,7 @@ pub(super) fn build_checked_machine_with(
                     contract.kind,
                     typed_trees::signature::SignatureContractKind::Crashes { .. }
                         | typed_trees::signature::SignatureContractKind::Requires
+                        | typed_trees::signature::SignatureContractKind::Ensures
                 ) || contract.binding.is_some()
             })
             || matches!(

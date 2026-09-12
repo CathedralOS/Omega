@@ -139,6 +139,38 @@ fn empty_checked_contract_cannot_erase_authored_normal_clauses() {
 }
 
 #[test]
+fn selected_callback_identity_preserves_its_normal_contract() {
+    for clauses in ["", "requires input <= 11u64\nensures result == input"] {
+        let original = checked(&format!(
+            "data Callback {{}}\nmachine Callback::identity(input: u64) -> u64\n{clauses}\n{{ input }}"
+        ));
+        let graph = &original.facts.flow.terminal_scalar_graphs.machines[0];
+        let lowered = checked_trees_to_lowered_psi::lower_bounded_callback_identity_machine(
+            &original,
+            graph.machine,
+            graph.states[0].state,
+        )
+        .expect("selected identity body")
+        .terminal;
+        let contract = &lowered.semantic_module.machines[0].contract;
+        let expected_count = usize::from(!clauses.is_empty());
+        assert_eq!(contract.requires.len(), expected_count);
+        assert_eq!(contract.ensures.len(), expected_count);
+        let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
+        let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+        let input = TerminalScalarValue::Integer {
+            scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+            value: IntegerValue::Unsigned(7),
+        };
+        assert_eq!(
+            interpret_terminal_artifact(&semantic, &proof, &AdmissionProfile::default(), &[input])
+                .unwrap(),
+            TerminalExecutionResult::Scalar(input)
+        );
+    }
+}
+
+#[test]
 fn empty_checked_contract_cannot_erase_implicit_parameter_ranges() {
     for parameter_type in ["u64 [0..=11]", "u64 [0..12]"] {
         let source = format!("machine enter(input: {parameter_type}) -> u64 {{ input }}");

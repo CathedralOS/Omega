@@ -132,6 +132,7 @@ mod runtime_requirements;
 mod scalar_bindings;
 mod scalar_call_closure;
 mod scalar_computations;
+mod scalar_contracts;
 mod scalar_graph_effects;
 mod scalar_graph_lowering;
 mod scalar_graph_module;
@@ -202,8 +203,8 @@ use scalar_graph_lowering::{
     KnownDirectScalar, contains_short_circuit, direct_expression_contains_short_circuit,
     integer_landing_scalar_type, integer_scalar_type, integer_value,
     lower_checked_scalar_expression, lower_checked_scalar_expression_at,
-    lower_selected_scalar_graph_machine, prepare_embedded_scalar_graph_machine,
-    prepare_scalar_graph_machine, staged_short_circuit_bindings_terminator, terminal_scalar_type,
+    lower_selected_scalar_graph_machine, prepare_scalar_graph_machine,
+    staged_short_circuit_bindings_terminator, terminal_scalar_type,
     validate_boolean_parameter_types, validate_direct_parameter_types,
 };
 use scalar_graph_module::build_scalar_graph_module;

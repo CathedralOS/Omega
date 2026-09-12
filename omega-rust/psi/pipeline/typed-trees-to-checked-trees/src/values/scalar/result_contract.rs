@@ -81,12 +81,11 @@ pub(crate) fn lower_integer_contract_predicate(
                 .count();
             return Some((scalar_position, parameter.type_reference));
         }
+        // Equal spelling or carrier does not establish result ownership. This
+        // occurrence must belong to this machine's exact authored ensures.
         (allow_result
-            && !parameters
-                .iter()
-                .any(|parameter| parameter.name.as_str() == "result")
-            && matches!(program.expression_table.name_path_members(path.members),
-                [name] if name.as_str() == "result"))
+            && validation::reserved_result_owner(program, expression)
+                == Some((machine.symbol, entry.return_type)))
         .then_some((scalar_count, entry.return_type))
     };
     let subjects = [binary.left, binary.right].map(|expression| {
