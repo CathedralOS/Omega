@@ -82,6 +82,50 @@ fn boundary_byte_buffer_preserves_initialized_field() {
 }
 
 #[test]
+fn boundary_crash_retains_pre_call_buffers_and_skips_later_effects() {
+    let source = INPUT_SOURCE.replace("reaches Input", "reaches Input crashes Abort");
+    let (module, mut execution) = start(&source);
+    struct CrashingInput(usize);
+    impl TerminalEffectHandler for CrashingInput {
+        fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+            panic!("mutable input requires the staged buffer handler")
+        }
+        fn handle_effect_with_byte_buffers(
+            &mut self,
+            _: &TerminalEffect,
+            buffers: &mut [TerminalBoundaryByteBuffer],
+        ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+            self.0 += 1;
+            let [buffer] = buffers else {
+                panic!("one input buffer")
+            };
+            assert_eq!(buffer.bytes(), b"old");
+            buffer.replace(b"new")?;
+            Ok(TerminalEffectResult::Crash(terminal_psi::CrashCause::Abort))
+        }
+    }
+    let mut handler = CrashingInput(0);
+    let mut fuel = terminal_fuel::TerminalFuelMeter::unbounded();
+    let status = execution
+        .resume_with_effect_handler(&mut fuel, &mut handler)
+        .unwrap();
+    assert!(matches!(&status, TerminalExecutionStatus::Crashed(crash)
+        if crash.cause == terminal_psi::CrashCause::Abort));
+    assert_stored_fields(&module, &execution, &[b"old", b"QQ"]);
+    assert_eq!(handler.0, 1);
+    assert_eq!(execution.effects().len(), 1);
+    let units = fuel.usage().total_units();
+    assert_eq!(
+        execution
+            .resume_with_effect_handler(&mut fuel, &mut handler)
+            .unwrap(),
+        status
+    );
+    assert_eq!(fuel.usage().total_units(), units);
+    assert_eq!(handler.0, 1);
+}
+
+#[test]
 fn boundary_byte_buffer_nested_source_preserves_initialized_field() {
     let source = r#"
         domain [u8; 3]::Utf8 requires valid_utf8(self);

@@ -437,7 +437,7 @@ fn verified_crashes_are_stable_terminal_outcomes() {
     let semantic_bytes = encode_module(&module).expect("crash semantic artifact");
     let proof_bytes = encode_proof_bundle(&ProofBundle::default()).expect("crash proof artifact");
     let expected = TerminalCrash {
-        edge: EdgeId::new(90).expect("crash edge"),
+        site: terminal_interpreter::TerminalCrashSite::Edge(EdgeId::new(90).expect("crash edge")),
         cause: CrashCause::Trap,
         site_guard: Vec::new(),
         frontier_lower_bound: Vec::new(),

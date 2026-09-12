@@ -4,6 +4,9 @@ use super::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalEffectResult {
+    /// A no-successor outcome, permitted only by the boundary's published
+    /// same-cause route under this invocation's actual scalar arguments.
+    Crash(CrashCause),
     Unit,
     Scalar(TerminalScalarValue),
     /// The same opaque, target-neutral value used for structural entry inputs.
@@ -12,6 +15,60 @@ pub enum TerminalEffectResult {
 }
 
 impl TerminalExecution {
+    pub(super) fn admit_boundary_crash(
+        &self,
+        declaration: &BoundaryMachineDeclaration,
+        effect: &TerminalEffect,
+        cause: CrashCause,
+    ) -> Result<TerminalCrash, TerminalInterpretError> {
+        let TerminalEffect::BoundaryCall {
+            operation,
+            boundary,
+            arguments,
+            ..
+        } = effect
+        else {
+            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+        };
+        if *boundary != declaration.id {
+            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+        }
+        // Use the already evaluated invocation snapshot, not caller value IDs
+        // that happen to equal the declaration's positional scalar formal IDs.
+        let arguments = arguments
+            .iter()
+            .map(|argument| match *argument {
+                TerminalScalarValue::Boolean(value) => {
+                    Ok(semantic_vocabulary::ScalarTerm::Boolean(value))
+                }
+                TerminalScalarValue::Integer { scalar_type, value } => {
+                    Ok(semantic_vocabulary::ScalarTerm::Integer { scalar_type, value })
+                }
+                TerminalScalarValue::IeeeFloat(_) => {
+                    Err(TerminalInterpretError::VerifiedOperationMalformed)
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        terminal_verifier::validate_boundary_crash_outcome(declaration, &arguments, cause)
+            .map_err(|reason| TerminalInterpretError::BoundaryCrashNotPermitted {
+                operation: *operation,
+                boundary: *boundary,
+                cause,
+                reason,
+            })?;
+        Ok(TerminalCrash {
+            site: TerminalCrashSite::BoundaryCall {
+                machine: self.current_machine,
+                block: self.current,
+                operation: *operation,
+                boundary: *boundary,
+            },
+            cause,
+            site_guard: Vec::new(),
+            frontier_lower_bound: self.live_claims.keys().copied().collect(),
+        })
+    }
+
     pub(super) fn preflight_boundary_result(
         &self,
         result: &OperationResult,

@@ -325,6 +325,9 @@ pub enum TerminalEffect {
         /// A byte view without executable
         /// contents rejects before invoking the handler.
         byte_sequence_arguments: Vec<Option<Vec<u8>>>,
+        /// Required receipts on normal completion, not evidence that completion
+        /// occurred. A valid crashing invocation remains an observable effect
+        /// but commits none of these receipts.
         completion_receipts: Vec<CompletionReceipt>,
         result: BoundaryMachineResult,
     },
@@ -822,18 +825,6 @@ impl TerminalExecution {
         structural_primitive_value_arguments: &[TerminalStructuralPrimitiveValue],
         installation: Option<&AdmittedProviderInstallation>,
     ) -> Result<Self, TerminalInterpretError> {
-        // Host effect results do not yet report a boundary crash and its exact
-        // no-successor outcome. Verification preserves the permission, but
-        // execution must not silently treat that richer contract as crash-free.
-        if module
-            .boundary_machines
-            .iter()
-            .any(|boundary| !boundary.crash_routes.is_empty())
-        {
-            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                "boundary crash outcome execution",
-            ));
-        }
         let terminal_psi = terminal_codec::terminal_psi_identity(module)
             .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
         if installation.is_some_and(|installation| installation.terminal_psi != terminal_psi) {
@@ -2300,6 +2291,16 @@ impl TerminalExecution {
                                 operation: operation.id,
                                 rejection,
                             })?;
+                        if let TerminalEffectResult::Crash(cause) = returned {
+                            // A boundary crash belongs to the invocation, not a
+                            // fabricated CFG edge. Validate before publishing a
+                            // result, writeback, disposal, or completion receipt.
+                            let crash =
+                                self.admit_boundary_crash(boundary_declaration, &effect, cause)?;
+                            self.effects.push(effect);
+                            self.crash = Some(crash.clone());
+                            return Ok(TerminalExecutionStatus::Crashed(crash));
+                        }
                         boundary_arguments.validate_writeback()?;
                         if let TerminalEffectResult::Structural(value) = &returned {
                             self.primitive_local_identities.reserve_host(value)?;
@@ -4160,7 +4161,7 @@ impl TerminalExecution {
                         return meter_status(error);
                     }
                     let crash = TerminalCrash {
-                        edge: *edge,
+                        site: TerminalCrashSite::Edge(*edge),
                         cause: *cause,
                         site_guard: site_guard.clone(),
                         frontier_lower_bound: frontier_lower_bound.clone(),
@@ -5072,14 +5073,29 @@ pub enum TerminalExecutionStatus {
 
 /// The explicit terminal-Psi crash outcome reached by an execution.
 ///
-/// `frontier_lower_bound` is the machine-local claim frontier recorded by the
-/// artifact. It is not an assertion that no wider runtime state was abandoned.
+/// `frontier_lower_bound` is the artifact-retained frontier for an authored edge
+/// or the interpreter's current machine-local live claims for a boundary crash.
+/// Neither asserts that no suspended caller or wider runtime state was abandoned.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalCrash {
-    pub edge: semantic_vocabulary::EdgeId,
+    pub site: TerminalCrashSite,
     pub cause: CrashCause,
+    /// Static guard on an authored crash edge. Boundary invocations instead
+    /// validate declaration-local routes against their observed effect inputs;
+    /// they do not invent a local edge guard.
     pub site_guard: Vec<terminal_psi::CrashPredicateTerm>,
     pub frontier_lower_bound: Vec<ClaimId>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalCrashSite {
+    Edge(semantic_vocabulary::EdgeId),
+    BoundaryCall {
+        machine: MachineId,
+        block: BlockId,
+        operation: OperationId,
+        boundary: BoundaryMachineId,
+    },
 }
 
 /// A successful semantic result paired with deterministic terminal-Psi fuel.
@@ -5210,6 +5226,12 @@ pub enum TerminalInterpretError {
     EffectRejected {
         operation: OperationId,
         rejection: TerminalEffectRejection,
+    },
+    BoundaryCrashNotPermitted {
+        operation: OperationId,
+        boundary: BoundaryMachineId,
+        cause: CrashCause,
+        reason: terminal_verifier::BoundaryCrashOutcomeError,
     },
     Crash(TerminalCrash),
     Fuel(FuelMeterError),
