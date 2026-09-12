@@ -143,11 +143,6 @@ fn computed_boolean_guarantees_do_not_guess_values_or_replay_storage() {
         ("value: bool, other: bool", "result == !value", "!other"),
         ("value: bool", "result == !value", "value"),
         ("mut value: bool", "result == !value", "!value"),
-        (
-            "value: bool",
-            "result == !value",
-            "let local: bool = value; !local",
-        ),
         ("result: bool, value: bool", "result == !value", "!value"),
     ] {
         let program = parse_typed_trees(&format!(
@@ -161,5 +156,166 @@ fn computed_boolean_guarantees_do_not_guess_values_or_replay_storage() {
                 .contains("cannot prove ensures contract for exit from compute")),
             "{parameters}, {body}: {diagnostics:#?}"
         );
+    }
+}
+
+#[test]
+fn saved_boolean_guarantees_follow_immutable_definition_order() {
+    for body in [
+        "let local: bool = value; !local",
+        "let first: bool = !value; Host::finish(false); let second: bool = first; second",
+        "let unrelated: u16 = marker; let first: bool = value; let second: bool = !first; second",
+        "let unrelated: bool = Host::read(); let saved: bool = !value; saved",
+    ] {
+        let program = parse_typed_trees(&format!(
+            "boundary trait Host {{ machine finish(value: bool) reaches Host; machine read() -> bool reaches Host; }}
+             machine compute(marker: u16, value: bool) -> bool
+             ensures result == !value
+             reaches Host {{ {body} }}"
+        ));
+        lower_typed_trees(program).unwrap_or_else(|diagnostics| panic!("{body}: {diagnostics:#?}"));
+    }
+}
+
+#[test]
+fn saved_boolean_guarantees_do_not_confuse_storage_or_call_results_with_entry_values() {
+    for (parameters, body) in [
+        (
+            "value: bool, other: bool",
+            "let saved: bool = !other; saved",
+        ),
+        ("mut value: bool", "let saved: bool = !value; saved"),
+        ("value: bool", "let mut saved: bool = !value; saved"),
+        (
+            "value: bool",
+            "let mut storage: bool = value; let saved: bool = !storage; saved",
+        ),
+        ("value: bool", "let saved: bool = identity(!value); saved"),
+    ] {
+        let program = parse_typed_trees(&format!(
+            "machine identity(input: bool) -> bool {{ input }}
+             machine compute({parameters}) -> bool ensures result == !value {{ {body} }}"
+        ));
+        let diagnostics = lower_typed_trees(program)
+            .expect_err("unevidenced snapshots and calls remain unproved");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("cannot prove ensures contract for exit from compute")),
+            "{parameters}, {body}: {diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
+fn saved_boolean_guarantees_require_exact_source_bound_definitions() {
+    use checked_trees::{
+        CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar,
+        CheckedScalarExpressionRole as Role,
+    };
+    let checked = lower_typed_trees(parse_typed_trees(
+        "machine compute(value: bool, other: bool) -> bool ensures result == !value {
+            let first: bool = !value;
+            let second: bool = first;
+            second
+        }",
+    ))
+    .expect("saved guarantee");
+    let first_role = Role::LocalInitializer { binding_ordinal: 0 };
+    let second_role = Role::LocalInitializer { binding_ordinal: 1 };
+    for mutation in 0..10 {
+        let mut facts = checked.facts.clone();
+        let plans = &mut facts.values.scalar_expressions;
+        let (first, row) = plans
+            .source_bindings
+            .iter()
+            .find(|(_, row)| row.role == first_role)
+            .unwrap();
+        let first_row = row.clone();
+        let (second, row) = plans
+            .source_bindings
+            .iter()
+            .find(|(_, row)| row.role == second_role)
+            .unwrap();
+        let second_row = row.clone();
+        match mutation {
+            0 => {
+                plans.source_bindings.append(first_row);
+            }
+            1 => plans.source_bindings.get_mut(first).destination = second_row.destination,
+            2 => plans.source_bindings.get_mut(first).state = symbols::SymbolHandle::invalid(),
+            3 => plans.source_bindings.get_mut(first).statement_ordinal = 2,
+            4 => plans.source_bindings.get_mut(first).expression = second_row.expression,
+            5 => {
+                let mut symbols = plans
+                    .binding_symbols
+                    .span_or_empty(first_row.symbols)
+                    .to_vec();
+                symbols.swap(0, 1);
+                plans.source_bindings.get_mut(first).symbols =
+                    plans.binding_symbols.insert_many(symbols);
+            }
+            6 => plans.source_bindings.get_mut(first).role = Role::StorageInitializer,
+            7 => {
+                let selected = plans
+                    .expressions
+                    .iter()
+                    .find(|plan| plan.role == first_role)
+                    .unwrap()
+                    .clone();
+                plans.expressions.push(selected);
+            }
+            8 => {
+                // A purported reference to the later local has no identity in
+                // the earlier definition's operand roster.
+                plans
+                    .expressions
+                    .iter_mut()
+                    .find(|plan| plan.role == first_role)
+                    .unwrap()
+                    .expression = Scalar::Boolean(Box::new(Boolean::Local { position: 3 }));
+            }
+            9 => {
+                plans.source_bindings.get_mut(second).destination = first_row.destination;
+            }
+            _ => unreachable!(),
+        }
+        let diagnostics = crate::checks::check_checked_facts(&checked.typed, &facts)
+            .expect_err("altered definition custody");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("cannot prove ensures contract for exit from compute")),
+            "mutation {mutation}: {diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
+fn saved_boolean_definition_expansion_has_a_shared_depth_limit() {
+    for (count, accepted) in [(16, true), (80, false)] {
+        let mut body = String::from("let saved0: bool = !value;");
+        for position in 1..count {
+            body.push_str(&format!(
+                "let saved{position}: bool = saved{};",
+                position - 1
+            ));
+        }
+        body.push_str(&format!("saved{}", count - 1));
+        let program = parse_typed_trees(&format!(
+            "machine compute(value: bool) -> bool ensures result == !value {{ {body} }}"
+        ));
+        let result = lower_typed_trees(program);
+        if accepted {
+            result.expect("ordinary captured-local chain");
+        } else {
+            let diagnostics = result.expect_err("bounded denotation expansion");
+            assert!(
+                diagnostics.iter().any(|diagnostic| diagnostic
+                    .message
+                    .contains("cannot prove ensures contract for exit from compute")),
+                "{diagnostics:#?}"
+            );
+        }
     }
 }

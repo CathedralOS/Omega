@@ -403,7 +403,6 @@ impl ExitScalars<'_, '_> {
         &checked_trees::CheckedScalarExpression,
         &[symbols::SymbolHandle],
     )> {
-        let plans = &self.facts.values.scalar_expressions;
         let statement_ordinal = u32::try_from(self.exit.statement_index).ok()?;
         let state = crate::find_state_in_machine(
             self.program,
@@ -424,14 +423,26 @@ impl ExitScalars<'_, '_> {
             }
             _ => CheckedScalarExpressionRole::Return,
         };
+        self.selected_scalar_expression(statement_ordinal, role, expression)
+    }
+
+    fn selected_scalar_expression(
+        &self,
+        statement_ordinal: u32,
+        role: CheckedScalarExpressionRole,
+        expression: ExpressionHandle,
+    ) -> Option<(
+        &checked_trees::CheckedScalarExpression,
+        &[symbols::SymbolHandle],
+    )> {
+        let plans = &self.facts.values.scalar_expressions;
         let mut bindings = plans.source_bindings.iter().filter(|(_, binding)| {
             binding.state == self.exit.state_symbol
                 && binding.statement_ordinal == statement_ordinal
                 && binding.role == role
-                && binding.expression == expression
         });
         let (_, binding) = bindings.next()?;
-        if bindings.next().is_some() {
+        if bindings.next().is_some() || binding.expression != expression {
             return None;
         }
         let mut selected = plans.expressions.iter().filter(|plan| {
@@ -444,6 +455,44 @@ impl ExitScalars<'_, '_> {
             return None;
         }
         let symbols = plans.binding_symbols.span_or_empty(binding.symbols);
+        let state = crate::find_state_in_machine(
+            self.program,
+            self.exit.machine_symbol,
+            self.exit.state_symbol,
+        )?;
+        // Dense positions describe the declaration roster at this occurrence,
+        // not a caller-chosen substitution. Check it without reading values.
+        let parameters = self
+            .program
+            .state_parameters(state)
+            .iter()
+            .filter(|parameter| {
+                self.program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_some()
+            })
+            .map(|parameter| parameter.symbol);
+        let locals = self
+            .program
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(..statement_ordinal as usize)?
+            .iter()
+            .filter_map(|statement| {
+                let typed_trees::statement::StatementNode::LocalData(local) = statement else {
+                    return None;
+                };
+                (!local.is_mutable
+                    && local.initial_value.is_valid()
+                    && self
+                        .program
+                        .primitive_type_reference(local.type_reference)
+                        .is_some())
+                .then_some(local.symbol)
+            });
+        if !parameters.chain(locals).eq(symbols.iter().copied()) {
+            return None;
+        }
         Some((&plan.expression, symbols))
     }
 }

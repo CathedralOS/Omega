@@ -420,6 +420,100 @@ fn ordered_computed_boolean_result_proves_its_normal_guarantee() {
 }
 
 #[test]
+fn ordered_saved_boolean_result_preserves_its_normal_guarantee() {
+    for input in [false, true] {
+        for body in [
+            "let saved: bool = !value; Host::finish(false); saved",
+            "Host::finish(false); let saved: bool = !value; saved",
+            "let saved: bool = value; Host::finish(false); !saved",
+            "let saved: bool = !value; Host::finish(false); let copied: bool = saved; copied",
+            "let observed: bool = Host::measure(false); let saved: bool = !value; saved",
+        ] {
+            let source = boolean_guarantee_source(body, input).replace(
+                "ensures result == value\nreaches Host",
+                "ensures result == !value\nreaches Host",
+            );
+            let published = artifact(&checked_from_source(&source));
+            let (status, observed) = execute(&published);
+            assert_eq!(
+                status,
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+            );
+            assert_eq!(
+                observed.arguments,
+                [
+                    vec![TerminalScalarValue::Boolean(false)],
+                    vec![TerminalScalarValue::Boolean(!input)]
+                ]
+            );
+        }
+    }
+}
+
+#[test]
+fn ordered_saved_boolean_computations_compose_across_boundary_effects() {
+    for bits in 0..16 {
+        let inputs = [bits & 1 != 0, bits & 2 != 0, bits & 4 != 0, bits & 8 != 0];
+        let source = nested_boolean_guarantee_source(
+            "(value == spare) == (other == last)", "Host::finish(false);", inputs,
+        ).replace(
+            "Host::finish(false); (value == spare) == (other == last)",
+            "let first: bool = value == spare; Host::finish(false); let second: bool = other == last; first == second",
+        );
+        let published = artifact(&checked_from_source(&source));
+        let (status, observed) = execute(&published);
+        assert_eq!(
+            status,
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+        );
+        assert_eq!(
+            observed.arguments,
+            [
+                vec![TerminalScalarValue::Boolean(false)],
+                vec![TerminalScalarValue::Boolean(
+                    (inputs[0] == inputs[1]) == (inputs[2] == inputs[3])
+                )]
+            ]
+        );
+    }
+}
+
+#[test]
+fn ordered_saved_boolean_return_rejects_a_substituted_terminal_value() {
+    let source =
+        boolean_guarantee_source("let saved: bool = !value; Host::finish(false); saved", true)
+            .replace(
+                "ensures result == value\nreaches Host",
+                "ensures result == !value\nreaches Host",
+            );
+    let published = artifact(&checked_from_source(&source));
+    let mut module = decode_module(&published.0).unwrap();
+    let proof = decode_proof_bundle(&published.1).unwrap();
+    let wrapper = module
+        .machines
+        .iter_mut()
+        .find(|machine| !machine.contract.ensures.is_empty())
+        .unwrap();
+    let input = wrapper.parameters[0].id;
+    let returned = wrapper
+        .blocks
+        .iter_mut()
+        .find_map(|block| match &mut block.terminator {
+            terminal_psi::Terminator::Return { value, .. } => Some(value),
+            _ => None,
+        })
+        .expect("saved scalar return");
+    assert_ne!(
+        *returned, input,
+        "execution returns the computed value, not an input replay"
+    );
+    *returned = input;
+    assert!(
+        terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default()).is_err()
+    );
+}
+
+#[test]
 fn ordered_nested_boolean_result_proves_its_normal_guarantee() {
     for bits in 0..16 {
         let inputs = [bits & 1 != 0, bits & 2 != 0, bits & 4 != 0, bits & 8 != 0];
