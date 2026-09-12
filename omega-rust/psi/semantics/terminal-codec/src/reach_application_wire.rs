@@ -3,7 +3,8 @@
 //! operation joins through the common representation verifier.
 
 use terminal_psi::{
-    ClosedReachApplication, ClosedReachCall, ClosedReachMachineBinding, ClosedReachParameter,
+    ClosedReachApplication, ClosedReachArgument, ClosedReachCall, ClosedReachCallApplication,
+    ClosedReachMachineBinding, ClosedReachParameter, ClosedReachSchema,
 };
 
 use super::structural_signature_wire::encode_service_ceiling;
@@ -48,6 +49,11 @@ pub(super) fn encode(
                 writer.bytes(&binding.selected_contract_commitment);
                 encode_service_ceiling(writer, &binding.selected_reach)?;
                 encode_optional_id(writer, binding.callee);
+                writer.boolean(binding.schema.is_some());
+                if let Some(schema) = &binding.schema {
+                    writer.string("reach schema template", &schema.template_identity)?;
+                    writer.bytes(&schema.template_commitment);
+                }
             }
         }
     }
@@ -60,6 +66,36 @@ pub(super) fn encode(
     for call in &application.calls {
         writer.id(call.operation);
         writer.u32(call.binder);
+        writer.boolean(call.application.is_some());
+        if let Some(application) = &call.application {
+            writer.id(application.callee);
+            writer.bytes(&application.specialization_commitment);
+            writer.len("reach call arguments", application.arguments.len())?;
+            for argument in &application.arguments {
+                match argument {
+                    ClosedReachArgument::Type(identity) => {
+                        writer.u8(0);
+                        writer.string("reach call type", identity)?;
+                    }
+                    ClosedReachArgument::Const(identity) => {
+                        writer.u8(1);
+                        writer.string("reach call const", identity)?;
+                    }
+                    ClosedReachArgument::Proposition(identity) => {
+                        writer.u8(2);
+                        writer.string("reach call proposition", identity)?;
+                    }
+                    ClosedReachArgument::Machine {
+                        identity,
+                        contract_commitment,
+                    } => {
+                        writer.u8(3);
+                        writer.string("reach call machine", identity)?;
+                        writer.bytes(contract_commitment);
+                    }
+                }
+            }
+        }
     }
     Ok(())
 }
@@ -97,6 +133,14 @@ pub(super) fn decode(
                     selected_contract_commitment: reader.array()?,
                     selected_reach: decode_ids(reader, "ServiceId")?,
                     callee: decode_optional_id(reader, "MachineId")?,
+                    schema: if reader.boolean()? {
+                        Some(ClosedReachSchema {
+                            template_identity: reader.string("reach schema template")?,
+                            template_commitment: reader.array()?,
+                        })
+                    } else {
+                        None
+                    },
                 })
             }
             tag => return Err(CodecError::InvalidTag("ClosedReachParameter", tag)),
@@ -113,6 +157,30 @@ pub(super) fn decode(
             Ok(ClosedReachCall {
                 operation: reader.id("OperationId")?,
                 binder: reader.u32()?,
+                application: if reader.boolean()? {
+                    Some(ClosedReachCallApplication {
+                        callee: reader.id("MachineId")?,
+                        specialization_commitment: reader.array()?,
+                        arguments: decode_counted(reader, |reader| {
+                            Ok(match reader.u8()? {
+                                0 => ClosedReachArgument::Type(reader.string("reach call type")?),
+                                1 => ClosedReachArgument::Const(reader.string("reach call const")?),
+                                2 => ClosedReachArgument::Proposition(
+                                    reader.string("reach call proposition")?,
+                                ),
+                                3 => ClosedReachArgument::Machine {
+                                    identity: reader.string("reach call machine")?,
+                                    contract_commitment: reader.array()?,
+                                },
+                                tag => {
+                                    return Err(CodecError::InvalidTag("ClosedReachArgument", tag));
+                                }
+                            })
+                        })?,
+                    })
+                } else {
+                    None
+                },
             })
         })?,
     }))

@@ -1,0 +1,12 @@
+boundary trait Console { machine ping(); }
+
+machine apply<machine Schema>(value: u64) -> u64
+where machine Schema<const Number: u64>(value: u64) -> u64 reaches Console;
+{
+    let first: u64 = Schema<2>(value);
+    Schema<3>(first)
+}
+
+machine selected<const Count: u64>(value: u64) -> u64 reaches Console { Count }
+
+pub machine enter(value: u64) -> u64 { apply<selected>(value) }

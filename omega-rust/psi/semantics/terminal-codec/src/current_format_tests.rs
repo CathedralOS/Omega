@@ -16,7 +16,7 @@ const LEGACY_UNIT: &[u8] = &[
 
 // The same Unit semantics with the current declaration rosters and markers.
 const CURRENT_UNIT: &[u8] = &[
-    80, 83, 73, 84, 69, 82, 77, 0, 93, 0, 104, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    80, 83, 73, 84, 69, 82, 77, 0, 94, 0, 105, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -97,6 +97,7 @@ fn closed_reach_module() -> terminal_psi::TerminalModule {
             selected_contract_commitment: [3; 32],
             selected_reach: vec![service],
             callee: Some(MachineId::new(ordinal).unwrap()),
+            schema: None,
         })
     };
     let owner = &mut module.machines[0];
@@ -121,10 +122,12 @@ fn closed_reach_module() -> terminal_psi::TerminalModule {
             ClosedReachCall {
                 operation: OperationId::new(1).unwrap(),
                 binder: 1,
+                application: None,
             },
             ClosedReachCall {
                 operation: OperationId::new(2).unwrap(),
                 binder: 3,
+                application: None,
             },
         ],
     });
@@ -569,4 +572,345 @@ fn portable_envelope_cannot_hide_legacy_semantics() {
             CodecError::UnsupportedFormatMarker(56)
         ))
     ));
+}
+
+fn schema_reach_module() -> terminal_psi::TerminalModule {
+    use terminal_psi::{
+        ClosedReachApplication, ClosedReachArgument, ClosedReachCallApplication,
+        ClosedReachParameter, ClosedReachSchema,
+    };
+    let mut module = closed_reach_module();
+    let service = module.services[0].id;
+    let application = module.machines[0]
+        .closed_reach_application
+        .as_mut()
+        .unwrap();
+    application.telescope.pop();
+    application.dependencies = vec![1];
+    let ClosedReachParameter::Machine(binding) = &mut application.telescope[1] else {
+        panic!("schema fixture machine binder");
+    };
+    binding.selected_identity = "schema|selected=schema::entry".into();
+    binding.callee = None;
+    binding.schema = Some(ClosedReachSchema {
+        template_identity: "schema".into(),
+        template_commitment: [4; 32],
+    });
+    for (call, ordinal) in application.calls.iter_mut().zip([2_u8, 3]) {
+        call.binder = 1;
+        call.application = Some(ClosedReachCallApplication {
+            callee: semantic_vocabulary::MachineId::new(u64::from(ordinal)).unwrap(),
+            specialization_commitment: [ordinal; 32],
+            arguments: vec![ClosedReachArgument::Const(format!("u64:{ordinal}"))],
+        });
+    }
+    for operation in &mut module.machines[0].blocks[0].operations {
+        operation.static_reach_binding = Some(1);
+    }
+    for (machine, ordinal) in module.machines[1..].iter_mut().zip([2_u8, 3]) {
+        machine.closed_reach_application = Some(ClosedReachApplication {
+            template_identity: "schema".into(),
+            template_commitment: [4; 32],
+            specialization_commitment: [ordinal; 32],
+            telescope: vec![ClosedReachParameter::Const {
+                argument: format!("u64:{ordinal}"),
+            }],
+            fixed: vec![service],
+            dependencies: Vec::new(),
+            calls: Vec::new(),
+        });
+    }
+    module
+}
+
+#[test]
+fn schema_reach_calls_roundtrip_distinct_tuples_and_reject_every_truncation() {
+    let module = schema_reach_module();
+    let bytes = encode_module(&module).expect("two applications of one schema encode");
+    assert_eq!(decode_module(&bytes).unwrap(), module);
+    for length in 0..bytes.len() {
+        assert!(
+            decode_module(&bytes[..length]).is_err(),
+            "schema truncation at {length}"
+        );
+    }
+}
+
+#[test]
+fn schema_reach_decoder_rejects_changed_template_tuple_and_callee_joins() {
+    use terminal_psi::{ClosedReachArgument, ClosedReachParameter, OperationKind};
+    let original = schema_reach_module();
+    encode_module(&original).expect("unmodified schema fixture must validate");
+    let mutations: &[fn(&mut terminal_psi::TerminalModule)] = &[
+        |module| {
+            module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .calls[0]
+                .application = None
+        },
+        |module| {
+            let ClosedReachParameter::Machine(binding) = &mut module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .telescope[1]
+            else {
+                panic!("fixture");
+            };
+            binding.schema = None;
+        },
+        |module| {
+            let ClosedReachParameter::Machine(binding) = &mut module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .telescope[1]
+            else {
+                panic!("fixture");
+            };
+            binding.callee = Some(semantic_vocabulary::MachineId::new(2).unwrap());
+        },
+        |module| {
+            let ClosedReachParameter::Machine(binding) = &mut module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .telescope[1]
+            else {
+                panic!("fixture");
+            };
+            binding.selected_identity = "other|selected=schema::entry".into();
+        },
+        |module| {
+            let ClosedReachParameter::Machine(binding) = &mut module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .telescope[1]
+            else {
+                panic!("fixture");
+            };
+            binding.selected_identity = "schema|selected=".into();
+        },
+        |module| {
+            let ClosedReachParameter::Machine(binding) = &mut module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .telescope[1]
+            else {
+                panic!("fixture");
+            };
+            binding.schema.as_mut().unwrap().template_commitment = [0; 32];
+        },
+        |module| {
+            // Keep both header copies in agreement: the selected owner must
+            // still prevent a coherent substitution of an unrelated template.
+            let ClosedReachParameter::Machine(binding) = &mut module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .telescope[1]
+            else {
+                panic!("fixture");
+            };
+            binding.schema.as_mut().unwrap().template_identity = "other".into();
+            for machine in &mut module.machines[1..] {
+                machine
+                    .closed_reach_application
+                    .as_mut()
+                    .unwrap()
+                    .template_identity = "other".into();
+            }
+        },
+        |module| {
+            module.machines[1]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .template_identity = "other".into()
+        },
+        |module| {
+            module.machines[1]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .template_commitment = [5; 32]
+        },
+        |module| module.machines[1].closed_reach_application = None,
+        |module| {
+            module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .calls[0]
+                .application
+                .as_mut()
+                .unwrap()
+                .specialization_commitment = [3; 32]
+        },
+        |module| {
+            module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .calls[0]
+                .application
+                .as_mut()
+                .unwrap()
+                .arguments
+                .clear()
+        },
+        |module| {
+            module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .calls[0]
+                .application
+                .as_mut()
+                .unwrap()
+                .arguments[0] = ClosedReachArgument::Const("u64:3".into())
+        },
+        |module| {
+            module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .calls[0]
+                .application
+                .as_mut()
+                .unwrap()
+                .arguments[0] = ClosedReachArgument::Type("u64:2".into())
+        },
+        |module| {
+            module.machines[1]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .telescope[0] = ClosedReachParameter::Const {
+                argument: "u64:3".into(),
+            }
+        },
+        |module| {
+            let OperationKind::CallUnit { callee, .. } =
+                &mut module.machines[0].blocks[0].operations[0].kind
+            else {
+                panic!("fixture");
+            };
+            *callee = semantic_vocabulary::MachineId::new(3).unwrap();
+        },
+        |module| {
+            // Redirect both executable and roster callees, but retain the
+            // expected original tuple and commitment.
+            let redirected = semantic_vocabulary::MachineId::new(3).unwrap();
+            let OperationKind::CallUnit { callee, .. } =
+                &mut module.machines[0].blocks[0].operations[0].kind
+            else {
+                panic!("fixture");
+            };
+            *callee = redirected;
+            module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .calls[0]
+                .application
+                .as_mut()
+                .unwrap()
+                .callee = redirected;
+        },
+        |module| {
+            let ClosedReachParameter::Machine(binding) = &mut module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .telescope[1]
+            else {
+                panic!("fixture");
+            };
+            binding.selected_reach.clear();
+            module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .fixed = vec![module.services[0].id];
+        },
+    ];
+    for (ordinal, mutate) in mutations.iter().enumerate() {
+        let mut changed = original.clone();
+        mutate(&mut changed);
+        let bytes = super::encode_raw(&changed).expect("raw schema corruption encodes");
+        assert!(
+            decode_module(&bytes).is_err(),
+            "schema mutation {ordinal} accepted"
+        );
+    }
+}
+
+#[test]
+fn nominal_schema_dependency_follows_helpers_but_not_disconnected_applications() {
+    use semantic_vocabulary::{BlockId, ContractId, EdgeId, MachineId, OperationId};
+    use terminal_psi::{Operation, OperationKind, OperationResult, Terminator};
+    let mut module = schema_reach_module();
+    let mut helper = module.machines[0].clone();
+    helper.id = MachineId::new(4).unwrap();
+    helper.entry = BlockId::new(4).unwrap();
+    helper.contract.id = ContractId::new(4).unwrap();
+    helper.blocks[0].id = helper.entry;
+    helper.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: EdgeId::new(4).unwrap(),
+        trivial_affine_discards: Vec::new(),
+    };
+    helper
+        .closed_reach_application
+        .as_mut()
+        .unwrap()
+        .template_identity = "helper".into();
+    helper
+        .closed_reach_application
+        .as_mut()
+        .unwrap()
+        .template_commitment = [6; 32];
+    helper
+        .closed_reach_application
+        .as_mut()
+        .unwrap()
+        .specialization_commitment = [7; 32];
+    let owner = &mut module.machines[0];
+    owner
+        .closed_reach_application
+        .as_mut()
+        .unwrap()
+        .calls
+        .clear();
+    owner.blocks[0].operations = vec![Operation {
+        id: OperationId::new(3).unwrap(),
+        static_reach_binding: None,
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee: helper.id,
+            arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    }];
+    module.machines.push(helper);
+    let bytes = encode_module(&module).expect("nominal schema dependency forwards through helper");
+    assert_eq!(decode_module(&bytes).unwrap(), module);
+
+    module.machines[0].blocks[0].operations.clear();
+    // Preserve ordinary concrete reach using a declaration, isolating the
+    // missing schema application coverage from ordinary service-closure errors.
+    module.machines[0].declared_service_reach = vec![module.services[0].id];
+    assert!(matches!(
+        terminal_verifier::validate_module_representation(&module),
+        Err(terminal_verifier::ModuleError::InvalidClosedReachApplication { .. })
+    ));
+    let disconnected = super::encode_raw(&module).expect("disconnected schema fixture encodes raw");
+    assert!(decode_module(&disconnected).is_err());
 }

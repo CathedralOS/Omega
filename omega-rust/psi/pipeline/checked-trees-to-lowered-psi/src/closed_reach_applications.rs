@@ -16,8 +16,9 @@ use lowered_psi::LoweredSourceCallOccurrence;
 use semantic_vocabulary::{MachineId, ServiceId};
 use symbols::SymbolHandle;
 use terminal_psi::{
-    ClosedReachApplication, ClosedReachCall, ClosedReachMachineBinding, ClosedReachParameter,
-    OperationKind, ServiceDeclaration, TerminalModule,
+    ClosedReachApplication, ClosedReachArgument, ClosedReachCall, ClosedReachCallApplication,
+    ClosedReachMachineBinding, ClosedReachParameter, ClosedReachSchema, OperationKind,
+    ServiceDeclaration, TerminalModule,
 };
 
 use crate::{LoweringError, unsupported};
@@ -156,9 +157,31 @@ pub(crate) fn retain_closed_reach_applications(
                     // A selected generic schema may produce several closed
                     // callees with different tuples/rows. One binder-level
                     // callee cannot stand in for those per-call applications.
+                    let schema = if checked.machine_type_parameters(selected_machine).is_empty() {
+                        None
+                    } else {
+                        let Some(application) =
+                            checked.machine_specializations.iter().find(|application| {
+                                application.template == selected_machine.symbol
+                                    && source_machines
+                                        .iter()
+                                        .any(|(source, _)| *source == application.instance)
+                            })
+                        else {
+                            covered = false;
+                            break;
+                        };
+                        Some(ClosedReachSchema {
+                            template_identity: application.normalized_template_identity.clone(),
+                            template_commitment: application
+                                .template_contract_commitment
+                                .as_bytes(),
+                        })
+                    };
                     if !reach.unresolved_installation_reaches.is_empty()
-                        || (dependencies.contains(&(position as u32)) && callee.is_none())
-                        || !checked.machine_type_parameters(selected_machine).is_empty()
+                        || (dependencies.contains(&(position as u32))
+                            && callee.is_none()
+                            && schema.is_none())
                     {
                         covered = false;
                         break;
@@ -214,6 +237,7 @@ pub(crate) fn retain_closed_reach_applications(
                         selected_contract_commitment: *commitment,
                         selected_reach,
                         callee,
+                        schema,
                     })
                 }
                 TypeParameterKind::Proposition { .. } => {
@@ -253,7 +277,8 @@ pub(crate) fn retain_closed_reach_applications(
                     occurrence.source_state == state.symbol
                         && occurrence.statement_index == call.statement_index
                         && occurrence.call_ordinal == call.call_ordinal
-                        && occurrence.source_target == call.target_state_symbol
+                        && resolved_source_entry(checked, occurrence.source_target)
+                            == Some(call.target_state_symbol)
                 });
                 let Some(occurrence) = matches.next() else {
                     // Inlining routes have no retained direct operation. Their
@@ -267,6 +292,21 @@ pub(crate) fn retain_closed_reach_applications(
                 calls.push(ClosedReachCall {
                     operation: occurrence.terminal_operation,
                     binder: binder as u32,
+                    application: match &telescope[binder] {
+                        ClosedReachParameter::Machine(binding) if binding.schema.is_some() => {
+                            let Some(application) = closed_call_application(
+                                checked,
+                                source_machines,
+                                call.target_state_symbol,
+                            )?
+                            else {
+                                covered = false;
+                                break;
+                            };
+                            Some(application)
+                        }
+                        _ => None,
+                    },
                 });
             }
         }
@@ -326,7 +366,12 @@ pub(crate) fn retain_closed_reach_applications(
                 | OperationKind::CallStructuralWithScalarArguments { callee, .. } => callee,
                 _ => return unsupported("closed reach consumer is not a direct machine call"),
             };
-            if binding.callee != Some(callee) {
+            let selected_callee = call
+                .application
+                .as_ref()
+                .map(|application| application.callee)
+                .or(binding.callee);
+            if selected_callee != Some(callee) {
                 return unsupported("closed reach consumer differs from its exact selected callee");
             }
             operation.static_reach_binding = Some(call.binder);
@@ -341,7 +386,184 @@ pub(crate) fn retain_closed_reach_applications(
             calls,
         });
     }
+    prune_incomplete_closed_reach_applications(module);
     Ok(())
+}
+
+pub(crate) fn prune_incomplete_closed_reach_applications(module: &mut TerminalModule) {
+    // Coverage follows the retained call graph, not specialization ordering.
+    // If an inner application still uses an unsupported projection (for example
+    // an inlined callback), its schema consumers cannot advertise a complete
+    // application join. Remove only those projections and their own markers;
+    // ordinary execution and checking retain their existing behavior.
+    loop {
+        let uncovered = module
+            .machines
+            .iter()
+            .filter_map(|owner| {
+                let application = owner.closed_reach_application.as_ref()?;
+                let missing_callee = application
+                    .calls
+                    .iter()
+                    .filter_map(|call| call.application.as_ref())
+                    .any(|call| {
+                        !module.machines.iter().any(|callee| {
+                            callee.id == call.callee && callee.closed_reach_application.is_some()
+                        })
+                    });
+                // A forwarding owner need not call the schema itself. Once a
+                // helper loses coverage, reconsider dependent owners against
+                // the same presence-only closure used by the final verifier.
+                let missing_dependency = application.dependencies.iter().any(|ordinal| {
+                    let Some(ClosedReachParameter::Machine(binding)) =
+                        application.telescope.get(*ordinal as usize)
+                    else {
+                        return false;
+                    };
+                    binding.nominal_requirement.is_some()
+                        && binding.schema.is_some()
+                        && !terminal_verifier::has_schema_application_in_call_closure(
+                            module, owner.id, binding,
+                        )
+                });
+                (missing_callee || missing_dependency).then_some(owner.id)
+            })
+            .collect::<Vec<_>>();
+        if uncovered.is_empty() {
+            break;
+        }
+        for owner in module
+            .machines
+            .iter_mut()
+            .filter(|owner| uncovered.contains(&owner.id))
+        {
+            owner.closed_reach_application = None;
+            for operation in owner
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.operations)
+            {
+                operation.static_reach_binding = None;
+            }
+        }
+    }
+}
+
+// Source call custody may retain a machine declaration while operational
+// inference names its resolved entry state. Normalize that exact owner join;
+// neither a matching signature nor an arbitrary state of the owner suffices.
+fn resolved_source_entry(checked: &CheckedTrees, target: SymbolHandle) -> Option<SymbolHandle> {
+    checked.machines().iter().find_map(|machine| {
+        let states = checked.machine_states(machine);
+        if machine.symbol == target {
+            states.first().map(|state| state.symbol)
+        } else {
+            states
+                .iter()
+                .find(|state| state.symbol == target)
+                .map(|state| state.symbol)
+        }
+    })
+}
+
+fn closed_call_application(
+    checked: &CheckedTrees,
+    sources: &[(SymbolHandle, MachineId)],
+    target_state: SymbolHandle,
+) -> Result<Option<ClosedReachCallApplication>, LoweringError> {
+    let source_machine = checked
+        .machines()
+        .iter()
+        .find(|machine| {
+            checked
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.symbol == target_state)
+        })
+        .ok_or(LoweringError::Unsupported(
+            "closed schema call lost its source owner",
+        ))?;
+    let Some(callee) = exact_machine(sources, source_machine.symbol)? else {
+        return Ok(None);
+    };
+    let specialization = checked
+        .machine_specializations
+        .iter()
+        .find(|application| application.instance == source_machine.symbol)
+        .ok_or(LoweringError::Unsupported(
+            "closed schema call lost its specialization",
+        ))?;
+    let mut types = specialization.type_argument_identities.iter();
+    let mut constants = specialization.const_argument_identities.iter();
+    let mut machines = specialization
+        .machine_arguments
+        .iter()
+        .zip(&specialization.machine_argument_contract_commitments);
+    let mut arguments = Vec::with_capacity(specialization.template_parameters.len());
+    for parameter in checked
+        .data_type_parameters
+        .span_or_empty(specialization.template_parameters)
+    {
+        arguments.push(match parameter.kind {
+            TypeParameterKind::Type => ClosedReachArgument::Type(
+                types
+                    .next()
+                    .ok_or(LoweringError::Unsupported(
+                        "schema call lost a type argument",
+                    ))?
+                    .clone(),
+            ),
+            TypeParameterKind::Const { .. } => ClosedReachArgument::Const(
+                constants
+                    .next()
+                    .ok_or(LoweringError::Unsupported(
+                        "schema call lost a const argument",
+                    ))?
+                    .clone(),
+            ),
+            TypeParameterKind::Machine { .. } => {
+                let (selected, commitment) = machines.next().ok_or(LoweringError::Unsupported(
+                    "schema call lost a machine argument",
+                ))?;
+                let owner = checked
+                    .machines()
+                    .iter()
+                    .find(|machine| {
+                        checked
+                            .machine_states(machine)
+                            .iter()
+                            .any(|state| state.symbol == *selected)
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "schema call argument lost its selected owner",
+                    ))?;
+                let overload = checked
+                    .normalized_machine_overload_identity(owner)
+                    .ok_or(LoweringError::Unsupported(
+                        "schema call argument has no normalized identity",
+                    ))?
+                    .identity();
+                ClosedReachArgument::Machine {
+                    identity: format!(
+                        "{}|{}|selected={}",
+                        declaration_identity(checked, owner.symbol),
+                        overload,
+                        declaration_identity(checked, *selected)
+                    ),
+                    contract_commitment: *commitment,
+                }
+            }
+            TypeParameterKind::Proposition { .. } => return Ok(None),
+        });
+    }
+    if types.next().is_some() || constants.next().is_some() || machines.next().is_some() {
+        return unsupported("schema call arguments differ from its complete telescope");
+    }
+    Ok(Some(ClosedReachCallApplication {
+        callee,
+        specialization_commitment: specialization.commitment.as_bytes(),
+        arguments,
+    }))
 }
 
 fn exact_machine(

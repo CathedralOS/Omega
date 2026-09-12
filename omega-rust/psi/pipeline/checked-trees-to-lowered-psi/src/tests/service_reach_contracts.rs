@@ -1,6 +1,346 @@
 use super::*;
 
 #[test]
+fn generic_callback_schema_retains_both_closed_callees_after_reload() {
+    let checked = checked_source(include_str!(
+        "../../../../../../tests/omega/pass/effects/generic_callback_schema_reach/main.omg"
+    ));
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
+        .produce_artifact()
+        .expect("two closed applications of one selected schema");
+    drop(checked);
+    let module = terminal_codec::decode_module(artifact.semantic_bytes())
+        .expect("source-free schema reload");
+    let outer = module
+        .machines
+        .iter()
+        .find(|machine| {
+            machine
+                .closed_reach_application
+                .as_ref()
+                .is_some_and(|application| {
+                    application.telescope.iter().any(|parameter| {
+                        matches!(parameter, terminal_psi::ClosedReachParameter::Machine(_))
+                    })
+                })
+        })
+        .expect("outer schema selection must survive source discard");
+    let application = outer.closed_reach_application.as_ref().unwrap();
+    assert_eq!(application.calls.len(), 2);
+    assert_eq!(service_names(&module, &application.fixed), ["Console"]);
+    let first = application.calls[0]
+        .application
+        .as_ref()
+        .expect("first closed tuple");
+    let second = application.calls[1]
+        .application
+        .as_ref()
+        .expect("second closed tuple");
+    assert_ne!(first.callee, second.callee);
+    assert_ne!(first.arguments, second.arguments);
+    assert_ne!(
+        first.specialization_commitment,
+        second.specialization_commitment
+    );
+    let input = terminal_interpreter::TerminalScalarValue::Integer {
+        scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
+        value: IntegerValue::Unsigned(7),
+    };
+    assert_eq!(
+        terminal_interpreter::interpret_terminal_artifact(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &[input],
+        )
+        .expect("source-free schema execution"),
+        terminal_interpreter::TerminalExecutionResult::Scalar(
+            terminal_interpreter::TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
+                value: IntegerValue::Unsigned(3),
+            }
+        )
+    );
+    for mutation in 0..7 {
+        let mut invalid = module.clone();
+        let owner = invalid
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == outer.id)
+            .unwrap();
+        let application = owner.closed_reach_application.as_mut().unwrap();
+        let call = &mut application.calls[0];
+        match mutation {
+            0 => call.application = None,
+            1 => call.application.as_mut().unwrap().arguments.clear(),
+            2 => call.application.as_mut().unwrap().arguments = second.arguments.clone(),
+            3 => {
+                let operation = owner
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|block| &mut block.operations)
+                    .find(|operation| operation.id == call.operation)
+                    .unwrap();
+                let OperationKind::Call { callee, .. } = &mut operation.kind else {
+                    panic!("ordinary scalar call");
+                };
+                *callee = second.callee;
+                let receipt = call.application.as_mut().unwrap();
+                receipt.callee = second.callee;
+                receipt.specialization_commitment = second.specialization_commitment;
+                // Even coherent target/commitment redirection retains the wrong tuple.
+            }
+            4 => {
+                let target = invalid
+                    .machines
+                    .iter_mut()
+                    .find(|machine| machine.id == first.callee)
+                    .unwrap();
+                target.closed_reach_application.as_mut().unwrap().telescope[0] =
+                    terminal_psi::ClosedReachParameter::Const {
+                        argument: "different-constant".into(),
+                    };
+            }
+            5 => {
+                let target = invalid
+                    .machines
+                    .iter_mut()
+                    .find(|machine| machine.id == first.callee)
+                    .unwrap();
+                target.closed_reach_application = None;
+            }
+            _ => {
+                let terminal_psi::ClosedReachParameter::Machine(binding) =
+                    &mut application.telescope[0]
+                else {
+                    panic!("schema binder");
+                };
+                binding.schema.as_mut().unwrap().template_identity = "unrelated-template".into();
+                for target in &mut invalid.machines {
+                    if let Some(target_application) = target.closed_reach_application.as_mut()
+                        && target.id != outer.id
+                    {
+                        target_application.template_identity = "unrelated-template".into();
+                    }
+                }
+            }
+        }
+        assert!(
+            terminal_verifier::validate_module_representation(&invalid).is_err(),
+            "schema call mutation {mutation} must reject"
+        );
+    }
+}
+
+#[test]
+fn generic_callback_schema_keeps_each_nested_selected_reach() {
+    let checked = checked_source(
+        r#"
+        boundary trait Console { machine ping(); }
+        boundary trait Callback { machine call(value: u64) -> u64 reaches Console; }
+        machine schema<machine Step>(value: u64) -> u64
+        where machine Step satisfies Callback::call;
+        { Step(value) }
+        machine outer<machine Schema>(value: u64) -> u64
+        where machine Schema<machine Inner>(value: u64) -> u64
+        where machine Inner satisfies Callback::call;
+        reaches Console;
+        { let first: u64 = Schema<quiet>(value); Schema<loud>(first) }
+        machine quiet(value: u64) -> u64 satisfies Callback::call { value }
+        machine loud(value: u64) -> u64 satisfies Callback::call reaches Console { 9 }
+        pub machine enter(value: u64) -> u64 { outer<schema>(value) }
+    "#,
+    );
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
+        .produce_artifact()
+        .expect("nested schema applications");
+    drop(checked);
+    let module =
+        terminal_codec::decode_module(artifact.semantic_bytes()).expect("nested schema reload");
+    let application = module
+        .machines
+        .iter()
+        .filter_map(|machine| machine.closed_reach_application.as_ref())
+        .find(|application| {
+            application
+                .calls
+                .iter()
+                .any(|call| call.application.is_some())
+        })
+        .expect("outer schema application");
+    let calls = application
+        .calls
+        .iter()
+        .map(|call| call.application.as_ref().expect("closed schema call"))
+        .collect::<Vec<_>>();
+    assert_eq!(calls.len(), 2);
+    let rows = calls
+        .iter()
+        .map(|call| {
+            let callee = module
+                .machines
+                .iter()
+                .find(|machine| machine.id == call.callee)
+                .unwrap();
+            service_names(&module, &callee.published_service_ceiling)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(rows, [Vec::<&str>::new(), vec!["Console"]]);
+    assert_ne!(calls[0].arguments, calls[1].arguments);
+    assert_eq!(service_names(&module, &application.fixed), ["Console"]);
+    let input = terminal_interpreter::TerminalScalarValue::Integer {
+        scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
+        value: IntegerValue::Unsigned(7),
+    };
+    assert_eq!(
+        terminal_interpreter::interpret_terminal_artifact(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &[input],
+        )
+        .expect("nested schema execution"),
+        terminal_interpreter::TerminalExecutionResult::Scalar(
+            terminal_interpreter::TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
+                value: IntegerValue::Unsigned(9),
+            }
+        )
+    );
+}
+
+fn nominal_schema_forwarding_module() -> terminal_psi::TerminalModule {
+    let checked = checked_source(
+        r#"
+        boundary trait Console { machine ping(); }
+        boundary trait Family { machine call<const Number: u64>(value: u64) -> u64 reaches Console; }
+        machine selected<const Count: u64>(value: u64) -> u64 satisfies Family::call reaches Console { Count }
+        machine inner<machine Schema>(value: u64) -> u64
+        where machine Schema satisfies Family::call;
+        { Schema<3>(value) }
+        machine outer<machine Schema>(value: u64) -> u64
+        where machine Schema satisfies Family::call;
+        { inner<Schema>(value) }
+        pub machine enter(value: u64) -> u64 { outer<selected>(value) }
+    "#,
+    );
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
+        .produce_artifact()
+        .expect("nominal schema forwarded through a private helper");
+    drop(checked);
+    terminal_codec::decode_module(artifact.semantic_bytes()).expect("forwarded schema reload")
+}
+
+#[test]
+fn generic_callback_schema_dependency_survives_private_forwarding() {
+    let module = nominal_schema_forwarding_module();
+    let forwarded = module
+        .machines
+        .iter()
+        .filter_map(|machine| machine.closed_reach_application.as_ref())
+        .find(|application| application.dependencies == [0] && application.calls.is_empty())
+        .expect("forwarding retains dependency without fabricating a direct call");
+    let terminal_psi::ClosedReachParameter::Machine(binding) = &forwarded.telescope[0] else {
+        panic!("schema binder");
+    };
+    assert!(binding.schema.is_some());
+    assert_eq!(service_names(&module, &binding.selected_reach), ["Console"]);
+    terminal_verifier::validate_module_representation(&module)
+        .expect("actual helper call closure covers dependency");
+}
+
+#[test]
+fn incomplete_schema_projection_prunes_forwarded_dependencies_to_a_fixed_point() {
+    let original = nominal_schema_forwarding_module();
+    let mut unchanged = original.clone();
+    crate::closed_reach_applications::prune_incomplete_closed_reach_applications(&mut unchanged);
+    assert_eq!(unchanged, original, "complete coverage is preserved");
+
+    let forwarded = original
+        .machines
+        .iter()
+        .find(|machine| {
+            machine
+                .closed_reach_application
+                .as_ref()
+                .is_some_and(|application| {
+                    application.dependencies == [0] && application.calls.is_empty()
+                })
+        })
+        .expect("forwarding owner")
+        .id;
+    let selected = original
+        .machines
+        .iter()
+        .find_map(|machine| {
+            machine
+                .closed_reach_application
+                .as_ref()?
+                .calls
+                .iter()
+                .find_map(|call| {
+                    call.application
+                        .as_ref()
+                        .map(|application| application.callee)
+                })
+        })
+        .expect("selected schema application");
+    let mut partial = original.clone();
+    // Model the producer's explicit absence of an inner projection. This is
+    // not a claim that this valid source currently takes an unsupported route.
+    let selected_owner = partial
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == selected)
+        .unwrap();
+    selected_owner.closed_reach_application = None;
+    for operation in selected_owner
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+    {
+        operation.static_reach_binding = None;
+    }
+    assert!(
+        matches!(
+            terminal_verifier::validate_module_representation(&partial),
+            Err(terminal_verifier::ModuleError::InvalidClosedReachApplication { .. })
+        ),
+        "partial coverage is not a valid published relation"
+    );
+
+    crate::closed_reach_applications::prune_incomplete_closed_reach_applications(&mut partial);
+    assert!(
+        partial
+            .machines
+            .iter()
+            .find(|machine| machine.id == forwarded)
+            .unwrap()
+            .closed_reach_application
+            .is_none(),
+        "forwarding owner must also lose coverage"
+    );
+    terminal_verifier::validate_module_representation(&partial)
+        .expect("ordinary semantics remain valid after incomplete projections are removed");
+    let pruned = partial.clone();
+    crate::closed_reach_applications::prune_incomplete_closed_reach_applications(&mut partial);
+    assert_eq!(partial, pruned, "pruning reaches a stable fixed point");
+    // Only annotations changed: restore them from the complete module to
+    // compare all executable operations, service rows, and other contracts.
+    for (machine, original_machine) in partial.machines.iter_mut().zip(&original.machines) {
+        machine.closed_reach_application = original_machine.closed_reach_application.clone();
+        for (block, original_block) in machine.blocks.iter_mut().zip(&original_machine.blocks) {
+            for (operation, original_operation) in
+                block.operations.iter_mut().zip(&original_block.operations)
+            {
+                operation.static_reach_binding = original_operation.static_reach_binding;
+            }
+        }
+    }
+    assert_eq!(partial, original);
+}
+
+#[test]
 fn closed_callback_dependency_survives_source_discard() {
     let checked = checked_source(
         r#"
@@ -732,7 +1072,22 @@ fn nominal_callback_selected_reach_survives_terminal_publication() {
             terminal_codec::decode_module(artifact.semantic_bytes()).expect("decode traversal");
         assert_eq!(module, lowered.semantic_module);
         assert_eq!(module.root_service_reach.concrete.len(), expected_services);
-        assert_eq!(module.services.len(), expected_services);
+        // The retained nominal bound names Console even when the selected
+        // callback and root reach are quiet; metadata is not a root effect.
+        assert_eq!(module.services.len(), 1);
+        let binding = module
+            .machines
+            .iter()
+            .filter_map(|machine| machine.closed_reach_application.as_ref())
+            .flat_map(|application| &application.telescope)
+            .find_map(|parameter| {
+                let terminal_psi::ClosedReachParameter::Machine(binding) = parameter else {
+                    return None;
+                };
+                binding.nominal_requirement.is_some().then_some(binding)
+            })
+            .expect("retained nominal callback bound");
+        assert_eq!(service_names(&module, &binding.upper_bound), ["Console"]);
         assert!(
             module
                 .root_service_reach
