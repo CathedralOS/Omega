@@ -228,16 +228,6 @@ Optimizer revision/analysis reuse is tracked only in `TASKS_OPTIMIZER.md`.
 
 ## Automatic service reach
 
-Update the direct-boundary leaves in
-`omega-rust/omega/packages/review/evidence/tests/callable_policy/flows.rs` to
-declare their service reach, including the unreachable control; keep ordinary
-forwarding helpers unannotated.
-Control: `cargo nextest run -p package-evidence --test callable_policy flows:: --no-fail-fast`.
-On macOS these tests pass before `74b0e1c058` and fail after integration at
-`b63815455f`: the unchanged fixtures omit RootDir/Workspace declarations now required by
-`validation/src/effects.rs`. Both existing capability-flow assertions must pass
-without relaxing direct-boundary checking.
-
 Complete [static callback reach dependencies](wiki/spec/language/effects.md#static-callback-reach-dependencies)
 in Psi call-component normalization, specialization, exported contract identity,
 and Terminal evidence/replay. Nominal callback calls must retain bounded union
