@@ -1,72 +1,38 @@
 //! Validated Terminal artifact to native-artifact realization lifecycle.
 
 use diagnostics::Diagnostic;
-use native_artifact::NativeArtifact;
 
 use super::{
     NativeRealizationRequest, RequestedNativeArtifact, RequestedNativeArtifactError,
-    RequestedNativeRealizationRequest,
     boundary_applications::retain_boundary_application_coverage,
     diagnostics::realization_error,
-    input::{
-        PreparedNativeRealizationInput, lower_realization_input,
-        reopen_prepared_native_realization_input,
-    },
+    input::lower_realization_input,
     object::emit_realization_object,
     output::assemble_requested_native_artifact,
     providers::{AdmittedNativeProviders, admit_native_providers},
 };
 
-pub(super) fn realize(
+/// Realize one Terminal artifact using explicit image, custody, and reuse inputs.
+/// Failure returns the exact image request; no product is silently substituted.
+pub fn realize_native_artifact(
     artifact: terminal_codec::CanonicalTerminalArtifact,
-    checked_scope: Option<&lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope>,
     request: NativeRealizationRequest<'_>,
-    prepared_input: Option<&PreparedNativeRealizationInput>,
-) -> Result<NativeArtifact, Vec<Diagnostic>> {
-    let image_request = image_emission::ExecutableImageEmissionRequest::direct(request.subsystem);
-    match realize_core(
-        artifact,
-        checked_scope,
-        request.into_core(),
-        image_request,
-        prepared_input,
-    ) {
-        Ok(RequestedNativeArtifact::Direct(artifact)) => Ok(artifact),
-        Ok(RequestedNativeArtifact::DynamicElf(_)) => {
-            unreachable!("direct request cannot select dynamic ELF custody")
-        }
-        Err(diagnostics) => Err(diagnostics),
-    }
-}
-
-pub(super) fn realize_requested(
-    artifact: terminal_codec::CanonicalTerminalArtifact,
-    checked_scope: Option<&lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope>,
-    request: RequestedNativeRealizationRequest<'_>,
-    prepared_input: Option<&PreparedNativeRealizationInput>,
 ) -> Result<RequestedNativeArtifact, RequestedNativeArtifactError> {
-    let (image_request, request) = request.into_parts();
-    let recoverable_image_request = image_request.clone();
-    realize_core(
-        artifact,
-        checked_scope,
-        request,
-        image_request,
-        prepared_input,
-    )
-    .map_err(|diagnostics| RequestedNativeArtifactError {
-        image_request: recoverable_image_request,
+    realize_image(artifact, &request).map_err(|diagnostics| RequestedNativeArtifactError {
+        image_request: request.image_request,
         diagnostics,
     })
 }
 
-fn realize_core(
+fn realize_image(
     artifact: terminal_codec::CanonicalTerminalArtifact,
-    checked_scope: Option<&lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope>,
-    request: super::model::NativeRealizationCoreRequest<'_>,
-    image_request: image_emission::ExecutableImageEmissionRequest,
-    prepared_input: Option<&PreparedNativeRealizationInput>,
+    request: &NativeRealizationRequest<'_>,
 ) -> Result<RequestedNativeArtifact, Vec<Diagnostic>> {
+    if let Some(scope) = request.checked_scope {
+        scope
+            .validate_for_artifact(&artifact)
+            .map_err(|error| realization_error("checked boundary-operator scope", error))?;
+    }
     request
         .program_entry
         .validate_for_target(request.target)
@@ -82,14 +48,14 @@ fn realize_core(
     .map_err(|error| realization_error("Fused ProgramEntry establishment", error))?;
     let boundary_application_coverage = retain_boundary_application_coverage(
         &artifact,
-        checked_scope,
+        request.checked_scope,
         request.boundary_application_coverage,
     )?;
     let semantic_bytes = artifact.semantic_bytes();
     let proof_bytes = artifact.proof_bytes();
     let terminal_artifact_identity = *artifact.manifest().identity().as_bytes();
-    let input = match prepared_input {
-        Some(prepared) => reopen_prepared_native_realization_input(prepared, &artifact, &request)?,
+    let input = match request.prepared_input {
+        Some(prepared) => prepared.reopen(&artifact, request)?,
         None => lower_realization_input(semantic_bytes, proof_bytes, request.profile)?,
     };
     validate_executable_entry_receiver(input.plan())?;
@@ -105,14 +71,14 @@ fn realize_core(
         semantic_bytes,
         proof_bytes,
         terminal_artifact_identity,
-        &request,
+        request,
     )?;
     let emitted = emit_realization_object(
         input,
         installation,
         &settlements,
         boundary_application_coverage.as_ref(),
-        &request,
+        request,
     )?;
     assemble_requested_native_artifact(
         artifact,
@@ -123,8 +89,8 @@ fn realize_core(
         terminal_authority_closure_review,
         boundary_application_coverage,
         emitted.physical_evidence_scope,
-        image_request,
-        &request,
+        request.image_request.clone(),
+        request,
     )
 }
 
@@ -132,7 +98,7 @@ fn validate_executable_entry_receiver(
     plan: &abstract_operations::AbstractOperationPlan,
 ) -> Result<(), Vec<Diagnostic>> {
     // Settlement retains the entry declaration, not an installed receiver.
-    // Every route through realize_core emits an executable image; callable
+    // Every route through realize_image emits an executable image; callable
     // lowering and explicit semantic wrappers retain their own boundaries.
     if plan.functions.iter().any(|function| {
         function.machine == plan.entry

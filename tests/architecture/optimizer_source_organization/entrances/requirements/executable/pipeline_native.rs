@@ -166,7 +166,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn validate_native_program_entry_settlement",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/compiler/native-realization/src/realization/mod.rs",
+        path: "omega-rust/omega/compiler/native-realization/src/realization/native_artifact.rs",
         coordination_marker: "pub fn realize_native_artifact",
     },
     RequiredCoordinationEntrance {

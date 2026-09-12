@@ -1,7 +1,7 @@
 //! Complete the abstract-optimization phase for verified native input.
 
 use crate::realization::diagnostics::realization_error;
-use crate::realization::model::{NativeRealizationCoreRequest, NativeRealizationInput};
+use crate::realization::model::{NativeRealizationInput, NativeRealizationRequest};
 use diagnostics::Diagnostic;
 
 /// Current verified abstract program, independent of pass selection.
@@ -12,7 +12,7 @@ pub(crate) struct NativeOptimizationStageResult {
 
 pub(crate) fn lower_realization_optimization_stage(
     input: NativeRealizationInput,
-    request: &NativeRealizationCoreRequest<'_>,
+    request: &NativeRealizationRequest<'_>,
 ) -> Result<NativeOptimizationStageResult, Vec<Diagnostic>> {
     let input = input.into_optimization_input();
     if !request.optimization_selections.is_empty() {
@@ -43,7 +43,7 @@ pub(crate) fn lower_realization_optimization_stage(
 
 fn run_abstract_optimization_stage(
     input: terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
-    request: &NativeRealizationCoreRequest<'_>,
+    request: &NativeRealizationRequest<'_>,
 ) -> Result<
     abstract_operations_to_abstract_operations::ValidatedOptimizedAbstractPlan,
     Vec<Diagnostic>,

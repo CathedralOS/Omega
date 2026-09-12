@@ -9,7 +9,7 @@ mod settlements;
 #[cfg(test)]
 pub(crate) use adapters::project_selected_provider_adapters_for_requirements;
 
-use crate::realization::model::{NativeRealizationCoreRequest, NativeRealizationInput};
+use crate::realization::model::{NativeRealizationInput, NativeRealizationRequest};
 use abstract_operations_to_target_operations::AdmittedBoundarySettlement;
 use diagnostics::Diagnostic;
 use native_artifact::NativeProviderExecution;
@@ -36,7 +36,7 @@ pub(crate) fn admit_native_providers<'request>(
     semantic_bytes: &[u8],
     proof_bytes: &[u8],
     terminal_artifact_identity: [u8; 32],
-    request: &NativeRealizationCoreRequest<'request>,
+    request: &NativeRealizationRequest<'request>,
 ) -> Result<AdmittedNativeProviders<'request>, Vec<Diagnostic>> {
     let (settlements, executions, mut mechanisms) =
         settlements::settle_provider_executions(input, request)?;

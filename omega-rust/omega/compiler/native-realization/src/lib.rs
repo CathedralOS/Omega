@@ -44,7 +44,7 @@ pub use realization::{
     NativeBoundaryRealization, NativeCallbackThunkSettlement, NativeCompilerBuiltinSettlement,
     NativeProviderSettlement, NativeRealizationRequest, PreparedNativeRealizationInput,
     RealizedNativeArtifactWithCallbackCustody, RequestedNativeArtifact,
-    RequestedNativeArtifactError, RequestedNativeRealizationRequest, SettledNativeArtifact,
+    RequestedNativeArtifactError, SettledNativeArtifact,
     TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION, TERMINAL_AUTHORITY_POLICY_VERSION,
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPermissionPolicyBuildError,
     TerminalAuthorityPermissionPolicyRow, TerminalAuthorityPolicy,
@@ -55,11 +55,7 @@ pub use realization::{
     normalized_foreign_terminal_mechanism,
     normalized_foreign_terminal_mechanism_with_callback_materializations,
     prepare_native_realization_input, realize_native_artifact,
-    realize_native_artifact_with_callback_custody,
-    realize_native_artifact_with_checked_boundary_operator_scope,
-    realize_native_artifact_with_checked_boundary_operator_scope_and_prepared_input,
-    realize_program_entry_native_artifact, realize_requested_native_artifact,
-    realize_requested_native_artifact_with_checked_boundary_operator_scope,
+    realize_native_artifact_with_callback_custody, realize_program_entry_native_artifact,
     terminal_authority_permission_policy_with_rows, terminal_authority_policy_with_rows,
 };
 

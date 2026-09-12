@@ -1,7 +1,7 @@
 //! Complete one physical stage sequence before machine emission.
 
 use crate::realization::diagnostics::{realization_error, selected_physical_pipeline_failed};
-use crate::realization::model::NativeRealizationCoreRequest;
+use crate::realization::model::NativeRealizationRequest;
 use crate::realization::target_stage::NativeTargetStageResult;
 use diagnostics::Diagnostic;
 
@@ -19,7 +19,7 @@ pub(crate) struct NativePhysicalStageResult {
 
 pub(crate) fn lower_realization_physical_stage(
     target_stage: NativeTargetStageResult,
-    request: &NativeRealizationCoreRequest<'_>,
+    request: &NativeRealizationRequest<'_>,
 ) -> Result<NativePhysicalStageResult, Vec<Diagnostic>> {
     let (_, optimized_target) = target_stage
         .into_parts()

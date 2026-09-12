@@ -1,5 +1,5 @@
 use crate::realization::diagnostics::realization_error;
-use crate::realization::model::{NativeRealizationCoreRequest, NativeRealizationInput};
+use crate::realization::model::{NativeRealizationInput, NativeRealizationRequest};
 use diagnostics::Diagnostic;
 use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;
 
@@ -9,7 +9,7 @@ pub(crate) fn admit_checked_provider_installation(
     input: &NativeRealizationInput,
     semantic_bytes: &[u8],
     proof_bytes: &[u8],
-    request: &NativeRealizationCoreRequest<'_>,
+    request: &NativeRealizationRequest<'_>,
 ) -> Result<Option<AdmittedProviderInstallation>, Vec<Diagnostic>> {
     let plan = input.plan();
     if plan.provider_candidates.is_empty() {

@@ -61,8 +61,10 @@ fn request<'request>(
     providers: &'request effects::SelectedProviderPlanFacts,
 ) -> NativeRealizationRequest<'request> {
     NativeRealizationRequest {
+        checked_scope: None,
+        prepared_input: None,
         target: signature.target_slot().owner.native_target(),
-        subsystem: 3,
+        image_request: image_emission::ExecutableImageEmissionRequest::direct(3),
         profile,
         terminal_authority_policy: crate::current_compiler_intrinsic_terminal_authority_policy(),
         terminal_authority_permission_policy: crate::current_terminal_authority_permission_policy(),
@@ -107,23 +109,27 @@ fn unprovisioned_receiver_entry_rejects_fresh_and_prepared_executable_realizatio
         );
         let prepared = crate::prepare_native_realization_input(&artifact, &profile, &optimizations)
             .expect("verified callable input remains preparable");
-        let fresh = crate::realize_native_artifact_with_checked_boundary_operator_scope(
+        let fresh = crate::realize_native_artifact(
             terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
                 .expect("replay the same canonical artifact for fresh realization"),
-            &scope,
-            request(&signature, &profile, &optimizations, &providers),
+            NativeRealizationRequest {
+                checked_scope: Some(&scope),
+                prepared_input: None,
+                ..request(&signature, &profile, &optimizations, &providers)
+            },
         )
         .expect_err("direct executable must not use an unprovisioned receiver pointer");
-        let reopened =
-            crate::realize_native_artifact_with_checked_boundary_operator_scope_and_prepared_input(
-                artifact,
-                &scope,
-                request(&signature, &profile, &optimizations, &providers),
-                &prepared,
-            )
-            .expect_err("prepared input must not bypass executable receiver provisioning");
+        let reopened = crate::realize_native_artifact(
+            artifact,
+            NativeRealizationRequest {
+                checked_scope: Some(&scope),
+                prepared_input: Some(&prepared),
+                ..request(&signature, &profile, &optimizations, &providers)
+            },
+        )
+        .expect_err("prepared input must not bypass executable receiver provisioning");
         for diagnostics in [fresh, reopened] {
-            let [diagnostic] = diagnostics.as_slice() else {
+            let [diagnostic] = diagnostics.diagnostics() else {
                 panic!("one explicit missing provisioning diagnostic")
             };
             assert!(
@@ -167,6 +173,128 @@ fn namespace_attachment_without_receiver_still_realizes_an_executable() {
     .expect("namespace attachment does not require receiver provisioning");
     native
         .artifact()
+        .as_direct()
+        .expect("direct image requested")
         .validate()
         .expect("namespace-only executable replays");
+}
+
+#[test]
+fn native_request_scope_and_reuse_preserve_direct_image_bytes() {
+    let (produced, signature) = entry_fixture(
+        "data Main {} machine Main::launch() {}",
+        program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
+        target::TargetProfile::WindowsX64,
+    );
+    let (artifact, _, scope, _, _) = produced.into_parts();
+    let profile = proof_admission::AdmissionProfile::default();
+    let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
+    let providers = effects::SelectedProviderPlanFacts::default();
+    let prepared =
+        crate::prepare_native_realization_input(&artifact, &profile, &optimizations).unwrap();
+    let mut expected_bytes = None;
+    for checked_scope in [None, Some(&scope)] {
+        for prepared_input in [None, Some(&prepared)] {
+            let mut request = request(&signature, &profile, &optimizations, &providers);
+            request.checked_scope = checked_scope;
+            request.prepared_input = prepared_input;
+            let native = crate::realize_native_artifact(
+                terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
+                    .unwrap(),
+                request,
+            )
+            .unwrap()
+            .into_direct()
+            .expect("direct image request");
+            native.validate().unwrap();
+            let bytes = &native.image().output().bytes;
+            if let Some(expected) = &expected_bytes {
+                assert_eq!(expected, bytes);
+            } else {
+                expected_bytes = Some(bytes.clone());
+            }
+        }
+    }
+}
+
+#[test]
+fn native_request_rejects_substituted_scope_or_prepared_input_and_returns_image_request() {
+    let (produced, signature) = entry_fixture(
+        "data Main {} machine Main::launch() {}",
+        program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
+        target::TargetProfile::WindowsX64,
+    );
+    let (artifact, _, scope, _, _) = produced.into_parts();
+    let (other, _) = entry_fixture(
+        "data Main {} machine Main::launch() { Main::work(); } machine Main::work() {}",
+        program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
+        target::TargetProfile::WindowsX64,
+    );
+    let (other_artifact, _, other_scope, _, _) = other.into_parts();
+    assert_ne!(
+        artifact.manifest().identity(),
+        other_artifact.manifest().identity()
+    );
+    let profile = proof_admission::AdmissionProfile::default();
+    let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
+    let providers = effects::SelectedProviderPlanFacts::default();
+    let other_prepared =
+        crate::prepare_native_realization_input(&other_artifact, &profile, &optimizations).unwrap();
+    for (checked_scope, prepared_input, expected) in [
+        (Some(&other_scope), None, "checked boundary-operator scope"),
+        (Some(&scope), Some(&other_prepared), "prepared native input"),
+    ] {
+        let mut request = request(&signature, &profile, &optimizations, &providers);
+        request.checked_scope = checked_scope;
+        request.prepared_input = prepared_input;
+        request.image_request = image_emission::ExecutableImageEmissionRequest::direct(19);
+        let error = crate::realize_native_artifact(
+            terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap(),
+            request,
+        )
+        .expect_err("substituted evidence cannot select another realization route");
+        let (image_request, diagnostics) = error.into_parts();
+        assert!(matches!(
+            image_request,
+            image_emission::ExecutableImageEmissionRequest::Direct { subsystem: 19 }
+        ));
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "{diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn program_entry_adapter_does_not_ignore_supplied_scope() {
+    let (produced, signature) = entry_fixture(
+        "data Main {} machine Main::launch() {}",
+        program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
+        target::TargetProfile::WindowsX64,
+    );
+    let (other, _) = entry_fixture(
+        "data Main {} machine Main::launch() { Main::work(); } machine Main::work() {}",
+        program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
+        target::TargetProfile::WindowsX64,
+    );
+    let (_, _, other_scope, _, _) = other.into_parts();
+    let profile = proof_admission::AdmissionProfile::default();
+    let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
+    let providers = effects::SelectedProviderPlanFacts::default();
+    let mut request = request(&signature, &profile, &optimizations, &providers);
+    request.checked_scope = Some(&other_scope);
+    let error = crate::realize_program_entry_native_artifact(produced, request)
+        .expect_err("owned entry custody cannot hide substituted request custody");
+    let (image, diagnostics) = error.into_parts();
+    assert!(matches!(
+        image,
+        image_emission::ExecutableImageEmissionRequest::Direct { subsystem: 3 }
+    ));
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("checked boundary-operator scope")
+    );
 }

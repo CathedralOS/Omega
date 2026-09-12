@@ -2369,12 +2369,15 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
             .collect(),
     )
     .expect("exact Console exit permission policy");
-    let native = native_realization::realize_native_artifact_with_checked_boundary_operator_scope(
+    let native = native_realization::realize_native_artifact(
         artifact,
-        proposal.checked_boundary_operator_scope(),
         native_realization::NativeRealizationRequest {
+            checked_scope: Some(proposal.checked_boundary_operator_scope()),
+            prepared_input: None,
             target: proposal.native_target(),
-            subsystem: proposal.subsystem(),
+            image_request: native_realization::ExecutableImageEmissionRequest::direct(
+                proposal.subsystem(),
+            ),
             profile: &profile,
             terminal_authority_policy:
                 native_realization::current_compiler_intrinsic_terminal_authority_policy(),
@@ -2391,7 +2394,9 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
             callback_thunks: &[],
         },
     )
-    .expect("retained Terminal product should realize natively without frontend state");
+    .expect("retained Terminal product should realize natively without frontend state")
+    .into_direct()
+    .expect("direct image requested");
     assert!(native.image().output().bytes.starts_with(b"\x7fELF"));
     assert_eq!(native.provider_executions().len(), 0);
     assert_eq!(

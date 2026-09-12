@@ -3,8 +3,8 @@ use super::{
     normalized_foreign_call::rejoin_normalized_foreign_call,
 };
 use crate::realization::model::{
-    NativeBoundaryRealization, NativeProviderSettlement, NativeRealizationCoreRequest,
-    NativeRealizationInput,
+    NativeBoundaryRealization, NativeProviderSettlement, NativeRealizationInput,
+    NativeRealizationRequest,
 };
 use abstract_operations_to_target_operations::AdmittedBoundarySettlement;
 use diagnostics::Diagnostic;
@@ -12,7 +12,7 @@ use native_artifact::NativeProviderExecution;
 
 pub(super) fn settle_boundary<'request>(
     input: &NativeRealizationInput,
-    request: &NativeRealizationCoreRequest<'request>,
+    request: &NativeRealizationRequest<'request>,
     settlement: &NativeProviderSettlement<'request>,
 ) -> Result<
     (

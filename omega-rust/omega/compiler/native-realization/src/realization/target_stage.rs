@@ -5,7 +5,7 @@ mod output;
 pub(crate) use output::NativeTargetStageResult;
 
 use crate::realization::diagnostics::realization_error;
-use crate::realization::model::NativeRealizationCoreRequest;
+use crate::realization::model::NativeRealizationRequest;
 use crate::realization::optimization_stage::NativeOptimizationStageResult;
 use abstract_operations_to_target_operations::AdmittedBoundarySettlement;
 use diagnostics::Diagnostic;
@@ -15,7 +15,7 @@ pub(crate) fn lower_realization_target_stage(
     optimization_stage: NativeOptimizationStageResult,
     provider_installation: Option<AdmittedProviderInstallation>,
     settlements: &[AdmittedBoundarySettlement<'_>],
-    request: &NativeRealizationCoreRequest<'_>,
+    request: &NativeRealizationRequest<'_>,
 ) -> Result<NativeTargetStageResult, Vec<Diagnostic>> {
     let NativeOptimizationStageResult { program } = optimization_stage;
     let target =

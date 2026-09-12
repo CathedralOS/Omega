@@ -3,7 +3,7 @@
 
 use std::collections::BTreeSet;
 
-use crate::realization::model::{NativeRealizationCoreRequest, NativeRealizationInput};
+use crate::realization::model::{NativeRealizationInput, NativeRealizationRequest};
 use crate::realization::providers::AdmittedTerminalMechanism;
 use abstract_operations_to_target_operations::AdmittedBoundarySettlement;
 use diagnostics::Diagnostic;
@@ -23,7 +23,7 @@ use source_imports::validate_source_evaluated_import_coverage;
 
 pub(crate) fn settle_provider_executions<'request>(
     input: &NativeRealizationInput,
-    request: &NativeRealizationCoreRequest<'request>,
+    request: &NativeRealizationRequest<'request>,
 ) -> Result<
     (
         Vec<AdmittedBoundarySettlement<'request>>,

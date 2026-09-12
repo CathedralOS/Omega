@@ -1,5 +1,5 @@
 use crate::realization::diagnostics::realization_error;
-use crate::realization::model::{NativeRealizationCoreRequest, NativeRealizationInput};
+use crate::realization::model::{NativeRealizationInput, NativeRealizationRequest};
 use diagnostics::Diagnostic;
 
 /// Reusable target-neutral lowering of one exact canonical Terminal artifact.
@@ -7,7 +7,7 @@ use diagnostics::Diagnostic;
 /// Construction binds the full artifact identity, exact proof-admission
 /// profile, and exact post-Terminal optimization selection. Target selection,
 /// provider settlement, authority policy, callbacks, FMA admission, and every
-/// physical lowering input remain in each request's source-free core.
+/// physical lowering input remain in each realization request.
 #[derive(Debug, Clone)]
 pub struct PreparedNativeRealizationInput {
     terminal_artifact_identity: terminal_codec::TerminalArtifactIdentity,
@@ -40,10 +40,10 @@ impl PreparedNativeRealizationInput {
             && self.optimization_selections == *optimization_selections
     }
 
-    fn reopen(
+    pub(crate) fn reopen(
         &self,
         artifact: &terminal_codec::CanonicalTerminalArtifact,
-        request: &NativeRealizationCoreRequest<'_>,
+        request: &NativeRealizationRequest<'_>,
     ) -> Result<NativeRealizationInput, Vec<Diagnostic>> {
         if !self.matches(
             artifact.manifest().identity(),
@@ -100,14 +100,6 @@ pub(crate) fn lower_realization_input(
         .map_err(|error| realization_error("verified optimizer artifact lowering", error))?;
     NativeRealizationInput::new(native, optimization_input)
         .map_err(|error| realization_error("native abstract-stage join", error))
-}
-
-pub(crate) fn reopen_prepared_native_realization_input(
-    prepared: &PreparedNativeRealizationInput,
-    artifact: &terminal_codec::CanonicalTerminalArtifact,
-    request: &NativeRealizationCoreRequest<'_>,
-) -> Result<NativeRealizationInput, Vec<Diagnostic>> {
-    prepared.reopen(artifact, request)
 }
 
 #[cfg(test)]

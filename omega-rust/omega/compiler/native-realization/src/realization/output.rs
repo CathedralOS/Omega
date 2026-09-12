@@ -1,5 +1,5 @@
 use crate::realization::diagnostics::realization_error;
-use crate::realization::model::{NativeRealizationCoreRequest, RequestedNativeArtifact};
+use crate::realization::model::{NativeRealizationRequest, RequestedNativeArtifact};
 use diagnostics::Diagnostic;
 use native_artifact::{
     DynamicElfNativeArtifact, DynamicElfNativeArtifactEmissionParts, NativeArtifact,
@@ -20,7 +20,7 @@ pub(crate) fn assemble_requested_native_artifact(
     >,
     physical_evidence_scope: native_artifact::NativePhysicalEvidenceScope,
     image_request: image_emission::ExecutableImageEmissionRequest,
-    request: &NativeRealizationCoreRequest<'_>,
+    request: &NativeRealizationRequest<'_>,
 ) -> Result<RequestedNativeArtifact, Vec<Diagnostic>> {
     let image = image_emission::emit_requested_executable_image(&object, image_request)
         .map_err(|error| vec![error.diagnostic().clone()])?;
