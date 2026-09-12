@@ -1,0 +1,33 @@
+initialize:
+  - name: system packages
+    run: apt-get update && apt-get install -y build-essential pkg-config python3
+  - name: rust toolchain
+    run: |
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain nightly-2026-09-04 -c clippy -c rustfmt
+      echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$ENVRC"
+  - name: cargo-nextest
+    run: |
+      export PATH="$HOME/.cargo/bin:$PATH"
+      curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C "$HOME/.cargo/bin"
+      cargo nextest --version
+maintenance:
+  - name: submodules (best effort; Squalr is in the CathedralOS org)
+    run: git submodule update --init --recursive || echo "submodule init skipped"
+  - name: git policy
+    run: git config pull.rebase true
+  - name: prefetch and warm
+    run: |
+      export PATH="$HOME/.cargo/bin:$PATH"
+      cargo fetch
+      cargo check --workspace --all-targets
+      cargo nextest run --workspace --lib --no-run
+knowledge:
+  - name: rules
+    contents: Read AGENTS.md in full before any change. mbx is absent here; use cargo for every mbx command.
+  - name: test
+    contents: |
+      Scoped: python3 tools/test_affected.py --base <verified-commit> --plan, then without --plan.
+      One test: cargo nextest run -p compiler --test canary_suite <filter>
+      Bootstrap gates: sh tools/bootstrap/check-chain-hygiene.sh ; sh tests/bootstrap/alpha-beta-edge.sh --edge
+  - name: landing
+    contents: Publish only through python3 tools/landing.py (status/enqueue/claim/publish/release); see tools/landing.md. Never push main directly.
