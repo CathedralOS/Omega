@@ -1,0 +1,9 @@
+use leaf::outcomes;
+
+machine is_empty(value: &leaf::outcomes::Outcome) -> bool {
+    value in leaf::outcomes::Outcome::Empty
+}
+
+machine has_value(value: &leaf::outcomes::Outcome) -> bool {
+    value in leaf::outcomes::Outcome::Value
+}

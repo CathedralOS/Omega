@@ -6,8 +6,8 @@ use super::super::expression_paths::{
     stamp_receiver_path_symbols_in_table,
 };
 use super::super::lookup::{
-    call_target_for_attached_data, case_symbols_for_source, child_symbol_by_kinds,
-    diagnostic_path_source_span, top_level_symbol_for_source,
+    call_target_for_attached_data, child_symbol_by_kinds, diagnostic_path_source_span,
+    top_level_symbol_for_source,
 };
 use super::super::scope::MachineScope;
 use super::super::scoped_paths::{
@@ -232,16 +232,21 @@ pub(in crate::symbols) fn assign_membership_symbol(
         .join("::");
     let members = expression_table.name_path_members(domain);
     let reference_span = diagnostic_path_source_span(members);
-    let domain_symbol = symbols
-        .find_top_level_by_name_and_kinds_from_source(&name, &[SymbolKind::Domain], reference_span)
-        .unwrap_or_else(SymbolHandle::invalid);
-    let (case_type_symbol, case_symbol) = if domain_symbol.is_valid() {
-        (SymbolHandle::invalid(), SymbolHandle::invalid())
-    } else {
-        case_symbols_for_source(symbols, members)
-            .ok()
-            .flatten()
-            .unwrap_or((SymbolHandle::invalid(), SymbolHandle::invalid()))
+    let selected = crate::symbols::membership_selection(symbols, &name, reference_span);
+    // The fallible authored-selection entrance reports unresolved ambiguity.
+    // Never fall back from ambiguous domains to an otherwise unique case.
+    let (domain_symbol, case_type_symbol, case_symbol) = match selected {
+        Ok(Some(crate::symbols::MembershipSelection::Domain(domain))) => {
+            (domain, SymbolHandle::invalid(), SymbolHandle::invalid())
+        }
+        Ok(Some(crate::symbols::MembershipSelection::Case { owner, case })) => {
+            (SymbolHandle::invalid(), owner, case)
+        }
+        Ok(None) | Err(_) => (
+            SymbolHandle::invalid(),
+            SymbolHandle::invalid(),
+            SymbolHandle::invalid(),
+        ),
     };
     if let symbol_resolved_trees::expression::ExpressionNode::Membership(membership) =
         expression_table.expression_mut(expression)

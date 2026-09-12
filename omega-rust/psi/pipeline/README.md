@@ -293,7 +293,15 @@ ordinary equality between same-named values. The package-backed
 `module_machine_indices::qualified_cases` tests cover checked evaluation,
 payload-bearing cases, local and projected borrows, private/direct-dependency
 authority and competing same-leaf owners. Ambiguous case selection reports both
-declarations and the importing source's exposure.
+declarations and the importing source's exposure. Declared domains and eligible
+cases use one ambiguity-preserving selection; neither a unique domain nor an
+ambiguous domain roster can hide competing case meaning. Module-owned declared
+domain normalization remains a separate implementation limit; header-level
+selection tests pin the shared namespace independently of that source fence.
+`cargo run -p omega -- --check tests/omega/pass/modules/qualified_case_membership/main.omg`
+checks the four-source package customer. Additional `case_membership` source
+controls retain common-field tag observation and independently required owner
+and case selection occurrences.
 This does not establish native Boolean membership of a newly constructed case.
 The checked operation sequence still needs intermediate case construction and an
 observing structural membership result; see `STATE-LOCAL-VALUE-FRONTIER` on the

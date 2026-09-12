@@ -688,3 +688,6 @@ impl Drop for Sources {
         let _ = fs::remove_dir_all(&self.0);
     }
 }
+
+#[path = "module_machine_indices/case_membership.rs"]
+mod case_membership;
