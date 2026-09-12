@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn public_trait_member_contracts_join_exact_state_signature_places() {
@@ -17,11 +18,10 @@ pub trait Bounds {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("public trait member contract should check");
     let review = project_checked_package_review(&checked)
         .expect("public trait member contract should join checked places");
@@ -73,11 +73,10 @@ fn public_trait_crash_ceilings_are_exact_canonical_checked_routes() {
             r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("public trait crash ceiling should check");
         project_checked_package_review(&checked)
             .expect("public trait crash ceiling should project from its exact checked capsule")
@@ -150,11 +149,10 @@ fn public_trait_crash_projection_rejects_missing_or_duplicate_checked_capsules()
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("public trait crash fixture should check");
 
     let mut missing = checked.clone();

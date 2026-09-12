@@ -12,7 +12,8 @@ use build_time_evaluation::{
     BuildTimeValue, compute_layout_plan, evaluate_and_materialize_typed_owned_layout_into,
     materialize_typed_owned_layout_into, validate_const_materializable_typed_owned_layout,
 };
-use compiler::{compile_to_checked, compile_to_checked_with_packages};
+use compiler::CheckedCompileRequest;
+use compiler::compile_to_checked;
 use layout::{DataShape, build_layout_plan};
 use layout_plans::{
     AggregateFieldSchema, AggregateFieldValue, ByteOrder, ConsumptionInstant, EntryStubId,
@@ -241,11 +242,10 @@ fn plan_laid_value_types_are_placed_by_their_plan() {
         .join("tests/omega/pass")
         .join(fixture_roster::RUNTIME_PLAN_LAID_VALUE_FIELD_EXIT)
         .join("main.omg");
-    let mut checked = compile_to_checked_with_packages(
-        &canary,
-        None,
-        package_inputs_with_standard_library(&canary),
-    )
+    let mut checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs_with_standard_library(&canary)),
+        ..CheckedCompileRequest::new(&canary, None)
+    })
     .expect("plan-laid canary should compile");
 
     // The pipeline recorded the validated plan on the typed trees.
@@ -452,9 +452,11 @@ fn plan_laid_private_callback_slot_retains_exact_target_neutral_demand() {
         .join("tests/omega/pass")
         .join(fixture_roster::PRIVATE_CALLBACK_SLOT_DEMAND_COMPILE)
         .join("main.omg");
-    let mut checked =
-        compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x51))
-            .expect("private callback-slot layout canary should compile");
+    let mut checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs_for_source(&canary, 0x51)),
+        ..CheckedCompileRequest::new(&canary, None)
+    })
+    .expect("private callback-slot layout canary should compile");
 
     let layout_index = checked
         .typed
@@ -549,9 +551,11 @@ fn target_closure_proves_one_inline_named_field_then_one_private_callback_slot()
         .join("tests/omega/pass")
         .join(fixture_roster::PRIVATE_CALLBACK_SLOT_DEMAND_COMPILE)
         .join("main.omg");
-    let mut checked =
-        compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x52))
-            .expect("private callback-slot layout canary should compile");
+    let mut checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs_for_source(&canary, 0x52)),
+        ..CheckedCompileRequest::new(&canary, None)
+    })
+    .expect("private callback-slot layout canary should compile");
     let child = checked
         .typed
         .plan_laid_layouts
@@ -658,9 +662,11 @@ fn target_closed_private_callback_slot_rejects_geometry_mutations() {
         .join("tests/omega/pass")
         .join(fixture_roster::PRIVATE_CALLBACK_SLOT_DEMAND_COMPILE)
         .join("main.omg");
-    let mut checked =
-        compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x56))
-            .expect("private callback-slot layout canary should compile");
+    let mut checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs_for_source(&canary, 0x56)),
+        ..CheckedCompileRequest::new(&canary, None)
+    })
+    .expect("private callback-slot layout canary should compile");
     let layout_index = checked
         .typed
         .plan_laid_layouts
@@ -749,9 +755,11 @@ fn private_callback_slot_rejects_a_different_layout_subject() {
         .join("tests/omega/fail")
         .join(fixture_roster::PRIVATE_CALLBACK_SLOT_WRONG_LAYOUT)
         .join("main.omg");
-    let diagnostics =
-        compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x52))
-            .expect_err("a private slot for another layout must reject");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs_for_source(&canary, 0x52)),
+        ..CheckedCompileRequest::new(&canary, None)
+    })
+    .expect_err("a private slot for another layout must reject");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -772,9 +780,11 @@ fn private_callback_slot_rejects_duplicate_placement() {
         .join("tests/omega/fail")
         .join(fixture_roster::PRIVATE_CALLBACK_SLOT_DUPLICATE)
         .join("main.omg");
-    let diagnostics =
-        compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x53))
-            .expect_err("placing one exact private slot twice must reject");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs_for_source(&canary, 0x53)),
+        ..CheckedCompileRequest::new(&canary, None)
+    })
+    .expect_err("placing one exact private slot twice must reject");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -795,9 +805,11 @@ fn authored_place_private_lookalike_cannot_mint_a_receipt() {
         .join("tests/omega/fail")
         .join(fixture_roster::PRIVATE_CALLBACK_SLOT_AUTHORED_LOOKALIKE)
         .join("main.omg");
-    let diagnostics =
-        compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x54))
-            .expect_err("an authored Plan::place_private lookalike must reject");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs_for_source(&canary, 0x54)),
+        ..CheckedCompileRequest::new(&canary, None)
+    })
+    .expect_err("an authored Plan::place_private lookalike must reject");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -819,9 +831,11 @@ fn untaken_private_callback_slot_branch_emits_no_receipt() {
         .join("tests/omega/pass")
         .join(fixture_roster::PRIVATE_CALLBACK_SLOT_UNTAKEN_COMPILE)
         .join("main.omg");
-    let checked =
-        compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x55))
-            .expect("the policy with an untaken private-placement branch should compile");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs_for_source(&canary, 0x55)),
+        ..CheckedCompileRequest::new(&canary, None)
+    })
+    .expect("the policy with an untaken private-placement branch should compile");
     let recorded = checked
         .typed
         .plan_laid_layouts
@@ -842,11 +856,10 @@ fn plan_laid_compact_bits_retain_validated_fragment_geometry() {
         .join("tests/omega/pass")
         .join(fixture_roster::RUNTIME_PLAN_LAID_COMPACT_BITS_EXIT)
         .join("main.omg");
-    let checked = compile_to_checked_with_packages(
-        &canary,
-        None,
-        package_inputs_with_standard_library(&canary),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs_with_standard_library(&canary)),
+        ..CheckedCompileRequest::new(&canary, None)
+    })
     .expect("compact-bit canary should compile");
 
     assert_eq!(checked.typed.plan_laid_layouts.len(), 1);
@@ -892,7 +905,8 @@ fn plan_laid_compact_bits_retain_validated_fragment_geometry() {
 #[test]
 fn c_layout_policy_plans_a_uefi_ish_schema() {
     let main_path = write_program("clayout-pilot", PILOT);
-    let checked = compile_to_checked(&main_path, None).expect("pilot should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("pilot should compile");
 
     let report = compute_layout_plan(&checked.typed, "CLayout::plan", "GdtEntryish")
         .expect("the C layout plan should evaluate and validate");
@@ -926,7 +940,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).expect("fixed array should reflect");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("fixed array should reflect");
     let report = compute_layout_plan(&checked.typed, "ArrayLayout::plan", "Samples")
         .expect("one At placement should admit the complete fixed-array extent");
     assert_eq!(report.offsets, Some(vec![8]));
@@ -957,7 +972,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).expect("nested fixed array should reflect");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("nested fixed array should reflect");
     let report = compute_layout_plan(&checked.typed, "ArrayLayout::plan", "Samples")
         .expect("one At placement should admit the complete nested-array extent");
     assert_eq!(report.offsets, Some(vec![8]));
@@ -989,7 +1005,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).expect("fixed record should reflect");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("fixed record should reflect");
     let report = compute_layout_plan(&checked.typed, "RecordLayout::plan", "Samples")
         .expect("one At placement should admit the complete fixed-record extent");
     assert_eq!(report.offsets, Some(vec![8]));
@@ -1032,7 +1049,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).expect("fixed record should reflect");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("fixed record should reflect");
     let report = compute_layout_plan(&checked.typed, "RecordLayout::plan", "Samples")
         .expect("one At placement should admit the typed record extent");
     let value = BuildTimeValue::Struct {
@@ -1117,8 +1135,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let legacy =
-        compile_to_checked(&legacy_path, None).expect("legacy numbered schema should check");
+    let legacy = compile_to_checked(CheckedCompileRequest::new(&legacy_path, None))
+        .expect("legacy numbered schema should check");
     let retained = compute_layout_plan(&legacy.typed, "RecordLayout::plan", "Samples")
         .expect("legacy numbered aggregate layout should validate");
     assert_eq!(retained.entries[0].field, "legacy_pair");
@@ -1133,8 +1151,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let renamed =
-        compile_to_checked(&renamed_path, None).expect("renamed numbered schema should check");
+    let renamed = compile_to_checked(CheckedCompileRequest::new(&renamed_path, None))
+        .expect("renamed numbered schema should check");
     let value = BuildTimeValue::Struct {
         type_name: "Samples".to_owned(),
         fields: vec![(
@@ -1202,7 +1220,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).expect("owned record producer should check");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("owned record producer should check");
     let report = compute_layout_plan(&checked.typed, "RecordLayout::plan", "Samples")
         .expect("owned record should have one whole-field placement");
     let mut bytes = [0xa5; 24];
@@ -1256,7 +1275,7 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("closed copy-valued materialization fixture should check");
     let layout = compute_layout_plan(&checked.typed, "RecordLayout::plan", "Samples")
         .expect("fixture layout should validate");
@@ -1378,7 +1397,7 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("closed non-NaN float materialization fixture should check");
     let layout = compute_layout_plan(&checked.typed, "FloatLayout::plan", "Samples")
         .expect("fixture layout should validate");
@@ -1483,7 +1502,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).expect("owned array producer should check");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("owned array producer should check");
     let report = compute_layout_plan(&checked.typed, "ArrayLayout::plan", "Samples")
         .expect("owned array should have one whole-field placement");
     let mut bytes = [0xa5; 12];
@@ -1533,7 +1553,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).expect("tiled fixed array should check");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("tiled fixed array should check");
     let report = compute_layout_plan(&checked.typed, "ArrayLayout::plan", "Samples")
         .expect("one element At per fixed-array element should validate");
     assert_eq!(report.offsets, None);
@@ -1609,8 +1630,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked =
-        compile_to_checked(&main_path, None).expect("owned fixed-record array should check");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("owned fixed-record array should check");
     let report = compute_layout_plan(&checked.typed, "ArrayLayout::plan", "Samples")
         .expect("fixed-record array should have one whole-field placement");
     let mut bytes = [0xa5; 32];
@@ -1786,7 +1807,7 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("closed generic record specializations should check");
     let narrow = checked
         .typed
@@ -1944,7 +1965,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).expect("erased field producer should check");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("erased field producer should check");
     let report = compute_layout_plan(&checked.typed, "Spread::plan", "Certified")
         .expect("only relevant fields should enter the normalized layout");
     let mut bytes = [0xa5; 20];
@@ -2005,8 +2027,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked =
-        compile_to_checked(&main_path, None).expect("nested erased field producer should check");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("nested erased field producer should check");
     let report = compute_layout_plan(&checked.typed, "Whole::plan", "Envelope")
         .expect("the nested record should retain one relevant whole-field extent");
     let mut bytes = [0xa5; 16];
@@ -2092,8 +2114,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked =
-        compile_to_checked(&main_path, None).expect("record array with erased fields should check");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("record array with erased fields should check");
     let report = compute_layout_plan(&checked.typed, "Whole::plan", "Batch")
         .expect("record array should retain one whole repeated extent");
     let mut bytes = [0xa5; 24];
@@ -2180,7 +2202,7 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("tiled record array with erased fields should check");
     let report = compute_layout_plan(&checked.typed, "Tiled::plan", "Batch")
         .expect("the repeated field should accept one At per physical element");
@@ -2227,7 +2249,7 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("all-erased owned record should remain a checked semantic value");
     let report = compute_layout_plan(&checked.typed, "Whole::plan", "ProofBox")
         .expect("an all-erased owned record should require no physical field entries");
@@ -2292,7 +2314,7 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("nested all-erased record should remain semantically checked");
     let report = compute_layout_plan(&checked.typed, "Whole::plan", "Envelope")
         .expect("only the physically relevant scalar should require placement");
@@ -2370,7 +2392,7 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("an array of erased-only records should remain semantically checked");
     let report = compute_layout_plan(&checked.typed, "Whole::plan", "Envelope")
         .expect("only the physically relevant scalar should require placement");
@@ -2449,7 +2471,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).expect("u64 schema should check");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("u64 schema should check");
     let report = compute_layout_plan(&checked.typed, "Whole::plan", "Samples")
         .expect("u64 should have one whole-field placement");
     let value = BuildTimeValue::Struct {
@@ -2495,7 +2518,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).expect("program should type");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("program should type");
     let error = compute_layout_plan(&checked.typed, "ArrayBits::plan", "Samples")
         .expect_err("aggregate bit placement must stay outside the fixed-array At slice");
     assert!(error.contains("aggregate fields support only `At` placement"));
@@ -2525,7 +2549,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).expect("effectful program should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("effectful program should compile");
     let error = compute_layout_plan(&checked.typed, "Chatty::plan", "Simple")
         .expect_err("an effectful policy must be rejected");
     assert!(
@@ -2559,7 +2584,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).expect("overlap program should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("overlap program should compile");
     let error = compute_layout_plan(&checked.typed, "Overlapper::plan", "Pair")
         .expect_err("an overlapping plan must be rejected");
     assert!(
@@ -2599,7 +2625,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).expect("fragment policy should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("fragment policy should compile");
     let report = compute_layout_plan(&checked.typed, "SplitAddress::plan", "EntryTarget")
         .expect("complete fragments should validate");
 
@@ -2670,8 +2697,8 @@ data Main { value: ForeignIntegers<PortableStat>; }
 machine Main::main(&mut self) { }
 "#,
     );
-    let mut checked =
-        compile_to_checked(&main_path, None).expect("stored integer policy should compile");
+    let mut checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("stored integer policy should compile");
     let report = compute_layout_plan(&checked.typed, "ForeignIntegers::plan", "PortableStat")
         .expect("both stored integer ranges fit their semantic carriers");
 
@@ -2809,11 +2836,10 @@ fn integer_at_retains_total_write_evidence_for_a_bounded_carrier() {
         .join("tests/omega/pass")
         .join(fixture_roster::RUNTIME_PLAN_LAID_INTEGER_AT_TOTAL_WRITE_EXIT)
         .join("main.omg");
-    let mut checked = compile_to_checked_with_packages(
-        &canary,
-        None,
-        package_inputs_with_standard_library(&canary),
-    )
+    let mut checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs_with_standard_library(&canary)),
+        ..CheckedCompileRequest::new(&canary, None)
+    })
     .expect("total-write canary should typecheck");
     let recorded_index = checked
         .typed
@@ -2876,8 +2902,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked =
-        compile_to_checked(&main_path, None).expect("stored integer policy should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("stored integer policy should compile");
     let error = compute_layout_plan(&checked.typed, "BadInteger::plan", "UnsignedOnly")
         .expect_err("a signed stored range cannot totally decode into an unsigned carrier");
     assert!(
@@ -2911,7 +2937,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).expect("compact bit policy should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("compact bit policy should compile");
     let report = compute_layout_plan(&checked.typed, "CompactBits::plan", "PackedFlags")
         .expect("bool and range-constrained fields should use their declared bit width");
     assert_eq!(report.size, Some(1));
@@ -2962,7 +2989,7 @@ machine Main::main(&mut self) { }
     for width in [3, 4] {
         let source = fractional_source.replace("width: 3 }", &format!("width: {width} }}"));
         let main_path = write_program(&format!("fractional-bit-policy-{width}"), &source);
-        let checked = compile_to_checked(&main_path, None)
+        let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
             .expect("the exact anonymous endpoint is the integer eight");
         let report = compute_layout_plan(&checked.typed, "CompactBits::plan", "PackedFlags");
         if width == 3 {
@@ -3013,7 +3040,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).expect("compact gap should parse");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("compact gap should parse");
     let error = compute_layout_plan(&checked.typed, "TooNarrow::plan", "PackedMode")
         .expect_err("a constrained field must still tile every representable bit");
     assert!(
@@ -3047,7 +3075,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).expect("gap policy should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("gap policy should compile");
     let error = compute_layout_plan(&checked.typed, "Gap::plan", "EntryTarget")
         .expect_err("source gaps must reject");
     assert!(
@@ -3084,8 +3113,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked =
-        compile_to_checked(&main_path, None).expect("full-width u64 policy should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("full-width u64 policy should compile");
     let error = compute_layout_plan(&checked.typed, "Excess::plan", "Simple")
         .expect_err("a full-width entry count must exceed the plan capacity");
     assert!(
@@ -3140,7 +3169,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).expect("case schema should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("case schema should compile");
     let report = compute_layout_plan(&checked.typed, "InspectCases::plan", "Choice")
         .expect("case identity should reach the build-time Schema value");
     assert_eq!(
@@ -3177,8 +3207,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let reordered =
-        compile_to_checked(&reordered_path, None).expect("reordered case schema should compile");
+    let reordered = compile_to_checked(CheckedCompileRequest::new(&reordered_path, None))
+        .expect("reordered case schema should compile");
     let reordered_report = compute_layout_plan(&reordered.typed, "InspectCases::plan", "Choice")
         .expect("reordered case schema should normalize");
     assert_eq!(

@@ -1,3 +1,4 @@
+use compiler::CheckedCompileRequest;
 use std::fs;
 use std::path::PathBuf;
 
@@ -954,14 +955,15 @@ fn depth_twenty_four_source_with(
 #[test]
 fn source_placement_custody_accepts_the_exact_erased_field_projection() {
     let main = write_program("exact", &source("    authority: Evidence;"));
-    compile_to_checked(&main, None).expect("exact placement custody should compile");
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("exact placement custody should compile");
 }
 
 #[test]
 fn source_placement_custody_rejects_a_missing_erased_field() {
     let main = write_program("missing", &source(""));
-    let diagnostics =
-        compile_to_checked(&main, None).expect_err("missing placement custody must fail closed");
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect_err("missing placement custody must fail closed");
     assert_diagnostic(
         &diagnostics,
         &[
@@ -979,7 +981,7 @@ fn source_placement_custody_rejects_an_extra_represented_field() {
         "represented",
         &source("    authority: Evidence;\n    bits: u32;"),
     );
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("represented placement fields must remain absent from custody");
     assert_diagnostic(
         &diagnostics,
@@ -998,8 +1000,8 @@ fn source_placement_custody_rejects_an_extra_non_schema_field() {
         "extra",
         &source("    authority: Evidence;\n    spare: Evidence;"),
     );
-    let diagnostics =
-        compile_to_checked(&main, None).expect_err("extra custody paths must fail closed");
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect_err("extra custody paths must fail closed");
     assert_diagnostic(
         &diagnostics,
         &[
@@ -1013,8 +1015,8 @@ fn source_placement_custody_rejects_an_extra_non_schema_field() {
 #[test]
 fn source_placement_custody_rejects_the_wrong_exact_type() {
     let main = write_program("wrong-type", &source("    authority: OtherEvidence;"));
-    let diagnostics =
-        compile_to_checked(&main, None).expect_err("custody field types must agree exactly");
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect_err("custody field types must agree exactly");
     assert_diagnostic(
         &diagnostics,
         &[
@@ -1032,8 +1034,8 @@ fn source_placement_custody_rejects_the_wrong_multiplicity() {
         "wrong-multiplicity",
         &source("    authority: CopyEvidence;"),
     );
-    let diagnostics =
-        compile_to_checked(&main, None).expect_err("custody multiplicity must agree exactly");
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect_err("custody multiplicity must agree exactly");
     assert_diagnostic(
         &diagnostics,
         &[
@@ -1048,7 +1050,8 @@ fn source_placement_custody_rejects_the_wrong_multiplicity() {
 #[test]
 fn placement_custody_revalidation_rejects_policy_decision_drift() {
     let main = write_program("policy-drift", &source("    authority: Evidence;"));
-    let mut checked = compile_to_checked(&main, None).expect("baseline custody must compile");
+    let mut checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("baseline custody must compile");
     let plan = checked
         .typed
         .placed_view_plans
@@ -1088,7 +1091,8 @@ fn source_placement_custody_accepts_one_nested_projection_record_path() {
         "nested-exact",
         &nested_source("    authority: Evidence;", "    header: HeaderCustody;"),
     );
-    compile_to_checked(&main, None).expect("exact nested placement custody should compile");
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("exact nested placement custody should compile");
 }
 
 #[test]
@@ -1097,8 +1101,8 @@ fn source_placement_custody_rejects_a_missing_nested_leaf() {
         "nested-missing",
         &nested_source("", "    header: HeaderCustody;"),
     );
-    let diagnostics =
-        compile_to_checked(&main, None).expect_err("missing nested custody leaf must fail closed");
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect_err("missing nested custody leaf must fail closed");
     assert_diagnostic(
         &diagnostics,
         &[
@@ -1116,7 +1120,7 @@ fn source_placement_custody_rejects_a_cross_sibling_projection() {
         "nested-cross-sibling",
         &nested_source("    authority: Evidence;", "    sibling: HeaderCustody;"),
     );
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("custody projection paths cannot move across siblings");
     assert_diagnostic(
         &diagnostics,
@@ -1139,7 +1143,7 @@ fn source_placement_custody_rejects_a_nested_represented_sibling() {
             "    header: HeaderCustody;",
         ),
     );
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("represented nested fields must remain absent from custody");
     assert_diagnostic(
         &diagnostics,
@@ -1162,8 +1166,8 @@ fn source_placement_custody_rejects_the_wrong_nested_leaf_type() {
             "    header: HeaderCustody;",
         ),
     );
-    let diagnostics =
-        compile_to_checked(&main, None).expect_err("nested custody leaf type must agree exactly");
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect_err("nested custody leaf type must agree exactly");
     assert_diagnostic(
         &diagnostics,
         &[
@@ -1181,7 +1185,7 @@ fn source_placement_custody_rejects_the_wrong_nested_leaf_multiplicity() {
         "nested-wrong-multiplicity",
         &nested_source("    authority: CopyEvidence;", "    header: HeaderCustody;"),
     );
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("nested custody leaf multiplicity must agree exactly");
     assert_diagnostic(
         &diagnostics,
@@ -1204,7 +1208,8 @@ fn source_placement_custody_accepts_two_nested_projection_record_paths() {
             "    envelope: EnvelopeCustody;",
         ),
     );
-    compile_to_checked(&main, None).expect("exact depth-two placement custody should compile");
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("exact depth-two placement custody should compile");
 }
 
 #[test]
@@ -1217,7 +1222,7 @@ fn source_placement_custody_rejects_a_missing_depth_two_leaf() {
             "    envelope: EnvelopeCustody;",
         ),
     );
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("missing depth-two custody leaf must fail closed");
     assert_diagnostic(
         &diagnostics,
@@ -1240,7 +1245,7 @@ fn source_placement_custody_rejects_a_cross_sibling_depth_two_projection() {
             "    sibling: EnvelopeCustody;",
         ),
     );
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("depth-two custody paths cannot move across siblings");
     assert_diagnostic(
         &diagnostics,
@@ -1264,7 +1269,7 @@ fn source_placement_custody_rejects_a_depth_two_represented_sibling() {
             "    envelope: EnvelopeCustody;",
         ),
     );
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("represented depth-two fields must remain absent from custody");
     assert_diagnostic(
         &diagnostics,
@@ -1288,7 +1293,7 @@ fn source_placement_custody_rejects_a_represented_intermediate_sibling() {
             "    envelope: EnvelopeCustody;",
         ),
     );
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("represented intermediate fields must remain absent from custody");
     assert_diagnostic(
         &diagnostics,
@@ -1314,7 +1319,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_two_wrapper() {
         1,
     );
     let main = write_program("depth-two-zero-wrapper", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a zero-layout nested wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -1337,7 +1342,7 @@ fn source_placement_custody_rejects_the_wrong_depth_two_leaf_type() {
             "    envelope: EnvelopeCustody;",
         ),
     );
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("depth-two custody leaf type must agree exactly");
     assert_diagnostic(
         &diagnostics,
@@ -1360,7 +1365,7 @@ fn source_placement_custody_rejects_the_wrong_depth_two_leaf_multiplicity() {
             "    envelope: EnvelopeCustody;",
         ),
     );
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("depth-two custody leaf multiplicity must agree exactly");
     assert_diagnostic(
         &diagnostics,
@@ -1384,7 +1389,8 @@ fn source_placement_custody_accepts_three_nested_projection_record_paths() {
             "    frame: FrameCustody;",
         ),
     );
-    compile_to_checked(&main, None).expect("exact depth-three placement custody should compile");
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("exact depth-three placement custody should compile");
 }
 
 #[test]
@@ -1398,7 +1404,7 @@ fn source_placement_custody_rejects_a_missing_depth_three_leaf() {
             "    frame: FrameCustody;",
         ),
     );
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("missing depth-three custody leaf must fail closed");
     assert_diagnostic(
         &diagnostics,
@@ -1422,7 +1428,7 @@ fn source_placement_custody_rejects_a_missing_depth_three_projection_record() {
             "    frame: FrameCustody;",
         ),
     );
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("an omitted depth-three projection record must fail closed");
     assert_diagnostic(
         &diagnostics,
@@ -1446,7 +1452,7 @@ fn source_placement_custody_rejects_a_cross_sibling_depth_three_projection() {
             "    sibling: FrameCustody;",
         ),
     );
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("depth-three custody paths cannot move across siblings");
     assert_diagnostic(
         &diagnostics,
@@ -1471,7 +1477,7 @@ fn source_placement_custody_rejects_a_depth_three_represented_leaf() {
             "    frame: FrameCustody;",
         ),
     );
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("represented depth-three leaves must remain absent from custody");
     assert_diagnostic(
         &diagnostics,
@@ -1508,7 +1514,7 @@ fn source_placement_custody_rejects_the_wrong_depth_three_leaf_type_and_multipli
                 "    frame: FrameCustody;",
             ),
         );
-        let diagnostics = compile_to_checked(&main, None)
+        let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
             .expect_err("depth-three custody leaf identity must agree exactly");
         assert_diagnostic(
             &diagnostics,
@@ -1536,7 +1542,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_three_wrapper() {
         1,
     );
     let main = write_program("depth-three-zero-wrapper", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a zero-layout third wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -1559,7 +1565,8 @@ fn source_placement_custody_accepts_four_nested_projection_record_paths() {
         "    frame: BoxedCustody;",
     );
     let main = write_program("depth-four-exact", &source);
-    compile_to_checked(&main, None).expect("exact depth-four placement custody should compile");
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("exact depth-four placement custody should compile");
 }
 
 #[test]
@@ -1633,8 +1640,8 @@ fn source_placement_custody_rejects_depth_four_projection_drift() {
             name,
             &depth_four_nested_source(header, envelope, frame, boxed, packet),
         );
-        let diagnostics =
-            compile_to_checked(&main, None).expect_err("depth-four custody drift must fail closed");
+        let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
+            .expect_err("depth-four custody drift must fail closed");
         assert_diagnostic(&diagnostics, &["Native::plan", expected[0], expected[1]]);
     }
 }
@@ -1654,7 +1661,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_four_wrapper() {
         1,
     );
     let main = write_program("depth-four-zero-wrapper", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a zero-layout fourth wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -1677,7 +1684,8 @@ fn source_placement_custody_accepts_five_nested_projection_record_paths() {
         "    frame: CrateCustody;",
     );
     let main = write_program("depth-five-exact", &source);
-    compile_to_checked(&main, None).expect("exact depth-five placement custody should compile");
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("exact depth-five placement custody should compile");
 }
 
 #[test]
@@ -1691,7 +1699,7 @@ fn source_placement_custody_rejects_a_missing_depth_five_projection() {
         "",
     );
     let main = write_program("depth-five-hidden", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("missing fifth-level custody projection must fail closed");
     assert_diagnostic(
         &diagnostics,
@@ -1783,8 +1791,8 @@ fn source_placement_custody_rejects_depth_five_projection_drift() {
             name,
             &depth_five_nested_source(header, envelope, frame, boxed, crate_fields, packet),
         );
-        let diagnostics =
-            compile_to_checked(&main, None).expect_err("depth-five custody drift must fail closed");
+        let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
+            .expect_err("depth-five custody drift must fail closed");
         assert_diagnostic(&diagnostics, &["Native::plan", expected[0], expected[1]]);
     }
 }
@@ -1805,7 +1813,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_five_wrapper() {
         1,
     );
     let main = write_program("depth-five-zero-wrapper", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a zero-layout fifth wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -1829,7 +1837,8 @@ fn source_placement_custody_accepts_six_nested_projection_record_paths() {
         "    frame: ChestCustody;",
     );
     let main = write_program("depth-six-exact", &source);
-    compile_to_checked(&main, None).expect("exact depth-six placement custody should compile");
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("exact depth-six placement custody should compile");
 }
 
 #[test]
@@ -1844,7 +1853,7 @@ fn source_placement_custody_rejects_a_missing_depth_six_projection() {
         "",
     );
     let main = write_program("depth-six-hidden", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("missing sixth-level custody projection must fail closed");
     assert_diagnostic(
         &diagnostics,
@@ -1942,8 +1951,8 @@ fn source_placement_custody_rejects_depth_six_projection_drift() {
             name,
             &depth_six_nested_source(header, envelope, frame, boxed, crate_fields, chest, packet),
         );
-        let diagnostics =
-            compile_to_checked(&main, None).expect_err("depth-six custody drift must fail closed");
+        let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
+            .expect_err("depth-six custody drift must fail closed");
         assert_diagnostic(&diagnostics, &["Native::plan", expected[0], expected[1]]);
     }
 }
@@ -1965,7 +1974,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_six_wrapper() {
         1,
     );
     let main = write_program("depth-six-zero-wrapper", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a zero-layout sixth wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -1990,7 +1999,8 @@ fn source_placement_custody_accepts_seven_nested_projection_record_paths() {
         "    frame: VaultCustody;",
     );
     let main = write_program("depth-seven-exact", &source);
-    compile_to_checked(&main, None).expect("exact depth-seven placement custody should compile");
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("exact depth-seven placement custody should compile");
 }
 
 #[test]
@@ -2006,7 +2016,7 @@ fn source_placement_custody_rejects_a_missing_depth_seven_projection() {
         "",
     );
     let main = write_program("depth-seven-hidden", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("missing seventh-level custody projection must fail closed");
     assert_diagnostic(
         &diagnostics,
@@ -2119,7 +2129,7 @@ fn source_placement_custody_rejects_depth_seven_projection_drift() {
                 packet,
             ),
         );
-        let diagnostics = compile_to_checked(&main, None)
+        let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
             .expect_err("depth-seven custody drift must fail closed");
         assert_diagnostic(&diagnostics, &["Native::plan", expected[0], expected[1]]);
     }
@@ -2143,7 +2153,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_seven_wrapper() {
         1,
     );
     let main = write_program("depth-seven-zero-wrapper", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a zero-layout seventh wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -2173,7 +2183,7 @@ fn source_placement_custody_rejects_a_depth_seven_back_edge() {
         1,
     );
     let main = write_program("depth-seven-back-edge", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a seventh-level back-edge must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -2200,7 +2210,8 @@ fn source_placement_custody_accepts_eight_nested_projection_record_paths() {
         "    frame: StrongboxCustody;",
     );
     let main = write_program("depth-eight-exact", &source);
-    compile_to_checked(&main, None).expect("exact depth-eight placement custody should compile");
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("exact depth-eight placement custody should compile");
 }
 
 #[test]
@@ -2217,7 +2228,7 @@ fn source_placement_custody_rejects_a_missing_depth_eight_projection() {
         "",
     );
     let main = write_program("depth-eight-hidden", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("missing eighth-level custody projection must fail closed");
     assert_diagnostic(
         &diagnostics,
@@ -2349,7 +2360,7 @@ fn source_placement_custody_rejects_depth_eight_projection_drift() {
                 packet,
             ),
         );
-        let diagnostics = compile_to_checked(&main, None)
+        let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
             .expect_err("depth-eight custody drift must fail closed");
         assert_diagnostic(&diagnostics, &["Native::plan", expected[0], expected[1]]);
     }
@@ -2374,7 +2385,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_eight_wrapper() {
         1,
     );
     let main = write_program("depth-eight-zero-wrapper", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a zero-layout eighth wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -2405,7 +2416,7 @@ fn source_placement_custody_rejects_a_depth_eight_back_edge() {
         1,
     );
     let main = write_program("depth-eight-back-edge", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("an eighth-level back-edge must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -2433,7 +2444,8 @@ fn source_placement_custody_accepts_nine_nested_projection_record_paths() {
         "    frame: LockboxCustody;",
     );
     let main = write_program("depth-nine-exact", &source);
-    compile_to_checked(&main, None).expect("exact depth-nine placement custody should compile");
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("exact depth-nine placement custody should compile");
 }
 
 #[test]
@@ -2451,7 +2463,7 @@ fn source_placement_custody_rejects_a_missing_depth_nine_projection() {
         "",
     );
     let main = write_program("depth-nine-hidden", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("missing ninth-level custody projection must fail closed");
     assert_diagnostic(
         &diagnostics,
@@ -2591,8 +2603,8 @@ fn source_placement_custody_rejects_depth_nine_projection_drift() {
                 packet,
             ),
         );
-        let diagnostics =
-            compile_to_checked(&main, None).expect_err("depth-nine custody drift must fail closed");
+        let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
+            .expect_err("depth-nine custody drift must fail closed");
         assert_diagnostic(&diagnostics, &["Native::plan", expected[0], expected[1]]);
     }
 }
@@ -2617,7 +2629,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_nine_wrapper() {
         1,
     );
     let main = write_program("depth-nine-zero-wrapper", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a zero-layout ninth wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -2649,7 +2661,7 @@ fn source_placement_custody_rejects_a_depth_nine_back_edge() {
         1,
     );
     let main = write_program("depth-nine-back-edge", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a ninth-level back-edge must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -2678,7 +2690,8 @@ fn source_placement_custody_accepts_ten_nested_projection_record_paths() {
         "    frame: CofferCustody;",
     );
     let main = write_program("depth-ten-exact", &source);
-    compile_to_checked(&main, None).expect("exact depth-ten placement custody should compile");
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("exact depth-ten placement custody should compile");
 }
 
 #[test]
@@ -2697,7 +2710,7 @@ fn source_placement_custody_rejects_a_missing_depth_ten_projection() {
         "",
     );
     let main = write_program("depth-ten-hidden", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("missing tenth-level custody projection must fail closed");
     assert_diagnostic(
         &diagnostics,
@@ -2845,8 +2858,8 @@ fn source_placement_custody_rejects_depth_ten_projection_drift() {
                 packet,
             ),
         );
-        let diagnostics =
-            compile_to_checked(&main, None).expect_err("depth-ten custody drift must fail closed");
+        let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
+            .expect_err("depth-ten custody drift must fail closed");
         assert_diagnostic(&diagnostics, &["Native::plan", expected[0], expected[1]]);
     }
 }
@@ -2872,7 +2885,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_ten_wrapper() {
         1,
     );
     let main = write_program("depth-ten-zero-wrapper", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a zero-layout tenth wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -2905,7 +2918,7 @@ fn source_placement_custody_rejects_a_depth_ten_back_edge() {
         1,
     );
     let main = write_program("depth-ten-back-edge", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a tenth-level back-edge must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -2926,7 +2939,8 @@ fn source_placement_custody_accepts_eleven_nested_projection_record_paths() {
         "    frame: CasketCustody;",
     );
     let main = write_program("depth-eleven-exact", &source);
-    compile_to_checked(&main, None).expect("exact depth-eleven placement custody should compile");
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("exact depth-eleven placement custody should compile");
 }
 
 #[test]
@@ -2973,7 +2987,7 @@ fn source_placement_custody_rejects_depth_eleven_projection_drift() {
         ),
     ] {
         let main = write_program(name, &depth_eleven_source_with(header, casket, packet));
-        let diagnostics = compile_to_checked(&main, None)
+        let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
             .expect_err("depth-eleven custody drift must fail closed");
         assert_diagnostic(&diagnostics, &["Native::plan", expected[0], expected[1]]);
     }
@@ -2988,7 +3002,7 @@ fn source_placement_custody_preserves_depth_first_diagnostic_order_at_depth_elev
         "    frame: CasketCustody;",
     );
     let main = write_program("depth-eleven-cross-sibling", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a cross-sibling depth-eleven projection must fail closed");
     let messages = diagnostics
         .iter()
@@ -3019,7 +3033,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_eleven_wrapper() {
         1,
     );
     let main = write_program("depth-eleven-zero-wrapper", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a zero-layout eleventh wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -3044,7 +3058,7 @@ fn source_placement_custody_rejects_a_depth_eleven_back_edge() {
         1,
     );
     let main = write_program("depth-eleven-back-edge", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("an eleventh-level back-edge must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -3065,7 +3079,8 @@ fn source_placement_custody_accepts_twelve_nested_projection_record_paths() {
         "    frame: ReliquaryCustody;",
     );
     let main = write_program("depth-twelve-exact", &source);
-    compile_to_checked(&main, None).expect("exact depth-twelve placement custody should compile");
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("exact depth-twelve placement custody should compile");
 }
 
 #[test]
@@ -3112,7 +3127,7 @@ fn source_placement_custody_rejects_depth_twelve_projection_drift() {
         ),
     ] {
         let main = write_program(name, &depth_twelve_source_with(header, reliquary, packet));
-        let diagnostics = compile_to_checked(&main, None)
+        let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
             .expect_err("depth-twelve custody drift must fail closed");
         assert_diagnostic(&diagnostics, &["Native::plan", expected[0], expected[1]]);
     }
@@ -3127,7 +3142,7 @@ fn source_placement_custody_preserves_depth_first_diagnostic_order_at_depth_twel
         "    frame: ReliquaryCustody;",
     );
     let main = write_program("depth-twelve-cross-sibling", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a cross-sibling depth-twelve projection must fail closed");
     let messages = diagnostics
         .iter()
@@ -3158,7 +3173,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_twelve_wrapper() {
         1,
     );
     let main = write_program("depth-twelve-zero-wrapper", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a zero-layout twelfth wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -3183,7 +3198,7 @@ fn source_placement_custody_rejects_a_depth_twelve_back_edge() {
         1,
     );
     let main = write_program("depth-twelve-back-edge", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a twelfth-level back-edge must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -3204,7 +3219,8 @@ fn source_placement_custody_accepts_thirteen_nested_projection_record_paths() {
         "    frame: ShrineCustody;",
     );
     let main = write_program("depth-thirteen-exact", &source);
-    compile_to_checked(&main, None).expect("exact depth-thirteen placement custody should compile");
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("exact depth-thirteen placement custody should compile");
 }
 
 #[test]
@@ -3251,7 +3267,7 @@ fn source_placement_custody_rejects_depth_thirteen_projection_drift() {
         ),
     ] {
         let main = write_program(name, &depth_thirteen_source_with(header, shrine, packet));
-        let diagnostics = compile_to_checked(&main, None)
+        let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
             .expect_err("depth-thirteen custody drift must fail closed");
         assert_diagnostic(&diagnostics, &["Native::plan", expected[0], expected[1]]);
     }
@@ -3266,7 +3282,7 @@ fn source_placement_custody_preserves_depth_first_diagnostic_order_at_depth_thir
         "    frame: ShrineCustody;",
     );
     let main = write_program("depth-thirteen-cross-sibling", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a cross-sibling depth-thirteen projection must fail closed");
     let messages = diagnostics
         .iter()
@@ -3297,7 +3313,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_thirteen_wrapper() {
         1,
     );
     let main = write_program("depth-thirteen-zero-wrapper", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a zero-layout thirteenth wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -3322,7 +3338,7 @@ fn source_placement_custody_rejects_a_depth_thirteen_back_edge() {
         1,
     );
     let main = write_program("depth-thirteen-back-edge", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a thirteenth-level back-edge must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -3343,7 +3359,8 @@ fn source_placement_custody_accepts_fourteen_nested_projection_record_paths() {
         "    frame: SanctumCustody;",
     );
     let main = write_program("depth-fourteen-exact", &source);
-    compile_to_checked(&main, None).expect("exact depth-fourteen placement custody should compile");
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("exact depth-fourteen placement custody should compile");
 }
 
 #[test]
@@ -3390,7 +3407,7 @@ fn source_placement_custody_rejects_depth_fourteen_projection_drift() {
         ),
     ] {
         let main = write_program(name, &depth_fourteen_source_with(header, sanctum, packet));
-        let diagnostics = compile_to_checked(&main, None)
+        let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
             .expect_err("depth-fourteen custody drift must fail closed");
         assert_diagnostic(&diagnostics, &["Native::plan", expected[0], expected[1]]);
     }
@@ -3405,7 +3422,7 @@ fn source_placement_custody_preserves_depth_first_diagnostic_order_at_depth_four
         "    frame: SanctumCustody;",
     );
     let main = write_program("depth-fourteen-cross-sibling", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a cross-sibling depth-fourteen projection must fail closed");
     let messages = diagnostics
         .iter()
@@ -3436,7 +3453,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_fourteen_wrapper() {
         1,
     );
     let main = write_program("depth-fourteen-zero-wrapper", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a zero-layout fourteenth wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -3461,7 +3478,7 @@ fn source_placement_custody_rejects_a_depth_fourteen_back_edge() {
         1,
     );
     let main = write_program("depth-fourteen-back-edge", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a fourteenth-level back-edge must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -3482,7 +3499,8 @@ fn source_placement_custody_accepts_fifteen_nested_projection_record_paths() {
         "    frame: TabernacleCustody;",
     );
     let main = write_program("depth-fifteen-exact", &source);
-    compile_to_checked(&main, None).expect("exact depth-fifteen placement custody should compile");
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("exact depth-fifteen placement custody should compile");
 }
 
 #[test]
@@ -3529,7 +3547,7 @@ fn source_placement_custody_rejects_depth_fifteen_projection_drift() {
         ),
     ] {
         let main = write_program(name, &depth_fifteen_source_with(header, tabernacle, packet));
-        let diagnostics = compile_to_checked(&main, None)
+        let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
             .expect_err("depth-fifteen custody drift must fail closed");
         assert_diagnostic(&diagnostics, &["Native::plan", expected[0], expected[1]]);
     }
@@ -3544,7 +3562,7 @@ fn source_placement_custody_preserves_depth_first_diagnostic_order_at_depth_fift
         "    frame: TabernacleCustody;",
     );
     let main = write_program("depth-fifteen-cross-sibling", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a cross-sibling depth-fifteen projection must fail closed");
     let messages = diagnostics
         .iter()
@@ -3575,7 +3593,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_fifteen_wrapper() {
         1,
     );
     let main = write_program("depth-fifteen-zero-wrapper", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a zero-layout fifteenth wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -3600,7 +3618,7 @@ fn source_placement_custody_rejects_a_depth_fifteen_back_edge() {
         1,
     );
     let main = write_program("depth-fifteen-back-edge", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a fifteenth-level back-edge must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -3621,7 +3639,8 @@ fn source_placement_custody_accepts_sixteen_nested_projection_record_paths() {
         "    frame: ChapelCustody;",
     );
     let main = write_program("depth-sixteen-exact", &source);
-    compile_to_checked(&main, None).expect("exact depth-sixteen placement custody should compile");
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("exact depth-sixteen placement custody should compile");
 }
 
 #[test]
@@ -3668,7 +3687,7 @@ fn source_placement_custody_rejects_depth_sixteen_projection_drift() {
         ),
     ] {
         let main = write_program(name, &depth_sixteen_source_with(header, chapel, packet));
-        let diagnostics = compile_to_checked(&main, None)
+        let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
             .expect_err("depth-sixteen custody drift must fail closed");
         assert_diagnostic(&diagnostics, &["Native::plan", expected[0], expected[1]]);
     }
@@ -3683,7 +3702,7 @@ fn source_placement_custody_preserves_depth_first_diagnostic_order_at_depth_sixt
         "    frame: ChapelCustody;",
     );
     let main = write_program("depth-sixteen-cross-sibling", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a cross-sibling depth-sixteen projection must fail closed");
     let messages = diagnostics
         .iter()
@@ -3714,7 +3733,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_sixteen_wrapper() {
         1,
     );
     let main = write_program("depth-sixteen-zero-wrapper", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a zero-layout sixteenth wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -3739,7 +3758,7 @@ fn source_placement_custody_rejects_a_depth_sixteen_back_edge() {
         1,
     );
     let main = write_program("depth-sixteen-back-edge", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a sixteenth-level back-edge must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -3760,7 +3779,7 @@ fn source_placement_custody_accepts_seventeen_nested_projection_record_paths() {
         "    frame: BasilicaCustody;",
     );
     let main = write_program("depth-seventeen-exact", &source);
-    compile_to_checked(&main, None)
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect("exact depth-seventeen placement custody should compile");
 }
 
@@ -3808,7 +3827,7 @@ fn source_placement_custody_rejects_depth_seventeen_projection_drift() {
         ),
     ] {
         let main = write_program(name, &depth_seventeen_source_with(header, basilica, packet));
-        let diagnostics = compile_to_checked(&main, None)
+        let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
             .expect_err("depth-seventeen custody drift must fail closed");
         assert_diagnostic(&diagnostics, &["Native::plan", expected[0], expected[1]]);
     }
@@ -3823,7 +3842,7 @@ fn source_placement_custody_preserves_depth_first_diagnostic_order_at_depth_seve
         "    frame: BasilicaCustody;",
     );
     let main = write_program("depth-seventeen-cross-sibling", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a cross-sibling depth-seventeen projection must fail closed");
     let messages = diagnostics
         .iter()
@@ -3854,7 +3873,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_seventeen_wrapper() {
         1,
     );
     let main = write_program("depth-seventeen-zero-wrapper", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a zero-layout seventeenth wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -3879,7 +3898,7 @@ fn source_placement_custody_rejects_a_depth_seventeen_back_edge() {
         1,
     );
     let main = write_program("depth-seventeen-back-edge", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a seventeenth-level back-edge must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -3900,7 +3919,8 @@ fn source_placement_custody_accepts_eighteen_nested_projection_record_paths() {
         "    frame: CathedralCustody;",
     );
     let main = write_program("depth-eighteen-exact", &source);
-    compile_to_checked(&main, None).expect("exact depth-eighteen placement custody should compile");
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("exact depth-eighteen placement custody should compile");
 }
 
 #[test]
@@ -3947,7 +3967,7 @@ fn source_placement_custody_rejects_depth_eighteen_projection_drift() {
         ),
     ] {
         let main = write_program(name, &depth_eighteen_source_with(header, cathedral, packet));
-        let diagnostics = compile_to_checked(&main, None)
+        let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
             .expect_err("depth-eighteen custody drift must fail closed");
         assert_diagnostic(&diagnostics, &["Native::plan", expected[0], expected[1]]);
     }
@@ -3962,7 +3982,7 @@ fn source_placement_custody_preserves_depth_first_diagnostic_order_at_depth_eigh
         "    frame: CathedralCustody;",
     );
     let main = write_program("depth-eighteen-cross-sibling", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a cross-sibling depth-eighteen projection must fail closed");
     let messages = diagnostics
         .iter()
@@ -3993,7 +4013,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_eighteen_wrapper() {
         1,
     );
     let main = write_program("depth-eighteen-zero-wrapper", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a zero-layout eighteenth wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -4018,7 +4038,7 @@ fn source_placement_custody_rejects_a_depth_eighteen_back_edge() {
         1,
     );
     let main = write_program("depth-eighteen-back-edge", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("an eighteenth-level back-edge must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -4039,7 +4059,8 @@ fn source_placement_custody_accepts_nineteen_nested_projection_record_paths() {
         "    frame: AbbeyCustody;",
     );
     let main = write_program("depth-nineteen-exact", &source);
-    compile_to_checked(&main, None).expect("exact depth-nineteen placement custody should compile");
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("exact depth-nineteen placement custody should compile");
 }
 
 #[test]
@@ -4086,7 +4107,7 @@ fn source_placement_custody_rejects_depth_nineteen_projection_drift() {
         ),
     ] {
         let main = write_program(name, &depth_nineteen_source_with(header, abbey, packet));
-        let diagnostics = compile_to_checked(&main, None)
+        let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
             .expect_err("depth-nineteen custody drift must fail closed");
         assert_diagnostic(&diagnostics, &["Native::plan", expected[0], expected[1]]);
     }
@@ -4101,7 +4122,7 @@ fn source_placement_custody_preserves_depth_first_diagnostic_order_at_depth_nine
         "    frame: AbbeyCustody;",
     );
     let main = write_program("depth-nineteen-cross-sibling", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a cross-sibling depth-nineteen projection must fail closed");
     let messages = diagnostics
         .iter()
@@ -4132,7 +4153,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_nineteen_wrapper() {
         1,
     );
     let main = write_program("depth-nineteen-zero-wrapper", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a zero-layout nineteenth wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -4157,7 +4178,7 @@ fn source_placement_custody_rejects_a_depth_nineteen_back_edge() {
         1,
     );
     let main = write_program("depth-nineteen-back-edge", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a nineteenth-level back-edge must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -4178,7 +4199,8 @@ fn source_placement_custody_accepts_twenty_nested_projection_record_paths() {
         "    frame: MonasteryCustody;",
     );
     let main = write_program("depth-twenty-exact", &source);
-    compile_to_checked(&main, None).expect("exact depth-twenty placement custody should compile");
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect("exact depth-twenty placement custody should compile");
 }
 
 #[test]
@@ -4225,7 +4247,7 @@ fn source_placement_custody_rejects_depth_twenty_projection_drift() {
         ),
     ] {
         let main = write_program(name, &depth_twenty_source_with(header, monastery, packet));
-        let diagnostics = compile_to_checked(&main, None)
+        let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
             .expect_err("depth-twenty custody drift must fail closed");
         assert_diagnostic(&diagnostics, &["Native::plan", expected[0], expected[1]]);
     }
@@ -4240,7 +4262,7 @@ fn source_placement_custody_preserves_depth_first_diagnostic_order_at_depth_twen
         "    frame: MonasteryCustody;",
     );
     let main = write_program("depth-twenty-cross-sibling", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a cross-sibling depth-twenty projection must fail closed");
     let messages = diagnostics
         .iter()
@@ -4271,7 +4293,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_twenty_wrapper() {
         1,
     );
     let main = write_program("depth-twenty-zero-wrapper", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a zero-layout twentieth wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -4296,7 +4318,7 @@ fn source_placement_custody_rejects_a_depth_twenty_back_edge() {
         1,
     );
     let main = write_program("depth-twenty-back-edge", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a twentieth-level back-edge must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -4317,7 +4339,7 @@ fn source_placement_custody_accepts_twenty_one_nested_projection_record_paths() 
         "    frame: PrioryCustody;",
     );
     let main = write_program("depth-twenty-one-exact", &source);
-    compile_to_checked(&main, None)
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect("exact depth-twenty-one placement custody should compile");
 }
 
@@ -4365,7 +4387,7 @@ fn source_placement_custody_rejects_depth_twenty_one_projection_drift() {
         ),
     ] {
         let main = write_program(name, &depth_twenty_one_source_with(header, priory, packet));
-        let diagnostics = compile_to_checked(&main, None)
+        let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
             .expect_err("depth-twenty-one custody drift must fail closed");
         assert_diagnostic(&diagnostics, &["Native::plan", expected[0], expected[1]]);
     }
@@ -4380,7 +4402,7 @@ fn source_placement_custody_preserves_depth_first_diagnostic_order_at_depth_twen
         "    frame: PrioryCustody;",
     );
     let main = write_program("depth-twenty-one-cross-sibling", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a cross-sibling depth-twenty-one projection must fail closed");
     let messages = diagnostics
         .iter()
@@ -4411,7 +4433,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_twenty_one_wrapper() {
         1,
     );
     let main = write_program("depth-twenty-one-zero-wrapper", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a zero-layout twenty-first wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -4436,7 +4458,7 @@ fn source_placement_custody_rejects_a_depth_twenty_one_back_edge() {
         1,
     );
     let main = write_program("depth-twenty-one-back-edge", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a twenty-first-level back-edge must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -4457,7 +4479,7 @@ fn source_placement_custody_accepts_twenty_two_nested_projection_record_paths() 
         "    frame: CloisterCustody;",
     );
     let main = write_program("depth-twenty-two-exact", &source);
-    compile_to_checked(&main, None)
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect("exact depth-twenty-two placement custody should compile");
 }
 
@@ -4508,7 +4530,7 @@ fn source_placement_custody_rejects_depth_twenty_two_projection_drift() {
             name,
             &depth_twenty_two_source_with(header, cloister, packet),
         );
-        let diagnostics = compile_to_checked(&main, None)
+        let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
             .expect_err("depth-twenty-two custody drift must fail closed");
         assert_diagnostic(&diagnostics, &["Native::plan", expected[0], expected[1]]);
     }
@@ -4523,7 +4545,7 @@ fn source_placement_custody_preserves_depth_first_diagnostic_order_at_depth_twen
         "    frame: CloisterCustody;",
     );
     let main = write_program("depth-twenty-two-cross-sibling", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a cross-sibling depth-twenty-two projection must fail closed");
     let messages = diagnostics
         .iter()
@@ -4554,7 +4576,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_twenty_two_wrapper() {
         1,
     );
     let main = write_program("depth-twenty-two-zero-wrapper", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a zero-layout twenty-second wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -4579,7 +4601,7 @@ fn source_placement_custody_rejects_a_depth_twenty_two_back_edge() {
         1,
     );
     let main = write_program("depth-twenty-two-back-edge", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a twenty-second-level back-edge must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -4600,7 +4622,7 @@ fn source_placement_custody_accepts_twenty_three_nested_projection_record_paths(
         "    frame: AbbeySeatCustody;",
     );
     let main = write_program("depth-twenty-three-exact", &source);
-    compile_to_checked(&main, None)
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect("exact depth-twenty-three placement custody should compile");
 }
 
@@ -4651,7 +4673,7 @@ fn source_placement_custody_rejects_depth_twenty_three_projection_drift() {
             name,
             &depth_twenty_three_source_with(header, abbey_seat, packet),
         );
-        let diagnostics = compile_to_checked(&main, None)
+        let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
             .expect_err("depth-twenty-three custody drift must fail closed");
         assert_diagnostic(&diagnostics, &["Native::plan", expected[0], expected[1]]);
     }
@@ -4666,7 +4688,7 @@ fn source_placement_custody_preserves_depth_first_diagnostic_order_at_depth_twen
         "    frame: AbbeySeatCustody;",
     );
     let main = write_program("depth-twenty-three-cross-sibling", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a cross-sibling depth-twenty-three projection must fail closed");
     let messages = diagnostics
         .iter()
@@ -4697,7 +4719,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_twenty_three_wrapper() {
         1,
     );
     let main = write_program("depth-twenty-three-zero-wrapper", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a zero-layout twenty-third wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -4722,7 +4744,7 @@ fn source_placement_custody_rejects_a_depth_twenty_three_back_edge() {
         1,
     );
     let main = write_program("depth-twenty-three-back-edge", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a twenty-third-level back-edge must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -4743,7 +4765,7 @@ fn source_placement_custody_accepts_twenty_four_nested_projection_record_paths()
         "    frame: ChapterHouseCustody;",
     );
     let main = write_program("depth-twenty-four-exact", &source);
-    compile_to_checked(&main, None)
+    compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect("exact depth-twenty-four placement custody should compile");
 }
 
@@ -4794,7 +4816,7 @@ fn source_placement_custody_rejects_depth_twenty_four_projection_drift() {
             name,
             &depth_twenty_four_source_with(header, chapter_house, packet),
         );
-        let diagnostics = compile_to_checked(&main, None)
+        let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
             .expect_err("depth-twenty-four custody drift must fail closed");
         assert_diagnostic(&diagnostics, &["Native::plan", expected[0], expected[1]]);
     }
@@ -4809,7 +4831,7 @@ fn source_placement_custody_preserves_depth_first_diagnostic_order_at_depth_twen
         "    frame: ChapterHouseCustody;",
     );
     let main = write_program("depth-twenty-four-cross-sibling", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a cross-sibling depth-twenty-four projection must fail closed");
     let messages = diagnostics
         .iter()
@@ -4840,7 +4862,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_twenty_four_wrapper() {
         1,
     );
     let main = write_program("depth-twenty-four-zero-wrapper", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a zero-layout twenty-fourth wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -4865,7 +4887,7 @@ fn source_placement_custody_rejects_a_depth_twenty_four_back_edge() {
         1,
     );
     let main = write_program("depth-twenty-four-back-edge", &source);
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect_err("a twenty-fourth-level back-edge must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
@@ -4898,8 +4920,8 @@ fn source_placement_custody_keeps_a_twenty_fifth_record_level_fenced() {
         1,
     );
     let main = write_program("depth-twenty-five-fenced", &source);
-    let diagnostics =
-        compile_to_checked(&main, None).expect_err("twenty-fifth-level custody must remain fenced");
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
+        .expect_err("twenty-fifth-level custody must remain fenced");
     assert_diagnostic(
         &diagnostics,
         &[
@@ -4946,7 +4968,7 @@ fn source_placement_custody_keeps_array_and_case_spines_fenced_at_depth_three() 
     ];
     for (name, source, expected) in cases {
         let main = write_program(name, &source);
-        let diagnostics = compile_to_checked(&main, None)
+        let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main, None))
             .expect_err("unsupported depth-three aggregate spines must fail closed");
         assert_diagnostic(&diagnostics, &expected);
     }

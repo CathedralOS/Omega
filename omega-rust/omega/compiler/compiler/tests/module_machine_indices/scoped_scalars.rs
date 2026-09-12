@@ -1,7 +1,8 @@
 use super::{
-    BUFFER, Sources, assert_same_machine_types, compile, compile_to_checked_with_packages,
-    identity, keep, root_inputs, selections,
+    BUFFER, Sources, assert_same_machine_types, compile, compile_to_checked, identity, keep,
+    root_inputs, selections,
 };
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn module_scoped_scalars_keep_distinct_body_values_and_machine_indices() {
@@ -103,9 +104,11 @@ fn module_scoped_scalar_initializers_are_checked_even_when_private_and_unused() 
                 "module settings; data Limits {{}} const Limits::BAD: {carrier} = {initializer};"
             ),
         );
-        let diagnostics =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err("unused private constants still owe declared type conformance");
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("unused private constants still owe declared type conformance");
         assert!(
             diagnostics
                 .iter()
@@ -204,9 +207,11 @@ fn module_scoped_scalars_require_valid_attachment_and_visibility() {
             root.join("settings.omg"),
             &format!("module settings; {declarations}"),
         );
-        let diagnostics =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err("unused scoped constants still owe attachment validity");
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("unused scoped constants still owe attachment validity");
         assert!(
             diagnostics
                 .iter()
@@ -241,8 +246,11 @@ fn module_scoped_scalar_indices_reject_ambiguous_imports_and_runtime_roots() {
             root.join("main.omg"),
             &format!("{imports} {BUFFER} {}", keep("keep", "MAX + 1")),
         );
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect_err("equal scalar values cannot resolve competing declarations");
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("equal scalar values cannot resolve competing declarations");
     }
     for machine in [
         "machine keep(first: u64, value: Buffer<first::Limits::MAX + 1>) {}",
@@ -253,9 +261,11 @@ fn module_scoped_scalar_indices_reject_ambiguous_imports_and_runtime_roots() {
             root.join("main.omg"),
             &format!("use first; {BUFFER} {machine}"),
         );
-        let diagnostics =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err("runtime qualifier cannot acquire a scoped constant identity");
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("runtime qualifier cannot acquire a scoped constant identity");
         assert!(
             diagnostics
                 .iter()
@@ -274,9 +284,11 @@ fn scoped_string_spelling_does_not_admit_a_nominal_initializer() {
         root.join("settings.omg"),
         "module settings; data string {} data Limits {} const Limits::TEXT: string = \"text\";",
     );
-    let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect_err("a nominal string spelling does not make text a valid scalar initializer");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a nominal string spelling does not make text a valid scalar initializer");
     assert!(
         diagnostics
             .iter()

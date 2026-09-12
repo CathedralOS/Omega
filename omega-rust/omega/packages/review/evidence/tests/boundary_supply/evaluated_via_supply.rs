@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 fn assert_external_policy_round_trip(
     checked: &CheckedCompilation,
@@ -99,11 +100,10 @@ fn checked_fixture() -> CheckedCompilation {
     let package = TempPackage::new();
     package.write("main.omg", SOURCE);
     package.write("build.omg", BUILD);
-    compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .unwrap_or_else(|diagnostics| {
         panic!(
             "ordinary evaluated-via package should check:\n{}",
@@ -272,11 +272,10 @@ pub machine exit_leaf(code: i32)
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("linux_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("linux_x86_64"))
+    })
     .unwrap_or_else(|diagnostics| panic!("ordinary syscall should check: {diagnostics:#?}"));
     let review = project_checked_package_review(&checked)
         .expect("ordinary syscall supply should project exactly");

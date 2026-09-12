@@ -1,4 +1,5 @@
 use super::*;
+use crate::CheckedCompileRequest;
 use std::{
     fs,
     sync::atomic::{AtomicU64, Ordering},
@@ -13,7 +14,10 @@ fn compile(source: &str) -> super::super::CheckedCompilation {
     ));
     fs::create_dir_all(&root).unwrap();
     fs::write(root.join("main.omg"), source).unwrap();
-    let result = super::super::compile_to_checked(&root.join("main.omg"), Some("macos_arm64"));
+    let result = super::super::compile_to_checked(CheckedCompileRequest::new(
+        &root.join("main.omg"),
+        Some("macos_arm64"),
+    ));
     fs::remove_dir_all(root).unwrap();
     result.expect("selected semantic evaluation")
 }

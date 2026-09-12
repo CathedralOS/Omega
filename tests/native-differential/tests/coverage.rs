@@ -21,6 +21,7 @@
 //!   for the two-impl program below).
 
 use checked_interpreter::{InterpretOutcome, interpret_entry};
+use compiler::CheckedCompileRequest;
 use compiler::{CheckedCompilation, compile_to_checked};
 use std::fs;
 use std::path::PathBuf;
@@ -45,7 +46,7 @@ fn write_program(name: &str, source: &str) -> PathBuf {
 
 fn frontend_rejects(name: &str, source: &str) {
     let main_path = write_program(name, source);
-    let result = compile_to_checked(&main_path, None);
+    let result = compile_to_checked(CheckedCompileRequest::new(&main_path, None));
     assert!(
         result.is_err(),
         "{name}: expected the frontend to reject this program; it compiled"
@@ -103,9 +104,9 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
-        panic!("named float requirements should compile: {diagnostics:?}")
-    });
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None)).unwrap_or_else(
+        |diagnostics| panic!("named float requirements should compile: {diagnostics:?}"),
+    );
     let outcome = interpret(&checked, b"");
     assert!(
         !outcome.is_error(),
@@ -151,9 +152,9 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
-        panic!("named Saturating float policy should compile: {diagnostics:?}")
-    });
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None)).unwrap_or_else(
+        |diagnostics| panic!("named Saturating float policy should compile: {diagnostics:?}"),
+    );
     assert!(checked.facts.operators.named_uses().any(|operator_use| {
         operator_use.policy_adapter
             == checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
@@ -188,9 +189,9 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
-        panic!("named Trapping float policy should compile: {diagnostics:?}")
-    });
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None)).unwrap_or_else(
+        |diagnostics| panic!("named Trapping float policy should compile: {diagnostics:?}"),
+    );
     assert!(checked.facts.operators.named_uses().any(|operator_use| {
         operator_use.policy_adapter
             == checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
@@ -381,7 +382,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("payload program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(
@@ -448,7 +449,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("tag-equality program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(
@@ -498,9 +499,10 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|d| {
-        panic!("multi-field payload program should reach checked trees: {d:?}")
-    });
+    let checked =
+        compile_to_checked(CheckedCompileRequest::new(&main_path, None)).unwrap_or_else(|d| {
+            panic!("multi-field payload program should reach checked trees: {d:?}")
+        });
     let outcome = interpret(&checked, b"");
     assert!(
         !outcome.is_error(),
@@ -601,16 +603,18 @@ machine Main::dispatch(&mut self, s: &mut dyn Shape) -> i32 {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "two-impl dyn program should compile to checked trees:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None)).unwrap_or_else(
+        |diagnostics| {
+            panic!(
+                "two-impl dyn program should compile to checked trees:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        },
+    );
     let outcome = interpret(&checked, b"");
     assert_eq!(outcome.error, None, "interpreter declined the program");
     assert_eq!(
@@ -673,7 +677,8 @@ machine Main::dispatch(&mut self, s: &mut dyn Shape) -> i32 {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).expect("swapped two-impl dyn compiles");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("swapped two-impl dyn compiles");
     let outcome = interpret(&checked, b"");
     assert_eq!(outcome.error, None, "interpreter declined the program");
     assert_eq!(
@@ -701,7 +706,8 @@ machine Main::main(&mut self) -> i32 {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).expect("terminal-local program compiles");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("terminal-local program compiles");
     let outcome = interpret(&checked, b"");
     assert_eq!(outcome.error, None, "interpreter declined the program");
     assert_eq!(
@@ -726,7 +732,8 @@ machine Main::main(&mut self) -> i32 {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).expect("terminal-field program compiles");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("terminal-field program compiles");
     let outcome = interpret(&checked, b"");
     assert_eq!(outcome.error, None, "interpreter declined the program");
     assert_eq!(
@@ -749,8 +756,8 @@ machine Main::main(&mut self) -> i32 {
 }
 "#,
     );
-    let checked =
-        compile_to_checked(&main_path, None).expect("terminal-arithmetic program compiles");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("terminal-arithmetic program compiles");
     let outcome = interpret(&checked, b"");
     assert_eq!(outcome.error, None, "interpreter declined the program");
     assert_eq!(
@@ -831,9 +838,10 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|d| {
-        panic!("borrowed-byte-slice wire program should reach checked trees: {d:?}")
-    });
+    let checked =
+        compile_to_checked(CheckedCompileRequest::new(&main_path, None)).unwrap_or_else(|d| {
+            panic!("borrowed-byte-slice wire program should reach checked trees: {d:?}")
+        });
     let outcome = interpret(&checked, b"");
     assert_eq!(
         outcome.error, None,
@@ -895,7 +903,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("borrowed scalar-slice wire program should compile");
     let outcome = interpret(&checked, b"");
     assert_eq!(outcome.error, None);
@@ -926,7 +934,7 @@ boundary trait Console {
 /// clean run and a specific exit code.
 fn interpret_fs(name: &str, body: &str, expected_exit: i32, why: &str) {
     let main_path = write_program(name, &(FS_PRELUDE.to_owned() + body));
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("{name}: fs program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(
@@ -1143,7 +1151,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("remove_dir_all program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(
@@ -1501,7 +1509,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("create_dir_all program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(
@@ -1559,7 +1567,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("read_dir_count program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(
@@ -1621,7 +1629,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("read_dir_stats program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(
@@ -1701,7 +1709,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("read_dir_nth program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(
@@ -1751,7 +1759,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("read_dir_is_empty program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(
@@ -1839,7 +1847,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("read_dir iteration loop should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(
@@ -1910,7 +1918,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("std::fs module program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "std::fs module: {:?}", outcome.error);
@@ -2017,7 +2025,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("metadata program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "metadata: {:?}", outcome.error);
@@ -2087,7 +2095,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("file_metadata program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "file_metadata: {:?}", outcome.error);
@@ -2160,7 +2168,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("positioned_io program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "positioned_io: {:?}", outcome.error);
@@ -2217,7 +2225,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("set_times program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "set_times: {:?}", outcome.error);
@@ -2262,7 +2270,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("nlink program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "nlink: {:?}", outcome.error);
@@ -2314,7 +2322,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("metadata_ext program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "metadata_ext: {:?}", outcome.error);
@@ -2362,7 +2370,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("metadata_ctime_dev program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(
@@ -2418,7 +2426,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("metadata_blocks program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "metadata_blocks: {:?}", outcome.error);
@@ -2471,7 +2479,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("sync program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "sync: {:?}", outcome.error);
@@ -2523,7 +2531,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("sync_data program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "sync_data: {:?}", outcome.error);
@@ -2605,7 +2613,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("open_options program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "open_options: {:?}", outcome.error);
@@ -2663,7 +2671,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("whole-file program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "whole_file: {:?}", outcome.error);
@@ -2924,7 +2932,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("error-kind program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "error_kind: {:?}", outcome.error);
@@ -2990,7 +2998,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("path-query program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "path_queries: {:?}", outcome.error);
@@ -3070,7 +3078,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("copy program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "copy: {:?}", outcome.error);
@@ -3115,7 +3123,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("is-a-directory program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "is_a_directory: {:?}", outcome.error);
@@ -3167,7 +3175,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("set-permissions program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "set_permissions: {:?}", outcome.error);
@@ -3246,7 +3254,7 @@ machine Main::main(&mut self) {{
 "#
         ),
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("hard-link program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "hard_link: {:?}", outcome.error);
@@ -3306,7 +3314,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("metadata-is-dir program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "metadata_is_dir: {:?}", outcome.error);
@@ -3372,9 +3380,10 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|d| {
-        panic!("metadata-permissions program should reach checked trees: {d:?}")
-    });
+    let checked =
+        compile_to_checked(CheckedCompileRequest::new(&main_path, None)).unwrap_or_else(|d| {
+            panic!("metadata-permissions program should reach checked trees: {d:?}")
+        });
     let outcome = interpret(&checked, b"");
     assert!(
         !outcome.is_error(),
@@ -3421,7 +3430,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("metadata-modified program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(
@@ -3476,7 +3485,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("metadata-times program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "metadata_times: {:?}", outcome.error);
@@ -3519,9 +3528,10 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|d| {
-        panic!("permissions-set-readonly program should reach checked trees: {d:?}")
-    });
+    let checked =
+        compile_to_checked(CheckedCompileRequest::new(&main_path, None)).unwrap_or_else(|d| {
+            panic!("permissions-set-readonly program should reach checked trees: {d:?}")
+        });
     let outcome = interpret(&checked, b"");
     assert!(
         !outcome.is_error(),
@@ -3580,9 +3590,10 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|d| {
-        panic!("set-file-permissions program should reach checked trees: {d:?}")
-    });
+    let checked =
+        compile_to_checked(CheckedCompileRequest::new(&main_path, None)).unwrap_or_else(|d| {
+            panic!("set-file-permissions program should reach checked trees: {d:?}")
+        });
     let outcome = interpret(&checked, b"");
     assert!(
         !outcome.is_error(),
@@ -3641,7 +3652,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("symlink program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "symlink: {:?}", outcome.error);
@@ -3715,7 +3726,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("symlink_metadata program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "symlink_metadata: {:?}", outcome.error);
@@ -3785,7 +3796,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("file_type program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "file_type: {:?}", outcome.error);
@@ -3885,7 +3896,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("workflow program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "workflow: {:?}", outcome.error);
@@ -3965,7 +3976,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("create_new program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "create_new: {:?}", outcome.error);
@@ -4032,7 +4043,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("canonicalize program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "canonicalize: {:?}", outcome.error);
@@ -4100,7 +4111,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("try_clone program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "try_clone: {:?}", outcome.error);
@@ -4168,7 +4179,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("locking program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "locking: {:?}", outcome.error);
@@ -4237,7 +4248,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("ownership program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "ownership: {:?}", outcome.error);
@@ -4292,7 +4303,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("try-exists program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "try_exists: {:?}", outcome.error);
@@ -4350,7 +4361,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("type-local tag program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
     assert!(!outcome.is_error(), "type-local tag: {:?}", outcome.error);
@@ -4404,7 +4415,7 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .unwrap_or_else(|d| panic!("console byte-ops program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"AB\r\n");
     assert!(!outcome.is_error(), "console byte ops: {:?}", outcome.error);

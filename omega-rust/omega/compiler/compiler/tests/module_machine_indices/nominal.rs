@@ -1,4 +1,5 @@
 use super::{Sources, compile, identity, root_inputs, selections};
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn module_record_constant_retains_nominal_carrier_in_machine_indices() {
@@ -115,11 +116,10 @@ fn module_nominal_indices_reject_equal_layout_root_carriers_and_constructors() {
                 keep("keep", "WRONG")
             ),
         );
-        let diagnostics = super::compile_to_checked_with_packages(
-            &root.join("main.omg"),
-            None,
-            root_inputs(&root),
-        )
+        let diagnostics = super::compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
         .expect_err(
             "equal record layout does not establish nominal carrier or constructor identity",
         );
@@ -198,8 +198,11 @@ fn module_nominal_indices_require_direct_public_package_selection() {
     let indirect =
         PackageCompilationInputs::new_package(identity(1), sources.clone(), dependencies.clone())
             .unwrap();
-    super::compile_to_checked_with_packages(&root.join("main.omg"), None, indirect)
-        .expect_err("loading a transitive module grants no nominal selection");
+    super::compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(indirect),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("loading a transitive module grants no nominal selection");
     dependencies.push(PackageDependencyBinding::new(
         identity(1),
         "leaf",
@@ -215,14 +218,20 @@ fn module_nominal_indices_require_direct_public_package_selection() {
     );
     compile(&root, direct.clone());
     Sources::write(leaf.join("settings.omg"), &leaf_source(""));
-    super::compile_to_checked_with_packages(&root.join("main.omg"), None, direct.clone())
-        .expect_err("direct dependency does not expose private nominal constant");
+    super::compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(direct.clone()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("direct dependency does not expose private nominal constant");
     Sources::write(
         leaf.join("settings.omg"),
         &leaf_source("pub").replace("pub data", "data"),
     );
-    super::compile_to_checked_with_packages(&root.join("main.omg"), None, direct)
-        .expect_err("public constant does not expose a private nominal carrier");
+    super::compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(direct),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("public constant does not expose a private nominal carrier");
 }
 
 #[test]
@@ -276,10 +285,11 @@ fn nominal_constant_import_ambiguity_rejects_in_both_orders() {
                 keep("keep", "VALUE")
             ),
         );
-        super::compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect_err(
-                "ambiguous named constants do not select by traversal order or equal layout",
-            );
+        super::compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("ambiguous named constants do not select by traversal order or equal layout");
     }
 }
 

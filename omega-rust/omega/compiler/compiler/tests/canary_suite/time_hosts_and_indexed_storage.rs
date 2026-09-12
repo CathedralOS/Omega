@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[path = "../fixture_rosters/time_hosts_and_indexed_storage.rs"]
 pub(super) mod fixture_roster;
@@ -35,8 +36,11 @@ fn runtime_time_host_virtual_interpreter_oracle() {
     // calibration 1000/1000/0, wall = 2026-01-01 + elapsed. Interp-only
     // until rung 5 binds the ops natively.
     let canary = pass_canary(fixture_roster::RUNTIME_TIME_HOST_VIRTUAL_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("time host virtual canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("time host virtual canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
         outcome.error, None,
@@ -58,8 +62,11 @@ fn runtime_time_elapsed_since_exit_canary_runs() {
     // The caller mixes now() and elapsed_since in ONE state -- the shape
     // that #DE-crashed while the two callees shared the let name `frequency`.
     let canary = pass_canary(fixture_roster::RUNTIME_TIME_ELAPSED_SINCE_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("elapsed-since canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("elapsed-since canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
         outcome.error, None,
@@ -419,8 +426,11 @@ fn runtime_checked_time_arith_exit_canary_runs() {
     // u64::MAX / i64::MAX / i64::MIN overflow pins, and a duration-seconds-
     // above-i64::MAX leg pinning the biased-space detection.
     let canary = pass_canary(fixture_roster::RUNTIME_CHECKED_TIME_ARITH_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("checked time arith canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("checked time arith canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
         outcome.error, None,
@@ -454,8 +464,11 @@ fn runtime_sleep_for_exit_canary_runs() {
     // host sleep, returning the clamped request). Returned ms == 30 exactly
     // on both engines; elapsed >= 30ms.
     let canary = pass_canary(fixture_roster::RUNTIME_SLEEP_FOR_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("sleep_for canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("sleep_for canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(outcome.error, None, "sleep_for should interpret cleanly");
     assert_eq!(
@@ -489,8 +502,11 @@ fn runtime_system_time_after_2026_exit_canary_runs() {
     // seconds>0-or-subsecond>=30ms splits; the Backwards PAYLOAD must carry
     // the real gap (ZII Backwards(ZERO) fails leg 4).
     let canary = pass_canary(fixture_roster::RUNTIME_SYSTEM_TIME_AFTER_2026_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("system-time canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("system-time canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
         outcome.error, None,
@@ -525,8 +541,11 @@ fn runtime_instant_elapsed_exit_canary_runs() {
     // >= 30ms and backwards=Overflow assertions hold on the interpreter's
     // virtual clock (exactly 30_000_000 ns) AND the native QPC clock.
     let canary = pass_canary(fixture_roster::RUNTIME_INSTANT_ELAPSED_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("instant elapsed canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("instant elapsed canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
         outcome.error, None,
@@ -615,8 +634,11 @@ fn runtime_fs_mtime_system_time_interop_exit_canary_runs() {
     // native darwin run (fresh file vs real clock) exit 70. macos-gated:
     // the decode reads darwin stat offsets (windows waits on fs #2).
     let canary = pass_canary(fixture_roster::RUNTIME_FS_MTIME_SYSTEM_TIME_INTEROP_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("fs-time interop canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("fs-time interop canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(outcome.error, None, "interop should interpret cleanly");
     assert_eq!(
@@ -652,8 +674,11 @@ fn runtime_fs_mtime_interop_windows_exit_canary_runs() {
     // windows run (fresh file vs real clock) exit 70. windows-gated: the
     // decode reads the `_stat64` offset.
     let canary = pass_canary(fixture_roster::RUNTIME_FS_MTIME_INTEROP_WINDOWS_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("windows fs-time interop canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("windows fs-time interop canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(outcome.error, None, "interop should interpret cleanly");
     assert_eq!(
@@ -682,8 +707,11 @@ fn runtime_duration_totals_exit_canary_runs() {
     // checked_as_nanoseconds/microseconds/milliseconds exact values + the
     // Overflow arm at Duration::MAX, interpreter oracle + native. Exit 70.
     let canary = pass_canary(fixture_roster::RUNTIME_DURATION_TOTALS_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("duration totals canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("duration totals canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(outcome.error, None, "totals should interpret cleanly");
     assert_eq!(
@@ -713,8 +741,11 @@ fn runtime_duration_constructors_interpreter_oracle() {
     // value calls). Interp-only: the native route hits the loud 16-byte
     // value-store MVP fence; promote when that lands (see the canary header).
     let canary = pass_canary(fixture_roster::RUNTIME_DURATION_CONSTRUCTORS_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("duration constructors canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("duration constructors canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(outcome.error, None, "constructors should interpret cleanly");
     assert_eq!(
@@ -734,8 +765,11 @@ fn runtime_duration_core_exit_canary_runs() {
     // field values cascade-safe (bare `param % literal`) -- both documented
     // in tests/omega/pending/time/value_machine_receiver_field_postentry.
     let canary = pass_canary(fixture_roster::RUNTIME_DURATION_CORE_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("duration core canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("duration core canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,

@@ -1,4 +1,5 @@
 use crate::arguments::InspectTerminalArguments;
+use compiler::CheckedCompileRequest;
 use std::fmt::Write;
 
 use compiler::compile_to_checked;
@@ -8,7 +9,10 @@ use terminal_psi::{OperationKind, TerminalMachineResult, TerminalModule, Termina
 mod evidence;
 
 pub(crate) fn run(arguments: InspectTerminalArguments) {
-    let checked = match compile_to_checked(&arguments.root_path, arguments.target_name.as_deref()) {
+    let checked = match compile_to_checked(CheckedCompileRequest::new(
+        &arguments.root_path,
+        arguments.target_name.as_deref(),
+    )) {
         Ok(checked) => checked,
         Err(diagnostics) => {
             for diagnostic in diagnostics {

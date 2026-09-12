@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[path = "../fixture_rosters/arithmetic_and_data.rs"]
 pub(super) mod fixture_roster;
@@ -375,7 +376,7 @@ fn sum_field_storage_roundtrip_canary_runs() {
     let canary = pass_canary(fixture_roster::SUM_FIELD_STORAGE_ROUNDTRIP);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("sum field-storage canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -415,7 +416,7 @@ fn sum_mixed_width_payload_layout_canary_runs() {
     let canary = pass_canary(fixture_roster::SUM_MIXED_WIDTH_PAYLOAD_LAYOUT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("sum mixed-width payload canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -2657,7 +2658,7 @@ fn runtime_whole_struct_mutation_copy_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_WHOLE_STRUCT_MUTATION_COPY_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("whole-struct mutation copy canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -3032,7 +3033,7 @@ fn saturating_multiply_overflow_both_signs_canary_runs() {
     let canary = pass_canary(fixture_roster::SATURATING_MULTIPLY_OVERFLOW_BOTH_SIGNS);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("saturating multiply canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -3070,7 +3071,7 @@ fn saturating_signed_divide_min_by_neg_one_canary_runs() {
     let canary = pass_canary(fixture_roster::SATURATING_SIGNED_DIVIDE_MIN_BY_NEG_ONE);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("saturating INT_MIN/-1 canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -3109,7 +3110,7 @@ fn wrapping_signed_divide_min_by_neg_one_canary_runs() {
     let canary = pass_canary(fixture_roster::WRAPPING_SIGNED_DIVIDE_MIN_BY_NEG_ONE);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("wrapping INT_MIN/-1 canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -3178,7 +3179,7 @@ fn runtime_shift_right_signedness_canary_runs() {
     let main_path = canary.join("main.omg");
 
     // Interpreter oracle first: it must agree the exit is 70.
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("shift-right signedness canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -3222,7 +3223,7 @@ fn const_fold_saturating_narrow_canary_runs() {
     let canary = pass_canary(fixture_roster::CONST_FOLD_SATURATING_NARROW_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("saturating narrow const-fold canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -3265,7 +3266,7 @@ fn const_fold_wrapping_narrow_canary_runs() {
     let canary = pass_canary(fixture_roster::CONST_FOLD_WRAPPING_NARROW_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("wrapping narrow const-fold canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(

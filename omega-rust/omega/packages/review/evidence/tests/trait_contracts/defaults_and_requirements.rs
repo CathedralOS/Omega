@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn review_projects_trait_defaults_and_unnamed_contracts() {
@@ -15,11 +16,10 @@ fn review_projects_trait_defaults_and_unnamed_contracts() {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &default_package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&default_package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&default_package.0)),
+        ..CheckedCompileRequest::new(&default_package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("public trait default fixture should check");
     let default_review = project_checked_package_review(&checked)
         .expect("review should retain a public trait default realization");
@@ -39,11 +39,10 @@ fn review_projects_trait_defaults_and_unnamed_contracts() {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let abstract_checked = compile_to_checked_with_packages(
-        &abstract_package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&abstract_package.0),
-    )
+    let abstract_checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&abstract_package.0)),
+        ..CheckedCompileRequest::new(&abstract_package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("abstract public trait fixture should check");
     let abstract_review = project_checked_package_review(&abstract_checked)
         .expect("review should retain an abstract public trait requirement");
@@ -74,11 +73,13 @@ pub boundary trait SchedulerRuntime {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &precondition_package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&precondition_package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&precondition_package.0)),
+        ..CheckedCompileRequest::new(
+            &precondition_package.0.join("main.omg"),
+            Some("windows_x86_64"),
+        )
+    })
     .expect("public progress precondition fixture should check");
     let review = project_checked_package_review(&checked)
         .expect("an unnamed trait precondition should project exactly");
@@ -141,11 +142,10 @@ fn public_trait_requires_and_ensures_change_comparison_identity() {
             r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("public trait contract fixture should check");
         project_checked_package_review(&checked).expect("public trait contracts should project")
     };
@@ -205,11 +205,10 @@ pub trait Worker {{
             r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("named public-trait witness fixture should check");
         project_checked_package_review(&checked)
             .expect("named public-trait witness contracts should project")

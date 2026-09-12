@@ -1,3 +1,4 @@
+use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
 use provider_planning::plans::selected_external_root_provider_plan_id;
 
@@ -6,7 +7,7 @@ fn checked_progress_entry_retains_selected_syscall_binding_without_table_project
     let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(
         "../../../../tests/omega/pass/progress/provider_receiver_progress_installation/main.omg",
     );
-    let checked = compile_to_checked(&source, Some("linux_x64"))
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source, Some("linux_x64")))
         .expect("selected progress-bearing source entry should check");
     assert_eq!(checked.selected_program_entry_machine(), Some("Main::main"));
     let [plan] = checked.selected_provider_plans().plans() else {
@@ -93,7 +94,8 @@ machine Main::main(&mut self) { }
     )
     .expect("write test program");
 
-    let checked = compile_to_checked(&source, None).expect("provider program should check");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source, None))
+        .expect("provider program should check");
     let facts = checked.selected_provider_plans();
     let [plan] = facts.plans() else {
         panic!("exactly one covering Pair plan should be selected");

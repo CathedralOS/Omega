@@ -1,7 +1,6 @@
-use super::{
-    Sources, compile, compile_to_checked_with_packages, identity, root_inputs, selections,
-};
+use super::{Sources, compile, compile_to_checked, identity, root_inputs, selections};
 use build_time_evaluation::{BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeValue};
+use compiler::CheckedCompileRequest;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::{TerminalExecutionResult, TerminalScalarValue};
 
@@ -122,8 +121,11 @@ fn static_array_constant_projections_keep_bounds_and_result_types() {
             &format!("use settings; machine projected() -> {result_type} {{ {expression} }}"),
         );
         assert!(
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .is_err(),
+            compile_to_checked(CheckedCompileRequest {
+                package_inputs: Some(root_inputs(&root)),
+                ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+            })
+            .is_err(),
             "invalid projection must reject: {expression} -> {result_type}"
         );
     }
@@ -146,8 +148,11 @@ fn constant_projection_types_are_checked_at_storage_call_and_conversion_sites() 
     ] {
         Sources::write(root.join("main.omg"), &format!("use settings; {consumer}"));
         assert!(
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .is_err(),
+            compile_to_checked(CheckedCompileRequest {
+                package_inputs: Some(root_inputs(&root)),
+                ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+            })
+            .is_err(),
             "{consumer}"
         );
     }
@@ -188,9 +193,11 @@ fn array_constant_projection_preserves_authored_index_bounds_obligations() {
          operator [] index(items: &[u8], position: u64) -> u8;
          machine projected() -> u8 { settings::Sizes::VALUES[0] }",
     );
-    let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect_err("builtin array bounds cannot discharge a different selected contract");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("builtin array bounds cannot discharge a different selected contract");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message

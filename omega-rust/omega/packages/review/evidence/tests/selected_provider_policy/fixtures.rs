@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 use target::TargetProfile;
 
 pub(super) const BUILD: &str = r#"machine build(builder: &mut Build) {
@@ -130,11 +131,10 @@ impl Fixture {
         let inputs =
             PackageCompilationInputs::new_package(package_identity(), sources, dependencies)
                 .unwrap();
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target.target_name()),
-            inputs,
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target.target_name()))
+        })
         .unwrap_or_else(|diagnostics| {
             panic!("provider policy fixture should check: {diagnostics:#?}")
         });

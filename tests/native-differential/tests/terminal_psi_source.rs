@@ -12,6 +12,7 @@ use abstract_operations::{
 use abstract_operations_to_target_operations::lower_to_target_operations;
 use calling_conventions::CallSignature;
 use checked_trees_to_lowered_psi::{LoweringError, lower_machine};
+use compiler::CheckedCompileRequest;
 use compiler::{
     ArtifactEmissionPolicy, CheckedCompilation, CompileOptions, CompileRequest,
     RequestedCompileProduct, compile_to_checked,
@@ -464,8 +465,11 @@ fn install_terminal_object(
 
 #[test]
 fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
-    let checked = compile_to_checked(&progress_free_selected_source_canary(), Some("linux_x64"))
-        .expect("selected progress-free source entry should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &progress_free_selected_source_canary(),
+        Some("linux_x64"),
+    ))
+    .expect("selected progress-free source entry should compile");
     let candidate = stage_terminal_component(
         &checked,
         NativeTarget::linux_x64(),
@@ -693,8 +697,11 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
 
 #[test]
 fn selected_preterminal_optimizers_rejoin_one_native_pipeline() {
-    let checked = compile_to_checked(&selected_optimizer_source_canary(), Some("linux_x64"))
-        .expect("selected optimizer source should reach checked compilation");
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &selected_optimizer_source_canary(),
+        Some("linux_x64"),
+    ))
+    .expect("selected optimizer source should reach checked compilation");
     let candidate = stage_terminal_component(
         &checked,
         NativeTarget::linux_x64(),
@@ -713,10 +720,10 @@ fn selected_preterminal_optimizers_rejoin_one_native_pipeline() {
 
 #[test]
 fn retired_selected_lowering_rejects_before_native_publication() {
-    let checked = compile_to_checked(
+    let checked = compile_to_checked(CheckedCompileRequest::new(
         &selected_lowering_optimizer_source_canary(),
         Some("linux_x64"),
-    )
+    ))
     .expect("selected-lowering source remains valid through checking");
     let entry = checked
         .selected_program_entry_machine()
@@ -751,8 +758,11 @@ fn retired_selected_lowering_rejects_before_native_publication() {
 
 #[test]
 fn control_flow_cleanup_source_reaches_the_publication_gate() {
-    let checked = compile_to_checked(&unsupported_optimizer_source_canary(), Some("linux_x64"))
-        .expect("explicit optimizer selection is retained through checking");
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &unsupported_optimizer_source_canary(),
+        Some("linux_x64"),
+    ))
+    .expect("explicit optimizer selection is retained through checking");
     let candidate = stage_terminal_component(
         &checked,
         NativeTarget::linux_x64(),
@@ -771,8 +781,11 @@ fn control_flow_cleanup_source_reaches_the_publication_gate() {
 #[test]
 fn selected_source_entry_retains_build_bound_progress_for_terminal_publication() {
     let target = NativeTarget::linux_x64();
-    let checked = compile_to_checked(&progress_source_canary(), Some("linux_x64"))
-        .expect("selected progress-bearing source entry should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &progress_source_canary(),
+        Some("linux_x64"),
+    ))
+    .expect("selected progress-bearing source entry should compile");
     assert_eq!(checked.selected_program_entry_machine(), Some("Main::main"));
     let manifest = checked
         .component_progress()

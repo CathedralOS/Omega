@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[path = "../fixture_rosters/wire_and_algorithms.rs"]
 pub(super) mod fixture_roster;
@@ -10,8 +11,11 @@ fn ordinary_numbered_record_codecs_check_and_interpret_exact_bytes() {
         fixture_roster::RUNTIME_WIRE_ROUNDTRIP_PRIMITIVE_EXIT,
     ] {
         let canary = pass_canary(fixture);
-        let checked = compile_to_checked(&canary.join("main.omg"), None)
-            .unwrap_or_else(|diagnostics| panic!("{fixture}: {diagnostics:#?}"));
+        let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+            &canary.join("main.omg"),
+            None,
+        ))
+        .unwrap_or_else(|diagnostics| panic!("{fixture}: {diagnostics:#?}"));
         let outcome = interpret(&checked, &[]);
         assert_eq!(outcome.error, None, "{fixture}");
         assert_eq!(outcome.exit_code, 70, "{fixture}");
@@ -38,8 +42,9 @@ fn numbered_decoder_does_not_ignore_record_domain_obligations() {
     fs::write(&main_path, &source).expect("constrained numbered source");
     fs::copy(canary.join("build.omg"), scratch.join("build.omg"))
         .expect("roundtrip build declaration");
-    let diagnostics = compile_to_checked(&main_path, None)
-        .expect_err("implicit codecs cannot discard whole-record obligations");
+    let diagnostics =
+        compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
+            .expect_err("implicit codecs cannot discard whole-record obligations");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("remained unresolved")
@@ -328,8 +333,9 @@ fn computed_range_wire_decoding_preserves_exact_endpoints_in_the_interpreter() {
         // service bindings from this copied declaration and the source import.
         fs::copy(canary.join("build.omg"), project.join("build.omg"))
             .expect("ranged wire build declaration");
-        let checked = compile_to_checked(&main_path, None)
-            .unwrap_or_else(|diagnostics| panic!("{name}: {diagnostics:#?}"));
+        let checked =
+            compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
+                .unwrap_or_else(|diagnostics| panic!("{name}: {diagnostics:#?}"));
         let outcome = interpret(&checked, &[]);
         assert_eq!(outcome.error, None, "{name}");
         assert_eq!(

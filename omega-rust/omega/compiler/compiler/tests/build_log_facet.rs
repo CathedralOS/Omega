@@ -2,9 +2,8 @@ use build_evaluation::BuildObservationClass;
 use checked_interpreter::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, FilesystemSponsor,
 };
-use compiler::{
-    compile_to_checked_with_packages, compile_to_checked_with_packages_in_sponsored_build_session,
-};
+use compiler::CheckedCompileRequest;
+use compiler::compile_to_checked;
 use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
 use semantic_vocabulary::PackageKeyIdentity;
 use std::fs;
@@ -71,18 +70,20 @@ fn compile_package_build_log() {
 "#,
     );
 
-    let checked =
-        compile_to_checked_with_packages(&project.main(), None, project.package_inputs(91))
-            .unwrap_or_else(|diagnostics| {
-                panic!(
-                    "the exact compiler-owned BuildLog facet must execute in a package build: {}",
-                    diagnostics
-                        .iter()
-                        .map(|diagnostic| diagnostic.message.as_str())
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                )
-            });
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(project.package_inputs(91)),
+        ..CheckedCompileRequest::new(&project.main(), None)
+    })
+    .unwrap_or_else(|diagnostics| {
+        panic!(
+            "the exact compiler-owned BuildLog facet must execute in a package build: {}",
+            diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.message.as_str())
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
 
     let build = checked
         .selected_build_machine_symbol()
@@ -190,14 +191,13 @@ fn sponsored_build_log_rejects_atomically_at_the_exact_closure_ceiling() {
         .expect("nonzero test ceilings"),
     );
 
-    let diagnostics = compile_to_checked_with_packages_in_sponsored_build_session(
-        &project.main(),
-        &build_root,
-        None,
-        project.package_inputs(92),
-        filesystem_sponsor,
-        evaluation_sponsor.clone(),
-    )
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(build_root.to_owned()),
+        package_inputs: Some(project.package_inputs(92)),
+        filesystem_sponsor: Some(filesystem_sponsor),
+        evaluation_sponsor: Some(evaluation_sponsor.clone()),
+        ..CheckedCompileRequest::new(&project.main(), None)
+    })
     .expect_err("newline must exceed the exact BuildLog ceiling");
     let rendered = diagnostics
         .iter()
@@ -238,9 +238,11 @@ machine accept_package_log(log: &mut BuildLog) {
 "#,
     );
 
-    let diagnostics =
-        compile_to_checked_with_packages(&project.main(), None, project.package_inputs(92))
-            .expect_err("a package-authored BuildLog cannot receive the exact compiler activation");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(project.package_inputs(92)),
+        ..CheckedCompileRequest::new(&project.main(), None)
+    })
+    .expect_err("a package-authored BuildLog cannot receive the exact compiler activation");
     let rendered = diagnostics
         .iter()
         .map(|diagnostic| diagnostic.message.as_str())

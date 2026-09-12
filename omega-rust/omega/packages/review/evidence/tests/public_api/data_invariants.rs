@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn review_projects_public_data_invariants_from_exact_checked_rows() {
@@ -21,11 +22,10 @@ where
             "build.omg",
             "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("public data invariant fixture should check");
         project_checked_package_review(&checked)
             .expect("review should project the checked public data invariant")
@@ -108,11 +108,10 @@ where N <= 8,
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("generic data invariant should check");
     let review = project_checked_package_review(&checked)
         .expect("generic data invariant should retain its binder identity");
@@ -152,11 +151,10 @@ where count in u32::Small,
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("data membership invariant should check");
     let review = project_checked_package_review(&checked)
         .expect("data membership invariant should retain exact identities");
@@ -198,11 +196,10 @@ where count <= len,
             "build.omg",
             "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
-        compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("public data ownership fixture should check")
     };
     let assert_rejects = |checked: &_, expected: &str| {
@@ -416,11 +413,10 @@ where N <= 8,
             "build.omg",
             "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
-        compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("generic data ownership fixture should check")
     };
     let binder_place = malformed_empty_path

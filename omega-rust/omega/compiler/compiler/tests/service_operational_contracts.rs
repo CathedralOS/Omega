@@ -1,3 +1,4 @@
+use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
 use language_semantics::{
     BlockingInterface, ServiceReachInterface, SuspensionInterface, SynchronousInvocationInterface,
@@ -24,7 +25,7 @@ fn write_program(name: &str, source: &str) -> PathBuf {
 
 fn compile_error(name: &str, source: &str) -> String {
     let main_path = write_program(name, source);
-    let diagnostics = compile_to_checked(&main_path, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect_err("the service/operational contract violation must reject compilation");
     let rendered = diagnostics
         .iter()
@@ -90,7 +91,8 @@ machine Main::main(&mut self) { }
 
 fn contract_report_fingerprint_for(source: &str, machine_name: &str) -> u64 {
     let main_path = write_program("fingerprint", source);
-    let checked = compile_to_checked(&main_path, None).expect("contract program should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("contract program should compile");
     let machine = checked
         .typed
         .machines()
@@ -110,7 +112,8 @@ fn contract_report_fingerprint_for(source: &str, machine_name: &str) -> u64 {
 #[test]
 fn provider_keeps_service_and_operational_contract_axes_independent() {
     let main_path = write_program("accepted", CONTRACT_PROGRAM);
-    let checked = compile_to_checked(&main_path, None).expect("contract program should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("contract program should compile");
     let machine = checked
         .typed
         .machines()
@@ -283,7 +286,8 @@ data Main {}
 machine Main::main(&mut self) {}
 "#;
     let main_path = write_program("invocation-artifact", with_edge);
-    let checked = compile_to_checked(&main_path, None).expect("invocation contract should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("invocation contract should compile");
     let machine = checked
         .typed
         .machines()

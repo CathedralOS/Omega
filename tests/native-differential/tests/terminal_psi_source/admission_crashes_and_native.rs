@@ -1,8 +1,9 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("terminal-Psi source canary should compile");
     let attached_unit = lower_machine(&checked, "Main::main")
         .expect("empty attached Unit machines are in the structural terminal-Psi slice");
@@ -141,7 +142,7 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
 
 #[test]
 fn checked_crash_branches_execute_but_native_graph_crashes_remain_unsupported() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("two-leaf crash source canary should compile");
     let lowered = lower_machine(&checked, "terminal_two_crash_leaves")
         .expect("both guarded crash leaves should lower to terminal Psi");
@@ -199,7 +200,7 @@ fn checked_crash_branches_execute_but_native_graph_crashes_remain_unsupported() 
 #[cfg(unix)]
 #[test]
 fn interpreted_terminal_source_matches_target_lowering() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("terminal-Psi source canary should compile");
     let lowered = lower_machine(&checked, "terminal_constant")
         .expect("accepted source slice should lower to terminal Psi");

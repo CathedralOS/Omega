@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 fn check(body: &str) -> Result<compiler::CheckedCompilation, Vec<diagnostics::Diagnostic>> {
     let tree = TempTree::new();
@@ -21,7 +22,10 @@ fn check(body: &str) -> Result<compiler::CheckedCompilation, Vec<diagnostics::Di
         Vec::new(),
     )
     .expect("root package");
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
 }
 
 #[test]
@@ -121,7 +125,10 @@ fn package_aliases_preserve_direct_dependency_and_private_template_gates() {
             dependencies,
         )
         .expect("acyclic package inputs");
-        let result = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs);
+        let result = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        });
         if direct && public {
             let checked = result
                 .expect("direct public template admits both qualified and narrow import uses");
@@ -198,8 +205,11 @@ fn qualified_sum_construction_keeps_exact_application_and_case_owners() {
         Vec::new(),
     )
     .unwrap();
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect("qualified constructors and forwarding retain exact closed sums");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("qualified constructors and forwarding retain exact closed sums");
     let instances = checked
         .data_definitions
         .iter()
@@ -342,7 +352,10 @@ fn check_sum(body: &str) -> Result<compiler::CheckedCompilation, Vec<diagnostics
         Vec::new(),
     )
     .unwrap();
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
 }
 
 #[test]
@@ -446,7 +459,10 @@ fn shared_sum_instances_preserve_package_authority_at_each_constructor() {
             dependencies,
         )
         .unwrap();
-        let result = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs);
+        let result = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        });
         if direct && public {
             result.expect("one exact public sum shared by authorized constructors");
         } else {
@@ -523,7 +539,12 @@ fn sum_case_names_preserve_unique_and_ambiguous_constant_prefixes() {
             Vec::new(),
         )
         .unwrap();
-        if compile_to_checked_with_packages(&root.join("main.omg"), None, inputs).is_ok() {
+        if compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .is_ok()
+        {
             accepted.push(imports);
         }
     }

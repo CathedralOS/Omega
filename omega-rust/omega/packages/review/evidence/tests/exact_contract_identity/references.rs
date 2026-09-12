@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 fn reference_review(access: &str) -> CheckedPackageReviewProjection {
     let package = TempPackage::new();
@@ -13,11 +14,10 @@ fn reference_review(access: &str) -> CheckedPackageReviewProjection {
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("reference-bearing proposition should check");
     project_checked_package_review(&checked)
         .expect("reference formation should have exact package-review identity")
@@ -84,11 +84,10 @@ fn reference_review_rejects_access_tamper_after_checking() {
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let mut checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let mut checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("reference-tamper fixture should check");
     let reviewed = checked
         .propositions()
@@ -136,11 +135,10 @@ fn contract_call_reference_review_rejects_access_tamper_after_checking() {
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let mut checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let mut checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("contract-call reference-tamper fixture should check");
     let borrow = checked
         .typed

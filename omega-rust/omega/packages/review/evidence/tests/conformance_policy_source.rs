@@ -3,6 +3,7 @@ mod support;
 #[path = "fixture_rosters/conformance_policy_source.rs"]
 mod fixture_roster;
 
+use compiler::CheckedCompileRequest;
 use package_evidence::encoding::PackagePolicyRecoveryLimits;
 use package_evidence::project_checked_conformance_policy;
 use package_evidence::record::PackagePolicyClosedConformanceApplication;
@@ -28,11 +29,10 @@ fn compile_source(source: &str, digest: u8) -> (TempPackage, CheckedCompilation)
         Vec::new(),
     )
     .unwrap();
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        inputs,
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("source-derived conformance policy fixture should check");
     (package, checked)
 }

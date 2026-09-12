@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[path = "../fixture_rosters/entry_and_abi.rs"]
 pub(super) mod fixture_roster;
@@ -62,8 +63,11 @@ fn explicit_program_entry_binding_owns_capability_manifest_identity() {
 #[test]
 fn checked_compilation_retains_the_exact_selected_program_entry() {
     let canary = pass_canary(fixture_roster::BUILD_EXPLICIT_PROGRAM_ENTRY_BINDING);
-    let checked = compile_to_checked(&canary.join("main.omg"), Some("windows_x86_64"))
-        .expect("explicit entry canary should reach checked semantics");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("windows_x86_64"),
+    ))
+    .expect("explicit entry canary should reach checked semantics");
 
     assert_eq!(checked.selected_program_entry_machine(), Some("launch"));
     let selected = checked
@@ -87,8 +91,11 @@ fn checked_compilation_retains_the_exact_selected_program_entry() {
 #[test]
 fn checked_uefi_compilation_retains_source_and_two_surface_entry_custody() {
     let canary = pass_canary(fixture_roster::BUILD_UEFI_PROGRAM_ENTRY_STORAGE_ROOTS);
-    let checked = compile_to_checked(&canary.join("main.omg"), Some("uefi_x86_64"))
-        .expect("UEFI entry canary should retain its complete typed settlement");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("uefi_x86_64"),
+    ))
+    .expect("UEFI entry canary should retain its complete typed settlement");
     let selected = checked
         .selected_program_entry()
         .expect("UEFI checked compilation must retain its selected entry");
@@ -257,8 +264,11 @@ fn checked_uefi_compilation_retains_source_and_two_surface_entry_custody() {
 #[test]
 fn checked_compilation_does_not_infer_an_entry_for_legacy_semantic_corpus() {
     let canary = pass_canary(fixture_roster::ARITHMETIC_RUNTIME_CHAINED_FIELD_MUTATION_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("direct Main entry canary should reach checked semantics");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("direct Main entry canary should reach checked semantics");
 
     assert_eq!(checked.selected_program_entry_machine(), None);
     let outcome = checked_interpreter::interpret_entry(&checked, "Main::main", &[]);
@@ -319,7 +329,7 @@ fn production_check_accepts_entry_agnostic_semantic_corpus() {
 fn migrated_main_entries_are_selected_only_through_their_target_root_bindings() {
     for &(canary_name, target) in fixture_roster::MIGRATED_ENTRY_PASS_CANARIES {
         let canary = pass_canary(canary_name);
-        let checked = compile_to_checked(&canary.join("main.omg"), Some(target))
+        let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&canary.join("main.omg"), Some(target)))
             .unwrap_or_else(|diagnostics| {
                 panic!(
                     "{canary_name} should retain its explicit {target} ProgramEntry binding: {diagnostics:?}"

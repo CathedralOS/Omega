@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn review_projects_nominal_static_machine_external_telescope() {
@@ -28,11 +29,10 @@ via Binding::DllImport("omega-callback", "bind");
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("nominal static-machine top-level external supply should check");
     let review = project_checked_package_review(&checked)
         .expect("nominal static-machine external supply should project exactly");
@@ -95,11 +95,10 @@ where machine Callback(value: u64) -> u64;
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let mut checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let mut checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("recursive static-machine top-level external supply should check");
     let review = project_checked_package_review(&checked)
         .expect("recursive static-machine external supply should project exactly");

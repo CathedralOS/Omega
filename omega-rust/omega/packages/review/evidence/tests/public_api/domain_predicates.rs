@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn review_projects_public_domain_predicates_from_exact_checked_rows() {
@@ -16,11 +17,10 @@ pub domain Packet::Ready
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("public domain fact fixture should check");
     let review = project_checked_package_review(&checked)
         .expect("review should project the checked public domain predicate");
@@ -86,11 +86,10 @@ requires
 "#,
     );
 
-    let mut checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let mut checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("exact-owner domain calls should check");
     let review = project_checked_package_review(&checked)
         .expect("exact-owner domain calls should retain package review custody");

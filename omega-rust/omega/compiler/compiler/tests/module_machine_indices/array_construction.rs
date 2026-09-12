@@ -1,4 +1,5 @@
-use super::{Sources, compile, compile_to_checked_with_packages, root_inputs};
+use super::{Sources, compile, compile_to_checked, root_inputs};
+use compiler::CheckedCompileRequest;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use terminal_interpreter::{TerminalExecutionResult, TerminalScalarValue};
 use terminal_psi::StructuralTypeShape;
@@ -363,9 +364,10 @@ fn computed_array_leaves_reject_implicit_integer_widening() {
         root.join("main.omg"),
         "machine read(input: u8) -> [u16; 1] { [input] }",
     );
-    let Err(diagnostics) =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-    else {
+    let Err(diagnostics) = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    }) else {
         panic!("array destination cannot implicitly widen a typed scalar leaf");
     };
     assert!(

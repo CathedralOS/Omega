@@ -1,5 +1,6 @@
-use super::{Sources, compile_to_checked_with_packages, root_inputs};
+use super::{Sources, compile_to_checked, root_inputs};
 use build_time_evaluation::{BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeValue};
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn projected_array_values_retain_shape_at_every_destination() {
@@ -46,11 +47,10 @@ fn projected_array_values_retain_shape_at_every_destination() {
                     ),
                 ] {
                     Sources::write(root.join("main.omg"), &format!("use settings; {consumer}"));
-                    let result = compile_to_checked_with_packages(
-                        &root.join("main.omg"),
-                        None,
-                        root_inputs(&root),
-                    );
+                    let result = compile_to_checked(CheckedCompileRequest {
+                        package_inputs: Some(root_inputs(&root)),
+                        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+                    });
                     if destination == element {
                         result.expect("exact projected array type checks");
                     } else {
@@ -88,8 +88,10 @@ fn projected_arrays_keep_element_identity_when_lent_as_slices() {
              machine read() {{ take(settings::Sizes::ROWS[0]); }}"
                 ),
             );
-            let result =
-                compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root));
+            let result = compile_to_checked(CheckedCompileRequest {
+                package_inputs: Some(root_inputs(&root)),
+                ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+            });
             if element == "u8" {
                 result.expect("matching shared slice argument retains ordinary lending admission");
             } else {
@@ -117,7 +119,10 @@ fn array_projection_assignment_cannot_change_an_existing_carrier() {
         root.join("main.omg"),
         "use settings; machine read() { let mut value: [bool; 0] = []; value = settings::Sizes::ROWS[0]; }",
     );
-    let result = compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root));
+    let result = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    });
     assert!(
         result.is_err(),
         "assignment cannot change a projected array carrier"
@@ -146,8 +151,10 @@ fn scalar_projections_nested_in_value_call_arrays_keep_their_type() {
              machine read() -> u8 {{ take([settings::Sizes::VALUES[0]]) }}"
             ),
         );
-        let result =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root));
+        let result = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        });
         if element == "u8" {
             result.expect("matching scalar projection array checks");
         } else {
@@ -186,9 +193,11 @@ fn matching_array_projection_values_evaluate_with_exact_module_selection() {
          machine other() -> [u8; 2] { second::Sizes::ROWS[0] }
          machine empty() -> [u8; 0] { first::Sizes::EMPTY[0] }",
     );
-    let checked =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect("matching projected destinations");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("matching projected destinations");
     for (name, expected) in [
         ("read", vec![BuildTimeValue::Int(7), BuildTimeValue::Int(2)]),
         (

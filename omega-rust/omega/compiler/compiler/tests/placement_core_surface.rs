@@ -4,6 +4,7 @@
 //! placement operations, authority issuance, custody agreement checking, or a
 //! runtime representation for the `Extent` domains.
 
+use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
 use language_core::DataSupplyMode;
 use source::SourceOrigin;
@@ -61,16 +62,17 @@ fn parameter_names(parameters: &[typed_trees::data::TypeParameter]) -> Vec<&str>
 #[test]
 fn imported_core_placement_vocabulary_has_the_exact_settled_shape() {
     let fixture = TemporaryProgram::new();
-    let checked = compile_to_checked(&fixture.main(), None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "the normative core placement vocabulary should compile:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked = compile_to_checked(CheckedCompileRequest::new(&fixture.main(), None))
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "the normative core placement vocabulary should compile:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
 
     let placed = checked
         .typed

@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 use package_evidence::encoding::PackagePolicyTextRecoveryLimits;
 use package_evidence::record::PackagePolicyBaseline;
 use package_manager::declarations::{
@@ -706,11 +707,10 @@ fn preparation_recovers_pending_declarations_before_compiler_input_resolution() 
     let (entry, inputs) = prepared.into_parts();
     assert_ne!(entry, root.join("main.omg"));
     assert_eq!(inputs.packages().count(), 1);
-    compiler::compile_to_checked_with_packages_in_build_dir(
-        &entry,
-        &tree.path("recovered-compilation"),
-        Some(TARGET.target_name()),
-        inputs,
-    )
+    compiler::compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(tree.path("recovered-compilation").to_owned()),
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&entry, Some(TARGET.target_name()))
+    })
     .unwrap_or_else(|diagnostics| panic!("recovered project must compile: {diagnostics:#?}"));
 }

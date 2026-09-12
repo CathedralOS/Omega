@@ -1,3 +1,4 @@
+use compiler::CheckedCompileRequest;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -40,7 +41,8 @@ fn remove_fixture(path: PathBuf) {
 }
 
 fn lower_source(machine: &str, source: &Path) -> lowered_psi::LoweredPsi {
-    let checked = compiler::compile_to_checked(source, None).expect("check inspection source");
+    let checked = compiler::compile_to_checked(CheckedCompileRequest::new(source, None))
+        .expect("check inspection source");
     checked_trees_to_lowered_psi::lower_machine(&checked, machine).expect("lower inspection source")
 }
 

@@ -1,6 +1,7 @@
 //! Exact static arguments retained by a checked contract conformance use.
 
-use compiler::compile_to_checked_with_packages;
+use compiler::CheckedCompileRequest;
+use compiler::compile_to_checked;
 use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
 use semantic_vocabulary::PackageKeyIdentity;
 use std::fs;
@@ -65,8 +66,11 @@ ensures result == tag<Card, FieldOrder<Card, Wrapper<First>, 7, Wrapper<Second>>
         Vec::new(),
     )
     .unwrap();
-    let checked = compile_to_checked_with_packages(&source, Some("windows_x86_64"), inputs)
-        .expect("mixed and nested generic conformance arguments should check");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&source, Some("windows_x86_64"))
+    })
+    .expect("mixed and nested generic conformance arguments should check");
     let occurrences = &checked
         .facts
         .proof

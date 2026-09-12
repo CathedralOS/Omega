@@ -1,13 +1,14 @@
 //! Bounded input is shared checked library code, not a target line intrinsic.
 
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn selected_console_line_reader_callers_normalize_only_the_reported_prefix() {
-    let echo = compile_to_checked(
+    let echo = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
         &pass_canary("text/runtime_stdin_line_buffering_exit").join("main.omg"),
         Some("macos_arm64"),
-    )
+    ))
     .expect("two-read echo reaches checked semantics");
     for input in [
         b"hello\nworld\n".as_slice(),
@@ -31,10 +32,10 @@ fn selected_console_line_reader_callers_normalize_only_the_reported_prefix() {
     );
     assert!(full.stdout.is_empty());
 
-    let command = compile_to_checked(
+    let command = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
         &pass_canary("text/runtime_stdin_command_branch_exit").join("main.omg"),
         Some("macos_arm64"),
-    )
+    ))
     .expect("ASCII command input reaches checked semantics");
     for input in [b"look\n".as_slice(), b"look\r\n", b"look"] {
         let result = interpret(&command, input);
@@ -67,7 +68,7 @@ fn selected_console_line_reader_sample_callers_reach_checked_semantics() {
         "cli/text/text_padding",
     ] {
         let root = sample_project(sample).join("main.omg");
-        compile_to_checked(&root, Some("macos_arm64"))
+        compile_reviewed_repository_fixture(CheckedCompileRequest::new(&root, Some("macos_arm64")))
             .unwrap_or_else(|diagnostics| panic!("{sample}: {diagnostics:#?}"));
     }
 }
@@ -94,7 +95,10 @@ fn selected_console_line_reader_migrated_fixtures_reach_checked_semantics() {
             .join("tests/omega")
             .join(fixture)
             .join("main.omg");
-        if let Err(diagnostics) = compile_to_checked(&root, Some("macos_arm64")) {
+        if let Err(diagnostics) = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+            &root,
+            Some("macos_arm64"),
+        )) {
             failures.push(format!("{fixture}: {diagnostics:#?}"));
         }
     }
@@ -110,8 +114,11 @@ fn selected_console_line_reader_is_a_shared_checked_adapter() {
         "linux_x86_64",
         "linux_arm64",
     ] {
-        let checked = compile_to_checked(&canary.join("main.omg"), Some(target))
-            .unwrap_or_else(|diagnostics| panic!("line reader provider: {diagnostics:#?}"));
+        let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+            &canary.join("main.omg"),
+            Some(target),
+        ))
+        .unwrap_or_else(|diagnostics| panic!("line reader provider: {diagnostics:#?}"));
         let plan = checked
             .selected_provider_plans()
             .plans()
@@ -156,8 +163,11 @@ fn selected_console_line_reader_preserves_raw_prefix_count_and_unread_suffix() {
         "linux_x86_64",
         "linux_arm64",
     ] {
-        let checked = compile_to_checked(&canary.join("main.omg"), Some(target))
-            .unwrap_or_else(|diagnostics| panic!("{target}: {diagnostics:#?}"));
+        let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+            &canary.join("main.omg"),
+            Some(target),
+        ))
+        .unwrap_or_else(|diagnostics| panic!("{target}: {diagnostics:#?}"));
         let cases: &[(&[u8], i32, &[u8])] = &[
             (b"", 20, b"\xa5\xa5\xa5\xa5"),
             (b"\nX", 11, b"\n\xa5\xa5\xa5X"),

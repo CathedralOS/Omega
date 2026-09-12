@@ -1,8 +1,9 @@
 use super::{
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding, Sources, compile,
-    compile_to_checked_with_packages, identity, root_inputs, selections,
+    compile_to_checked, identity, root_inputs, selections,
 };
 use build_time_evaluation::{BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeValue};
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn array_constant_bodies_keep_exact_module_values_and_independent_copies() {
@@ -86,9 +87,11 @@ fn dynamic_array_constant_projection_retains_the_value_indexing_boundary() {
             root.join("main.omg"),
             &format!("use settings; machine projected(position: u64) -> u8 {{ {expression} }}"),
         );
-        let diagnostics =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err("temporary array projection must not acquire place semantics");
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("temporary array projection must not acquire place semantics");
         assert!(
             diagnostics
                 .iter()
@@ -127,11 +130,10 @@ fn array_constant_declared_shape_survives_empty_and_nested_empty_values() {
                 ),
             ] {
                 Sources::write(root.join("main.omg"), &format!("use settings; {consumer}"));
-                let result = compile_to_checked_with_packages(
-                    &root.join("main.omg"),
-                    None,
-                    root_inputs(&root),
-                );
+                let result = compile_to_checked(CheckedCompileRequest {
+                    package_inputs: Some(root_inputs(&root)),
+                    ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+                });
                 if destination == declared {
                     result.expect("matching declared array carrier checks");
                 } else {
@@ -180,7 +182,10 @@ fn array_constant_body_substitution_preserves_dependency_and_visibility_checks()
             )],
         )
         .expect("direct dependency graph");
-        let result = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs);
+        let result = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        });
         if public {
             let checked = result.expect("public array body checks through direct dependency");
             assert_eq!(
@@ -220,5 +225,11 @@ fn array_constant_body_substitution_preserves_dependency_and_visibility_checks()
         ],
     )
     .expect("reachable transitive package without a direct dependency");
-    assert!(compile_to_checked_with_packages(&root.join("main.omg"), None, inputs).is_err());
+    assert!(
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .is_err()
+    );
 }

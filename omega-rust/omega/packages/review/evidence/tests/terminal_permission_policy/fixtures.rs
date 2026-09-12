@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 use package_compilation::AcceptedSemanticBinding;
 
 pub(super) const FILESYSTEM: &str = r#"pub boundary trait FilesystemHost {
@@ -101,11 +102,10 @@ machine build(builder: &mut Build) {
         let inputs =
             PackageCompilationInputs::new_package(package_identity(), sources, dependencies)
                 .unwrap();
-        let candidate = compile_to_checked_with_packages(
-            &root.0.join("main.omg"),
-            Some(target.target_name()),
-            inputs.clone(),
-        )
+        let candidate = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs.clone()),
+            ..CheckedCompileRequest::new(&root.0.join("main.omg"), Some(target.target_name()))
+        })
         .unwrap_or_else(|diagnostics| {
             panic!("terminal permission candidate should check: {diagnostics:#?}")
         });
@@ -197,13 +197,17 @@ machine build(builder: &mut Build) {
         &self,
         accepted: AcceptedSemanticBinding,
     ) -> Result<CheckedCompilation, Vec<diagnostics::Diagnostic>> {
-        compile_to_checked_with_packages(
-            &self.root.0.join("main.omg"),
-            Some(self.target.target_name()),
-            self.inputs
-                .clone()
-                .with_accepted_semantic_bindings(vec![accepted])
-                .unwrap(),
-        )
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(
+                self.inputs
+                    .clone()
+                    .with_accepted_semantic_bindings(vec![accepted])
+                    .unwrap(),
+            ),
+            ..CheckedCompileRequest::new(
+                &self.root.0.join("main.omg"),
+                Some(self.target.target_name()),
+            )
+        })
     }
 }

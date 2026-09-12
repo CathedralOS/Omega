@@ -5,6 +5,7 @@ use build_time_evaluation::{
     BuildTimeValue, compute_layout_plan, evaluate_and_materialize_typed_owned_layout_into,
     materialize_typed_owned_layout_into,
 };
+use compiler::CheckedCompileRequest;
 use compiler::{CompileOptions, compile_to_checked};
 
 fn compile(
@@ -67,8 +68,11 @@ fn unique_build_dir(tag: &str) -> TemporaryBuildDirectory {
 fn assert_runtime_canary(canary_name: &str, tag: &str) {
     let canary = repo_root().join("tests/omega/pass").join(canary_name);
     let host = target::TargetProfile::host();
-    let checked = compile_to_checked(&canary.join("main.omg"), Some(host.target_name()))
-        .expect("gapped outer-array canary should reach checked trees");
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some(host.target_name()),
+    ))
+    .expect("gapped outer-array canary should reach checked trees");
     let interpreted = interpret_entry(
         &checked,
         checked
@@ -161,8 +165,11 @@ fn multiple_whole_aggregate_fields_interpret_run_natively_and_cross_compile() {
 fn gapped_record_outer_array_materializes_from_checked_owned_value() {
     let canary = repo_root().join("tests/omega/pass").join(RECORD_CANARY);
     let host = target::TargetProfile::host();
-    let checked = compile_to_checked(&canary.join("main.omg"), Some(host.target_name()))
-        .expect("gapped record-array canary should reach checked trees");
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some(host.target_name()),
+    ))
+    .expect("gapped record-array canary should reach checked trees");
     let layout = compute_layout_plan(&checked.typed, "TiledRecordArray::plan", "Samples")
         .expect("gapped record-array plan should validate");
 
@@ -207,8 +214,11 @@ fn gapped_nested_array_outer_array_materializes_from_checked_owned_value() {
         .join("tests/omega/pass")
         .join(NESTED_ARRAY_CANARY);
     let host = target::TargetProfile::host();
-    let checked = compile_to_checked(&canary.join("main.omg"), Some(host.target_name()))
-        .expect("gapped nested-array canary should reach checked trees");
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some(host.target_name()),
+    ))
+    .expect("gapped nested-array canary should reach checked trees");
     let layout = compute_layout_plan(&checked.typed, "TiledNestedArray::plan", "Samples")
         .expect("gapped nested-array plan should validate");
 
@@ -249,8 +259,11 @@ fn gapped_record_nested_array_materialization_is_exact_and_atomic() {
         .join("tests/omega/pass")
         .join(RECORD_NESTED_ARRAY_CANARY);
     let host = target::TargetProfile::host();
-    let checked = compile_to_checked(&canary.join("main.omg"), Some(host.target_name()))
-        .expect("gapped record-nested-array canary should reach checked trees");
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some(host.target_name()),
+    ))
+    .expect("gapped record-nested-array canary should reach checked trees");
     let layout = compute_layout_plan(&checked.typed, "TiledRecordNestedArray::plan", "Samples")
         .expect("gapped record-nested-array plan should validate");
 
@@ -371,8 +384,11 @@ fn multiple_whole_aggregate_fields_materialize_by_key_and_reject_atomically() {
         .join("tests/omega/pass")
         .join(MULTIPLE_AGGREGATE_FIELDS_CANARY);
     let host = target::TargetProfile::host();
-    let checked = compile_to_checked(&canary.join("main.omg"), Some(host.target_name()))
-        .expect("multiple-aggregate-fields canary should reach checked trees");
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some(host.target_name()),
+    ))
+    .expect("multiple-aggregate-fields canary should reach checked trees");
     let layout = compute_layout_plan(&checked.typed, "MultipleAggregateFields::plan", "Samples")
         .expect("multiple whole aggregate fields should validate");
 

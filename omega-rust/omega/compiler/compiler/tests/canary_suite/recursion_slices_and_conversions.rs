@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[path = "../fixture_rosters/recursion_slices_and_conversions.rs"]
 pub(super) mod fixture_roster;
@@ -1079,8 +1080,11 @@ fn numeric_trapping_conversion_overflow_aborts() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("trapping numeric conversion should reach checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("trapping numeric conversion should reach checked trees");
     let outcome = interpret(&checked, &[]);
     assert!(
         outcome
@@ -1121,8 +1125,11 @@ fn runtime_numeric_cross_signed_conversion_surface_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("cross-signed surface should reach checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("cross-signed surface should reach checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
@@ -1166,8 +1173,11 @@ machine Main::main(&mut self) -> i32 {{
             ),
         )
         .expect("write saturation fixture");
-        let checked = compile_to_checked(&directory.join("main.omg"), None)
-            .unwrap_or_else(|diagnostics| panic!("{value}: {diagnostics:#?}"));
+        let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+            &directory.join("main.omg"),
+            None,
+        ))
+        .unwrap_or_else(|diagnostics| panic!("{value}: {diagnostics:#?}"));
         let outcome = interpret(&checked, &[]);
         assert!(outcome.error.is_none(), "{value}: {:?}", outcome.error);
         assert_eq!(
@@ -1212,8 +1222,11 @@ fn numeric_cross_signed_trapping_conversions_abort() {
             String::from_utf8_lossy(&output.stderr)
         );
 
-        let checked = compile_to_checked(&canary.join("main.omg"), None)
-            .unwrap_or_else(|_| panic!("{label} should reach checked trees"));
+        let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+            &canary.join("main.omg"),
+            None,
+        ))
+        .unwrap_or_else(|_| panic!("{label} should reach checked trees"));
         let outcome = interpret(&checked, &[]);
         assert!(
             outcome

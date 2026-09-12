@@ -1,5 +1,6 @@
 use super::*;
 use build_time_evaluation::{BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeValue};
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn package_qualified_case_values_and_membership_select_the_declaring_owner() {
@@ -140,7 +141,11 @@ fn case_selection_requires_the_requesting_packages_direct_dependency() {
         PackageCompilationInputs::new_package(identity(1), sources.clone(), dependencies.clone())
             .unwrap();
     assert!(
-        compile_to_checked_with_packages(&root.join("main.omg"), None, inputs).is_err(),
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .is_err(),
         "loading a transitive source cannot authorize case selection"
     );
     dependencies.push(PackageDependencyBinding::new(
@@ -176,11 +181,13 @@ fn membership_selection_filters_actual_cases_before_reporting_competing_owners()
         root.join("right.omg"),
         "module right; pub data Choice { case Empty; }",
     );
-    let errors =
-        match compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root)) {
-            Ok(_) => panic!("two eligible imported case owners must be ambiguous"),
-            Err(errors) => errors,
-        };
+    let errors = match compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    }) {
+        Ok(_) => panic!("two eligible imported case owners must be ambiguous"),
+        Err(errors) => errors,
+    };
     assert!(
         errors
             .iter()
@@ -254,7 +261,10 @@ fn qualified_cases_reject_wrong_owners_private_carriers_and_invalid_values() {
             )],
         )
         .unwrap();
-        let errors = match compile_to_checked_with_packages(&root.join("main.omg"), None, inputs) {
+        let errors = match compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        }) {
             Ok(_) => {
                 panic!("qualification bypassed case or source authority obligations: {source}")
             }

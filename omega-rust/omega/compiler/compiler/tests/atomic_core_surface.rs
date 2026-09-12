@@ -3,6 +3,7 @@
 //! The Rust schema is descriptive only: importing the ordinary core source
 //! must still produce the same generic nominal declarations and payload rows.
 
+use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
 use language_core::atomic::AtomicCompareExchangeOutcomeIdentity;
 use source::SourceOrigin;
@@ -47,16 +48,17 @@ impl Drop for TemporaryProgram {
 #[test]
 fn imported_core_atomic_outcomes_match_the_compiler_owned_schema() {
     let fixture = TemporaryProgram::new();
-    let checked = compile_to_checked(&fixture.main(), None).unwrap_or_else(|diagnostics| {
-        panic!(
-            "the normative core atomic outcome surface should compile:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let checked = compile_to_checked(CheckedCompileRequest::new(&fixture.main(), None))
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "the normative core atomic outcome surface should compile:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
 
     for identity in AtomicCompareExchangeOutcomeIdentity::ALL {
         let matches = checked

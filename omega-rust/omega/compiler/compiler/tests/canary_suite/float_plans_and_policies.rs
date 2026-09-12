@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[path = "float_match_interpreter.rs"]
 mod float_match_interpreter;
@@ -36,8 +37,11 @@ fn selected_intrinsic_diagnostic_label(
 #[test]
 fn domain_operator_selection_records_signature_domain_meaning_as_evidence() {
     let canary = pass_canary(fixture_roster::DOMAINS_DOMAIN_OPERATOR_PROVEN_FACT_SELECTS_MEANING);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("signature-selected domain canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("signature-selected domain canary should compile to checked trees");
 
     let selected_domain_uses = checked
         .facts
@@ -57,8 +61,11 @@ fn domain_operator_selection_records_signature_domain_meaning_as_evidence() {
 #[test]
 fn float_operator_spellings_record_named_core_identities() {
     let canary = pass_canary(fixture_roster::OPERATORS_FLOAT_OPERATOR_IDENTITIES);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("core float operation identities should compile");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("core float operation identities should compile");
 
     let selected_names: Vec<String> = checked
         .facts
@@ -139,8 +146,11 @@ fn float_operator_spellings_record_named_core_identities() {
 #[test]
 fn float_match_checked_interpreter_executes_selected_arm_comparisons() {
     let canary = pass_canary("expressions/match_float_patterns");
-    let checked = compile_to_checked(&canary.join("main.omg"), Some("macos_arm64"))
-        .expect("float match selects its ordinary core provider");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("macos_arm64"),
+    ))
+    .expect("float match selects its ordinary core provider");
     let outcome = checked_interpreter::interpret_entry(&checked, "launch", &[]);
     assert_eq!(outcome.error, None, "selected Match equality must execute");
     assert_eq!(outcome.exit_code, 0);
@@ -149,8 +159,11 @@ fn float_match_checked_interpreter_executes_selected_arm_comparisons() {
 #[test]
 fn float_match_arms_retain_distinct_applications_of_the_selected_provider() {
     let canary = pass_canary("expressions/match_float_patterns");
-    let checked = compile_to_checked(&canary.join("main.omg"), Some("macos_arm64"))
-        .expect("float patterns select their exact core equality provider");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("macos_arm64"),
+    ))
+    .expect("float patterns select their exact core equality provider");
     let uses = checked
         .facts
         .operators
@@ -215,7 +228,11 @@ fn float_match_arms_retain_distinct_applications_of_the_selected_provider() {
 #[test]
 fn float_match_executes_selected_arms_through_verified_terminal() {
     let canary = pass_canary("expressions/match_float_patterns");
-    let checked = compile_to_checked(&canary.join("main.omg"), Some("macos_arm64")).unwrap();
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("macos_arm64"),
+    ))
+    .unwrap();
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
         .expect("the unchanged call-bearing Match customer must reach Terminal");
     compiler::validate_lowered_ieee_float_comparison_custody(&checked, &lowered)
@@ -425,8 +442,11 @@ fn float_provider_plan_identities_ignore_arena_and_display_perturbations() {
     }
 
     let canary = pass_canary(fixture_roster::OPERATORS_FLOAT_OPERATOR_IDENTITIES);
-    let baseline = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("baseline float provider plans should check");
+    let baseline = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("baseline float provider plans should check");
     let baseline_snapshot = float_plan_snapshot(&baseline);
     assert!(
         !baseline_snapshot.is_empty(),
@@ -468,8 +488,11 @@ fn float_provider_plan_identities_ignore_arena_and_display_perturbations() {
     fs::copy(canary.join("build.omg"), scratch.join("build.omg"))
         .expect("copy float plan build configuration");
 
-    let perturbed = compile_to_checked(&scratch.join("main.omg"), None)
-        .expect("arena-perturbed float provider plans should check");
+    let perturbed = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &scratch.join("main.omg"),
+        None,
+    ))
+    .expect("arena-perturbed float provider plans should check");
     assert_eq!(
         float_plan_snapshot(&perturbed),
         baseline_snapshot,
@@ -593,11 +616,13 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
         "linux_arm64",
         "macos_arm64",
     ] {
-        let checked = compile_to_checked(&canary.join("main.omg"), Some(target)).unwrap_or_else(
-            |diagnostics| {
-                panic!("core float provider plans should check for {target}: {diagnostics:#?}")
-            },
-        );
+        let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+            &canary.join("main.omg"),
+            Some(target),
+        ))
+        .unwrap_or_else(|diagnostics| {
+            panic!("core float provider plans should check for {target}: {diagnostics:#?}")
+        });
         let operator_path = |operator: &typed_trees::operator::OperatorDefinition| {
             checked
                 .typed
@@ -794,7 +819,7 @@ fn primitive_float_arithmetic_and_comparisons_execute_in_both_engines() {
 
     let canary = pass_canary(fixture_roster::OPERATORS_FLOAT_OPERATOR_IDENTITIES);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("primitive float arithmetic and comparisons should compile");
     let operator_path = |operator: &typed_trees::operator::OperatorDefinition| {
         checked
@@ -950,7 +975,7 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
 
     let canary = pass_canary(fixture_roster::FLOAT_RUNTIME_NAMED_FORMAT_CONVERSION_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("public float-format conversion requirements should compile");
 
     let selected = checked
@@ -1127,7 +1152,7 @@ fn named_integer_to_float_requirements_execute_in_both_engines() {
 
     let canary = pass_canary(fixture_roster::FLOAT_RUNTIME_NAMED_INTEGER_TO_FLOAT_CONVERSION_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("public integer-to-float requirements should compile");
 
     let selected = checked
@@ -1258,7 +1283,7 @@ fn named_float_to_integer_requirements_execute_in_both_engines() {
 
     let canary = pass_canary(fixture_roster::FLOAT_RUNTIME_NAMED_FLOAT_TO_INTEGER_CONVERSION_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("public float-to-integer requirements should compile");
 
     let selected = checked
@@ -1427,8 +1452,9 @@ fn named_float_to_integer_trapping_requirements_trap_in_both_engines() {
     for &name in fixture_roster::FLOAT_TO_INTEGER_TRAP_PASS_CANARIES {
         let canary = pass_canary(name);
         let main_path = canary.join("main.omg");
-        let checked = compile_to_checked(&main_path, None)
-            .expect("named Trapping float-to-integer requirement should compile");
+        let checked =
+            compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
+                .expect("named Trapping float-to-integer requirement should compile");
         let interpreted = interpret(&checked, &[]);
         assert!(
             interpreted.error.is_some(),
@@ -1483,8 +1509,11 @@ fn named_float_provider_calls_rewrite_to_selected_builtins() {
     const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x0b72_09a4_4518_814d;
 
     let canary = pass_canary(fixture_roster::FLOAT_NAMED_PROVIDER_MIN_MAX_SQRT_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("named float provider calls should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("named float provider calls should compile to checked trees");
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
     let mut selected_contract_rows = std::collections::BTreeMap::new();
@@ -1724,8 +1753,11 @@ fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
     const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x3c92_46b9_d29d_254c;
 
     let canary = pass_canary(fixture_roster::FLOAT_NAMED_PROVIDER_NEGATE_IS_NAN_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("named negate/is_nan provider calls should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("named negate/is_nan provider calls should compile to checked trees");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
@@ -1891,8 +1923,11 @@ fn named_float_classification_predicates_select_and_execute() {
     const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xa6bf_7c01_3cb0_fd6a;
 
     let canary = pass_canary(fixture_roster::FLOAT_NAMED_PROVIDER_CLASSIFICATION_PREDICATES_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("named float classification calls should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("named float classification calls should compile to checked trees");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
@@ -2039,8 +2074,11 @@ fn named_float_classify_preserves_enum_layout_and_executes() {
     const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x9a27_9424_1f02_d5fa;
 
     let canary = pass_canary(fixture_roster::FLOAT_NAMED_PROVIDER_CLASSIFY_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("named float classify calls should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("named float classify calls should compile to checked trees");
     let layouts = layout::build_layout_plan(&checked, target::NativeTarget::host(), &[])
         .expect("FloatClass layout should build");
     let float_class = layouts
@@ -2199,8 +2237,11 @@ fn named_float_multiply_then_add_preserves_two_roundings_and_executes() {
     const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x3469_73b6_84ba_8c5d;
 
     let canary = pass_canary(fixture_roster::FLOAT_NAMED_PROVIDER_MULTIPLY_THEN_ADD_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("named multiply-then-add provider calls should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("named multiply-then-add provider calls should compile to checked trees");
 
     let main_machine = checked
         .typed
@@ -2370,8 +2411,11 @@ fn named_float_fused_multiply_add_selects_aarch64_fmadd_and_executes() {
     const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xbb3f_d600_7ddf_03c0;
 
     let canary = pass_canary(fixture_roster::FLOAT_NAMED_PROVIDER_FUSED_MULTIPLY_ADD_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("named FMA provider calls should compile to checked trees on macOS AArch64");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("named FMA provider calls should compile to checked trees on macOS AArch64");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
@@ -2501,8 +2545,11 @@ fn named_float_directed_fused_multiply_add_selects_aarch64_fmadd_and_executes() 
     const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x4b6d_5c3b_9fb5_54a6;
 
     let canary = pass_canary(fixture_roster::FLOAT_NAMED_PROVIDER_DIRECTED_FUSED_MULTIPLY_ADD_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("directed-FMA provider calls should compile to checked trees on macOS AArch64");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("directed-FMA provider calls should compile to checked trees on macOS AArch64");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
@@ -2743,8 +2790,11 @@ fn named_float_directed_add_selects_exact_plans_and_restores_control_state() {
     const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x7e9b_cd52_c66c_6510;
 
     let canary = pass_canary(fixture_roster::FLOAT_NAMED_PROVIDER_DIRECTED_ADD_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("directed-add provider calls should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("directed-add provider calls should compile to checked trees");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
@@ -2884,8 +2934,11 @@ fn named_float_directed_subtract_selects_exact_plans_and_restores_control_state(
     const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xb40d_f240_a7b2_6e47;
 
     let canary = pass_canary(fixture_roster::FLOAT_NAMED_PROVIDER_DIRECTED_SUBTRACT_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("directed-subtract provider calls should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("directed-subtract provider calls should compile to checked trees");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
@@ -3026,8 +3079,11 @@ fn named_float_directed_multiply_selects_exact_plans_and_restores_control_state(
     const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x4411_b314_20a5_c04b;
 
     let canary = pass_canary(fixture_roster::FLOAT_NAMED_PROVIDER_DIRECTED_MULTIPLY_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("directed-multiply provider calls should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("directed-multiply provider calls should compile to checked trees");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
@@ -3168,8 +3224,11 @@ fn named_float_directed_divide_selects_exact_plans_and_restores_control_state() 
     const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x5e1f_542f_ee21_0fd9;
 
     let canary = pass_canary(fixture_roster::FLOAT_NAMED_PROVIDER_DIRECTED_DIVIDE_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("directed-divide provider calls should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("directed-divide provider calls should compile to checked trees");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
@@ -3310,8 +3369,11 @@ fn named_float_directed_square_root_selects_exact_plans_and_restores_control_sta
     const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x5bfe_5610_aa74_88bf;
 
     let canary = pass_canary(fixture_roster::FLOAT_NAMED_PROVIDER_DIRECTED_SQUARE_ROOT_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("directed-square-root provider calls should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("directed-square-root provider calls should compile to checked trees");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
@@ -3443,10 +3505,13 @@ fn named_float_directed_square_root_selects_exact_plans_and_restores_control_sta
 fn float_policy_operator_uses_record_checked_result_adapters() {
     for &(canary_name, expected) in fixture_roster::POLICY_ADAPTER_PASS_CANARIES {
         let canary = pass_canary(canary_name);
-        let checked =
-            compile_to_checked(&canary.join("main.omg"), None).unwrap_or_else(|diagnostics| {
-                panic!("{canary_name} should compile to checked policy evidence: {diagnostics:?}")
-            });
+        let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+            &canary.join("main.omg"),
+            None,
+        ))
+        .unwrap_or_else(|diagnostics| {
+            panic!("{canary_name} should compile to checked policy evidence: {diagnostics:?}")
+        });
         assert!(
             checked
                 .facts
@@ -3461,8 +3526,11 @@ fn float_policy_operator_uses_record_checked_result_adapters() {
 #[test]
 fn nested_attached_float_policy_operators_retain_checked_selected_evidence() {
     let canary = pass_canary(fixture_roster::ARITHMETIC_FLOAT_SATURATING_OVERFLOW_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("nested attached-data float policy canary should check");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("nested attached-data float policy canary should check");
     let machine = checked
         .typed
         .machines()
@@ -3546,9 +3614,13 @@ fn float_policy_adapters_retain_differential_results() {
     for (case_name, expected_exit, expected_error) in selected_cases.iter().copied() {
         let canary = pass_canary(case_name);
         let main_path = canary.join("main.omg");
-        let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
-            panic!("{case_name} should compile to checked policy evidence: {diagnostics:#?}")
-        });
+        let checked =
+            compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
+                .unwrap_or_else(|diagnostics| {
+                    panic!(
+                        "{case_name} should compile to checked policy evidence: {diagnostics:#?}"
+                    )
+                });
         for operator_use in checked.facts.operators.resolved_uses() {
             let adapter = match operator_use.policy_adapter {
                 checked_trees::CheckedArithmeticPolicyAdapter::None => continue,
@@ -3762,8 +3834,11 @@ fn float_policy_adapters_retain_differential_results() {
 fn domain_operator_selection_records_builtin_fallback_without_binding_selection() {
     let canary =
         pass_canary(fixture_roster::DOMAINS_DOMAIN_OPERATOR_UNPROVEN_KEEPS_BUILTIN_MEANING);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("unselected builtin fallback canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("unselected builtin fallback canary should compile to checked trees");
 
     let fallback_uses = checked
         .facts
@@ -3795,7 +3870,7 @@ fn domain_operator_selection_records_builtin_fallback_without_binding_selection(
 fn domain_operator_inactive_same_carrier_meanings_coexist() {
     let canary =
         pass_canary(fixture_roster::DOMAINS_DOMAIN_OPERATOR_INACTIVE_SAME_CARRIER_COEXISTS);
-    compile_to_checked(&canary.join("main.omg"), None)
+    compile_reviewed_repository_fixture(CheckedCompileRequest::new(&canary.join("main.omg"), None))
         .expect("inactive same-carrier domain meanings should coexist");
 }
 
@@ -3804,8 +3879,11 @@ fn domain_operator_inactive_same_carrier_meanings_coexist() {
 #[test]
 fn domain_operator_competing_binding_meanings_fail_at_use_site() {
     let canary = fail_canary(fixture_roster::DOMAINS_DOMAIN_OPERATOR_COMPETING_SPELLING_MEANINGS);
-    let diagnostics = compile_to_checked(&canary.join("main.omg"), None)
-        .expect_err("competing selected domain meanings should fail");
+    let diagnostics = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect_err("competing selected domain meanings should fail");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic

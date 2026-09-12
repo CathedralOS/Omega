@@ -1,7 +1,8 @@
 use super::{
-    Sources, assert_same_machine_types, compile, compile_to_checked_with_packages, identity,
-    root_inputs, selections,
+    Sources, assert_same_machine_types, compile, compile_to_checked, identity, root_inputs,
+    selections,
 };
+use compiler::CheckedCompileRequest;
 
 const FLAG: &str = "pub data Flag<const Enabled: bool> { value: u8; }";
 
@@ -142,9 +143,11 @@ fn comparisons_reject_runtime_operands_unsafe_arithmetic_and_authored_operators(
                 keep("keep", expression)
             ),
         );
-        let diagnostics =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err("comparison cannot erase operand obligations");
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("comparison cannot erase operand obligations");
         assert!(
             diagnostics
                 .iter()
@@ -160,9 +163,11 @@ fn comparisons_reject_runtime_operands_unsafe_arithmetic_and_authored_operators(
             root.join("main.omg"),
             &format!("{FLAG} const LIMIT: u64 = 3; {machine}"),
         );
-        let diagnostics =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err("runtime operand is not the same-named constant");
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("runtime operand is not the same-named constant");
         assert!(
             diagnostics
                 .iter()
@@ -177,9 +182,11 @@ fn comparisons_reject_runtime_operands_unsafe_arithmetic_and_authored_operators(
             keep("keep", "(LIMIT == 3)")
         ),
     );
-    let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect_err("authored equality cannot acquire builtin comparison meaning");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("authored equality cannot acquire builtin comparison meaning");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -279,7 +286,7 @@ fn boolean_equality_indices_reject_runtime_and_authored_meaning() {
         ("operator != bool::different(left: bool, right: bool) -> bool;", keep("keep", "(ENABLED != false)"), "requires exact authored selection"),
     ] {
         Sources::write(root.join("main.omg"), &format!("{FLAG} const ENABLED: bool = true; {declarations} {machine}"));
-        let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root)).expect_err("Boolean equality cannot erase selection obligations");
+        let diagnostics = compile_to_checked(CheckedCompileRequest { package_inputs: Some(root_inputs(&root)), ..CheckedCompileRequest::new(&root.join("main.omg"), None) }).expect_err("Boolean equality cannot erase selection obligations");
         assert!(diagnostics.iter().any(|diagnostic| diagnostic.message.contains(expected)), "{diagnostics:?}");
     }
 }
@@ -378,11 +385,11 @@ fn boolean_logic_indices_do_not_skip_admission_or_selected_branch_failures() {
                 "{FLAG} const ENABLED: bool = true; const LIMIT: u8 = 3; {declarations} {machine}"
             ),
         );
-        let diagnostics =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err(
-                    "selective execution retains admission and evaluated arithmetic obligations",
-                );
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("selective execution retains admission and evaluated arithmetic obligations");
         assert!(
             diagnostics
                 .iter()
@@ -412,8 +419,11 @@ fn boolean_logic_indices_reject_ill_typed_unselected_operands() {
             &format!("{FLAG} const LIMIT: u8 = 3; {}", keep("keep", expression)),
         );
         assert!(
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .is_err(),
+            compile_to_checked(CheckedCompileRequest {
+                package_inputs: Some(root_inputs(&root)),
+                ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+            })
+            .is_err(),
             "unselected operand must be well typed: {expression}"
         );
     }
@@ -461,8 +471,11 @@ fn boolean_logic_indices_check_the_complete_static_operand_roster() {
             ),
         );
         assert!(
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .is_err(),
+            compile_to_checked(CheckedCompileRequest {
+                package_inputs: Some(root_inputs(&root)),
+                ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+            })
+            .is_err(),
             "unselected operand must retain formation and landing: {expression}"
         );
     }
@@ -580,11 +593,11 @@ fn literal_boolean_indices_retain_selection_types_and_evaluated_failures() {
             root.join("main.omg"),
             &format!("{FLAG} {declarations} {}", keep("keep", expression)),
         );
-        let diagnostics =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err(
-                    "literal indices must satisfy the same admission and scalar obligations",
-                );
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("literal indices must satisfy the same admission and scalar obligations");
         assert!(
             diagnostics
                 .iter()

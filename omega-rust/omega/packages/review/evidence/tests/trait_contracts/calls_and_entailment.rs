@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn public_contract_call_projection_requires_one_exact_checked_certificate() {
@@ -21,11 +22,10 @@ pub trait Worker {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("public fact-call projection fixture should check");
     project_checked_package_review(&checked)
         .expect("one exact fact-call projection certificate should rejoin");
@@ -69,11 +69,10 @@ pub trait Worker {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("public trait contract call fixture should check");
     let review = project_checked_package_review(&checked)
         .expect("public trait contract calls use the checked call row");
@@ -125,11 +124,10 @@ ensures
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("ordinary checking should retain the out-of-language stand-down");
     assert_eq!(checked.facts.proof.contract_exits.len(), 1);
     let [stand_down] = checked.contract_entailment_stand_downs() else {
@@ -238,11 +236,10 @@ ensures
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("assumption-discharge fixture should check");
     assert_eq!(
         checked
@@ -503,11 +500,10 @@ ensures
             r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("duplicate open-goal fixture should check");
         assert_eq!(checked.facts.proof.contract_exits.len(), 1);
         project_checked_package_review(&checked)

@@ -1,4 +1,5 @@
-use compiler::compile_to_checked_with_packages;
+use compiler::CheckedCompileRequest;
+use compiler::compile_to_checked;
 use effects::{PortableFilesystemAuthorityFacet, ServiceTerminalAuthorityPermission};
 use package_compilation::AcceptedSemanticBindingRole;
 use package_evidence::record::{PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner};
@@ -176,11 +177,10 @@ fn real_standard_library_resolves_as_an_ordinary_exact_package() {
     let root_snapshot = closure
         .source_root(closure.graph().root())
         .expect("root source custody");
-    let checked = compile_to_checked_with_packages(
-        &root_snapshot.join("main.omg"),
-        Some("windows_x86_64"),
-        inputs,
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root_snapshot.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("the reconciled standard-library import should compile");
 
     let imported_type = checked
@@ -574,11 +574,10 @@ fn standard_library_alias_has_no_undeclared_bundled_fallback() {
         .source_root(closure.graph().root())
         .expect("root source custody");
 
-    let diagnostics = compile_to_checked_with_packages(
-        &root_snapshot.join("main.omg"),
-        Some("windows_x86_64"),
-        inputs,
-    )
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root_snapshot.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect_err("an undeclared standard-library alias must not use bundled std");
     assert!(
         diagnostics.iter().any(|diagnostic| {

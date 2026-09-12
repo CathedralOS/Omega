@@ -1,8 +1,9 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn checked_source_exact_add_uses_known_addend_bound() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("known-addend exact-add source canary should compile");
     let lowered = lower_machine(&checked, "terminal_exact_add_known_right")
         .expect("known-addend exact addition should use its path bound");
@@ -94,7 +95,7 @@ fn checked_source_exact_add_uses_known_addend_bound() {
 
 #[test]
 fn checked_source_exact_add_uses_joint_runtime_bound() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("joint-bound exact-add source canary should compile");
     let lowered = lower_machine(&checked, "terminal_exact_add_runtime_bound")
         .expect("joint-bound exact addition should use its path proposition");
@@ -181,7 +182,7 @@ fn checked_source_exact_add_uses_joint_runtime_bound() {
 
 #[test]
 fn checked_source_exact_add_uses_signed_nonnegative_runtime_bound() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("signed joint-bound exact-add source canary should compile");
     let lowered = lower_machine(&checked, "terminal_exact_add_signed_nonnegative_bound")
         .expect("signed joint-bound exact addition should use both path propositions");
@@ -237,7 +238,7 @@ fn checked_source_exact_add_uses_signed_nonnegative_runtime_bound() {
 
 #[test]
 fn checked_source_exact_add_uses_signed_nonpositive_runtime_bound() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("signed lower joint-bound exact-add source canary should compile");
     let lowered = lower_machine(&checked, "terminal_exact_add_signed_nonpositive_bound")
         .expect("signed lower joint-bound exact addition should use both path propositions");
@@ -293,7 +294,7 @@ fn checked_source_exact_add_uses_signed_nonpositive_runtime_bound() {
 
 #[test]
 fn checked_source_exact_subtract_uses_known_subtrahend_bound() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("known-subtrahend exact-subtract source canary should compile");
     let lowered = lower_machine(&checked, "terminal_exact_subtract_known_right")
         .expect("known-subtrahend exact subtraction should use its path bound");
@@ -394,7 +395,7 @@ fn checked_source_exact_subtract_uses_known_subtrahend_bound() {
 
 #[test]
 fn checked_source_exact_subtract_uses_joint_runtime_bound() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("joint-bound exact-subtract source canary should compile");
     let lowered = lower_machine(&checked, "terminal_exact_subtract_joint_bound")
         .expect("joint-bound exact subtraction should use its path proposition");
@@ -446,7 +447,7 @@ fn checked_source_exact_subtract_uses_joint_runtime_bound() {
 
 #[test]
 fn checked_source_exact_subtract_uses_signed_nonnegative_runtime_bound() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("signed joint-bound exact-subtract source canary should compile");
     let lowered = lower_machine(&checked, "terminal_exact_subtract_signed_nonnegative_bound")
         .expect("signed joint-bound exact subtraction should use both path propositions");
@@ -502,7 +503,7 @@ fn checked_source_exact_subtract_uses_signed_nonnegative_runtime_bound() {
 
 #[test]
 fn checked_source_exact_subtract_uses_signed_nonpositive_runtime_bound() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("signed upper joint-bound exact-subtract source canary should compile");
     let lowered = lower_machine(&checked, "terminal_exact_subtract_signed_nonpositive_bound")
         .expect("signed upper joint-bound exact subtraction should use both path propositions");
@@ -558,7 +559,7 @@ fn checked_source_exact_subtract_uses_signed_nonpositive_runtime_bound() {
 
 #[test]
 fn checked_source_exact_add_and_subtract_use_signed_i64_runtime_bounds() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("signed i64 runtime-bound add/subtract source canaries should compile");
     let cases: [(&str, &[(i128, i128, i128)]); 2] = [
         (
@@ -627,7 +628,7 @@ fn checked_source_exact_add_and_subtract_use_signed_i64_runtime_bounds() {
 
 #[test]
 fn checked_source_exact_arithmetic_uses_unsigned_u64_runtime_bounds() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("unsigned u64 runtime-bound arithmetic source canaries should compile");
     let cases: [(&str, bool, &[(u128, u128, u128)]); 3] = [
         (

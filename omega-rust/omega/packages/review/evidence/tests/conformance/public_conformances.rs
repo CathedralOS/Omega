@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn review_projects_public_core_private_callback_slot_conformance() {
@@ -26,11 +27,10 @@ pub WndClassWindowProcedureSlot:
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("public private-callback-slot fixture should check");
     let review = project_checked_package_review(&checked)
         .expect("toolchain-owned requirement-identity conformance should project");
@@ -84,11 +84,10 @@ pub Generic<{binder}>: {binder} satisfies Marker<{binder}> {{
         )
     };
     package.write("main.omg", &source("Element", 1));
-    let first = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let first = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("first generic public conformance should check");
     let first = project_checked_package_review(&first).expect("first row should project");
     let [shape] = first.public_conformances() else {
@@ -111,11 +110,10 @@ pub Generic<{binder}>: {binder} satisfies Marker<{binder}> {{
         .expect("public conformance canonical row");
 
     package.write("main.omg", &source("Value", 2));
-    let second = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let second = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("renamed telescope and changed private body should check");
     let second = project_checked_package_review(&second).expect("second row should project");
     let second_row = second
@@ -151,11 +149,10 @@ pub Scoped<'{lifetime}, Element>:
     };
 
     package.write("main.omg", &source("scope"));
-    let first = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let first = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("first lifetime-generic public conformance should check");
     let first = project_checked_package_review(&first)
         .expect("first lifetime-generic public conformance should project");
@@ -167,11 +164,10 @@ pub Scoped<'{lifetime}, Element>:
         .expect("first lifetime-generic public conformance row");
 
     package.write("main.omg", &source("view"));
-    let second = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let second = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("renamed lifetime-generic public conformance should check");
     let second = project_checked_package_review(&second)
         .expect("renamed lifetime-generic public conformance should project");
@@ -214,11 +210,10 @@ pub Scoped<'{first}, '{second}, Element>:
     };
     let project = |source: String| {
         package.write("main.omg", &source);
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("lifetime-generic inherited conformance should check");
         project_checked_package_review(&checked)
             .expect("inherited lifetime substitution should project exactly")
@@ -295,11 +290,10 @@ pub BufferReads<'{left}, '{right}>:
     };
     let project = |source: String| {
         package.write("main.omg", &source);
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("explicit target-trait lifetime application should check");
         project_checked_package_review(&checked)
             .expect("checked target-trait lifetime application should project")
@@ -364,11 +358,10 @@ fn public_conformance_target_lifetimes_fail_closed_before_review() {
             "build.omg",
             "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
-        let diagnostics = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect_err("incomplete target-trait lifetime application must reject");
         assert!(
             diagnostics
@@ -402,11 +395,10 @@ pub data Good {{ }}
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let bodyless = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let bodyless = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("bodyless public conformance is valid static language input");
     let bodyless = project_checked_package_review(&bodyless)
         .expect("checked bodyless public conformance should project");
@@ -421,11 +413,10 @@ pub data Good {{ }}
         "main.omg",
         &source("pub Primary: Good satisfies Marker { machine touch(&self) { } }"),
     );
-    let closed = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let closed = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("closed public conformance is valid static language input");
     let closed = project_checked_package_review(&closed)
         .expect("checked closed public conformance should project");

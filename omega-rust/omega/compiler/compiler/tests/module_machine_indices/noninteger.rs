@@ -1,8 +1,9 @@
 use super::{
     AuthoredDeclarationSelectionExposure, PackageCompilationInputs, PackageDependencyBinding,
-    PackageSourceBinding, Sources, assert_same_machine_types, compile,
-    compile_to_checked_with_packages, identity, machine_types, root_inputs, selections,
+    PackageSourceBinding, Sources, assert_same_machine_types, compile, compile_to_checked,
+    identity, machine_types, root_inputs, selections,
 };
+use compiler::CheckedCompileRequest;
 
 const FLAG: &str = "pub data Flag<const Enabled: bool> { value: u8; }";
 const LEXICAL_REJECTION: &str =
@@ -83,9 +84,11 @@ fn boolean_runtime_bindings_cannot_be_folded_as_global_indices() {
             Sources::write(root.join("main.omg"), &format!("{declarations} {literal}"));
             compile(&root, root_inputs(&root));
             Sources::write(root.join("main.omg"), &format!("{declarations} {shadowed}"));
-            let diagnostics =
-                compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                    .expect_err("runtime Boolean is not the same-named static value");
+            let diagnostics = compile_to_checked(CheckedCompileRequest {
+                package_inputs: Some(root_inputs(&root)),
+                ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+            })
+            .expect_err("runtime Boolean is not the same-named static value");
             assert!(
                 diagnostics
                     .iter()
@@ -112,9 +115,11 @@ fn boolean_runtime_bindings_cannot_be_folded_as_global_indices() {
             "use settings; {FLAG} machine keep(settings: bool, value: Flag<settings::SIZE>) -> Flag<settings::SIZE> {{ value }}"
         ),
     );
-    let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect_err("qualified Boolean argument preserves its lexical root");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("qualified Boolean argument preserves its lexical root");
     assert!(
         diagnostics
             .iter()
@@ -170,8 +175,11 @@ fn boolean_signature_indices_keep_public_exposure_separate_from_body() {
             keep("keep", "settings::SIZE")
         ),
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-        .expect_err("Boolean canonicalization does not publish a private declaration");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("Boolean canonicalization does not publish a private declaration");
     Sources::write(
         root.join("settings.omg"),
         "module settings; pub const SIZE: bool = true;",
@@ -228,8 +236,11 @@ fn boolean_indices_require_direct_public_package_authority() {
             keep("keep", "settings::SIZE")
         ),
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, indirect)
-        .expect_err("transitive loaded Boolean does not authorize selection");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(indirect),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("transitive loaded Boolean does not authorize selection");
     dependencies.push(PackageDependencyBinding::new(
         identity(1),
         "leaf",
@@ -251,8 +262,11 @@ fn boolean_indices_require_direct_public_package_authority() {
         leaf.join("settings.omg"),
         "module settings; const SIZE: bool = true;",
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, direct)
-        .expect_err("direct dependencies do not expose private Boolean constants");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(direct),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("direct dependencies do not expose private Boolean constants");
 }
 
 #[test]
@@ -301,9 +315,11 @@ fn boolean_domain_indices_in_signatures_locals_and_casts_keep_lexical_selection(
             "{declarations} machine keep(SIZE: bool, value: u64) -> u64 in Tagged<true> {{ value as u64 in Tagged<SIZE> }}"
         ),
     );
-    let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .expect_err("Boolean cast index cannot capture the global over a runtime parameter");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("Boolean cast index cannot capture the global over a runtime parameter");
     assert!(
         diagnostics
             .iter()
@@ -331,9 +347,11 @@ fn boolean_and_integer_index_carriers_are_not_interchangeable() {
             root.join("main.omg"),
             &format!("{declarations} {}", keep("keep", "SIZE")),
         );
-        let diagnostics =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err("named Boolean and integer indices preserve their declared carriers");
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("named Boolean and integer indices preserve their declared carriers");
         let expected = format!("landed `{carrier}` result cannot initialize `{destination}`");
         assert!(
             diagnostics
@@ -357,9 +375,11 @@ fn boolean_and_integer_index_carriers_are_not_interchangeable() {
                 "{declarations} machine keep(value: u64 in Indexed<{literal}>) -> u64 in Indexed<{literal}> {{ value }}"
             ),
         );
-        let diagnostics =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err("Boolean domain literals cannot satisfy an integer telescope");
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("Boolean domain literals cannot satisfy an integer telescope");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
                 .message

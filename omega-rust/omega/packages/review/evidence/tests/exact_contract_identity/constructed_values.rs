@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn review_projects_exact_nominal_record_and_case_constructors() {
@@ -27,11 +28,10 @@ requires has_outcome(Outcome::{case} {{ {case_fields} }})
             r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("nominal constructor contract fixture should check");
         project_checked_package_review(&checked)
             .expect("nominal constructors should project by exact declaration identity")
@@ -126,11 +126,10 @@ requires hidden(Hidden { value: 1u64 })
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let diagnostics = compile_to_checked_with_packages(
-        &private.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&private.0),
-    )
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&private.0)),
+        ..CheckedCompileRequest::new(&private.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect_err("a public contract must reject a private constructor before review");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -158,11 +157,10 @@ requires
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("indexed public contract fixture should check");
     let review = project_checked_package_review(&checked)
         .expect("checked index and range expressions should project");
@@ -237,11 +235,10 @@ requires
 { }
 "#,
     );
-    let changed = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let changed = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("changed indexed public contract fixture should check");
     let changed_bytes = project_checked_package_review(&changed)
         .expect("changed checked index and range expressions should project")
@@ -272,11 +269,10 @@ pub proposition zero_is_none<{binder}>() =
     };
     let project = |source: String| {
         package.write("main.omg", &source);
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("zero-value public proposition should check");
         project_checked_package_review(&checked)
             .expect("zero-value public proposition should project exactly")
@@ -312,11 +308,10 @@ pub proposition hidden_zero() =
     zero_value<Hidden>() == zero_value<Hidden>();
 "#,
     );
-    let diagnostics = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect_err("a public zero-value target must not expose a private data declaration");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic

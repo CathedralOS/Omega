@@ -1,5 +1,6 @@
 use super::*;
 use build_time_evaluation::{BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeValue};
+use compiler::CheckedCompileRequest;
 
 fn assert_body_value(checked: &CheckedCompilation, path: &str, expected: i64) {
     let machine = checked
@@ -140,7 +141,7 @@ fn computed_match_fractional_branch_combinations_require_complete_warning_eviden
                 &format!("const VALUE: u64 = {initializer};"),
             );
             let diagnostics =
-                compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
+                compile_to_checked(CheckedCompileRequest { package_inputs: Some(root_inputs(&root)), ..CheckedCompileRequest::new(&root.join("main.omg"), None) })
                     .expect_err("integral all-arm results still need complete fractional warnings");
             assert!(
                 diagnostics.iter().any(|diagnostic| {
@@ -205,9 +206,11 @@ fn computed_match_arithmetic_rejects_unselected_invalid_integer_landings() {
                 root.join("main.omg"),
                 &format!("const INVALID: {carrier} = {initializer};"),
             );
-            let diagnostics =
-                compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                    .expect_err("unused declarations still owe every result arm's landing");
+            let diagnostics = compile_to_checked(CheckedCompileRequest {
+                package_inputs: Some(root_inputs(&root)),
+                ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+            })
+            .expect_err("unused declarations still owe every result arm's landing");
             assert!(
                 diagnostics
                     .iter()
@@ -240,9 +243,11 @@ fn computed_match_arithmetic_retains_typed_operand_width_and_selected_operation_
             root.join("main.omg"),
             &format!("const INVALID: u8 = {initializer};"),
         );
-        let diagnostics =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err("a safe final value cannot repair an earlier typed boundary");
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("a safe final value cannot repair an earlier typed boundary");
         assert!(
             diagnostics
                 .iter()
@@ -282,9 +287,11 @@ fn computed_match_boolean_short_circuit_keeps_static_landing_without_executing_s
                 root.join("main.omg"),
                 &format!("const INVALID: bool = {initializer};"),
             );
-            let diagnostics =
-                compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                    .expect_err("short circuit skips execution, not anonymous operand landing");
+            let diagnostics = compile_to_checked(CheckedCompileRequest {
+                package_inputs: Some(root_inputs(&root)),
+                ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+            })
+            .expect_err("short circuit skips execution, not anonymous operand landing");
             assert!(
                 diagnostics
                     .iter()
@@ -445,8 +452,11 @@ fn computed_initializer_requires_direct_dependency_and_foreign_visibility() {
             keep("keep", "SIZE")
         ),
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, indirect)
-        .expect_err("loading the leaf through middle grants no initializer selection authority");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(indirect),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("loading the leaf through middle grants no initializer selection authority");
 
     Sources::write(
         root.join("main.omg"),
@@ -455,6 +465,9 @@ fn computed_initializer_requires_direct_dependency_and_foreign_visibility() {
             keep("keep", "SIZE")
         ),
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, direct)
-        .expect_err("a direct dependency cannot name the public constant's private implementation");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(direct),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a direct dependency cannot name the public constant's private implementation");
 }

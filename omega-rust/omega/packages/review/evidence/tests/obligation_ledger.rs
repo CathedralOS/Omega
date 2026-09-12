@@ -1,5 +1,6 @@
 mod support;
 
+use compiler::CheckedCompileRequest;
 use support::*;
 
 #[test]
@@ -26,9 +27,11 @@ fn obligation_ledger_binds_and_recovers_application_root_role() {
         vec![],
     )
     .expect("application package graph");
-    let checked =
-        compile_to_checked_with_packages(&application.0.join("main.omg"), Some(target), inputs)
-            .expect("application root should check");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&application.0.join("main.omg"), Some(target))
+    })
+    .expect("application root should check");
     let rows = project_checked_package_review(&checked)
         .expect("application review")
         .canonical_rows()
@@ -87,11 +90,10 @@ ensures result == constant<LIMIT>();
 "#,
     );
     original.write("build.omg", build);
-    let original_checked = compile_to_checked_with_packages(
-        &original.0.join("main.omg"),
-        Some(target),
-        package_inputs(&original.0),
-    )
+    let original_checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&original.0)),
+        ..CheckedCompileRequest::new(&original.0.join("main.omg"), Some(target))
+    })
     .expect("ordinary package obligation fixture should check");
     let projection = project_checked_package_review(&original_checked)
         .expect("ordinary package obligations should project");
@@ -229,11 +231,10 @@ ensures result == constant<LIMIT>();
 "#,
     );
     changed.write("build.omg", build);
-    let changed_checked = compile_to_checked_with_packages(
-        &changed.0.join("main.omg"),
-        Some(target),
-        package_inputs(&changed.0),
-    )
+    let changed_checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&changed.0)),
+        ..CheckedCompileRequest::new(&changed.0.join("main.omg"), Some(target))
+    })
     .expect("changed ordinary package obligation fixture should check");
     let diagnostics = validate_ordinary_package_obligation_ledger(&ledger, &changed_checked)
         .expect_err("stale semantic rows must reject against changed checked source");
@@ -281,11 +282,10 @@ fn ordinary_package_obligation_ledger_binds_exact_dependency_closure_without_pat
         .expect("two-package graph should validate")
     };
     let compile_graph = |root_path: &Path, dependency_path: &Path, alias: &str| {
-        compile_to_checked_with_packages(
-            &root_path.join("main.omg"),
-            Some(target),
-            graph_inputs(root_path, dependency_path, alias),
-        )
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(graph_inputs(root_path, dependency_path, alias)),
+            ..CheckedCompileRequest::new(&root_path.join("main.omg"), Some(target))
+        })
         .expect("unused dependency graph should check")
     };
     let ledger_for = |checked: &compiler::CheckedCompilation| {
@@ -372,11 +372,10 @@ fn ordinary_package_obligation_ledger_binds_exact_dependency_closure_without_pat
         "unexpected diagnostics: {diagnostics:#?}"
     );
 
-    let without_dependency = compile_to_checked_with_packages(
-        &root.0.join("main.omg"),
-        Some(target),
-        package_inputs(&root.0),
-    )
+    let without_dependency = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&root.0)),
+        ..CheckedCompileRequest::new(&root.0.join("main.omg"), Some(target))
+    })
     .expect("root-only graph should check");
     assert_ne!(
         original_ledger,
@@ -429,11 +428,10 @@ fn package_source_consumption_commitment_binds_loaded_bytes_not_cache_location()
     let first = TempPackage::new();
     first.write("main.omg", source);
     first.write("build.omg", build);
-    let first_checked = compile_to_checked_with_packages(
-        &first.0.join("main.omg"),
-        Some(target),
-        package_inputs(&first.0),
-    )
+    let first_checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&first.0)),
+        ..CheckedCompileRequest::new(&first.0.join("main.omg"), Some(target))
+    })
     .expect("first package source should check");
     let first_commitment = first_checked
         .source_consumption_commitment()
@@ -446,11 +444,10 @@ fn package_source_consumption_commitment_binds_loaded_bytes_not_cache_location()
     let relocated = TempPackage::new();
     relocated.write("main.omg", source);
     relocated.write("build.omg", build);
-    let relocated_checked = compile_to_checked_with_packages(
-        &relocated.0.join("main.omg"),
-        Some(target),
-        package_inputs(&relocated.0),
-    )
+    let relocated_checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&relocated.0)),
+        ..CheckedCompileRequest::new(&relocated.0.join("main.omg"), Some(target))
+    })
     .expect("relocated package source should check");
     assert_eq!(
         first_commitment,
@@ -463,11 +460,10 @@ fn package_source_consumption_commitment_binds_loaded_bytes_not_cache_location()
     let changed = TempPackage::new();
     changed.write("main.omg", changed_source);
     changed.write("build.omg", build);
-    let changed_checked = compile_to_checked_with_packages(
-        &changed.0.join("main.omg"),
-        Some(target),
-        package_inputs(&changed.0),
-    )
+    let changed_checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&changed.0)),
+        ..CheckedCompileRequest::new(&changed.0.join("main.omg"), Some(target))
+    })
     .expect("source-only changed package should check");
     assert_ne!(
         first_commitment,
@@ -563,17 +559,15 @@ fn package_source_consumption_commitment_binds_loaded_bytes_not_cache_location()
         )
         .expect("two-package graph should validate")
     };
-    let first_graph = compile_to_checked_with_packages(
-        &graph_root.0.join("main.omg"),
-        Some(target),
-        graph_inputs("dependency"),
-    )
+    let first_graph = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(graph_inputs("dependency")),
+        ..CheckedCompileRequest::new(&graph_root.0.join("main.omg"), Some(target))
+    })
     .expect("first reconciled graph should check");
-    let renamed_graph = compile_to_checked_with_packages(
-        &graph_root.0.join("main.omg"),
-        Some(target),
-        graph_inputs("renamed_dependency"),
-    )
+    let renamed_graph = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(graph_inputs("renamed_dependency")),
+        ..CheckedCompileRequest::new(&graph_root.0.join("main.omg"), Some(target))
+    })
     .expect("renamed reconciled graph should check");
     assert_ne!(
         first_graph.source_consumption_commitment(),

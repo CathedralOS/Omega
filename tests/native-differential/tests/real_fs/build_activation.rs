@@ -11,6 +11,7 @@ use checked_interpreter::{
     FsGrants, InterpretOptions, evaluate_build_machine_with_filesystem,
     evaluate_build_machine_with_filesystem_measured,
 };
+use compiler::CheckedCompileRequest;
 use compiler::{CheckedCompilation, compile_to_checked};
 use std::path::Path;
 
@@ -109,7 +110,7 @@ fn logical_handle_lifetimes(
 
 fn compile_probe(path: &Path, source: &str, label: &str) -> CheckedCompilation {
     std::fs::write(path, source).unwrap_or_else(|error| panic!("write {label} probe: {error}"));
-    compile_to_checked(path, None).unwrap_or_else(|diagnostics| {
+    compile_to_checked(CheckedCompileRequest::new(path, None)).unwrap_or_else(|diagnostics| {
         panic!(
             "{label} probe compile failed:\n{}",
             diagnostics

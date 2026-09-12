@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn review_projects_exact_concrete_machine_arguments_in_contract_calls() {
@@ -28,11 +29,10 @@ ensures result == apply<{selected}>(0);
     package.write("build.omg", build);
     changed.write("build.omg", build);
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("effect-free static contract call should check");
         project_checked_package_review(&checked)
             .expect("an exact concrete machine argument has a canonical contract row")
@@ -110,11 +110,10 @@ requires apply<{binder}>(value) == apply<{binder}>(value)
             r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("generic public contract fixture should check");
         project_checked_package_review(&checked)
             .expect("a forwarded machine binder has a canonical contract row")
@@ -186,11 +185,10 @@ ensures result == inspect<identity<sample>>();
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let diagnostics = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect_err("nested machine applications must fail before checked lowering");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic

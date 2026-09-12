@@ -1,5 +1,6 @@
 mod support;
 
+use compiler::CheckedCompileRequest;
 use package_evidence::project_checked_calling_policy;
 use package_evidence::record::{
     PackagePolicyCallingPlan, PackageReviewNominalOwner,
@@ -132,11 +133,10 @@ machine build(builder: &mut Build) {{
         dependency_bindings,
     )
     .unwrap();
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        inputs,
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("opaque calling contract source should check");
     (package, dependency, checked)
 }

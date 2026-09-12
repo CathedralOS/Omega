@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 fn compile_generated_invocation(
     label: &str,
@@ -44,13 +45,15 @@ fn compile_generated_invocation(
     std::fs::create_dir(&build_dir).unwrap();
     prepared.commit().unwrap();
     set_canonical_source_tree_permissions(&project.root, true);
-    compile_to_checked_with_packages_in_sponsored_build_dir(
-        &project.main(),
-        &build_dir,
-        Some(target::TargetProfile::LinuxX64.target_name()),
-        package_inputs(&project.root),
-        sponsor,
-    )
+    compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(build_dir.to_owned()),
+        package_inputs: Some(package_inputs(&project.root)),
+        filesystem_sponsor: Some(sponsor),
+        ..CheckedCompileRequest::new(
+            &project.main(),
+            Some(target::TargetProfile::LinuxX64.target_name()),
+        )
+    })
 }
 
 #[test]

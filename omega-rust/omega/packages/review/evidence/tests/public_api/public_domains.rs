@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn public_domain_shape_changes_change_comparison_encoding() {
@@ -18,11 +19,10 @@ fn public_domain_shape_changes_change_comparison_encoding() {
     second.write("build.omg", build);
 
     let encode = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("public-domain fixture should check");
         project_checked_package_review(&checked)
             .expect("public-domain review should close")
@@ -56,11 +56,10 @@ pub operator + add(
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("public semantic-role fixture should check");
     let review = project_checked_package_review(&checked)
         .expect("exact typed semantic roles should project");
@@ -146,11 +145,10 @@ pub domain<Value, const Tag: Unit> Value::Tagged<Tag>;
     second.write("build.omg", build);
 
     let encode = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("generic public-domain fixture should check");
         project_checked_package_review(&checked)
             .expect("generic public-domain review should close")
@@ -192,11 +190,10 @@ pub boundary trait SchedulerAdmission {
     routed.write("build.omg", build);
 
     let compile = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("routed public-domain fixture should check");
         project_checked_package_review(&checked).expect("routed public-domain review should close")
     };
@@ -271,11 +268,10 @@ pub boundary trait BackupAdmission {{
     second.write("build.omg", build);
 
     let encode = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("multi-route public-domain fixture should check");
         project_checked_package_review(&checked)
             .expect("multi-route public-domain review should close")
@@ -316,11 +312,10 @@ pub domain u64::Portable = Carry::Portable;
     second.write("build.omg", build);
 
     let compile = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("public-domain alias fixture should check");
         project_checked_package_review(&checked).expect("public-domain alias review should close")
     };

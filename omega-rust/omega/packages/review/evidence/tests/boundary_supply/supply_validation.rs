@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn generic_top_level_external_supply_rejects_post_check_stronger_property_bounds() {
@@ -21,11 +22,10 @@ pub machine GenericProvider::identity<Value>(value: Value) -> Value
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let mut checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let mut checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("generic top-level external supply should check");
     let realization_telescope = checked
         .typed
@@ -96,11 +96,10 @@ pub machine LifetimeProvider::observe<'borrow>(value: &'borrow u32)
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let mut checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let mut checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("lifetime-generic top-level external supply should check");
     let realization = checked
         .typed
@@ -147,11 +146,10 @@ machine LinuxCompletion::complete(acknowledgement: InterruptAcknowledgement)
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let mut checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let mut checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("external top-level requirement drift fixture should check");
     let wrong_requirement = checked
         .typed
@@ -207,11 +205,10 @@ machine FloatProvider::minimum(left: f32, right: f32) -> f32
         let package = TempPackage::new();
         package.write("main.omg", source);
         package.write("build.omg", build);
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .unwrap_or_else(|diagnostics| panic!("{label} fixture should check: {diagnostics:?}"));
         let diagnostics = project_checked_package_review(&checked)
             .expect_err("unsupported external operator realization must fail closed");
@@ -235,11 +232,10 @@ machine FloatProvider::minimum<T>(left: f32, right: f32) -> f32
 "#,
     );
     package.write("build.omg", build);
-    let diagnostics = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect_err("an unmatched external operator telescope must not check");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -275,11 +271,10 @@ pub machine FloatProvider::maximum(left: f32, right: f32) -> f32
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let mut checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let mut checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("external boundary-operator drift fixture should check");
     let wrong_requirement = checked
         .typed
@@ -339,11 +334,10 @@ pub machine invoke_leaf()
             r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("external syscall fixture should check");
         project_checked_package_review(&checked)
             .expect("external syscall package review should close")
@@ -400,11 +394,10 @@ pub machine invoke_leaf()
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("external tamper fixture should check");
 
     fn replace_external_binding(

@@ -2,6 +2,7 @@ use super::*;
 use abstract_operations_to_abstract_operations::{
     AnalysisProduct, compute_analysis, run_psi_pipeline,
 };
+use compiler::CheckedCompileRequest;
 use optimization_core::{
     AcceptedObligationFactIdentity, AnalysisKind, Optimization, OptimizationFactReference,
     OptimizationSelections, OptimizationUnitIdentity, OptimizationWorkBudget,
@@ -16,7 +17,7 @@ use optimization_unit_semantics::{
 
 #[test]
 fn checked_source_guarded_exact_narrowing_carries_independently_verified_evidence() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("guarded exact-narrowing source canary should compile");
     let lowered = lower_machine(&checked, "terminal_guarded_exact_narrow")
         .expect("guarded exact narrowing should lower with path evidence");
@@ -122,7 +123,7 @@ fn checked_source_guarded_exact_narrowing_carries_independently_verified_evidenc
 
 #[test]
 fn checked_source_exact_right_shift_carries_independently_verified_count_evidence() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("exact right-shift source canary should compile");
     let lowered = lower_machine(&checked, "terminal_exact_shift_right_runtime")
         .expect("exact right shift should lower with path evidence");
@@ -424,7 +425,7 @@ fn checked_source_exact_right_shift_carries_independently_verified_count_evidenc
 
 #[test]
 fn checked_source_range_proof_folds_a_later_integer_comparison() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("range-consuming exact-shift source canary should compile");
     let lowered = lower_machine(&checked, "terminal_exact_shift_range_fold")
         .expect("guarded exact shift and later comparison should lower");
@@ -493,7 +494,7 @@ fn checked_source_range_proof_folds_a_later_integer_comparison() {
 
 #[test]
 fn checked_source_range_comparison_proves_false_and_declines_overlap() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("range comparison boundary source canaries should compile");
     for (machine, expected) in [
         ("terminal_exact_shift_range_false_fold", Some(false)),
@@ -565,7 +566,7 @@ fn checked_source_range_comparison_proves_false_and_declines_overlap() {
 
 #[test]
 fn checked_source_range_comparisons_cover_both_operand_orders_and_inclusive_ordering() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("complete range-comparison source canaries should compile");
     let cases = [
         (
@@ -707,7 +708,7 @@ fn checked_source_range_comparisons_cover_both_operand_orders_and_inclusive_orde
 
 #[test]
 fn checked_source_range_equality_covers_both_operand_orders_and_declines_overlap() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("range-equality source canaries should compile");
     for (machine, expected) in [
         (
@@ -802,7 +803,7 @@ fn checked_source_range_equality_covers_both_operand_orders_and_declines_overlap
 
 #[test]
 fn checked_source_exact_left_shift_carries_count_and_value_evidence() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("exact left-shift source canary should compile");
     let lowered = lower_machine(&checked, "terminal_exact_shift_left_runtime")
         .expect("exact left shift should lower with path evidence");
@@ -907,7 +908,7 @@ fn checked_source_exact_left_shift_carries_count_and_value_evidence() {
 
 #[test]
 fn checked_source_exact_left_shift_uses_known_count_bounds() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("known-count exact left-shift source canary should compile");
     let lowered = lower_machine(&checked, "terminal_exact_shift_left_known_count")
         .expect("known-count exact left shift should use the precise value bound");
@@ -966,7 +967,7 @@ fn checked_source_exact_left_shift_uses_known_count_bounds() {
 
 #[test]
 fn checked_source_exact_left_shift_uses_bounded_count_maximum() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("bounded-count exact left-shift source canary should compile");
     let lowered = lower_machine(&checked, "terminal_exact_shift_left_bounded_count")
         .expect("bounded-count exact left shift should use its proved maximum count");
@@ -1033,7 +1034,7 @@ fn checked_source_exact_left_shift_uses_bounded_count_maximum() {
 
 #[test]
 fn checked_source_exact_left_shift_uses_u64_bounded_count_maximum() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("u64 bounded-count exact left-shift source canary should compile");
     let lowered = lower_machine(&checked, "terminal_exact_shift_left_u64_bounded_count")
         .expect("u64 bounded-count exact left shift should use its value and count bounds");

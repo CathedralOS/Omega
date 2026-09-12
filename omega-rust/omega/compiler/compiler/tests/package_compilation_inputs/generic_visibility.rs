@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionTarget,
 };
@@ -19,7 +20,10 @@ fn check(source: &str) -> Result<compiler::CheckedCompilation, Vec<diagnostics::
         Vec::new(),
     )
     .unwrap();
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
 }
 
 fn rejects_private_secret(source: &str, public_owner: &str) {
@@ -182,8 +186,11 @@ fn an_imported_public_generic_keeps_the_consumers_payload_private() {
         )],
     )
     .unwrap();
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect("a library template does not publish a consumer's private type argument");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("a library template does not publish a consumer's private type argument");
     let selections = checked
         .authored_declaration_selections()
         .iter()

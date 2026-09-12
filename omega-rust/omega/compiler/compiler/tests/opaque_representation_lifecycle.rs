@@ -1,3 +1,4 @@
+use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
 use representation_planning::{
     OpaqueRepresentationCopyDisposition, OpaqueRepresentationLifecycleDisposition,
@@ -52,17 +53,20 @@ machine Main::main(&mut self) {{}}
 }
 
 fn rejection(carrier_declarations: &str) -> String {
-    compile_to_checked(&project(&source(carrier_declarations)), None)
-        .expect_err("invalid unused representation selection must reject")
-        .iter()
-        .map(|diagnostic| diagnostic.message.as_str())
-        .collect::<Vec<_>>()
-        .join("\n")
+    compile_to_checked(CheckedCompileRequest::new(
+        &project(&source(carrier_declarations)),
+        None,
+    ))
+    .expect_err("invalid unused representation selection must reject")
+    .iter()
+    .map(|diagnostic| diagnostic.message.as_str())
+    .collect::<Vec<_>>()
+    .join("\n")
 }
 
 #[test]
 fn valid_unused_selection_retains_explicit_inert_lifecycle() {
-    let checked = compile_to_checked(
+    let checked = compile_to_checked(CheckedCompileRequest::new(
         &project(&source(
             r#"
 data Leaf { value: u64; }
@@ -70,7 +74,7 @@ data Carrier { leaf: Leaf; bytes: [u8; 4]; }
 "#,
         )),
         None,
-    )
+    ))
     .expect("closed cleanup-free carrier must be admitted");
     let [selection] = checked.opaque_representation_selections() else {
         panic!("one exact representation selection")
@@ -136,7 +140,7 @@ data CopyCarrier [copy] { payloads: [CopyPayload; 2]; }
         ),
         COPY_BUILD,
     );
-    let checked = compile_to_checked(&path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&path, None))
         .expect("a recursively copyable inert carrier must discharge opaque `[copy]`");
     let [selection] = checked.opaque_representation_selections() else {
         panic!("one exact copyable representation selection")
@@ -174,7 +178,7 @@ fn copyable_opaque_rejects_missing_or_noncopyable_carrier_receipts() {
         &copy_source("data CopyCarrier [copy] { value: u64; }"),
         "machine build(builder: &mut Build) { builder.application(\"missing-copy-receipt\"); }",
     );
-    let rendered = compile_to_checked(&missing, None)
+    let rendered = compile_to_checked(CheckedCompileRequest::new(&missing, None))
         .expect_err("copyable opaque data without a selection must remain unadmitted")
         .iter()
         .map(|diagnostic| diagnostic.message.as_str())
@@ -195,7 +199,7 @@ fn copyable_opaque_rejects_missing_or_noncopyable_carrier_receipts() {
         ),
     ] {
         let path = project_with_build(&copy_source(carrier), COPY_BUILD);
-        let rendered = compile_to_checked(&path, None)
+        let rendered = compile_to_checked(CheckedCompileRequest::new(&path, None))
             .unwrap_err()
             .iter()
             .map(|diagnostic| diagnostic.message.as_str())

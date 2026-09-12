@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn review_projects_external_top_level_requirement_supply_with_exact_overload_identity() {
@@ -24,11 +25,10 @@ pub machine LinuxCompletion::complete(acknowledgement: InterruptAcknowledgement)
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("external top-level requirement fixture should check and select");
     let review = project_checked_package_review(&checked)
         .expect("external top-level requirement supply should project exactly");
@@ -133,11 +133,10 @@ pub machine DispatchTable::table_leaf()
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("external executable-supply fixture should check");
     let review = project_checked_package_review(&checked)
         .expect("external executable-supply review should close");
@@ -277,11 +276,10 @@ machine FloatProvider::square_root(value: f32) -> f32
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("external boundary-operator fixture should check and select exact intrinsics");
     let review = project_checked_package_review(&checked)
         .expect("external boundary-operator supply should project exactly");

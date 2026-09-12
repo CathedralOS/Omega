@@ -3,6 +3,7 @@
 
 use super::array_construction::{assert_decoded_array, integer};
 use super::{Sources, compile, root_inputs};
+use compiler::CheckedCompileRequest;
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerValue, MachineId, OperationId, PlaceId,
     StructuralPlaceKind, ValueId,
@@ -85,8 +86,11 @@ fn array_call_result_keeps_callee_numeric_requirements() {
          machine bounded(value: u8 [0..=9]) -> [u8; 1] { [value + 1u8] }",
     );
     assert!(
-        super::compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-            .is_err(),
+        super::compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .is_err(),
         "callee requirement is not proved by the result shape"
     );
 }

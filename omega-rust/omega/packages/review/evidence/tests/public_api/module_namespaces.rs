@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn module_nominals_have_distinct_canonical_rows_across_package_relocation() {
@@ -14,11 +15,10 @@ fn module_nominals_have_distinct_canonical_rows_across_package_relocation() {
                 &format!("module {module}; pub data Point {{ value: u64; }}"),
             );
         }
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("same-leaf module declarations check in one managed package");
         project_checked_package_review(&checked).expect("capture module nominal identities")
     };

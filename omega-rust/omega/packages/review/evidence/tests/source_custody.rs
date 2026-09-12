@@ -1,5 +1,6 @@
 mod support;
 
+use compiler::CheckedCompileRequest;
 use support::*;
 
 #[test]
@@ -15,11 +16,10 @@ fn canonical_row_sorting_keeps_exact_declaration_sources_paired() {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("out-of-source-order declarations should check");
     let review = project_checked_package_review(&checked).expect("package review should close");
     let canonical_rows = review.canonical_rows().expect("canonical review rows");
@@ -72,11 +72,10 @@ pub machine api() {
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("checked body-call source fixture should check");
     let review = project_checked_package_review(&checked)
         .expect("checked body-call sources should join package review");
@@ -165,8 +164,11 @@ pub machine consume(value: Token) {}
         ],
     )
     .expect("transitive package graph should validate");
-    let checked = compile_to_checked_with_packages(&root.0.join("main.omg"), Some(target), inputs)
-        .expect("carried transitive type should check without direct leaf authority");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.0.join("main.omg"), Some(target))
+    })
+    .expect("carried transitive type should check without direct leaf authority");
     let review = project_checked_package_review(&checked).expect("semantic dependency review");
 
     for kind in [
@@ -248,11 +250,10 @@ pub machine make() -> Token { Token { value: 7u64 } }
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("semantic dependency evidence fixture should check");
     assert!(
         !checked.facts.flow.semantic_dependencies.rows.is_empty(),
@@ -338,11 +339,10 @@ invokes FilesystemHost;
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let candidate_checked = compile_to_checked_with_packages(
-        &canonical.0.join("main.omg"),
-        Some(target),
-        package_inputs(&canonical.0),
-    )
+    let candidate_checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&canonical.0)),
+        ..CheckedCompileRequest::new(&canonical.0.join("main.omg"), Some(target))
+    })
     .expect("filesystem candidate should check without accepted authority");
     let candidate_review = project_checked_package_review(&candidate_checked)
         .expect("unaccepted filesystem candidate review should close");
@@ -357,13 +357,14 @@ invokes FilesystemHost;
             "FilesystemHost",
         )
         .expect("derive exact accepted filesystem binding");
-    let canonical_checked = compile_to_checked_with_packages(
-        &canonical.0.join("main.omg"),
-        Some(target),
-        package_inputs(&canonical.0)
-            .with_accepted_semantic_bindings(vec![accepted])
-            .expect("binding names the exact fixture package"),
-    )
+    let canonical_checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(
+            package_inputs(&canonical.0)
+                .with_accepted_semantic_bindings(vec![accepted])
+                .expect("binding names the exact fixture package"),
+        ),
+        ..CheckedCompileRequest::new(&canonical.0.join("main.omg"), Some(target))
+    })
     .expect("accepted filesystem fixture should check");
     let canonical_review = project_checked_package_review(&canonical_checked)
         .expect("canonical filesystem review should close");
@@ -470,11 +471,10 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
         )
         .expect("ordinary Console dependency graph")
     };
-    let candidate = compile_to_checked_with_packages(
-        &root.0.join("main.omg"),
-        Some("linux_x86_64"),
-        base_inputs(),
-    )
+    let candidate = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(base_inputs()),
+        ..CheckedCompileRequest::new(&root.0.join("main.omg"), Some("linux_x86_64"))
+    })
     .expect("candidate Console dependency should check before consumer acceptance");
     let (plan, retained) = candidate
         .selected_provider_plans()
@@ -494,13 +494,14 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
         plan.identity_digest(),
     )
     .expect("exact accepted Console binding");
-    let checked_without_permission = compile_to_checked_with_packages(
-        &root.0.join("main.omg"),
-        Some("linux_x86_64"),
-        base_inputs()
-            .with_accepted_semantic_bindings(vec![accepted.clone()])
-            .expect("binding package is in the exact closure"),
-    )
+    let checked_without_permission = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(
+            base_inputs()
+                .with_accepted_semantic_bindings(vec![accepted.clone()])
+                .expect("binding package is in the exact closure"),
+        ),
+        ..CheckedCompileRequest::new(&root.0.join("main.omg"), Some("linux_x86_64"))
+    })
     .expect("accepted Console dependency should settle exactly");
     let review_without_permission = project_checked_package_review(&checked_without_permission)
         .expect("resolved package Console authority should rederive during review");
@@ -525,13 +526,14 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
             ),
         ])
         .expect("permission schema matches accepted Console schema");
-    let checked = compile_to_checked_with_packages(
-        &root.0.join("main.omg"),
-        Some("linux_x86_64"),
-        base_inputs()
-            .with_accepted_semantic_bindings(vec![accepted])
-            .expect("permission binding package is in the exact closure"),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(
+            base_inputs()
+                .with_accepted_semantic_bindings(vec![accepted])
+                .expect("permission binding package is in the exact closure"),
+        ),
+        ..CheckedCompileRequest::new(&root.0.join("main.omg"), Some("linux_x86_64"))
+    })
     .expect("permission-bearing accepted Console dependency should settle exactly");
     let review = project_checked_package_review(&checked)
         .expect("resolved package Console authority should rederive during review");

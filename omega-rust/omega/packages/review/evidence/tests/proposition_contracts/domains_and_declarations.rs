@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn review_projects_exact_public_domain_membership_contracts() {
@@ -20,11 +21,10 @@ requires value in u64::Trusted
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("checked public-domain membership requirement should check");
     let review = project_checked_package_review(&checked).expect("membership contract review");
     let callable = review
@@ -79,11 +79,10 @@ requires value in u64::Hidden
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let diagnostics = compile_to_checked_with_packages(
-        &hidden.0.join("main.omg"),
-        Some(target),
-        package_inputs(&hidden.0),
-    )
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&hidden.0)),
+        ..CheckedCompileRequest::new(&hidden.0.join("main.omg"), Some(target))
+    })
     .expect_err("ordinary visibility must reject a private domain in a public contract");
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -124,11 +123,10 @@ requires equivalent<Compared>(left, right)
     renamed.write("build.omg", build);
 
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("generic proposition fixture should check");
         project_checked_package_review(&checked).expect("generic proposition review")
     };
@@ -196,11 +194,10 @@ proposition hidden();
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("public proposition declarations should check");
     assert!(
         checked
@@ -294,11 +291,10 @@ fn review_projects_unused_public_consts_with_exact_type_and_value_identity() {
         let package = TempPackage::new();
         package.write("main.omg", source);
         package.write("build.omg", build);
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("public const declaration should check");
         project_checked_package_review(&checked).expect("public const review")
     };

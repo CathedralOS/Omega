@@ -1,3 +1,4 @@
+use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
 use std::fs;
 use std::path::PathBuf;
@@ -38,7 +39,7 @@ fn compiler_rejects_binary_float_argument_format_changes() {
         let path = project.write(&format!(
             "machine take(value: {destination}) {{}} machine run() {{ take(1.0{source} + 2.0{source}); }}"
         ));
-        let diagnostics = match compile_to_checked(&path, None) {
+        let diagnostics = match compile_to_checked(CheckedCompileRequest::new(&path, None)) {
             Err(diagnostics) => diagnostics,
             Ok(_) => panic!("incompatible argument must reject"),
         };
@@ -58,6 +59,7 @@ fn compiler_accepts_matching_binary_float_arguments() {
         let path = project.write(&format!(
             "machine take(value: {format}) {{}} machine run() {{ take(1.0{format} + 2.0{format}); }}"
         ));
-        compile_to_checked(&path, None).expect("matching argument must check");
+        compile_to_checked(CheckedCompileRequest::new(&path, None))
+            .expect("matching argument must check");
     }
 }

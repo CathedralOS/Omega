@@ -1,8 +1,9 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn checked_source_booleans_survive_frontend_drop() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("terminal-Psi Boolean source canary should compile");
     let constant = lower_machine(&checked, "terminal_boolean_constant")
         .expect("Boolean constant source should lower");
@@ -72,7 +73,7 @@ fn checked_source_booleans_survive_frontend_drop() {
 #[cfg(unix)]
 #[test]
 fn source_boolean_jump_bindings_reach_stack_parameter_target_control() {
-    let checked = compile_to_checked(&source_canary(), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("terminal-Psi Boolean state-chain canary should compile");
     let lowered = lower_machine(&checked, "terminal_boolean_chain")
         .expect("Boolean state chain should lower");

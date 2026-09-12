@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
 use typed_trees::expression::ExpressionNode;
 
@@ -156,9 +157,10 @@ fn attached_self_case_membership_uses_the_nominal_carrier() {
         root.join("main.omg"),
         "use outcomes; use other; machine outcomes::Outcome::test(&self) -> bool { self in other::Outcome::Empty }",
     );
-    let Err(errors) =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-    else {
+    let Err(errors) = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    }) else {
         panic!("attached self cannot observe a foreign carrier case");
     };
     assert!(

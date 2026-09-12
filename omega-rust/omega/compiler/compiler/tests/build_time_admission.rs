@@ -1,3 +1,4 @@
+use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
 use std::fs;
 use std::path::PathBuf;
@@ -14,7 +15,7 @@ fn write_program(name: &str, source: &str) -> PathBuf {
 
 fn compile_error(name: &str, source: &str) -> String {
     let main_path = write_program(name, source);
-    let diagnostics = compile_to_checked(&main_path, None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect_err("the build-time contract violation must reject compilation");
     let rendered = diagnostics
         .iter()
@@ -145,7 +146,7 @@ machine Main::main(&mut self) { }
 "#,
     );
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("a transitive checked termination proof should admit constant evaluation");
     let buffer = checked
         .typed

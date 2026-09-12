@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[path = "../fixture_rosters/host_text_filesystem_and_abi.rs"]
 pub(super) mod fixture_roster;
@@ -132,7 +133,7 @@ fn windows_fs_wrapper_dark_methods_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::WINDOWS_WRAPPER_DARK_METHODS_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("dark-methods canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -172,7 +173,7 @@ fn windows_fs_wrapper_results_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::WINDOWS_WRAPPER_RESULTS_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("windows fs wrapper canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -216,7 +217,7 @@ fn runtime_local_host_result_dispatch_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_LOCAL_HOST_RESULT_DISPATCH_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("local-host-result canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -261,7 +262,7 @@ fn windows_fs_raw_roundtrip_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::WINDOWS_RAW_ROUNDTRIP_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("windows fs roundtrip canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -310,7 +311,7 @@ fn windows_fs_self_value_call_literal_path_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::SELF_VALUE_CALL_LITERAL_PATH_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("self-value-call literal path canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -356,7 +357,7 @@ fn windows_fs_discarded_self_call_literal_errno_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::DISCARDED_SELF_CALL_LITERAL_ERRNO_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("discarded self-call literal canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -401,7 +402,7 @@ fn windows_fs_wrapper_param_shadow_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::WRAPPER_PARAM_SHADOW_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("wrapper param-shadow canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -444,7 +445,7 @@ fn windows_fs_wrapper_open_with_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::WRAPPER_OPEN_WITH_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("open_with matrix canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -487,7 +488,7 @@ fn windows_fs_field_receiver_method_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::FIELD_RECEIVER_METHOD_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("field-receiver method canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -532,7 +533,7 @@ fn runtime_arm_target_host_result_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_ARM_TARGET_HOST_RESULT_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("arm-target host-result canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -575,7 +576,7 @@ fn runtime_qualified_case_value_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_QUALIFIED_CASE_VALUE_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("qualified-case-value canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -622,7 +623,7 @@ fn single_target_internal_machine_skipped_canary_runs() {
     let canary = pass_canary(fixture_roster::SINGLE_TARGET_INTERNAL_MACHINE_SKIPPED);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("single-target internal canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -668,7 +669,7 @@ fn target_machine_gating_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::TARGET_MACHINE_GATING_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("target-machine canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -715,7 +716,7 @@ fn windows_wrapper_create_new_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::WINDOWS_WRAPPER_CREATE_NEW_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("create_new canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -758,7 +759,7 @@ fn ring_requirement_satisfies_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RING_REQUIREMENT_SATISFIES_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("ring-requirement canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -806,7 +807,7 @@ fn windows_find_enumeration_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::WINDOWS_FIND_ENUMERATION_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("find-enumeration canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -854,7 +855,7 @@ fn windows_read_dir_nth_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::WINDOWS_READ_DIR_NTH_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("read_dir_nth canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -896,7 +897,7 @@ fn windows_set_file_time_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::WINDOWS_SET_FILE_TIME_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("set_file_time canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -946,8 +947,11 @@ fn filesystem_set_times_target_implementations_compile() {
         "linux_arm64",
         "macos_arm64",
     ] {
-        compile_to_checked(&canary.join("main.omg"), Some(target))
-            .unwrap_or_else(|d| panic!("set_times wrapper should check for {target}:\n{d:#?}"));
+        compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+            &canary.join("main.omg"),
+            Some(target),
+        ))
+        .unwrap_or_else(|d| panic!("set_times wrapper should check for {target}:\n{d:#?}"));
     }
 }
 
@@ -957,7 +961,7 @@ fn windows_wrapper_set_times_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::WINDOWS_WRAPPER_SET_TIMES_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("windows set_times wrapper canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1003,8 +1007,11 @@ fn filesystem_lock_target_implementations_compile() {
         "linux_arm64",
         "macos_arm64",
     ] {
-        compile_to_checked(&canary.join("main.omg"), Some(target))
-            .unwrap_or_else(|d| panic!("lock wrappers should check for {target}:\n{d:#?}"));
+        compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+            &canary.join("main.omg"),
+            Some(target),
+        ))
+        .unwrap_or_else(|d| panic!("lock wrappers should check for {target}:\n{d:#?}"));
     }
 }
 
@@ -1014,7 +1021,7 @@ fn windows_wrapper_lock_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::WINDOWS_WRAPPER_LOCK_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("windows lock wrapper canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1057,8 +1064,11 @@ fn windows_wrapper_lock_exit_canary_runs() {
 #[test]
 fn windows_canonicalize_canary_is_targetless_and_interprets() {
     let canary = pass_canary(fixture_roster::WINDOWS_CANONICALIZE_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("windows canonicalize canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("windows canonicalize canary should compile to checked trees");
     assert_eq!(
         checked.selected_program_entry_machine(),
         None,
@@ -1106,8 +1116,11 @@ fn windows_canonicalize_exit_canary_runs() {
 #[test]
 fn windows_canonicalize_failed_open_neither_queries_nor_closes() {
     let canary = pass_canary(fixture_roster::WINDOWS_CANONICALIZE_EXIT);
-    let checked = compile_to_checked(&canary.join("main.omg"), Some("windows_x86_64"))
-        .expect("windows canonicalize canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("windows_x86_64"),
+    ))
+    .expect("windows canonicalize canary should compile to checked trees");
     let filesystem = checked
         .resolved_semantic_binding(AcceptedSemanticBindingRole::FilesystemHostService)
         .expect("fixture admits its filesystem service");
@@ -1152,7 +1165,7 @@ fn windows_hard_link_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::WINDOWS_HARD_LINK_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("windows hard-link canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1194,7 +1207,7 @@ fn windows_positioned_io_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::WINDOWS_POSITIONED_IO_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("windows positioned-io canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1238,7 +1251,7 @@ fn windows_wrapper_metadata_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::WINDOWS_WRAPPER_METADATA_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("windows metadata canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1282,7 +1295,7 @@ fn windows_wrapper_exists_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::WINDOWS_WRAPPER_EXISTS_EXIT);
     let main_path = canary.join("main.omg");
 
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("windows exists canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1320,7 +1333,7 @@ fn windows_wrapper_exists_exit_canary_runs() {
 fn windows_wrapper_set_len_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::WINDOWS_WRAPPER_SET_LEN_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
         .expect("set_len canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1354,8 +1367,8 @@ fn windows_wrapper_set_len_exit_canary_runs() {
 fn windows_wrapper_copy_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::WINDOWS_WRAPPER_COPY_EXIT);
     let main_path = canary.join("main.omg");
-    let checked =
-        compile_to_checked(&main_path, None).expect("copy canary should compile to checked trees");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
+        .expect("copy canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,

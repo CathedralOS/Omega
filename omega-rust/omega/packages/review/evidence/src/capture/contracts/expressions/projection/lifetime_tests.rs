@@ -3,7 +3,8 @@ use crate::capture::contracts::facts::{ContractProjectionContext, project_contra
 use crate::record::{
     PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractStaticArgument,
 };
-use compiler::{CheckedCompilation, compile_to_checked_with_packages};
+use compiler::CheckedCompileRequest;
+use compiler::{CheckedCompilation, compile_to_checked};
 use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
 use std::{
     path::PathBuf,
@@ -54,11 +55,10 @@ requires tag<View<'a, u64>>() == tag<View<'a, u64>>()
         Vec::new(),
     )
     .unwrap();
-    let checked = compile_to_checked_with_packages(
-        &source.0.join("main.omg"),
-        Some("windows_x86_64"),
-        inputs,
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&source.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("existing top-level generic-tag contract fixture checks");
     (source, checked)
 }

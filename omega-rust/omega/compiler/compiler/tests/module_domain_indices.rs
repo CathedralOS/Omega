@@ -1,4 +1,5 @@
-use compiler::{CheckedCompilation, compile_to_checked_with_packages};
+use compiler::CheckedCompileRequest;
+use compiler::{CheckedCompilation, compile_to_checked};
 use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionTarget,
@@ -110,9 +111,11 @@ fn domain_index_carriers_and_each_exact_operation_are_checked() {
             root.join("main.omg"),
             &format!("{declarations} data Main {{ value: u64 in Indexed<{expression}>; }}"),
         );
-        let diagnostics =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err("domain indices cannot erase a failing typed arithmetic node");
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("domain indices cannot erase a failing typed arithmetic node");
         let expected = if expression == "SIZE + 1u16" {
             "incompatible landed integer carriers"
         } else {
@@ -136,9 +139,11 @@ fn domain_index_carriers_and_each_exact_operation_are_checked() {
                 "use constants::SIZE; {INDEXED} data Main {{ value: u64 in Indexed<{expression}>; }}"
             ),
         );
-        let diagnostics =
-            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-                .expect_err("a named u32 does not reland as the domain's u64 index");
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("a named u32 does not reland as the domain's u64 index");
         let expected = if expression == "SIZE" {
             "declares type `u32`, but the parameter requires `u64`"
         } else {
@@ -172,8 +177,11 @@ fn canonical_domain_deduplication_retains_private_and_public_occurrences() {
         root.join("main.omg"),
         &format!("use constants; {INDEXED} {private} {public}"),
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-        .expect_err("an equal private application cannot hide a public constant selection");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("an equal private application cannot hide a public constant selection");
     Sources::write(
         root.join("constants.omg"),
         "module constants; pub const SIZE: u64 = 2;",
@@ -232,9 +240,11 @@ fn domain_indices_cannot_select_private_or_transitive_package_constants() {
                 "use middle::bridge; {INDEXED} data Main {{ value: u64 in Indexed<{expression}>; }}"
             ),
         );
-        compile_to_checked_with_packages(&root.join("main.omg"), None, inputs.clone()).expect_err(
-            "loading a transitive constant does not authorize a domain index selection",
-        );
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs.clone()),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("loading a transitive constant does not authorize a domain index selection");
     }
     dependencies.push(PackageDependencyBinding::new(
         identity(1),
@@ -268,8 +278,11 @@ fn domain_indices_cannot_select_private_or_transitive_package_constants() {
             leaf.join("constants.omg"),
             "module constants; const SIZE: u64 = 2;",
         );
-        compile_to_checked_with_packages(&root.join("main.omg"), None, inputs.clone())
-            .expect_err("a direct dependency does not expose a private domain index constant");
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs.clone()),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("a direct dependency does not expose a private domain index constant");
     }
 }
 
@@ -296,8 +309,11 @@ fn nested_domain_arguments_keep_the_live_uses_exposure() {
         root.join("main.omg"),
         &format!("{declarations} {private} {public}"),
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-        .expect_err("a nested equal application must retain its independent public use");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a nested equal application must retain its independent public use");
     Sources::write(
         root.join("constants.omg"),
         "module constants; pub const SIZE: u64 = 2;",
@@ -323,8 +339,11 @@ fn nested_domain_arguments_keep_the_live_uses_exposure() {
             "use constants; {INDEXED} pub data Wrap<T> {{ value: T; owned: u64 in Indexed<constants::SIZE>; }} {private}"
         ),
     );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
-        .expect_err("derived argument suppression cannot hide the template's own public index");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("derived argument suppression cannot hide the template's own public index");
 }
 
 #[test]
@@ -617,8 +636,11 @@ fn selections(
 }
 
 fn compile(root: &Path, inputs: PackageCompilationInputs) -> CheckedCompilation {
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect("domain index fixture checks")
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("domain index fixture checks")
 }
 
 fn identity(marker: u8) -> PackageKeyIdentity {

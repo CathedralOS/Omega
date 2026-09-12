@@ -9,6 +9,7 @@ use checked_interpreter::{
     BuildTimeValue, CURRENT_EVALUATION_STEP_SCHEDULE, CURRENT_EVALUATION_USAGE_SCHEMA,
     evaluate_build_time_machine, evaluate_build_time_machine_measured, interpret_entry,
 };
+use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
 use std::fs;
 use std::path::PathBuf;
@@ -34,7 +35,8 @@ data Main { }
 machine Main::main(&mut self) -> i32 { 1 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).expect("entry probe should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("entry probe should compile");
     assert_eq!(checked.build_evaluation_usage(), None);
 
     let selected = interpret_entry(&checked, "Probe::start", &[]);
@@ -79,7 +81,8 @@ machine Main::main(&mut self) { }
 "#,
     );
 
-    let checked = compile_to_checked(&main_path, None).expect("pilot program should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("pilot program should compile");
     let interpreted = interpret_entry(&checked, "Main::main", &[]);
     assert!(interpreted.error.is_none());
     assert_eq!(interpreted.usage.schedule().marker(), 1);
@@ -137,7 +140,8 @@ machine Main::main(&mut self) { }
 "#,
     );
 
-    let checked = compile_to_checked(&main_path, None).expect("arity program should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("arity program should compile");
     let error = evaluate_build_time_machine(&checked.typed, "Planner::plan", Vec::new())
         .expect_err("missing argument should be a clear error");
     assert!(
@@ -164,7 +168,8 @@ machine Main::main(&mut self) { }
 "#,
     );
 
-    let checked = compile_to_checked(&main_path, None).expect("mutation pilot should compile");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("mutation pilot should compile");
     let argument = BuildTimeValue::Struct {
         type_name: "Box".to_owned(),
         fields: vec![("value".to_owned(), BuildTimeValue::Int(3))],

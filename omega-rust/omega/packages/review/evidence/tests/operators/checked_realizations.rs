@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn review_projects_exact_public_callable_conformances_and_static_machine_contracts() {
@@ -15,11 +16,10 @@ pub machine handle(value: u32) -> u32 satisfies Handler<u32>::handle { value }
 "#,
     );
     satisfying.write("build.omg", build);
-    let checked = compile_to_checked_with_packages(
-        &satisfying.0.join("main.omg"),
-        Some(target),
-        package_inputs(&satisfying.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&satisfying.0)),
+        ..CheckedCompileRequest::new(&satisfying.0.join("main.omg"), Some(target))
+    })
     .expect("public satisfier fixture should check");
     let review = project_checked_package_review(&checked).expect("public conformance review");
     let handle = review
@@ -43,11 +43,10 @@ pub machine handle() satisfies Hidden::handle { }
 "#,
     );
     hidden.write("build.omg", build);
-    let diagnostics = compile_to_checked_with_packages(
-        &hidden.0.join("main.omg"),
-        Some(target),
-        package_inputs(&hidden.0),
-    )
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&hidden.0)),
+        ..CheckedCompileRequest::new(&hidden.0.join("main.omg"), Some(target))
+    })
     .expect_err("compiler admission must reject a public satisfier of a private trait");
     assert!(
         diagnostics
@@ -72,11 +71,10 @@ crashes Abort
 "#,
     );
     generic.write("build.omg", build);
-    let checked = compile_to_checked_with_packages(
-        &generic.0.join("main.omg"),
-        Some(target),
-        package_inputs(&generic.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&generic.0)),
+        ..CheckedCompileRequest::new(&generic.0.join("main.omg"), Some(target))
+    })
     .expect("public static-machine fixture should check");
     let review = project_checked_package_review(&checked)
         .expect("public static-machine contract should project exactly");
@@ -124,11 +122,10 @@ satisfies CheckedMath::identity
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("checked operator realization fixture should check");
     let review = project_checked_package_review(&checked)
         .expect("checked operator realization should project exactly");
@@ -174,11 +171,10 @@ satisfies CheckedMath::identity as {alias}
             ),
         );
         package.write("build.omg", build);
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect("aliased checked operator realization fixture should check");
         project_checked_package_review(&checked)
             .expect("aliased checked operator realization should project exactly")
@@ -261,11 +257,10 @@ satisfies CheckedMath::subtract
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("fixed-token checked operator realization fixture should check");
     let review = project_checked_package_review(&checked)
         .expect("fixed-token checked operator realization should project exactly");

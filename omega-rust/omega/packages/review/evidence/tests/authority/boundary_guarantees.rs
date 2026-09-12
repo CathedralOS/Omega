@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn review_projects_exact_outcome_specific_guarantees() {
@@ -10,11 +11,10 @@ fn review_projects_exact_outcome_specific_guarantees() {
             r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
-        compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("outcome-specific package fixture should check")
     };
     let source = |selector: &str, groups: &str| {
@@ -187,11 +187,10 @@ fn claim_free_boundary_supply_does_not_collapse_into_an_accepted_claim() {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("claim-free boundary fixture should check");
     let review =
         project_checked_package_review(&checked).expect("claim-free boundary review should close");

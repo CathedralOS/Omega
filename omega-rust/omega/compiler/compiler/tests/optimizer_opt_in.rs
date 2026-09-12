@@ -1,6 +1,7 @@
+use compiler::CheckedCompileRequest;
 use compiler::{
     CompileOptions, CompileRequest, OptimizationRollback, RequestedCompileProduct,
-    compile_to_checked, compile_to_checked_with_packages,
+    compile_to_checked,
 };
 use optimization_core::Optimization;
 use optimization_core::OptimizationReportRequest;
@@ -80,8 +81,8 @@ fn exact_optimization_vocabulary_build(optimization: Optimization) -> String {
 #[test]
 fn absent_and_role_only_builds_select_no_optimizations() {
     let absent = project("absent", None);
-    let checked =
-        compile_to_checked(&absent.join("main.omg"), None).expect("absent build remains valid");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&absent.join("main.omg"), None))
+        .expect("absent build remains valid");
     assert!(checked.optimization_selections().is_empty());
     assert_eq!(
         checked.optimization_report_request(),
@@ -94,8 +95,11 @@ fn absent_and_role_only_builds_select_no_optimizations() {
             "machine build(builder: &mut Build) {\n    builder.application(\"optimizer-role-only\");\n}\n",
         ),
     );
-    let checked = compile_to_checked(&role_only.join("main.omg"), None)
-        .expect("role-only canonical build remains valid");
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &role_only.join("main.omg"),
+        None,
+    ))
+    .expect("role-only canonical build remains valid");
     assert!(checked.optimization_selections().is_empty());
     assert_eq!(
         checked.optimization_report_request(),
@@ -115,7 +119,7 @@ fn human_report_is_an_explicit_request_not_an_optimization_selection() {
 "#,
         ),
     );
-    let checked = compile_to_checked(&root.join("main.omg"), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&root.join("main.omg"), None))
         .expect("an explicit report-only request should evaluate");
     assert!(checked.optimization_selections().is_empty());
     assert_eq!(
@@ -137,7 +141,7 @@ fn duplicate_human_report_requests_reject_during_build_evaluation() {
 "#,
         ),
     );
-    let diagnostics = compile_to_checked(&root.join("main.omg"), None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&root.join("main.omg"), None))
         .expect_err("duplicate human report requests must reject");
     assert!(
         diagnostic_messages(&diagnostics)
@@ -151,7 +155,7 @@ fn every_exact_enable_and_rollback_maps_to_itself_through_the_build_prelude() {
         let build = exact_optimization_vocabulary_build(optimization);
         let label = format!("selected-{}", optimization.build_counter_field());
         let root = project(&label, Some(&build));
-        let checked = compile_to_checked(&root.join("main.omg"), None)
+        let checked = compile_to_checked(CheckedCompileRequest::new(&root.join("main.omg"), None))
             .expect("the exact named selection should evaluate");
         assert_eq!(
             checked.optimization_selections().as_slice(),
@@ -191,7 +195,7 @@ fn duplicate_enable_calls_reject_during_build_evaluation() {
 "#,
         ),
     );
-    let diagnostics = compile_to_checked(&root.join("main.omg"), None)
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&root.join("main.omg"), None))
         .expect_err("duplicate optimization selections must reject");
     assert!(
         diagnostic_messages(&diagnostics)
@@ -218,7 +222,7 @@ fn ordinary_authored_build_does_not_replace_selected_toolchain_build() {
 "#,
     )
     .expect("write ordinary legacy Build declaration");
-    let checked = compile_to_checked(&root.join("main.omg"), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&root.join("main.omg"), None))
         .expect("ordinary authored Build must remain outside build-root vocabulary");
     assert!(checked.optimization_selections().is_empty());
 }
@@ -245,7 +249,7 @@ data Build {
 "#,
     )
     .expect("write ordinary lookalike Build declaration");
-    let checked = compile_to_checked(&root.join("main.omg"), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&root.join("main.omg"), None))
         .expect("ordinary lookalike vocabulary must not replace the toolchain Build");
     assert!(checked.optimization_selections().is_empty());
 }
@@ -423,7 +427,7 @@ fn return_only_exact_subtract_rejoins_native_artifact_production() {
 #[test]
 fn x86_rel8_relaxation_selection_round_trips_but_remains_default_off() {
     let absent = project("x86-rel8-default-off", None);
-    let checked = compile_to_checked(&absent.join("main.omg"), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&absent.join("main.omg"), None))
         .expect("an absent build must leave branch relaxation disabled");
     assert!(
         !checked
@@ -442,8 +446,11 @@ fn x86_rel8_relaxation_selection_round_trips_but_remains_default_off() {
 "#,
         ),
     );
-    let checked = compile_to_checked(&selected.join("main.omg"), Some("windows_x86_64"))
-        .expect("the named function-relative-layout selection should evaluate");
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &selected.join("main.omg"),
+        Some("windows_x86_64"),
+    ))
+    .expect("the named function-relative-layout selection should evaluate");
     assert_eq!(
         checked.optimization_selections().as_slice(),
         &[Optimization::X86RelaxConditionalBranchesToRel8V1]
@@ -475,7 +482,7 @@ fn x86_rel8_relaxation_selection_round_trips_but_remains_default_off() {
 #[test]
 fn aarch64_cbnz_fusion_selection_round_trips_but_remains_default_off() {
     let absent = project("aarch64-cbnz-default-off", None);
-    let checked = compile_to_checked(&absent.join("main.omg"), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&absent.join("main.omg"), None))
         .expect("an absent build must leave AArch64 CBNZ fusion disabled");
     assert!(
         !checked
@@ -494,8 +501,11 @@ fn aarch64_cbnz_fusion_selection_round_trips_but_remains_default_off() {
 "#,
         ),
     );
-    let checked = compile_to_checked(&selected.join("main.omg"), Some("windows_x86_64"))
-        .expect("the named post-allocation machine selection should evaluate");
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &selected.join("main.omg"),
+        Some("windows_x86_64"),
+    ))
+    .expect("the named post-allocation machine selection should evaluate");
     assert_eq!(
         checked.optimization_selections().as_slice(),
         &[Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1]
@@ -526,7 +536,7 @@ fn aarch64_cbnz_fusion_selection_round_trips_but_remains_default_off() {
 #[test]
 fn aarch64_movn_materialization_selection_round_trips_but_remains_default_off() {
     let absent = project("aarch64-movn-default-off", None);
-    let checked = compile_to_checked(&absent.join("main.omg"), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&absent.join("main.omg"), None))
         .expect("an absent build must leave AArch64 MOVN materialization disabled");
     assert!(
         !checked
@@ -544,7 +554,7 @@ fn aarch64_movn_materialization_selection_round_trips_but_remains_default_off() 
 "#,
         ),
     );
-    let checked = compile_to_checked(&selected.join("main.omg"), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&selected.join("main.omg"), None))
         .expect("the named MOVN materialization selection should evaluate");
     assert_eq!(
         checked.optimization_selections().as_slice(),
@@ -559,7 +569,7 @@ fn aarch64_movn_materialization_selection_round_trips_but_remains_default_off() 
 #[test]
 fn x86_xor_zero_materialization_selection_round_trips_but_remains_default_off() {
     let absent = project("x86-xor-zero-default-off", None);
-    let checked = compile_to_checked(&absent.join("main.omg"), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&absent.join("main.omg"), None))
         .expect("an absent build must leave x86 XOR-zero materialization disabled");
     assert!(
         !checked
@@ -577,7 +587,7 @@ fn x86_xor_zero_materialization_selection_round_trips_but_remains_default_off() 
 "#,
         ),
     );
-    let checked = compile_to_checked(&selected.join("main.omg"), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&selected.join("main.omg"), None))
         .expect("the named x86 XOR-zero materialization selection should evaluate");
     assert_eq!(
         checked.optimization_selections().as_slice(),
@@ -592,7 +602,7 @@ fn x86_xor_zero_materialization_selection_round_trips_but_remains_default_off() 
 #[test]
 fn x86_mov_r32_imm32_materialization_selection_round_trips_but_remains_default_off() {
     let absent = project("x86-mov-r32-imm32-default-off", None);
-    let checked = compile_to_checked(&absent.join("main.omg"), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&absent.join("main.omg"), None))
         .expect("an absent build must leave x86 MOV-r32-imm32 materialization disabled");
     assert!(
         !checked
@@ -610,7 +620,7 @@ fn x86_mov_r32_imm32_materialization_selection_round_trips_but_remains_default_o
 "#,
         ),
     );
-    let checked = compile_to_checked(&selected.join("main.omg"), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&selected.join("main.omg"), None))
         .expect("the named x86 MOV-r32-imm32 materialization selection should evaluate");
     assert_eq!(
         checked.optimization_selections().as_slice(),
@@ -625,7 +635,7 @@ fn x86_mov_r32_imm32_materialization_selection_round_trips_but_remains_default_o
 #[test]
 fn x86_mov_r64_imm32_materialization_selection_round_trips_but_remains_default_off() {
     let absent = project("x86-mov-r64-imm32-default-off", None);
-    let checked = compile_to_checked(&absent.join("main.omg"), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&absent.join("main.omg"), None))
         .expect("an absent build must leave x86 MOV-r64-imm32 materialization disabled");
     assert!(
         !checked
@@ -643,7 +653,7 @@ fn x86_mov_r64_imm32_materialization_selection_round_trips_but_remains_default_o
 "#,
         ),
     );
-    let checked = compile_to_checked(&selected.join("main.omg"), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&selected.join("main.omg"), None))
         .expect("the named x86 MOV-r64-imm32 materialization selection should evaluate");
     assert_eq!(
         checked.optimization_selections().as_slice(),
@@ -658,7 +668,7 @@ fn x86_mov_r64_imm32_materialization_selection_round_trips_but_remains_default_o
 #[test]
 fn shared_entry_fixed_view_copy_selection_round_trips_but_remains_default_off() {
     let absent = project("shared-entry-copy-default-off", None);
-    let checked = compile_to_checked(&absent.join("main.omg"), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&absent.join("main.omg"), None))
         .expect("an absent build must leave shared-entry copy insertion disabled");
     assert!(
         !checked
@@ -677,8 +687,11 @@ fn shared_entry_fixed_view_copy_selection_round_trips_but_remains_default_off() 
 "#,
         ),
     );
-    let checked = compile_to_checked(&selected.join("main.omg"), Some("windows_x86_64"))
-        .expect("the named allocation-recovery selection should evaluate");
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &selected.join("main.omg"),
+        Some("windows_x86_64"),
+    ))
+    .expect("the named allocation-recovery selection should evaluate");
     assert_eq!(
         checked.optimization_selections().as_slice(),
         &[Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1]
@@ -710,7 +723,7 @@ fn shared_entry_fixed_view_copy_selection_round_trips_but_remains_default_off() 
 #[test]
 fn active_resident_multi_use_rematerialization_selection_round_trips_but_remains_default_off() {
     let absent = project("active-resident-rematerialization-default-off", None);
-    let checked = compile_to_checked(&absent.join("main.omg"), None)
+    let checked = compile_to_checked(CheckedCompileRequest::new(&absent.join("main.omg"), None))
         .expect("an absent build must leave active-resident rematerialization disabled");
     assert!(
         !checked
@@ -729,8 +742,11 @@ fn active_resident_multi_use_rematerialization_selection_round_trips_but_remains
 "#,
         ),
     );
-    let checked = compile_to_checked(&selected.join("main.omg"), Some("windows_x86_64"))
-        .expect("the named allocation-recovery selection should evaluate");
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &selected.join("main.omg"),
+        Some("windows_x86_64"),
+    ))
+    .expect("the named allocation-recovery selection should evaluate");
     assert_eq!(
         checked.optimization_selections().as_slice(),
         &[Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1]
@@ -955,8 +971,11 @@ fn dependency_build_selection_cannot_enable_root_package_optimization() {
     )
     .expect("optimizer package graph should validate");
 
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect("dependency build companion must not join root compilation");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("dependency build companion must not join root compilation");
     assert!(checked.optimization_selections().is_empty());
     assert_eq!(
         checked.optimization_report_request(),
@@ -988,8 +1007,11 @@ fn package_aware_root_build_retains_its_exact_selection() {
     )
     .expect("root-only optimizer package graph should validate");
 
-    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect("root package build selection should check");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("root package build selection should check");
     assert_eq!(
         checked.optimization_selections().as_slice(),
         &[Optimization::GlobalValueNumbering]

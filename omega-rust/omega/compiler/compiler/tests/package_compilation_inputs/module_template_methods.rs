@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 fn check(body: &str) -> Result<compiler::CheckedCompilation, Vec<diagnostics::Diagnostic>> {
     let tree = TempTree::new();
@@ -29,7 +30,10 @@ fn check(body: &str) -> Result<compiler::CheckedCompilation, Vec<diagnostics::Di
         Vec::new(),
     )
     .unwrap();
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
 }
 
 #[test]
@@ -90,8 +94,11 @@ fn borrowed_template_method_cannot_copy_an_affine_payload() {
         Vec::new(),
     )
     .unwrap();
-    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-        .expect_err("borrowed affine payload cannot become owned");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("borrowed affine payload cannot become owned");
     assert!(
         diagnostics
             .iter()
@@ -141,7 +148,10 @@ fn instantiated_methods_keep_each_package_use_authority() {
             dependencies,
         )
         .unwrap();
-        let result = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs);
+        let result = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        });
         if direct && public {
             result.expect("public direct method");
         } else {
@@ -189,7 +199,10 @@ fn methods_authored_outside_the_carrier_module_keep_selected_attachments() {
             Vec::new(),
         )
         .unwrap();
-        compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
-            .unwrap_or_else(|diagnostics| panic!("{carrier}: {diagnostics:?}"));
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .unwrap_or_else(|diagnostics| panic!("{carrier}: {diagnostics:?}"));
     }
 }

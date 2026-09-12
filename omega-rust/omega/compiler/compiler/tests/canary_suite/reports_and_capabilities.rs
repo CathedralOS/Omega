@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 
 #[path = "../fixture_rosters/reports_and_capabilities.rs"]
 pub(super) mod fixture_roster;
@@ -134,8 +135,10 @@ fn full_checked_observation_emits_ordered_timings_with_checked_snapshots() {
 fn checked_semantic_equality_excludes_timing_observations() {
     let main =
         pass_canary(fixture_roster::BOUNDARY_EQUALITY_RECAST_WITNESS_COMPILE).join("main.omg");
-    let first = compile_to_checked(&main, None).expect("first checked compilation");
-    let replay = compile_to_checked(&main, None).expect("replayed checked compilation");
+    let first = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main, None))
+        .expect("first checked compilation");
+    let replay = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main, None))
+        .expect("replayed checked compilation");
     assert_eq!(
         first, replay,
         "nondeterministic phase measurements must not enter checked semantic equality"
@@ -509,8 +512,11 @@ fn boundary_trait_canary_reports_capability_use() {
 #[test]
 fn opaque_boundary_data_reaches_checked_facts_without_a_layout_claim() {
     let canary = pass_canary(fixture_roster::BOUNDARY_DATA_OPAQUE_CONTRACT);
-    let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("opaque boundary data should be usable in frontend contracts");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("opaque boundary data should be usable in frontend contracts");
     let opaque = checked
         .data_definitions()
         .iter()

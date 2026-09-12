@@ -1,4 +1,5 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn review_joins_boundary_operator_realization_to_selected_provider() {
@@ -25,11 +26,10 @@ satisfies CheckedMath::offset_zero
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("boundary operator provider fixture should check and select uniquely");
     let review = project_checked_package_review(&checked)
         .expect("selected boundary operator provider should project exactly");
@@ -116,11 +116,10 @@ machine SecondUse::exercise(&mut self) {
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("actual monomorphic boundary applications should check");
     let review = project_checked_package_review(&checked)
         .expect("actual boundary applications should rejoin their checked realization");
@@ -224,11 +223,10 @@ pub machine exercise(value: i32) -> i32 {
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("ordinary monomorphic boundary application should check");
     let review = project_checked_package_review(&checked)
         .expect("ordinary monomorphic boundary application should project");
@@ -352,11 +350,10 @@ satisfies CheckedMath::convert
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("boundary operator overload providers should select independently");
     let review = project_checked_package_review(&checked)
         .expect("boundary operator overload providers should project exactly");
@@ -443,11 +440,10 @@ satisfies CheckedMath::convert
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("one provider should cover the complete overloaded operator family");
     let review = project_checked_package_review(&checked)
         .expect("package review should retain the exact atomic family mapping");
@@ -515,11 +511,10 @@ satisfies GenericMath::identity
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("alpha-renamed generic operator provider should select");
     let review = project_checked_package_review(&checked)
         .expect("generic provider declaration should project without universal coverage");
@@ -583,11 +578,10 @@ pub machine exercise(value: i32) -> i32 {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("generic boundary use should select and specialize its checked provider");
     let review = project_checked_package_review(&checked)
         .expect("closed generic application should project with specialized-body custody");
@@ -678,11 +672,10 @@ pub machine exercise(value: i32) -> i32 {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("final local substitution should close the helper's boundary application");
     let review = project_checked_package_review(&checked)
         .expect("the finally closed application should project as checked review evidence");
@@ -732,11 +725,10 @@ pub machine compare<Element>(left: Element, right: Element) -> bool {
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("generic producer should retain its symbolic boundary demand");
     assert!(checked.facts.operators.boundary_applications.is_empty());
     let review = project_checked_package_review(&checked)
@@ -828,11 +820,10 @@ pub machine other<Element>(left: Element, right: Element) -> bool { true }
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("symbolic demand fixture should check");
 
     let mut wrong_requirement_binder = checked.clone();
@@ -923,11 +914,10 @@ pub machine exercise_u64(value: u64) -> u64 {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("two concrete uses should specialize one generic checked provider twice");
     let review = project_checked_package_review(&checked)
         .expect("each closed generic application should retain its own specialization");
@@ -997,11 +987,10 @@ satisfies GenericMath::identity
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("a provider with weaker property demands should satisfy the operator");
     let review = project_checked_package_review(&checked)
         .expect("property-demand weakening should remain explicit in package review");
@@ -1047,11 +1036,10 @@ satisfies ConstMath::identity
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("alpha-renamed const-generic operator provider should select");
     let review = project_checked_package_review(&checked)
         .expect("const-generic provider declaration should project exactly");
@@ -1116,11 +1104,10 @@ pub machine exercise(value: [u8; 4]) -> [u8; 4] {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("const-generic boundary use should specialize its checked provider");
     let review = project_checked_package_review(&checked)
         .expect("closed const application should project with specialized-body custody");
@@ -1183,11 +1170,10 @@ pub machine exercise(value: i32) -> i32 {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
     .expect("generic boundary fixture should compile");
 
     let mut substituted_application = checked.clone();
@@ -1265,11 +1251,10 @@ satisfies GenericMath::identity
             r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
-        let diagnostics = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some(target),
-            package_inputs(&package.0),
-        )
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
         .expect_err("mismatched operator/provider static telescopes must not check");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic

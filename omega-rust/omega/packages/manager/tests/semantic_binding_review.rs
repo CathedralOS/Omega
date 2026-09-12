@@ -1,6 +1,7 @@
 #[path = "support/accepted_policy.rs"]
 mod accepted_policy_fixture;
 
+use compiler::CheckedCompileRequest;
 use effects::{
     ServiceTerminalAuthorityPermission, TerminalAuthorityClass, TerminalAuthorityDisposition,
 };
@@ -486,12 +487,13 @@ invokes console;
                 panic!("accepted package application must produce one retained Terminal report: {diagnostics:#?}")
             })
     };
-    let exact_checked = compiler::compile_to_checked_with_packages_in_build_dir(
-        &root_path,
-        &temporary.0.join("exact-checked-build"),
-        Some("linux_x86_64"),
-        production_inputs(root_evidence.semantic_bindings().to_vec()),
-    )
+    let exact_checked = compiler::compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(temporary.0.join("exact-checked-build").to_owned()),
+        package_inputs: Some(production_inputs(
+            root_evidence.semantic_bindings().to_vec(),
+        )),
+        ..CheckedCompileRequest::new(&root_path, Some("linux_x86_64"))
+    })
     .expect("accepted package application checks for subject mutation coverage");
 
     let receiving_policy_identity = accepted_permission_policy.identity();
@@ -528,20 +530,21 @@ invokes console;
     );
     let observation_probe_identity =
         PackageKeyIdentity::from_digest([0x7a; 32]).expect("nonzero observation-probe identity");
-    let observation_probe_checked = compiler::compile_to_checked_with_packages(
-        &observation_probe.join("main.omg"),
-        None,
-        PackageCompilationInputs::new_package(
-            observation_probe_identity,
-            vec![PackageSourceBinding::new(
+    let observation_probe_checked = compiler::compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(
+            PackageCompilationInputs::new_package(
                 observation_probe_identity,
-                "observation-probe",
-                observation_probe.clone(),
-            )],
-            Vec::new(),
-        )
-        .expect("single-package observation probe"),
-    )
+                vec![PackageSourceBinding::new(
+                    observation_probe_identity,
+                    "observation-probe",
+                    observation_probe.clone(),
+                )],
+                Vec::new(),
+            )
+            .expect("single-package observation probe"),
+        ),
+        ..CheckedCompileRequest::new(&observation_probe.join("main.omg"), None)
+    })
     .expect("compile distinct build observation probe");
     let substituted_observation_subject = compiler::ProductionCompilationSubject::from_checked(
         exact_checked
@@ -641,12 +644,16 @@ invokes console;
     .expect("attach accepted dependency bundle to substituted source graph")
     .with_accepted_semantic_bindings(root_evidence.semantic_bindings().to_vec())
     .expect("attach exact accepted semantic binding to substituted source graph");
-    let substituted_checked = compiler::compile_to_checked_with_packages_in_build_dir(
-        &substituted_root.join("main.omg"),
-        &temporary.0.join("source-substitution-checked-build"),
-        Some("linux_x86_64"),
-        substituted_inputs,
-    )
+    let substituted_checked = compiler::compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(
+            temporary
+                .0
+                .join("source-substitution-checked-build")
+                .to_owned(),
+        ),
+        package_inputs: Some(substituted_inputs),
+        ..CheckedCompileRequest::new(&substituted_root.join("main.omg"), Some("linux_x86_64"))
+    })
     .expect("compile same-identity source-substituted package subject");
     assert_ne!(
         substituted_checked.source_consumption_commitment(),

@@ -1,4 +1,5 @@
 use super::*;
+use compiler::CheckedCompileRequest;
 use provider_planning::plans::CompilerIntrinsicExecutionIdentity;
 
 #[test]
@@ -131,8 +132,9 @@ fn hosted_byte_physical_children_retain_target_operand_and_emission_custody() {
 fn hosted_byte_catalog_retains_exact_target_and_provider_custody() {
     let root = pass_canary(fixture_roster::RUNTIME_ADAPTER_FORWARDING_EXIT).join("main.omg");
     for target in ["linux_x86_64", "linux_arm64", "macos_arm64"] {
-        let checked = compile_to_checked(&root, Some(target))
-            .expect("the target-selected Console provider checks");
+        let checked =
+            compile_reviewed_repository_fixture(CheckedCompileRequest::new(&root, Some(target)))
+                .expect("the target-selected Console provider checks");
         let (plan, retained) = checked
             .selected_provider_plans()
             .plans()

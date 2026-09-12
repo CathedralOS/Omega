@@ -1,15 +1,15 @@
 use crate::support::*;
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn review_rejects_target_free_and_standalone_checked_programs() {
     let package = TempPackage::new();
     package.write("main.omg", "machine local() { }\n");
 
-    let target_free = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        None,
-        package_inputs(&package.0),
-    )
+    let target_free = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), None)
+    })
     .expect("target-free package fixture should check");
     let diagnostics = project_checked_package_review(&target_free)
         .expect_err("review must require an explicit target");
@@ -19,8 +19,11 @@ fn review_rejects_target_free_and_standalone_checked_programs() {
             .contains("requires one explicit target selection")
     }));
 
-    let standalone = compiler::compile_to_checked(&package.0.join("main.omg"), None)
-        .expect("standalone fixture should check");
+    let standalone = compiler::compile_to_checked(CheckedCompileRequest::new(
+        &package.0.join("main.omg"),
+        None,
+    ))
+    .expect("standalone fixture should check");
     let diagnostics = project_checked_package_review(&standalone)
         .expect_err("review must require package-aware compilation");
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -40,17 +43,15 @@ fn review_distinguishes_profiles_that_share_a_native_target() {
 "#,
     );
 
-    let windows = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("windows_x86_64"),
-        package_inputs(&package.0),
-    )
+    let windows = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
     .expect("Windows review fixture should check");
-    let uefi = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some("uefi_x86_64"),
-        package_inputs(&package.0),
-    )
+    let uefi = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("uefi_x86_64"))
+    })
     .expect("UEFI review fixture should check");
 
     assert_eq!(
@@ -83,11 +84,10 @@ fn review_encoding_ignores_unreviewed_arena_insertion_order() {
     second.write("build.omg", build);
 
     let compile = |package: &TempPackage| {
-        compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("arena-order fixture should check")
     };
     let first = project_checked_package_review(&compile(&first))

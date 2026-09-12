@@ -1,3 +1,4 @@
+use compiler::CheckedCompileRequest;
 mod support;
 
 #[path = "public_api/data_and_quotients.rs"]
@@ -39,11 +40,10 @@ fn module_constant_domain_index_enters_canonical_public_data_artifact() {
              pub data Root {{ value: u64 in Indexed<{argument}>; }}"
             ),
         );
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("public indexed domain application checks");
         let [family] = checked.typed.domain_definitions() else {
             panic!("one authored indexed family");
@@ -142,11 +142,10 @@ fn module_constant_index_enters_canonical_public_data_artifact() {
              pub data Root {{ value: Buffer<{argument}>; }}"
             ),
         );
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x86_64"),
-            package_inputs(&package.0),
-        )
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
         .expect("public named constant application checks");
         project_checked_package_review(&checked).expect("public constant application projects")
     };
