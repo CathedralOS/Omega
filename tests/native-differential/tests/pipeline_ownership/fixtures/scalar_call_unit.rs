@@ -43,6 +43,7 @@ pub(crate) fn scalar_call_unit_artifact_with(
     let callee =
         conditional_u64_integer_equal_parameters_machine(SCALAR_CALL_UNIT_CALLEE_BASE, [1, 0]);
     let call = |id, result, arguments| Operation {
+        static_reach_binding: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Scalar(declaration(result)),
         kind: OperationKind::Call {
@@ -53,6 +54,7 @@ pub(crate) fn scalar_call_unit_artifact_with(
         },
     };
     let caller_machine = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: caller,
         attachment: Some(attachment),
@@ -73,6 +75,7 @@ pub(crate) fn scalar_call_unit_artifact_with(
             parameters: Vec::new(),
             operations: vec![
                 Operation {
+                    static_reach_binding: None,
                     id: OperationId::new(SCALAR_CALL_UNIT_LEFT_OPERATION).unwrap(),
                     result: OperationResult::Scalar(declaration(left)),
                     kind: OperationKind::IntegerConstant {
@@ -80,6 +83,7 @@ pub(crate) fn scalar_call_unit_artifact_with(
                     },
                 },
                 Operation {
+                    static_reach_binding: None,
                     id: OperationId::new(SCALAR_CALL_UNIT_RIGHT_OPERATION).unwrap(),
                     result: OperationResult::Scalar(declaration(right)),
                     kind: OperationKind::IntegerConstant {

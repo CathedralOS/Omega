@@ -320,6 +320,7 @@ pub(super) fn emit(
         *target_machine,
     )?;
     operations.push(Operation {
+        static_reach_binding: None,
         id,
         result: OperationResult::Structural(StructuralOperationResult {
             place,

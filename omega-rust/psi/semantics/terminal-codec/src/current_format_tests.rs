@@ -16,15 +16,16 @@ const LEGACY_UNIT: &[u8] = &[
 
 // The same Unit semantics with the current declaration rosters and markers.
 const CURRENT_UNIT: &[u8] = &[
-    80, 83, 73, 84, 69, 82, 77, 0, 91, 0, 102, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    80, 83, 73, 84, 69, 82, 77, 0, 92, 0, 103, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
-    0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 1, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
+    0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 1, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0,
 ];
 
 #[test]
@@ -66,6 +67,259 @@ fn declared_service_module() -> terminal_psi::TerminalModule {
     module.machines[0].published_service_ceiling = vec![service];
     module.root_service_reach.concrete = vec![service];
     module
+}
+
+fn closed_reach_module() -> terminal_psi::TerminalModule {
+    use semantic_vocabulary::{BlockId, ContractId, EdgeId, MachineId, OperationId};
+    use terminal_psi::{
+        ClosedReachApplication, ClosedReachCall, ClosedReachMachineBinding, ClosedReachParameter,
+        Operation, OperationKind, OperationResult, Terminator,
+    };
+    let mut module = declared_service_module();
+    let service = module.services[0].id;
+    for ordinal in [2, 3] {
+        let mut selected = module.machines[0].clone();
+        selected.id = MachineId::new(ordinal).unwrap();
+        selected.entry = BlockId::new(ordinal).unwrap();
+        selected.contract.id = ContractId::new(ordinal).unwrap();
+        selected.blocks[0].id = selected.entry;
+        selected.blocks[0].terminator = Terminator::ReturnUnit {
+            edge: EdgeId::new(ordinal).unwrap(),
+            trivial_affine_discards: Vec::new(),
+        };
+        module.machines.push(selected);
+    }
+    let binding = |ordinal| {
+        ClosedReachParameter::Machine(ClosedReachMachineBinding {
+            nominal_requirement: Some("Callback::call".into()),
+            upper_bound: vec![service],
+            selected_identity: format!("selected-{ordinal}"),
+            selected_contract_commitment: [3; 32],
+            selected_reach: vec![service],
+            callee: Some(MachineId::new(ordinal).unwrap()),
+        })
+    };
+    let owner = &mut module.machines[0];
+    owner.declared_service_reach.clear();
+    owner.closed_reach_application = Some(ClosedReachApplication {
+        template_identity: "forward".into(),
+        template_commitment: [1; 32],
+        specialization_commitment: [2; 32],
+        telescope: vec![
+            ClosedReachParameter::Type {
+                argument: "u64".into(),
+            },
+            binding(2),
+            ClosedReachParameter::Const {
+                argument: "u64:2".into(),
+            },
+            binding(3),
+        ],
+        fixed: Vec::new(),
+        dependencies: vec![1, 3],
+        calls: vec![
+            ClosedReachCall {
+                operation: OperationId::new(1).unwrap(),
+                binder: 1,
+            },
+            ClosedReachCall {
+                operation: OperationId::new(2).unwrap(),
+                binder: 3,
+            },
+        ],
+    });
+    for (ordinal, binder, callee) in [(1, 1, 2), (2, 3, 3)] {
+        owner.blocks[0].operations.push(Operation {
+            id: OperationId::new(ordinal).unwrap(),
+            static_reach_binding: Some(binder),
+            result: OperationResult::Unit,
+            kind: OperationKind::CallUnit {
+                callee: MachineId::new(callee).unwrap(),
+                arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        });
+    }
+    module
+}
+
+#[test]
+fn closed_reach_relation_roundtrips_and_binds_semantic_identity() {
+    let module = closed_reach_module();
+    let bytes = encode_module(&module).expect("closed substitution encodes");
+    assert_eq!(decode_module(&bytes).unwrap(), module);
+    for end in 0..bytes.len() {
+        assert!(decode_module(&bytes[..end]).is_err(), "truncated at {end}");
+    }
+    let mut changed = module.clone();
+    changed.machines[0]
+        .closed_reach_application
+        .as_mut()
+        .unwrap()
+        .template_identity
+        .push_str("-other");
+    assert_ne!(
+        super::terminal_psi_identity(&module).unwrap(),
+        super::terminal_psi_identity(&changed).unwrap()
+    );
+    // Provenance is deliberately not a fabricated opening of the original
+    // source contract. A changed origin remains a different ordinary product.
+    assert!(encode_module(&changed).is_ok());
+}
+
+#[test]
+fn closed_reach_decoder_rejects_tampered_substitutions_and_call_joins() {
+    use terminal_psi::{ClosedReachParameter, OperationKind};
+    let original = closed_reach_module();
+    let mutations: &[fn(&mut terminal_psi::TerminalModule)] = &[
+        |module| module.machines[0].closed_reach_application = None,
+        |module| {
+            module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .dependencies
+                .remove(0);
+        },
+        |module| {
+            module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .calls
+                .clear()
+        },
+        |module| module.machines[0].blocks[0].operations[0].static_reach_binding = None,
+        |module| module.machines[0].blocks[0].operations[0].static_reach_binding = Some(3),
+        |module| {
+            module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .dependencies = vec![0]
+        },
+        |module| {
+            module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .dependencies = vec![1, 1]
+        },
+        |module| {
+            module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .dependencies
+                .clear()
+        },
+        |module| {
+            module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .telescope
+                .remove(0);
+        },
+        |module| {
+            let ClosedReachParameter::Machine(binding) = &mut module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .telescope[1]
+            else {
+                panic!("fixture");
+            };
+            binding.selected_reach.clear();
+        },
+        |module| {
+            let ClosedReachParameter::Machine(binding) = &mut module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .telescope[1]
+            else {
+                panic!("fixture");
+            };
+            binding.upper_bound.clear();
+        },
+        |module| {
+            let ClosedReachParameter::Machine(binding) = &mut module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .telescope[1]
+            else {
+                panic!("fixture");
+            };
+            binding.nominal_requirement = None;
+        },
+        |module| {
+            let ClosedReachParameter::Machine(binding) = &mut module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .telescope[1]
+            else {
+                panic!("fixture");
+            };
+            binding.callee = None;
+        },
+        |module| {
+            let OperationKind::CallUnit { callee, .. } =
+                &mut module.machines[0].blocks[0].operations[0].kind
+            else {
+                panic!("fixture");
+            };
+            *callee = semantic_vocabulary::MachineId::new(3).unwrap();
+        },
+        |module| {
+            module.machines[1].blocks[0].operations =
+                std::mem::take(&mut module.machines[0].blocks[0].operations);
+        },
+    ];
+    for (ordinal, mutate) in mutations.iter().enumerate() {
+        let mut changed = original.clone();
+        mutate(&mut changed);
+        let bytes = super::encode_raw(&changed).expect("raw tampered product");
+        assert!(
+            decode_module(&bytes).is_err(),
+            "mutation {ordinal} accepted"
+        );
+    }
+}
+
+#[test]
+fn structural_callback_requirement_remains_fixed_beside_nominal_reach() {
+    use terminal_psi::ClosedReachParameter;
+    let mut module = closed_reach_module();
+    let application = module.machines[0]
+        .closed_reach_application
+        .as_mut()
+        .unwrap();
+    application.dependencies = vec![3];
+    application.fixed = vec![module.services[0].id];
+    let ClosedReachParameter::Machine(binding) = &mut application.telescope[1] else {
+        panic!("fixture");
+    };
+    binding.nominal_requirement = None;
+    binding.selected_reach.clear();
+    module.machines[1].declared_service_reach.clear();
+    module.machines[1].published_service_ceiling.clear();
+    let bytes = encode_module(&module).unwrap();
+    assert_eq!(decode_module(&bytes).unwrap(), module);
+    module.machines[0]
+        .closed_reach_application
+        .as_mut()
+        .unwrap()
+        .fixed
+        .clear();
+    // The nominal selection still supplies Console. Matching the output union
+    // cannot excuse omitting the structural callback's fixed requirement row.
+    assert!(decode_module(&super::encode_raw(&module).unwrap()).is_err());
 }
 
 #[test]
@@ -158,6 +412,7 @@ fn fixed_boundary_service_module() -> terminal_psi::TerminalModule {
     module.machines[0].blocks[0]
         .operations
         .push(terminal_psi::Operation {
+            static_reach_binding: None,
             id: semantic_vocabulary::OperationId::new(1).unwrap(),
             result: terminal_psi::OperationResult::Unit,
             kind: terminal_psi::OperationKind::BoundaryCall {

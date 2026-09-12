@@ -417,6 +417,7 @@ pub(crate) fn emit(
     fields.sort_by_key(|field| field.field);
     let id = operations.allocate();
     operations.push(Operation {
+        static_reach_binding: None,
         id,
         result: OperationResult::Structural(StructuralOperationResult {
             place: effect.place,

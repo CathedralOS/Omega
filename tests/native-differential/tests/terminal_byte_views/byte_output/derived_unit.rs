@@ -9,6 +9,7 @@ mod publication;
 
 fn output_call(identity: u64, argument: ValueId) -> Operation {
     Operation {
+        static_reach_binding: None,
         id: OperationId::new(identity).unwrap(),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -91,6 +92,7 @@ fn derived_unit_output_module() -> TerminalModule {
     caller.blocks[1].operations.insert(
         1,
         Operation {
+            static_reach_binding: None,
             id: OperationId::new(120).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

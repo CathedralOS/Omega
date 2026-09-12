@@ -25,6 +25,7 @@ fn scalar(identity: u64) -> ValueDeclaration {
 
 fn operation(identity: u64, result: u64, kind: OperationKind) -> Operation {
     Operation {
+        static_reach_binding: None,
         id: OperationId::new(identity).unwrap(),
         result: OperationResult::Scalar(scalar(result)),
         kind,
@@ -146,6 +147,7 @@ pub(super) fn conditional() -> TerminalModule {
             },
         ),
         Operation {
+            static_reach_binding: None,
             id: OperationId::new(127).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -232,6 +234,7 @@ fn empty_block(identity: u64) -> Block {
 
 fn bounded_operand(identity: u64, operand: ValueId, maximum: ValueId) -> Operation {
     Operation {
+        static_reach_binding: None,
         id: OperationId::new(identity).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

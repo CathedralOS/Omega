@@ -69,6 +69,7 @@ fn dead_scalar_fixture() -> LoweredPsi {
         .operations
         .extend([
             Operation {
+                static_reach_binding: None,
                 id: OperationId::new(2001).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -78,6 +79,7 @@ fn dead_scalar_fixture() -> LoweredPsi {
                 kind: OperationKind::BooleanConstant { value: true },
             },
             Operation {
+                static_reach_binding: None,
                 id: OperationId::new(2002).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),

@@ -43,6 +43,7 @@ fn owned_field(multiplicity: StructuralMultiplicity) -> TerminalModule {
         scalar_type,
     });
     machine.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(901),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

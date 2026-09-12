@@ -25,6 +25,7 @@ fn fixture() -> TerminalModule {
     };
     structural_arguments[0].access = StructuralAccess::MutableBorrow;
     machine.blocks[1].operations.push(Operation {
+        static_reach_binding: None,
         id: id(30, OperationId::new),
         result: OperationResult::Unit,
         kind: OperationKind::ByteSequenceWrite {
@@ -176,6 +177,7 @@ fn transferred_machine_view_cannot_be_observed_or_written_again() {
         validate_module(&module).unwrap();
         let operation = if write {
             Operation {
+                static_reach_binding: None,
                 id: id(50, OperationId::new),
                 result: OperationResult::Unit,
                 kind: OperationKind::ByteSequenceWrite {
@@ -355,6 +357,7 @@ fn sequential_reborrows_work_but_transferred_machine_alias_cannot_call() {
     }];
     module.machines.push(helper);
     let call = |identity, place| Operation {
+        static_reach_binding: None,
         id: id(identity, OperationId::new),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {

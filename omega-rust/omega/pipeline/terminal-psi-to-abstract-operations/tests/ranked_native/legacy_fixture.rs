@@ -61,6 +61,7 @@ pub(super) fn legacy_countdown() -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine,
             attachment: None,
@@ -130,6 +131,7 @@ pub(super) fn legacy_countdown() -> TerminalModule {
                     }],
                     operations: vec![
                         Operation {
+                            static_reach_binding: None,
                             id: id(1, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -141,6 +143,7 @@ pub(super) fn legacy_countdown() -> TerminalModule {
                             },
                         },
                         Operation {
+                            static_reach_binding: None,
                             id: id(2, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -177,6 +180,7 @@ pub(super) fn legacy_countdown() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: vec![
                         Operation {
+                            static_reach_binding: None,
                             id: id(3, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -188,6 +192,7 @@ pub(super) fn legacy_countdown() -> TerminalModule {
                             },
                         },
                         Operation {
+                            static_reach_binding: None,
                             id: id(4, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),

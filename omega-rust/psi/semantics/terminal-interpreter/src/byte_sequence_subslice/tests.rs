@@ -37,6 +37,7 @@ fn execution() -> (TerminalExecution, Operation) {
     let block_id = BlockId::new(1).unwrap();
     let structural_type = StructuralTypeId::new(1).unwrap();
     let operation = Operation {
+        static_reach_binding: None,
         id: OperationId::new(2).unwrap(),
         result: OperationResult::Structural(StructuralOperationResult {
             place: place(2),
@@ -71,6 +72,7 @@ fn execution() -> (TerminalExecution, Operation) {
             }],
             operations: vec![
                 Operation {
+                    static_reach_binding: None,
                     id: OperationId::new(1).unwrap(),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),

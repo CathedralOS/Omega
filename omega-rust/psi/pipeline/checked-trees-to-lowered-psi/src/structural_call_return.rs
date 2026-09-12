@@ -196,6 +196,7 @@ pub(super) fn lower_structural_call_return_machine(
         &[],
     )?;
     let caller = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: Some(attachment),
@@ -244,6 +245,7 @@ pub(super) fn lower_structural_call_return_machine(
             id: block_id(1),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: operation,
                 result: terminal_psi::OperationResult::Structural(
                     terminal_psi::StructuralOperationResult {

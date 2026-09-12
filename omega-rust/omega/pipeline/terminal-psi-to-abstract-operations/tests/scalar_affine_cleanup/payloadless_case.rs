@@ -67,6 +67,7 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine_id(91),
             attachment: None,
@@ -104,6 +105,7 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
                 id: block_id(91),
                 parameters: Vec::new(),
                 operations: vec![Operation {
+                    static_reach_binding: None,
                     id: operation,
                     result: OperationResult::Structural(StructuralOperationResult {
                         place: operation_place,
@@ -147,6 +149,7 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
     callee.contract.id = contract_id(92);
     let call = semantic_vocabulary::OperationId::new(93).unwrap();
     let caller = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(91),
         attachment: None,
@@ -184,6 +187,7 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
             id: block_id(91),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: call,
                 result: OperationResult::Structural(StructuralOperationResult {
                     place: place_id(93),

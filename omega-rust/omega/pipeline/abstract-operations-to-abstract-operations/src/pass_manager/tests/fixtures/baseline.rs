@@ -38,6 +38,7 @@ pub(in crate::pass_manager::tests) fn verified_empty_unit() -> VerifiedPsiOptimi
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: MachineId::new(401).unwrap(),
             attachment: None,

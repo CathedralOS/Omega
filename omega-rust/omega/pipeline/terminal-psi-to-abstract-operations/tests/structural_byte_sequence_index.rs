@@ -57,6 +57,7 @@ fn verified_field_length_and_indexed_store_reject_at_every_native_entrance() {
     let count = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     let byte = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
     let scalar = |operation, value, scalar_type, kind| Operation {
+        static_reach_binding: None,
         id: id(operation),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -126,6 +127,7 @@ fn verified_field_length_and_indexed_store_reject_at_every_native_entrance() {
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: id(105),
                 result: OperationResult::Unit,
                 kind: OperationKind::StructuralByteSequenceFieldByteStore {

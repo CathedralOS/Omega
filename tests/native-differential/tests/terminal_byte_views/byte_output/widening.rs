@@ -16,6 +16,7 @@ pub(super) fn widened_byte_output_module() -> TerminalModule {
     machine.blocks[0].operations.insert(
         0,
         Operation {
+            static_reach_binding: None,
             id: OperationId::new(6).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

@@ -198,6 +198,7 @@ pub(crate) fn lower_selected_operator_structural_scalar_return_machine(
     };
     let call_operation = operation_id(1);
     let caller = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: None,
@@ -226,6 +227,7 @@ pub(crate) fn lower_selected_operator_structural_scalar_return_machine(
             id: block_id(1),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: call_operation,
                 result: terminal_psi::OperationResult::Scalar(call_result),
                 kind: OperationKind::CallStructuralScalar {

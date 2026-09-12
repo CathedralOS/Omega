@@ -52,6 +52,7 @@ pub(crate) fn emit(
                     values,
                 )?;
                 operations.push(Operation {
+                    static_reach_binding: None,
                     id,
                     result: OperationResult::Unit,
                     kind: OperationKind::CallUnit {

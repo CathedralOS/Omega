@@ -328,6 +328,7 @@ pub(super) fn emit(
         )?;
         let operation = operations.allocate();
         operations.push(Operation {
+            static_reach_binding: None,
             id: operation,
             result: terminal_psi::OperationResult::Unit,
             kind,

@@ -62,6 +62,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_cse_unit()
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine,
             attachment: None,
@@ -82,6 +83,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_cse_unit()
                 parameters: Vec::new(),
                 operations: vec![
                     Operation {
+                        static_reach_binding: None,
                         id: OperationId::new(463).unwrap(),
                         result: OperationResult::Scalar(declaration(left)),
                         kind: OperationKind::IntegerConstant {
@@ -89,6 +91,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_cse_unit()
                         },
                     },
                     Operation {
+                        static_reach_binding: None,
                         id: OperationId::new(464).unwrap(),
                         result: OperationResult::Scalar(declaration(right)),
                         kind: OperationKind::IntegerConstant {
@@ -96,11 +99,13 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_cse_unit()
                         },
                     },
                     Operation {
+                        static_reach_binding: None,
                         id: OperationId::new(458).unwrap(),
                         result: OperationResult::Scalar(declaration(leader)),
                         kind: OperationKind::WrappingIntegerAdd { left, right },
                     },
                     Operation {
+                        static_reach_binding: None,
                         id: OperationId::new(459).unwrap(),
                         result: OperationResult::Scalar(declaration(redundant)),
                         kind: OperationKind::ExactIntegerAdd {
@@ -227,6 +232,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine,
             attachment: None,
@@ -256,6 +262,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
                         declaration(join_b, count_scalar_type),
                     ],
                     operations: vec![Operation {
+                        static_reach_binding: None,
                         id: OperationId::new(518).unwrap(),
                         result: OperationResult::Scalar(declaration(redundant, scalar_type)),
                         kind: OperationKind::ExactIntegerShiftRight {
@@ -275,6 +282,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
                     id: left_block,
                     parameters: Vec::new(),
                     operations: vec![Operation {
+                        static_reach_binding: None,
                         id: OperationId::new(520).unwrap(),
                         result: OperationResult::Scalar(declaration(left_leader, scalar_type)),
                         kind: OperationKind::WrappingIntegerShiftRight {
@@ -296,6 +304,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
                     id: entry,
                     parameters: Vec::new(),
                     operations: vec![Operation {
+                        static_reach_binding: None,
                         id: OperationId::new(528).unwrap(),
                         result: OperationResult::Scalar(declaration(zero, count_scalar_type)),
                         kind: OperationKind::IntegerConstant {
@@ -325,6 +334,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
                     id: right_block,
                     parameters: Vec::new(),
                     operations: vec![Operation {
+                        static_reach_binding: None,
                         id: OperationId::new(524).unwrap(),
                         result: OperationResult::Scalar(declaration(right_leader, scalar_type)),
                         kind: OperationKind::WrappingIntegerShiftRight {

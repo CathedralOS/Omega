@@ -1467,6 +1467,7 @@ fn assemble_unit_closure(
                 ))?;
             let id = operations.allocate();
             operations.push(Operation {
+                static_reach_binding: None,
                 id,
                 result: terminal_psi::OperationResult::Unit,
                 kind: OperationKind::EstablishByteSequenceLiteral {
@@ -2333,6 +2334,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                         }
                     };
                     operations.push(Operation {
+                        static_reach_binding: None,
                         id: operation_id,
                         result: terminal_psi::OperationResult::Scalar(value),
                         kind,
@@ -2510,6 +2512,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                         *realization_machine,
                     )?;
                     operations.push(Operation {
+                        static_reach_binding: None,
                         id: operation_id,
                         result: OperationResult::Scalar(value),
                         kind: OperationKind::CallStructuralScalar {
@@ -2635,6 +2638,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                         *realization_machine,
                     )?;
                     operations.push(Operation {
+                        static_reach_binding: None,
                         id: operation_id,
                         result: OperationResult::Structural(StructuralOperationResult {
                             place: result_place,
@@ -2748,6 +2752,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                         *format,
                     )?;
                     operations.push(Operation {
+                        static_reach_binding: None,
                         id: operation,
                         result: terminal_psi::OperationResult::Scalar(value),
                         kind: OperationKind::NearestIeeeFloatFusedMultiplyAdd {
@@ -3007,6 +3012,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                         *target_machine,
                     )?;
                     operations.push(Operation {
+                        static_reach_binding: None,
                         id,
                         result: terminal_psi::OperationResult::Scalar(value),
                         kind,
@@ -3177,6 +3183,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                         *target_machine,
                     )?;
                     operations.push(Operation {
+                        static_reach_binding: None,
                         id,
                         result: OperationResult::Structural(StructuralOperationResult {
                             place: result_place,
@@ -3446,6 +3453,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                 )?;
             }
             operations.push(Operation {
+                static_reach_binding: None,
                 id,
                 result: terminal_psi::OperationResult::Unit,
                 kind,
@@ -3752,6 +3760,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
             Vec::new()
         };
         machines.push(TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: lower_declared_service_reach(
                 checked,
                 plan.machine,

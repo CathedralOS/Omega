@@ -1223,6 +1223,7 @@ mod tests {
         for (operation, expected, result_shape, custody, action, frontier, wrong_result) in [
             (
                 Operation {
+                    static_reach_binding: None,
                     id: OperationId::new(31).unwrap(),
                     result: local.clone(),
                     kind: OperationKind::EstablishPrimitiveLocal {
@@ -1241,6 +1242,7 @@ mod tests {
             ),
             (
                 Operation {
+                    static_reach_binding: None,
                     id: OperationId::new(32).unwrap(),
                     result: scalar,
                     kind: OperationKind::PrimitiveScalarRead {
@@ -1318,6 +1320,7 @@ mod tests {
     #[test]
     fn byte_field_store_requires_contextual_capacity_and_keeps_exact_subjects() {
         let operation = Operation {
+            static_reach_binding: None,
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::StructuralByteSequenceFieldStore {
@@ -1374,6 +1377,7 @@ mod tests {
     #[test]
     fn byte_sequence_length_retains_source_without_inventing_a_proof_equation() {
         let operation = Operation {
+            static_reach_binding: None,
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -1482,6 +1486,7 @@ mod tests {
     #[test]
     fn byte_write_retains_mutable_custody_unit_and_exact_bounds_goal() {
         let operation = Operation {
+            static_reach_binding: None,
             id: OperationId::new(5).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::ByteSequenceWrite {
@@ -1527,6 +1532,7 @@ mod tests {
         let length = ValueId::new(3).unwrap();
         let obligation = ObligationId::new(4).unwrap();
         let operation = Operation {
+            static_reach_binding: None,
             id: OperationId::new(5).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -1596,6 +1602,7 @@ mod tests {
     #[test]
     fn primitive_store_observation_binds_destination_and_value_without_a_fact() {
         let operation = Operation {
+            static_reach_binding: None,
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -1659,6 +1666,7 @@ mod tests {
             .expect("Boolean structural row");
         drifted[boolean_index].schema.frontier = StructuralEffectFrontierPolicy::KeepsPlaceFrontier;
         let operation = Operation {
+            static_reach_binding: None,
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -1682,6 +1690,7 @@ mod tests {
         let source = PlaceId::new(1).unwrap();
         let field = StructuralFieldId::new(1).unwrap();
         let boolean = Operation {
+            static_reach_binding: None,
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -1702,6 +1711,7 @@ mod tests {
 
         let service = ServiceId::new(1).unwrap();
         let port = Operation {
+            static_reach_binding: None,
             id: OperationId::new(2).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::PortWrite {
@@ -1721,6 +1731,7 @@ mod tests {
 
         let destination = PlaceId::new(2).unwrap();
         let establish = Operation {
+            static_reach_binding: None,
             id: OperationId::new(3).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishTrivialAffineLocal { destination },
@@ -1734,6 +1745,7 @@ mod tests {
     #[test]
     fn rows_fail_closed_on_result_or_action_drift() {
         let boolean = Operation {
+            static_reach_binding: None,
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::BooleanStructuralField {
@@ -1757,6 +1769,7 @@ mod tests {
         assert_eq!(
             structural_effect_leaf_observation_in(
                 &Operation {
+                    static_reach_binding: None,
                     id: OperationId::new(2).unwrap(),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),

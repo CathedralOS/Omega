@@ -801,6 +801,7 @@ mod tests {
             _ => panic!("tag is not proof-bearing scalar"),
         };
         Operation {
+            static_reach_binding: None,
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -920,6 +921,7 @@ mod tests {
             semantics.result_equation().validate().unwrap();
         }
         let goal_free = Operation {
+            static_reach_binding: None,
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

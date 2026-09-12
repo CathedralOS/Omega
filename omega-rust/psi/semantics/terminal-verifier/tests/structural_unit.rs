@@ -72,6 +72,7 @@ fn provider_attachment_verifier_keeps_callee_requirements_independent() {
     callee.structural_places.push(provider_attachment_root());
     callee.blocks[0].operations.push(provider_boundary_call());
     module.machines[0].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(2),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -230,6 +231,7 @@ fn unused_provider_attachment_verifier_rejects_runtime_scalar_field_projection()
             },
         });
     module.machines[0].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(1),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -339,6 +341,7 @@ fn provider_attachment_root() -> StructuralPlaceDeclaration {
 
 fn provider_boundary_call() -> Operation {
     Operation {
+        static_reach_binding: None,
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
@@ -470,6 +473,7 @@ fn direct_write_only_primitive_store_rejects_custody_shape_and_value_mutations()
     let mut late_value = write_only_primitive_store_module();
     late_value.machines[0].parameters.clear();
     late_value.machines[0].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(3),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -1303,6 +1307,7 @@ fn two_nominal_affine_roots_allow_distinct_and_shared_executable_cleanup_bodies(
     two_executable.machines[2].blocks[0]
         .operations
         .push(Operation {
+            static_reach_binding: None,
             id: operation_id(2),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
@@ -1336,6 +1341,7 @@ fn two_nominal_affine_roots_allow_distinct_and_shared_executable_cleanup_bodies(
     shared_executable.machines[1].blocks[0]
         .operations
         .push(Operation {
+            static_reach_binding: None,
             id: operation_id(1),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
@@ -1474,6 +1480,7 @@ fn two_call_nominal_affine_cleanup_rejects_repeated_or_nonempty_helpers() {
     nonempty_second.machines[3].blocks[0]
         .operations
         .push(Operation {
+            static_reach_binding: None,
             id: operation_id(3),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
@@ -1492,6 +1499,7 @@ fn two_call_nominal_affine_cleanup_rejects_repeated_or_nonempty_helpers() {
 
     let mut third_call = two_call_executable_nominal_affine_module();
     third_call.machines[1].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(3),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -1544,6 +1552,7 @@ fn one_call_nominal_affine_cleanup_rejects_nonexact_closures() {
     nonempty_helper.machines[2].blocks[0]
         .operations
         .push(Operation {
+            static_reach_binding: None,
             id: operation_id(2),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
@@ -2702,6 +2711,7 @@ fn projected_move_blocks_later_whole_root_use() {
     };
     module.machines.push(whole_callee);
     module.machines[0].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(6),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -3458,6 +3468,7 @@ fn projected_boundary_qualification_module() -> TerminalModule {
             domain: domain.id,
         }];
     machine.blocks[0].operations = vec![Operation {
+        static_reach_binding: None,
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
@@ -3538,6 +3549,7 @@ fn boundary_requirement_consumes_only_the_exact_projected_qualification() {
 fn claims_are_linear_across_unit_operations_and_return() {
     let mut reused = hard_root_module();
     reused.machines[0].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(4),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
@@ -3590,6 +3602,7 @@ fn scalar_return_cannot_abandon_linear_structural_custody() {
     let machine = &mut module.machines[0];
     machine.result = TerminalMachineResult::Scalar(result);
     machine.blocks[0].operations = vec![Operation {
+        static_reach_binding: None,
         id: operation_id(2),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -4103,6 +4116,7 @@ fn affine_structural_arguments_transfer_at_most_once() {
     repeated_boundary.boundary_machines[0].structural_parameters[0].multiplicity =
         StructuralMultiplicity::Affine;
     let boundary_call = Operation {
+        static_reach_binding: None,
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
@@ -4197,6 +4211,7 @@ fn unit_calls_preserve_exact_crash_routes_and_remain_acyclic() {
 
     let mut recursive = hard_root_module();
     recursive.machines[1].blocks[0].operations = vec![Operation {
+        static_reach_binding: None,
         id: operation_id(2),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -4409,6 +4424,7 @@ fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
 
     let mut computed = module;
     computed.machines[0].blocks[2].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(100),
         result: OperationResult::Scalar(declaration(60)),
         kind: OperationKind::BooleanConstant { value: true },
@@ -4448,6 +4464,7 @@ fn write_only_primitive_store_module() -> TerminalModule {
     };
     let destination = parameter.place;
     let store = |raw| Operation {
+        static_reach_binding: None,
         id: operation_id(raw),
         result: OperationResult::Unit,
         kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -4456,6 +4473,7 @@ fn write_only_primitive_store_module() -> TerminalModule {
         },
     };
     let machine = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: None,
@@ -4571,6 +4589,7 @@ fn hard_root_module() -> TerminalModule {
     };
 
     let caller = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: None,
@@ -4594,6 +4613,7 @@ fn hard_root_module() -> TerminalModule {
             id: block_id(1),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: operation_id(1),
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
@@ -4621,6 +4641,7 @@ fn hard_root_module() -> TerminalModule {
     };
 
     let callee = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(2),
         attachment: None,
@@ -4645,6 +4666,7 @@ fn hard_root_module() -> TerminalModule {
             parameters: Vec::new(),
             operations: vec![
                 Operation {
+                    static_reach_binding: None,
                     id: operation_id(2),
                     result: OperationResult::Unit,
                     kind: OperationKind::PortWrite {
@@ -4654,6 +4676,7 @@ fn hard_root_module() -> TerminalModule {
                     },
                 },
                 Operation {
+                    static_reach_binding: None,
                     id: operation_id(3),
                     result: OperationResult::Unit,
                     kind: OperationKind::BoundaryCall {
@@ -4818,6 +4841,7 @@ fn partial_affine_field_module() -> TerminalModule {
         projected_qualifications: Vec::new(),
     };
     let caller = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: None,
@@ -4837,6 +4861,7 @@ fn partial_affine_field_module() -> TerminalModule {
             id: block_id(1),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: operation_id(1),
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
@@ -4872,6 +4897,7 @@ fn partial_affine_field_module() -> TerminalModule {
         contract: empty_contract(contract_id(1)),
     };
     let callee = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(2),
         attachment: None,
@@ -5100,6 +5126,7 @@ fn nominal_affine_module() -> TerminalModule {
         shape: StructuralTypeShape::Record { fields: Vec::new() },
     };
     let caller = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: None,
@@ -5142,6 +5169,7 @@ fn nominal_affine_module() -> TerminalModule {
         contract: empty_contract(contract_id(1)),
     };
     let cleanup = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(2),
         attachment: Some(token.id),
@@ -5466,6 +5494,7 @@ fn two_root_one_executable_nominal_affine_module() -> TerminalModule {
     };
     helper.contract.id = contract_id(4);
     module.machines[1].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -5497,6 +5526,7 @@ fn executable_nominal_affine_module() -> TerminalModule {
     };
     module.structural_types.push(helper_type.clone());
     module.machines[1].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -5509,6 +5539,7 @@ fn executable_nominal_affine_module() -> TerminalModule {
         },
     });
     module.machines.push(TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(3),
         attachment: Some(helper_type.id),
@@ -5547,6 +5578,7 @@ fn two_call_executable_nominal_affine_module() -> TerminalModule {
     };
     module.structural_types.push(helper_type.clone());
     module.machines[1].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(2),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -5581,6 +5613,7 @@ fn three_call_executable_nominal_affine_module() -> TerminalModule {
     };
     module.structural_types.push(helper_type.clone());
     module.machines[1].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(3),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -5619,6 +5652,7 @@ fn five_call_executable_nominal_affine_module() -> TerminalModule {
         };
         helper.contract.id = contract_id(raw);
         module.machines[1].blocks[0].operations.push(Operation {
+            static_reach_binding: None,
             id: operation_id(raw - 2),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {

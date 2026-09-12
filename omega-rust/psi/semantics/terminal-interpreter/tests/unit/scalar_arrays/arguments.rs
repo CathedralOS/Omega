@@ -106,6 +106,7 @@ fn module(
     let entry = &mut module.machines[0];
     let second = call_result(entry, 100, 3);
     entry.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(100),
         result: OperationResult::Structural(second),
         kind: OperationKind::EstablishScalarArray {
@@ -120,6 +121,7 @@ fn module(
         actual(place_id(if duplicate { 3 } else { 1 })),
     ];
     entry.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(101),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -132,6 +134,7 @@ fn module(
         },
     });
     entry.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(102),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -149,6 +152,7 @@ fn module(
     });
     let result = call_result(entry, 103, 4);
     entry.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(103),
         result: OperationResult::Structural(result),
         kind: OperationKind::CallStructuralWithScalarArguments {
@@ -174,6 +178,7 @@ fn module(
         scalar_type: ScalarType::Boolean,
     });
     scalar.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(3001),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -190,6 +195,7 @@ fn module(
     let mut forwarding = callee(4);
     let result = call_result(&mut forwarding, 4001, 4003);
     forwarding.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(4001),
         result: OperationResult::Structural(result),
         kind: OperationKind::CallStructural {

@@ -78,6 +78,7 @@ pub(crate) fn conditional_widened_u8_exact_binary_artifact_with_values(
         scalar_type,
     };
     let operation = |id, result, scalar_type, kind| Operation {
+        static_reach_binding: None,
         id,
         result: OperationResult::Scalar(declaration(result, scalar_type)),
         kind,
@@ -111,6 +112,7 @@ pub(crate) fn conditional_widened_u8_exact_binary_artifact_with_values(
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine,
             attachment: None,

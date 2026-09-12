@@ -345,6 +345,7 @@ pub(in crate::attached_unit::composed_control) fn emit_store(
     }
     let id = operations.allocate();
     operations.push(Operation {
+        static_reach_binding: None,
         id,
         result: OperationResult::Unit,
         kind: OperationKind::StructuralScalarFieldStore {

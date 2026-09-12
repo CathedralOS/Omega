@@ -51,6 +51,7 @@ fn omega_rejects_substituting_a_computed_i32_for_the_exact_caller_parameter() {
     caller_block.operations.insert(
         0,
         Operation {
+            static_reach_binding: None,
             id: operation_id(9),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

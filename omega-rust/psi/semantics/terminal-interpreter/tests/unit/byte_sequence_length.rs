@@ -6,6 +6,7 @@ fn byte_count_type() -> ScalarType {
 
 fn length_operation(ordinal: u64, source: u64) -> Operation {
     Operation {
+        static_reach_binding: None,
         id: operation_id(ordinal),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -239,6 +240,7 @@ fn nested_repeated_calls_measure_invocation_bytes_and_restore_caller() {
     });
     root.blocks[0].operations.truncate(1);
     root.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(3),
         result: OperationResult::Unit,
         kind: OperationKind::EstablishByteSequenceLiteral {
@@ -291,6 +293,7 @@ fn nested_repeated_calls_measure_invocation_bytes_and_restore_caller() {
         if ordinal == 2 {
             helper.result = TerminalMachineResult::Unit;
             helper.blocks[0].operations.push(Operation {
+                static_reach_binding: None,
                 id: operation_id(21),
                 result: OperationResult::Unit,
                 kind: OperationKind::BoundaryCall {

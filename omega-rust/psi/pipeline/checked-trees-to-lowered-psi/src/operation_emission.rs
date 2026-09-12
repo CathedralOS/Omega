@@ -238,6 +238,7 @@ pub(super) fn emit_boolean_expression(
                 .expect("generated value identity advances after a Boolean literal");
             let operation = operations.allocate();
             operations.push(Operation {
+                static_reach_binding: None,
                 id: operation,
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -257,6 +258,7 @@ pub(super) fn emit_boolean_expression(
                 .expect("generated value identity advances after integer comparison");
             let operation = operations.allocate();
             operations.push(Operation {
+                static_reach_binding: None,
                 id: operation,
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -293,6 +295,7 @@ pub(super) fn emit_boolean_expression(
                 .expect("generated value identity advances after a structural Boolean load");
             let operation = operations.allocate();
             operations.push(Operation {
+                static_reach_binding: None,
                 id: operation,
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -318,6 +321,7 @@ pub(super) fn emit_boolean_expression(
                 .expect("generated value identity advances after Boolean negation");
             let operation = operations.allocate();
             operations.push(Operation {
+                static_reach_binding: None,
                 id: operation,
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -337,6 +341,7 @@ pub(super) fn emit_boolean_expression(
                 .expect("generated value identity advances after Boolean equality");
             let operation = operations.allocate();
             operations.push(Operation {
+                static_reach_binding: None,
                 id: operation,
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -398,6 +403,7 @@ pub(super) fn emit_scalar_binding(
             },
         );
         operations.push(Operation {
+            static_reach_binding: None,
             id: operation,
             result: OperationResult::Scalar(ValueDeclaration {
                 id,
@@ -443,6 +449,7 @@ pub(super) fn emit_scalar_binding(
             ),
         };
         operations.push(Operation {
+            static_reach_binding: None,
             id: producer,
             result,
             kind,
@@ -715,6 +722,7 @@ fn emit_direct_call_operation(
         source_values_before_call,
     )?;
     operations.push(Operation {
+        static_reach_binding: None,
         id: operation,
         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
             qualifications: call.result_type.qualifications,
@@ -754,6 +762,7 @@ fn emit_scalar_leaf(
         .expect("generated value identity advances after a scalar leaf");
     let operation = operations.allocate();
     operations.push(Operation {
+        static_reach_binding: None,
         id: operation,
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -886,6 +895,7 @@ pub(super) fn emit_direct_expression(
                 .expect("generated value identity advances after a binary operation");
             let operation = operations.allocate();
             operations.push(Operation {
+                static_reach_binding: None,
                 id: operation,
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -908,6 +918,7 @@ pub(super) fn emit_direct_expression(
                 .expect("generated value identity advances after bitwise complement");
             let operation = operations.allocate();
             operations.push(Operation {
+                static_reach_binding: None,
                 id: operation,
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -930,6 +941,7 @@ pub(super) fn emit_direct_expression(
                 .expect("generated value identity advances after integer widening");
             let operation = operations.allocate();
             operations.push(Operation {
+                static_reach_binding: None,
                 id: operation,
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -952,6 +964,7 @@ pub(super) fn emit_direct_expression(
                 .expect("generated value identity advances after an exact integer cast");
             let operation = operations.allocate();
             operations.push(Operation {
+                static_reach_binding: None,
                 id: operation,
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),

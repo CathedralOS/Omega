@@ -40,6 +40,7 @@ fn helper_call(module: &mut TerminalModule, source: u64) -> Operation {
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
         operations: vec![Operation {
+            static_reach_binding: None,
             id: id(100, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -59,6 +60,7 @@ fn helper_call(module: &mut TerminalModule, source: u64) -> Operation {
     }];
     module.machines.push(helper);
     Operation {
+        static_reach_binding: None,
         id: id(40, OperationId::new),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -107,6 +109,7 @@ fn literal_cycle() -> TerminalModule {
         }
     }
     machine.blocks[2].operations.push(Operation {
+        static_reach_binding: None,
         id: id(30, OperationId::new),
         result: OperationResult::Unit,
         kind: OperationKind::EstablishByteSequenceLiteral {

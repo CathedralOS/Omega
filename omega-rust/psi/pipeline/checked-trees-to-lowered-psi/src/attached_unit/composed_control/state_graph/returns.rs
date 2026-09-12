@@ -405,6 +405,7 @@ pub(super) fn emit(
         },
     });
     operations.push(Operation {
+        static_reach_binding: None,
         id: operation,
         result: terminal_psi::OperationResult::Structural(
             terminal_psi::StructuralOperationResult {

@@ -103,6 +103,7 @@ pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
         scalar_type,
     };
     let constant = |raw, literal| Operation {
+        static_reach_binding: None,
         id: OperationId::new(raw).unwrap(),
         result: OperationResult::Scalar(declaration(raw)),
         kind: OperationKind::IntegerConstant {
@@ -134,6 +135,7 @@ pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
         operations: vec![
             constant(raw, literal),
             Operation {
+                static_reach_binding: None,
                 id: OperationId::new(raw + 1).unwrap(),
                 result: OperationResult::Scalar(declaration(raw + 1)),
                 kind: OperationKind::Call {
@@ -159,6 +161,7 @@ pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
             id: middle.entry,
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: OperationId::new(28_140).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),

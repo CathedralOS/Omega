@@ -138,6 +138,7 @@ fn give_receiver_call_scalar_result(module: &mut TerminalModule) {
         scalar_type: ScalarType::Boolean,
     });
     callee.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(2),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

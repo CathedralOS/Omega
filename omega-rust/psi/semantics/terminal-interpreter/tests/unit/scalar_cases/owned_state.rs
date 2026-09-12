@@ -226,6 +226,7 @@ fn owned_case_block_parameter_rejects_forged_transfer_and_origin() {
                     parameters: vec![],
                     structural_parameters: vec![],
                     operations: vec![Operation {
+                        static_reach_binding: None,
                         id: operation_id(90),
                         result: OperationResult::Scalar(ValueDeclaration {
                             id: value_id(90),

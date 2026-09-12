@@ -35,6 +35,7 @@ fn ranked_backedge_rejects_array_reestablishment_but_not_preheader_construction(
             },
         });
         machine.blocks[0].operations.push(Operation {
+            static_reach_binding: None,
             id: operation,
             result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
                 place,

@@ -28,6 +28,7 @@ fn ordered_branch(first_strict: bool, second_strict: bool) -> TerminalModule {
         }
     };
     machine.blocks[0].operations = vec![Operation {
+        static_reach_binding: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Scalar(declaration(4)),
         kind: comparison(first_strict, 1, 2),
@@ -46,6 +47,7 @@ fn ordered_branch(first_strict: bool, second_strict: bool) -> TerminalModule {
         },
     );
     second.operations = vec![Operation {
+        static_reach_binding: None,
         id: OperationId::new(2).unwrap(),
         result: OperationResult::Scalar(declaration(5)),
         kind: comparison(second_strict, 2, 3),

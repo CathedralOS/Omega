@@ -33,6 +33,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
     let goal = Proposition::Equal(term(result), seven());
 
     let machine = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: MachineId::new(1).expect("machine"),
         attachment: None,
@@ -57,6 +58,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
                 id: BlockId::new(1).expect("entry"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
+                    static_reach_binding: None,
                     id: OperationId::new(1).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -365,6 +367,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
 fn verified_crashes_are_stable_terminal_outcomes() {
     let integer = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let machine = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: MachineId::new(90).expect("machine"),
         attachment: None,
@@ -486,6 +489,7 @@ fn interpreter_rejects_an_out_of_range_integer_argument() {
     let parameter = ValueId::new(10).expect("parameter");
     let result = ValueId::new(11).expect("result");
     let machine = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: MachineId::new(10).expect("machine"),
         attachment: None,

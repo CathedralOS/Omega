@@ -36,6 +36,7 @@ fn fixture(bytes: &[u8]) -> (TerminalModule, ProofBundle) {
     });
     machine.blocks[0].operations = vec![
         Operation {
+            static_reach_binding: None,
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishByteSequenceLiteral {
@@ -44,6 +45,7 @@ fn fixture(bytes: &[u8]) -> (TerminalModule, ProofBundle) {
             },
         },
         Operation {
+            static_reach_binding: None,
             id: OperationId::new(2).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -199,6 +201,7 @@ fn redirected_source_and_repeated_reads_keep_exact_place_and_value_identity() {
     machine.blocks[0].operations.insert(
         1,
         Operation {
+            static_reach_binding: None,
             id: OperationId::new(3).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishByteSequenceLiteral {
@@ -211,6 +214,7 @@ fn redirected_source_and_repeated_reads_keep_exact_place_and_value_identity() {
         source: PlaceId::new(2).unwrap(),
     };
     machine.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: OperationId::new(4).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -222,6 +226,7 @@ fn redirected_source_and_repeated_reads_keep_exact_place_and_value_identity() {
         },
     });
     machine.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: OperationId::new(5).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

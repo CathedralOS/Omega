@@ -6,6 +6,7 @@ use terminal_psi::{
 
 fn length(operation: u64, value: u64, source: u64) -> Operation {
     Operation {
+        static_reach_binding: None,
         id: id(operation, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -70,6 +71,7 @@ fn current_observations() -> TerminalModule {
     let mut module = super::unranked_views::view_cycle();
     let machine = &mut module.machines[0];
     machine.blocks[1].operations.push(Operation {
+        static_reach_binding: None,
         id: id(32, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -192,6 +194,7 @@ fn target_local_descriptor() -> TerminalModule {
     header.operations = vec![
         length(10, 10, 1),
         Operation {
+            static_reach_binding: None,
             id: id(40, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -203,6 +206,7 @@ fn target_local_descriptor() -> TerminalModule {
             },
         },
         Operation {
+            static_reach_binding: None,
             id: id(41, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -216,6 +220,7 @@ fn target_local_descriptor() -> TerminalModule {
         subslice,
         length(13, 13, 3),
         Operation {
+            static_reach_binding: None,
             id: id(42, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

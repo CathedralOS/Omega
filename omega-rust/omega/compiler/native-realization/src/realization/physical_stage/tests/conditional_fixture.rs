@@ -39,6 +39,7 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
         id: BlockId::new(block).unwrap(),
         parameters: Vec::new(),
         operations: vec![Operation {
+            static_reach_binding: None,
             id: OperationId::new(operation).unwrap(),
             result: OperationResult::Scalar(value(result, integer)),
             kind: OperationKind::IntegerConstant {
@@ -52,6 +53,7 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
         },
     };
     let mut machine = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: MachineId::new(1).unwrap(),
         attachment: None,
@@ -72,6 +74,7 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
                 id: BlockId::new(1).unwrap(),
                 parameters: Vec::new(),
                 operations: vec![Operation {
+                    static_reach_binding: None,
                     id: OperationId::new(1).unwrap(),
                     result: OperationResult::Scalar(value(3, ScalarType::Boolean)),
                     kind: match comparison {
@@ -115,6 +118,7 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
         machine.blocks[0].operations.insert(
             0,
             Operation {
+                static_reach_binding: None,
                 id: OperationId::new(1).unwrap(),
                 result: OperationResult::Scalar(value(2, integer)),
                 kind: OperationKind::IntegerConstant {
@@ -125,6 +129,7 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
     }
     if matches!(comparison, Comparison::NotEqual | Comparison::NotEqualZero) {
         machine.blocks[0].operations.push(Operation {
+            static_reach_binding: None,
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(value(7, ScalarType::Boolean)),
             kind: OperationKind::BooleanNot {

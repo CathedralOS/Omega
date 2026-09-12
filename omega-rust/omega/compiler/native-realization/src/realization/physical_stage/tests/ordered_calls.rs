@@ -289,6 +289,7 @@ fn scalar_call_artifact() -> terminal_codec::CanonicalTerminalArtifact {
         let mut operations = Vec::new();
         if base == 100 {
             operations.push(Operation {
+                static_reach_binding: None,
                 id: OperationId::new(base).unwrap(),
                 result: OperationResult::Scalar(declaration(base + 1)),
                 kind: OperationKind::IntegerConstant {
@@ -298,6 +299,7 @@ fn scalar_call_artifact() -> terminal_codec::CanonicalTerminalArtifact {
         }
         if base != 300 {
             operations.push(Operation {
+                static_reach_binding: None,
                 id: OperationId::new(base + 1).unwrap(),
                 result: OperationResult::Scalar(declaration(base + 3)),
                 kind: OperationKind::Call {

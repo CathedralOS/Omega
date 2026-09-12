@@ -26,6 +26,7 @@ pub(super) fn redundant_block_parameter_verified() -> VerifiedPsiOptimizationUni
                     id: entry,
                     parameters: Vec::new(),
                     operations: vec![Operation {
+                        static_reach_binding: None,
                         id: OperationId::new(1_037).unwrap(),
                         result: OperationResult::Scalar(declaration(constant)),
                         kind: OperationKind::IntegerConstant {
@@ -84,6 +85,7 @@ pub(super) fn call_result_block_parameter_verified() -> VerifiedPsiOptimizationU
                 id: caller_entry,
                 parameters: Vec::new(),
                 operations: vec![Operation {
+                    static_reach_binding: None,
                     id: OperationId::new(1_608).unwrap(),
                     result: OperationResult::Scalar(boolean(call_result)),
                     kind: OperationKind::Call {
@@ -116,6 +118,7 @@ pub(super) fn call_result_block_parameter_verified() -> VerifiedPsiOptimizationU
         ],
     );
     module.machines.push(TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: callee,
         attachment: None,
@@ -135,6 +138,7 @@ pub(super) fn call_result_block_parameter_verified() -> VerifiedPsiOptimizationU
             id: callee_entry,
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: OperationId::new(1_614).unwrap(),
                 result: OperationResult::Scalar(boolean(callee_value)),
                 kind: OperationKind::BooleanConstant { value: true },

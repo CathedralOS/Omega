@@ -56,6 +56,7 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine_id(1),
             attachment: None,

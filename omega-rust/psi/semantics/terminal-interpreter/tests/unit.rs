@@ -741,6 +741,7 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine_id(1),
             attachment: None,
@@ -2729,6 +2730,7 @@ fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine_id(1),
             attachment: None,
@@ -2755,6 +2757,7 @@ fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
                 parameters: Vec::new(),
                 operations: vec![
                     Operation {
+                        static_reach_binding: None,
                         id: operation_id(1),
                         result: OperationResult::Unit,
                         kind: OperationKind::EstablishByteSequenceLiteral {
@@ -2763,6 +2766,7 @@ fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
                         },
                     },
                     Operation {
+                        static_reach_binding: None,
                         id: operation_id(2),
                         result: OperationResult::Unit,
                         kind: OperationKind::BoundaryCall {
@@ -2837,6 +2841,7 @@ fn scalar_boundary_effect_module() -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine_id(1),
             attachment: None,
@@ -2857,6 +2862,7 @@ fn scalar_boundary_effect_module() -> TerminalModule {
                 parameters: Vec::new(),
                 operations: vec![
                     Operation {
+                        static_reach_binding: None,
                         id: operation_id(1),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -2866,6 +2872,7 @@ fn scalar_boundary_effect_module() -> TerminalModule {
                         kind: OperationKind::BooleanConstant { value: true },
                     },
                     Operation {
+                        static_reach_binding: None,
                         id: operation_id(2),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -2875,6 +2882,7 @@ fn scalar_boundary_effect_module() -> TerminalModule {
                         kind: OperationKind::BooleanConstant { value: false },
                     },
                     Operation {
+                        static_reach_binding: None,
                         id: operation_id(3),
                         result: OperationResult::Unit,
                         kind: OperationKind::BoundaryCall {
@@ -3009,6 +3017,7 @@ fn effect_module() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: machine_id(1),
                 attachment: Some(structural_type),
@@ -3037,6 +3046,7 @@ fn effect_module() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: vec![
                         Operation {
+                            static_reach_binding: None,
                             id: operation_id(1),
                             result: OperationResult::Unit,
                             kind: OperationKind::CallUnit {
@@ -3056,6 +3066,7 @@ fn effect_module() -> TerminalModule {
                             },
                         },
                         Operation {
+                            static_reach_binding: None,
                             id: operation_id(2),
                             result: OperationResult::Unit,
                             kind: OperationKind::PortWrite {
@@ -3073,6 +3084,7 @@ fn effect_module() -> TerminalModule {
                 contract: empty_contract(contract_id(1)),
             },
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: machine_id(2),
                 attachment: Some(structural_type),
@@ -3100,6 +3112,7 @@ fn effect_module() -> TerminalModule {
                     id: block_id(2),
                     parameters: Vec::new(),
                     operations: vec![Operation {
+                        static_reach_binding: None,
                         id: operation_id(3),
                         result: OperationResult::Unit,
                         kind: OperationKind::BoundaryCall {
@@ -3219,6 +3232,7 @@ fn payloadless_case_module() -> TerminalModule {
         },
     ];
     machine.blocks[0].operations = vec![Operation {
+        static_reach_binding: None,
         id: operation_id(1),
         result: OperationResult::Structural(StructuralOperationResult {
             place: operation_place,
@@ -3256,6 +3270,7 @@ fn payloadless_call_module() -> TerminalModule {
     callee.contract.id = contract_id(2);
 
     let caller = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: None,
@@ -3293,6 +3308,7 @@ fn payloadless_call_module() -> TerminalModule {
             id: block_id(1),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: operation_id(2),
                 result: OperationResult::Structural(StructuralOperationResult {
                     place: place_id(3),
@@ -3361,6 +3377,7 @@ fn unit_module() -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine_id(1),
             attachment: None,
@@ -3417,6 +3434,7 @@ fn nearest_fma_module(operands: [IeeeFloatValue; 3]) -> TerminalModule {
         .zip(operand_ids)
         .enumerate()
         .map(|(index, (value, id))| Operation {
+            static_reach_binding: None,
             id: operation_id(index as u64 + 1),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -3426,6 +3444,7 @@ fn nearest_fma_module(operands: [IeeeFloatValue; 3]) -> TerminalModule {
             kind: OperationKind::IeeeFloatConstant { value },
         })
         .chain(std::iter::once(Operation {
+            static_reach_binding: None,
             id: operation_id(4),
             result: OperationResult::Scalar(result),
             kind: OperationKind::NearestIeeeFloatFusedMultiplyAdd {
@@ -3476,6 +3495,7 @@ fn write_only_primitive_call_module() -> TerminalModule {
     caller.structural_parameters = vec![parameter(caller_place, 0)];
     caller.structural_places = vec![place(caller_place, 0)];
     caller.blocks[0].operations = vec![Operation {
+        static_reach_binding: None,
         id: operation_id(91),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -3493,6 +3513,7 @@ fn write_only_primitive_call_module() -> TerminalModule {
     }];
 
     module.machines.push(TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(92),
         attachment: None,
@@ -3513,6 +3534,7 @@ fn write_only_primitive_call_module() -> TerminalModule {
             parameters: Vec::new(),
             operations: vec![
                 Operation {
+                    static_reach_binding: None,
                     id: operation_id(92),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -3524,6 +3546,7 @@ fn write_only_primitive_call_module() -> TerminalModule {
                     },
                 },
                 Operation {
+                    static_reach_binding: None,
                     id: operation_id(93),
                     result: OperationResult::Unit,
                     kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -3621,6 +3644,7 @@ fn structural_scalar_field_call_module() -> TerminalModule {
     });
     caller.blocks[0].operations = vec![
         Operation {
+            static_reach_binding: None,
             id: operation_id(1),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -3632,6 +3656,7 @@ fn structural_scalar_field_call_module() -> TerminalModule {
             },
         },
         Operation {
+            static_reach_binding: None,
             id: operation_id(2),
             result: OperationResult::Unit,
             kind: OperationKind::StructuralScalarFieldStore {
@@ -3642,6 +3667,7 @@ fn structural_scalar_field_call_module() -> TerminalModule {
             },
         },
         Operation {
+            static_reach_binding: None,
             id: operation_id(3),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -3669,6 +3695,7 @@ fn structural_scalar_field_call_module() -> TerminalModule {
     };
 
     module.machines.push(TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(96),
         attachment: Some(item_type),
@@ -3696,6 +3723,7 @@ fn structural_scalar_field_call_module() -> TerminalModule {
             id: block_id(96),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: operation_id(4),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -3857,6 +3885,7 @@ fn parameter_dynamic_scalar_call_module() -> TerminalModule {
     };
     let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
     module.machines.push(TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: helper,
         attachment: None,
@@ -3880,6 +3909,7 @@ fn parameter_dynamic_scalar_call_module() -> TerminalModule {
             id: block_id(97),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: helper_operation,
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -4004,6 +4034,7 @@ fn joined_parameter_dynamic_scalar_call_module() -> TerminalModule {
             id: block_id(2),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: operation_id(3),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -4030,6 +4061,7 @@ fn joined_parameter_dynamic_scalar_call_module() -> TerminalModule {
             id: block_id(3),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: operation_id(7),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -4124,6 +4156,7 @@ fn nominal_affine_module() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: machine_id(1),
                 attachment: None,
@@ -4172,6 +4205,7 @@ fn nominal_affine_module() -> TerminalModule {
                 contract: empty_contract(contract_id(1)),
             },
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: machine_id(2),
                 attachment: Some(token.id),
@@ -4666,6 +4700,7 @@ fn ordered_one_executable_nominal_affine_module() -> TerminalModule {
     };
     helper.contract.id = contract_id(4);
     module.machines[2].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -4779,6 +4814,7 @@ fn ordered_two_distinct_executable_nominal_affine_module() -> TerminalModule {
     };
     helper.contract.id = contract_id(5);
     module.machines[1].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(2),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -4813,6 +4849,7 @@ fn ordered_shared_executable_nominal_affine_module() -> TerminalModule {
     };
     helper.contract.id = contract_id(3);
     module.machines[1].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -4876,6 +4913,7 @@ fn executable_nominal_affine_module() -> TerminalModule {
     };
     module.structural_types.push(helper_type.clone());
     module.machines[1].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -4888,6 +4926,7 @@ fn executable_nominal_affine_module() -> TerminalModule {
         },
     });
     module.machines.push(TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(3),
         attachment: Some(helper_type.id),
@@ -4926,6 +4965,7 @@ fn two_helper_nominal_affine_module() -> TerminalModule {
     };
     module.structural_types.push(second_helper_type.clone());
     module.machines[1].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(2),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -4938,6 +4978,7 @@ fn two_helper_nominal_affine_module() -> TerminalModule {
         },
     });
     module.machines.push(TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(4),
         attachment: Some(second_helper_type.id),
@@ -4976,6 +5017,7 @@ fn three_helper_nominal_affine_module() -> TerminalModule {
     };
     module.structural_types.push(third_helper_type.clone());
     module.machines[1].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(3),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -5028,6 +5070,7 @@ fn partial_affine_field_module() -> TerminalModule {
         },
     };
     let caller = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: None,
@@ -5062,6 +5105,7 @@ fn partial_affine_field_module() -> TerminalModule {
             id: block_id(1),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: operation_id(1),
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
@@ -5090,6 +5134,7 @@ fn partial_affine_field_module() -> TerminalModule {
         contract: empty_contract(contract_id(1)),
     };
     let callee = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(2),
         attachment: None,
@@ -5177,6 +5222,7 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
         alternatives: vec![CrashRouteGuard::Truth],
     };
     let caller = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: None,
@@ -5234,6 +5280,7 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
             id: block_id(1),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: operation_id(1),
                 result: OperationResult::Structural(StructuralOperationResult {
                     place: operation_result,
@@ -5290,6 +5337,7 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
         },
     };
     let callee = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(2),
         attachment: None,

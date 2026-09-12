@@ -127,6 +127,7 @@ fn scalar_field_read_after_owned_call_transfer_rejects_but_before_transfer_is_va
         let caller = &mut module.machines[0];
         let place = caller.structural_parameters[0].place;
         caller.blocks[0].operations.push(Operation {
+            static_reach_binding: None,
             id: id::<OperationId>(5),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {

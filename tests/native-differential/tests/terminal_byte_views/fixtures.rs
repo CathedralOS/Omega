@@ -58,6 +58,7 @@ pub(super) fn byte_view_length_module() -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine,
             attachment: None,
@@ -96,6 +97,7 @@ pub(super) fn byte_view_length_module() -> TerminalModule {
                 parameters: Vec::new(),
                 structural_parameters: Vec::new(),
                 operations: vec![Operation {
+                    static_reach_binding: None,
                     id: OperationId::new(7).unwrap(),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -135,6 +137,7 @@ pub(super) fn byte_view_read_module() -> TerminalModule {
         scalar_type: u64_type,
     });
     machine.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: OperationId::new(11).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -165,6 +168,7 @@ pub(super) fn byte_view_read_module() -> TerminalModule {
             structural_parameters: Vec::new(),
             operations: vec![
                 Operation {
+                    static_reach_binding: None,
                     id: OperationId::new(13).unwrap(),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -181,6 +185,7 @@ pub(super) fn byte_view_read_module() -> TerminalModule {
                     },
                 },
                 Operation {
+                    static_reach_binding: None,
                     id: OperationId::new(14).unwrap(),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -203,6 +208,7 @@ pub(super) fn byte_view_read_module() -> TerminalModule {
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: OperationId::new(16).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -339,6 +345,7 @@ pub(super) fn byte_view_read_call_module() -> TerminalModule {
         operations: [(105, 106), (107, 108)]
             .into_iter()
             .map(|(operation, result)| Operation {
+                static_reach_binding: None,
                 id: OperationId::new(operation).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -394,6 +401,7 @@ pub(super) fn byte_view_conditional_read_call_module() -> TerminalModule {
         structural_parameters: Vec::new(),
         operations: vec![
             Operation {
+                static_reach_binding: None,
                 id: OperationId::new(121).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -405,6 +413,7 @@ pub(super) fn byte_view_conditional_read_call_module() -> TerminalModule {
                 },
             },
             Operation {
+                static_reach_binding: None,
                 id: OperationId::new(122).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -430,6 +439,7 @@ pub(super) fn byte_view_conditional_read_call_module() -> TerminalModule {
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
         operations: vec![Operation {
+            static_reach_binding: None,
             id: OperationId::new(124).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

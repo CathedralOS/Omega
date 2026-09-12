@@ -29,6 +29,7 @@ fn artifact(argument_count: usize) -> (Vec<u8>, Vec<u8>) {
             None => {
                 let value = ValueId::new(24_100).unwrap();
                 callee.blocks[0].operations.push(Operation {
+                    static_reach_binding: None,
                     id: OperationId::new(24_101).unwrap(),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),

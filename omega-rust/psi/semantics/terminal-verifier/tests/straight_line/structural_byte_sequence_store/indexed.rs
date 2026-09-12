@@ -4,6 +4,7 @@ fn indexed_fixture(access: StructuralAccess) -> (TerminalModule, ProofBundle) {
     let (mut module, mut bundle) = fixture(access);
     module.machines[0].blocks[0].operations.extend([
         Operation {
+            static_reach_binding: None,
             id: id(5),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -17,6 +18,7 @@ fn indexed_fixture(access: StructuralAccess) -> (TerminalModule, ProofBundle) {
             },
         },
         Operation {
+            static_reach_binding: None,
             id: id(6),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -30,6 +32,7 @@ fn indexed_fixture(access: StructuralAccess) -> (TerminalModule, ProofBundle) {
             },
         },
         Operation {
+            static_reach_binding: None,
             id: id(7),
             result: OperationResult::Unit,
             kind: OperationKind::StructuralByteSequenceFieldByteStore {

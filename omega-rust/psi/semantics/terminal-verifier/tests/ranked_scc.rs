@@ -81,6 +81,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine,
             attachment: None,
@@ -150,6 +151,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                     }],
                     operations: vec![
                         Operation {
+                            static_reach_binding: None,
                             id: id(1, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -161,6 +163,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                             },
                         },
                         Operation {
+                            static_reach_binding: None,
                             id: id(2, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -197,6 +200,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                     parameters: Vec::new(),
                     operations: vec![
                         Operation {
+                            static_reach_binding: None,
                             id: id(3, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -208,6 +212,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                             },
                         },
                         Operation {
+                            static_reach_binding: None,
                             id: id(4, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -314,6 +319,7 @@ fn unranked_effectful_unit_cycle() -> TerminalModule {
     module.root_service_reach.concrete = vec![service];
     module.machines[0].published_service_ceiling.push(service);
     module.machines[0].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: id(5, OperationId::new),
         result: OperationResult::Unit,
         kind: OperationKind::PortWrite {
@@ -488,6 +494,7 @@ fn ranked_countdown_with_borrowed_subslice_is_representation_only() {
     // allows only the exact zero/guard and one/decrement operation pairs.
     machine.blocks[2].operations.extend([
         Operation {
+            static_reach_binding: None,
             id: id(5, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -497,6 +504,7 @@ fn ranked_countdown_with_borrowed_subslice_is_representation_only() {
             kind: OperationKind::ByteSequenceLength { source },
         },
         Operation {
+            static_reach_binding: None,
             id: id(6, OperationId::new),
             result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
                 place: destination,
@@ -702,6 +710,7 @@ fn interpreter_ranked_countdown_rejects_extra_mixed_work() {
     let mut module = ranked_countdown();
     let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
     module.machines[0].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: id(20, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

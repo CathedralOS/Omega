@@ -354,6 +354,7 @@ mod tests {
 
     fn machine() -> TerminalMachine {
         TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: MachineId::new(1).unwrap(),
             attachment: None,
@@ -438,6 +439,7 @@ mod tests {
         for (index, (result, kind)) in cases.into_iter().enumerate() {
             let lowered = lower(
                 &Operation {
+                    static_reach_binding: None,
                     id: OperationId::new(index as u64 + 1).unwrap(),
                     result,
                     kind,

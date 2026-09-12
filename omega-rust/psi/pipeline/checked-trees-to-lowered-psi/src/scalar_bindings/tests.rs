@@ -221,6 +221,7 @@ fn primitive_reads_emit_fresh_typed_results_after_intervening_stores() {
         let first = emit_direct_expression(&expression, &[], &mut next_value, &mut operations);
         let store = operations.allocate();
         operations.push(Operation {
+            static_reach_binding: None,
             id: store,
             result: terminal_psi::OperationResult::Unit,
             kind: OperationKind::WriteOnlyPrimitiveStore {

@@ -377,6 +377,7 @@ fn completion_artifact() -> (Vec<u8>, Vec<u8>, semantic_vocabulary::BoundaryMach
         .iter()
         .enumerate()
         .map(|(index, claim)| Operation {
+            static_reach_binding: None,
             id: OperationId::new(3_632 + index as u64).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::BoundaryCall {

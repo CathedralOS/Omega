@@ -251,6 +251,7 @@ mod tests {
         scalar_type: ScalarType,
     ) -> TerminalMachine {
         TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: owner,
             attachment: None,
@@ -364,6 +365,7 @@ mod tests {
                 scalar_type: ScalarType::IeeeFloat(format),
             }],
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: producer,
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),

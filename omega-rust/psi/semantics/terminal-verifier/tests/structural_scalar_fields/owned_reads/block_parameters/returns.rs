@@ -76,6 +76,7 @@ fn owned_block_return_rejects_a_nondominating_binding() {
         panic!("incoming transfer");
     };
     machine.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: id::<OperationId>(91),
         result: OperationResult::Scalar(ValueDeclaration {
             id: id::<ValueId>(91),

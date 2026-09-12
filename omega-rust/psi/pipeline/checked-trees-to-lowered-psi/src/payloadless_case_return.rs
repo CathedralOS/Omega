@@ -46,6 +46,7 @@ pub(super) fn lower_payloadless_case_return_machine(
     let operation_result_place = place_id(1);
     let machine_result_place = place_id(RESULT_STRUCTURAL_PLACE_ID);
     let machine = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: terminal_machine,
         attachment: Some(attachment),
@@ -83,6 +84,7 @@ pub(super) fn lower_payloadless_case_return_machine(
             id: block_id(1),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: operation,
                 result: terminal_psi::OperationResult::Structural(
                     terminal_psi::StructuralOperationResult {

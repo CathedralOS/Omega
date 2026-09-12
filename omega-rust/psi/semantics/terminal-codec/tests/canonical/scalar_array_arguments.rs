@@ -49,6 +49,7 @@ fn array_argument_module(length: u64) -> TerminalModule {
         });
     }
     module.machines[0].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {

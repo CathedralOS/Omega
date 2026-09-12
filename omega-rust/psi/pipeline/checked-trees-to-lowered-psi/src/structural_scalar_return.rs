@@ -243,6 +243,7 @@ pub(super) fn lower_trait_operator_scalar_return_machine(
         scalar_type: result_type,
     };
     let caller = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: plan
@@ -275,6 +276,7 @@ pub(super) fn lower_trait_operator_scalar_return_machine(
             id: block_id(1),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: operation_id(1),
                 result: terminal_psi::OperationResult::Scalar(call_result),
                 kind: OperationKind::CallStructuralScalar {
@@ -902,6 +904,7 @@ pub(super) fn lower_structural_scalar_return_machine_in_namespace(
         scalar_type: result_type,
     };
     let machine = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: terminal_machine,
         attachment: plan

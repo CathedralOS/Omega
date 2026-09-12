@@ -117,6 +117,7 @@ fn restored_call_use_module() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: caller,
                 attachment: None,
@@ -142,6 +143,7 @@ fn restored_call_use_module() -> TerminalModule {
                     id: id(1, BlockId::new),
                     parameters: Vec::new(),
                     operations: vec![Operation {
+                        static_reach_binding: None,
                         id: operation,
                         result: OperationResult::Unit,
                         kind: OperationKind::CallUnit {
@@ -165,6 +167,7 @@ fn restored_call_use_module() -> TerminalModule {
                 contract: contract(1),
             },
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: callee,
                 attachment: None,
@@ -271,6 +274,7 @@ fn restored_call_use_round_trips_and_commits_every_variable_axis() {
     two_member_shared.machines[0].blocks[0].operations.insert(
         0,
         Operation {
+            static_reach_binding: None,
             id: id(2, OperationId::new),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
@@ -307,6 +311,7 @@ fn restored_call_use_round_trips_and_commits_every_variable_axis() {
         projected_qualifications: Vec::new(),
     };
     two_member_shared.machines.push(TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: observer,
         attachment: None,

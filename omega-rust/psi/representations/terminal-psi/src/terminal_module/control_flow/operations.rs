@@ -11,6 +11,9 @@ use semantic_vocabulary::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Operation {
+    /// Full-telescope binder position in this machine's closed reach contract.
+    /// This is a semantic call join, not an executable operation or proof.
+    pub static_reach_binding: Option<u32>,
     pub id: OperationId,
     pub result: OperationResult,
     pub kind: OperationKind,

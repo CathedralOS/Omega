@@ -27,6 +27,7 @@ fn padded_returning_call_artifact(equal: bool, padding: u32) -> (Vec<u8>, Vec<u8
     for padding_index in 0..padding {
         let identity = 29_000 + u64::from(padding_index);
         middle.blocks[1].operations.push(Operation {
+            static_reach_binding: None,
             id: OperationId::new(identity).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

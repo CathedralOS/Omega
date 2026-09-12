@@ -112,6 +112,7 @@ pub(super) fn provider_module() -> TerminalModule {
                 edge_id(1),
                 contract_id(1),
                 Operation {
+                    static_reach_binding: None,
                     id: operation_id(1),
                     result: OperationResult::Unit,
                     kind: OperationKind::BoundaryCall {
@@ -178,6 +179,7 @@ fn machine(
     service: ServiceId,
 ) -> TerminalMachine {
     TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id,
         attachment,
@@ -214,6 +216,7 @@ fn machine(
 
 fn port_write(id: OperationId, service: ServiceId, value: u8) -> Operation {
     Operation {
+        static_reach_binding: None,
         id,
         result: OperationResult::Unit,
         kind: OperationKind::PortWrite {

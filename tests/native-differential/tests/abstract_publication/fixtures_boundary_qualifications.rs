@@ -31,6 +31,7 @@ pub(super) fn boundary_qualification_verified() -> VerifiedPsiOptimizationUnit {
             id: block,
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: operation,
                 result: OperationResult::Unit,
                 kind: OperationKind::BoundaryCall {
@@ -122,6 +123,7 @@ pub(super) fn partial_path_boundary_qualification_verified() -> VerifiedPsiOptim
             id: block,
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: operation,
                 result: OperationResult::Unit,
                 kind: OperationKind::BoundaryCall {
@@ -279,6 +281,7 @@ pub(super) fn projected_structural_result_verified() -> VerifiedPsiOptimizationU
             id: caller_block,
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: call,
                 result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
                     place: call_result,

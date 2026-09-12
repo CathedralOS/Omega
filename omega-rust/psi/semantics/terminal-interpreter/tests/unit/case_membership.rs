@@ -53,6 +53,7 @@ fn observed_constructor(
     machine.result = TerminalMachineResult::Scalar(boolean(4));
     machine.blocks[0].operations = vec![
         Operation {
+            static_reach_binding: None,
             id: operation_id(1),
             result: OperationResult::Scalar(ValueDeclaration {
                 id: value_id(1),
@@ -67,6 +68,7 @@ fn observed_constructor(
         },
         constructor,
         Operation {
+            static_reach_binding: None,
             id: operation_id(3),
             result: OperationResult::Scalar(boolean(2)),
             kind: OperationKind::StructuralCaseMembership {
@@ -75,6 +77,7 @@ fn observed_constructor(
             },
         },
         Operation {
+            static_reach_binding: None,
             id: operation_id(4),
             result: OperationResult::Scalar(boolean(3)),
             kind: OperationKind::StructuralCaseMembership {

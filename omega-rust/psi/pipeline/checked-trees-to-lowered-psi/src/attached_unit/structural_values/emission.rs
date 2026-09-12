@@ -724,6 +724,7 @@ impl Emission<'_, '_, '_> {
                             let condition = value_id(allocate_dense(self.next_value)?);
                             let id = self.operations.allocate();
                             self.operations.push(Operation {
+                                static_reach_binding: None,
                                 id,
                                 result: OperationResult::Scalar(ValueDeclaration {
                                     id: condition,

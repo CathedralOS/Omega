@@ -278,6 +278,7 @@ pub(super) fn lower(
     )?;
     let root_service_reach = lower_root_service_reach(checked, first.caller_machine, &[])?;
     let mut machines = vec![TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: caller_machine,
         attachment: Some(caller_attachment),
@@ -584,6 +585,7 @@ fn branch_block(
         id: block,
         parameters: Vec::new(),
         operations: vec![Operation {
+            static_reach_binding: None,
             id: operation,
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

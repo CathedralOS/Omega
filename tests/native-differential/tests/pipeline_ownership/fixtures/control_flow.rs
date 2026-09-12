@@ -45,6 +45,7 @@ pub(crate) fn conditional_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine,
             attachment: None,
@@ -173,6 +174,7 @@ pub(crate) fn constant_conditional_prune_artifact() -> (Vec<u8>, Vec<u8>) {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine,
             attachment: None,
@@ -193,6 +195,7 @@ pub(crate) fn constant_conditional_prune_artifact() -> (Vec<u8>, Vec<u8>) {
                     id: entry,
                     parameters: Vec::new(),
                     operations: vec![Operation {
+                        static_reach_binding: None,
                         id: OperationId::new(4_108).unwrap(),
                         result: OperationResult::Scalar(declaration(
                             condition,
@@ -296,6 +299,7 @@ pub(crate) fn linear_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine,
             attachment: None,
@@ -413,6 +417,7 @@ pub(crate) fn adjacent_block_merge_artifact() -> (Vec<u8>, Vec<u8>) {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine,
             attachment: None,
@@ -447,6 +452,7 @@ pub(crate) fn adjacent_block_merge_artifact() -> (Vec<u8>, Vec<u8>) {
                     id: target,
                     parameters: vec![boolean(forwarded)],
                     operations: vec![Operation {
+                        static_reach_binding: None,
                         id: OperationId::new(4_258).unwrap(),
                         result: OperationResult::Scalar(boolean(computed)),
                         kind: OperationKind::BooleanNot { operand: forwarded },
@@ -521,6 +527,7 @@ pub(crate) fn adjacent_conditional_merge_artifact() -> (Vec<u8>, Vec<u8>) {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine,
             attachment: None,
@@ -652,6 +659,7 @@ pub(crate) fn path_qualified_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine,
             attachment: None,

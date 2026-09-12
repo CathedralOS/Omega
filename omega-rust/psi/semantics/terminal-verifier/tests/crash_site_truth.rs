@@ -115,6 +115,7 @@ fn module(parameter: u64, expected: bool) -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: MachineId::new(1).unwrap(),
             attachment: None,
@@ -301,6 +302,7 @@ fn updated_scalar_values_do_not_inherit_old_entry_predicates() {
     unconditional_ceiling(&mut checked);
     checked.machines[0].contract.requires = vec![boolean(1, true)];
     checked.machines[0].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Scalar(declaration(2)),
         kind: OperationKind::BooleanConstant { value: false },
@@ -333,6 +335,7 @@ fn term_boolean(term: ScalarTerm, expected: bool) -> Proposition {
 fn derived_branch(kind: OperationKind, expected: bool) -> TerminalModule {
     let mut checked = branch_module(expected, false, false);
     checked.machines[0].blocks[0].operations = vec![Operation {
+        static_reach_binding: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Scalar(declaration(3)),
         kind,
@@ -413,6 +416,7 @@ fn computed_condition_join_preserves_only_feasible_entry_predicate_paths() {
     for (index, constant) in [(1, true), (2, false)] {
         let result = index as u64 + 1;
         machine.blocks[index].operations = vec![Operation {
+            static_reach_binding: None,
             id: OperationId::new(index as u64).unwrap(),
             result: OperationResult::Scalar(declaration(result)),
             kind: OperationKind::BooleanConstant { value: constant },

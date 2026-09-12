@@ -110,6 +110,7 @@ fn structural_scalar_field_module() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: caller,
                 attachment: Some(owner_type),
@@ -139,6 +140,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: vec![
                         Operation {
+                            static_reach_binding: None,
                             id: id::<OperationId>(1),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -150,6 +152,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                             },
                         },
                         Operation {
+                            static_reach_binding: None,
                             id: id::<OperationId>(2),
                             result: OperationResult::Unit,
                             kind: OperationKind::StructuralScalarFieldStore {
@@ -160,6 +163,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                             },
                         },
                         Operation {
+                            static_reach_binding: None,
                             id: id::<OperationId>(3),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -188,6 +192,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                 contract: contract(1),
             },
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: realization,
                 attachment: Some(item_type),
@@ -224,6 +229,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                     id: id::<BlockId>(2),
                     parameters: Vec::new(),
                     operations: vec![Operation {
+                        static_reach_binding: None,
                         id: id::<OperationId>(4),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -580,6 +586,7 @@ fn rejects_mixed_structural_call_scalar_argument_corruption() {
     wrong_type.machines[0].blocks[0].operations.insert(
         2,
         Operation {
+            static_reach_binding: None,
             id: id::<OperationId>(5),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

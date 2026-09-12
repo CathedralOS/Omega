@@ -147,6 +147,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
     };
 
     let caller = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(10),
         attachment: None,
@@ -176,6 +177,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
             id: block_id(10),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: operation_id(10),
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
@@ -209,6 +211,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
     };
 
     let callee = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(20),
         attachment: None,
@@ -238,6 +241,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
             id: block_id(20),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: operation_id(20),
                 result: OperationResult::Unit,
                 kind: OperationKind::BoundaryCall {
@@ -335,6 +339,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
     let service = service_id(1);
 
     let entry = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: None,
@@ -390,6 +395,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
                     },
                 ),
                 Operation {
+                    static_reach_binding: None,
                     id: operation_id(11),
                     result: OperationResult::Unit,
                     kind: OperationKind::PortWrite {
@@ -423,6 +429,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
     };
 
     let establish = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(2),
         attachment: None,
@@ -449,6 +456,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
             id: block_id(20),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: operation_id(20),
                 result: OperationResult::Unit,
                 kind: OperationKind::EstablishTrivialAffineLocal { destination: local },
@@ -468,6 +476,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
     };
 
     let cleanup = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(3),
         attachment: Some(boolean_box),
@@ -590,6 +599,7 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
     });
 
     let caller = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: None,
@@ -946,6 +956,7 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
     };
 
     let callee = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(2),
         attachment: None,
@@ -1014,6 +1025,7 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
 
 fn scalar_operation(id: u64, result: ValueDeclaration, kind: OperationKind) -> Operation {
     Operation {
+        static_reach_binding: None,
         id: operation_id(id),
         result: OperationResult::Scalar(result),
         kind,

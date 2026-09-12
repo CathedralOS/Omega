@@ -573,6 +573,7 @@ pub(super) fn lower_structural_unit_control_machine(
         });
     }
     let machine = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
@@ -792,6 +793,7 @@ fn lower_ranked_structural_unit_countdown(
         scalar_type: rank_scalar_type,
     };
     let machine = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
@@ -866,6 +868,7 @@ fn lower_ranked_structural_unit_countdown(
                 parameters: vec![rank_declaration],
                 operations: vec![
                     Operation {
+                        static_reach_binding: None,
                         id: operation_id(1),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -877,6 +880,7 @@ fn lower_ranked_structural_unit_countdown(
                         },
                     },
                     Operation {
+                        static_reach_binding: None,
                         id: operation_id(2),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -913,6 +917,7 @@ fn lower_ranked_structural_unit_countdown(
                 parameters: Vec::new(),
                 operations: vec![
                     Operation {
+                        static_reach_binding: None,
                         id: operation_id(3),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -924,6 +929,7 @@ fn lower_ranked_structural_unit_countdown(
                         },
                     },
                     Operation {
+                        static_reach_binding: None,
                         id: operation_id(4),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),

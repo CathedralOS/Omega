@@ -144,6 +144,7 @@ pub(crate) fn emit(
     let length = value_id(allocate_dense(next_value)?);
     let id = operations.allocate();
     operations.push(Operation {
+        static_reach_binding: None,
         id,
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

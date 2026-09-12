@@ -174,6 +174,7 @@ fn ieee_float_constants_and_nearest_fma_round_trip_exact_interchange_bits() {
     };
     module.machines[0].blocks[0].operations = vec![
         Operation {
+            static_reach_binding: None,
             id: operation_id(901),
             result: OperationResult::Scalar(binary32),
             kind: OperationKind::IeeeFloatConstant {
@@ -181,6 +182,7 @@ fn ieee_float_constants_and_nearest_fma_round_trip_exact_interchange_bits() {
             },
         },
         Operation {
+            static_reach_binding: None,
             id: operation_id(902),
             result: OperationResult::Scalar(binary64),
             kind: OperationKind::IeeeFloatConstant {
@@ -188,6 +190,7 @@ fn ieee_float_constants_and_nearest_fma_round_trip_exact_interchange_bits() {
             },
         },
         Operation {
+            static_reach_binding: None,
             id: operation_id(903),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -481,6 +484,7 @@ fn proof_only_float_projections_round_trip_and_reject_tampering() {
     };
     let direct_operation = operation_id(9);
     module.machines.push(TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: direct_result_owner,
         attachment: None,
@@ -505,6 +509,7 @@ fn proof_only_float_projections_round_trip_and_reject_tampering() {
                 id: block_id(3),
                 parameters: Vec::new(),
                 operations: vec![Operation {
+                    static_reach_binding: None,
                     id: direct_operation,
                     result: OperationResult::Scalar(direct_operation_result),
                     kind: OperationKind::IeeeFloatConstant {
@@ -1484,6 +1489,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
     let first_affine = place_id(52);
     let second_affine = place_id(53);
     let machine = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: None,
@@ -1578,6 +1584,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
             id: block_id(1),
             parameters: Vec::new(),
             operations: vec![Operation {
+                static_reach_binding: None,
                 id: operation_id(1),
                 result: OperationResult::Unit,
                 kind: OperationKind::EstablishTrivialAffineLocal { destination: local },
@@ -2249,6 +2256,7 @@ fn provider_attachment_root() -> StructuralPlaceDeclaration {
 
 fn provider_boundary_call() -> Operation {
     Operation {
+        static_reach_binding: None,
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
@@ -3200,6 +3208,7 @@ fn partial_affine_fixture() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: machine_id(1),
                 attachment: Some(root_type),
@@ -3234,6 +3243,7 @@ fn partial_affine_fixture() -> TerminalModule {
                     id: block_id(1),
                     parameters: Vec::new(),
                     operations: vec![Operation {
+                        static_reach_binding: None,
                         id: operation_id(1),
                         result: OperationResult::Unit,
                         kind: OperationKind::CallUnit {
@@ -3268,6 +3278,7 @@ fn partial_affine_fixture() -> TerminalModule {
                 },
             },
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: machine_id(2),
                 attachment: Some(sink_type),
@@ -3446,6 +3457,7 @@ fn nominal_affine_fixture() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: machine_id(1),
                 attachment: Some(owner_type),
@@ -3500,6 +3512,7 @@ fn nominal_affine_fixture() -> TerminalModule {
                 },
             },
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: machine_id(2),
                 attachment: Some(resource_type),
@@ -3645,6 +3658,7 @@ fn structural_effect_fixture() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: machine_id(100),
                 attachment: Some(structural_type_id(2)),
@@ -3679,6 +3693,7 @@ fn structural_effect_fixture() -> TerminalModule {
                     id: block_id(100),
                     parameters: Vec::new(),
                     operations: vec![Operation {
+                        static_reach_binding: None,
                         id: operation_id(1),
                         result: OperationResult::Unit,
                         kind: OperationKind::CallUnit {
@@ -3711,6 +3726,7 @@ fn structural_effect_fixture() -> TerminalModule {
                 },
             },
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: machine_id(101),
                 attachment: Some(structural_type_id(3)),
@@ -3746,6 +3762,7 @@ fn structural_effect_fixture() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: vec![
                         Operation {
+                            static_reach_binding: None,
                             id: operation_id(2),
                             result: OperationResult::Unit,
                             kind: OperationKind::PortWrite {
@@ -3755,6 +3772,7 @@ fn structural_effect_fixture() -> TerminalModule {
                             },
                         },
                         Operation {
+                            static_reach_binding: None,
                             id: operation_id(3),
                             result: OperationResult::Unit,
                             kind: OperationKind::BoundaryCall {
@@ -4196,6 +4214,7 @@ fn boundary_scalar_parameter_and_argument_order_round_trips_canonically() {
         0..0,
         [
             Operation {
+                static_reach_binding: None,
                 id: operation_id(2),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -4205,6 +4224,7 @@ fn boundary_scalar_parameter_and_argument_order_round_trips_canonically() {
                 kind: OperationKind::BooleanConstant { value: false },
             },
             Operation {
+                static_reach_binding: None,
                 id: operation_id(3),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -4458,6 +4478,7 @@ fn unit_fixture() -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine_id(900),
             attachment: None,
@@ -4570,6 +4591,7 @@ fn ranked_countdown_fixture() -> TerminalModule {
             }],
             operations: vec![
                 Operation {
+                    static_reach_binding: None,
                     id: operation_id(901),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -4581,6 +4603,7 @@ fn ranked_countdown_fixture() -> TerminalModule {
                     },
                 },
                 Operation {
+                    static_reach_binding: None,
                     id: operation_id(902),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -4617,6 +4640,7 @@ fn ranked_countdown_fixture() -> TerminalModule {
             parameters: Vec::new(),
             operations: vec![
                 Operation {
+                    static_reach_binding: None,
                     id: operation_id(903),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -4628,6 +4652,7 @@ fn ranked_countdown_fixture() -> TerminalModule {
                     },
                 },
                 Operation {
+                    static_reach_binding: None,
                     id: operation_id(904),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -4701,6 +4726,7 @@ fn fixture() -> TerminalModule {
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine_id(1),
             attachment: None,
@@ -4729,6 +4755,7 @@ fn fixture() -> TerminalModule {
                     id: block_id(1),
                     parameters: Vec::new(),
                     operations: vec![Operation {
+                        static_reach_binding: None,
                         id: operation_id(1),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -4757,6 +4784,7 @@ fn fixture() -> TerminalModule {
                         scalar_type,
                     }],
                     operations: vec![Operation {
+                        static_reach_binding: None,
                         id: operation_id(2),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -4866,6 +4894,7 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
+            closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: machine_id(80),
             attachment: None,
@@ -5106,6 +5135,7 @@ fn call_fixture() -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: machine_id(100),
                 attachment: None,
@@ -5126,11 +5156,13 @@ fn call_fixture() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: vec![
                         Operation {
+                            static_reach_binding: None,
                             id: operation_id(100),
                             result: OperationResult::Scalar(boolean(100)),
                             kind: OperationKind::BooleanConstant { value: true },
                         },
                         Operation {
+                            static_reach_binding: None,
                             id: operation_id(101),
                             result: OperationResult::Scalar(boolean(101)),
                             kind: OperationKind::Call {
@@ -5156,6 +5188,7 @@ fn call_fixture() -> TerminalModule {
                 },
             },
             TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: machine_id(101),
                 attachment: None,

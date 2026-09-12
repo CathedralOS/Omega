@@ -22,6 +22,7 @@ fn artifact(value: u64) -> (Vec<u8>, Vec<u8>) {
         cleanup_actions: Vec::new(),
     };
     let call = |operation, result, callee, argument| Operation {
+        static_reach_binding: None,
         id: OperationId::new(operation).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -46,6 +47,7 @@ fn artifact(value: u64) -> (Vec<u8>, Vec<u8>) {
     entry.parameters.clear();
     let constant = ValueId::new(28_020).unwrap();
     entry.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
         id: OperationId::new(28_021).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -425,6 +427,7 @@ fn mixed_arithmetic_artifact() -> (Vec<u8>, Vec<u8>) {
         scalar_type,
     };
     let zero = |id| Operation {
+        static_reach_binding: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Scalar(declaration(id)),
         kind: OperationKind::IntegerConstant {
@@ -432,6 +435,7 @@ fn mixed_arithmetic_artifact() -> (Vec<u8>, Vec<u8>) {
         },
     };
     let exact = |id, left, right, subtract| Operation {
+        static_reach_binding: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Scalar(declaration(id)),
         kind: if subtract {

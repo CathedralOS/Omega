@@ -81,6 +81,7 @@ fn subslice_module(bytes: Vec<u8>, start: u64) -> TerminalModule {
     });
     caller.blocks[0].operations.extend([
         Operation {
+            static_reach_binding: None,
             id: operation_id(60),
             result: OperationResult::Scalar(scalar(60, 64)),
             kind: OperationKind::ByteSequenceLength {
@@ -88,6 +89,7 @@ fn subslice_module(bytes: Vec<u8>, start: u64) -> TerminalModule {
             },
         },
         Operation {
+            static_reach_binding: None,
             id: operation_id(61),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -107,6 +109,7 @@ fn subslice_module(bytes: Vec<u8>, start: u64) -> TerminalModule {
     };
     let mut operations = vec![
         Operation {
+            static_reach_binding: None,
             id: operation_id(62),
             result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
                 place: place_id(8),
@@ -179,6 +182,7 @@ fn block_module(select_first: bool, byte_index: u64) -> TerminalModule {
     root.blocks[0].operations.insert(
         1,
         Operation {
+            static_reach_binding: None,
             id: operation_id(50),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishByteSequenceLiteral {
@@ -190,6 +194,7 @@ fn block_module(select_first: bool, byte_index: u64) -> TerminalModule {
     root.blocks[0].operations.insert(
         3,
         Operation {
+            static_reach_binding: None,
             id: operation_id(51),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

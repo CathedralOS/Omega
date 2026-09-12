@@ -1,6 +1,42 @@
 use super::*;
 
 #[test]
+fn closed_callback_dependency_survives_source_discard() {
+    let checked = checked_source(
+        r#"
+        boundary trait Console { machine ping(); }
+        boundary trait Callback { machine call() reaches Console; }
+        machine forward<machine Selected>()
+        where machine Selected satisfies Callback::call;
+        { Selected(); }
+        machine selected() satisfies Callback::call reaches Console {}
+        pub machine enter() { forward<selected>(); }
+    "#,
+    );
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
+        .produce_artifact()
+        .expect("closed callback product");
+    drop(checked);
+    let module =
+        terminal_codec::decode_module(artifact.semantic_bytes()).expect("source-free reload");
+    let owner = module
+        .machines
+        .iter()
+        .find(|machine| machine.closed_reach_application.is_some())
+        .expect("original dependency must survive publication");
+    let application = owner.closed_reach_application.as_ref().unwrap();
+    assert_eq!(application.dependencies, [0]);
+    assert!(application.fixed.is_empty());
+    assert_eq!(application.calls.len(), 1);
+    let terminal_psi::ClosedReachParameter::Machine(binding) = &application.telescope[0] else {
+        panic!("selected machine binder");
+    };
+    assert_eq!(binding.selected_reach, owner.published_service_ceiling);
+    assert_eq!(service_names(&module, &binding.selected_reach), ["Console"]);
+    assert!(terminal_verifier::validate_module_representation(&module).is_ok());
+}
+
+#[test]
 fn generic_template_commitment_retains_private_helper_reach_dependency() {
     let source = |helper_reach: &str, selected: &str| {
         format!(
@@ -103,6 +139,33 @@ fn generic_dependency_identity_ignores_call_order_and_helper_extraction() {
             let module = terminal_codec::decode_module(artifact.semantic_bytes())
                 .expect("source-free concrete dependency product");
             assert!(!module.root_service_reach.concrete.is_empty());
+            let application = module
+                .machines
+                .iter()
+                .filter_map(|machine| machine.closed_reach_application.as_ref())
+                .find(|application| application.telescope.len() == 4)
+                .expect("outer full telescope survives nested helper publication");
+            assert_eq!(application.dependencies, [1, 3]);
+            assert_eq!(service_names(&module, &application.fixed), ["Console"]);
+            assert!(matches!(
+                application.telescope[0],
+                terminal_psi::ClosedReachParameter::Type { .. }
+            ));
+            assert!(matches!(
+                application.telescope[2],
+                terminal_psi::ClosedReachParameter::Const { .. }
+            ));
+            if body.starts_with("relay") {
+                assert!(application.calls.is_empty());
+                assert!(
+                    module
+                        .machines
+                        .iter()
+                        .filter_map(|machine| machine.closed_reach_application.as_ref())
+                        .any(|application| application.telescope.len() == 2
+                            && application.calls.len() == 2)
+                );
+            }
         }
     }
     assert_eq!(commitments.len(), 12);
@@ -131,10 +194,19 @@ fn generic_dependency_preserves_the_referenced_telescope_position() {
     };
     let first = checked_source(&source("First"));
     let second = checked_source(&source("Second"));
-    for checked in [&first, &second] {
-        let _artifact = terminal_production::TerminalProductionRequest::new(checked, "enter")
+    for (checked, binder) in [(&first, 1), (&second, 3)] {
+        let artifact = terminal_production::TerminalProductionRequest::new(checked, "enter")
             .produce_artifact()
             .expect("one of two same-contract binders");
+        let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+        let application = module
+            .machines
+            .iter()
+            .find_map(|machine| machine.closed_reach_application.as_ref())
+            .unwrap();
+        assert_eq!(application.telescope.len(), 4);
+        assert_eq!(application.dependencies, [binder]);
+        assert_eq!(application.calls[0].binder, binder);
     }
     let original = &first.machine_specializations[0];
     let mut stale = second.clone();

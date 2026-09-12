@@ -35,6 +35,7 @@ pub(super) fn conditional_unit_byte_output_module() -> TerminalModule {
     fallback.operations.insert(
         0,
         Operation {
+            static_reach_binding: None,
             id: OperationId::new(132).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

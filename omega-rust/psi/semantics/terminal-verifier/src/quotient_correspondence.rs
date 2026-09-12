@@ -802,6 +802,7 @@ mod tests {
             suspension_call_plans: Vec::new(),
             quotient_correspondences,
             machines: vec![TerminalMachine {
+                closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: machine,
                 attachment: None,

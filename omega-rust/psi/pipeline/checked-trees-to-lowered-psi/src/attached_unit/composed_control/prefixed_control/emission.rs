@@ -125,6 +125,7 @@ pub(super) fn emit(
             &mut next_place,
         )?;
     let machine = TerminalMachine {
+        closed_reach_application: None,
         declared_service_reach: crate::attached_unit::lower_declared_service_reach(
             checked,
             plan.machine,
