@@ -9,7 +9,8 @@ fn optimized_target(
     selections: OptimizationSelections,
 ) -> ValidatedOptimizedTargetOperations {
     let checked = checked("data Main {} machine Main::launch() {}");
-    let artifact = terminal_production::produce_terminal_artifact(&checked, "Main::launch")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
+        .produce_artifact()
         .expect("publish independent Terminal fixture");
     let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
         artifact.semantic_bytes(),

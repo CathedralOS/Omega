@@ -64,7 +64,8 @@ fn package_qualified_case_values_and_membership_select_the_declaring_owner() {
         )
         .unwrap();
         let checked = compile(&root, inputs);
-        let artifact = terminal_production::produce_terminal_artifact(&checked, "matches")
+        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "matches")
+            .produce_artifact()
             .expect("package-qualified borrowed membership reaches canonical Terminal");
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         assert!(
@@ -109,7 +110,9 @@ fn package_qualified_case_values_and_membership_select_the_declaring_owner() {
                 .expect("checked membership evaluates with its selected nominal owner");
             assert_eq!(result.value(), &BuildTimeValue::Bool(expected));
             if matches!(entry, "is_empty" | "is_some" | "local_is_empty") {
-                if let Err(error) = terminal_production::produce_terminal_artifact(&checked, entry)
+                if let Err(error) =
+                    terminal_production::TerminalProductionRequest::new(&checked, entry)
+                        .produce_artifact()
                 {
                     terminal_failures.push(format!("{expression}, {entry}: {error:?}"));
                 }

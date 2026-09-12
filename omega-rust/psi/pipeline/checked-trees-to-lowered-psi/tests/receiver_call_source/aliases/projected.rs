@@ -84,8 +84,10 @@ fn projected_aliases_compose_formation_and_receiver_paths() {
                 panic!("projected receiver call");
             };
             assert_eq!(structural_arguments[0].path.len(), path_length, "{text}");
-            let artifact = terminal_production::produce_terminal_artifact(&checked, caller_name)
-                .unwrap_or_else(|error| panic!("{text}: {error:?}"));
+            let artifact =
+                terminal_production::TerminalProductionRequest::new(&checked, caller_name)
+                    .produce_artifact()
+                    .unwrap_or_else(|error| panic!("{text}: {error:?}"));
             let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
             assert_eq!(
                 module.reborrow_root_handoffs.len(),
@@ -109,7 +111,9 @@ fn bare_attached_alias_capture_keeps_its_authored_name_identity() {
         "held.replace(value);",
     ));
     let artifact =
-        terminal_production::produce_terminal_artifact(&original, "Container::forward").unwrap();
+        terminal_production::TerminalProductionRequest::new(&original, "Container::forward")
+            .produce_artifact()
+            .unwrap();
     assert!(terminal_codec::decode_module(artifact.semantic_bytes()).is_ok());
     let (resource_handle, resource) = original
         .facts
@@ -176,7 +180,9 @@ fn bare_attached_alias_capture_keeps_its_authored_name_identity() {
             }
         }
         assert!(
-            terminal_production::produce_terminal_artifact(&checked, "Container::forward").is_err(),
+            terminal_production::TerminalProductionRequest::new(&checked, "Container::forward")
+                .produce_artifact()
+                .is_err(),
             "bare capture mutation {mutation}"
         );
     }
@@ -189,7 +195,9 @@ fn projected_alias_replay_rejects_source_and_captured_place_substitution() {
         "let held: &write Record = &write destination[1];",
         "held.replace(value);",
     ));
-    let artifact = terminal_production::produce_terminal_artifact(&original, "forward").unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(&original, "forward")
+        .produce_artifact()
+        .unwrap();
     assert!(terminal_codec::decode_module(artifact.semantic_bytes()).is_ok());
     let caller = unit_plan(&original, "forward").machine;
     let machine = original
@@ -280,7 +288,9 @@ fn projected_alias_replay_rejects_source_and_captured_place_substitution() {
             }
         }
         assert!(
-            terminal_production::produce_terminal_artifact(&checked, "forward").is_err(),
+            terminal_production::TerminalProductionRequest::new(&checked, "forward")
+                .produce_artifact()
+                .is_err(),
             "projected alias mutation {mutation}"
         );
     }
@@ -294,7 +304,9 @@ fn projected_self_alias_replay_binds_field_capture_and_nested_suffix() {
         "child.replace(value);",
     ));
     let artifact =
-        terminal_production::produce_terminal_artifact(&original, "Nested::forward").unwrap();
+        terminal_production::TerminalProductionRequest::new(&original, "Nested::forward")
+            .produce_artifact()
+            .unwrap();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert_eq!(module.reborrow_root_handoffs[0].lineage.len(), 1);
     let (direct_handle, direct) = original
@@ -370,7 +382,9 @@ fn projected_self_alias_replay_binds_field_capture_and_nested_suffix() {
             }
         }
         assert!(
-            terminal_production::produce_terminal_artifact(&checked, "Nested::forward").is_err(),
+            terminal_production::TerminalProductionRequest::new(&checked, "Nested::forward")
+                .produce_artifact()
+                .is_err(),
             "projected self alias mutation {mutation}"
         );
     }

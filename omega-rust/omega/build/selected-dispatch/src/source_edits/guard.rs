@@ -16,7 +16,7 @@ use typed_trees::expression::{ExpressionHandle, StaticMachineArgument};
 use typed_trees::types::TypeReferenceHandle;
 
 const MAX_NODES: usize = 65_536;
-pub(super) use static_arguments::{validate_call_static_arguments, validate_static_arguments};
+pub(super) use static_arguments::validate_call_static_arguments;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct GraphGuard {

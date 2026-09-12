@@ -7,7 +7,8 @@ use checked_trees::{
 
 fn original() -> (checked_trees::CheckedTrees, symbols::SymbolHandle) {
     let checked = super::checked(super::BOOLEAN_BRANCH);
-    let _ = terminal_production::produce_terminal_artifact(&checked, "observe")
+    let _ = terminal_production::TerminalProductionRequest::new(&checked, "observe")
+        .produce_artifact()
         .expect("unmodified source must publish before mutation");
     let machine = checked
         .machines()
@@ -70,7 +71,9 @@ fn scalar_unit_call_rejects_missing_duplicate_reordered_or_substituted_rows() {
             }
         }
         assert!(
-            terminal_production::produce_terminal_artifact(&changed, "observe").is_err(),
+            terminal_production::TerminalProductionRequest::new(&changed, "observe")
+                .produce_artifact()
+                .is_err(),
             "accepted Unit call custody mutation {mutation}"
         );
     }
@@ -114,7 +117,9 @@ fn scalar_unit_call_requires_its_exact_borrow_occurrence() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::produce_terminal_artifact(&changed, "observe").is_err(),
+            terminal_production::TerminalProductionRequest::new(&changed, "observe")
+                .produce_artifact()
+                .is_err(),
             "accepted missing or substituted borrow occurrence {mutation}"
         );
     }
@@ -127,7 +132,9 @@ fn coherent_call_and_borrow_substitution_cannot_select_another_local() {
         "    let mut spare: bool = replacement;\n    replace(&mut spare, initial);\n    replace(&mut scratch, replacement);",
     );
     let mut changed = super::checked(&source);
-    let _ = terminal_production::produce_terminal_artifact(&changed, "observe").unwrap();
+    let _ = terminal_production::TerminalProductionRequest::new(&changed, "observe")
+        .produce_artifact()
+        .unwrap();
     let machine = changed
         .machines()
         .iter()
@@ -176,7 +183,9 @@ fn coherent_call_and_borrow_substitution_cannot_select_another_local() {
             .root_symbol = spare;
     }
     assert!(
-        terminal_production::produce_terminal_artifact(&changed, "observe").is_err(),
+        terminal_production::TerminalProductionRequest::new(&changed, "observe")
+            .produce_artifact()
+            .is_err(),
         "matching cached call/borrow rows cannot replace the authored local"
     );
 }
@@ -196,7 +205,8 @@ machine observe(initial: bool, replacement: bool) -> u64 {
 }
 "#;
     let mut changed = super::checked(source);
-    let _ = terminal_production::produce_terminal_artifact(&changed, "observe")
+    let _ = terminal_production::TerminalProductionRequest::new(&changed, "observe")
+        .produce_artifact()
         .expect("two distinct primitive borrows publish before corruption");
     let machine = changed
         .machines()
@@ -248,7 +258,9 @@ machine observe(initial: bool, replacement: bool) -> u64 {
     *changed.facts.borrow.argument_accesses.get_mut(handles[0]) = second;
     *changed.facts.borrow.argument_accesses.get_mut(handles[1]) = first;
     assert!(
-        terminal_production::produce_terminal_artifact(&changed, "observe").is_err(),
+        terminal_production::TerminalProductionRequest::new(&changed, "observe")
+            .produce_artifact()
+            .is_err(),
         "reordered borrow occurrences must not replace authored argument order"
     );
 }

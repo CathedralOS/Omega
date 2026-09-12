@@ -163,8 +163,10 @@ pub(super) fn assert_projected_receiver(
                 assert!(callee.scalar_parameters.is_empty());
             }
 
-            let artifact = terminal_production::produce_terminal_artifact(&checked, caller_name)
-                .expect("projected receiver reaches canonical Terminal production");
+            let artifact =
+                terminal_production::TerminalProductionRequest::new(&checked, caller_name)
+                    .produce_artifact()
+                    .expect("projected receiver reaches canonical Terminal production");
             drop(checked);
             let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
             let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();

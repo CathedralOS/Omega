@@ -4,7 +4,9 @@ use lowered_psi::{
     LoweredPsi, LoweredSelectedIeeeFloatComparisonOccurrence,
     LoweredSelectedIeeeFloatFmaOccurrence, LoweredSourceCallOccurrence,
 };
-use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
+use lowered_psi_to_lowered_psi::{
+    PsiOptimizationStageError, PsiOptimizationStageResult, run_psi_optimization,
+};
 use lowered_psi_to_terminal_psi::{
     CheckedBoundaryOperatorApplicationScope, finalize_terminal_artifact,
 };
@@ -255,233 +257,172 @@ impl ProducedProgramEntryTerminalArtifact {
     }
 }
 
-/// Lower one checked source product, execute the identity Psi optimization
-/// phase, and then cross the explicit Terminal publication boundary.
-pub fn produce_terminal_artifact(
-    checked: &CheckedTrees,
-    machine_name: &str,
-) -> Result<terminal_codec::CanonicalTerminalArtifact, TerminalArtifactProductionError> {
-    produce_terminal_artifact_with_optimizations(
-        checked,
-        machine_name,
-        optimization::PsiOptimizationSelections::default(),
-    )
+/// Exact borrowed source inputs and target-neutral selection for Terminal production.
+/// Output methods retain their distinct evidence and recovery contracts.
+pub struct TerminalProductionRequest<'a> {
+    pub checked: &'a CheckedTrees,
+    pub machine_name: &'a str,
+    pub optimization_selections: optimization::PsiOptimizationSelections,
 }
 
-/// Lower one checked source product through an exact selected Psi phase and
-/// cross the explicit Terminal publication boundary.
-pub fn produce_terminal_artifact_with_optimizations(
-    checked: &CheckedTrees,
-    machine_name: &str,
-    selections: optimization::PsiOptimizationSelections,
-) -> Result<terminal_codec::CanonicalTerminalArtifact, TerminalArtifactProductionError> {
-    let lowered =
-        lower_machine(checked, machine_name).map_err(TerminalArtifactProductionError::Lowering)?;
-    let optimized = run_psi_optimization(lowered, selections)
-        .map_err(TerminalArtifactProductionError::Optimization)?;
-    finalize_terminal_artifact(&optimized).map_err(TerminalArtifactProductionError::Artifact)
-}
-
-/// Produce canonical Terminal semantics while preserving the exact checked
-/// D29 demand scope needed by compiler-owned native evidence derivation.
-pub fn produce_terminal_artifact_with_checked_boundary_operator_scope(
-    checked: &CheckedTrees,
-    machine_name: &str,
-) -> Result<ProducedTerminalArtifact, TerminalArtifactProductionError> {
-    produce_terminal_artifact_with_checked_boundary_operator_scope_and_optimizations(
-        checked,
-        machine_name,
-        optimization::PsiOptimizationSelections::default(),
-    )
-}
-
-/// Produce canonical Terminal semantics from an exact selected Psi phase while
-/// preserving the checked D29 demand scope.
-pub fn produce_terminal_artifact_with_checked_boundary_operator_scope_and_optimizations(
-    checked: &CheckedTrees,
-    machine_name: &str,
-    selections: optimization::PsiOptimizationSelections,
-) -> Result<ProducedTerminalArtifact, TerminalArtifactProductionError> {
-    let lowered =
-        lower_machine(checked, machine_name).map_err(TerminalArtifactProductionError::Lowering)?;
-    let optimized = run_psi_optimization(lowered, selections)
-        .map_err(TerminalArtifactProductionError::Optimization)?;
-    let artifact = finalize_terminal_artifact(&optimized)
-        .map_err(TerminalArtifactProductionError::Artifact)?;
-    let lowered = optimized.into_lowered();
-    let boundary_operator_scope = checked_boundary_operator_scope(checked, &artifact, &lowered)
-        .map_err(TerminalArtifactProductionError::Lowering)?;
-    Ok(ProducedTerminalArtifact {
-        artifact,
-        boundary_operator_scope,
-        selected_ieee_float_fma_occurrences: lowered.selected_ieee_float_fma_occurrences,
-        selected_ieee_float_comparison_occurrences: lowered
-            .selected_ieee_float_comparison_occurrences,
-    })
-}
-
-/// Produce the canonical source-free artifact without losing the caller's
-/// exact callback-use sidecar.
-///
-/// The sidecar remains opaque because callback placement is target-owned Omega
-/// evidence rather than Terminal-Psi vocabulary. Success and rejection both
-/// return it by value in its original order.
-pub fn produce_terminal_artifact_with_callback_custody<C>(
-    checked: &CheckedTrees,
-    machine_name: &str,
-    callback_custody: C,
-) -> Result<
-    ProducedTerminalArtifactWithCallbackCustody<C>,
-    CallbackCustodyTerminalArtifactProductionError<C>,
-> {
-    produce_terminal_artifact_with_callback_custody_and_optimizations(
-        checked,
-        machine_name,
-        callback_custody,
-        optimization::PsiOptimizationSelections::default(),
-    )
-}
-
-/// Produce a selected canonical Terminal artifact without losing the caller's
-/// exact callback-use sidecar.
-pub fn produce_terminal_artifact_with_callback_custody_and_optimizations<C>(
-    checked: &CheckedTrees,
-    machine_name: &str,
-    callback_custody: C,
-    selections: optimization::PsiOptimizationSelections,
-) -> Result<
-    ProducedTerminalArtifactWithCallbackCustody<C>,
-    CallbackCustodyTerminalArtifactProductionError<C>,
-> {
-    let lowered = match lower_machine(checked, machine_name) {
-        Ok(lowered) => lowered,
-        Err(error) => {
-            return Err(CallbackCustodyTerminalArtifactProductionError {
-                error: TerminalArtifactProductionError::Lowering(error),
-                callback_custody,
-            });
+impl<'a> TerminalProductionRequest<'a> {
+    /// Select the identity optimization phase by default.
+    pub fn new(checked: &'a CheckedTrees, machine_name: &'a str) -> Self {
+        Self {
+            checked,
+            machine_name,
+            optimization_selections: optimization::PsiOptimizationSelections::default(),
         }
-    };
-    let optimized = match run_psi_optimization(lowered, selections) {
-        Ok(optimized) => optimized,
-        Err(error) => {
-            return Err(CallbackCustodyTerminalArtifactProductionError {
-                error: TerminalArtifactProductionError::Optimization(error),
-                callback_custody,
-            });
-        }
-    };
-    let artifact = match finalize_terminal_artifact(&optimized) {
-        Ok(artifact) => artifact,
-        Err(error) => {
-            return Err(CallbackCustodyTerminalArtifactProductionError {
-                error: TerminalArtifactProductionError::Artifact(error),
-                callback_custody,
-            });
-        }
-    };
-    let lowered = optimized.into_lowered();
-    let boundary_operator_scope =
-        match checked_boundary_operator_scope(checked, &artifact, &lowered) {
-            Ok(scope) => scope,
+    }
+
+    /// Publish only the canonical portable artifact.
+    pub fn produce_artifact(
+        self,
+    ) -> Result<terminal_codec::CanonicalTerminalArtifact, TerminalArtifactProductionError> {
+        let optimized = self.lower_and_optimize()?;
+        let (artifact, _) = publish_terminal_artifact(optimized)?;
+        Ok(artifact)
+    }
+
+    /// Retain the checked D29 demand scope and selected floating-point occurrences.
+    pub fn produce_checked_artifact(
+        self,
+    ) -> Result<ProducedTerminalArtifact, TerminalArtifactProductionError> {
+        let (artifact, lowered, boundary_operator_scope) = self.produce_checked_parts()?;
+        Ok(ProducedTerminalArtifact {
+            artifact,
+            boundary_operator_scope,
+            selected_ieee_float_fma_occurrences: lowered.selected_ieee_float_fma_occurrences,
+            selected_ieee_float_comparison_occurrences: lowered
+                .selected_ieee_float_comparison_occurrences,
+        })
+    }
+
+    /// Preserve the caller's opaque callback-use sidecar on success and rejection.
+    ///
+    /// Psi neither inspects the sidecar nor grants callback placement, registration,
+    /// invocation, address, or lifetime authority.
+    pub fn produce_with_callback_custody<C>(
+        self,
+        callback_custody: C,
+    ) -> Result<
+        ProducedTerminalArtifactWithCallbackCustody<C>,
+        CallbackCustodyTerminalArtifactProductionError<C>,
+    > {
+        let (artifact, lowered, boundary_operator_scope) = match self.produce_checked_parts() {
+            Ok(parts) => parts,
             Err(error) => {
                 return Err(CallbackCustodyTerminalArtifactProductionError {
-                    error: TerminalArtifactProductionError::Lowering(error),
+                    error,
                     callback_custody,
                 });
             }
         };
-    Ok(ProducedTerminalArtifactWithCallbackCustody {
-        boundary_operator_scope,
-        artifact,
-        callback_custody,
-        source_call_occurrences: lowered.source_call_occurrences,
-        selected_ieee_float_fma_occurrences: lowered.selected_ieee_float_fma_occurrences,
-        selected_ieee_float_comparison_occurrences: lowered
-            .selected_ieee_float_comparison_occurrences,
-    })
-}
-
-/// Produce a canonical Terminal artifact while retaining the exact checked
-/// `ProgramEntry` to Terminal-entry association.
-///
-/// `source_signature_identity` is an opaque domain-separated identity
-/// computed while the complete typed `ProgramEntry` declaration is still
-/// available. This stage does not interpret or recreate it. A later Omega
-/// settlement must independently compare it with the retained source
-/// signature before granting native custody.
-pub fn produce_program_entry_terminal_artifact(
-    checked: &CheckedTrees,
-    machine_name: &str,
-    source_signature_identity: [u8; 32],
-) -> Result<ProducedProgramEntryTerminalArtifact, TerminalArtifactProductionError> {
-    produce_program_entry_terminal_artifact_with_optimizations(
-        checked,
-        machine_name,
-        source_signature_identity,
-        optimization::PsiOptimizationSelections::default(),
-    )
-}
-
-/// Receipt-coupled `ProgramEntry` production with explicit target-neutral
-/// optimization selections.
-pub fn produce_program_entry_terminal_artifact_with_optimizations(
-    checked: &CheckedTrees,
-    machine_name: &str,
-    source_signature_identity: [u8; 32],
-    optimization_selections: optimization::PsiOptimizationSelections,
-) -> Result<ProducedProgramEntryTerminalArtifact, TerminalArtifactProductionError> {
-    let selection = select_terminal_machine(checked, machine_name)
-        .map_err(TerminalArtifactProductionError::Lowering)?;
-    let source_machine_name = selection.name.clone();
-    let lowered =
-        lower_machine(checked, machine_name).map_err(TerminalArtifactProductionError::Lowering)?;
-    let optimized = run_psi_optimization(lowered, optimization_selections)
-        .map_err(TerminalArtifactProductionError::Optimization)?;
-    let optimized_lowered = optimized.lowered();
-    let entry_matches = optimized_lowered
-        .semantic_module
-        .machines
-        .iter()
-        .filter(|machine| machine.id == optimized_lowered.semantic_module.entry)
-        .collect::<Vec<_>>();
-    let [entry] = entry_matches.as_slice() else {
-        return Err(TerminalArtifactProductionError::EntryReceipt(
-            ProgramEntryTerminalReceiptError::TerminalEntryMultiplicity(entry_matches.len()),
-        ));
-    };
-    if entry.result != TerminalMachineResult::Unit {
-        return Err(TerminalArtifactProductionError::EntryReceipt(
-            ProgramEntryTerminalReceiptError::NonUnitEntry,
-        ));
+        Ok(ProducedTerminalArtifactWithCallbackCustody {
+            artifact,
+            boundary_operator_scope,
+            callback_custody,
+            source_call_occurrences: lowered.source_call_occurrences,
+            selected_ieee_float_fma_occurrences: lowered.selected_ieee_float_fma_occurrences,
+            selected_ieee_float_comparison_occurrences: lowered
+                .selected_ieee_float_comparison_occurrences,
+        })
     }
-    let terminal_psi_identity = terminal_psi_identity(&optimized_lowered.semantic_module)
-        .map_err(ProgramEntryTerminalReceiptError::TerminalIdentity)
-        .map_err(TerminalArtifactProductionError::EntryReceipt)?;
-    let terminal_entry = optimized_lowered.semantic_module.entry;
+
+    /// Retain the exact checked ProgramEntry-to-Terminal association.
+    ///
+    /// The source-signature digest remains opaque; later Omega settlement must
+    /// independently compare it with the retained source signature.
+    pub fn produce_program_entry(
+        self,
+        source_signature_identity: [u8; 32],
+    ) -> Result<ProducedProgramEntryTerminalArtifact, TerminalArtifactProductionError> {
+        let selection = select_terminal_machine(self.checked, self.machine_name)
+            .map_err(TerminalArtifactProductionError::Lowering)?;
+        let source_machine_name = selection.name.clone();
+        let checked = self.checked;
+        let optimized = self.lower_and_optimize()?;
+        let optimized_lowered = optimized.lowered();
+        let entry_matches = optimized_lowered
+            .semantic_module
+            .machines
+            .iter()
+            .filter(|machine| machine.id == optimized_lowered.semantic_module.entry)
+            .collect::<Vec<_>>();
+        let [entry] = entry_matches.as_slice() else {
+            return Err(TerminalArtifactProductionError::EntryReceipt(
+                ProgramEntryTerminalReceiptError::TerminalEntryMultiplicity(entry_matches.len()),
+            ));
+        };
+        if entry.result != TerminalMachineResult::Unit {
+            return Err(TerminalArtifactProductionError::EntryReceipt(
+                ProgramEntryTerminalReceiptError::NonUnitEntry,
+            ));
+        }
+        let terminal_psi_identity = terminal_psi_identity(&optimized_lowered.semantic_module)
+            .map_err(ProgramEntryTerminalReceiptError::TerminalIdentity)
+            .map_err(TerminalArtifactProductionError::EntryReceipt)?;
+        let terminal_entry = optimized_lowered.semantic_module.entry;
+        let (artifact, lowered) = publish_terminal_artifact(optimized)?;
+        if artifact.manifest().semantic() != terminal_psi_identity {
+            return Err(TerminalArtifactProductionError::EntryReceipt(
+                ProgramEntryTerminalReceiptError::ArtifactSemanticIdentityMismatch,
+            ));
+        }
+        let boundary_operator_scope = checked_boundary_operator_scope(checked, &artifact, &lowered)
+            .map_err(TerminalArtifactProductionError::Lowering)?;
+        Ok(ProducedProgramEntryTerminalArtifact {
+            boundary_operator_scope,
+            artifact,
+            receipt: CheckedProgramEntryTerminalReceipt {
+                source_signature_identity,
+                source_machine_name,
+                terminal_psi_identity,
+                terminal_entry,
+            },
+            selected_ieee_float_fma_occurrences: lowered.selected_ieee_float_fma_occurrences,
+            selected_ieee_float_comparison_occurrences: lowered
+                .selected_ieee_float_comparison_occurrences,
+        })
+    }
+
+    fn lower_and_optimize(
+        self,
+    ) -> Result<PsiOptimizationStageResult, TerminalArtifactProductionError> {
+        let lowered = lower_machine(self.checked, self.machine_name)
+            .map_err(TerminalArtifactProductionError::Lowering)?;
+        run_psi_optimization(lowered, self.optimization_selections)
+            .map_err(TerminalArtifactProductionError::Optimization)
+    }
+
+    fn produce_checked_parts(
+        self,
+    ) -> Result<
+        (
+            terminal_codec::CanonicalTerminalArtifact,
+            LoweredPsi,
+            CheckedBoundaryOperatorApplicationScope,
+        ),
+        TerminalArtifactProductionError,
+    > {
+        let checked = self.checked;
+        let optimized = self.lower_and_optimize()?;
+        let (artifact, lowered) = publish_terminal_artifact(optimized)?;
+        let scope = checked_boundary_operator_scope(checked, &artifact, &lowered)
+            .map_err(TerminalArtifactProductionError::Lowering)?;
+        Ok((artifact, lowered, scope))
+    }
+}
+
+/// Publication consumes exactly the validated optimization result; retained
+/// source evidence is extracted only after canonical publication succeeds.
+fn publish_terminal_artifact(
+    optimized: PsiOptimizationStageResult,
+) -> Result<(terminal_codec::CanonicalTerminalArtifact, LoweredPsi), TerminalArtifactProductionError>
+{
     let artifact = finalize_terminal_artifact(&optimized)
         .map_err(TerminalArtifactProductionError::Artifact)?;
-    let lowered = optimized.into_lowered();
-    if artifact.manifest().semantic() != terminal_psi_identity {
-        return Err(TerminalArtifactProductionError::EntryReceipt(
-            ProgramEntryTerminalReceiptError::ArtifactSemanticIdentityMismatch,
-        ));
-    }
-    let boundary_operator_scope = checked_boundary_operator_scope(checked, &artifact, &lowered)
-        .map_err(TerminalArtifactProductionError::Lowering)?;
-    Ok(ProducedProgramEntryTerminalArtifact {
-        boundary_operator_scope,
-        artifact,
-        receipt: CheckedProgramEntryTerminalReceipt {
-            source_signature_identity,
-            source_machine_name,
-            terminal_psi_identity,
-            terminal_entry,
-        },
-        selected_ieee_float_fma_occurrences: lowered.selected_ieee_float_fma_occurrences,
-        selected_ieee_float_comparison_occurrences: lowered
-            .selected_ieee_float_comparison_occurrences,
-    })
+    Ok((artifact, optimized.into_lowered()))
 }
 
 #[derive(Debug)]

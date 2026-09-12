@@ -20,7 +20,8 @@ const RANKED_COUNTDOWN_SOURCE: &str = r#"
 #[test]
 fn natural_countdown_native_preparation_preserves_ordinary_admission() {
     let checked = checked(RANKED_COUNTDOWN_SOURCE);
-    let artifact = terminal_production::produce_terminal_artifact(&checked, "Root::countdown")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Root::countdown")
+        .produce_artifact()
         .expect("produce ranked Terminal Psi");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert!(module.machines.iter().any(|machine| matches!(

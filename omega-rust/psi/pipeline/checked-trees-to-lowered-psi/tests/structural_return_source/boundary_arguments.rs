@@ -195,7 +195,9 @@ fn unit_wrapper_artifact(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec
         &AdmissionProfile::default(),
     )
     .unwrap();
-    let published = terminal_production::produce_terminal_artifact(checked, "Root::enter").unwrap();
+    let published = terminal_production::TerminalProductionRequest::new(checked, "Root::enter")
+        .produce_artifact()
+        .unwrap();
     assert_eq!(published.semantic_bytes(), artifact.0);
     artifact
 }

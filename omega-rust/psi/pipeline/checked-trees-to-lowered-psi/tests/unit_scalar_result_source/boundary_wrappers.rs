@@ -34,7 +34,8 @@ fn artifact(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
     assert_eq!(module, lowered.semantic_module);
     assert_eq!(proof, lowered.proof_bundle);
     terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default()).unwrap();
-    let published = terminal_production::produce_terminal_artifact(checked, "Main::main")
+    let published = terminal_production::TerminalProductionRequest::new(checked, "Main::main")
+        .produce_artifact()
         .expect("source-owned shared closure publishes");
     assert_eq!(decode_module(published.semantic_bytes()).unwrap(), module);
     (semantic, evidence)
@@ -1617,7 +1618,9 @@ fn ordinary_boundary_wrapper_replays_actual_body_and_call_custody() {
         // Do not rebuild source plans here: the receiving stage must reject
         // corrupted retained evidence despite an otherwise valid typed source.
         assert!(
-            terminal_production::produce_terminal_artifact(&changed, "Main::main").is_err(),
+            terminal_production::TerminalProductionRequest::new(&changed, "Main::main")
+                .produce_artifact()
+                .is_err(),
             "{mutation}"
         );
     }

@@ -44,7 +44,8 @@ fn borrowed_case_membership_uses_an_observation_operation() {
             machine observe(choice: &Choice) -> bool {{ {body} }}
         "
         ));
-        let artifact = terminal_production::produce_terminal_artifact(&checked, "observe")
+        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "observe")
+            .produce_artifact()
             .expect("whole borrowed case membership reaches Terminal");
         let module = decode_module(artifact.semantic_bytes()).unwrap();
         assert!(

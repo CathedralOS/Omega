@@ -131,8 +131,9 @@ fn boundary_temporaries_supply_existing_ordinary_and_boundary_result_carriers() 
         let source = source(completion).replace("boundary trait Sink {", "boundary trait Sink { machine replace(token: Token, first: u16, second: u16) -> Token reaches Sink;");
         let checked = checked(&source);
         let artifact = encoded_locals(&checked, &names);
-        let published =
-            terminal_production::produce_terminal_artifact(&checked, "Main::main").unwrap();
+        let published = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+            .produce_artifact()
+            .unwrap();
         assert_eq!(
             decode_module(published.semantic_bytes()).unwrap(),
             decode_module(&artifact.0).unwrap()
@@ -159,8 +160,9 @@ fn boundary_temporary_schedule_preserves_prefix_result_slots_ids_and_residual_cl
         }
         let checked = checked(&source);
         let artifact = encoded_locals(&checked, &["prefix", "first", "spare", "measured"]);
-        let published =
-            terminal_production::produce_terminal_artifact(&checked, "Main::main").unwrap();
+        let published = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+            .produce_artifact()
+            .unwrap();
         let module = decode_module(&artifact.0).unwrap();
         assert_eq!(decode_module(published.semantic_bytes()).unwrap(), module);
         let mut machines = BTreeSet::new();

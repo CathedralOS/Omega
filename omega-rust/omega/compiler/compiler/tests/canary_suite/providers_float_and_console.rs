@@ -546,10 +546,8 @@ fn specialized_structural_fixed_operator_terminal_custody_canary_compiles() {
         Some("linux_x86_64"),
     ))
     .expect("structural fixed-token custody canary should check");
-    let produced =
-        terminal_production::produce_terminal_artifact_with_checked_boundary_operator_scope(
-            &checked, "exercise",
-        )
+    let produced = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
+        .produce_checked_artifact()
         .expect("structural fixed-token application should reach Terminal");
     produced
         .boundary_operator_scope()
@@ -681,12 +679,10 @@ fn nested_checked_boundary_operator_physical_custody_canary_compiles() {
         .find(|contract| contract.machine == helper)
         .expect("nested checked-body helper contract")
         .closed_scalar_values = Default::default();
-    let rejected = terminal_production::produce_terminal_artifact_with_callback_custody(
-        &missing_helper_contract,
-        &entry,
-        (),
-    )
-    .expect_err("a nested scalar helper cannot lose its independently replayable contract");
+    let rejected =
+        terminal_production::TerminalProductionRequest::new(&missing_helper_contract, &entry)
+            .produce_with_callback_custody(())
+            .expect_err("a nested scalar helper cannot lose its independently replayable contract");
     assert!(matches!(
         rejected.error(),
         terminal_production::TerminalArtifactProductionError::Lowering(

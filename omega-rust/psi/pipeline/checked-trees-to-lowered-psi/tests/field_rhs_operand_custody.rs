@@ -21,7 +21,8 @@ fn computed_field_rhs_rejects_same_typed_call_operand_substitution() {
     let resolved = lower_syntax_trees(&syntax).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
     let mut checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
-    let _ = terminal_production::produce_terminal_artifact(&checked, "Main::main")
+    let _ = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+        .produce_artifact()
         .expect("unmodified field RHS operands publish");
 
     let plans = &mut checked.facts.values.scalar_computations;
@@ -58,7 +59,8 @@ fn computed_field_rhs_rejects_same_typed_call_operand_substitution() {
         unreachable!()
     };
     *arguments = *second_arguments;
-    let result = terminal_production::produce_terminal_artifact(&checked, "Main::main");
+    let result = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+        .produce_artifact();
     assert!(
         result.is_err(),
         "same-typed operand substitution must reject"

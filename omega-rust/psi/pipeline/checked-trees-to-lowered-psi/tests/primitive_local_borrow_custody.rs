@@ -28,7 +28,8 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
 fn primitive_local_mutable_and_write_only_borrows_publish_with_exact_custody() {
     for source in [SOURCE.to_owned(), SOURCE.replace("&mut", "&write")] {
         let checked = checked(&source);
-        let _ = terminal_production::produce_terminal_artifact(&checked, "enter")
+        let _ = terminal_production::TerminalProductionRequest::new(&checked, "enter")
+            .produce_artifact()
             .expect("exact local borrow custody");
     }
 }
@@ -36,7 +37,8 @@ fn primitive_local_mutable_and_write_only_borrows_publish_with_exact_custody() {
 #[test]
 fn primitive_local_publication_rejects_missing_duplicate_and_drifted_borrow_facts() {
     let original = checked(SOURCE);
-    let _ = terminal_production::produce_terminal_artifact(&original, "enter")
+    let _ = terminal_production::TerminalProductionRequest::new(&original, "enter")
+        .produce_artifact()
         .expect("original custody");
     let plan = original
         .facts
@@ -125,7 +127,9 @@ fn primitive_local_publication_rejects_missing_duplicate_and_drifted_borrow_fact
             }
         }
         assert!(
-            terminal_production::produce_terminal_artifact(&changed, "enter").is_err(),
+            terminal_production::TerminalProductionRequest::new(&changed, "enter")
+                .produce_artifact()
+                .is_err(),
             "borrow custody mutation {mutation}"
         );
     }
@@ -134,7 +138,8 @@ fn primitive_local_publication_rejects_missing_duplicate_and_drifted_borrow_fact
 #[test]
 fn primitive_local_coherent_plan_and_borrow_substitution_cannot_replace_authored_actual() {
     let mut changed = checked(SOURCE);
-    let _ = terminal_production::produce_terminal_artifact(&changed, "enter")
+    let _ = terminal_production::TerminalProductionRequest::new(&changed, "enter")
+        .produce_artifact()
         .expect("original custody");
     let plan = changed
         .facts
@@ -182,5 +187,9 @@ fn primitive_local_coherent_plan_and_borrow_substitution_cannot_replace_authored
             .get_mut(handle)
             .root_symbol = spare;
     }
-    assert!(terminal_production::produce_terminal_artifact(&changed, "enter").is_err());
+    assert!(
+        terminal_production::TerminalProductionRequest::new(&changed, "enter")
+            .produce_artifact()
+            .is_err()
+    );
 }

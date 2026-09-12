@@ -44,7 +44,8 @@ fn produce(source: &str, entry: &str) -> CanonicalTerminalArtifact {
         .expect("type store-return source");
     let checked =
         typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check store-return source");
-    let artifact = terminal_production::produce_terminal_artifact(&checked, entry)
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, entry)
+        .produce_artifact()
         .expect("publish store-return Terminal");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();

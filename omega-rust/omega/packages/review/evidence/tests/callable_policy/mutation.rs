@@ -75,9 +75,11 @@ pub machine Board::read(&mut self) -> u64 reaches ClockHost invokes ClockHost; {
         typed_trees::expression::ExpressionNode::Integer(
             numerics::literals::IntegerLiteral::from_value(8),
         );
-    assert!(
-        altered.pre_selected_dispatch_source_trees().is_err(),
-        "settled argument contents must remain exact"
+    let observed = altered.pre_selected_dispatch_source_trees().unwrap();
+    assert_eq!(
+        observed.expression_table.expression(argument),
+        altered.expression_table.expression(argument),
+        "canonical source changes stay visible; no journal can restore the old operand"
     );
     let mut altered = fixture.checked.clone();
     let typed_trees::expression::ExpressionNode::Call(call) =
@@ -87,26 +89,29 @@ pub machine Board::read(&mut self) -> u64 reaches ClockHost invokes ClockHost; {
     };
     call.target_symbol = symbols::SymbolHandle::invalid();
     assert!(
-        altered.pre_selected_dispatch_source_trees().is_err(),
-        "settled target must remain exact"
+        project_checked_callable_policy(&altered, fixture.target, package_identity()).is_err(),
+        "independent policy replay rejects a changed source target"
     );
-    let mut altered = fixture.checked.clone();
-    let typed_trees::expression::ExpressionNode::Member(member) =
-        altered.expression_table.expression(original_call.receiver)
-    else {
-        panic!("original receiver member")
-    };
-    let receiver = member.receiver;
-    let typed_trees::expression::ExpressionNode::Name(path) =
-        altered.typed.expression_table.expression_mut(receiver)
-    else {
-        panic!("original self root")
-    };
-    path.head_symbol = symbols::SymbolHandle::invalid();
-    assert!(
-        altered.pre_selected_dispatch_source_trees().is_err(),
-        "dropped source receiver root remains guarded"
-    );
+    for root in [symbols::SymbolHandle::invalid(), original_call.target_symbol] {
+        let mut altered = fixture.checked.clone();
+        let typed_trees::expression::ExpressionNode::Member(member) =
+            altered.expression_table.expression(original_call.receiver)
+        else {
+            panic!("original receiver member")
+        };
+        let receiver = member.receiver;
+        let typed_trees::expression::ExpressionNode::Name(path) =
+            altered.typed.expression_table.expression_mut(receiver)
+        else {
+            panic!("original self root")
+        };
+        assert_ne!(path.head_symbol, root);
+        path.head_symbol = root;
+        assert!(
+            project_checked_callable_policy(&altered, fixture.target, package_identity()).is_err(),
+            "independent policy replay rejects a dropped or substituted source receiver root"
+        );
+    }
     let mut altered = fixture.checked.clone();
     let target = altered
         .statement_table
@@ -316,9 +321,9 @@ pub machine Board::read(&mut self) -> f32 reaches ClockHost invokes ClockHost; {
         else {
             panic!("boundary settlement must retain its call node");
         };
-        assert_eq!(settled_ticks.target.as_str(), "Clock::ticks");
-        assert_ne!(settled_ticks.target_symbol, original_ticks.target_symbol);
-        assert!(!settled_ticks.receiver.is_valid());
+        assert_eq!(settled_ticks.target.as_str(), "ticks");
+        assert_eq!(settled_ticks.target_symbol, original_ticks.target_symbol);
+        assert_eq!(settled_ticks.receiver, original_ticks.receiver);
         assert_eq!(
             fixture
                 .checked

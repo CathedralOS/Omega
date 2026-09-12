@@ -26,8 +26,9 @@ fn source_ordered_calls_reach_executable_publication() {
         .iter()
         .find(|machine| machine.name == "Main::launch")
         .unwrap();
-    let artifact =
-        terminal_production::produce_terminal_artifact(&checked, "Main::launch").unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
+        .produce_artifact()
+        .unwrap();
     let profile = proof_admission::AdmissionProfile::default();
     let providers = effects::SelectedProviderPlanFacts::default();
     for target_profile in [

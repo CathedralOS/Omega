@@ -42,7 +42,8 @@ fn composed_provider_candidate_publishes_from_ordinary_discarding_caller() {
             .composed_for_machine(provider.symbol)
             .is_some()
     );
-    let artifact = produce_terminal_artifact(&checked, "run")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "run")
+        .produce_artifact()
         .expect("checked state-graph provider belongs to the ordinary caller closure");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
@@ -93,8 +94,9 @@ fn composed_provider_candidate_preserves_helper_effects_across_every_fuel_pause(
             machine mark_middle() reaches Host + Relay { Relay::mark(7); }
         "#;
     let checked = checked_source(&source);
-    let artifact =
-        produce_terminal_artifact(&checked, "run").expect("complete provider helper closure");
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "run")
+        .produce_artifact()
+        .expect("complete provider helper closure");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert_eq!(
         module.provider_candidates.len(),
@@ -219,7 +221,8 @@ fn composed_provider_candidate_preserves_borrowed_byte_view_signature() {
         .replace("flag: bool)", "flag: bool, buffer: &mut [u8])")
         .replace("Host::read(flag)", "Host::read(flag, buffer)");
     let checked = checked_source(&source);
-    let artifact = produce_terminal_artifact(&checked, "run")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "run")
+        .produce_artifact()
         .expect("borrowed mutable byte view remains part of the composed provider signature");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let [candidate] = module.provider_candidates.as_slice() else {
@@ -248,7 +251,9 @@ fn composed_provider_candidate_preserves_borrowed_byte_view_signature() {
 fn composed_provider_candidate_rejects_result_and_body_roster_corruption() {
     let source = SOURCE.to_owned() + "machine identity(value: ReadResult) -> ReadResult { value }";
     let baseline = checked_source(&source);
-    let _ = produce_terminal_artifact(&baseline, "run").expect("unmodified exact provider");
+    let _ = terminal_production::TerminalProductionRequest::new(&baseline, "run")
+        .produce_artifact()
+        .expect("unmodified exact provider");
     let provider = baseline.facts.flow.terminal_unit_effects.composed_machines[0].machine;
     for corruption in 0..6 {
         let mut changed = baseline.clone();
@@ -292,7 +297,9 @@ fn composed_provider_candidate_rejects_result_and_body_roster_corruption() {
             _ => plans.composed_machines.clear(),
         }
         assert!(
-            produce_terminal_artifact(&changed, "run").is_err(),
+            terminal_production::TerminalProductionRequest::new(&changed, "run")
+                .produce_artifact()
+                .is_err(),
             "provider corruption {corruption}"
         );
     }

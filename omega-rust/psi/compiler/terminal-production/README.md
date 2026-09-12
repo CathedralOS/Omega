@@ -11,6 +11,13 @@ Enter [production.rs](src/production.rs). The sequence is
 Publication consumes the validated optimization-stage result, not an unoptimized
 producer-private shortcut.
 
+`TerminalProductionRequest` carries the checked trees, selected machine, and
+exact Psi optimization selection. Its artifact, checked-scope, callback-custody,
+and ProgramEntry methods share lowering/optimization and publication operations
+while retaining distinct output evidence. ProgramEntry checks its unique Unit
+entry before publication and rejoins the published semantic identity afterward.
+Callback rejection returns the original opaque sidecar without cloning it.
+
 The product keeps checked boundary-operator application scope and selected
 floating-point occurrences beside the canonical artifact. Callback custody is
 an opaque owned sidecar: carrying it does not interpret placement or grant
@@ -19,14 +26,15 @@ must rejoin the exact source/build receipts under its own authority.
 
 ## Boundary source custody at the compiler handoff
 
-Compiler Terminal handoffs restore boundary requirement calls through
-`CheckedCompilation::terminal_production_trees`. The existing inverse-edit guards
-validate selected adapter identities and operand graphs before restoration;
-checked plans remain unchanged. Adapter edits are retained separately from
-operator/FMA settlement because those transformations carry their own checked
-plans. Full package source queries undo both batches in reverse settlement order.
-This is a transitional handoff for the selected-dispatch tree, not permission to
-serialize a selected provider as a source call or to weaken call-source custody.
+Compiler Terminal handoffs borrow the canonical checked program directly.
+Boundary requirements remain source calls; exact selected adapter associations
+steer interpreter execution without rewriting their receiver or target.
+Source-derived call and ownership facts therefore describe the same calls
+Terminal receives. Native realization independently rejoins selected providers
+and source/build receipts; interpreter associations grant no native authority.
+
+Operator/FMA settlement retains its separate checked plans and expression-only
+source-query journal. It is not a boundary-call restoration mechanism.
 
 ## Source byte-view lowering
 

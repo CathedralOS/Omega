@@ -35,7 +35,8 @@ const SOURCE: &str = r#"
 #[test]
 fn authored_result_projection_retains_its_untransferred_remainder() {
     let checked = checked(SOURCE);
-    let _artifact = terminal_production::produce_terminal_artifact(&checked, "Root::enter")
+    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "Root::enter")
+        .produce_artifact()
         .expect("projected call result and its residual cleanup publish");
 }
 
@@ -207,8 +208,9 @@ fn assert_source(
     assert_eq!(decode_module(&semantic).unwrap(), *module);
     let proof = encode_proof_bundle(&lowered.proof_bundle).unwrap();
     assert_eq!(decode_proof_bundle(&proof).unwrap(), lowered.proof_bundle);
-    let published =
-        terminal_production::produce_terminal_artifact(&checked, "Root::enter").unwrap();
+    let published = terminal_production::TerminalProductionRequest::new(&checked, "Root::enter")
+        .produce_artifact()
+        .unwrap();
     assert_eq!(decode_module(published.semantic_bytes()).unwrap(), *module);
     let verified = terminal_verifier::verify_module(
         module,
@@ -629,7 +631,8 @@ fn source_result_paths_cannot_be_used_after_their_owned_move() {
             let source = source(boundary, false, body);
             if let Ok(checked) = lower_typed_trees(typed(&source)) {
                 assert!(
-                    terminal_production::produce_terminal_artifact(&checked, "Root::enter")
+                    terminal_production::TerminalProductionRequest::new(&checked, "Root::enter")
+                        .produce_artifact()
                         .is_err(),
                     "moved source unexpectedly produced an executable artifact: {source}"
                 );
@@ -646,8 +649,10 @@ fn anonymous_result_permissions_rejoin_before_publication() {
             true,
             "Sink::take(result.grid[1][1]);",
         ));
-        let _artifact = terminal_production::produce_terminal_artifact(&original, "Root::enter")
-            .expect("valid ownership evidence before mutations");
+        let _artifact =
+            terminal_production::TerminalProductionRequest::new(&original, "Root::enter")
+                .produce_artifact()
+                .expect("valid ownership evidence before mutations");
         let events = original
             .facts
             .flow
@@ -683,7 +688,8 @@ fn anonymous_result_permissions_rejoin_before_publication() {
                 }
                 *changed.facts.flow.ownership.permissions.get_mut(*handle) = altered;
                 assert!(
-                    terminal_production::produce_terminal_artifact(&changed, "Root::enter")
+                    terminal_production::TerminalProductionRequest::new(&changed, "Root::enter")
+                        .produce_artifact()
                         .is_err(),
                     "boundary={boundary}, kind={:?}, mutation={mutation}",
                     event.kind
@@ -705,7 +711,11 @@ fn anonymous_result_permissions_rejoin_before_publication() {
             .ownership
             .permissions
             .get_mut(events[3].0) = first;
-        assert!(terminal_production::produce_terminal_artifact(&changed, "Root::enter").is_err());
+        assert!(
+            terminal_production::TerminalProductionRequest::new(&changed, "Root::enter")
+                .produce_artifact()
+                .is_err()
+        );
     }
 }
 
@@ -714,7 +724,8 @@ fn sole_call_partial_return_does_not_bypass_its_live_root_limit() {
     let live_input = anonymous_source(true, false, "Sink::take(result.right);")
         .replace("machine Root::enter()", "machine Root::enter(value: Pair)");
     assert!(
-        terminal_production::produce_terminal_artifact(&checked(&live_input), "Root::enter")
+        terminal_production::TerminalProductionRequest::new(&checked(&live_input), "Root::enter")
+            .produce_artifact()
             .is_err()
     );
 }

@@ -56,7 +56,8 @@ fn assert_forwarded_input(source: &str, ordinary_helper: bool) {
         );
     }
     let checked = checked_source(&source);
-    let artifact = produce_terminal_artifact(&checked, "Record::run")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Record::run")
+        .produce_artifact()
         .expect("authored forwarding provider produces verified Terminal");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let [candidate] = module.provider_candidates.as_slice() else {

@@ -28,7 +28,8 @@ fn roundtrip(source: &str) -> lowered_psi::LoweredPsi {
         &proof_admission::AdmissionProfile::default(),
     )
     .expect("independent Boolean call requirement verification");
-    let artifact = terminal_production::produce_terminal_artifact(&checked, "Main::main")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+        .produce_artifact()
         .expect("Boolean requirement source publishes Terminal");
     assert_eq!(
         terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),

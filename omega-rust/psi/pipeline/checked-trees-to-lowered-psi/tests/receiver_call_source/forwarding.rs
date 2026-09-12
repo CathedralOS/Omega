@@ -70,8 +70,10 @@ fn transitive_write_only_self_calls_retain_receivers_in_every_declaration_order(
             );
         }
 
-        let artifact = terminal_production::produce_terminal_artifact(&checked, "Record::outer")
-            .expect("transitive receiver chain reaches canonical Terminal production");
+        let artifact =
+            terminal_production::TerminalProductionRequest::new(&checked, "Record::outer")
+                .produce_artifact()
+                .expect("transitive receiver chain reaches canonical Terminal production");
         drop(checked);
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
@@ -233,7 +235,8 @@ fn empty_shared_receiver_callee_keeps_provisional_self_erased() {
         assert_eq!(*target_machine, callee.machine);
         assert!(structural_arguments.is_empty());
 
-        let artifact = terminal_production::produce_terminal_artifact(&checked, "invoke")
+        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "invoke")
+            .produce_artifact()
             .expect("erased shared noop receiver reaches Terminal production");
         drop(checked);
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();

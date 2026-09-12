@@ -42,7 +42,8 @@ pub fn publish(source: &str, entry: &str) -> (CheckedTrees, TerminalModule, Vec<
         terminal_codec::decode_debug_map(&lowered.semantic_module, &debug_bytes).unwrap(),
         debug
     );
-    let artifact = terminal_production::produce_terminal_artifact(&checked, entry)
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, entry)
+        .produce_artifact()
         .expect("publish owned scalar graph closure");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
@@ -253,7 +254,9 @@ pub fn execute(source: &str, entry: &str, left: bool, right: bool, expected: boo
 
 pub fn reject(checked: &CheckedTrees, mutation: &str) {
     assert!(
-        terminal_production::produce_terminal_artifact(checked, "enter").is_err(),
+        terminal_production::TerminalProductionRequest::new(checked, "enter")
+            .produce_artifact()
+            .is_err(),
         "accepted owned scalar custody mutation: {mutation}"
     );
 }

@@ -30,7 +30,8 @@ machine Root::enter(&mut self) reaches Observe {
 
 fn produce(source: &str) -> terminal_codec::CanonicalTerminalArtifact {
     let checked = checked_from_source(source);
-    let artifact = terminal_production::produce_terminal_artifact(&checked, "Root::enter")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Root::enter")
+        .produce_artifact()
         .expect("projected looping callee and caller continuation publish");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
@@ -115,7 +116,11 @@ fn erased_observed_receiver_is_rejected_after_checking() {
         .unwrap();
     assert_eq!(plan.structural_parameters.len(), 1);
     plan.structural_parameters.clear();
-    assert!(terminal_production::produce_terminal_artifact(&checked, "Root::enter").is_err());
+    assert!(
+        terminal_production::TerminalProductionRequest::new(&checked, "Root::enter")
+            .produce_artifact()
+            .is_err()
+    );
 }
 
 #[test]
@@ -188,7 +193,9 @@ fn natural_rank_subject_measure_and_carrier_cannot_be_substituted() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::produce_terminal_artifact(&checked, "Root::enter").is_err(),
+            terminal_production::TerminalProductionRequest::new(&checked, "Root::enter")
+                .produce_artifact()
+                .is_err(),
             "{corruption}"
         );
     }

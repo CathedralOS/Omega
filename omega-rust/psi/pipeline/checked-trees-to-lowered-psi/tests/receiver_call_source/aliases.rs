@@ -38,8 +38,10 @@ fn direct_aliases_retain_whole_field_indexed_and_sequential_receivers() {
                 calls,
             );
             let checked = checked_from_source(&source);
-            let _artifact = terminal_production::produce_terminal_artifact(&checked, "forward")
-                .unwrap_or_else(|error| panic!("{source}: {error:?}"));
+            let _artifact =
+                terminal_production::TerminalProductionRequest::new(&checked, "forward")
+                    .produce_artifact()
+                    .unwrap_or_else(|error| panic!("{source}: {error:?}"));
         }
     }
 }
@@ -51,7 +53,9 @@ fn independent_aliases_keep_distinct_parameter_roots() {
         "let left: &write Record = &write first; let right: &write Record = &write second;",
         "left.replace(value); right.replace(value);",
     ));
-    let artifact = terminal_production::produce_terminal_artifact(&checked, "forward").unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "forward")
+        .produce_artifact()
+        .unwrap();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let caller = module
         .machines
@@ -89,7 +93,9 @@ fn attached_self_alias_retains_its_container() {
             "held.records[1].replace(value);",
         ));
         let _artifact =
-            terminal_production::produce_terminal_artifact(&checked, "Container::forward").unwrap();
+            terminal_production::TerminalProductionRequest::new(&checked, "Container::forward")
+                .produce_artifact()
+                .unwrap();
     }
 }
 
@@ -142,7 +148,9 @@ fn dotted_alias_replay_rejects_changed_field_path_and_endpoint() {
             }
         }
         assert!(
-            terminal_production::produce_terminal_artifact(&checked, "forward").is_err(),
+            terminal_production::TerminalProductionRequest::new(&checked, "forward")
+                .produce_artifact()
+                .is_err(),
             "field substitution {mutation}"
         );
     }
@@ -221,7 +229,9 @@ fn alias_replay_rejects_initializer_and_operand_substitution() {
             }
         }
         assert!(
-            terminal_production::produce_terminal_artifact(&checked, "forward").is_err(),
+            terminal_production::TerminalProductionRequest::new(&checked, "forward")
+                .produce_artifact()
+                .is_err(),
             "substitution {mutation}"
         );
     }
@@ -234,7 +244,9 @@ fn alias_replay_rejects_changed_source_loan_and_lifetime() {
         "let held: &write [Record; 2] = &write destination;",
         "held[1].replace(value);",
     ));
-    let _artifact = terminal_production::produce_terminal_artifact(&original, "forward").unwrap();
+    let _artifact = terminal_production::TerminalProductionRequest::new(&original, "forward")
+        .produce_artifact()
+        .unwrap();
     let resource_handle = original
         .facts
         .borrow
@@ -285,7 +297,9 @@ fn alias_replay_rejects_changed_source_loan_and_lifetime() {
             }
         }
         assert!(
-            terminal_production::produce_terminal_artifact(&checked, "forward").is_err(),
+            terminal_production::TerminalProductionRequest::new(&checked, "forward")
+                .produce_artifact()
+                .is_err(),
             "mutation {mutation}"
         );
     }
@@ -299,7 +313,8 @@ fn mutable_parent_alias_attenuates_before_repeated_receiver_calls() {
         "child.replace(17); child.replace(value);",
     );
     let checked = checked_from_source(&text);
-    let artifact = terminal_production::produce_terminal_artifact(&checked, "forward")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "forward")
+        .produce_artifact()
         .unwrap_or_else(|error| panic!("{text}: {error:?}"));
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert_eq!(module.reborrow_root_handoffs.len(), 1);
@@ -325,7 +340,8 @@ fn nested_aliases_retain_immediate_parent_chains() {
                 "child[0].replace(value); child[1].replace(value);",
             );
             let checked = checked_from_source(&text);
-            let artifact = terminal_production::produce_terminal_artifact(&checked, "forward")
+            let artifact = terminal_production::TerminalProductionRequest::new(&checked, "forward")
+                .produce_artifact()
                 .unwrap_or_else(|error| panic!("{text}: {error:?}"));
             let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
             assert_eq!(module.reborrow_root_handoffs.len(), 1);
@@ -341,7 +357,9 @@ fn nested_alias_replay_rejects_changed_immediate_parent_and_lifecycle() {
         "let held: &write [Record; 2] = &write destination; let middle: &write [Record; 2] = &write held; let child: &write [Record; 2] = &write middle;",
         "child[1].replace(value);",
     ));
-    let artifact = terminal_production::produce_terminal_artifact(&original, "forward").unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(&original, "forward")
+        .produce_artifact()
+        .unwrap();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert_eq!(module.reborrow_root_handoffs.len(), 1);
     assert_eq!(module.reborrow_root_handoffs[0].lineage.len(), 2);
@@ -436,7 +454,9 @@ fn nested_alias_replay_rejects_changed_immediate_parent_and_lifecycle() {
             }
         }
         assert!(
-            terminal_production::produce_terminal_artifact(&checked, "forward").is_err(),
+            terminal_production::TerminalProductionRequest::new(&checked, "forward")
+                .produce_artifact()
+                .is_err(),
             "nested mutation {mutation}"
         );
     }
@@ -451,7 +471,9 @@ fn nested_alias_callee_retains_and_replays_its_handoff() {
     );
     text.push_str("machine wrapper(destination: &write [Record; 2], value: u16) { forward(&write destination, value); }");
     let original = checked_from_source(&text);
-    let artifact = terminal_production::produce_terminal_artifact(&original, "wrapper").unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(&original, "wrapper")
+        .produce_artifact()
+        .unwrap();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert_eq!(module.reborrow_root_handoffs.len(), 1);
     assert_ne!(module.reborrow_root_handoffs[0].machine, module.entry);
@@ -516,7 +538,9 @@ fn nested_alias_callee_retains_and_replays_its_handoff() {
             }
         }
         assert!(
-            terminal_production::produce_terminal_artifact(&checked, "wrapper").is_err(),
+            terminal_production::TerminalProductionRequest::new(&checked, "wrapper")
+                .produce_artifact()
+                .is_err(),
             "callee custody mutation {mutation}"
         );
     }

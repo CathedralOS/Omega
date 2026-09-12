@@ -16,8 +16,12 @@ fn array_fixture(length: usize, field: bool) -> terminal_codec::CanonicalTermina
         format!("machine run(out: &mut [u8; {length}]) {{ put(out, 65); put(out, 0); }}")
     };
     let checked = checked_source(&format!("{}\n{caller}", byte_sequence_write::PUT));
-    produce_terminal_artifact(&checked, if field { "Record::run" } else { "run" })
-        .expect("source-produced raw fixed array lends a mutable view")
+    terminal_production::TerminalProductionRequest::new(
+        &checked,
+        if field { "Record::run" } else { "run" },
+    )
+    .produce_artifact()
+    .expect("source-produced raw fixed array lends a mutable view")
 }
 
 fn entry_argument(artifact: &terminal_codec::CanonicalTerminalArtifact) -> TerminalStructuralValue {
@@ -185,7 +189,9 @@ fn fixed_byte_array_views_replay_authored_field_and_access() {
          machine Record::run(&mut self) {{ put(&mut self.out,65); }}",
         byte_sequence_write::PUT
     ));
-    let _artifact = produce_terminal_artifact(&checked, "Record::run").unwrap();
+    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "Record::run")
+        .produce_artifact()
+        .unwrap();
     for change_access in [false, true] {
         let mut changed = checked.clone();
         let call = changed

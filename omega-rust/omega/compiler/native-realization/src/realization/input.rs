@@ -113,11 +113,9 @@ mod tests {
             "data Main {} machine Main::launch() {}",
         );
         let produced =
-            terminal_production::produce_terminal_artifact_with_checked_boundary_operator_scope(
-                &checked,
-                "Main::launch",
-            )
-            .expect("produce Terminal fixture");
+            terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
+                .produce_checked_artifact()
+                .expect("produce Terminal fixture");
         produced.into_parts().0
     }
 
@@ -133,7 +131,8 @@ mod tests {
                 }
             "#,
         );
-        terminal_production::produce_terminal_artifact(&checked, "Root::cleanup_prefix")
+        terminal_production::TerminalProductionRequest::new(&checked, "Root::cleanup_prefix")
+            .produce_artifact()
             .expect("produce alternate Terminal fixture")
     }
 

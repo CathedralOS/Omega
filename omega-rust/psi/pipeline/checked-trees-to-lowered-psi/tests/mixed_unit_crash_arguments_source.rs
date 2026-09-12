@@ -133,7 +133,8 @@ fn roundtrip(checked: &checked_trees::CheckedTrees) -> lowered_psi::LoweredPsi {
         &proof_admission::AdmissionProfile::default(),
     )
     .expect("mixed Unit crash predicate verifies independently");
-    let artifact = terminal_production::produce_terminal_artifact(checked, "Main::main")
+    let artifact = terminal_production::TerminalProductionRequest::new(checked, "Main::main")
+        .produce_artifact()
         .expect("mixed Unit crash predicate publishes");
     assert_eq!(
         terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),

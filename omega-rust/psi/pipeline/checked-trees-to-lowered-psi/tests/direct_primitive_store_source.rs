@@ -68,7 +68,8 @@ fn execute(source: &str, arguments: &[TerminalScalarValue], expected: &[Terminal
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check");
-    let artifact = terminal_production::produce_terminal_artifact(&checked, "Sink::fill")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Sink::fill")
+        .produce_artifact()
         .expect("publish exact store sequence");
     let module =
         terminal_codec::decode_module(artifact.semantic_bytes()).expect("reload semantics");

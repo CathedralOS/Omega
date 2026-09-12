@@ -42,7 +42,8 @@ fn checked(source: &str) -> CheckedTrees {
 
 fn publish_original(source: &str) -> CheckedTrees {
     let checked = checked(source);
-    let artifact = terminal_production::produce_terminal_artifact(&checked, "enter")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
+        .produce_artifact()
         .expect("unmodified source must publish before custody mutations are meaningful");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert!(
@@ -61,7 +62,9 @@ fn publish_original(source: &str) -> CheckedTrees {
 
 fn reject(checked: &CheckedTrees, mutation: &str) {
     assert!(
-        terminal_production::produce_terminal_artifact(checked, "enter").is_err(),
+        terminal_production::TerminalProductionRequest::new(checked, "enter")
+            .produce_artifact()
+            .is_err(),
         "publication accepted computed borrow mutation: {mutation}"
     );
 }

@@ -32,7 +32,8 @@ fn assert_source_with_scalars(
     expected_ticks: &[terminal_interpreter::TerminalScalarValue],
 ) {
     let checked = checked(source);
-    let artifact = terminal_production::produce_terminal_artifact(&checked, "Root::enter")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Root::enter")
+        .produce_artifact()
         .unwrap_or_else(|error| panic!("{source}\n{error:?}"));
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter").unwrap();
     let module = &lowered.semantic_module;
@@ -323,7 +324,8 @@ fn scalar_projection_admission_keeps_parameter_and_final_return_limits() {
              machine Root::enter(first: u16, value: Pair) {{ {body} }}"
         );
         assert!(
-            terminal_production::produce_terminal_artifact(&checked(&source), "Root::enter")
+            terminal_production::TerminalProductionRequest::new(&checked(&source), "Root::enter")
+                .produce_artifact()
                 .is_err(),
             "only result-root Jump continuations admit scalar callers"
         );
@@ -414,7 +416,9 @@ fn projected_continuation_plans_reject_cleanup_and_permission_drift() {
             };
             let original = checked(&format!("{source} machine Sink::done() {{}}"));
             let _artifact =
-                terminal_production::produce_terminal_artifact(&original, "Root::enter").unwrap();
+                terminal_production::TerminalProductionRequest::new(&original, "Root::enter")
+                    .produce_artifact()
+                    .unwrap();
             let root = original
                 .machines()
                 .iter()
@@ -516,7 +520,8 @@ fn projected_continuation_plans_reject_cleanup_and_permission_drift() {
                     _ => unreachable!(),
                 }
                 assert!(
-                    terminal_production::produce_terminal_artifact(&changed, "Root::enter")
+                    terminal_production::TerminalProductionRequest::new(&changed, "Root::enter")
+                        .produce_artifact()
                         .is_err(),
                     "boundary={boundary}, empty={empty}, cleanup mutation={mutation}"
                 );
@@ -544,8 +549,12 @@ fn projected_continuation_plans_reject_cleanup_and_permission_drift() {
                         _ => unreachable!(),
                     }
                     assert!(
-                        terminal_production::produce_terminal_artifact(&changed, "Root::enter")
-                            .is_err(),
+                        terminal_production::TerminalProductionRequest::new(
+                            &changed,
+                            "Root::enter"
+                        )
+                        .produce_artifact()
+                        .is_err(),
                         "boundary={boundary}, empty={empty}, event={:?}, permission mutation={mutation}",
                         event.kind
                     );

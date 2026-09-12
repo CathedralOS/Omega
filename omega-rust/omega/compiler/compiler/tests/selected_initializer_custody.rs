@@ -113,7 +113,8 @@ fn settled_selected_initializer_lowers_and_cannot_be_deleted() {
     };
     assert_eq!(rewritten.target_symbol, *realization_state);
 
-    let artifact = terminal_production::produce_terminal_artifact(&settled, "Root::enter")
+    let artifact = terminal_production::TerminalProductionRequest::new(&settled, "Root::enter")
+        .produce_artifact()
         .expect("selected initializer lowers without ordinary occurrence custody");
     let module = terminal_codec::decode_module(artifact.semantic_bytes())
         .expect("decode selected initializer artifact");
@@ -144,7 +145,9 @@ fn settled_selected_initializer_lowers_and_cannot_be_deleted() {
         .expect("retained caller");
     caller.operations.remove(0);
     assert!(
-        terminal_production::produce_terminal_artifact(&deleted, "Root::enter").is_err(),
+        terminal_production::TerminalProductionRequest::new(&deleted, "Root::enter")
+            .produce_artifact()
+            .is_err(),
         "source-derived initializer coverage must reject a deleted selected operation"
     );
 }

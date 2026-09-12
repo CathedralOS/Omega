@@ -506,7 +506,8 @@ mod tests {
         append_closed_conformance_applications_excluding(&checked, &owners, root, &mut module)
             .expect("identical retained callee application is reused");
         assert_eq!(module, once);
-        let artifact = terminal_production::produce_terminal_artifact(&checked, "Main::main")
+        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+            .produce_artifact()
             .expect("public production retains both source-owned applications");
         assert_eq!(
             terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),

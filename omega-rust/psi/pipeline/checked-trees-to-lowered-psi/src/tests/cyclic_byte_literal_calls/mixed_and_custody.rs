@@ -156,7 +156,9 @@ machine Main::main(&mut self, selected: bool, fail: bool) reaches Trace crashes 
 #[test]
 fn mixed_literal_positions_keep_scalars_across_selective_operand_control() {
     let checked = checked_source(SOURCE);
-    let artifact = produce_terminal_artifact(&checked, "Main::main").unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+        .produce_artifact()
+        .unwrap();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
         .machines

@@ -523,6 +523,55 @@ impl<'program> Evaluator<'program> {
         call: &typed_trees::expression::TableCallExpression,
         frame: &Frame,
     ) -> EvalResult<Value> {
+        // A transition's guard subject evaluates ONCE per transition evaluation: the
+        // parser lowers `transition self.f(x) { true -> a false -> b }` into one guard
+        // per arm, each holding a COPY of the subject call (distinct handles, identical
+        // structure). A later arm reuses the earlier arm's result instead of re-running
+        // the callee's side effects -- matching the native lowering's shared prelude.
+        if self.guard_depth > 0 {
+            let memo = frame.guard_call_results.borrow();
+            for (seen, value) in memo.iter() {
+                if self
+                    .program
+                    .expression_table
+                    .expressions_structurally_equal(*seen, handle)
+                {
+                    return Ok(value.clone());
+                }
+            }
+        }
+
+        let receiver_symbol = match self.program.expression_table.expression(call.receiver) {
+            ExpressionNode::Member(member) => member.member_symbol,
+            ExpressionNode::Name(path) => path.symbol,
+            _ => SymbolHandle::invalid(),
+        };
+        if let Some(dispatch) = self.selected_boundary_adapter(receiver_symbol, call.target_symbol)
+        {
+            let receiver = if dispatch.forward_receiver {
+                Some(EvaluatedArgument::plain(
+                    self.eval_argument(call.receiver, frame)?,
+                ))
+            } else {
+                None
+            };
+            let value = self.run_boundary_adapter(
+                dispatch,
+                receiver,
+                self.program
+                    .expression_table
+                    .expression_handles(call.arguments),
+                frame,
+            )?;
+            if self.guard_depth > 0 {
+                frame
+                    .guard_call_results
+                    .borrow_mut()
+                    .push((handle, value.clone()));
+            }
+            return Ok(value);
+        }
+
         // Builtins: max / min over two integer/float operands.
         let target = call.target.as_str();
         if let Some(value) = self.try_build_root_resolve_value_call(call, frame)? {
@@ -870,24 +919,6 @@ impl<'program> Evaluator<'program> {
             let value = cell.borrow().clone();
             if matches!(value, Value::Str(_)) {
                 return Ok(value);
-            }
-        }
-
-        // A transition's guard subject evaluates ONCE per transition evaluation: the
-        // parser lowers `transition self.f(x) { true -> a false -> b }` into one guard
-        // per arm, each holding a COPY of the subject call (distinct handles, identical
-        // structure). A later arm reuses the earlier arm's result instead of re-running
-        // the callee's side effects -- matching the native lowering's shared prelude.
-        if self.guard_depth > 0 {
-            let memo = frame.guard_call_results.borrow();
-            for (seen, value) in memo.iter() {
-                if self
-                    .program
-                    .expression_table
-                    .expressions_structurally_equal(*seen, handle)
-                {
-                    return Ok(value.clone());
-                }
             }
         }
 

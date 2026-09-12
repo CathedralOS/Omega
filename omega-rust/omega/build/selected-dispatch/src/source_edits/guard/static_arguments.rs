@@ -1,13 +1,6 @@
 use super::*;
 use typed_trees::expression::TableCallExpression;
 
-/// Bound recursive owned static syntax before any journal node clone.
-pub(in super::super) fn validate_static_arguments(
-    arguments: &[StaticMachineArgument],
-) -> Result<(), Vec<Diagnostic>> {
-    walk(arguments, |_| Ok(()))
-}
-
 pub(in super::super) fn validate_call_static_arguments(
     call: &TableCallExpression,
 ) -> Result<(), Vec<Diagnostic>> {

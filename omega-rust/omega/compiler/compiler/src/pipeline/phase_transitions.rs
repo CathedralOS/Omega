@@ -28,7 +28,6 @@ pub(super) struct CheckedProgramSurface {
 pub(super) struct SelectedExecutionSettlementSurface {
     pub(super) program: Arc<CheckedProgram>,
     pub(super) dispatch_source_edits: selected_dispatch::SelectedDispatchSourceEdits,
-    pub(super) boundary_dispatch_source_edits: selected_dispatch::SelectedDispatchSourceEdits,
     pub(super) selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
     pub(super) selected_provider_grants: Vec<trust_model::ResolvedAuthoredSelectedProviderGrant>,
     pub(super) callback_placements: Vec<backend_plan::BoundNominalCallbackPlacement>,
@@ -324,11 +323,10 @@ pub(super) fn settle_selected_execution(
             ))]);
         }
     };
-    let boundary_dispatch_source_edits =
-        selected_dispatch::settle_selected_boundary_adapter_dispatch_with_source_edits(
-            &mut checked.program,
-            &checked.selected_provider_plan_facts,
-        )?;
+    selected_dispatch::settle_selected_boundary_adapter_dispatch(
+        &mut checked.program,
+        &checked.selected_provider_plan_facts,
+    )?;
     let task_activations = crate::pipeline::task_plans::elaborate_task_activation_plans(
         &checked.program,
         &checked.selected_provider_plan_facts,
@@ -339,7 +337,6 @@ pub(super) fn settle_selected_execution(
     Ok(SelectedExecutionSettlementSurface {
         program: checked.program,
         dispatch_source_edits,
-        boundary_dispatch_source_edits,
         selected_provider_plan_facts: checked.selected_provider_plan_facts,
         selected_provider_grants: checked.selected_provider_grants,
         callback_placements: checked.callback_placements,

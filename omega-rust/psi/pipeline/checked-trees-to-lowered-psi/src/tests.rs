@@ -16,12 +16,7 @@ use std::{path::PathBuf, sync::Arc};
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use symbols::SymbolHandle;
 use syntax_trees_to_symbol_resolved_trees::{lower_syntax_trees, lower_syntax_trees_with_sources};
-use terminal_production::{
-    ProgramEntryTerminalReceiptError, TerminalArtifactProductionError,
-    produce_program_entry_terminal_artifact, produce_terminal_artifact,
-    produce_terminal_artifact_with_callback_custody,
-    produce_terminal_artifact_with_checked_boundary_operator_scope,
-};
+use terminal_production::{ProgramEntryTerminalReceiptError, TerminalArtifactProductionError};
 use terminal_psi::BindingRelevance;
 use tokens_to_syntax_trees::{
     parse_syntax_trees, parse_syntax_trees_into_with_id, parse_syntax_trees_with_id,
@@ -1357,6 +1352,89 @@ fn terminal_multihop_root_handoff_round_trips_and_rejects_lineage_drift() {
 }
 
 #[test]
+fn terminal_production_request_preserves_configuration_across_evidence_products() {
+    let checked = checked_source("data Main {} machine Main::launch() {}");
+    for selections in [
+        optimization::PsiOptimizationSelections::default(),
+        optimization::PsiOptimizationSelections::new([
+            optimization::PsiOptimization::DeadPureScalarElimination,
+        ])
+        .expect("unique selection"),
+    ] {
+        let request = || terminal_production::TerminalProductionRequest {
+            checked: &checked,
+            machine_name: "Main::launch",
+            optimization_selections: selections.clone(),
+        };
+        let artifact = request().produce_artifact().expect("portable artifact");
+        let scoped = request()
+            .produce_checked_artifact()
+            .expect("checked artifact");
+        let callbacks = request()
+            .produce_with_callback_custody(Box::new([11u64, 29u64]))
+            .expect("callback artifact");
+        let entry = request()
+            .produce_program_entry([7; 32])
+            .expect("entry artifact");
+        assert_eq!(artifact.optimization().selections(), &selections);
+        assert_eq!(&artifact, scoped.artifact());
+        assert_eq!(&artifact, callbacks.artifact());
+        assert_eq!(&artifact, entry.artifact());
+        assert_eq!(
+            scoped.boundary_operator_scope(),
+            callbacks.boundary_operator_scope()
+        );
+        assert_eq!(
+            scoped.boundary_operator_scope(),
+            entry.boundary_operator_scope()
+        );
+        assert_eq!(entry.receipt().source_signature_identity(), [7; 32]);
+        assert_eq!(entry.receipt().source_machine_name(), "Main::launch");
+        assert_eq!(
+            entry.receipt().terminal_psi_identity(),
+            artifact.manifest().semantic()
+        );
+    }
+}
+
+#[test]
+fn terminal_production_request_returns_nonclone_callback_custody_after_optimization_rejection() {
+    #[derive(Debug)]
+    struct CallbackCustody(Box<[u64; 2]>);
+
+    let checked = checked_source("data Main {} machine Main::launch() {}");
+    let custody = CallbackCustody(Box::new([11, 29]));
+    let allocation = custody.0.as_ptr();
+    let request = terminal_production::TerminalProductionRequest {
+        checked: &checked,
+        machine_name: "Main::launch",
+        optimization_selections: optimization::PsiOptimizationSelections::new([
+            optimization::PsiOptimization::ControlFlowCleanup,
+        ])
+        .expect("unique unsupported selection"),
+    };
+    let rejected = request
+        .produce_with_callback_custody(custody)
+        .expect_err("unsupported optimization rejects after successful lowering");
+    assert!(matches!(
+        rejected.error(),
+        TerminalArtifactProductionError::Optimization(
+            PsiOptimizationStageError::UnsupportedSelection(
+                optimization::PsiOptimization::ControlFlowCleanup
+            )
+        )
+    ));
+    let (_, custody) = rejected.into_parts();
+    assert_eq!(custody.0.as_ptr(), allocation);
+    let produced = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
+        .produce_with_callback_custody(custody)
+        .expect("returned custody can retry identity production");
+    let (_, _, custody, _, _) = produced.into_parts();
+    assert_eq!(custody.0.as_ptr(), allocation);
+    assert_eq!(*custody.0, [11, 29]);
+}
+
+#[test]
 fn callback_custody_crosses_terminal_production_in_exact_order_and_returns_on_rejection() {
     let checked = checked_source(
         r#"
@@ -1365,23 +1443,23 @@ fn callback_custody_crosses_terminal_production_in_exact_order_and_returns_on_re
         "#,
     );
     let custody = vec![(11u64, "first"), (29u64, "second")];
-    let produced =
-        produce_terminal_artifact_with_callback_custody(&checked, "Main::launch", custody.clone())
-            .expect("opaque callback custody crosses canonical Terminal production");
+    let produced = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
+        .produce_with_callback_custody(custody.clone())
+        .expect("opaque callback custody crosses canonical Terminal production");
     assert_eq!(produced.callback_custody(), &custody);
     produced.artifact().validate().expect("canonical artifact");
     let (_, _, returned, _, _) = produced.into_parts();
     assert_eq!(returned, custody);
 
     let swapped = vec![(29u64, "second"), (11u64, "first")];
-    let produced =
-        produce_terminal_artifact_with_callback_custody(&checked, "Main::launch", swapped.clone())
-            .expect("opaque callback custody preserves caller-provided order");
+    let produced = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
+        .produce_with_callback_custody(swapped.clone())
+        .expect("opaque callback custody preserves caller-provided order");
     assert_eq!(produced.callback_custody(), &swapped);
 
-    let rejected =
-        produce_terminal_artifact_with_callback_custody(&checked, "Main::missing", custody.clone())
-            .expect_err("missing Terminal machine rejects transactionally");
+    let rejected = terminal_production::TerminalProductionRequest::new(&checked, "Main::missing")
+        .produce_with_callback_custody(custody.clone())
+        .expect_err("missing Terminal machine rejects transactionally");
     let TerminalArtifactProductionError::Lowering(error) = rejected.error() else {
         panic!("missing machine must reject during lowering");
     };
@@ -1398,9 +1476,9 @@ fn checked_boundary_operator_scope_rejects_terminal_artifact_substitution() {
             machine Main::launch() {}
         "#,
     );
-    let produced =
-        produce_terminal_artifact_with_checked_boundary_operator_scope(&first, "Main::launch")
-            .expect("checked Terminal production");
+    let produced = terminal_production::TerminalProductionRequest::new(&first, "Main::launch")
+        .produce_checked_artifact()
+        .expect("checked Terminal production");
 
     let second = checked_source(
         r#"
@@ -1410,7 +1488,8 @@ fn checked_boundary_operator_scope_rejects_terminal_artifact_substitution() {
             machine Main::launch() { Helper::touch(); }
         "#,
     );
-    let substituted = produce_terminal_artifact(&second, "Main::launch")
+    let substituted = terminal_production::TerminalProductionRequest::new(&second, "Main::launch")
+        .produce_artifact()
         .expect("distinct canonical Terminal artifact");
     let first_lowered = lower_machine(&first, "Main::launch").expect("first source lowers");
     assert_eq!(
@@ -1460,9 +1539,9 @@ fn checked_boundary_operator_scope_retains_the_complete_exact_demand_roster() {
         "#,
     );
     checked.facts.operators.boundary_applications = vec![expected.clone()];
-    let produced =
-        produce_terminal_artifact_with_checked_boundary_operator_scope(&checked, "Main::launch")
-            .expect("checked Terminal production retains exact D29 demand custody");
+    let produced = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
+        .produce_checked_artifact()
+        .expect("checked Terminal production retains exact D29 demand custody");
 
     assert_eq!(
         produced.boundary_operator_scope().applications(),
@@ -1481,12 +1560,9 @@ fn program_entry_receipt_binds_checked_source_to_canonical_terminal_entry() {
         "#,
     );
     let source_signature_identity = [0x5a; 32];
-    let produced = produce_program_entry_terminal_artifact(
-        &checked,
-        "Main::launch",
-        source_signature_identity,
-    )
-    .expect("produce checked Unit ProgramEntry artifact");
+    let produced = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
+        .produce_program_entry(source_signature_identity)
+        .expect("produce checked Unit ProgramEntry artifact");
     let receipt = produced.receipt();
     let decoded = terminal_codec::decode_module(produced.artifact().semantic_bytes())
         .expect("decode canonical semantic module");
@@ -1550,11 +1626,11 @@ fn program_entry_receipt_retains_two_granted_extent_roots_and_their_boundary_han
         "#,
     );
     let source_signature_identity = [0xa5; 32];
-    let produced = produce_program_entry_terminal_artifact(
+    let produced = terminal_production::TerminalProductionRequest::new(
         &checked,
         "ProgramLocalProducer::handoff",
-        source_signature_identity,
     )
+    .produce_program_entry(source_signature_identity)
     .expect("produce exact two-root Unit ProgramEntry artifact");
     let receipt = produced.receipt();
     let decoded = terminal_codec::decode_module(produced.artifact().semantic_bytes())
@@ -1698,7 +1774,8 @@ fn program_entry_receipt_rejects_a_scalar_result_machine() {
             machine Main::launch(token: Token) -> u64 { 7u64 }
         "#,
     );
-    let error = produce_program_entry_terminal_artifact(&checked, "Main::launch", [0x11; 32])
+    let error = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
+        .produce_program_entry([0x11; 32])
         .expect_err("ProgramEntry receipt requires a Unit result");
     assert!(
         matches!(

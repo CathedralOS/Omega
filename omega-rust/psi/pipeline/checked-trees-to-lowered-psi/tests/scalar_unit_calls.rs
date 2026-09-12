@@ -42,7 +42,8 @@ fn unsigned(value: u128) -> TerminalScalarValue {
 
 fn execute(source: &str, arguments: &[TerminalScalarValue], expected: TerminalScalarValue) {
     let checked = checked(source);
-    let artifact = terminal_production::produce_terminal_artifact(&checked, "observe")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "observe")
+        .produce_artifact()
         .expect("scalar caller retains its ordinary Unit call closure");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();

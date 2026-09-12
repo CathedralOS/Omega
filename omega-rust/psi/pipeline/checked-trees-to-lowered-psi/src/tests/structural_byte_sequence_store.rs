@@ -12,8 +12,10 @@ fn bounded_byte_field_literal_replacement_publishes_terminal() {
             machine Record::replace(&mut self) {{ self.out = "{literal}"; }}
             "#
         ));
-        let artifact = produce_terminal_artifact(&checked, "Record::replace")
-            .expect("checked literal replacement publishes verified Terminal");
+        let artifact =
+            terminal_production::TerminalProductionRequest::new(&checked, "Record::replace")
+                .produce_artifact()
+                .expect("checked literal replacement publishes verified Terminal");
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         terminal_verifier::validate_module(&module).unwrap();
         let entry = module
@@ -132,7 +134,8 @@ fn byte_replacements_preserve_sibling_and_call_order_at_each_fuel_pause() {
         }
     "#,
     );
-    let artifact = produce_terminal_artifact(&checked, "Record::run")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Record::run")
+        .produce_artifact()
         .expect("mixed stores and receiver call publish together");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
@@ -267,7 +270,9 @@ fn nested_record_byte_field_store_retains_its_exact_carrier_path() {
         machine Holder::replace(&mut self) { self.record.out = "XY"; }
     "#,
     );
-    let artifact = produce_terminal_artifact(&checked, "Holder::replace").unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Holder::replace")
+        .produce_artifact()
+        .unwrap();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
         .machines

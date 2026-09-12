@@ -6,6 +6,7 @@ impl<'program> Evaluator<'program> {
         Self {
             program,
             operator_facts: None,
+            boundary_adapter_dispatch: &[],
             selected_build_time_operators: &[],
             stdout: Vec::new(),
             stderr: Vec::new(),
@@ -61,6 +62,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn new_checked(checked: &'program CheckedTrees, stdin: &'program [u8]) -> Self {
         let mut evaluator = Self::new(&checked.typed, stdin);
         evaluator.operator_facts = Some(&checked.facts.operators);
+        evaluator.boundary_adapter_dispatch = &checked.facts.boundary_adapter_dispatch;
         evaluator
     }
 

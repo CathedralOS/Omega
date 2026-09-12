@@ -1203,6 +1203,7 @@ struct Evaluator<'program> {
     /// a root-preserving intrinsic rewrite can still report the source
     /// operation. Const/build-time evaluation runs before that evidence exists.
     operator_facts: Option<&'program CheckedOperatorFacts>,
+    boundary_adapter_dispatch: &'program [checked_trees::CheckedBoundaryAdapterDispatch],
     selected_build_time_operators: &'program [crate::SelectedBuildTimeBinaryOperator],
     stdout: Vec<u8>,
     stderr: Vec<u8>,
@@ -1362,6 +1363,8 @@ mod boundary_console;
 #[path = "evaluator/build_paths.rs"]
 mod build_paths;
 use build_paths::{rooted_build_path_parts, validate_build_relative_path};
+#[path = "evaluator/boundary_adapter_dispatch.rs"]
+mod boundary_adapter_dispatch;
 #[path = "evaluator/casts_and_recasts.rs"]
 mod casts_and_recasts;
 #[path = "evaluator/execution.rs"]

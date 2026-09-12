@@ -785,7 +785,8 @@ fn lowers_stored_dynamic_descriptor_as_verified_terminal_storage_and_reload() {
             ..
         }
     ));
-    let artifact = produce_terminal_artifact(&checked, "Main::run")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
+        .produce_artifact()
         .expect("stored dynamic module has canonical source-free encoding");
     assert_eq!(
         terminal_codec::decode_module(artifact.semantic_bytes())
@@ -853,7 +854,8 @@ fn lowers_stored_dynamic_result_into_console_effect_control() {
         caller.blocks[0].terminator,
         Terminator::Conditional { .. }
     ));
-    let artifact = produce_terminal_artifact(&checked, "Main::run")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
+        .produce_artifact()
         .expect("stored dynamic result control has canonical source-free encoding");
     assert_eq!(
         terminal_codec::decode_module(artifact.semantic_bytes())
@@ -1058,7 +1060,8 @@ fn lowers_rebound_dynamic_custody_as_verified_indirect_terminal_dispatch() {
             ..
         }
     ));
-    let _artifact = produce_terminal_artifact(&checked, "Main::run")
+    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
+        .produce_artifact()
         .expect("rebound dynamic module has canonical source-free encoding");
 
     checked
@@ -1274,7 +1277,8 @@ fn composes_one_direct_dynamic_scalar_forwarder_without_fabricating_a_rebound() 
         terminal_psi::TerminalDynamicDescriptorSource::Selection { ordinal: 1 };
     assert!(terminal_verifier::validate_module(&lowered.semantic_module).is_err());
 
-    let artifact = produce_terminal_artifact(&checked, "Main::run")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
+        .produce_artifact()
         .expect("forwarded direct scalar module should encode");
     let decoded = terminal_codec::decode_module(artifact.semantic_bytes())
         .expect("forwarded direct scalar module should decode");
@@ -1345,7 +1349,8 @@ fn lowers_two_dynamic_predecessors_into_one_terminal_parameter() {
         )
     }));
 
-    let artifact = produce_terminal_artifact(&checked, "Main::run")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
+        .produce_artifact()
         .expect("joined dynamic module should encode canonically");
     assert_eq!(
         terminal_codec::decode_module(artifact.semantic_bytes())
@@ -1513,7 +1518,8 @@ fn lowers_transparent_forwarding_chain_after_a_two_predecessor_join() {
     }));
     assert_eq!(lowered.source_call_occurrences.len(), 5);
 
-    let artifact = produce_terminal_artifact(&checked, "Main::run")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
+        .produce_artifact()
         .expect("forwarded joined module should encode canonically");
     assert_eq!(
         terminal_codec::decode_module(artifact.semantic_bytes())
@@ -1590,7 +1596,8 @@ fn lowers_result_less_dynamic_join_through_the_shared_helper_chain() {
     }));
     assert_eq!(lowered.source_call_occurrences.len(), 5);
 
-    let artifact = produce_terminal_artifact(&checked, "Main::run")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
+        .produce_artifact()
         .expect("result-less joined module should encode canonically");
     assert_eq!(
         terminal_codec::decode_module(artifact.semantic_bytes())
@@ -1680,7 +1687,8 @@ fn lowers_parameter_sourced_dynamic_forwarding_as_two_explicit_helpers() {
     );
     assert_eq!(lowered.source_call_occurrences.len(), 3);
 
-    let artifact = produce_terminal_artifact(&checked, "Main::run")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
+        .produce_artifact()
         .expect("multi-hop dynamic module should encode canonically");
     let decoded = terminal_codec::decode_module(artifact.semantic_bytes())
         .expect("multi-hop dynamic module should decode");
@@ -1753,7 +1761,8 @@ fn retains_multi_hop_forwarded_scalar_result_control() {
     ));
     assert_eq!(lowered.source_call_occurrences.len(), 5);
 
-    let artifact = produce_terminal_artifact(&checked, "Main::run")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
+        .produce_artifact()
         .expect("multi-hop scalar result control should encode canonically");
     let decoded = terminal_codec::decode_module(artifact.semantic_bytes())
         .expect("multi-hop scalar result control should decode");
@@ -1814,7 +1823,8 @@ fn lowers_parameter_sourced_dynamic_unit_forwarding_as_two_explicit_helpers() {
     }));
     assert_eq!(lowered.source_call_occurrences.len(), 3);
 
-    let artifact = produce_terminal_artifact(&checked, "Main::run")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
+        .produce_artifact()
         .expect("multi-hop dynamic Unit module should encode canonically");
     let decoded = terminal_codec::decode_module(artifact.semantic_bytes())
         .expect("multi-hop dynamic Unit module should decode");
@@ -1878,7 +1888,8 @@ fn lowers_direct_dynamic_unit_without_allocating_a_scalar_result() {
         callable.result,
         terminal_psi::ClosedConformanceCallableResult::Unit
     );
-    let artifact = produce_terminal_artifact(&checked, "Main::run")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
+        .produce_artifact()
         .expect("direct dynamic Unit module encodes");
     let decoded = terminal_codec::decode_module(artifact.semantic_bytes())
         .expect("direct dynamic Unit module decodes");
@@ -1920,7 +1931,8 @@ fn lowers_rebound_dynamic_unit_to_a_resultless_indirect_dispatch() {
         scalar_type: semantic_vocabulary::ScalarType::Boolean,
     });
     assert!(terminal_verifier::validate_module(&lowered.semantic_module).is_err());
-    let artifact = produce_terminal_artifact(&checked, "Main::run")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
+        .produce_artifact()
         .expect("rebound dynamic Unit module encodes");
     assert_dynamic_unit_artifact_executes(&artifact);
 }
@@ -2049,7 +2061,8 @@ fn preserves_forwarded_dynamic_unit_parameter_abi_without_a_result_value() {
         }
     ));
     assert_eq!(lowered.source_call_occurrences.len(), 2);
-    let artifact = produce_terminal_artifact(&checked, "Main::run")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
+        .produce_artifact()
         .expect("forwarded dynamic Unit module encodes");
     terminal_codec::decode_module(artifact.semantic_bytes())
         .expect("forwarded dynamic Unit module decodes");
@@ -2090,7 +2103,8 @@ fn forwards_a_direct_dynamic_unit_selection_without_fabricating_a_rebound_descri
         terminal_psi::TerminalDynamicDescriptorSource::Selection { ordinal: 1 };
     assert!(terminal_verifier::validate_module(&lowered.semantic_module).is_err());
 
-    let artifact = produce_terminal_artifact(&checked, "Main::run")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
+        .produce_artifact()
         .expect("direct forwarded dynamic Unit module encodes");
     let decoded = terminal_codec::decode_module(artifact.semantic_bytes())
         .expect("direct forwarded dynamic Unit module decodes");
@@ -2276,7 +2290,8 @@ fn preserves_forwarded_dynamic_parameter_abi_from_checked_source() {
     ));
     assert_eq!(lowered.source_call_occurrences.len(), 2);
 
-    let produced = produce_terminal_artifact(&checked, "Main::run")
+    let produced = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
+        .produce_artifact()
         .expect("source-produced dynamic parameter module encodes");
     let decoded = terminal_codec::decode_module(produced.semantic_bytes())
         .expect("source-produced dynamic parameter module decodes");
@@ -2389,7 +2404,8 @@ fn lowers_exact_named_dynamic_field_call_without_selecting_ambient_lookalike() {
             ))
     );
 
-    let _artifact = produce_terminal_artifact(&checked, "Main::run")
+    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
+        .produce_artifact()
         .expect("direct dynamic module has canonical source-free encoding");
 }
 
@@ -2511,7 +2527,8 @@ fn lowers_checked_integer_field_store_through_the_selected_dynamic_realization()
         }]
     ));
 
-    let _artifact = produce_terminal_artifact(&checked, "Main::run")
+    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
+        .produce_artifact()
         .expect("integer store route has canonical source-free encoding");
 }
 
@@ -2712,7 +2729,8 @@ fn lowers_dynamic_scalar_result_into_console_effect_control() {
         2
     );
     assert_eq!(lowered.source_call_occurrences.len(), 3);
-    let _artifact = produce_terminal_artifact(&checked, "Main::run")
+    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
+        .produce_artifact()
         .expect("direct dynamic result control has canonical source-free encoding");
 
     let mut wrong_self = lowered.semantic_module.clone();

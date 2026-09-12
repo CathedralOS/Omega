@@ -22,53 +22,22 @@ fn sourced_checked_fixture() -> (CheckedTrees, Vec<ProviderPlan>) {
 }
 
 #[test]
-fn retaining_settlement_publishes_exact_restorable_edits_atomically() {
+fn selection_retains_the_canonical_source_without_a_restoration_journal() {
     let (checked, plans) = sourced_checked_fixture();
     let selected = selected_plan(&plans, "Echo");
-    let (span, index, statement_before) = statement_call(&checked, "emit");
-    let (expression, expression_before) = expression_call(&checked, "echo");
-    let contents = checked.clone();
     let original = Arc::new(checked);
     let mut settled = Arc::clone(&original);
-    let edits =
-        settle_selected_boundary_adapter_dispatch_with_source_edits(&mut settled, &selected)
-            .expect("valid exact source custody permits publication");
-    assert!(!Arc::ptr_eq(&original, &settled));
-    assert_eq!(original.as_ref(), &contents);
-    assert_eq!(settled.facts, original.facts);
-    let source = edits
-        .source_trees(&settled.typed)
-        .expect("restore exact edits");
-    assert!(matches!(source, std::borrow::Cow::Owned(_)));
-    assert_eq!(
-        &source.statement_table.statements(span)[index],
-        &typed_trees::statement::StatementNode::Call(statement_before),
-    );
-    assert_eq!(
-        source.expression_table.expression(expression),
-        &ExpressionNode::Call(expression_before),
-    );
+    settle_selected_boundary_adapter_dispatch(&mut settled, &selected).unwrap();
+    assert_eq!(settled.typed, original.typed);
+    assert!(!settled.facts.boundary_adapter_dispatch.is_empty());
 }
 
 #[test]
-fn retaining_guard_failure_preserves_shared_arc_and_contents() {
-    // This transform-only fixture deliberately has no source custody for its
-    // attached field aliases. Selection preflight succeeds, but sealing the
-    // retained source graph must fail before publishing the staged mutation.
+fn source_free_selection_needs_no_synthetic_source_aliases() {
     let (checked, plans) = checked_fixture();
     let selected = selected_plan(&plans, "Echo");
-    let contents = checked.clone();
     let original = Arc::new(checked);
-    let mut rejected = Arc::clone(&original);
-    let diagnostics =
-        settle_selected_boundary_adapter_dispatch_with_source_edits(&mut rejected, &selected)
-            .expect_err("source-free aliases cannot seal an exact source journal");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| { diagnostic.message.contains("source custody") })
-    );
-    assert!(Arc::ptr_eq(&original, &rejected));
-    assert_eq!(rejected.as_ref(), &contents);
-    assert_eq!(original.as_ref(), &contents);
+    let mut settled = Arc::clone(&original);
+    settle_selected_boundary_adapter_dispatch(&mut settled, &selected).unwrap();
+    assert_eq!(settled.typed, original.typed);
 }

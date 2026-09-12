@@ -35,7 +35,8 @@ fn execute_with_arguments(
     expected_borrow_calls: u64,
 ) {
     let checked = checked(source);
-    let artifact = terminal_production::produce_terminal_artifact(&checked, "enter")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
+        .produce_artifact()
         .expect("nested primitive borrow reaches the existing Terminal call closure");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let caller = module
@@ -378,7 +379,11 @@ fn folded_prefix_preserves_a_nested_mutable_condition() {
             panic!("retained selection");
         };
         *source_expression = replacement;
-        assert!(terminal_production::produce_terminal_artifact(&changed, "enter").is_err());
+        assert!(
+            terminal_production::TerminalProductionRequest::new(&changed, "enter")
+                .produce_artifact()
+                .is_err()
+        );
     }
 }
 
@@ -396,7 +401,9 @@ fn comparison_operand_cannot_substitute_a_different_mutable_read() {
         }
     "#,
     );
-    let _artifact = terminal_production::produce_terminal_artifact(&original, "enter").unwrap();
+    let _artifact = terminal_production::TerminalProductionRequest::new(&original, "enter")
+        .produce_artifact()
+        .unwrap();
     let caller = original
         .machines()
         .iter()
@@ -439,5 +446,9 @@ fn comparison_operand_cannot_substitute_a_different_mutable_read() {
         }
     }
     assert!(mutations > 0);
-    assert!(terminal_production::produce_terminal_artifact(&changed, "enter").is_err());
+    assert!(
+        terminal_production::TerminalProductionRequest::new(&changed, "enter")
+            .produce_artifact()
+            .is_err()
+    );
 }

@@ -30,7 +30,9 @@ fn produce(source: &str, entry: &str) -> CanonicalTerminalArtifact {
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
-    let artifact = terminal_production::produce_terminal_artifact(&checked, entry).unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, entry)
+        .produce_artifact()
+        .unwrap();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default()).unwrap();

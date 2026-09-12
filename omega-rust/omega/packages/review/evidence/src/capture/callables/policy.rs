@@ -31,6 +31,7 @@ pub fn project_checked_callable_policy(
     }
     let build = compilation.selected_build_machine_symbol();
     let source = compilation.pre_selected_dispatch_source_trees()?;
+    crate::capture::behavior::policy::validate_call_receiver_roots(&source, &compilation.facts)?;
     let mutation_resolver = validation::CallFrameResolver::new(&source)
         .ok_or_else(|| rejected("pre-selected-dispatch source has no exact call resolver"))?;
     let mut projected_build = false;

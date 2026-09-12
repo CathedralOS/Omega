@@ -134,12 +134,10 @@ pub(crate) fn fused_service_custody() -> (
             Vec::new(),
         )
         .expect("provisional hosted source signature");
-    let provisional_artifact = terminal_production::produce_program_entry_terminal_artifact(
-        &checked,
-        "Main::launch",
-        provisional.identity().bytes(),
-    )
-    .expect("provisional ProgramEntry Terminal artifact");
+    let provisional_artifact =
+        terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
+            .produce_program_entry(provisional.identity().bytes())
+            .expect("provisional ProgramEntry Terminal artifact");
     let module = terminal_codec::decode_module(provisional_artifact.artifact().semantic_bytes())
         .expect("decode provisional Terminal module");
     let entry = module
@@ -176,12 +174,9 @@ pub(crate) fn fused_service_custody() -> (
         Vec::new(),
     )
     .expect("hosted source signature");
-    let produced = terminal_production::produce_program_entry_terminal_artifact(
-        &checked,
-        "Main::launch",
-        source.identity().bytes(),
-    )
-    .expect("ProgramEntry Terminal artifact");
+    let produced = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
+        .produce_program_entry(source.identity().bytes())
+        .expect("ProgramEntry Terminal artifact");
     let establishment =
         establishment_for_source(&source, &attachment_type.identity, "service", type_identity);
     let (

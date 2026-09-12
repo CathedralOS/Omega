@@ -389,6 +389,24 @@ impl<'program> Evaluator<'program> {
     // ---- calls --------------------------------------------------------------
 
     fn eval_call_statement(&mut self, call: &TableCall, frame: &Frame) -> EvalResult<Value> {
+        if let Some(dispatch) =
+            self.selected_boundary_adapter(call.receiver_symbol, call.target_symbol)
+        {
+            let receiver = if dispatch.forward_receiver {
+                Some(self.eval_boundary_receiver_path(call.receiver, frame)?)
+            } else {
+                None
+            };
+            return self.run_boundary_adapter(
+                dispatch,
+                receiver,
+                self.program
+                    .statement_table
+                    .expression_handles(call.arguments),
+                frame,
+            );
+        }
+
         // Asm intrinsic statement (`asm { hlt }`): the tree-walker cannot model
         // halting the CPU, but `hlt` in an idle loop is observably a no-op step
         // (the loop simply proceeds), so evaluate it as unit. Memory fences

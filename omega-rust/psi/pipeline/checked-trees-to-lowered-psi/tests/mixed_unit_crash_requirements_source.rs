@@ -44,7 +44,8 @@ fn roundtrip(checked: &checked_trees::CheckedTrees) -> lowered_psi::LoweredPsi {
     .expect("independent verification of mixed runtime requirements");
     assert_eq!(module, lowered.semantic_module);
     assert_eq!(proof, lowered.proof_bundle);
-    let artifact = terminal_production::produce_terminal_artifact(checked, "Main::main")
+    let artifact = terminal_production::TerminalProductionRequest::new(checked, "Main::main")
+        .produce_artifact()
         .expect("mixed runtime requirements publish");
     assert_eq!(
         terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),
@@ -202,7 +203,9 @@ fn reflexive_call_requirement_cannot_prove_unbounded_argument_addition_safe() {
             "{primitive}: {error:?}"
         );
         assert!(
-            terminal_production::produce_terminal_artifact(&checked, "Main::main").is_err(),
+            terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+                .produce_artifact()
+                .is_err(),
             "unsafe computed arithmetic must not publish: {primitive}"
         );
     }

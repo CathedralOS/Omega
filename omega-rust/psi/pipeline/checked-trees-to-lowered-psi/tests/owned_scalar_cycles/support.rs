@@ -104,7 +104,8 @@ pub fn publish(source: &str) -> (TerminalModule, ProofBundle, Vec<u8>, Vec<u8>) 
         terminal_codec::decode_debug_map(&lowered.semantic_module, &debug_bytes).unwrap(),
         debug
     );
-    let artifact = terminal_production::produce_terminal_artifact(&checked, "walk")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "walk")
+        .produce_artifact()
         .expect("publish cyclic walk and reset closure");
     let module =
         terminal_codec::decode_module(artifact.semantic_bytes()).expect("canonical cycle decode");
