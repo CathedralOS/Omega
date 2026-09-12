@@ -63,6 +63,14 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   the unchanged native command remains the next acceptance, not package setup.
   The API-only check also exposes exact-owner case and range-result diagnostics
   requiring triage. Keep these distinct; the setup is not a native pass.
+  The same command on `e4b4aa39dd`/Windows reports 96 std diagnostics beginning
+  with that same match-result custody rejection.
+  Windows runtime controls in `omega-rust/omega/tests/package_commands/probe.rs`
+  also expose an import-free PE launch failure (loader error 193), reproduced
+  through ordinary native compilation on the same source. The `e4b4aa39dd`
+  package route compiles and preserves package custody; this separate image
+  failure remains with native publication. Keep both runtime controls enabled;
+  checked emission and interpretation alone do not establish Windows execution.
 
 - **MACOS-APPLICATION-PUBLICATION.** Implement the
   [settled publication contract](wiki/spec/build/macos_application.md)

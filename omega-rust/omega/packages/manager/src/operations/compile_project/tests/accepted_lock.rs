@@ -89,6 +89,70 @@ fn accepted_project_policy_needs_no_second_native_approval() {
     );
 }
 
+#[test]
+fn native_comparison_observes_generated_candidate_without_reopening_authored_source() {
+    let project = TemporaryProject::new();
+    let producer = project.source.join("producer");
+    std::fs::create_dir_all(producer.join("inputs")).unwrap();
+    let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .find(|path| path.join("tests/fixtures/packages").is_dir())
+        .unwrap()
+        .join("tests/fixtures/packages/generated-table");
+    for name in ["build.omg", "main.omg", "inputs/table.txt"] {
+        std::fs::copy(fixtures.join(name), producer.join(name)).unwrap();
+    }
+    std::fs::write(
+        project.source.join("build.omg"),
+        r#"
+machine build(builder: &mut Build) {
+    builder.application("observed-candidate");
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.depend(Source::Path { location: "producer" });
+}
+"#,
+    )
+    .unwrap();
+    std::fs::write(project.entry(), "use generated_table::main;\ndata Main {}\nmachine observed_value() -> u64 { table_size() }\nmachine Main::main(&mut self) { let value: u64 = observed_value(); }\n").unwrap();
+    let target = target::TargetProfile::LinuxX64;
+    accept_project(&project, target);
+    let prepared = prepare_local_project_for_target(&project.entry(), target)
+        .unwrap()
+        .unwrap();
+    let mut observations = 0;
+    let (report, ()) = compile_prepared_local_project_for_native_with_observation(
+        PreparedLocalProjectNativeRequest::new(
+            prepared,
+            project.workspace.join("observed"),
+            target,
+        )
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        |checked| {
+            observations += 1;
+            let generated = checked_interpreter::interpret_entry(checked, "observed_value", &[]);
+            assert!(generated.error.is_none(), "{:?}", generated.error);
+            assert_eq!(generated.exit_code, 3);
+            let entry = checked.selected_program_entry_machine().unwrap();
+            let outcome = checked_interpreter::interpret_entry(checked, entry, &[]);
+            assert!(outcome.error.is_none(), "{:?}", outcome.error);
+            assert_eq!(outcome.exit_code, 0);
+            // Realization consumes the checked snapshot, not another live build.
+            std::fs::write(
+                project.source.join("build.omg"),
+                "invalid after observation",
+            )
+            .unwrap();
+        },
+    )
+    .unwrap();
+    assert_eq!(observations, 1);
+    report
+        .retained_native_artifact()
+        .unwrap()
+        .validate()
+        .unwrap();
+}
+
 fn native_project(
     project: &TemporaryProject,
 ) -> Result<CompileReport, CompilePreparedLocalProjectNativeError> {
