@@ -56,15 +56,18 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   owning diagnostic before expanding compiler work. Initialization is explicit
   and requires private repository access during in-house development.
   On macOS ARM64 with Python 3.13, the unchanged native invocation at
-  `69e8f5f2c4` (base `76b8ad81f1`) exits 200 on 16 undeclared direct-boundary
-  service reaches in the pinned standard package. The incoming checker now
-  enforces the settled [direct-boundary declaration rule](wiki/spec/language/effects.md#declarations)
-  for private bodies too. Refresh the application's exact std pins from
-  `24ab0f1c87378054b6dfe9daa84f9b7b4a85c247` to include the direct-boundary
-  declaration repair, then recompute its exact package review. Preserve
-  the graph and keep build-only packages explicitly unported; do not add
-  placeholder libraries to make review pass. This is engineering work; the
-  unchanged native command remains the acceptance.
+  `e0d24c82fb` (base `5b51c42b0a`) exits 200 on 18 local-receiver realization
+  diagnostics in the actual `Main::main`, after checking std and the dependency
+  graph. The application pins the published standard-package declaration repair
+  at `a91d878cb9252647d977c45787969b16e6ef937a`. Calls such as
+  `aligned.get_element_count(..)` need their local receiver's value/storage
+  retained through the ordinary checked call and Terminal production path.
+  The current fence is
+  `validation/src/calls/expression_scanning/result_realization.rs`;
+  **STATE-LOCAL-VALUE-FRONTIER** owns the general join. Preserve local storage,
+  authored operation order and the full package graph; keep build-only packages
+  explicitly unported. This is engineering work, with the unchanged native
+  command and `Squalr geometry: PASS` as acceptance.
   Windows runtime controls in `omega-rust/omega/tests/package_commands/probe.rs`
   require a Windows normal-completion adapter for Unit entries: the native
   entry currently returns the last scalar call's register value (7), while the
