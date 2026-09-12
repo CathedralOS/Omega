@@ -677,6 +677,10 @@ whichever of these apply.
 Omit the body only when the subject already carries the full reasoning: a typo
 fix, a rename, a mechanical revert.
 
+Commit messages and pull request descriptions carry no tool attribution: no
+"Generated with" trailers, no agent `Co-Authored-By` lines, and no vendor
+links. A built-in commit template that adds them is overridden by this rule.
+
 ## Prose
 
 Mannered prose substitutes metaphor and flourish for direct statement. Instead
