@@ -165,7 +165,7 @@ pub(crate) fn specialize_selected_generic_operator_providers(
 
         for (ordinal, candidate) in candidates.iter().enumerate() {
             match clone_specialized_machine(
-                &source,
+                Some(&source),
                 program,
                 candidate,
                 ordinal,
@@ -215,7 +215,7 @@ fn copy_application_types(
                 type_reference,
             } => typed_trees::operator::ClosedOperatorApplicationArgument::Type {
                 binder_symbol: *binder_symbol,
-                type_reference: copy_type_reference(program, source, *type_reference, &[]),
+                type_reference: copy_type_reference(Some(program), source, *type_reference, &[]),
             },
             typed_trees::operator::ClosedOperatorApplicationArgument::Const {
                 binder_symbol,
@@ -223,7 +223,12 @@ fn copy_application_types(
                 value,
             } => typed_trees::operator::ClosedOperatorApplicationArgument::Const {
                 binder_symbol: *binder_symbol,
-                declared_carrier: copy_type_reference(program, source, *declared_carrier, &[]),
+                declared_carrier: copy_type_reference(
+                    Some(program),
+                    source,
+                    *declared_carrier,
+                    &[],
+                ),
                 value: value.clone(),
             },
         })
