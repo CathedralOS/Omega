@@ -294,7 +294,7 @@ fn canonical_terminal_native_route_uses_one_composition_edge() {
 #[test]
 fn compiler_driver_delegates_terminal_product_semantics_to_one_owner() {
     let repo_root = repo_root();
-    let driver_path = repo_root.join("omega-rust/omega/compiler/compiler/src/compiler/driver.rs");
+    let driver_path = repo_root.join("omega-rust/omega/compiler/compiler/src/compiler.rs");
     let owner_path =
         repo_root.join("omega-rust/omega/compiler/compiler/src/compiler/terminal_product.rs");
     let driver = fs::read_to_string(&driver_path)
@@ -336,7 +336,7 @@ fn compiler_driver_delegates_terminal_product_semantics_to_one_owner() {
 #[test]
 fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
     let repo_root = repo_root();
-    let driver_path = repo_root.join("omega-rust/omega/compiler/compiler/src/compiler/driver.rs");
+    let driver_path = repo_root.join("omega-rust/omega/compiler/compiler/src/compiler.rs");
     let request_path = repo_root.join("omega-rust/omega/compiler/compiler/src/compiler/request.rs");
     let optimization_path =
         repo_root.join("omega-rust/omega/compiler/compiler/src/compiler/optimization/mod.rs");
@@ -421,8 +421,13 @@ fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
         report_assembly < checked_receipt,
         "native report assembly must precede checked/report custody validation"
     );
+    let targets = fs::read_to_string(
+        repo_root.join("omega-rust/omega/compiler/compiler/src/compiler/targets.rs"),
+    )
+    .expect("read exact-target compilation");
     assert!(
-        compact_driver.contains("optimization::prepare_native_report(request,checked)?"),
+        without_ascii_whitespace(&targets)
+            .contains("optimization::prepare_native_report(request,checked)?"),
         "the native batch route must delegate each child's Terminal preparation to the same owner"
     );
     assert!(
@@ -435,7 +440,7 @@ fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
 fn compiler_surface_and_reporting_close_driver_cleanup_contract() {
     let repo_root = repo_root();
     let compiler_path = repo_root.join("omega-rust/omega/compiler/compiler/src/compiler.rs");
-    let driver_path = repo_root.join("omega-rust/omega/compiler/compiler/src/compiler/driver.rs");
+    let driver_path = repo_root.join("omega-rust/omega/compiler/compiler/src/compiler.rs");
     let reporting_path = repo_root
         .join("omega-rust/omega/compiler/compiler/src/pipeline/reporting/checked_observations.rs");
     let compiler = fs::read_to_string(&compiler_path)
@@ -452,9 +457,9 @@ fn compiler_surface_and_reporting_close_driver_cleanup_contract() {
         2,
         "the compiler surface must remain one typed operation exposed as the Compiler method and its free-function facade"
     );
-    assert_eq!(
-        compact_compiler.matches("request:CompileRequest").count(),
-        2,
+    assert!(
+        compact_compiler.contains("pubfncompile(self,request:CompileRequest)")
+            && compact_compiler.contains("pubfncompile(request:CompileRequest)"),
         "both production facades must accept the same complete CompileRequest"
     );
     for retired in [
@@ -680,7 +685,7 @@ fn typed_to_checked_transition_owns_post_check_settlements_inside_its_surface() 
     );
 
     for driver_relative_path in [
-        "omega-rust/omega/compiler/compiler/src/compiler/driver.rs",
+        "omega-rust/omega/compiler/compiler/src/compiler.rs",
         "omega-rust/omega/compiler/compiler/src/pipeline/checked_entry.rs",
     ] {
         let driver_path = repo_root.join(driver_relative_path);

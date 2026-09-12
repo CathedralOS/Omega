@@ -734,6 +734,13 @@ fn standalone_source_profile_analysis_stays_retired() {
     );
 }
 
+fn compiler_product_coordinator_source(root: &std::path::Path) -> String {
+    let source = root.join("omega-rust/omega/compiler/compiler/src");
+    ["compiler.rs", "compiler/targets.rs"]
+        .map(|path| std::fs::read_to_string(source.join(path)).expect("read product coordinator"))
+        .join("\n")
+}
+
 #[test]
 fn trust_ledgers_are_not_owned_or_reexported_by_the_compiler() {
     let root = workspace_root();
@@ -770,8 +777,7 @@ fn trust_ledgers_are_not_owned_or_reexported_by_the_compiler() {
         !compiler_manifest.contains("trust-ledger"),
         "compiler must not depend on the filesystem policy owner"
     );
-    let driver =
-        std::fs::read_to_string(compiler.join("compiler/driver.rs")).expect("read compiler driver");
+    let driver = compiler_product_coordinator_source(&root);
     assert!(
         !driver.contains("omega.lock")
             && !driver.contains("read_trust_admissions")
@@ -784,8 +790,7 @@ fn trust_ledgers_are_not_owned_or_reexported_by_the_compiler() {
 fn checked_observations_have_one_policy_gate_outside_the_product_driver() {
     let root = workspace_root();
     let compiler = root.join("omega-rust/omega/compiler/compiler/src");
-    let driver = std::fs::read_to_string(compiler.join("compiler/driver.rs"))
-        .expect("read compiler product driver");
+    let driver = compiler_product_coordinator_source(&root);
     let reporter =
         std::fs::read_to_string(compiler.join("pipeline/reporting/checked_observations.rs"))
             .expect("read checked observation reporter");
@@ -1227,8 +1232,7 @@ fn omega_product_publishes_compiler_artifacts() {
 fn compiler_product_stops_delegate_component_progress_admission() {
     let root = workspace_root();
     let compiler = root.join("omega-rust/omega/compiler/compiler/src");
-    let driver = std::fs::read_to_string(compiler.join("compiler/driver.rs"))
-        .expect("read compiler product driver");
+    let driver = compiler_product_coordinator_source(&root);
     let native_admission =
         std::fs::read_to_string(compiler.join("compiler/optimization/admission.rs"))
             .expect("read native optimization admission owner");
@@ -1257,8 +1261,7 @@ fn compiler_product_stops_delegate_component_progress_admission() {
 fn production_subject_projection_is_report_owned() {
     let root = workspace_root();
     let compiler = root.join("omega-rust/omega/compiler/compiler/src");
-    let driver = std::fs::read_to_string(compiler.join("compiler/driver.rs"))
-        .expect("read compiler product driver");
+    let driver = compiler_product_coordinator_source(&root);
     let native_optimization =
         std::fs::read_to_string(compiler.join("compiler/optimization/mod.rs"))
             .expect("read native optimization join");
@@ -1371,8 +1374,7 @@ fn compile_request_owns_product_admission_before_source_acquisition() {
     let compiler = root.join("omega-rust/omega/compiler/compiler/src/compiler");
     let request = std::fs::read_to_string(compiler.join("request.rs"))
         .expect("read typed compile request owner");
-    let driver =
-        std::fs::read_to_string(compiler.join("driver.rs")).expect("read compiler product driver");
+    let driver = compiler_product_coordinator_source(&root);
 
     for required in [
         "struct ValidatedCompileRequest",
@@ -2531,9 +2533,7 @@ fn optimization_projection_stops_before_target_realization() {
 fn retained_native_product_enters_only_terminal_realization() {
     let root = workspace_root();
     let compiler = root.join("omega-rust/omega/compiler/compiler/src/compiler");
-    let driver_path = compiler.join("driver.rs");
-    let driver = std::fs::read_to_string(&driver_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", driver_path.display()));
+    let driver = compiler_product_coordinator_source(&root);
     let native = recursive_rust_source(&compiler.join("optimization"));
     let legacy_driver_path =
         root.join("omega-rust/omega/compiler/compiler/src/pipeline/compatibility/harness.rs");
@@ -2543,9 +2543,8 @@ fn retained_native_product_enters_only_terminal_realization() {
     assert!(
         driver.contains("compile_checked_with_observations(&request, prepared)?;")
             && driver.contains("RequestedCompileProduct::NativeArtifact =>")
-            && driver.contains(
-                "super::optimization::native_report(request, checked).map(finalize_report)"
-            )
+            && driver
+                .contains("optimization::native_report(request, checked).map(finalize_report)")
             && driver.contains("super::optimization::prepare_native_report(request, checked)?")
             && native.contains("NativeCompilationWithCheckedReceipt::new(checked, report)"),
         "NativeArtifact must stop the canonical driver at native realization while retaining its exact checked/native invocation join"
