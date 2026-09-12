@@ -497,6 +497,7 @@ pub(crate) fn statement_value_expression_roots(
 ) -> Vec<ExpressionHandle> {
     let mut roots = Vec::new();
     match statement {
+        StatementNode::RootBinding(_) => {}
         StatementNode::AssemblyFact(fact) => roots.push(fact.expression),
         StatementNode::Assignment(assignment) => {
             roots.push(assignment.target);

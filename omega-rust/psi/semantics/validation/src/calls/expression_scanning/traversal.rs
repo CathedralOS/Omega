@@ -49,7 +49,7 @@ pub(crate) fn validate_value_position_calls(
 ) {
     let executes = true;
     match statement {
-        StatementNode::AssemblyFact(_) => {}
+        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             scan_expression_calls(
                 program,

@@ -2353,7 +2353,7 @@ fn build_qualification_facts(program: &TypedTrees) -> checked_trees::Qualificati
                     u32::try_from(statement_index).expect("qualification statement index overflow");
                 let mut visited = HashSet::new();
                 match statement {
-                    StatementNode::AssemblyFact(_) => {}
+                    StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => {}
                     StatementNode::Assignment(assignment) => {
                         collect_casts(
                             program,

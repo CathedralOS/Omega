@@ -126,7 +126,7 @@ pub(super) fn check_component(
                     continue;
                 }
                 match statement {
-                    StatementNode::AssemblyFact(_) => continue,
+                    StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => continue,
                     StatementNode::LocalData(local)
                         if expression_is_inert(program, machine.symbol, local.initial_value) =>
                     {

@@ -52,7 +52,9 @@ pub(crate) fn has_observation_free_checked_closure(
             for statement in program.statement_table.statements(state.statement_nodes) {
                 use typed_trees::statement::StatementNode;
                 let allowed = match statement {
-                    StatementNode::AssemblyFact(_) | StatementNode::Assignment(_) => false,
+                    StatementNode::RootBinding(_)
+                    | StatementNode::AssemblyFact(_)
+                    | StatementNode::Assignment(_) => false,
                     StatementNode::Expression(expression) => {
                         expression_is_fact_observation_free(program, *expression)
                     }

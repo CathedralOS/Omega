@@ -21,6 +21,18 @@ pub(crate) fn lower_statement_node(
     statement: &resolved::statement::StatementNode,
 ) -> Result<typed::statement::StatementNode, Diagnostic> {
     match statement {
+        resolved::statement::StatementNode::RootBinding(binding) => Ok(
+            typed::statement::StatementNode::RootBinding(typed::statement::RootBinding {
+                receiver: lower_statement_expression(lowerer, binding.receiver)?,
+                slot: binding.slot.iter().map(crate::name::lower_name).collect(),
+                implementation: binding
+                    .implementation
+                    .iter()
+                    .map(crate::name::lower_name)
+                    .collect(),
+                source_span: binding.source_span,
+            }),
+        ),
         resolved::statement::StatementNode::AssemblyFact(fact) => Ok(
             typed::statement::StatementNode::AssemblyFact(typed::statement::TableAssemblyFact {
                 kind: match fact.kind {

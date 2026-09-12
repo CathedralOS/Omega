@@ -4,6 +4,15 @@ use source::SourceSpan;
 use symbols::SymbolHandle;
 
 pub type StatementHandle = Handle<StatementNode>;
+
+/// A Build declaration with product-context operands, never a runtime call.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RootBinding {
+    pub receiver: crate::expression::ExpressionHandle,
+    pub slot: Box<[Identifier]>,
+    pub implementation: Box<[Identifier]>,
+    pub source_span: SourceSpan,
+}
 pub type TransitionTargetHandle = Handle<TransitionTargetNode>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -163,6 +172,10 @@ impl StatementTable {
 
         for statement in source.statements(statements) {
             let statement = match statement {
+                StatementNode::RootBinding(binding) => StatementNode::RootBinding(RootBinding {
+                    receiver: target_expressions.copy_from(source_expressions, binding.receiver),
+                    ..binding.clone()
+                }),
                 StatementNode::AssemblyFact(fact) => {
                     StatementNode::AssemblyFact(TableAssemblyFact {
                         kind: fact.kind,
@@ -350,6 +363,9 @@ impl StatementTable {
         for handle in statement_handles {
             let statement = self.statement(handle).clone();
             match statement {
+                StatementNode::RootBinding(binding) => {
+                    expressions.remap_symbols_in(binding.receiver, symbols);
+                }
                 StatementNode::AssemblyFact(fact) => {
                     expressions.remap_symbols_in(fact.expression, symbols);
                 }
@@ -515,6 +531,7 @@ fn remapped(symbol: SymbolHandle, symbols: &[(SymbolHandle, SymbolHandle)]) -> S
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StatementNode {
+    RootBinding(RootBinding),
     AssemblyFact(TableAssemblyFact),
     Assignment(TableAssignment),
     Call(TableCall),
@@ -839,6 +856,21 @@ mod tests {
                 ..Default::default()
             }),
         );
+        source_statements.push_statement(
+            &mut source_span,
+            StatementNode::RootBinding(super::RootBinding {
+                receiver: local_reference,
+                slot: Box::from([
+                    Identifier::generated("Target"),
+                    Identifier::generated("ProgramEntry"),
+                ]),
+                implementation: Box::from([
+                    Identifier::generated("Product"),
+                    Identifier::generated("start"),
+                ]),
+                source_span: Default::default(),
+            }),
+        );
 
         let mut copied_statements = StatementTable::new();
         let mut copied_expressions = ExpressionTable::new();
@@ -869,6 +901,29 @@ mod tests {
         );
 
         let copied = copied_statements.statements(copied_span);
+        let StatementNode::RootBinding(binding) = &copied[4] else {
+            panic!("fifth copied statement should retain its declaration");
+        };
+        assert_eq!(
+            binding
+                .slot
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>(),
+            ["Target", "ProgramEntry"]
+        );
+        assert_eq!(
+            binding
+                .implementation
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>(),
+            ["Product", "start"]
+        );
+        let ExpressionNode::Name(receiver) = copied_expressions.expression(binding.receiver) else {
+            panic!("root binding receiver identity");
+        };
+        assert_eq!(receiver.symbol, remapped_local);
         let StatementNode::Call(call) = &copied[3] else {
             panic!("fourth copied statement should retain its receiver identities");
         };

@@ -465,6 +465,7 @@ fn validate_statement(
     let machine = machine_definition.name.as_str();
     let state = state_definition.name.as_str();
     match statement {
+        StatementNode::RootBinding(_) => {}
         StatementNode::AssemblyFact(fact) => {
             validate_expression(program, machine, state, fact.expression, roots, diagnostics)
         }

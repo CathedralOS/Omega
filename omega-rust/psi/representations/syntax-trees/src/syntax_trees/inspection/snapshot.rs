@@ -469,6 +469,11 @@ pub struct StateParameterSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum StatementSnapshot {
+    RootBinding {
+        receiver: ExpressionSnapshot,
+        slot: Vec<String>,
+        implementation: Vec<String>,
+    },
     AssemblyFact {
         contract_kind: AssemblyFactKindSnapshot,
         expression: ExpressionSnapshot,
@@ -1644,6 +1649,15 @@ fn snapshot_state_parameter(
 
 fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> StatementSnapshot {
     match statement {
+        StatementNode::RootBinding(binding) => StatementSnapshot::RootBinding {
+            receiver: snapshot_expression_handle(syntax_trees, binding.receiver),
+            slot: binding.slot.iter().map(ToString::to_string).collect(),
+            implementation: binding
+                .implementation
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+        },
         StatementNode::AssemblyFact(fact) => StatementSnapshot::AssemblyFact {
             contract_kind: match fact.kind {
                 AssemblyFactKind::Requires => AssemblyFactKindSnapshot::Requires,

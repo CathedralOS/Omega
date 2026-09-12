@@ -527,6 +527,12 @@ fn count_statement_node(
     counts: &mut IdentityStorageCounts,
 ) {
     match statement {
+        StatementNode::RootBinding(binding) => {
+            count_expression_handle(expressions, binding.receiver, counts);
+            for member in binding.slot.iter().chain(binding.implementation.iter()) {
+                count_call_name(member, counts);
+            }
+        }
         StatementNode::AssemblyFact(fact) => {
             count_expression_handle(expressions, fact.expression, counts);
         }

@@ -55,6 +55,18 @@ fn lower_statement_node(
     has_preceding_transition: bool,
 ) -> Result<Vec<Statement>, Diagnostic> {
     match statement {
+        syntax::statement::StatementNode::RootBinding(binding) => Ok(vec![Statement::RootBinding(
+            symbol_resolved_trees::statement::RootBinding {
+                receiver: lower_statement_expression(lowerer, syntax_trees, binding.receiver)?,
+                slot: binding.slot.iter().map(crate::name::lower_name).collect(),
+                implementation: binding
+                    .implementation
+                    .iter()
+                    .map(crate::name::lower_name)
+                    .collect(),
+                source_span: binding.source_span,
+            },
+        )]),
         syntax::statement::StatementNode::AssemblyFact(fact) => {
             Ok(vec![Statement::AssemblyFact(AssemblyFact {
                 kind: match fact.kind {

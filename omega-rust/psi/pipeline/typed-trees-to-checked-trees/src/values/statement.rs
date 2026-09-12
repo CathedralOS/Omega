@@ -11,7 +11,7 @@ impl ValueFactBuilder<'_, '_> {
         statement: &StatementNode,
     ) {
         match statement {
-            StatementNode::AssemblyFact(_) => {}
+            StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => {}
             StatementNode::Assignment(assignment) => {
                 self.collect_statement_expression(
                     machine_symbol,

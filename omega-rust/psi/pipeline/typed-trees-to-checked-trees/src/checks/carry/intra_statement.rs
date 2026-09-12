@@ -45,6 +45,7 @@ struct EvaluationTraversal<'program, 'target> {
 impl EvaluationTraversal<'_, '_> {
     fn visit_statement(&mut self, statement: &StatementNode) {
         match statement {
+            StatementNode::RootBinding(_) => {}
             StatementNode::AssemblyFact(fact) => self.visit_expression(fact.expression),
             StatementNode::Assignment(assignment) => {
                 // Calls in assignment targets are not semantic call sites today;

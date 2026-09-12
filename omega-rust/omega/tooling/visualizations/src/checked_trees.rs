@@ -704,7 +704,7 @@ fn qualification_statement_contains_expression(
     let mut contains =
         |expression| qualification_expression_contains(program, expression, target, visited);
     match statement {
-        StatementNode::AssemblyFact(_) => false,
+        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => false,
         StatementNode::Assignment(assignment) => {
             contains(assignment.target) || contains(assignment.value)
         }

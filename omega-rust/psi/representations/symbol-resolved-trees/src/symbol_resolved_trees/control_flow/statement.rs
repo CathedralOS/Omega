@@ -5,6 +5,15 @@ use std::ops::{Deref, DerefMut};
 use symbols::SymbolHandle;
 
 pub type StatementHandle = Handle<StatementNode>;
+
+/// A Build declaration with product-context operands, never a runtime call.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RootBinding {
+    pub receiver: crate::expression::ExpressionHandle,
+    pub slot: Box<[DiagnosticName]>,
+    pub implementation: Box<[DiagnosticName]>,
+    pub source_span: SourceSpan,
+}
 pub type TransitionTargetHandle = Handle<TransitionTargetNode>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -15,6 +24,7 @@ pub(crate) enum AuthoredSelectionStatementStore {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Statement {
+    RootBinding(RootBinding),
     AssemblyFact(AssemblyFact),
     Assignment(Assignment),
     Call(Call),
@@ -450,6 +460,18 @@ impl StatementTable {
         copy_expression_handles: bool,
     ) -> StatementHandle {
         match statement {
+            Statement::RootBinding(binding) => {
+                let receiver = expression_handle_from_tree(
+                    source_expressions,
+                    expressions,
+                    binding.receiver,
+                    copy_expression_handles,
+                );
+                self.insert(StatementNode::RootBinding(RootBinding {
+                    receiver,
+                    ..binding.clone()
+                }))
+            }
             Statement::AssemblyFact(fact) => {
                 let expression = expression_handle_from_tree(
                     source_expressions,
@@ -715,6 +737,7 @@ impl Default for StatementTable {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StatementNode {
+    RootBinding(RootBinding),
     AssemblyFact(TableAssemblyFact),
     Assignment(TableAssignment),
     Call(TableCall),

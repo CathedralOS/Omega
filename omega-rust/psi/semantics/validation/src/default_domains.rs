@@ -980,7 +980,7 @@ fn scan_statement_reads(
         // An assembly fact is itself a checked consumption point. Its proof
         // checker handles establishment; this runtime-read scan must not
         // interpret it as an executed expression.
-        StatementNode::AssemblyFact(_) => {}
+        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => reads.push(assignment.value),
         StatementNode::Expression(expression) => reads.push(*expression),
         StatementNode::LocalData(local) => {

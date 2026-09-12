@@ -423,7 +423,7 @@ pub(super) fn executable_statement_expression_roots(
                 }
             }
         }
-        StatementNode::AssemblyFact(_) => {}
+        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => {}
     }
     roots.retain(|expression| expression.is_valid());
     roots

@@ -59,7 +59,7 @@ fn validate_statement(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match statement {
-        StatementNode::AssemblyFact(_) => {}
+        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             validate_expression(
                 program,

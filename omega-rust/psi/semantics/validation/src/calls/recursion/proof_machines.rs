@@ -677,7 +677,7 @@ fn statement_expression_roots(
     statement: &StatementNode,
 ) -> Vec<ExpressionHandle> {
     match statement {
-        StatementNode::AssemblyFact(_) => Vec::new(),
+        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => Vec::new(),
         StatementNode::Call(call) => program
             .statement_table
             .expression_handles(call.arguments)

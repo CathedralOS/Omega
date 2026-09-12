@@ -20,7 +20,7 @@ pub(super) fn collect_state_argument_facts_from_statement(
     let program = context.program;
     let machine = context.machine;
     match statement {
-        StatementNode::AssemblyFact(_) => {}
+        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             collect_state_argument_facts_from_expression(
                 context,

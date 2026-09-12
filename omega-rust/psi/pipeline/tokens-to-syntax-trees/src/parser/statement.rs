@@ -112,6 +112,16 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
 
     let (expression, input) = parse_expression_handle(syntax_trees, input)?;
 
+    if let Some(binding) = root_binding_declaration(syntax_trees, expression)? {
+        let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        return Ok((
+            syntax_trees
+                .statements
+                .insert(StatementNode::RootBinding(binding)),
+            input,
+        ));
+    }
+
     // ATOMICS STAGE 1 (ch17, M2): `atomic_place.store(value, ordering);` is
     // desugared here into `atomic_place = value;`. The postfix parser keeps
     // the Call node intact (target="store", 2 arguments) so we can detect it.
@@ -1708,6 +1718,51 @@ fn try_desugar_atomic_store(
         target: receiver,
         value,
     })
+}
+
+fn root_binding_declaration(
+    syntax_trees: &SyntaxTrees,
+    expression: ExpressionHandle,
+) -> Result<Option<syntax_trees::statement::RootBinding>, ParseError> {
+    let ExpressionNode::Call(call) = syntax_trees.expressions.expression(expression) else {
+        return Ok(None);
+    };
+    if call.target.as_str() != "bind" || !call.receiver.is_valid() {
+        return Ok(None);
+    }
+    let ExpressionNode::Member(member) = syntax_trees.expressions.expression(call.receiver) else {
+        return Ok(None);
+    };
+    if member.member.as_str() != "roots" {
+        return Ok(None);
+    }
+    let invalid = || {
+        ParseError::new(
+            "root-slot binding requires exactly one slot path and one implementation path",
+        )
+    };
+    let [slot, implementation] = syntax_trees.expressions.expression_handles(call.arguments) else {
+        return Err(invalid());
+    };
+    if !call.machine_arguments.is_empty() || !call.evidence_arguments.is_empty() {
+        return Err(invalid());
+    }
+    let operand = |handle| {
+        let ExpressionNode::Name(path) = syntax_trees.expressions.expression(handle) else {
+            return Err(invalid());
+        };
+        Ok(syntax_trees
+            .expressions
+            .identifier_path_members(*path)
+            .to_vec()
+            .into_boxed_slice())
+    };
+    Ok(Some(syntax_trees::statement::RootBinding {
+        receiver: member.receiver,
+        slot: operand(*slot)?,
+        implementation: operand(*implementation)?,
+        source_span: call.target.source_span(),
+    }))
 }
 
 fn expression_handle_to_statement_call(

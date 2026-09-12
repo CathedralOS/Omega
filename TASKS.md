@@ -391,6 +391,10 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   entry reference and binds it without executing target code. Wrong scope/target,
   lookalike operations, helper enumeration of caller-private declarations,
   description-to-callable forgery and same-build generated/layout cycles reject.
+  Replace the direct-entry static projection in
+  `build-evaluation/src/selection/root_bindings.rs` with binding through the
+  evaluated root Build authority; its helper/alias rejection is an implementation
+  limit, not a restriction on the accepted language.
   Final admission must rejoin the exact selected identity after generation.
 
 - **BUILD-SNAPSHOT-OUTPUTS.** In build evaluation, its host custody adapters and

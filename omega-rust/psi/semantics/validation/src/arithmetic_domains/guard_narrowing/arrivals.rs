@@ -547,7 +547,7 @@ impl ArrivalWalk<'_, '_> {
                 StatementNode::Expression(expression) => {
                     self.expression(source, *expression, environment)
                 }
-                StatementNode::AssemblyFact(_) => {}
+                StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => {}
             }
         }
         true

@@ -3118,6 +3118,7 @@ pub(crate) fn collect_statement_expression_trees(
     handles: &mut Vec<ExpressionHandle>,
 ) {
     match statement {
+        StatementNode::RootBinding(_) => {}
         StatementNode::AssemblyFact(fact) => {
             collect_expression_tree(program, fact.expression, handles)
         }

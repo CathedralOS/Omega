@@ -356,6 +356,7 @@ fn collect_destination_trees(
                             }
                         }
                     }
+                    StatementNode::RootBinding(_) => {}
                     StatementNode::AssemblyFact(fact) => other_roots.push(fact.expression),
                 }
             }

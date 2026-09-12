@@ -1027,6 +1027,7 @@ fn validate_state_statement_node(
         placed_views::validate_statement(program, machine, state, statement, diagnostics);
     }
     match statement {
+        StatementNode::RootBinding(_) => {}
         StatementNode::AssemblyFact(fact) => {
             let state = current_state;
             if let Some(state) = state {

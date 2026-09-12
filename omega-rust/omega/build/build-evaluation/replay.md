@@ -140,7 +140,7 @@ cannot be silently ignored or turned into package authority. Runtime filesystem
 support and ambient differential tests are separate. A new build facet requires
 a concrete customer and an explicit scoped contract.
 
-Schema constants in [src/lib.rs](src/lib.rs) and
+Schema constants in [observations.rs](src/observations.rs) and
 [replay_record.rs](src/replay_record.rs) own exact version gates. Current notes
 describe one grammar; old schema numbers, landing milestones, and test-count
 diaries belong in Git history.

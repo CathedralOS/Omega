@@ -229,6 +229,7 @@ pub(super) fn judge_statement_qualification_casts(
 ) {
     let mut roots: Vec<ExpressionHandle> = Vec::new();
     match statement {
+        StatementNode::RootBinding(_) => {}
         StatementNode::AssemblyFact(fact) => roots.push(fact.expression),
         StatementNode::Assignment(assignment) => {
             roots.push(assignment.target);

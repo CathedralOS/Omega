@@ -439,6 +439,7 @@ fn collect_statement_nodes(
     nodes: &mut Vec<ExpressionHandle>,
 ) {
     match statement {
+        StatementNode::RootBinding(_) => {}
         StatementNode::AssemblyFact(fact) => {
             collect_expression_nodes(program, fact.expression, nodes)
         }
