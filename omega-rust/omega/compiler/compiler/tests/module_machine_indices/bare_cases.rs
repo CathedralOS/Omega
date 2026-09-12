@@ -139,10 +139,19 @@ fn bare_case_values_preserve_payload_defaults_shadowing_and_nominal_type() {
 
 #[test]
 fn bare_package_cases_cannot_escape_local_shadow_or_nominal_destination() {
-    for source in [
-        "use leaf::settings; machine make(leaf: u32) -> leaf::settings::Value { leaf::settings::Value::Empty }",
-        "use leaf::settings; machine make() -> leaf::settings::Value { let leaf: u32 = 1; leaf::settings::Value::Empty }",
-        "use leaf::settings; data Other { case Empty; } machine make() -> Other { leaf::settings::Value::Empty }",
+    for (source, expected) in [
+        (
+            "use leaf::settings; machine make(leaf: u32) -> leaf::settings::Value { leaf::settings::Value::Empty }",
+            "static path through runtime binding `leaf`",
+        ),
+        (
+            "use leaf::settings; machine make() -> leaf::settings::Value { let leaf: u32 = 1; leaf::settings::Value::Empty }",
+            "static path through runtime binding `leaf`",
+        ),
+        (
+            "use leaf::settings; data Other { case Empty; } machine make() -> Other { leaf::settings::Value::Empty }",
+            "terminal expression",
+        ),
     ] {
         let tree = Sources::new();
         let root = tree.package("root");
@@ -171,10 +180,7 @@ fn bare_package_cases_cannot_escape_local_shadow_or_nominal_destination() {
         })
         .expect_err("case construction cannot bypass lexical or nominal identity");
         assert!(
-            errors
-                .iter()
-                .any(|error| error.message.contains("StaticPathSegment")
-                    || error.message.contains("terminal expression")),
+            errors.iter().any(|error| error.message.contains(expected)),
             "{errors:?}"
         );
     }

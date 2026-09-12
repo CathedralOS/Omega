@@ -611,12 +611,29 @@ fn literal_boolean_indices_retain_selection_types_and_evaluated_failures() {
 fn literal_boolean_data_fields_use_the_same_canonical_instance() {
     let tree = Sources::new();
     let root = tree.package("root");
-    Sources::write(
-        root.join("main.omg"),
-        &format!(
-            "{FLAG} data Holder {{ value: Flag<(1u64 < 2)>; }}
-         machine read(holder: &Holder) -> Flag<true> {{ holder.value }}"
-        ),
-    );
-    compile(&root, root_inputs(&root));
+    for property in ["[copy]", ""] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "pub data Flag<const Enabled: bool> {property} {{ value: u8; }}
+                 data Holder {{ value: Flag<(1u64 < 2)>; }}
+                 machine read(holder: &Holder) -> Flag<true> {{ holder.value }}"
+            ),
+        );
+        let result = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        });
+        if property.is_empty() {
+            let errors = result.expect_err("canonical Boolean indices do not grant copyability");
+            assert!(
+                errors.iter().any(|error| error
+                    .message
+                    .contains("cannot transfer a non-copy value out of borrowed storage")),
+                "{errors:?}"
+            );
+        } else {
+            result.expect("copyable field retains its canonical Boolean index");
+        }
+    }
 }

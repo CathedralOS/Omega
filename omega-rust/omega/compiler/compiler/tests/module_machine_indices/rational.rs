@@ -154,12 +154,29 @@ fn anonymous_comparisons_keep_exact_selection_and_runtime_shadow_rejection() {
 fn anonymous_comparison_data_fields_match_boolean_literal_instances() {
     let tree = Sources::new();
     let root = tree.package("root");
-    Sources::write(
-        root.join("main.omg"),
-        &format!(
-            "{FLAG} data Holder {{ value: Flag<(0.1 + 0.2 == 0.3)>; }}
-         machine read(holder: &Holder) -> Flag<true> {{ holder.value }}"
-        ),
-    );
-    compile(&root, root_inputs(&root));
+    for property in ["[copy]", ""] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "pub data Flag<const Enabled: bool> {property} {{ value: u8; }}
+                 data Holder {{ value: Flag<(0.1 + 0.2 == 0.3)>; }}
+                 machine read(holder: &Holder) -> Flag<true> {{ holder.value }}"
+            ),
+        );
+        let result = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        });
+        if property.is_empty() {
+            let errors = result.expect_err("exact rational evaluation does not grant copyability");
+            assert!(
+                errors.iter().any(|error| error
+                    .message
+                    .contains("cannot transfer a non-copy value out of borrowed storage")),
+                "{errors:?}"
+            );
+        } else {
+            result.expect("copyable field retains the exact rational comparison result");
+        }
+    }
 }
