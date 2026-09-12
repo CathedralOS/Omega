@@ -144,32 +144,52 @@ pub(crate) fn parameter_shape(
     }
 }
 
-/// The existing aggregate home can supply a pointer to this exact plain record.
-pub(crate) fn scalar_record_shape(
+/// Borrow geometry for an exact plain record, including nested owned records.
+/// This does not authorize constructing those nested fields.
+pub(crate) fn plain_record_shape(
     structural_type: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<ValueShape> {
+    plain_record(structural_type, declarations, &mut Vec::new()).then_some(())?;
+    shape(structural_type, declarations)
+}
+
+fn plain_record(
+    structural_type: StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
+    active: &mut Vec<StructuralTypeId>,
+) -> bool {
+    if active.contains(&structural_type) {
+        return false;
+    }
     let mut matching = declarations
         .iter()
         .filter(|declaration| declaration.id == structural_type);
-    let declaration = matching.next()?;
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
-        return None;
+    let Some(declaration) = matching.next() else {
+        return false;
     };
-    if matching.next().is_some()
-        || fields.iter().any(|field| {
-            field.relevance.is_erased()
-                || matches!(field.field_type, StructuralFieldType::BoundedInteger(_))
-                || field
-                    .field_type
-                    .scalar_type()
-                    .and_then(scalar_shape)
-                    .is_none()
-        })
-    {
-        return None;
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return false;
+    };
+    if matching.next().is_some() {
+        return false;
     }
-    shape(structural_type, declarations)
+    active.push(structural_type);
+    let supported = fields.iter().all(|field| {
+        !field.relevance.is_erased()
+            && match field.field_type {
+                StructuralFieldType::Structural(nested) => {
+                    plain_record(nested, declarations, active)
+                }
+                StructuralFieldType::Scalar(scalar) => scalar_shape(scalar).is_some(),
+                StructuralFieldType::IeeeFloat(format) => {
+                    scalar_shape(ScalarType::IeeeFloat(format)).is_some()
+                }
+                _ => false,
+            }
+    });
+    active.pop();
+    supported
 }
 
 /// Owned arrays retain their full recursive type, including below empty extents.
@@ -463,7 +483,7 @@ pub(crate) fn field_read(
     {
         return None;
     }
-    scalar_record_shape(parameter.structural_type, declarations)?;
+    plain_record_shape(parameter.structural_type, declarations)?;
     store(
         parameter.structural_type,
         &source.path,

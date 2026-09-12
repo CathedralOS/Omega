@@ -372,7 +372,7 @@ pub(super) fn callee_plan(
                 parameter.is_self
                     && parameter.structural_type == attachment
                     && parameter.access == terminal_psi::StructuralAccess::SharedBorrow
-                    && crate::structural_reference_input::scalar_record_shape(
+                    && crate::structural_reference_input::plain_record_shape(
                         attachment,
                         &plan.structural_types,
                     )

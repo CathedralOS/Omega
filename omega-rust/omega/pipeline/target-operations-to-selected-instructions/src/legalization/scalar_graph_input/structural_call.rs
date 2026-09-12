@@ -43,7 +43,7 @@ pub(in crate::legalization) fn argument_at(
         );
     }
     if semantic.access == StructuralAccess::SharedBorrow
-        && crate::structural_reference_input::scalar_record_shape(
+        && crate::structural_reference_input::plain_record_shape(
             destination_parameter.structural_type,
             &plan.structural_types,
         )
@@ -181,7 +181,7 @@ fn record_argument(
     plan: &AbstractOperationPlan,
 ) -> Result<TargetStructuralArgument, LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
-    if !semantic.path.is_empty()
+    if semantic.access != StructuralAccess::SharedBorrow
         || destination.access != StructuralAccess::SharedBorrow
         || destination.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
         || !destination.qualifications.is_empty()
@@ -240,8 +240,16 @@ fn record_argument(
             },
         )
     };
-    let referent = crate::structural_reference_input::scalar_record_shape(
+    crate::structural_reference_input::plain_record_shape(structural_type, &plan.structural_types)
+        .ok_or(invalid.clone())?;
+    let (referent_type, offset) = crate::structural_reference_input::project(
         structural_type,
+        &semantic.path,
+        &plan.structural_types,
+    )
+    .ok_or(invalid.clone())?;
+    let referent = crate::structural_reference_input::plain_record_shape(
+        referent_type,
         &plan.structural_types,
     )
     .ok_or(invalid.clone())?;
@@ -250,7 +258,7 @@ fn record_argument(
         .parameters
         .get(parameter_ordinal)
         .ok_or(invalid.clone())?;
-    if structural_type != destination.structural_type || placement.shape != shape {
+    if referent_type != destination.structural_type || placement.shape != shape {
         return Err(invalid);
     }
     Ok(TargetStructuralArgument {
@@ -258,9 +266,9 @@ fn record_argument(
         access: semantic.access,
         path: semantic.path.clone(),
         root_structural_type: structural_type,
-        structural_type,
+        structural_type: referent_type,
         shape,
-        source_byte_offset: 0,
+        source_byte_offset: offset,
         fixed_array_length: None,
         element_stride: None,
         source,

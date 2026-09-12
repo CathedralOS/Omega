@@ -39,6 +39,93 @@ fn machine<'program>(
 }
 
 #[test]
+fn scalar_receiver_forwarding_retains_owner_and_projection() {
+    let checked = checked(
+        "data Inner { left: u64; right: u64; }
+        data Outer { leading: u64; inner: Inner; other: Inner; }
+        machine Inner::get_right(&self) -> u64 { self.right }
+        machine Inner::forward(&self) -> u64 { self.get_right() }
+        machine Outer::get_inner(&self) -> u64 { self.inner.forward() }
+        machine invoke(value: &Outer) -> u64 { value.get_inner() }",
+    );
+    for (name, projected) in [
+        ("Inner::forward", false),
+        ("Outer::get_inner", true),
+        ("invoke", false),
+    ] {
+        let owner = machine(&checked.typed, name);
+        let state = &checked.machine_states(owner)[0];
+        let plans = &checked.facts.values.scalar_computations;
+        // Source normalization may hoist whole-self calls into a local. The
+        // actual initializer or return owns the computation in either form.
+        let role = match &checked.statement_table.statements(state.statement_nodes)[0] {
+            StatementNode::LocalData(_) => {
+                CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 }
+            }
+            StatementNode::Expression(_) => CheckedScalarExpressionRole::Return,
+            _ => panic!("{name}: scalar invocation destination"),
+        };
+        let root = plans
+            .root_at(state.symbol, 0, role)
+            .unwrap_or_else(|| panic!("{name}: forwarded receiver retains ordinary computation"));
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .for_machine(owner.symbol)
+                .is_some_and(|plan| plan.scalar_result.is_some() || plan.scalar_control.is_some()),
+            "{name} retains its executable scalar completion body"
+        );
+        let checked_trees::CheckedScalarComputationKind::Call {
+            structural_arguments,
+            ..
+        } = plans.nodes.get(root.root).kind
+        else {
+            panic!("ordinary receiver call");
+        };
+        let [checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] = plans
+            .structural_arguments
+            .span(structural_arguments)
+            .unwrap()
+        else {
+            panic!("one receiver");
+        };
+        assert_eq!(
+            argument.source,
+            CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 }
+        );
+        assert_eq!(argument.access, CheckedStructuralAccess::SharedBorrow);
+        assert_eq!(argument.path.len(), usize::from(projected));
+        if projected {
+            let data = checked
+                .data_definitions()
+                .iter()
+                .find(|data| data.symbol == owner.attached_data_symbol)
+                .unwrap();
+            let field = checked
+                .data_members(data)
+                .iter()
+                .find_map(|member| match member {
+                    typed_trees::data::DataMember::Field(field)
+                        if field.name.as_str() == "inner" =>
+                    {
+                        Some(field)
+                    }
+                    _ => None,
+                })
+                .unwrap();
+            assert_eq!(
+                argument.path,
+                [CheckedUnitStructuralPathSegment::Field(
+                    terminal_field_identity(&checked.typed, field.symbol).unwrap()
+                )]
+            );
+        }
+    }
+}
+
+#[test]
 fn scalar_receiver_call_retains_shared_parameter_and_ordinary_callee() {
     for body in ["self.left ^ self.right", "7"] {
         let checked = checked(

@@ -779,11 +779,16 @@ pub(super) fn lower_scalar_call(
     };
     if target.structural_parameters().len() != structural_arguments.len()
         || !target.entry_claims().is_empty()
-        || structural_arguments
-            .iter()
-            .any(|argument| !argument.path.is_empty())
+        || structural_arguments.iter().any(|argument| {
+            !argument.path.is_empty()
+                && (argument.access != StructuralAccess::SharedBorrow
+                    || argument
+                        .path
+                        .iter()
+                        .any(|segment| !matches!(segment, StructuralPathSegment::Field(_))))
+        })
     {
-        return unsupported("computed scalar call requires exact whole structural custody");
+        return unsupported("computed scalar call requires exact structural custody");
     }
     let (target_parameter_types, target_result_type) =
         qualifications.scalar_state_types(checked, target_state)?;

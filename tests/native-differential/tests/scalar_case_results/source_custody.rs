@@ -4,6 +4,173 @@ use legalized_operations::{LegalizedScalarTerminator, LegalizedStructuralCaseSou
 use semantic_vocabulary::{BlockId, OperationId, PlaceId, StructuralTypeId};
 
 #[test]
+fn projected_shared_receiver_rejects_overlapping_mutable_field_actual() {
+    let source = "data Inner { left: u64; right: u64; }
+        data Outer { leading: u64; inner: Inner; other: Inner; }
+        machine Inner::inspect(&self, destination: &mut u64) -> u64 { self.right }
+        machine observe(value: &mut Outer) -> u64 {
+            value.inner.inspect(&mut value.inner.right)
+        }";
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+    let resolved =
+        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = match typed_trees_to_checked_trees::lower_typed_trees(typed) {
+        Ok(_) => panic!("projected shared receiver cannot overlap an exclusive field argument"),
+        Err(diagnostics) => diagnostics,
+    };
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("receives shared receiver overlapping another argument in the same call")),
+        "exact receiver/argument incompatibility: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn projected_record_getter_replay_rejects_sibling_root_path_and_endpoint_substitution() {
+    use checked_trees::{
+        CheckedScalarComputationStructuralArgument, CheckedStructuralAccess,
+        CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
+    };
+
+    let tokens = source_files_to_tokens::Lexer::new(super::records::PROJECTED_RECORD_GETTER)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("valid projected shared getter source");
+    for entry in ["distinct_roots", "projected"] {
+        let _artifact = terminal_production::produce_terminal_artifact(&checked, entry)
+            .expect("unchanged projected receiver custody independently publishes");
+    }
+    let declared_field = |owner: &str, name: &str| {
+        let definition = checked
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == owner)
+            .unwrap();
+        let field = checked
+            .data_members(definition)
+            .iter()
+            .find_map(|member| match member {
+                checked_trees::data::DataMember::Field(field) if field.name.as_str() == name => {
+                    Some(field)
+                }
+                _ => None,
+            })
+            .unwrap();
+        CheckedUnitStructuralPathSegment::Field(
+            field
+                .identity
+                .map(|identity| format!("#{identity}"))
+                .unwrap_or_else(|| field.name.as_str().to_owned()),
+        )
+    };
+    let inner = declared_field("Outer", "inner");
+    let other = declared_field("Outer", "other");
+    let right = declared_field("Inner", "right");
+    assert_ne!(inner, other);
+
+    // Only distinct_roots has a second structural parameter: this selects its
+    // right.inner occurrence, not another machine's coincidentally equal path.
+    let mut receivers = checked
+        .facts
+        .values
+        .scalar_computations
+        .structural_arguments
+        .iter()
+        .filter_map(|(handle, argument)| match argument {
+            CheckedScalarComputationStructuralArgument::Place(argument)
+                if argument.source
+                    == CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index: 1,
+                    }
+                    && argument.path == [inner.clone()] =>
+            {
+                Some(handle)
+            }
+            _ => None,
+        });
+    let receiver = receivers.next().expect("exact right.inner receiver");
+    assert!(receivers.next().is_none());
+    for mutation in 0..7 {
+        let mut changed = checked.clone();
+        let CheckedScalarComputationStructuralArgument::Place(argument) = changed
+            .facts
+            .values
+            .scalar_computations
+            .structural_arguments
+            .get_mut(receiver)
+        else {
+            panic!("receiver")
+        };
+        match mutation {
+            0 => argument.path = vec![other.clone()],
+            1 => {
+                argument.source =
+                    CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 }
+            }
+            2 => argument.path.clear(),
+            3 => argument.path.push(right.clone()),
+            4 => argument.access = CheckedStructuralAccess::MutableBorrow,
+            5 => argument.access = CheckedStructuralAccess::Owned,
+            _ => argument.type_identity = "Outer".into(),
+        }
+        assert!(
+            terminal_production::produce_terminal_artifact(&changed, "distinct_roots").is_err(),
+            "projected operand mutation {mutation}"
+        );
+    }
+
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "distinct_roots")
+        .unwrap();
+    let state = &checked.machine_states(machine)[0];
+    let root = checked.state_parameters(state)[0].symbol;
+    let calls = checked
+        .facts
+        .borrow
+        .states
+        .iter()
+        .find_map(|(_, row)| {
+            (row.machine_symbol == machine.symbol && row.state_symbol == state.symbol)
+                .then_some(row.calls)
+        })
+        .expect("exact distinct_roots borrow-call roster");
+    assert_eq!(calls.count(), 2);
+    let receiver_call = calls.start();
+    let original = checked.facts.borrow.calls.get(receiver_call);
+    assert!(original.has_receiver);
+    assert_ne!(
+        original.receiver_symbol, root,
+        "projected endpoint is not its root"
+    );
+    for mutation in 0..3 {
+        let mut changed = checked.clone();
+        let call = changed.facts.borrow.calls.get_mut(receiver_call);
+        match mutation {
+            0 => call.receiver_symbol = root,
+            1 => call.receiver_symbol = symbols::SymbolHandle::invalid(),
+            _ => call.has_receiver = false,
+        }
+        assert!(
+            terminal_production::produce_terminal_artifact(&changed, "distinct_roots").is_err(),
+            "receiver endpoint mutation {mutation}"
+        );
+    }
+}
+
+#[test]
 fn local_record_getter_replay_rejects_substituted_receiver_custody() {
     let source = "data Pair [copy] { left: u64; right: u64; }
         machine Pair::get_right(&self) -> u64 { self.right }

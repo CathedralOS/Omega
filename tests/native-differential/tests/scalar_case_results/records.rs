@@ -2,6 +2,100 @@
 
 use super::*;
 
+pub(super) const PROJECTED_RECORD_GETTER: &str = "
+    data Inner { left: u64; right: u64; }
+    data Outer { leading: u64; inner: Inner; other: Inner; }
+    machine Inner::get_right(&self) -> u64 { self.right }
+    machine Inner::forward(&self) -> u64 { self.get_right() }
+    machine Outer::get_inner_right(&self) -> u64 { self.inner.forward() }
+    machine forwarded(value: &Inner, prefix: u64) -> u64 {
+        let observed: u64 = value.forward();
+        observed ^ (prefix & 255)
+    }
+    machine projected(value: &Outer, prefix: u64) -> u64 {
+        let first: u64 = value.get_inner_right();
+        let second: u64 = value.other.get_right();
+        first ^ (second & 255) ^ (prefix & 255)
+    }
+    machine distinct_roots(left: &Outer, right: &Outer) -> u64 {
+        left.inner.get_right() ^ right.inner.get_right()
+    }
+";
+
+#[test]
+fn shared_self_forwarding_preserves_incoming_record_storage() {
+    assert_borrowed_record_getter(
+        "forwarded",
+        r#"
+        #include <stdint.h>
+        typedef struct { uint64_t left; uint64_t right; } Inner;
+        /* The internal mixed ABI places scalar parameters before structural ones. */
+        extern uint64_t omega_entry(uint64_t prefix, const Inner *value);
+        int main(void) {
+            Inner value = { UINT64_C(0x8123456789abcdef), UINT64_MAX };
+            if (omega_entry(0x173, &value) != (value.right ^ 0x73)) return 1;
+            value.right = UINT64_C(0xfedcba9876543210);
+            return omega_entry(0x287, &value) != (value.right ^ 0x87);
+        }
+        "#,
+    );
+}
+
+#[test]
+fn projected_shared_getters_preserve_nested_storage_and_sibling_identity() {
+    assert_borrowed_record_getter(
+        "projected",
+        r#"
+        #include <stdint.h>
+        typedef struct { uint64_t left; uint64_t right; } Inner;
+        typedef struct { uint64_t leading; Inner inner; Inner other; } Outer;
+        /* The internal mixed ABI places scalar parameters before structural ones. */
+        extern uint64_t omega_entry(uint64_t prefix, const Outer *value);
+        int main(void) {
+            Outer value = { 0x41, { 0x62, UINT64_MAX }, { 0x83, 0x124 } };
+            if (omega_entry(0x175, &value) != (value.inner.right ^ 0x24 ^ 0x75)) return 1;
+            value.inner.right = UINT64_C(0xfedcba9876543210);
+            value.other.right = UINT64_C(0x8123456789abcdef);
+            return omega_entry(0x286, &value) != (value.inner.right ^ 0xef ^ 0x86);
+        }
+        "#,
+    );
+}
+
+fn assert_borrowed_record_getter(entry: &str, driver: &str) {
+    let artifact = produce_source(entry, PROJECTED_RECORD_GETTER);
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let (image, offset) = publish(&artifact, target);
+        #[cfg(any(
+            all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", target_arch = "aarch64")
+        ))]
+        if target == NativeTarget::host() {
+            native_function::assert_c_text(&image.output().final_text_bytes, offset, driver);
+        }
+        #[cfg(not(any(
+            all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", target_arch = "aarch64")
+        )))]
+        {
+            let _ = (image, offset, driver);
+            eprintln!(
+                "SKIP: shared record forwarding runtime requires a matching Linux/macOS host; cross-target publication was checked"
+            );
+        }
+    }
+}
+
 const DIRECT_LOCAL_RECORD_GETTER: &str = "
     data Pair [copy] { left: u64; right: u64; }
     machine Pair::get_right(&self) -> u64 { self.right }

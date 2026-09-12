@@ -1,4 +1,7 @@
 //! Prepare borrowed call referents from incoming pointers or exact local storage.
+//! Shared record projections retain the original root and semantic path alongside
+//! the derived displacement. Receiving validation reconstructs that displacement;
+//! neither record size nor a matching callee shape authorizes a copied referent.
 use super::LiveDefinitions;
 use crate::lowering::function_signature::{PreparedFunctionSignature, prepare_function_signature};
 use crate::lowering::shared::*;
@@ -171,7 +174,7 @@ pub(super) fn argument(
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
     let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
-    if !argument.path.is_empty()
+    if (!argument.path.is_empty() && !is_shared_record(declaration, types))
         || argument.access != declaration.access
         || !(super::primitive_storage::is_primitive_reference(declaration, types)
             || is_shared_record(declaration, types))
@@ -233,17 +236,33 @@ pub(super) fn argument(
         }
         (source.structural_type, source.placement.clone().into())
     };
-    if identity != declaration.structural_type {
+    let (referent, source_byte_offset) = if argument.path.is_empty() {
+        (identity, 0)
+    } else {
+        if !plain_record(identity, types, &mut Vec::new()) {
+            return Err(invalid());
+        }
+        let (referent, _, offset) =
+            crate::lowering::structural_layout::resolve_structural_projection_path(
+                identity,
+                &argument.path,
+                types,
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+            )?;
+        (referent, offset)
+    };
+    if referent != declaration.structural_type {
         return Err(invalid());
     }
     Ok(TargetStructuralArgument {
         place: argument.place,
         access: argument.access,
-        path: Vec::new(),
+        path: argument.path.clone(),
         root_structural_type: identity,
-        structural_type: identity,
+        structural_type: referent,
         shape: destination.shape,
-        source_byte_offset: 0,
+        source_byte_offset,
         fixed_array_length: None,
         element_stride: None,
         source,
@@ -259,13 +278,37 @@ fn is_shared_record(
         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()
-        && types
-            .get(&parameter.structural_type)
-            .is_some_and(|declaration| {
-                matches!(&declaration.shape, StructuralTypeShape::Record { fields }
-                if fields.iter().all(|field| !field.relevance.is_erased()
-                    && !matches!(field.field_type, StructuralFieldType::BoundedInteger(_))
-                    && field.field_type.scalar_type().is_some_and(|scalar|
-                        super::primitive_storage::native_shape(scalar).is_some())))
-            })
+        && plain_record(parameter.structural_type, types, &mut Vec::new())
+}
+
+fn plain_record(
+    identity: StructuralTypeId,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    active: &mut Vec<StructuralTypeId>,
+) -> bool {
+    if active.contains(&identity) {
+        return false;
+    }
+    let Some(declaration) = types.get(&identity) else {
+        return false;
+    };
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return false;
+    };
+    active.push(identity);
+    let supported = fields.iter().all(|field| {
+        !field.relevance.is_erased()
+            && match field.field_type {
+                StructuralFieldType::Structural(nested) => plain_record(nested, types, active),
+                StructuralFieldType::Scalar(scalar) => {
+                    super::primitive_storage::native_shape(scalar).is_some()
+                }
+                StructuralFieldType::IeeeFloat(format) => {
+                    super::primitive_storage::native_shape(ScalarType::IeeeFloat(format)).is_some()
+                }
+                _ => false,
+            }
+    });
+    active.pop();
+    supported
 }
