@@ -150,7 +150,11 @@ authority. Its promotion layer is current implementation, not a requirement to
 add `PackageInstance` certification before implementing install/update.
 
 `compile_resolved_package_candidate_reviews` is the install/update candidate
-entrance. It uses one preliminary compiler review only to discover supported
+entrance. Each package uses its authored `main.omg` when present, otherwise
+its authored `build.omg` through the compiler's existing build-file entrance.
+This creates no source exports: missing imported modules still reject. Explicit
+root check entries and native application entry requirements remain unchanged.
+It uses one preliminary compiler review only to discover supported
 package-owned semantic surfaces, then recompiles with exact consumer-scoped
 bindings. Only that final review may proceed to conflicts and admission; the
 discovery pass is neither policy nor evidence that an audit occurred.

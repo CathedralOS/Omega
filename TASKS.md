@@ -56,17 +56,13 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   owning diagnostic before expanding compiler work. Initialization is explicit
   and requires private repository access during in-house development.
   On macOS ARM64 with Python 3.13, the unchanged native invocation at
-  `da803b0152` (base `74b0e1c058`) exits 200 on 16 undeclared direct-boundary
+  `69e8f5f2c4` (base `76b8ad81f1`) exits 200 on 16 undeclared direct-boundary
   service reaches in the pinned standard package. The incoming checker now
   enforces the settled [direct-boundary declaration rule](wiki/spec/language/effects.md#declarations)
   for private bodies too. Repair those standard-package declarations and refresh
-  its exact review; ordinary wrappers still infer transitive reach. The prior
-  invocation at `dba8e2aec8` (base `129bda7420`) passed std/API checking and reached
-  a separate package-review entrance failure: `squalr-engine-projects` authors
-  only `build.omg`, but review selects missing `main.omg`. Its owner is
-  `omega-rust/omega/packages/manager/src/review/candidate/compilation.rs` and the
-  compiler's existing build source entrance. Preserve the graph and do not add
-  placeholder libraries to make review pass. Both are engineering work; the
+  its exact review; ordinary wrappers still infer transitive reach. Preserve
+  the graph and keep build-only packages explicitly unported; do not add
+  placeholder libraries to make review pass. This is engineering work; the
   unchanged native command remains the acceptance.
   Windows runtime controls in `omega-rust/omega/tests/package_commands/probe.rs`
   require a Windows normal-completion adapter for Unit entries: the native

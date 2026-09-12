@@ -1,3 +1,6 @@
+#[path = "dependency_generated_sources/build_only.rs"]
+mod build_only;
+
 #[path = "support/accepted_policy.rs"]
 mod accepted_policy_fixture;
 
