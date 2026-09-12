@@ -440,7 +440,11 @@ pub(super) fn validate_structural_frontier(
                 && !super::scalar_array::plain_return_source(module, machine, result.place)
                 && !(result.multiplicity == StructuralMultiplicity::Unrestricted
                     && (super::scalar_case::plain_return_source(module, machine, result.place)
-                        || super::scalar_record::plain_return_source(module, machine, result.place)))
+                        || super::scalar_record::plain_return_source(
+                            module,
+                            machine,
+                            result.place,
+                        )))
             {
                 if frontier
                     .owned_places
