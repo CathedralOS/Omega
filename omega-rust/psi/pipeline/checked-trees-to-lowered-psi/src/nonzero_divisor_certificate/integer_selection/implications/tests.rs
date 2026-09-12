@@ -89,3 +89,46 @@ fn each_selected_path_proves_its_own_implication_premise() {
     check_certificate(&context(), &goal, &assumptions, &axioms, &proof).unwrap();
     assert!(prove(&goal, &assumptions, &axioms[..1]).is_none());
 }
+
+#[test]
+fn implication_introduction_keeps_nested_assumptions_local() {
+    let first = polarity(1, true);
+    let second = polarity(2, false);
+    let result = polarity(3, true);
+    let goal = implication(first.clone(), implication(second.clone(), result.clone()));
+    let axioms = [implication(
+        Proposition::Conjunction(vec![first.clone(), second.clone()]),
+        result.clone(),
+    )];
+    let proof = prove(&goal, &[], &axioms).expect("nested premises discharge the body");
+    check_certificate(&context(), &goal, &[], &axioms, &proof).unwrap();
+    assert!(check_certificate(&context(), &goal, &[], &[], &proof).is_err());
+    assert!(prove(&result, &[], &axioms).is_none());
+    assert!(prove(&implication(first.clone(), result.clone()), &[], &axioms).is_none());
+    assert!(prove(&Proposition::Conjunction(vec![goal, first]), &[], &axioms).is_none());
+}
+
+#[test]
+fn implication_introduction_checks_each_case_and_vacuous_branch() {
+    let left = polarity(1, true);
+    let right = polarity(2, false);
+    let result = polarity(3, true);
+    let goal = implication(
+        Proposition::Disjunction(vec![left.clone(), right.clone()]),
+        result.clone(),
+    );
+    let axioms = [
+        implication(left, result.clone()),
+        implication(right, result.clone()),
+    ];
+    let proof = prove(&goal, &[], &axioms).expect("both disjuncts imply the result");
+    check_certificate(&context(), &goal, &[], &axioms, &proof).unwrap();
+    assert!(prove(&goal, &[], &axioms[..1]).is_none());
+
+    let goal = implication(polarity(1, false), result);
+    let axioms = [polarity(1, true)];
+    let proof = prove(&goal, &[], &axioms).expect("contradiction cites the local premise");
+    check_certificate(&context(), &goal, &[], &axioms, &proof).unwrap();
+    assert!(check_certificate(&context(), &goal, &[], &[], &proof).is_err());
+    assert!(prove(&goal, &[], &[]).is_none());
+}

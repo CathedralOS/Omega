@@ -564,6 +564,99 @@ fn ordered_boolean_call_computations_prove_branch_guarantees() {
 }
 
 #[test]
+fn ordered_boolean_guarantees_compose_through_dependent_joins() {
+    for input in [false, true] {
+        for body in [
+            "Host::finish(false); (identity(value) && identity(true)) || identity(false)",
+            "Host::finish(false); (identity(value) || identity(false)) && identity(true)",
+            "Host::finish(false); ((identity(value) && identity(true)) || identity(false)) && identity(true)",
+            "let saved: bool = identity(value) && identity(true); Host::finish(false); identity(saved) || identity(false)",
+        ] {
+            let source = boolean_guarantee_source(body, input);
+            let published = artifact(&checked_from_source(&source));
+            let (status, observed) = execute(&published);
+            assert_eq!(
+                status,
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+            );
+            assert_eq!(
+                observed.arguments,
+                [false, input].map(|value| vec![TerminalScalarValue::Boolean(value)]),
+                "{body}"
+            );
+        }
+    }
+}
+
+#[test]
+fn dependent_boolean_joins_retain_independent_input_values() {
+    for value in [false, true] {
+        for spare in [false, true] {
+            let source = nested_boolean_guarantee_source(
+                "value && spare",
+                "Host::finish(false);",
+                [value, spare, false, false],
+            )
+            .replace(
+                "Host::finish(false); value && spare",
+                "Host::finish(false); (identity(value) && identity(spare)) || identity(false)",
+            );
+            let published = artifact(&checked_from_source(&source));
+            let (status, observed) = execute(&published);
+            assert_eq!(
+                status,
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+            );
+            assert_eq!(
+                observed.arguments,
+                [false, value && spare].map(|value| vec![TerminalScalarValue::Boolean(value)])
+            );
+        }
+    }
+}
+
+#[test]
+fn dependent_boolean_join_evidence_rejects_changed_guards_and_missing_arrivals() {
+    let source = boolean_guarantee_source(
+        "Host::finish(false); (identity(value) && identity(true)) || identity(false)",
+        true,
+    );
+    let published = artifact(&checked_from_source(&source));
+    let module = decode_module(&published.0).unwrap();
+    let proof = decode_proof_bundle(&published.1).unwrap();
+    assert_eq!(
+        module.scalar_block_invariants.len(),
+        2,
+        "both dependent joins need evidence"
+    );
+    for index in 0..module.scalar_block_invariants.len() {
+        let mut changed = module.clone();
+        changed.scalar_block_invariants[index].arrivals.pop();
+        assert!(
+            terminal_verifier::verify_module(&changed, &proof, &AdmissionProfile::default())
+                .is_err()
+        );
+    }
+    let mut changed = module.clone();
+    let predicate = &mut changed.scalar_block_invariants[1].predicate;
+    let semantic_vocabulary::Proposition::Conjunction(parts) = predicate else {
+        panic!("conditional demands")
+    };
+    let semantic_vocabulary::Proposition::Implication { premise, .. } = &mut parts[0] else {
+        panic!("path guard")
+    };
+    **premise = semantic_vocabulary::Proposition::Truth;
+    assert!(
+        terminal_verifier::verify_module(&changed, &proof, &AdmissionProfile::default()).is_err()
+    );
+    let mut changed = module;
+    changed.scalar_block_invariants.pop();
+    assert!(
+        terminal_verifier::verify_module(&changed, &proof, &AdmissionProfile::default()).is_err()
+    );
+}
+
+#[test]
 fn ordered_call_produced_boolean_equations_compose_across_calls() {
     for bits in 0..16 {
         let inputs = [bits & 1 != 0, bits & 2 != 0, bits & 4 != 0, bits & 8 != 0];

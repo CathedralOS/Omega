@@ -53,6 +53,23 @@ impl<Ordinary: Fn(&Proposition, &[Proposition]) -> Option<ProofNode>> Search<'_,
             Proposition::Disjunction(parts) => logical::prove_disjunction(goal, parts, |part| {
                 self.goal(part, assumptions, depth + 1, allow_cases)
             }),
+            Proposition::Implication {
+                premise,
+                conclusion,
+            } => {
+                // The kernel appends this premise only while checking the body.
+                // Preserve that exact assumption order so nested introductions
+                // and case analysis cannot leak a conditional fact outward.
+                let mut scoped = assumptions.to_vec();
+                scoped.push(*premise.clone());
+                self.goal(conclusion, &scoped, depth + 1, allow_cases)
+                    .map(|body| ProofNode {
+                        conclusion: goal.clone(),
+                        rule: ProofRule::ImplicationIntroduction {
+                            body: Box::new(body),
+                        },
+                    })
+            }
             _ => None,
         };
         if logical.is_some() {

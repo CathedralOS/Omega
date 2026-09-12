@@ -7,10 +7,17 @@
 //! resulting predicate is separately proved on every actual arrival, and the
 //! original guarantee remains an independent final obligation. No call body is
 //! inspected and no source shape selects a compiler path.
+//!
+//! Downstream arrivals supply conditional demands for upstream joins. Preserve
+//! their established Boolean polarities through call/copy equations; ordinary
+//! aliases are not path guards. Never wrap a demand already covered by a header
+//! conjunct, or repeatedly add guards around its own imported assertion. Values
+//! absent from a header's scope must resolve through established arrival facts;
+//! a later block cannot supply its not-yet-defined parameters to an earlier edge.
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use proof_admission::check_value_equality_denotation;
+use proof_admission::{check_predicate_denotations, check_value_equality_denotation};
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ValueId};
 use terminal_psi::{ScalarBlockInvariant, TerminalModule, Terminator};
 use terminal_verifier::{ReconstructedTerminalObligationOwner, ReconstructedTerminalObligationSet};
@@ -18,9 +25,9 @@ use terminal_verifier::{ReconstructedTerminalObligationOwner, ReconstructedTermi
 pub(super) fn candidates(
     module: &TerminalModule,
     questions: &ReconstructedTerminalObligationSet,
+    remaining: &mut usize,
 ) -> Vec<ScalarBlockInvariant> {
     let mut candidates = Vec::new();
-    let mut remaining = 4096usize;
     let Ok(validated) = terminal_verifier::validate_module(module) else {
         return candidates;
     };
@@ -76,22 +83,130 @@ pub(super) fn candidates(
                 .chain(&header.parameters)
                 .map(|value| value.id)
                 .collect::<BTreeSet<_>>();
-            for site in questions.obligations().iter().filter(|site| {
-                matches!(site.owner, ReconstructedTerminalObligationOwner::ContractEnsures { machine: owner, .. } if owner == machine.id)
-            }) {
-                let Some(next) = remaining.checked_sub(1) else { return candidates };
-                remaining = next;
-                let Some(predicate) = scoped_goal(
-                    &site.obligation.proposition, &site.semantic_axioms, &allowed, &scope, &context, &mut remaining,
-                ) else { continue };
+            let mut imported = module
+                .scalar_block_invariants
+                .iter()
+                .filter(|invariant| {
+                    invariant.machine == machine.id && invariant.header == header.id
+                })
+                .map(|invariant| &invariant.predicate)
+                .collect::<Vec<_>>();
+            let mut cursor = 0;
+            while cursor < imported.len() {
+                let Some(next) = remaining.checked_sub(1) else {
+                    return candidates;
+                };
+                *remaining = next;
+                if let Proposition::Conjunction(members) = imported[cursor] {
+                    if members.len() > *remaining {
+                        return candidates;
+                    }
+                    imported.extend(members);
+                }
+                cursor += 1;
+            }
+            for site in questions
+                .obligations()
+                .iter()
+                .filter(|site| match site.owner {
+                    ReconstructedTerminalObligationOwner::ContractEnsures {
+                        machine: owner,
+                        ..
+                    } => owner == machine.id,
+                    ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
+                        machine: owner,
+                        header: destination,
+                        ..
+                    } => owner == machine.id && destination != header.id,
+                    _ => false,
+                })
+            {
+                let Some(next) = remaining.checked_sub(1) else {
+                    return candidates;
+                };
+                *remaining = next;
+                let Some(equations) = ArrivalEquations::new(&site.semantic_axioms, remaining)
+                else {
+                    continue;
+                };
+                let Some(mut predicate) = scoped_goal(
+                    &site.obligation.proposition,
+                    &equations,
+                    &allowed,
+                    &scope,
+                    &context,
+                    None,
+                    remaining,
+                ) else {
+                    continue;
+                };
+                let Ok(canonical) = super::canonical_predicate(predicate) else {
+                    continue;
+                };
+                predicate = canonical;
+                if imported.contains(&&predicate) {
+                    continue;
+                }
+                if matches!(
+                    site.owner,
+                    ReconstructedTerminalObligationOwner::ScalarBlockInvariant { .. }
+                ) {
+                    let mut guards = site
+                        .semantic_axioms
+                        .iter()
+                        // Retain established Boolean polarities for this path.
+                        // Copy equations and imported assertions describe values,
+                        // not whether the downstream arrival is taken.
+                        .filter(|fact| {
+                            matches!(fact, Proposition::Equal(_, ScalarTerm::Boolean(_)))
+                        })
+                        // A call or copy between joins can carry the selected
+                        // condition. Transport guards through the same exact
+                        // arrival equations as the goal, stopping at this scope.
+                        .filter_map(|fact| {
+                            scoped_goal(
+                                fact,
+                                &equations,
+                                &allowed,
+                                &scope,
+                                &context,
+                                Some(fact),
+                                remaining,
+                            )
+                        })
+                        .filter_map(|fact| super::canonical_predicate(fact).ok())
+                        .filter(|fact| !imported.contains(&fact) && uses_header(fact, header))
+                        .collect::<Vec<_>>();
+                    if !guards.is_empty() {
+                        // The downstream arrival is conditional. Demand its goal
+                        // only under the already-established facts expressible at
+                        // this earlier join, not unconditionally on every path.
+                        let guarded = Proposition::Implication {
+                            premise: Box::new(if guards.len() == 1 {
+                                guards.remove(0)
+                            } else {
+                                Proposition::Conjunction(guards)
+                            }),
+                            conclusion: Box::new(predicate),
+                        };
+                        let Ok(normalized) =
+                            check_predicate_denotations(&scope, &guarded, &[], &[])
+                        else {
+                            continue;
+                        };
+                        predicate = normalized.goal().clone();
+                    }
+                }
+                let Ok(predicate) = super::canonical_predicate(predicate) else {
+                    continue;
+                };
                 // Entry-only tautologies do not justify adding a join roster.
-                let mut uses_header = false;
-                predicate.visit_value_ids(|value| {
-                    uses_header |= header.parameters.iter().any(|parameter| parameter.id == value);
-                });
-                if uses_header {
+                if uses_header(&predicate, header) && !imported.contains(&&predicate) {
                     candidates.push(ScalarBlockInvariant {
-                        machine: machine.id, header: header.id, predicate, arrivals: Vec::new(),
+                        machine: machine.id,
+                        header: header.id,
+                        predicate,
+                        arrivals: Vec::new(),
                     });
                 }
             }
@@ -100,35 +215,27 @@ pub(super) fn candidates(
     candidates
 }
 
+fn uses_header(predicate: &Proposition, header: &terminal_psi::Block) -> bool {
+    let mut uses_header = false;
+    predicate.visit_value_ids(|value| {
+        uses_header |= header
+            .parameters
+            .iter()
+            .any(|parameter| parameter.id == value);
+    });
+    uses_header
+}
+
 fn scoped_goal(
     goal: &Proposition,
-    axioms: &[Proposition],
+    arrival: &ArrivalEquations<'_>,
     allowed: &BTreeSet<ValueId>,
     scope: &PropositionContext,
     context: &PropositionContext,
+    excluded: Option<&Proposition>,
     remaining: &mut usize,
 ) -> Option<Proposition> {
-    if axioms.len() > *remaining {
-        return None;
-    }
-    let mut pending_facts = axioms.iter().collect::<Vec<_>>();
-    let mut definitions = BTreeMap::new();
-    let mut reversed = BTreeMap::new();
-    while let Some(fact) = pending_facts.pop() {
-        *remaining = remaining.checked_sub(1)?;
-        match fact {
-            Proposition::Conjunction(members) => pending_facts.extend(members),
-            Proposition::Equal(left @ ScalarTerm::Value { id, .. }, right) if left != right => {
-                // Reverse traversal with replacement retains the first defining
-                // equation, matching ordinary value-equality proof production.
-                definitions.insert(*id, fact);
-                if let ScalarTerm::Value { id: result, .. } = right {
-                    reversed.insert(*result, Proposition::Equal(right.clone(), left.clone()));
-                }
-            }
-            _ => {}
-        }
-    }
+    *remaining = remaining.checked_sub(1)?;
     let mut pending = Vec::new();
     if !goal.visit_value_ids(|value| pending.push(value)) {
         return None;
@@ -144,10 +251,15 @@ fn scoped_goal(
         // actual defining equation, then orient an alias towards its source.
         // This proposes a predicate only; arrival proofs still cite/check the
         // original equations, including explicit symmetry where needed.
-        let definition = definitions
+        let definition = arrival
+            .definitions
             .get(&value)
             .copied()
-            .or_else(|| reversed.get(&value))?;
+            // A guard's selected truth is not its defining computation. Using
+            // that very fact as a definition would turn every transported guard
+            // into Truth instead of carrying its call/copy alias to the header.
+            .filter(|definition| Some(*definition) != excluded)
+            .or_else(|| arrival.reversed.get(&value))?;
         if !definition.visit_value_ids(|dependency| {
             if dependency != value {
                 pending.push(dependency);
@@ -157,12 +269,61 @@ fn scoped_goal(
         }
         equations.push(definition);
     }
-    if equations.is_empty() {
-        return None;
-    }
     // The transport validates all participating values before substitution.
     // A narrow final context then rejects any unresolved body-local identity.
-    let predicate = check_value_equality_denotation(context, goal, equations).ok()?;
+    // An arrival already in scope needs no equations, but still passes through
+    // the same bounded denotation/normalization rather than an unchecked clone.
+    let predicate = if equations.is_empty() {
+        check_predicate_denotations(context, goal, &[], &[])
+            .ok()?
+            .goal()
+            .clone()
+    } else {
+        check_value_equality_denotation(context, goal, equations).ok()?
+    };
     scope.validate(&predicate).ok()?;
     Some(predicate)
+}
+
+/// The goal and its path guards share one arrival's defining equations. Build
+/// their index once; neither conditional implications nor alternative branches
+/// become unconditional definitions.
+struct ArrivalEquations<'input> {
+    definitions: BTreeMap<ValueId, &'input Proposition>,
+    reversed: BTreeMap<ValueId, Proposition>,
+}
+
+impl<'input> ArrivalEquations<'input> {
+    fn new(axioms: &'input [Proposition], remaining: &mut usize) -> Option<Self> {
+        if axioms.len() > *remaining {
+            return None;
+        }
+        let mut pending = axioms.iter().collect::<Vec<_>>();
+        let mut definitions = BTreeMap::new();
+        let mut reversed = BTreeMap::new();
+        while let Some(fact) = pending.pop() {
+            *remaining = remaining.checked_sub(1)?;
+            match fact {
+                Proposition::Conjunction(members) => {
+                    if members.len() > *remaining {
+                        return None;
+                    }
+                    pending.extend(members);
+                }
+                Proposition::Equal(left @ ScalarTerm::Value { id, .. }, right) if left != right => {
+                    // Reverse traversal with replacement retains the first
+                    // defining equation, matching value-equality proof production.
+                    definitions.insert(*id, fact);
+                    if let ScalarTerm::Value { id: result, .. } = right {
+                        reversed.insert(*result, Proposition::Equal(right.clone(), left.clone()));
+                    }
+                }
+                _ => {}
+            }
+        }
+        Some(Self {
+            definitions,
+            reversed,
+        })
+    }
 }
