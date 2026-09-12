@@ -253,6 +253,8 @@ direct-dependency authority. This follows the
 and uses ordinary namespace resolution rather than a separate constructor scope.
 Payload-free bare case values, including package-qualified paths, normalize to
 the same resolved constructor after lexical value bindings have been selected.
+Scoped fields, named states and conformance binders also select the path head
+before normalization; a failed suffix cannot reopen lookup as a module case.
 They retain the original occurrence and exact case owner and undergo ordinary
 common-field, default, payload and opaque-construction checks. Case membership
 keeps its separate declaration role. Check the package customer with
