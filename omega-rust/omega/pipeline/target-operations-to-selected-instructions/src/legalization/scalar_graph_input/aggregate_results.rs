@@ -350,23 +350,48 @@ pub(super) fn header(
         .blocks
         .iter()
         .flat_map(|block| &block.structural_parameters)
-        .any(|parameter| !byte_parameter(parameter, plan) && !owned_case_parameter(parameter, plan))
+        .any(|parameter| {
+            !byte_parameter(parameter, plan) && block_home_layout(parameter, plan).is_err()
+        })
     {
         return Err(invalid);
     }
     Ok(expected)
 }
 
-pub(in crate::legalization) fn owned_case_parameter(
+/// Arrival keeps the value's layout but establishes a distinct block-owned home.
+/// Input admission, return replay and availability use this same type judgment;
+/// exact origin, dominance and ownership transfer are checked by their callers.
+pub(in crate::legalization) fn block_home_layout(
     parameter: &terminal_psi::StructuralParameterDeclaration,
     plan: &AbstractOperationPlan,
-) -> bool {
-    !parameter.is_self
+) -> Result<target_operations::TargetStructuralHomeLayout, LegalizationError> {
+    if !(!parameter.is_self
         && parameter.access == terminal_psi::StructuralAccess::Owned
         && parameter.multiplicity != StructuralMultiplicity::Linear
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()
-        && sum_type_layout(parameter.structural_type, plan).is_ok()
+        && plan.structural_types.iter().any(|declaration| {
+            declaration.id == parameter.structural_type
+                && matches!(
+                    declaration.shape,
+                    StructuralTypeShape::Sum { .. } | StructuralTypeShape::Record { .. }
+                )
+        }))
+    {
+        return Err(LegalizationError::SourceCustodyMismatch);
+    }
+    home_layout(
+        &StructuralOperationResult {
+            place: parameter.place,
+            structural_type: parameter.structural_type,
+            multiplicity: parameter.multiplicity,
+            qualifications: parameter.qualifications.clone(),
+            projected_qualifications: parameter.projected_qualifications.clone(),
+            claims: Vec::new(),
+        },
+        plan,
+    )
 }
 
 fn byte_parameter(
@@ -532,10 +557,7 @@ pub(super) fn result_home(
             block,
             declaration,
         } => {
-            let layout = target_operations::TargetStructuralHomeLayout::Sum(sum_type_layout(
-                declaration.structural_type,
-                plan,
-            )?);
+            let layout = block_home_layout(&declaration, plan)?;
             (
                 target_operations::TargetStructuralHomeOrigin::BlockParameter {
                     block,

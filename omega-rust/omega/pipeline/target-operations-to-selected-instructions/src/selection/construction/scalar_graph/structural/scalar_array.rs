@@ -62,5 +62,10 @@ pub(super) fn establish(
             },
         )?;
     }
+    // Publish the whole home to edge transport only after every payload store.
+    builder
+        .transport
+        .pointers
+        .push((established.place, pointer));
     Ok(())
 }

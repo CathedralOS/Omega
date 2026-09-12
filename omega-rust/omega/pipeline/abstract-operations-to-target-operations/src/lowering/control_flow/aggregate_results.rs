@@ -38,12 +38,20 @@ pub(super) fn block_home(
             declaration.structural_type,
         ));
     }
+    // Arrival changes the establishment identity, not the concrete value layout.
+    let result = terminal_psi::StructuralResultDeclaration {
+        place: declaration.place,
+        structural_type: declaration.structural_type,
+        multiplicity: declaration.multiplicity,
+        qualifications: declaration.qualifications.clone(),
+        projected_qualifications: declaration.projected_qualifications.clone(),
+    };
     Ok(TargetStructuralHomeRequirement {
         origin: target_operations::TargetStructuralHomeOrigin::BlockParameter {
             block,
             declaration: declaration.clone(),
         },
-        layout: TargetStructuralHomeLayout::Sum(sum_layout(declaration.structural_type, types)?),
+        layout: result_home_layout(&result, types)?,
     })
 }
 
