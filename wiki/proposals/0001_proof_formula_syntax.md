@@ -9,6 +9,9 @@ Machines establish contracts; traits and named conformances bundle mathematical
 operations, witnesses, and checked laws. General logic in contracts must express
 quantification, existence, and arbitrary mathematical functions and predicates.
 Neither candidate below is required merely to provide those capabilities.
+The selected [general mathematical `let` form](../spec/proofs/mathematical_bindings.md#named-mathematical-definitions)
+already names arbitrary terms, including predicates. This proposal concerns
+additional predicate-specific syntax, not the existence of named mathematics.
 
 The candidates are alternative ways to give a reusable logical expression a name:
 
@@ -29,7 +32,8 @@ assumptions sufficient to prove its contract.
 ## What must earn inclusion
 
 Compare a substantial proof using ordinary contracts and a named trait bundle
-against the same proof with each candidate. Demonstrate a concrete reduction in
+and general mathematical definitions against the same proof with each candidate.
+Demonstrate a concrete reduction in
 repetition, substitution mistakes, or evidence bookkeeping. Include higher-order
 relations and nonconstructive existence, not only a short alias for an inequality.
 Measure the added declaration, elaboration, checking, and diagnostic machinery.
@@ -48,9 +52,10 @@ beat ordinary named trait/conformance bundles on a concrete proof.
 General predicate abstraction, logical binders, proof-only noncomputable values,
 and explicitly tracked selectable axioms remain required independently of this
 candidate. The [foundation](../spec/proofs/foundation.md) now selects the
-mathematical core; its exact extended profile and general source forms remain
-separately scoped work. Neither candidate establishes mathematical completeness by
-itself, and removing either does not establish that the current compiler already
+mathematical core, and the mathematical binding contract selects its source model.
+Their proof and implementation obligations remain execution work. Neither
+candidate establishes mathematical completeness by itself, and removing either
+does not establish that the current compiler already
 has a complete replacement.
 
 This is not an execution-board feature request. Revisit only when a worked proof

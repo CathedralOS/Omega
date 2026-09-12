@@ -737,9 +737,10 @@ An abstract `Self` has no structural field namespace. Contracts use declared
 accessors or mathematical parameters rather than guessing a concrete field.
 For example, an accessor-based counter interface can require a nonnegative
 returned count. A satisfier must prove the accessor's contract from its own
-representation. For an arbitrary nondecidable validity condition, the required
-general predicate-parameter syntax remains design work; do not substitute a
-Boolean decider silently.
+representation. An arbitrary nondecidable validity condition uses a
+[mathematical predicate parameter](../spec/proofs/mathematical_bindings.md), not
+an implicitly substituted Boolean decider. Checking that general route remains
+implementation work.
 
 A satisfying machine proves the inherited contract on every applicable result
 path. It may expose stronger facts to direct callers but cannot weaken the

@@ -641,13 +641,15 @@ Owners include
   [ordinary machine contracts and trait bundles](wiki/spec/proofs/contracts.md#machines-and-bundles).
   Owners: Psi syntax/resolution/typing, contract proof semantics, Terminal
   evidence/codec/replay, and core mathematical traits. Use `PROOF-KERNEL-CORE`,
-  not a second general logical representation. General source elaboration is
-  **OWNER-BLOCKED** on [mathematical binders](OWNER_QUESTIONS.md#mathematical-binders);
-  their general certificate integration follows the settled
+  not a second general logical representation. Implement the selected
+  [mathematical bindings](wiki/spec/proofs/mathematical_bindings.md): closed
+  parameterized top-level `let`, dependent function types, curried prefix
+  application, core-named universes/level binders and `boundary let` assumptions.
+  Their general certificate integration follows the settled
   [PCC checking/publication contract](wiki/spec/proofs/publication.md).
-  Existing specified contract/bundle migration can proceed independently;
-  do not substitute executable declaration enumeration or
-  an optional-returning decider for general mathematical quantification.
+  Preserve ordinary local bindings, complete machine calls and executable callback
+  selection. Do not introduce quantifier keywords or substitute declaration
+  enumeration or an optional-returning decider for general mathematical quantification.
 
   Replace the dedicated formula-declaration and hidden-witness call machinery
   with ordinary contracts and named witness/law bundles, preserving exact
@@ -669,10 +671,21 @@ Owners include
   1. Composition of two witness/law bundles preserves exact substitutions and
      distinct witnesses.
   2. A higher-order theorem quantifies over arbitrary mathematical predicates or
-     functions, not an enumeration of executable declarations.
+     functions, not an enumeration of executable declarations. Supply the
+     machine-shaped logical hypothesis from derived Π-term evidence, with fixed
+     subjects and discharged premises, not only a named proof declaration.
+     Reject that supply for reset-through-borrow and executable callback contracts.
+     Exercise `greater_than(limit)`, dependent result substitution, shadowing,
+     independent universe levels and stable inferred public level telescopes.
+     Partial mathematical applications are complete function terms; wrong expected
+     types and missing machine arguments reject without implicit runtime closures.
   3. Nonconstructive existence uses an explicit axiom and cannot supply an
      executable witness without checked realization. Cover a chosen `u32`, a
      choice-dependent branch, and an erased theorem that mentions that value.
+     Also prove squashed witness existence from another squashed witness and a
+     logical hypothesis, with no choice assumption. Establish constrained records
+     at construction, retain exact evidence dependencies, and keep relevant
+     dependent witness bundles distinct from strict predicate gating.
   4. Accepting and denying policies distinguish the same theorem, with exact
      transitive assumptions surviving import, erasure, serialization, and replay.
   5. A Cauchy/quotient proof uses the selected

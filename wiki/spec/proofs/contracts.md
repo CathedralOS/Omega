@@ -3,8 +3,9 @@
 Omega's proof system uses ordinary machines, contracts, data, traits, and named
 conformances. The [mathematical foundation](foundation.md) selects a dependent
 core with proof-relevant identity and strict logical proofs. This specifies the
-required model, not complete implementation support. Remaining source decisions
-are listed under [open joins](#open-joins).
+required model, not complete implementation support. The
+[mathematical binding contract](mathematical_bindings.md) supplies the selected
+source forms; [delivery obligations](#delivery-obligations) remain explicit.
 
 ## Machines and bundles
 
@@ -36,6 +37,14 @@ Contracts must support universal and existential claims, nesting, and
 quantification over arbitrary mathematical functions and predicates. Machine
 parameters provide symbolic subjects, but enumeration of executable declaration
 symbols cannot substitute for general mathematical quantification.
+
+Use [machine-shaped logical hypotheses](mathematical_bindings.md#logical-hypotheses-and-machine-use)
+for universal evidence and ordinary witness bundles plus squash for existence.
+No quantifier keywords are introduced. Mathematical parameters range over terms;
+closed top-level mathematical `let` definitions and prefix application construct
+those terms without making ordinary machine calls partial. Logical evidence
+cannot stand in for an operational implementation, even when it returns nothing
+and reaches no service.
 
 Proof-only values need not be executable. Constructive witnesses can be bundled;
 nonconstructive existence need not produce a runtime witness. Choice and other
@@ -326,20 +335,17 @@ certificate and its checked question remain authoritative.
 [Quotients](quotients.md) owns representative independence, selected theorem
 roles, constructor relations, executable observers, and published correspondence.
 
-## Open joins
+## Delivery obligations
 
 The [foundation](foundation.md) is the owner of the selected mathematical model,
 not the current Rust vocabulary or a collection of proof-assistant defaults.
-The remaining source decision is open; its proposals are not ratified.
-
-| Design gap | Decision owner |
-| --- | --- |
-| General logical binders, predicate abstraction/passing, universe annotations and mathematical-result source elaboration | [Mathematical binders](../../../OWNER_QUESTIONS.md#mathematical-binders) |
+The [mathematical source forms](mathematical_bindings.md) are selected. Binding,
+substitution, universe inference, checked logical evidence and witness/assumption
+integration remain implementation work, not an unresolved notation choice.
 
 Changing axioms within one calculus does not establish compatibility between
-different calculi. This question does not reopen the specified evaluation,
-erasure, assumption-tracking or verifier-obligation rules, and does not block
-implementation of the current bounded checking rules. It authorizes neither
+different calculi. These source forms preserve the specified evaluation,
+erasure, assumption-tracking and verifier-obligation rules. They authorize neither
 an arbitrary checker-plugin mechanism nor retired formula-naming syntax.
 
 Certificate byte layouts, a tactic-machine API, and the remaining

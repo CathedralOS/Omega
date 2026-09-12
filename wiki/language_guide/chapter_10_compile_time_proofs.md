@@ -13,7 +13,7 @@ Failure to prove a statement is not proof of its negation.
 
 This chapter teaches the intended model. The [foundation](../spec/proofs/foundation.md)
 selects dependent mathematics, proof-relevant identity and strict logical proofs;
-its [remaining source forms](../spec/proofs/contracts.md#open-joins) are explicit.
+its [mathematical source forms](../spec/proofs/mathematical_bindings.md) are selected.
 The current [source automation](../../omega-rust/psi/semantics/validation/README.md#source-proof-automation)
 implements a bounded fragment. Schematic examples below do not claim complete
 compiler support or supply omitted proofs.
@@ -254,8 +254,9 @@ where
         as CauchyEquivalence;
 ```
 
-The relation name here is mathematical schematic notation: general relation
-source forms remain undetermined. `CauchyEquivalence` names an explicitly
+The relation name here abbreviates a mathematical term definition under the
+[binding rules](../spec/proofs/mathematical_bindings.md); its full definition is
+not supplied by this sketch. `CauchyEquivalence` names an explicitly
 selected conformance, not an ambient search for similarly named laws. The
 conformance licenses formation; operations need their own selected congruence
 proofs. Different sequence generators can be related within the same family
@@ -329,8 +330,63 @@ does not establish it.
 The parameters of a theorem express an outer universal claim: its body is checked
 for arbitrary admitted arguments. General mathematics also needs nested universal
 and existential claims and quantification over arbitrary functions and predicates.
-Those source forms remain design work, not an implicit limit imposed by today's
-automation.
+Use machine-shaped logical hypotheses and witness bundles plus squash, not
+`forall` or `exists` keywords. A logical hypothesis can accept proof evidence
+derived from another theorem, not merely a named machine selection. It proves
+facts about bound subjects; it cannot perform a reset, move a resource or supply
+an executable callback. Empty reach and no result alone do not establish that split.
+
+### Mathematical functions without runtime closures
+
+Most systems code continues to use machines, traits and ordinary contracts.
+The following machinery serves general mathematical libraries; it is not another
+way to accidentally leave a systems call unfinished.
+
+```omega
+let greater_than(limit: i32, value: i32): core::Strict<0> =
+    value > limit;
+```
+
+This is a named mathematical definition, not a Boolean decider or a proof. Its
+parameter list elaborates to nested function types:
+
+```text
+expression           type of that expression
+greater_than         i32 -> i32 -> core::Strict<0>
+greater_than(10)      i32 -> core::Strict<0>
+greater_than(10,20)   core::Strict<0>
+```
+
+Each supplied argument consumes one arrow. The final expression denotes the
+proposition "20 > 10"; forming a proposition does not prove it. A partial
+application is already a complete function term, with no pending work, implicit
+runtime closure or obligation to supply the rest. It fits a predicate parameter,
+not a parameter expecting a fully applied proposition or an executable Boolean.
+Ordinary machine calls still reject missing arguments.
+
+`core::Type<u>` and `core::Strict<v>` expose the relevant and strict universe
+levels. The `0` is a level, not a predicate identifier. Routine levels may be
+inferred; explicit `u: core::Level` binders serve universe-polymorphic proofs.
+Checked published signatures retain the full levels and constraints. These core
+names are not new reserved keywords or per-binding erasure modifiers.
+
+Definitions are top-level and closed; an enclosing proof's `limit` is supplied
+as `greater_than(limit)`, not implicitly captured. Mathematical assumptions use
+`boundary let`, with explicit trust and no provider search. Neither a function's
+type nor its result's runtime layout promises an executable implementation.
+
+### Existence without extraction
+
+An ordinary record with `value: A` and a default-domain condition `P(value)` is
+a qualifying witness. Constructing it owes that condition; zero storage cannot
+invent the proof. Squashing that witness type establishes existence without
+permission to extract the value. Proofs may eliminate squash into a strict
+conclusion without choice. An admitted choice assumption yields a mathematical
+witness, not automatically executable bits. General relevant witness/evidence
+pairs remain available when the evidence itself contains information.
+
+The [binding specification](../spec/proofs/mathematical_bindings.md) owns exact
+types, scope, logical-hypothesis matching and implementation acceptance.
 
 For a decidable property, an ordinary measured machine can compute a Boolean.
 For example, a sequence-sortedness predicate recursively compares adjacent values.

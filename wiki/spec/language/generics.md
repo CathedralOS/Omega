@@ -385,6 +385,10 @@ type declaration surface is specified here.
 
 ## Static machine binder categories
 
+The table describes declaration-supply roles. Mathematical proof applications
+add the separately checked [logical-evidence supply](../proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use)
+for machine-shaped theorem hypotheses; it is not executable callback selection.
+
 | Category | Declaration contract | Permitted use |
 | --- | --- | --- |
 | Structural callable | `where machine Key(card: &Card) -> u64` | Static calls under that complete callable contract. |
@@ -485,10 +489,20 @@ A proof carrier's telescope is its complete ordered static-parameter list.
 Relations choose whether left/right representatives have independent packs or
 one shared pack; carrier parameters have no global relational role.
 [Quotients](../proofs/quotients.md) owns family matching, laws, and lifting.
-Machine-symbol binders do not replace the still-required general mathematical
-function/predicate [source binders](../../../OWNER_QUESTIONS.md#mathematical-binders).
+Executable machine-symbol binders do not replace general mathematical
+function/predicate [term binders](../proofs/mathematical_bindings.md).
 Those elaborate to the [selected foundation](../proofs/foundation.md), whose
 mathematical universes and conversion are not defined by machine-symbol lookup.
+
+`u: core::Level` adds the checked universe-level binder category to generic
+telescopes; it is not a runtime integer parameter. Mathematical function values
+can appear as ordinary parameters and appropriate generic value indices under
+their declared staging rules. Logical applications of machine-shaped hypotheses
+may receive checked term evidence under the
+[logical-use contract](../proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use).
+This does not widen executable callback selection or make ordinary machine
+calls partial. Checked interfaces retain logical-evidence versus executable
+declaration supply, full level telescopes and constraints.
 
 ## Publication and assumptions
 

@@ -47,6 +47,13 @@ machine. A path-qualified call uses a static namespace, not an implicit value
 receiver. Calls obey the exact [suspension/blocking acknowledgement and position
 rules](effects.md#call-site-acknowledgements).
 
+Machine invocations require their full ordinary argument list. Application of
+a [mathematical function term](../proofs/mathematical_bindings.md#named-mathematical-definitions)
+instead consumes a prefix of its nested dependent-function parameters; the
+result may be another function term. This grants no implicit machine-to-function
+conversion, runtime closure, pending execution or obligation to finish applying
+the term. Expected-type and executable-demand checks still apply.
+
 Assignment requires writable storage, compatible value type, and the applicable
 [invariant-window obligations](dependent_values.md#invariant-windows). It
 evaluates the right-hand side before invalidating and replacing destination

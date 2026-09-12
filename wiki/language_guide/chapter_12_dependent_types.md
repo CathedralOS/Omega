@@ -237,9 +237,9 @@ retain their static requirement. These rules neither prohibit eligible static
 evaluation in layout plans nor restrict general proof-side quantification.
 The [mathematical foundation](../spec/proofs/foundation.md) supports arbitrary
 mathematical functions/predicates and noncomputable values independently of
-runtime representation. General source binders and the exact extended profile
-remain [open joins](../spec/proofs/contracts.md#open-joins), not limits inferred
-from this systems fragment.
+runtime representation. The [mathematical binding model](../spec/proofs/mathematical_bindings.md)
+and W-based foundation are selected; their implementation remains required,
+not limited by this systems fragment.
 
 ## Relationship To Other Chapters
 

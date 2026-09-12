@@ -37,6 +37,7 @@ beside code; completed work belongs in Git, not current reference material.
 - Representation policies: [layout plans](spec/layouts/plans.md),
   [recasts](spec/layouts/recasts.md), and [codecs](spec/layouts/codecs.md).
 - Mathematical proofs: [foundation and checking judgments](spec/proofs/foundation.md),
+  [mathematical bindings and logical hypotheses](spec/proofs/mathematical_bindings.md),
   [W-based induction and indexed encoding](spec/proofs/inductive_profile.md),
   [contracts, bundles, normalization, and trust](spec/proofs/contracts.md)
   and [relations and quotients](spec/proofs/quotients.md).

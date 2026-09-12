@@ -317,9 +317,10 @@ machine-valued fields.
 An application in a proof contract instantiates a schema without itself
 demanding executable monomorphization. This supports universal law statements
 without reifying a runtime function. It still does not replace arbitrary
-mathematical function/predicate binders, whose general source forms remain
-[a source-design question](../../OWNER_QUESTIONS.md#mathematical-binders)
+mathematical function/predicate [term binders](../spec/proofs/mathematical_bindings.md)
 under the [selected foundation](../spec/proofs/foundation.md).
+Logical hypotheses may consume checked theorem evidence; executable callbacks
+still require declaration supply under their complete operational contracts.
 [Quotients](../spec/proofs/quotients.md) owns relation-family matching and laws.
 
 ## Where Clauses
