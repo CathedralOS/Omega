@@ -1,0 +1,14 @@
+pub boundary trait Readable {
+    machine read() -> u64;
+}
+pub boundary trait Queryable {}
+
+pub data Worker { reader: Readable; }
+
+machine Worker::read(&mut self) -> u64 reaches Readable + Queryable {
+    self.reader.read()
+}
+
+pub machine Worker::forward(&mut self) -> u64 invokes Readable; {
+    self.read()
+}

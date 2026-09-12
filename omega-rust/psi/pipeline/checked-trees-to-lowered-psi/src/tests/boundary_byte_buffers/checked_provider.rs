@@ -36,13 +36,17 @@ fn assert_forwarded_input(source: &str, ordinary_helper: bool) {
         "machine Record::run",
         r#"
         data Provider {}
-        machine Provider::read(out: &mut [u8]) satisfies Input::read {
+        machine Provider::read(out: &mut [u8]) satisfies Input::read reaches Input {
             Input::refill(&mut out);
         }
         machine Record::run"#,
     );
     if ordinary_helper {
         source = source.replace("Input::refill(&mut out);", "forward(&mut out);");
+        source = source.replace(
+            "satisfies Input::read reaches Input {",
+            "satisfies Input::read {",
+        );
         source.push_str(
             r#"
             machine forward(out: &mut [u8]) reaches Input {
@@ -217,7 +221,7 @@ fn checked_provider_empty_path_reborrow_rejects_retained_source_substitution() {
             machine refill(out: &mut [u8]) reaches Input;
         }
         data Provider {}
-        machine Provider::read(out: &mut [u8], other: &mut [u8]) satisfies Input::read {
+        machine Provider::read(out: &mut [u8], other: &mut [u8]) satisfies Input::read reaches Input {
             Input::refill(&mut out);
         }
         data Record { out: [u8; 3] in Utf8; other: [u8; 3] in Utf8; }

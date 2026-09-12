@@ -31,8 +31,8 @@ pub struct TerminalMachine {
     /// present.
     pub entry_claims: Vec<EntryClaim>,
     /// Strictly ordered normalized executable boundary-service ceiling. Public
-    /// machines retain their authored ceiling; private machines and executable
-    /// entries retain their exact checked inferred reach.
+    /// checked machines retain their derived published row; private machines
+    /// and executable entries retain their exact checked effective reach.
     pub published_service_ceiling: Vec<ServiceId>,
     /// Canonical machine-local identities for claims present at entry. These
     /// rows name content independently of any later output equality.

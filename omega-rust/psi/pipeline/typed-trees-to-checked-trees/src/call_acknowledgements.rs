@@ -2,7 +2,7 @@ use diagnostics::Diagnostic;
 use flow_effects::{CallOperational, OperationalPlan};
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::statement::{StatementNode, TransitionGuardNode};
+use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
 /// Validate the source acknowledgement set against the call envelope already
 /// normalized by `flow-effects`, and reject suspension in a nested expression
@@ -131,6 +131,55 @@ fn validate_statement(
                     call_ordinal,
                     diagnostics,
                 );
+            }
+            for target in [transition.target, transition.continuation] {
+                if !target.is_valid() {
+                    continue;
+                }
+                match program.statement_table.transition_target(target) {
+                    TransitionTargetNode::Named {
+                        path, arguments, ..
+                    } => {
+                        let target_name = program
+                            .statement_table
+                            .name_path_members(path.members)
+                            .iter()
+                            .map(|member| member.as_str())
+                            .collect::<Vec<_>>()
+                            .join("::");
+                        // Named transfers reserve a parent coordinate even
+                        // when internal control flow has no operational call.
+                        validate_call(
+                            &target_name,
+                            statement_index,
+                            true,
+                            operational_calls,
+                            call_ordinal,
+                            diagnostics,
+                        );
+                        for argument in program.statement_table.expression_handles(*arguments) {
+                            validate_expression(
+                                program,
+                                *argument,
+                                statement_index,
+                                false,
+                                operational_calls,
+                                call_ordinal,
+                                diagnostics,
+                            );
+                        }
+                    }
+                    TransitionTargetNode::Value(expression) => validate_expression(
+                        program,
+                        *expression,
+                        statement_index,
+                        true,
+                        operational_calls,
+                        call_ordinal,
+                        diagnostics,
+                    ),
+                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                }
             }
         }
     }

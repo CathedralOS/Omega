@@ -7,7 +7,7 @@ fn output_predicates_survive_read_only_boundary_arguments() {
             r#"
             domain [u8; 4]::Utf8 requires valid_utf8(self);
             boundary trait Console {{ machine write(text: &[u8]); }}
-            machine fill({receiver}, output: &mut [u8; 4])
+            machine fill({receiver}, output: &mut [u8; 4]) reaches Console
             ensures output in Utf8 {{
                 output = "okay";
                 console.write(output);
@@ -25,7 +25,7 @@ fn output_predicates_do_not_survive_writable_boundary_arguments() {
         domain [u8; 4]::Utf8 requires valid_utf8(self);
         boundary trait Device { machine read(output: &mut [u8]); }
         machine fill(device: &mut Device, output: &mut [u8; 4])
-        ensures output in Utf8 {
+        reaches Device ensures output in Utf8 {
             output = "okay";
             device.read(output);
         }
@@ -39,7 +39,7 @@ fn output_predicates_survive_read_only_boundary_expression_arguments() {
         domain [u8; 4]::Utf8 requires valid_utf8(self);
         boundary trait Console { machine write(text: &[u8]) -> u64; }
         machine fill(console: &mut Console, output: &mut [u8; 4])
-        ensures output in Utf8 {
+        reaches Console ensures output in Utf8 {
             output = "okay";
             let count: u64 = console.write(output);
         }
@@ -56,7 +56,7 @@ fn boundary_parameter_frames_require_exact_receiver_scope_and_signature() {
         r#"
         boundary trait Console { machine write(text: &[u8]); }
         boundary trait Device { machine write(text: &mut [u8]); }
-        machine fill(console: &mut Console, output: &mut [u8; 4]) {
+        machine fill(console: &mut Console, output: &mut [u8; 4]) reaches Console + Device {
             console.write(output);
             state other(console: &mut Device, output: &mut [u8; 4]) {
                 console.write(output);
@@ -139,7 +139,7 @@ fn boundary_parameter_methods_do_not_acquire_builtin_empty_frames() {
     let program = parse_typed_trees(
         r#"
         boundary trait Console { machine bytes() -> u64; }
-        machine run(console: &mut Console) { let count: u64 = console.bytes(); }
+        machine run(console: &mut Console) reaches Console { let count: u64 = console.bytes(); }
     "#,
     );
     let machine = program

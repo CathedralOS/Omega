@@ -15,7 +15,7 @@ data Adapter {}
 machine Adapter::issue(token: Token) -> Token satisfies TokenIssuer::issue { token }
 data Main { issuer: TokenIssuer; }
 machine consume(token: Token in Issued) -> Token { token as Token }
-machine Main::run(&self, token: Token) -> Token { let issued: Token = self.issuer.issue(token); consume(issued) }
+machine Main::run(&self, token: Token) -> Token reaches TokenIssuer { let issued: Token = self.issuer.issue(token); consume(issued) }
 "#;
     lower_typed_trees(parse_typed_trees(source))
         .expect("issuance belongs to the admitted boundary, not the adapter body");
@@ -68,7 +68,7 @@ data Main {
     control: MaskControl;
 }
 
-machine Main::run(&mut self) -> Guard in Active {
+machine Main::run(&mut self) -> Guard in Active reaches MaskControl {
     self.control.save()
 }
 "#;
@@ -140,7 +140,7 @@ data Main {
     issuer: TokenIssuer;
 }
 
-machine Main::run(&mut self) {
+machine Main::run(&mut self) reaches TokenIssuer {
     let token: Token = self.issuer.issue(7);
 }
 "#;
@@ -225,7 +225,7 @@ machine Main::consume(&self, token: Token in Carry::MovableAddress) -> Token {
     token
 }
 
-machine Main::run(&mut self) -> Token {
+machine Main::run(&mut self) -> Token reaches TokenIssuer {
     let token: Token = self.issuer.issue(7);
     let returned: Token = self.consume(token);
     transition { _ -> returned }

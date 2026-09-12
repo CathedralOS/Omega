@@ -35,6 +35,8 @@ pub fn project_checked_callable_policy(
         .ok_or_else(|| rejected("pre-selected-dispatch source has no exact call resolver"))?;
     let mut projected_build = false;
     let mut callables = Vec::new();
+    let operational = validation::infer_operational_may(compilation);
+    let service_reaches = validation::infer_service_reaches(compilation, &operational);
     let inferred_crash_causes = typed_trees_to_checked_trees::infer_checked_crash_causes(
         &compilation.typed,
         &compilation.facts,
@@ -77,6 +79,11 @@ pub fn project_checked_callable_policy(
             }
         };
         let identity = policy_callable_identity(compilation, machine.symbol)?;
+        crate::capture::source::service_reach::validate_machine_service_reach(
+            compilation,
+            machine,
+            &service_reaches,
+        )?;
         let projected = surface::project(compilation, machine, review_role, identity, true)?;
         let capability_flows = behavior::capability_flows(compilation, projected.realized)?;
         let reachable_capability_flows =

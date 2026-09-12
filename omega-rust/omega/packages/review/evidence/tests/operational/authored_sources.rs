@@ -247,6 +247,118 @@ where machine Work()
 }
 
 #[test]
+fn propagated_public_service_reach_changes_review_without_inventing_authored_locations() {
+    let mut public_rows = Vec::new();
+    for service in ["Host", "Other"] {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            &format!(
+                "pub boundary trait Host {{ machine ping() reaches Host; }}\n\
+                 pub boundary trait Other {{ machine ping() reaches Other; }}\n\
+                 machine helper() reaches {service} {{ }}\n\
+                 pub machine forward() {{ helper(); }}\n",
+            ),
+        );
+        package.write(
+            "build.omg",
+            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        );
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x86_64"),
+            package_inputs(&package.0),
+        )
+        .expect("public wrapper should propagate its private helper's reach");
+        let review = project_checked_package_review(&checked)
+            .expect("propagated public summary should retain source custody");
+        let forward = review
+            .callables()
+            .iter()
+            .find(|callable| callable.identity().path() == "forward")
+            .expect("public wrapper review");
+        let published = forward
+            .declared_service_reach()
+            .expect("public wrapper must publish a service summary");
+        assert_eq!(published.len(), 1);
+        assert_eq!(published[0].path(), service);
+        assert_eq!(
+            published[0].owner(),
+            PackageReviewNominalOwner::Package(package_identity()),
+        );
+        let rows = review.canonical_rows().expect("canonical wrapper review");
+        let forward_row = rows
+            .iter()
+            .find(|row| {
+                row.kind() == PackageReviewCanonicalRowKind::Callable
+                    && row
+                        .key_bytes()
+                        .windows(7)
+                        .any(|window| window == b"forward")
+            })
+            .expect("canonical public wrapper row");
+        assert!(
+            forward_row
+                .source()
+                .authored_locations()
+                .expect("wrapper authored locations")
+                .iter()
+                .all(|location| location.role() != PackageReviewSourceLocationRole::ServiceReach),
+            "propagated services have no authored reaches occurrence on the wrapper",
+        );
+        public_rows.push(forward_row.canonical_bytes().to_vec());
+    }
+    assert_ne!(public_rows[0], public_rows[1]);
+}
+
+#[test]
+fn propagated_public_service_reach_rejects_tampered_published_row() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        "pub boundary trait Host { machine ping() reaches Host; }\n\
+         machine helper() reaches Host { }\n\
+         pub machine forward() { helper(); }\n",
+    );
+    package.write(
+        "build.omg",
+        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+    );
+    let mut checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x86_64"),
+        package_inputs(&package.0),
+    )
+    .expect("public wrapper tampering fixture should check");
+    let forward = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "forward")
+        .expect("public wrapper")
+        .symbol;
+    let root_machines = checked.facts.service_reaches.root_machines;
+    let reach = checked
+        .facts
+        .service_reaches
+        .machines
+        .span_mut_or_empty(root_machines)
+        .iter_mut()
+        .find(|fact| fact.machine == forward)
+        .expect("public wrapper checked summary");
+    reach.published_ceiling = language_semantics::ServiceReachRowTable::EMPTY_ROW;
+    reach.interface = language_semantics::ServiceReachInterface::PublishedCeiling(
+        language_semantics::ServiceReachRowTable::EMPTY_ROW,
+    );
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("consistent empty publication must not hide the helper's service reach");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("exact checked service-reach fact")
+    }));
+}
+
+#[test]
 fn service_reach_review_rejects_stale_target_source_and_duplicate_custody() {
     let package = TempPackage::new();
     package.write(

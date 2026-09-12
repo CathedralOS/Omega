@@ -20,7 +20,7 @@ data Main {
     after: u64;
     status: i32;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches LargeAggregateImport {
     self.before = 7;
     self.input = Triple { first: 1, second: 2, third: 3 };
     self.after = 9;

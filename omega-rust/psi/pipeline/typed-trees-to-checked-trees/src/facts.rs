@@ -877,9 +877,9 @@ fn selected_data_conformance<'program>(
 /// STR4 checked plans (wiki/spec/language/machines.md): assemble each machine's
 /// normalized contract plan from the published halves already carried on
 /// the records (supply mode, service/operational ceilings, published termination),
-/// with a deterministic fingerprint over them. Only DECLARED material
-/// enters -- acceptance 8 (a stronger prover cannot change an exported
-/// contract ID) holds by construction.
+/// with a deterministic fingerprint over them. Checked service rows include
+/// conservative call propagation, without proof-based pruning; a stronger
+/// prover therefore cannot change an exported contract ID (acceptance 8).
 fn build_contract_plans(
     program: &TypedTrees,
     service_reaches: &checked_trees::ServiceReachFacts,
@@ -2512,9 +2512,9 @@ fn build_qualification_facts(program: &TypedTrees) -> checked_trees::Qualificati
 /// Build the boundary-symbol service fixed point without consulting the
 /// legacy global effect catalog. A direct boundary-signature call contributes
 /// its containing service plus the signature's explicitly reached services.
-/// Checked local callees contribute honest inferred bodies; requirements,
-/// boundaries, external realizations, and authored checked ceilings contribute
-/// their published row.
+/// Checked callees contribute authored services plus transitive call reach;
+/// requirements, boundaries, and external realizations retain fixed published
+/// ceilings independently of a selected implementation.
 fn build_service_reach_facts(
     program: &TypedTrees,
     inferred: flow_effects::ServiceReachInferencePlan,

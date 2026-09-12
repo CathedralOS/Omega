@@ -7,15 +7,15 @@ use typed_trees::{expression::ExpressionNode, statement::StatementNode};
 const SOURCE: &str = r#"
     boundary trait Host { machine send(value: u8); }
     machine identity(value: u8) -> u8 { value }
-    machine sink(value: u8) { Host::send(value); }
+    machine sink(value: u8) reaches Host { Host::send(value); }
     machine free_tail() { sink(identity(3u8)) }
     data Empty {}
     data Root {}
-    machine Root::boundary_tail() {
+    machine Root::boundary_tail() reaches Host {
         let first: u8 = 4u8;
         Host::send(identity(first))
     }
-    machine Root::cleanup_tail() {
+    machine Root::cleanup_tail() reaches Host {
         let empty: Empty = Empty {};
         Host::send(identity(5u8))
     }

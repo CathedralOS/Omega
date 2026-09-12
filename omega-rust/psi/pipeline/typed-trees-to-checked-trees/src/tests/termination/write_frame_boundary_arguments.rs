@@ -201,7 +201,7 @@ fn boundary_forwarded_reference_reaches_checked_trees() {
         machine shared(value: &u64) -> &u64 { value }
         machine other(value: &mut u32) -> &mut u32 { value }
         machine write(value: &write u64) { value = 1; }
-        machine Main::run(&mut self) {
+        machine Main::run(&mut self) reaches Device {
             let output: &mut u64 = &mut self.value;
             TARGET(ARGUMENT);
         }

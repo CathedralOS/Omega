@@ -24,7 +24,7 @@ data Main {
     pair: Pair;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches HfaResultImport {
     self.seed = 7;
     self.pair = self.foreign.call(self.seed);
 }

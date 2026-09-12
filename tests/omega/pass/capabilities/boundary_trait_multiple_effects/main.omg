@@ -19,7 +19,7 @@ data Client {
     net: Net;
 }
 
-machine Client::run(&mut self) {
+machine Client::run(&mut self) reaches Net + Allocator {
     self.net.write_line("payload");
 }
 

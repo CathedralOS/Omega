@@ -15,7 +15,7 @@ boundary trait Folder {
 data Librarian {
 }
 
-machine Librarian::archive(&self, folder: Folder) {
+machine Librarian::archive(&self, folder: Folder) reaches Folder {
     folder.write_line("archive entry");
 }
 

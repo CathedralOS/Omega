@@ -262,7 +262,39 @@ fn collect_transition_target_expression_calls(
         return;
     }
     match program.statement_table.transition_target(target) {
-        typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
+        typed_trees::statement::TransitionTargetNode::Named {
+            path, arguments, ..
+        } => {
+            let target = crate::transitions::named_transition_call_symbol(
+                program,
+                machine.symbol,
+                path.symbol,
+            );
+            if target.is_valid() {
+                let members = program.statement_table.name_path_members(path.members);
+                let receiver = members.split_last().and_then(|(_, receiver)| {
+                    if receiver.is_empty() {
+                        return None;
+                    }
+                    origin_for_symbol(program, machine, state, path.head_symbol).or_else(|| {
+                        boundary_service_for_receiver_path(
+                            program,
+                            machine,
+                            state,
+                            path.head_symbol,
+                            receiver,
+                        )
+                        .map(InvocationTarget::Service)
+                    })
+                });
+                let arguments = program
+                    .statement_table
+                    .expression_handles(*arguments)
+                    .iter()
+                    .map(|argument| origin_for_expression(program, machine, state, *argument))
+                    .collect();
+                push_call(program, target, receiver, arguments, direct, calls);
+            }
             for argument in program.statement_table.expression_handles(*arguments) {
                 collect_expression_calls(program, machine, state, *argument, direct, calls);
             }

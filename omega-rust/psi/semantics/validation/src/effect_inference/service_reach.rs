@@ -11,13 +11,16 @@ use flow_effects::{
 #[derive(Debug, Clone)]
 struct MachineReachWork {
     symbol: SymbolHandle,
+    declared: Vec<ServiceReachId>,
     published: Vec<ServiceReachId>,
+    checked_body: bool,
     uses_published: bool,
     installation_bound: bool,
     direct: Vec<ServiceReachId>,
     transitive: Vec<ServiceReachId>,
     concrete_direct: Vec<ServiceReachId>,
     concrete_transitive: Vec<ServiceReachId>,
+    concrete_effective: Vec<ServiceReachId>,
     unresolved_installation_reaches: Vec<InstallationReachRequirement>,
     calls: Vec<(SymbolHandle, DirectServiceReach)>,
 }
@@ -25,6 +28,7 @@ struct MachineReachWork {
 #[derive(Debug, Clone, Default)]
 struct DirectServiceReach {
     services: Vec<ServiceReachId>,
+    boundary_services: Vec<ServiceReachId>,
     concrete_services: Vec<ServiceReachId>,
     unresolved_installation_reaches: Vec<InstallationReachRequirement>,
 }
@@ -59,7 +63,9 @@ pub fn infer_service_reaches(
         }
         work.push(MachineReachWork {
             symbol: machine.symbol,
+            declared: published.clone(),
             published: published.clone(),
+            checked_body: machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody,
             uses_published: machine.supply_mode
                 != language_semantics::MachineSupplyMode::CheckedBody
                 || machine.is_public
@@ -76,6 +82,11 @@ pub fn infer_service_reaches(
             transitive: direct,
             concrete_direct: concrete_direct.clone(),
             concrete_transitive: concrete_direct,
+            concrete_effective: if machine.service_reach_is_installation_bound {
+                Vec::new()
+            } else {
+                published
+            },
             unresolved_installation_reaches: machine
                 .service_reach_is_installation_bound
                 .then_some(InstallationReachRequirement {
@@ -107,6 +118,8 @@ pub fn infer_service_reaches(
                     machine.transitive.clone(),
                     machine.concrete_transitive.clone(),
                     machine.unresolved_installation_reaches.clone(),
+                    machine.published.clone(),
+                    machine.concrete_effective.clone(),
                 )
             })
             .collect::<Vec<_>>();
@@ -132,11 +145,32 @@ pub fn infer_service_reaches(
             work[machine_index].transitive = transitive;
             work[machine_index].concrete_transitive = concrete_transitive;
             work[machine_index].unresolved_installation_reaches = unresolved;
+            let machine = &mut work[machine_index];
+            // A checked body's declaration contributes to its row; it does not
+            // cap calls through private helpers or exported wrappers. Pinned
+            // requirements keep their declared ceiling independently of bodies.
+            if machine.checked_body {
+                machine.published = machine.declared.clone();
+                extend_service_set(&mut machine.published, &machine.transitive);
+            }
+            machine.concrete_effective = if machine.installation_bound {
+                machine.concrete_transitive.clone()
+            } else {
+                machine.declared.clone()
+            };
+            if machine.checked_body {
+                extend_service_set(
+                    &mut machine.concrete_effective,
+                    &machine.concrete_transitive,
+                );
+            }
         }
         if work.iter().zip(&previous).all(|(machine, previous)| {
             machine.transitive == previous.0
                 && machine.concrete_transitive == previous.1
                 && machine.unresolved_installation_reaches == previous.2
+                && machine.published == previous.3
+                && machine.concrete_effective == previous.4
         }) {
             break;
         }
@@ -269,11 +303,28 @@ fn effective_services(machine: &MachineReachWork) -> &[ServiceReachId] {
 }
 
 fn concrete_effective_services(machine: &MachineReachWork) -> &[ServiceReachId] {
-    if machine.uses_published && !machine.installation_bound {
-        &machine.published
-    } else {
-        &machine.concrete_transitive
+    &machine.concrete_effective
+}
+
+pub(crate) fn required_boundary_services(
+    program: &TypedTrees,
+    operational: &OperationalPlan,
+    machine: SymbolHandle,
+) -> Vec<ServiceReachId> {
+    let mut required = Vec::new();
+    if let Some(summary) = operational
+        .machines()
+        .iter()
+        .find(|summary| summary.symbol == machine)
+    {
+        for state in operational.states.span_or_empty(summary.states) {
+            for call in operational.calls.span_or_empty(state.calls) {
+                let reach = direct_service_reach_for_call(program, call.target_state_symbol);
+                extend_service_set(&mut required, &reach.boundary_services);
+            }
+        }
     }
+    required
 }
 
 fn direct_service_reach_for_call(program: &TypedTrees, target: SymbolHandle) -> DirectServiceReach {
@@ -304,6 +355,7 @@ fn direct_service_reach_for_call(program: &TypedTrees, target: SymbolHandle) -> 
             reach.services.sort_by_key(|service| service.0);
             reach.services.dedup();
             reach.concrete_services = reach.services.clone();
+            reach.boundary_services = reach.services.clone();
         }
         return reach;
     }
@@ -367,8 +419,29 @@ fn direct_service_reach_for_call(program: &TypedTrees, target: SymbolHandle) -> 
             record_installation_reach(signature, &mut reach);
             extend_invoked_binding_services(program, signature, &mut reach.services);
             extend_invoked_binding_services(program, signature, &mut reach.concrete_services);
+            if trait_definition.is_boundary {
+                reach.boundary_services = reach.services.clone();
+            }
             return reach;
         }
+    }
+    if let Some(machine) = program.machines().iter().find(|machine| {
+        machine.supply_mode.is_boundary_declaration()
+            && program
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.symbol == target)
+    }) {
+        extend_service_set(
+            &mut reach.services,
+            program
+                .service_reach_rows
+                .services(machine.service_reach_row),
+        );
+        if !machine.service_reach_is_installation_bound {
+            reach.concrete_services = reach.services.clone();
+        }
+        reach.boundary_services = reach.services.clone();
     }
     reach
 }

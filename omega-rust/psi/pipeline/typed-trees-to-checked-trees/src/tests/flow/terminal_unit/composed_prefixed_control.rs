@@ -8,7 +8,7 @@ fn composes_scalar_prefix_before_boundary_call_conditional() {
         r#"
         boundary trait Host { machine exit(code: i32); }
         data Root {}
-        machine Root::enter(flag: bool) {
+        machine Root::enter(flag: bool) reaches Host {
             transition { _ -> dispatch(flag) }
             state dispatch(flag: bool) {
                 transition flag { true -> yes() _ -> no() }
@@ -53,7 +53,7 @@ fn composes_two_scalar_prefixes_without_a_depth_specific_route() {
         r#"
         boundary trait Host { machine exit(code: i32); }
         data Root {}
-        machine Root::enter(flag: bool) {
+        machine Root::enter(flag: bool) reaches Host {
             transition { _ -> relay(flag) }
             state relay(flag: bool) { transition { _ -> dispatch(flag) } }
             state dispatch(flag: bool) {

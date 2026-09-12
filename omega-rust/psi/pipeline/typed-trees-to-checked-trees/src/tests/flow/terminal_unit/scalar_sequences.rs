@@ -9,7 +9,7 @@ const SOURCE: &str = r#"
     }
     machine identity(value: u8) -> u8 { value }
     data Root {}
-    machine Root::run() {
+    machine Root::run() reaches Host {
         let first: u8 = 3u8;
         let second: u8 = identity(identity(first));
         Host::send(second);

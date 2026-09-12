@@ -473,6 +473,100 @@ fn nominal_machine_parameter_accepts_one_explicit_exact_satisfaction_row() {
 }
 
 #[test]
+fn public_installation_wrapper_keeps_upper_bound_separate_from_concrete_reach() {
+    for authored_reach in ["", "reaches PortIo"] {
+        let source = format!(
+            r#"
+            pub boundary trait MachineControl {{}}
+            pub boundary trait PortIo {{}}
+            pub boundary trait InterruptCompletion {{
+                machine complete() -> u64
+                reaches <= MachineControl + PortIo;
+            }}
+            machine invoke<machine Completion>() -> u64
+            where machine Completion satisfies InterruptCompletion::complete;
+            {{ Completion() }}
+            pub machine outer<machine Completion>() -> u64
+            where machine Completion satisfies InterruptCompletion::complete;
+            {authored_reach}
+            {{ invoke<Completion>() }}
+            "#,
+        );
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize public installation wrapper");
+        let syntax = parse_syntax_trees(&tokens).expect("parse public installation wrapper");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve public installation wrapper");
+        let typed =
+            lower_symbol_resolved_trees(&resolved).expect("type public installation wrapper");
+        let checked = lower_typed_trees(typed).expect("check public installation wrapper");
+        let wrapper = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "outer")
+            .expect("public wrapper");
+        let requirement = checked
+            .traits()
+            .iter()
+            .find(|definition| definition.name.as_str() == "InterruptCompletion")
+            .and_then(|definition| checked.trait_machine_signatures(definition).first())
+            .expect("exact installation requirement");
+        let reaches = &checked.facts.service_reaches;
+        let summary = reaches
+            .for_machine(wrapper.symbol)
+            .expect("public reach summary");
+        assert_eq!(
+            summary.interface,
+            language_semantics::ServiceReachInterface::PublishedCeiling(summary.published_ceiling),
+        );
+        assert_eq!(
+            summary.unresolved_installation_reaches,
+            [flow_effects::InstallationReachRequirement {
+                requirement: requirement.symbol,
+                upper_bound: requirement.service_reach_row,
+            }],
+        );
+        let names = |row| {
+            reaches
+                .rows
+                .services(row)
+                .iter()
+                .map(|service| {
+                    reaches
+                        .services
+                        .definition(*service)
+                        .expect("canonical service")
+                        .name
+                        .as_str()
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(names(summary.effective), ["MachineControl", "PortIo"]);
+        assert_eq!(
+            names(summary.published_ceiling),
+            ["MachineControl", "PortIo"]
+        );
+        assert!(names(summary.concrete_transitive).is_empty());
+        let expected_concrete = if authored_reach.is_empty() {
+            vec![]
+        } else {
+            vec!["PortIo"]
+        };
+        assert_eq!(names(summary.concrete_effective), expected_concrete);
+        let envelope = checked
+            .facts
+            .contract_plans
+            .realized_envelope(wrapper.symbol)
+            .expect("public realized envelope");
+        assert_eq!(envelope.concrete_service_reach, expected_concrete);
+        assert_eq!(
+            envelope.unresolved_installation_reaches,
+            summary.unresolved_installation_reaches
+        );
+    }
+}
+
+#[test]
 fn bounded_installation_reach_retains_exact_unresolved_requirement_through_checked_facts() {
     let source = r#"
         boundary trait MachineControl {}

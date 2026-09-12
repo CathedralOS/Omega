@@ -1,3 +1,4 @@
+// Ordinary wrappers inherit the helper's declared assembly service.
 use omega::language::core::assembly;
 
 data Main {}

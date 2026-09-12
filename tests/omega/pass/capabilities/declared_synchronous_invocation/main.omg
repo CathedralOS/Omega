@@ -14,7 +14,7 @@ boundary trait EventSource {
     invokes handler;
 }
 
-machine forward(handler: &mut Handler) {
+machine forward(handler: &mut Handler) reaches Handler {
     handler.handle();
 }
 

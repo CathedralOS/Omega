@@ -71,7 +71,7 @@ fn boundary_call_results_keep_their_declared_formats() {
     for (operand, result) in [("f64", "f32"), ("f32", "f64")] {
         let declaration = format!("boundary trait Source {{ machine value() -> {operand}; }}");
         let source = format!(
-            "{declaration} machine run() -> {result} {{ Source::value() + Source::value() }}"
+            "{declaration} machine run() -> {result} reaches Source {{ Source::value() + Source::value() }}"
         );
         let diagnostics = check(&source)
             .err()
@@ -83,7 +83,7 @@ fn boundary_call_results_keep_their_declared_formats() {
             "{diagnostics:#?}"
         );
         check(&format!(
-            "{declaration} machine run() -> {operand} {{ Source::value() + Source::value() }}"
+            "{declaration} machine run() -> {operand} reaches Source {{ Source::value() + Source::value() }}"
         ))
         .expect("matching boundary result");
     }

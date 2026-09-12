@@ -12,7 +12,7 @@ boundary trait AggregateImport {
 machine aggregate_import(tag: u64, pair: Pair) -> i64 satisfies AggregateImport::call via Binding::DllImport("libSystem.B.dylib", "omega_small_aggregate_probe");
 
 data Main { foreign: AggregateImport; pair: Pair; result: i64; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches AggregateImport {
     self.pair = Pair { first: 1, second: 2 };
     self.result = self.foreign.call(7, self.pair);
 }

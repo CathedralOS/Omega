@@ -17,7 +17,7 @@ data Main {
     seed: u64;
     result: Triple;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches LargeAggregateResultImport {
     self.seed = 7;
     self.result = self.foreign.receive(self.seed);
 }

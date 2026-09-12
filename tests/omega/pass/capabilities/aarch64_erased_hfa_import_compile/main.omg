@@ -24,7 +24,7 @@ data Main {
     result: i64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches HfaImport {
     self.pair = Pair { first: 1.0, second: 2.0 };
     self.result = self.foreign.call(self.pair);
 }

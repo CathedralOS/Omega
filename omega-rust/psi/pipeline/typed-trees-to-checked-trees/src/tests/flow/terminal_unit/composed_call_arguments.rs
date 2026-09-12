@@ -42,7 +42,7 @@ fn checked_operands(linear: bool, nested: bool) -> checked_trees::CheckedTrees {
             "{helper}
              boundary trait Host {{ machine send(value: u8, flag: bool, last: u8); }}
              data Root {{}}
-             machine Root::enter({parameters}) {{
+             machine Root::enter({parameters}) reaches Host {{
                  {control}
                  state yes() {{ Host::send(outer(inner(3u8)), boolean(true) || boolean(false), 7u8); }}
                  state no() {{ Host::send(outer(inner(4u8)), boolean(false) && boolean(true), 8u8); }}

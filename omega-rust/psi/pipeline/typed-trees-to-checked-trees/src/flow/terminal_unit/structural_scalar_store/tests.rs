@@ -178,6 +178,7 @@ fn structural_entry_field_write_retains_its_ordered_unit_plan() {
         boundary trait Sink { machine record(value: bool); }
         machine trigger() -> bool crashes Trap { crash Trap; }
         machine Helper::forward(record: &mut Flag)
+        reaches Sink
         requires record.enabled
         crashes Trap record.enabled
         { record.enabled = false; Sink::record(trigger()); }
