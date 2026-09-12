@@ -347,11 +347,59 @@ fn ordered_scalar_completion_proves_normal_result_guarantees() {
     }
 }
 
+fn boolean_guarantee_source(body: &str, input: bool) -> String {
+    normal_guarantee_source(body)
+        .replace("i32", "bool")
+        .replace("requires value >= 1", "requires value == value")
+        .replace("Scalar::measure(70)", &format!("Scalar::measure({input})"))
+}
+
+#[test]
+fn ordered_boolean_completion_preserves_normal_result_guarantees() {
+    for body in [
+        "Host::finish(false); value",
+        "Host::finish(false); identity(value)",
+        "let observed: bool = Host::measure(false); value",
+    ] {
+        for input in [false, true] {
+            let source = boolean_guarantee_source(body, input);
+            let artifact = artifact(&checked_from_source(&source));
+            let module = decode_module(&artifact.0).unwrap();
+            assert!(
+                module
+                    .machines
+                    .iter()
+                    .any(|machine| !machine.contract.ensures.is_empty())
+            );
+            let (status, observed) = execute(&artifact);
+            assert_eq!(
+                status,
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+            );
+            assert_eq!(
+                observed.arguments,
+                [
+                    vec![TerminalScalarValue::Boolean(false)],
+                    vec![TerminalScalarValue::Boolean(input)]
+                ]
+            );
+        }
+    }
+}
+
 #[test]
 fn ordered_scalar_guarantees_require_return_evidence_and_exact_return_value() {
-    let artifact = artifact(&checked_from_source(&normal_guarantee_source(
+    assert_exact_normal_return_evidence(&normal_guarantee_source(
         "let observed: i32 = Host::measure(11); value",
-    )));
+    ));
+    assert_exact_normal_return_evidence(&boolean_guarantee_source(
+        "let observed: bool = Host::measure(false); value",
+        true,
+    ));
+}
+
+fn assert_exact_normal_return_evidence(source: &str) {
+    let artifact = artifact(&checked_from_source(source));
     let module = decode_module(&artifact.0).unwrap();
     let proof = decode_proof_bundle(&artifact.1).unwrap();
     let wrapper = module
@@ -403,6 +451,79 @@ fn ordered_scalar_guarantees_require_return_evidence_and_exact_return_value() {
     assert!(
         terminal_verifier::verify_module(&changed, &proof, &AdmissionProfile::default()).is_err()
     );
+}
+
+#[test]
+fn ordered_boolean_guarantees_keep_mixed_scalar_slots_and_source_identity() {
+    use checked_trees::{CheckedBooleanExpression as Boolean, ClosedScalarContractValue as Clause};
+    for input in [false, true] {
+        let source = boolean_guarantee_source("Host::finish(false); value", input)
+            .replace(
+                "Scalar::measure(value: bool)",
+                "Scalar::measure(marker: u16, value: bool, spare: bool)",
+            )
+            .replace(
+                &format!("Scalar::measure({input})"),
+                &format!("Scalar::measure(9u16, {input}, {})", !input),
+            );
+        let original = checked_from_source(&source);
+        let published = artifact(&original);
+        let (status, observed) = execute(&published);
+        assert_eq!(
+            status,
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+        );
+        assert_eq!(
+            observed.arguments.last(),
+            Some(&vec![TerminalScalarValue::Boolean(input)])
+        );
+        let target = original
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Scalar::measure")
+            .unwrap()
+            .symbol;
+        for mutation in 0..6 {
+            let mut changed = original.clone();
+            let contract = changed
+                .facts
+                .contract_plans
+                .machines
+                .iter_mut()
+                .find(|contract| contract.machine == target)
+                .unwrap();
+            let mut guarantees = contract.closed_scalar_values.ensures().to_vec();
+            match mutation {
+                0 => guarantees.clear(),
+                1 => guarantees.push(guarantees[0].clone()),
+                2 => guarantees[0] = Some(Clause::Boolean(true)),
+                3..=5 => {
+                    let Some(Clause::Predicate(Boolean::Equal { left, .. })) = &mut guarantees[0]
+                    else {
+                        panic!("Boolean equality")
+                    };
+                    assert_eq!(**left, Boolean::Parameter { position: 3 });
+                    **left = match mutation {
+                        3 => Boolean::Parameter { position: 2 },
+                        4 => Boolean::Local { position: 3 },
+                        5 => Boolean::Parameter { position: 0 },
+                        _ => unreachable!(),
+                    };
+                }
+                _ => unreachable!(),
+            }
+            contract.closed_scalar_values = checked_trees::ClosedScalarValueContractPlan::new(
+                contract.closed_scalar_values.requires().to_vec(),
+                guarantees,
+                contract.closed_scalar_values.has_crash_clauses(),
+                contract.closed_scalar_values.has_outcome_specific_clauses(),
+            );
+            assert!(
+                checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+                "mutation {mutation}"
+            );
+        }
+    }
 }
 
 #[test]
