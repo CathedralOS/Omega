@@ -6,7 +6,7 @@ pub use request::OptimizationRollbackInputError;
 
 use optimization_core::OptimizationSelections;
 
-use crate::compiler::OptimizationRollbackReceipt;
+use crate::OptimizationRollbackReceipt;
 
 /// A release-tooling overlay that can only subtract exact rules selected by
 /// `build.omg`. It cannot add, alias, or reorder an optimization.

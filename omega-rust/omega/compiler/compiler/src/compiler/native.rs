@@ -1,11 +1,11 @@
 //! Native product preparation and realization after checked-Psi admission.
 
 mod admission;
+mod input_reuse;
 mod prepared;
 mod realization;
-mod targets;
-pub(super) use prepared::{NativeInputReuseKey, PreparedNativeCompilation};
-pub(super) use targets::compile_targets;
+pub(super) use input_reuse::NativeInputReuse;
+pub(super) use prepared::PreparedNativeCompilation;
 
 use crate::compiler::request::ValidatedTargetCompilation;
 use diagnostics::Diagnostic;
