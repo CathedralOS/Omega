@@ -61,13 +61,13 @@ fn direct_boundary_calls_transfer_both_owned_claims() {
 #[test]
 fn nominal_unit_callbacks_require_a_closed_executable_selection() {
     let source = r#"
-        pub boundary trait Sink { machine emit(); }
+        pub boundary trait Sink { machine emit(first: i32, second: i32); }
         pub data Root {}
-        pub machine Root::unselected<machine Emit>()
+        pub machine Root::unselected<machine Emit>(left: i32, right: i32)
         where machine Emit satisfies Sink::emit;
-        { Emit(); }
-        machine quiet() satisfies Sink::emit {}
-        pub machine Root::selected() { Root::unselected<quiet>(); }
+        { Emit(left, right); }
+        machine quiet(first: i32, second: i32) satisfies Sink::emit {}
+        pub machine Root::selected() { Root::unselected<quiet>(3, 7); }
     "#;
     let checked = checked_source(source);
     assert!(
