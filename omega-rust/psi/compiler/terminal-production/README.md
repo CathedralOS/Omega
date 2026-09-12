@@ -283,7 +283,8 @@ an earlier observation is not a delayed load from the final storage contents.
 The native `scalar_case_results::records` controls consume full-width integer
 getter results through further computation; `scalar_case_results::record_reads`
 also covers direct reads, padded layouts, distinct roots, and block arrivals.
-Nested record fields and mutable local receiver storage remain separate
+Nested owned record construction, direct nested-field reads, and mutable local
+receiver storage remain separate
 dependencies; this does not remove their realization fences.
 
 Closed integer field restrictions retain their exact carrier and inclusive
