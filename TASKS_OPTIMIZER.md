@@ -105,7 +105,13 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   tests for every remaining manifest, receipt, codec, and artifact-custody
   family. Acceptance: each representable field can be changed independently,
   the containing identity can be recomputed, and independent replay still
-  rejects the substitution.
+  rejects the substitution. Landed: installed function rows
+  (`image-emission/tests/artifacts.rs`,
+  `installation_function_row_rejects_every_one_field_substitution`) — machine,
+  attachment, unit stack, and scalar stack are independently representable and
+  rejected by replay; text offset, byte count, dropped rows, and the unit-body
+  flag are rejected at encoding as non-canonical. Remaining: internal unit
+  call rows, boundary settlements, dynamic tables, and private callback rows.
 
 ## Psi optimization and loops
 
